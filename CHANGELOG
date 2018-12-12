@@ -1,0 +1,335 @@
+########################
+version 1.1 (2016-01-24)
+########################
+
+  Initial release
+  
+########################  
+version 1.2 (2016-02-07)
+########################
+
+  + 'fdr' function bug was fixed
+  + addition of the 'randef' function
+  + addition of the converter 'atcg1234' function 
+  + names in the blup's or random effects added
+  + zero-boundary constraint added to Average Information algorithm
+     - it finds which var.comps are pushed to zero constantly
+     - recalculates variance components removing such components 
+     - fix those values and calculates the most likely value for 
+       the problematic var.comp  
+  + now 'mmer2' can handle missing data in explanatory variables as lmer
+  + now summary of 'mmer2' has names in the variance components
+  + A.mat, D.mat and E.mat supported for polyploids
+  + mmer can run GWAS for polyploid organisms
+     - the models implemented are the same than Rosyara (2016):
+     - "additive","1-dom-alt","1-dom-ref","2-dom-alt","2-dom-ref"
+  + eigen decomposition to accelarate genomic prediction based on Lee (2015)
+    has been added in the argument 'MTG2' of the AI, mmer and mmer2 algorithm
+  
+########################  
+version 1.3 (2016-03-09)
+########################
+
+  + The 'bag' function for bagging-GBLUP from Abdollahi-Arpanahi et al. (2015) 
+    has been added:
+        - The function takes a model fitted and creates a bag matrix with 
+          the top markers (most significant) and creates a design matrix 
+          to be used as fixed effects in the GBLUP model to increase 
+          prediction accuracy.
+  + 'bag' function has been equiped with stepwise selection to make sure that markers
+    selected by "clustering" or "maximum" p.values methods provide at least a minimum
+    increase in the prediction accuracy.
+  + The Fisher Information matrix can be returned from the mmer function when 
+    the AI is used (default) but the argument 'Fishers' needs to be set to TRUE.
+  + The bug for the AI algorithm when one var.comp and K and Z are diagonal has been 
+    fixed by changing to EMMA in this naive situation.
+  + AI algorithm has been debuged to return the most likely variance components when the 
+    likelihood takes values around the maximum in a zig zag pattern. Just takes the value 
+    where the ML was found. When the likelihod follows a scale and dropping pattern
+    the program will do the same. A warning message is emmitted.
+  + GWAS modality of 'mmer' now adds the names of the markers of each score to keep track
+    the value for each marker.
+
+########################  
+version 1.4 (2016-03-24)
+########################
+
+  + The AI algorithm will take 5 EM steps if after 10 iterations (AI) the likelihood drops 
+    suddenly, indicating that initial values were too far from real values causing a bad 
+    behavior of the likelihood. The EM steps aim to provide initials values for those 
+    problematic variance components. ONLY mmer2!!!!!!
+  + The AI likelihood behaving in a zig zag pattern is detected only after 10 iterations 
+    and we opted for returning the ML estimators.
+  + Minor bugs have been fixed (names in random terms). In addition, ordering random effects
+    based on their degrees of freedom has been implemented to provide more stability to the 
+    AI algorithm.
+    
+########################  
+version 1.5 (2016-05-03)
+########################
+
+  + Problem of "not-full rank X matrix" has been solved by reducing the X matrix column by
+    column until is solved.
+  + New alleles for deletions "-" has been added to the atcg1234 function 
+  + More examples have been added to the software, including maize Technow et al. (2015) data 
+    and rice Zhao et al. (2011)
+  + We have opted for using the "EM" algorithm as default for the mmer2 function given the fact 
+    that most users using the mmer2 function would not use covariance structures. The mmer keeps
+    using the AI algorithm as default method.
+  + Implementation of the initial version of TP.prep function designed to select the best 
+    training population for genomic selection.
+    
+########################  
+version 1.6 (2016-05-19)
+########################
+
+  + Addition of the Newton-Raphson algorithm to sommer.
+  + Vignettes with several examples available by typping vignette("sommer").
+  + Bug in Principal Components within the function TP.prep has been fixed.
+  + Example of GWAS for single cross hybrids has been added to the Technow data examples.
+  + Bug on map.plot function for genetic maps fixed when having a column "Locus" as factor
+  + Addition of winter bean data "FDdata" to exemplify the full diallel design calculation
+  + mmer2 function now is fully functional as mmer but using data frames. All parameters
+    can be manipulated as mmer except for the hdm function for half diallels.
+  + The program will subset W if some markers are not polymorphic
+  + beeper has beed added to the program to choose what sound to display when the program 
+    is don doing the calculations.
+  + Now genetic maps can be added for a better display of the manhattan plots.
+  + QQ plots are now displayed when doing GWAS for different models.
+  
+########################  
+version 1.7 (2016-05-23)
+########################
+
+  + Now the AI algorithm checks the situation when there are random effects with n < p 
+    (less observations than parameters to estimate) to take the right values in AI 
+    when extreme variance components values are found.
+  + Bug in eigen decomposition of AI has been fixed by providing smaller starting values for
+    the variance components
+  + In addition, when n < p is present the initial values of the variance components are 
+    reduced significantly to provide better starting values.
+  + New bug in the FDR function fixed. Now GWAS with or without map displais the FDR line.
+  
+########################  
+version 1.8 (2016-06-06)
+########################
+  
+  + Minor changes, mainly in plotting defaults, warning messages, etc.
+  + Addition of the phase.F1 function to create parental maps for F1(CP) crosses.
+  + Addition of F1geno data accompaning phase.F1 function.
+  + Argument MTG2 has been renamed as EIGEND.
+  + EIGEND feature added to EMMA algorithm.
+  + Bugs for errors when V(e) tends to zero have been fixed for all algorithms, warning
+    messages have changed.
+  + The function for finding biggest peaks "maxi.qtl" has been added.
+  + Multiple responses can be fit using parallelization with the 'n.cores' argument
+  
+########################  
+version 1.9 (2016-07-01)
+########################
+
+  + lmerHELP has been slightly modified. Now only uses lmer initial values when required
+    and only used for non-square random effects.
+  + AI has been modified to dimminish updates values when they scalate to quickly.
+  + zig zag detection in AI2 has been implemented, now even when boundary constraint is
+    applied there should not be any problem.
+  + Now 'bag' function respects if a map is available and does the bagging based on the map.
+  + 'manhattan' function added to the package.
+  + 'eigenGWAS' function included based on Chen et al. (2016) in Heredity.
+  + Bug in AI failing when only one variance compnent was present and was zero, making the 
+    program collapse when trying to recalculate has been fixed.
+  + Bugs in 'TP.prep' function fixed.
+  + Now 'EMMA' algorithm handles multiple random effects.
+  + The first multivariate algorithm "EMMAM" has been added to sommer (a single random effect).
+  + Vignettes have examples for multi-response model and parallel univariate models.
+  + 'bag' function has changed name to 'hits' to avoid confusion of selecting top 10 hits with
+    Bootstrap aggregation (bagging).
+    
+########################  
+version 2.0 (2016-08-01)
+########################
+  
+  + Multivariate algorithms "M-EMMA", "M-AI", "M-NR" have been implemented.
+  + Minor bugs fixed.
+  + Multivariate GWAS inplemented for any of the methods.
+  + The function "mmer2" can run multivariate and parallel models as well.
+  + Bug for parallel models fixed.
+  + Eigen decomposition of additive relationship matrix implemented for 
+    multivariate models in "NR" and "AI".
+    
+########################  
+version 2.1 (2016-09-01)
+########################
+
+  + Standard errors and Z ratios added to the summary of mixed models.
+  + Addition of functionality for residual structures, only AR1, CS, and ARMA
+    supported. The most flexible functions "MNR" and "NRR" are not able to deal 
+    with missing data so you should be careful because the program imputes with 
+    the mean.
+  + atcg1234 has a new functonality to get a presence/absence matrix for each 
+    allele at each marker.
+    
+########################  
+version 2.2 (2016-10-01)
+########################
+
+  + The LD.decay function has been added to sommer which takes a marker matrix 
+    and a map and calculates the LD decay.
+  + In addition, the LD.decay function has the "unlinked" and "gamma" arguments
+    that estimate the interchromosomal threshold for the gamma percentile to 
+    determine the real LD decay combined with the loess regression.
+  + Bugs in GWAS models for univariate and multivariate forms when missing data
+    exist have been fixed.
+    
+########################  
+version 2.3 (2016-11-01)
+########################
+
+  + The nearest neighbor function 'nna' has been added to adjust for neighbouring 
+    plots based on Lado et al. (2013).
+  + The dataset 'ExpDesigns' with several datasets to teach users how to analyze
+    certain experimental designs relevant to plant breeding has been added.
+  + A fatal bug in mmer2 and mmer of imputing data when missing data existed has 
+    been corrected
+    
+########################  
+version 2.4 (2016-12-01)
+########################
+
+  + The IMP argument has been added to the function to allow the user to decide if the 
+    Y matrix should be imputed or get rid of missing values when estimating the variance
+    components in the multivariate mixed models (only). The default is FALSE which means
+    that the missing values are removed.
+  + The gryphon dataset was included in the package to provide some help to the users 
+    that want tosee how pedigree data is used
+    
+########################
+version 2.5 (2017-01-01)
+########################
+   
+  + Bugs in fdr function fixed
+  + Q+K model univariate fixed
+  + Q+K model multivariate enabled
+  + EIGEND feature added to NR method
+  
+########################
+version 2.6 (2017-03-01)
+########################
+
+  + 'imp' argument added to the atcg1234() function to allow users to avoid imputation
+  + Covariance structures for the residual component are not longer supported.
+  
+########################
+version 2.7 (2017-05-01)
+########################
+
+  + at(.), diag(.), and(.), g(.) functions added to be used in mmer2.
+  + NR algorithm updated to deal with multiple variance components equal to zero
+  
+########################
+version 2.8 (2017-06-01)
+########################
+  
+  + addition of the pin function to the package
+  + issue with Year:g(id) type of arguments solved
+  + more efficient EM algorithm; covariance matrices are inverted only once
+  + EM fixed to don't calculate statistics at the end by direct inversion
+  + rcov argument with options 'units' and 'at(.):units' enabled
+  + AI MME-based added to sommer
+  + new argument DI=TRUE/FALSE for deciding between MME-based and
+    Direct inversion algorithms
+    
+########################
+version 2.9 (2017-07-01)
+########################
+
+  + good versions of blocker and fill.design implemented
+  + bug fixed in PEV for D-AI algorithm
+  + minor bug fixes from summary functions in parallel models
+  + going back to zero constraint where a model is fitted again witout the random
+    effect close to the boundary.
+    
+########################
+version 3.0 (2017-09-01)
+########################  
+
+  + D.mat function now provides 3 different calculation methods
+  + cleaner version of NR and AI algorithms
+  + fixed EIGEND feature 
+  + AI algorithms now takes EM steps for better initial var.comp values
+  + MME-base algorithms removed from mmer functions
+  + remove of several function 
+  + move of GWAS functionality to a different function called GWAS and GWAS2
+  + change of examples to show the flexibility
+  + implementation of us(trait) and diag(trait) functionalities in mmer2
+  
+########################
+version 3.1 (2017-11-01)
+######################## 
+
+  + pin function improved to don't work with scaled parameters
+  + dominance relationship matrices corrected
+  + general maintenance to several algorithms for minor bugs
+  + constrained parameters in multivariate models not included in the summary as
+    expected
+  + better documentation about multivariate models
+  
+########################
+version 3.2 (2018-01-01)
+######################## 
+
+  + variogram and plot.variogram functions enabled to visualize the residuals or the
+    spatial model fitted (in case of 2D spline models)
+    
+########################
+version 3.3 (2018-03-01)
+######################## 
+
+  + spl2D function to fit 2 dimensional spline model has been added and documented
+  + spatPlots function added to visualize the fitted values and residuals
+  + now the mmer and mmer2 function can use weights
+  
+########################
+version 3.4 (2018-06-01)
+######################## 
+
+  + and() function has been replaced by the overlay() function effectively.
+  + spl2D() can be used directly in the formula solver mmer2().
+
+########################
+version 3.5 (2018-07-01)
+######################## 
+
+  + h2.fun returns now corrected heritabilities for Oakey (2006) and Cullis (2006) formulas.
+  
+########################
+version 3.6 (2018-09-01)
+######################## 
+
+  + some documentation changes
+  + almost finished c++ version, just wait for it.
+
+########################
+version 3.7 (2018-09-01)
+######################## 
+
+  + C++ (Armadillo library) implementation done.
+  + now the vs() function is the main function to create variance models
+  + ds(),us(),cs(),at() for complex variance models added
+  + contraint matrices can eb easily indicated with unsm(), fixm(), uncm() 
+    in the Gtc argument of vs()
+  + fatal bug in the multivariate BLUPs has been fixed
+  + implementation of predict() function for lsmeans
+  + multivariate GWAS implemented again, fixed and ready to rock
+  + random regression implemented
+  + anova() function enabled for single model to get sum of squares and MS
+  + EIGEN functionality not available anymore, same with EMMA called from mmer
+  + mmer2 and GWAS2 have been deprecated, now mmer and GWAS functions can do all 
+  
+
+######################
+## PENDINGS
++ IMPLEMENT WALD TEST
++ implement overlay and leg in fixed effects
+
+ 

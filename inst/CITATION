@@ -1,0 +1,25 @@
+citHeader("To cite the sommer package in publications use:")
+
+citEntry(entry="Article",
+	title="Genome assisted prediction of quantitative traits using the R package sommer",
+	author=as.person("Covarrubias-Pazaran G"),
+	journal="PLoS ONE",
+	year=2016,
+	volume="11",
+	pages="1-15",
+textVersion=paste("Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative traits using the R package sommer.",
+"PLoS ONE 11(6):1-15.")
+
+)
+
+citEntry(entry="Article",
+	title="Software update: Moving the R package sommer to multivariate mixed models for genome-assisted prediction",
+	author=as.person("Covarrubias-Pazaran G"),
+	journal="biorxv",
+	year=2018,
+	volume="--",
+	pages="--",
+textVersion=paste("Covarrubias-Pazaran G. 2018. Software update: Moving the R package sommer to multivariate mixed models for genome-assisted prediction.",
+"doi: https://doi.org/10.1101/354639")
+)
+
