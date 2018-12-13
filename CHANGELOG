@@ -316,7 +316,7 @@ version 3.7 (2018-09-01)
   + C++ (Armadillo library) implementation done.
   + now the vs() function is the main function to create variance models
   + ds(),us(),cs(),at() for complex variance models added
-  + contraint matrices can eb easily indicated with unsm(), fixm(), uncm() 
+  + constraint matrices can be easily indicated with unsm(), fixm(), uncm() 
     in the Gtc argument of vs()
   + fatal bug in the multivariate BLUPs has been fixed
   + implementation of predict() function for lsmeans

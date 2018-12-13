@@ -502,6 +502,7 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
       strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
     })
     fixedtermss <- fixedtermss[which(fixedtermss != "-1")]
+    fixedtermss <- fixedtermss[which(fixedtermss != "1")]
     fixedtermss <- c("1",fixedtermss)
     response <- strsplit(as.character(fixed[2]), split = "[+]")[[1]]
     # responsef <- as.formula(paste(response,"~1"))
@@ -522,6 +523,7 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
       if(i == (length(fixedtermss)+1)){ # first the full model
         myf <- paste(response,"~",paste(fixedtermss,collapse = " + "))
         fixedi <- as.formula(myf)
+        usef <- fixedtermss
       }else if(i == 1){
         myf <- paste(response,"~1")
         fixedi <- as.formula(myf)
@@ -622,6 +624,7 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
     myanovaf <- rbind(myanova,myanova2)
     
     myanovaf$F.value <- myanovaf$Mean.Sq/vare
+    # print(c(myanovaf,dfe))
     myanovaf$`Pr(>F)` <- round(apply(myanovaf,1,function(x){1-pf(x[4],x[1],dfe)}),4)
     myanovaf[nrow(myanovaf),4:5] <- NA
     myanovaf$Models <- c(rev(models),"")
@@ -759,8 +762,8 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     packageStartupMessage(magenta("[]  Type 'vignette('sommer.start')' for a short tutorial          []"),appendLF=TRUE)
     packageStartupMessage(magenta("[]  Type 'citation('sommer')' to know how to cite sommer          []"),appendLF=TRUE)
     packageStartupMessage(magenta(paste("[]================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(magenta("sommer is updated on CRAN every 3-months. Please update it as well. "),appendLF=TRUE)
-    packageStartupMessage(magenta("Development site can be found at https://github.com"),appendLF=TRUE)
+    packageStartupMessage(magenta("sommer is updated on CRAN every 3-months and more often in GitHub. "),appendLF=TRUE)
+    packageStartupMessage(magenta("Latest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
     
     #if(yyy > current){ # yyy < current in CRAN
     #  packageStartupMessage(paste("Version",current,"is now available."),appendLF=TRUE) # version current

@@ -145,6 +145,7 @@ mmer <- function(fixed, random, rcov, data, weights,
   gesr <- list()
   gesIr <- list()
   re_namel2 <- list()
+  bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
   for(u in 1:length(rcovtermss)){
     checkvs <- grep("vs\\(",rcovtermss[u])
     if(length(checkvs)>0){ ## if this term is a variance structure
