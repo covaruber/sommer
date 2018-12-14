@@ -9,11 +9,21 @@ Genome wide association study
 
 Fits a multivariate/univariate linear mixed model GWAS by likelihood methods (REML), see the Details section below. It uses the \code{\link{mmer}} function and its core coded in C++ using the Armadillo library to opmitime dense matrix operations common in the derect-inversion algorithms. After the model fit extracts the inverse of the phenotypic variance matrix to perform the association test for the "p" markers. 
 
-Complex covariance structures can be fitted using the \code{\link{vs}} function. The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model covariances among genotypes for plant and animal breeding problems. Overlayed models can be implemented as well (\code{\link{overlay}} function), and spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
+Complex covariance structures can be fitted using the \code{\link{vs}} function. The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model covariances among genotypes for plant and animal breeding problems. Overlayed models can be implemented as well (\code{\link{overlay}} function), and spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). 
+
+The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed easily typing the following in the R console:
+
+library(devtools)
+
+install_github("covaruber/sommer")
+
+This is recommended since bugs fixes will be immediately available in the GitHub source. \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
 \strong{vignette("sommer.start")} 
 
 \strong{vignette("sommer")}
+
+or visit \strong{https://covaruber.github.io}
 
 }
 \usage{
@@ -110,7 +120,9 @@ For a short tutorial on how to use this special functions you can look at the vi
 
 \strong{Bug report and contact}{
 
-If you have any questions or suggestions please post it in https://stackoverflow.com and send me an email with the link at cova_ruber@live.com.mx
+If you have any technical questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com and send me an email with the link at cova_ruber@live.com.mx
+
+If you have any bug report please go to https://github.com/covaruber/sommer or send me an email to address it asap.
 
 }
 

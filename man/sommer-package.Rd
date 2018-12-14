@@ -21,17 +21,25 @@ The sommer package has been developed to provide R users with open-source code t
 Starting with version 3.0 the GWAS models that use the M argument have their own function \code{\link{GWAS}} and is not part of the \code{\link{mmer}} function.
 }
 
+\section{Keeping updated}{
+The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed easily typing the following in the R console:
+
+library(devtools)
+
+install_github("covaruber/sommer")
+
+This is recommended since bugs fixes will be immediately available in the GitHub source.
+}
+
 \section{Tutorials}{
 
-\strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
+ \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
-\emph{vignette("sommer.start")} 
+\strong{vignette("sommer.start")} 
 
-\emph{vignette("sommer")}
+\strong{vignette("sommer")}
 
-Please update 'sommer' every 2 months using:
-
-\emph{install.packages("sommer")}
+or visit \strong{https://covaruber.github.io}
 
 }
 

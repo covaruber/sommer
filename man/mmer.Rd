@@ -9,11 +9,21 @@
 
 Fits a multivariate/univariate linear mixed model by likelihood methods (REML). The optimization methods are; Direct-Inversion Newton-Raphson (NR), Average Information (AI) (Tunnicliffe 1989; Lee et al. 2015; Maier et al. 2015), and Efficient Mixed Model Association (EMMA) (Kang et al. 2008) coded in C++ using the Armadillo library to opmitime dense matrix operations common in the derect-inversion algorithms. These algorithms are \strong{intended to be used for problems of the type p > n or dense matrices}. For problems with sparse covariance structures, or problems of the type n > p, the MME-based algorithms are faster and we recommend to shift to the use of such software (i.e. lme4, breedR, or asreml-R).
 
-The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model covariances among genotypes for plant and animal breeding problems. Overlayed models can be implemented as well (\code{\link{overlay}} function). Spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). Autoregresive (\code{\link{AR1}}), compound symmetry (\code{\link{CS}}) and autoregressive moving average (\code{\link{ARMA}}) covariance matrices can be used in sommer, but the user needs to fix the correlation value for such models. Random regression models can also be fitted through the (\code{\link{leg}}) function (orthopolynom package installation is needed for using the leg function). \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
+The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model covariances among genotypes for plant and animal breeding problems. Overlayed models can be implemented as well (\code{\link{overlay}} function). Spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). Autoregresive (\code{\link{AR1}}), compound symmetry (\code{\link{CS}}) and autoregressive moving average (\code{\link{ARMA}}) covariance matrices can be used in sommer, but the user needs to fix the correlation value for such models. Random regression models can also be fitted through the (\code{\link{leg}}) function (orthopolynom package installation is needed for using the leg function).
+
+The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed easily typing the following in the R console:
+
+library(devtools)
+
+install_github("covaruber/sommer")
+
+This is recommended since bugs fixes will be immediately available in the GitHub source. \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
 \strong{vignette("sommer.start")} 
 
 \strong{vignette("sommer")}
+
+or visit \strong{https://covaruber.github.io}
 
 }
 \usage{
@@ -117,7 +127,9 @@ For a short tutorial on how to use this special functions you can look at the vi
 
 \strong{Bug report and contact}{
 
-If you have any questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com and send me an email with the link at cova_ruber@live.com.mx
+If you have any technical questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com and send me an email with the link at cova_ruber@live.com.mx
+
+If you have any bug report please go to https://github.com/covaruber/sommer or send me an email to address it asap.
 
 }
 \strong{Example Datasets}
