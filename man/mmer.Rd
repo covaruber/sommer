@@ -230,129 +230,49 @@ Giovanny Covarrubias-Pazaran
 ####=========================================####
 #### For CRAN time limitations most lines in the 
 #### examples are silenced with one '#' mark, 
-#### remove them and run the examples using
-#### command + shift + C |OR| control + shift + C
+#### remove them and run the examples
 ####=========================================####
 
-####=========================================####
 ####=========================================####
 #### EXAMPLE 1
-#### 3 variance components
-#### one random effect with variance covariance structure
-####=========================================####
+#### Different models with sommer
 ####=========================================####
 
-data("DT_cpdata")
+data(DT_example)
 head(DT)
-GT[1:4,1:4]
-#### create the variance-covariance matrix
-A <- A.mat(GT)
-#### look at the data and fit the model
-head(DT)
-mix1 <- mmer(Yield~1,
-             random=~vs(id, Gu=A) + Rowf,
-             rcov=~units,
+
+####=========================================####
+#### Univariate homogeneous variance models  ####
+####=========================================####
+
+## Compound simmetry (CS) model
+ans1 <- mmer(Yield~Env,
+             random= ~ Name + Env:Name,
+             rcov= ~ units,
              data=DT)
-summary(mix1)$varcomp
-#### calculate heritability
-pin(mix1, h1 ~ V1/(V1+V3) )
-### assumes diag(trait) structure for univariate models
+summary(ans1)
 
-# #### multi trait example
-# mix2 <- mmer(cbind(Yield,color)~1,
-#               random = ~ vs(id, Gu=A) +
-#                             vs(Rowf, Gtc=diag(2)) + # diagonal structure at trait level
-#                                 vs(Colf, Gtc=diag(2)), # diagonal structure at trait level
-#               rcov = ~ vs(units),
-#               data=DT)
-# summary(mix2)
+####===========================================####
+#### Univariate heterogeneous variance models  ####
+####===========================================####
 
-########################################################
-########################################################
-########################################################
-########################################################
-########################################################
-########################################################
+## Compound simmetry (CS) + Diagonal (DIAG) model
+ans2 <- mmer(Yield~Env,
+             random= ~Name + vs(ds(Env),Name),
+             rcov= ~ vs(ds(Env),units),
+             data=DT)
+summary(ans2)
 
-####=========================================####
-####=========================================####
-#### EXAMPLE 2
-#### breeding values with 3 variance components
-#### for hybrid prediction
-####=========================================####
-####=========================================####
-# data("DT_cornhybrids")
-# K1 <- GT[levels(DT$GCA1), levels(DT$GCA1)]; dim(K1)
-# K2 <- GT[levels(DT$GCA2), levels(DT$GCA2)]; dim(K2)
-# S <- kronecker(K1, K2, make.dimnames=TRUE) ; dim(S)
-# 
-# head(DT)
-# ans <- mmer(Yield ~ Location,
-#             random = ~ vs(GCA1, Gu=K1) + vs(GCA2, Gu=K2) + vs(SCA, Gu=S),
-#             rcov = ~ units,
-#             data=DT)
-# summary(ans)
-# #### you can specify heterogeneus variances
-# ans <- mmer(Yield ~ 1,
-#              random = ~ GCA2 + vs(ds(Location),GCA2),
-#              rcov = ~ vs(Location,units),
-#              data=DT)
-# summary(ans)
-# 
-# ##### example of multivariate model
-# ans <- mmer(cbind(Yield,PlantHeight) ~ 1,
-#              random = ~ vs(GCA2, Gu=K2),
-#              rcov = ~ vs(units, Gtc=diag(2)),
-#              data=DT)
-# summary(ans)
+####===========================================####
+####  Univariate unstructured variance models  ####
+####===========================================####
 
-########################################################
-########################################################
-########################################################
-########################################################
-########################################################
-########################################################
+ans3 <- mmer(Yield~Env,
+             random=~ vs(us(Env),Name),
+             rcov=~vs(us(Env),units), 
+             data=DT)
+summary(ans3)
 
-# ####=========================================####
-# #### EXAMPLE 3
-# #### different models with sommer
-# ####=========================================####
-# 
-# data(DT_example)
-# head(DT)
-# 
-# ####=========================================####
-# #### Univariate homogeneous variance models  ####
-# ####=========================================####
-# 
-# ## Compound simmetry (CS) model
-# ans1 <- mmer(Yield~Env,
-#              random= ~ Name + Env:Name,
-#              rcov= ~ units,
-#              data=DT)
-# summary(ans1)
-# 
-# ####===========================================####
-# #### Univariate heterogeneous variance models  ####
-# ####===========================================####
-# 
-# ## Compound simmetry (CS) + Diagonal (DIAG) model
-# ans2 <- mmer(Yield~Env,
-#              random= ~Name + vs(ds(Env),Name),
-#              rcov= ~ vs(ds(Env),units),
-#              data=DT)
-# summary(ans2)
-# 
-# ####===========================================####
-# ####  Univariate unstructured variance models  ####
-# ####===========================================####
-# 
-# ans3 <- mmer(Yield~Env,
-#              random=~ vs(us(Env),Name),
-#              rcov=~vs(us(Env),units), 
-#              data=DT)
-# summary(ans3)
-# 
 # ####==========================================####
 # #### Multivariate homogeneous variance models ####
 # ####==========================================####
@@ -386,15 +306,39 @@ pin(mix1, h1 ~ V1/(V1+V3) )
 #               data=DT)
 # summary(ans6)
 
-########################################################
-########################################################
-########################################################
-########################################################
-########################################################
-########################################################
+####=========================================####
+####=========================================####
+#### EXAMPLE 2
+#### 2 variance components
+#### one random effect with variance covariance structure
+####=========================================####
+####=========================================####
+
+# data("DT_cpdata")
+# head(DT)
+# GT[1:4,1:4]
+# #### create the variance-covariance matrix
+# A <- A.mat(GT)
+# #### look at the data and fit the model
+# head(DT)
+# mix1 <- mmer(Yield~1,
+#              random=~vs(id, Gu=A) + Rowf,
+#              rcov=~units,
+#              data=DT)
+# summary(mix1)$varcomp
+# #### calculate heritability
+# pin(mix1, h1 ~ V1/(V1+V3) )
+# #### multi trait example
+# mix2 <- mmer(cbind(Yield,color)~1,
+#               random = ~ vs(id, Gu=A) +
+#                             vs(Rowf, Gtc=diag(2)) + # diagonal structure at trait level
+#                                 vs(Colf, Gtc=diag(2)), # diagonal structure at trait level
+#               rcov = ~ vs(units),
+#               data=DT)
+# summary(mix2)
 
 ####=========================================####
-#### EXAMPLE 4
+#### EXAMPLE 3
 #### comparison with lmer, install 'lme4' 
 #### and run the code below
 ####=========================================####
@@ -427,7 +371,5 @@ pin(mix1, h1 ~ V1/(V1+V3) )
 #               rcov = ~ vs(ds(Location),units),
 #               data=DT)
 # summary(out2)
-
-
 
 }
