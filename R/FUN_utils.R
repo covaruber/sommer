@@ -75,9 +75,9 @@
   }
   ## get the index for each fixed effect
   nfixedeff <- length(prov[[2]])
-  if(nfixedeff != length(prov[[18]])){
-    fnames <- c("(Intercept)",prov[[18]])
-  }else{fnames <- c(prov[[18]])}
+  if(nfixedeff != length(prov[[19]])){
+    fnames <- c("(Intercept)",prov[[19]])
+  }else{fnames <- c(prov[[19]])}
   
   fnamesindex <- list()
   counter <- 1
