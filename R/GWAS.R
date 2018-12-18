@@ -76,15 +76,15 @@ GWAS <- function(fixed, random, rcov, data, weights,
   
   
   ## return all parameters for a mixed model
-  res <- mmer(fixed, random, rcov, data, weights, 
-              iters, tolpar, tolparinv, 
-              init, constraints, method, 
-              getPEV,
-              na.method.X,
-              na.method.Y,
+  res <- mmer(fixed=fixed, random=random, rcov=rcov, data=data, weights=weights, 
+              iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
+              init=init, constraints=constraints, method=method, 
+              getPEV=getPEV,
+              na.method.X=na.method.X,
+              na.method.Y=na.method.Y,
               return.param=TRUE, 
-              date.warning,
-              verbose)
+              date.warning=date.warning,
+              verbose=verbose)
   # print(str(res))
   
   if(return.param){
@@ -146,10 +146,10 @@ GWAS <- function(fixed, random, rcov, data, weights,
     }
     
     m <- ncol(M)
-    
+    colnamesM <- colnames(M)
     scorecalc <- function(i){
       
-      Mi <- as.matrix(M[, i])
+      Mi <- as.matrix(M[, i]);# colnames(Mi) <- colnamesM[i]
       Mi <- kronecker(Mi,diag(nt))
       freq <- mean(Mi + 1, na.rm = TRUE)/2
       MAF <- min(freq, 1 - freq)
@@ -195,6 +195,7 @@ GWAS <- function(fixed, random, rcov, data, weights,
           res3 <- c(R2,R2S)
           
           myres <- matrix(c(res0,res1,res2,res3),ncol=1)
+          colnames(myres) <- colnames(Mi)
           return(myres)
         }
       }
@@ -203,20 +204,25 @@ GWAS <- function(fixed, random, rcov, data, weights,
     
     cat("Performing GWAS evaluation\n")
     if ((n.core > 1) & requireNamespace("parallel",quietly=TRUE)) {
-      scores <- unlist(parallel::mclapply(as.list(1:m), function(x) {
+      scores <- parallel::mclapply(as.list(1:m), function(x) {
         scorecalc(x)
-      }, mc.cores = n.core))
+      }, mc.cores = n.core)
     } else {
-      scores <- unlist(lapply(as.list(1:m), function(x) {
+      scores <- lapply(as.list(1:m), function(x) {
         scorecalc(x)
-      }))
+      })
     }
     
-    scores <- matrix(scores,nrow=(nt*3)+2,byrow = FALSE)
+    tokeep <- which(!unlist(lapply(scores, is.null)))
+    
+    scores <- do.call(cbind,scores[tokeep])
+    
+    # scores <- matrix(scores,nrow=(nt*3)+2,byrow = FALSE)
     
     mm <- as.data.frame(expand.grid(ntnames,c("beta","score","Fstat")))
     mm$tt <- paste(mm[,1],mm[,2])
-    colnames(scores) <- colnames(M)
+    colnames(scores) <- colnames(M)[tokeep]
+    # lastmodel$jkl <- colnames(M)[tokeep]
     rownames(scores) <- c(mm$tt,"R2","R2s")
     lastmodel$scores <- scores
   }
