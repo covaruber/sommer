@@ -673,8 +673,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   sigma_store.each_col() %= dd;
   sigma_store.each_col() /= ee;
   arma::mat monitor = join_cols(llik_store,sigma_store);
-  arma::uvec indices(cycle2,arma::fill::ones);
-  arma::mat monitor2 = monitor.cols(find(indices == 1));
+  monitor = monitor.cols(0, cycle2);
   // ****************************************************
   // return the results
   // ****************************************************
@@ -695,6 +694,6 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     Rcpp::Named("AIC") = AIC,
     Rcpp::Named("BIC") = BIC,
     Rcpp::Named("convergence") = convergence,
-    Rcpp::Named("monitor") = monitor2
+    Rcpp::Named("monitor") = monitor
   );
 }
