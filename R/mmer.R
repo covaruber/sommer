@@ -320,10 +320,32 @@ mmer <- function(fixed, random, rcov, data, weights,
   
   if(return.param){
     good <- provdat$good
+    if(missing(weights)){
+      args <- list(fixed=fixed, random=random, rcov=rcov, data=data, 
+                        iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
+                        init=init, constraints=constraints, method=method, 
+                        getPEV=getPEV,
+                        na.method.X=na.method.X,
+                        na.method.Y=na.method.Y,
+                        return.param=return.param, 
+                        date.warning=date.warning,
+                        verbose=verbose,reshape.output=reshape.output)
+    }else{
+      args <- list(fixed=fixed, random=random, rcov=rcov, data=data, weights=weights, 
+                        iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
+                        init=init, constraints=constraints, method=method, 
+                        getPEV=getPEV,
+                        na.method.X=na.method.X,
+                        na.method.Y=na.method.Y,
+                        return.param=return.param, 
+                        date.warning=date.warning,
+                        verbose=verbose,reshape.output=reshape.output)
+    }
+   
     res <- list(yvar, X,Gx,Z,K,R,GES,GESI, ws,
                 iters, tolpar, tolparinv, 
                 selected,getPEV,verbose, FALSE,
-                re_names,good,fixedtermss
+                re_names,good,fixedtermss,args
     )
   }else{
     res <- .Call("_sommer_MNR",PACKAGE = "sommer",yvar, X,Gx,Z,K,R,GES,GESI, ws,

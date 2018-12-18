@@ -17,8 +17,9 @@ export(mmer, mmer2, GWAS, GWAS2)
 ## FUN_special
 export(at,cs,ds,us,vs,
        unsm,uncm,fixm,fcm,
-       list2usmat,
-       overlay, spl2D)
+       list2usmat, transformConstraints,
+       overlay, spl2D,
+       bivariateRun)
 
 ## FUN_markers
 export(atcg1234,build.HMM,h2.fun)

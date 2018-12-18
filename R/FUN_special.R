@@ -977,4 +977,78 @@ spl2D <-  function(x.coord,y.coord,at,at.levels, type="PSANOVA", nseg = c(10,10)
   return(fin)
 }
 
+bivariateRun <- function(model, n.core=1){
+  
+  args <- model[[length(model)]]
+  
+  response <- strsplit(as.character(args$fixed[2]), split = "[+]")[[1]]
+  expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
+  expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=T)}
+  traits <- trimws(strsplit(expi(response),",")[[1]])
+  
+  combos <- expand.grid(traits,traits)
+  combos <- combos[which(combos[,1] != combos[,2]),]; 
+  combos <- combos[!duplicated(t(apply(combos, 1, sort))),];rownames(combos) <- NULL
+  
+  RHS <- as.character(args$fixed[3])
+  it <- as.list(1:nrow(combos))
+  
+  cat(paste(nrow(combos), "bivariate models to be run\n"))
+  
+  model.results <- parallel::mclapply(it, 
+                                      function(x) {
+                                        # score.calc(M[ix.pheno, markers])
+                                        ff <- as.formula(paste("cbind(",paste(as.vector(unlist(combos[x,])),collapse = ","),") ~", RHS))
+                                        # do the fixed call
+                                        args2 <- args; args2$fixed <- ff; args2$return.param <- FALSE
+                                        # modify the random call for 2 traits
+                                        p1 <- gsub("unsm\\([[:digit:]])","unsm(2)",as.character(args2$random))
+                                        p1 <- gsub("diag\\([[:digit:]])","diag(2)",p1)
+                                        p1 <- gsub("uncm\\([[:digit:]])","uncm(2)",p1)
+                                        args2$random <- as.formula(paste(p1[1],paste(p1[-1],collapse = "+")))
+                                        # modify the rcov call for 2 traits
+                                        p1 <- gsub("unsm\\([[:digit:]])","unsm(2)",as.character(args2$rcov))
+                                        p1 <- gsub("diag\\([[:digit:]])","diag(2)",p1)
+                                        p1 <- gsub("uncm\\([[:digit:]])","uncm(2)",p1)
+                                        args2$rcov <- as.formula(paste(p1[1],paste(p1[-1],collapse = "+")))
+                                        
+                                        gsub("[1-9]","k",as.character(args2$random))
+                                        res0 <- do.call(mmer, args=args2)
+                                        return(res0)
+                                      }, 
+                                      mc.cores = n.core)
+  
+  sigmas <- lapply(model.results, function(x){x$sigma})
+  sigmas_scaled <- lapply(model.results, function(x){x$sigma_scaled})
+  nre <- length(sigmas[[1]])
+  namesre <- names(model.results[[1]]$sigma)
+  sigmaslist <- list()
+  sigmas_scaledlist <- list()
+  for(i in 1:nre){
+    mt <- matrix(0,length(traits),length(traits))
+    rownames(mt) <- colnames(mt) <- traits
+    mts <- mt
+    sigmaprov <- lapply(sigmas, function(x){x[[i]]})
+    sigmascaledprov <- lapply(sigmas_scaled, function(x){x[[i]]})
+    for(j in 1:length(sigmaprov)){
+      mt[colnames(sigmaprov[[j]]),colnames(sigmaprov[[j]])] <- sigmaprov[[j]]
+      mts[colnames(sigmascaledprov[[j]]),colnames(sigmascaledprov[[j]])] <- sigmascaledprov[[j]]
+    }
+    sigmaslist[[namesre[i]]] <- mt
+    sigmas_scaledlist[[namesre[i]]] <- mts
+  }
+  
+  names(model.results) <- apply(combos,1,function(x){paste(x,collapse = "-")})
+  # corlist <- lapply(sigmaslist,cov2cor)
+  final <- list(sigmas=sigmaslist, sigmas_scaled=sigmas_scaledlist, models=model.results)
+  return(final)
+}
 
+transformConstraints <- function(list0,value=1){
+  ll <- lapply(list0, function(x){
+    x[which(x != 0,arr.ind = TRUE)] <- x[which(x != 0,arr.ind = TRUE)] / x[which(x != 0,arr.ind = TRUE)]
+    x <- x*value
+    return(x)
+  })
+  return(ll)
+}
