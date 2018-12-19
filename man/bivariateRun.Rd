@@ -10,7 +10,7 @@
 
 \arguments{
   \item{model}{a model fitted with the mmer function with argument return.param=TRUE.}
-  \item{n.core}{number of cores to use in the mclapply function to parallelize the models to be run to avoid increase in computational time.}
+  \item{n.core}{number of cores to use in the mclapply function to parallelize the models to be run to avoid increase in computational time. Please keep in mind that this is only available in Linux and macOS systems. Please check the details in the \code{\link{mclapply}} documentation of the parallel package.}
 }
 \value{
   \describe{

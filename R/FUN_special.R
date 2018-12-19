@@ -981,6 +981,10 @@ bivariateRun <- function(model, n.core=1){
   
   args <- model[[length(model)]]
   
+  if(!args$return.param){
+    stop("The model provided needs to have the return.param argument set to TRUE. \nPlease read the documentation of the bivariateRun function carefully.\n", call. = FALSE)
+  }
+  
   response <- strsplit(as.character(args$fixed[2]), split = "[+]")[[1]]
   expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
   expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=T)}
