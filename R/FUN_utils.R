@@ -377,7 +377,7 @@
   ################################################
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by REML",rlt,"\n", collapse = ""))
-  cat(paste(rlh," sommer 3.7 ",rlh, "\n", collapse = ""))
+  cat(paste(rlh," sommer 3.8 ",rlh, "\n", collapse = ""))
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\n")
   cat("")
@@ -737,7 +737,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 2.1 or later")
   assign(".sommer.home", file.path(library, pkg),
          pos=match("package:sommer", search()))
-  sommer.version = "3.7 (2019-01-01)" # usually 2 months before it expires
+  sommer.version = "3.8 (2019-01-01)" # usually 2 months before it expires
   
   ##%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ### check which version is more recent
@@ -770,7 +770,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     #  packageStartupMessage(paste("Version",current,"is now available."),appendLF=TRUE) # version current
     #  packageStartupMessage(paste("Please update 'sommer' installing the new version."),appendLF=TRUE) # version current
     #}
-    #print(image(diag(10),main="sommer 3.7"))
+    #print(image(diag(10),main="sommer 3.8"))
   }
   invisible()
 }

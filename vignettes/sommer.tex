@@ -1,0 +1,1242 @@
+\documentclass[]{article}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \ifxetex
+    \usepackage{mathspec}
+  \else
+    \usepackage{fontspec}
+  \fi
+  \defaultfontfeatures{Ligatures=TeX,Scale=MatchLowercase}
+\fi
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\usepackage[margin=1in]{geometry}
+\usepackage{hyperref}
+\hypersetup{unicode=true,
+            pdftitle={Quantitative genetics using the sommer package},
+            pdfauthor={Giovanny Covarrubias-Pazaran},
+            pdfborder={0 0 0},
+            breaklinks=true}
+\urlstyle{same}  % don't use monospace font for urls
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.77,0.63,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+\setlength{\emergencystretch}{3em}  % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+%%% Use protect on footnotes to avoid problems with footnotes in titles
+\let\rmarkdownfootnote\footnote%
+\def\footnote{\protect\rmarkdownfootnote}
+
+%%% Change title format to be more compact
+\usepackage{titling}
+
+% Create subtitle command for use in maketitle
+\newcommand{\subtitle}[1]{
+  \posttitle{
+    \begin{center}\large#1\end{center}
+    }
+}
+
+\setlength{\droptitle}{-2em}
+
+  \title{Quantitative genetics using the sommer package}
+    \pretitle{\vspace{\droptitle}\centering\huge}
+  \posttitle{\par}
+    \author{Giovanny Covarrubias-Pazaran}
+    \preauthor{\centering\large\emph}
+  \postauthor{\par}
+      \predate{\centering\large\emph}
+  \postdate{\par}
+    \date{2018-12-30}
+
+
+\begin{document}
+\maketitle
+
+The sommer package was developed to provide R users a powerful and
+reliable multivariate mixed model solver for different genetic and
+non-genetic analysis in diploid and polyploid organisms. This package
+allows the user to estimate variance components for a mixed model with
+the advantage of specifying the variance-covariance structure of the
+random effects, specify heterogeneous variances, and obtain other
+parameters such as BLUPs, BLUEs, residuals, fitted values, variances for
+fixed and random effects, etc. The core algorithms of the package are
+coded in C++ using the Armadillo library to opmitime dense matrix
+operations common in the derect-inversion algorithms.
+
+The package is focused on problems of the type p \textgreater{} n
+related to genomic prediction (hybrid prediction \& genomic selection)
+and GWAS analysis, although any general mixed model can be fitted as
+well. The package provides kernels to estimate additive
+(\texttt{A.mat}), dominance (\texttt{D.mat}), and epistatic
+(\texttt{E.mat}) relationship matrices that have been shown to increase
+prediction accuracy under certain scenarios or simply to estimate the
+variance components of such. The package provides flexibility to fit
+other genetic models such as full and half diallel models as well.
+
+Vignettes aim to provide several examples in how to use the sommer
+package under different scenarios. We will spend the rest of the space
+providing examples for:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi})}
+\tightlist
+\item
+  Heritability (\(h^2\)) calculation
+\item
+  Specifying heterogeneous variances in mixed models
+\item
+  Using the pin calculator
+\item
+  Half and full diallel designs (using the overlay)
+\item
+  Genomic selection (predicting mendelian sampling)
+
+  \begin{itemize}
+  \tightlist
+  \item
+    GBLUP
+  \item
+    rrBLUP
+  \end{itemize}
+\item
+  Single cross prediction (hybrid prediction)
+\item
+  Spatial modeling (using the 2-dimensional splines)
+\item
+  Multivariate genetic models and genetic correlations
+\item
+  Final remarks
+\end{enumerate}
+
+\subsection{Background}\label{background}
+
+The core of the package the \texttt{mmer}function which solve the mixed
+model equations. The functions are an interface to call the \texttt{NR}
+Direct-Inversion Newton-Raphson or Average Information (Tunnicliffe
+1989; Gilmour et al. 1995; Lee et al. 2016). Since version 2.0 sommer
+can handle multivariate models. Following Maier et al. (2015), the
+multivariate (and by extension the univariate) mixed model implemented
+has the form:
+
+\(y_1 = X_1\beta_1 + Z_1u_1 + \epsilon_1\)
+\(y_2 = X_2\beta_2 + Z_2u_2 + \epsilon_2\) \ldots{}
+\(y_i = X_i\beta_i + Z_iu_i + \epsilon_i\)
+
+where \(y_i\) is a vector of trait phenotypes, \(\beta_i\) is a vector
+of fixed effects, \(u_i\) is a vector of random effects for individuals
+and \(e_i\) are residuals for trait `i' (i = 1, \ldots{}, t). The random
+effects (\(u_1\) \ldots{} \(u_i\) and \(e_i\)) are assumed to be
+normally distributed with mean zero. X and Z are incidence matrices for
+fixed and random effects respectively. The distribution of the
+multivariate response and the phenotypic variance covariance (V) are:
+
+\(Y = X\beta + ZU + \epsilon_i\)
+
+Y \textasciitilde{} MVN(\(X\beta\), V)
+
+\[\mathbf{Y} = \left[\begin{array}
+{r}
+y_1 \\
+y_2 \\
+... \\
+y_t \\
+\end{array}\right]
+\]
+
+\[\mathbf{X} = \left[\begin{array}
+{rrr}
+X_1 & ... & ... \\
+\vdots & \ddots & \vdots\\
+... & ... & X_t \\
+\end{array}\right]
+\]
+
+\[\mathbf{V} = \left[\begin{array}
+{rrr}
+Z_1 K{\sigma^2_{g_{1}}} Z_1' + H{\sigma^2_{\epsilon_{1}}} & ... & Z_1 K{\sigma_{g_{1,t}}} Z_t' + H{\sigma_{\epsilon_{1,t}}}\\
+ \vdots & \ddots & \vdots\\
+Z_1 K{\sigma_{g_{1,t}}} Z_t' + H{\sigma_{\epsilon_{1,t}}} & ... & Z_t K{\sigma^2_{g_{t}}} Z_t' + H{\sigma^2_{\epsilon_{t}}} \\
+\end{array}\right]
+\]
+
+where K is the relationship or covariance matrix for the kth random
+effect (u=1,\ldots{},k), and R=I is an identity matrix for the residual
+term. The terms \(\sigma^2_{g_{i}}\) and \(\sigma^2_{\epsilon_{i}}\)
+denote the genetic (or any of the kth random terms) and residual
+variance of trait `i', respectively and \(\sigma_{g_{_{ij}}}\) and
+\(\sigma_{\epsilon_{_{ij}}}\) the genetic (or any of the kth random
+terms) and residual covariance between traits `i' and `j'
+(i=1,\ldots{},t, and j=1,\ldots{},t). The algorithm implemented
+optimizes the log likelihood:
+
+\(logL = 1/2 * ln(|V|) + ln(X'|V|X) + Y'PY\)
+
+where \textbar{}\textbar{} is the determinant of a matrix. And the REML
+estimates are updated using a Newton optimization algorithm of the form:
+
+\(\theta^{k+1} = \theta^{k} + (H^{k})^{-1}*\frac{dL}{d\sigma^2_i}|\theta^k\)
+
+Where, \(\theta\) is the vector of variance components for random
+effects and covariance components among traits, \(H^{-1}\) is the
+inverse of the Hessian matrix of second derivatives for the kth cycle,
+\(\frac{dL}{d\sigma^2_i}\) is the vector of first derivatives of the
+likelihood with respect to the variance-covariance components. The Eigen
+decomposition of the relationship matrix proposed by Lee and Van Der
+Werf (2016) was included in the Newton-Raphson algorithm to improve time
+efficiency. Additionally, the popular pin function to estimate standard
+errors for linear combinations of variance components
+(i.e.~heritabilities and genetic correlations) was added to the package
+as well.
+
+Please refer to the canonical papers listed in the Literature section to
+check how the algorithms work. We have tested widely the methods to make
+sure they provide the same solution when the likelihood behaves well but
+for complex problems they might lead to slightly different answers. If
+you have any concern please contact me at
+\href{mailto:cova_ruber@live.com.mx}{\nolinkurl{cova\_ruber@live.com.mx}}.
+
+In the following section we will go in detail over several examples on
+how to use mixed models in univariate and multivariate case and their
+use in quantitative genetics.
+
+\subsection{1) Marker and non-marker based heritability
+calculation}\label{marker-and-non-marker-based-heritability-calculation}
+
+The heritability is one of the most popular parameters among the
+breeding and genetics community because of the insight that provides in
+the inheritance of the trait. The heritability is usually estimated as
+narrow sense (\(h^2\); only additive variance in the numerator
+\(\sigma^2_A\)), and broad sense (\(H^2\); all genetic variance in the
+numerator \(\sigma^2_G\)).
+
+In a classical breeding experiment with no molecular markers, special
+designs are performed to estimate and disect the additive
+(\(\sigma^2_A\)) and non-additive (i.e.~dominance \(\sigma^2_D\))
+variance along with environmental variability. Designs such as
+generation analysis, North Carolina designs are used to disect
+\(\sigma^2_A\) and \(\sigma^2_D\) to estimate the narrow sense
+heritability (\(h^2\)). When no special design is available we can still
+disect the genetic variance (\(\sigma^2_G\)) and estimate the broad
+sense heritability. In this first example we will show the broad sense
+estimation which doesn't use covariance structures for the genotipic
+effect (i.e.~genomic or additive relationship matrices). For big models
+with no covariance structures, sommer's direct inversion is a bad idea
+to use but we will show anyways how to do it, but keep in mind that for
+very sparse models we recommend using the lmer function from the lme4
+package or any other package using MME-based algorithms (i.e.~asreml-R).
+
+The following dataset has 41 potato lines evaluated in 5 locations
+across 3 years in an RCBD design. We show how to fit the model and
+extract the variance components to calculate the \(h^2\).
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{library}\NormalTok{(sommer)}
+\KeywordTok{data}\NormalTok{(DT_example)}
+\KeywordTok{head}\NormalTok{(DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##                   Name     Env Loc Year     Block Yield    Weight
+## 33  Manistee(MSL292-A) CA.2013  CA 2013 CA.2013.1     4 -1.904711
+## 65          CO02024-9W CA.2013  CA 2013 CA.2013.1     5 -1.446958
+## 66  Manistee(MSL292-A) CA.2013  CA 2013 CA.2013.2     5 -1.516271
+## 67            MSL007-B CA.2011  CA 2011 CA.2011.2     5 -1.435510
+## 68           MSR169-8Y CA.2013  CA 2013 CA.2013.1     5 -1.469051
+## 103         AC05153-1W CA.2013  CA 2013 CA.2013.1     6 -1.307167
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{ans1 <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(Yield}\OperatorTok{~}\DecValTok{1}\NormalTok{,}
+             \DataTypeTok{random=} \OperatorTok{~}\StringTok{ }\NormalTok{Name }\OperatorTok{+}\StringTok{ }\NormalTok{Env }\OperatorTok{+}\StringTok{ }\NormalTok{Env}\OperatorTok{:}\NormalTok{Name }\OperatorTok{+}\StringTok{ }\NormalTok{Env}\OperatorTok{:}\NormalTok{Block,}
+             \DataTypeTok{rcov=} \OperatorTok{~}\StringTok{ }\NormalTok{units,}
+             \DataTypeTok{data=}\NormalTok{DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -40.765   13:35:24      0           0
+##     2      -30.2657   13:35:24      0           0
+##     3      -25.8227   13:35:24      0           1
+##     4      -24.7277   13:35:24      0           1
+##     5      -24.7203   13:35:24      0           1
+##     6      -24.7202   13:35:24      0           1
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{summary}\NormalTok{(ans1)}\OperatorTok{$}\NormalTok{varcomp}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##                         VarComp  VarCompSE    Zratio Constraint
+## Name.Yield-Yield       3.718279  1.6959834 2.1924029   Positive
+## Env.Yield-Yield       12.008450 12.2771178 0.9781164   Positive
+## Env:Name.Yield-Yield   5.152643  1.4923912 3.4526091   Positive
+## Env:Block.Yield-Yield  0.000000  0.1156675 0.0000000   Positive
+## units.Yield-Yield      4.366189  0.6573086 6.6425245   Positive
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{(n.env <-}\StringTok{ }\KeywordTok{length}\NormalTok{(}\KeywordTok{levels}\NormalTok{(DT}\OperatorTok{$}\NormalTok{Env)))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 3
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{pin}\NormalTok{(ans1, h2 }\OperatorTok{~}\StringTok{ }\NormalTok{V1 }\OperatorTok{/}\StringTok{ }\NormalTok{( V1 }\OperatorTok{+}\StringTok{ }\NormalTok{(V3}\OperatorTok{/}\NormalTok{n.env) }\OperatorTok{+}\StringTok{ }\NormalTok{(V5}\OperatorTok{/}\NormalTok{(}\DecValTok{2}\OperatorTok{*}\NormalTok{n.env)) ) )}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##     Estimate        SE
+## h2 0.6032715 0.1344582
+\end{verbatim}
+
+Recently with markers becoming cheaper, thousand of markers can be run
+in the breeding materials. When markers are available, an special design
+is not neccesary to disect the additive genetic variance. The
+availability of the additive, dominance and epistatic relationship
+matrices allow us to estimate \(\sigma^2_A\), \(\sigma^2_D\) and
+\(\sigma^2_I\), although given that A, D and E are not orthogonal the
+interpretation of models that fit more than A and D become cumbersome.
+
+Assume you have a population (even unreplicated) in the field but in
+addition we have genetic markers. Now we can fit the model and estimate
+the genomic heritability that explains a portion of the additive genetic
+variance (with high marker density \(\sigma^2_A\) = \(\sigma^2_g\))
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data}\NormalTok{(}\StringTok{"DT_cpdata"}\NormalTok{)}
+\NormalTok{DT}\OperatorTok{$}\NormalTok{idd <-DT}\OperatorTok{$}\NormalTok{id; DT}\OperatorTok{$}\NormalTok{ide <-DT}\OperatorTok{$}\NormalTok{id}
+\NormalTok{### look at the data}
+\NormalTok{A <-}\StringTok{ }\KeywordTok{A.mat}\NormalTok{(GT) }\CommentTok{# additive relationship matrix}
+\NormalTok{D <-}\StringTok{ }\KeywordTok{D.mat}\NormalTok{(GT) }\CommentTok{# dominance relationship matrix}
+\NormalTok{E <-}\StringTok{ }\KeywordTok{E.mat}\NormalTok{(GT) }\CommentTok{# epistatic relationship matrix}
+\NormalTok{ans.ADE <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(color}\OperatorTok{~}\DecValTok{1}\NormalTok{, }
+                 \DataTypeTok{random=}\OperatorTok{~}\KeywordTok{vs}\NormalTok{(id,}\DataTypeTok{Gu=}\NormalTok{A) }\OperatorTok{+}\StringTok{ }\KeywordTok{vs}\NormalTok{(idd,}\DataTypeTok{Gu=}\NormalTok{D), }
+                 \DataTypeTok{rcov=}\OperatorTok{~}\NormalTok{units,}
+                 \DataTypeTok{data=}\NormalTok{DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -123   13:35:26      0           0
+##     2      -107.864   13:35:27      1           0
+##     3      -103.867   13:35:27      1           0
+##     4      -103.315   13:35:27      1           0
+##     5      -103.294   13:35:28      2           0
+##     6      -103.293   13:35:28      2           0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{(}\KeywordTok{summary}\NormalTok{(ans.ADE)}\OperatorTok{$}\NormalTok{varcomp)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##                       VarComp    VarCompSE   Zratio Constraint
+## u:id.color-color  0.003662202 0.0012194130 3.003250   Positive
+## u:idd.color-color 0.001820079 0.0007406216 2.457502   Positive
+## units.color-color 0.002106929 0.0002864724 7.354736   Positive
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{pin}\NormalTok{(ans.ADE, h2 }\OperatorTok{~}\StringTok{ }\NormalTok{(V1) }\OperatorTok{/}\StringTok{ }\NormalTok{( V1}\OperatorTok{+}\NormalTok{V3) )}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##     Estimate         SE
+## h2 0.6347926 0.08840488
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{pin}\NormalTok{(ans.ADE, h2 }\OperatorTok{~}\StringTok{ }\NormalTok{(V1}\OperatorTok{+}\NormalTok{V2) }\OperatorTok{/}\StringTok{ }\NormalTok{( V1}\OperatorTok{+}\NormalTok{V2}\OperatorTok{+}\NormalTok{V3) )}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##     Estimate         SE
+## h2 0.7223783 0.05563774
+\end{verbatim}
+
+In the previous example we showed how to estimate the additive
+(\(\sigma^2_A\)), dominance (\(\sigma^2_D\)), and epistatic
+(\(\sigma^2_I\)) variance components based on markers and estimate broad
+(\(H^2\)) and narrow sense heritability (\(h^2\)). Notice that we used
+the \texttt{vs()} function which indicates that the random effect inside
+the parenthesis (i.e.~id, idd or ide) has a covariance matrix (A, D, or
+E), that will be specified in the Gu argument of the vs() function.
+Please DO NOT provide the inverse but the original covariance matrix.
+
+\subsection{2) Specifying heterogeneous variances in univariate
+models}\label{specifying-heterogeneous-variances-in-univariate-models}
+
+Very often in multi-environment trials, the assumption that genetic
+variance is the same across locations may be too naive. Because of that,
+specifying a general genetic component and a location specific genetic
+variance is the way to go.
+
+We estimate variance components for \(GCA_2\) and \(SCA\) specifying the
+variance structure.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data}\NormalTok{(}\StringTok{"DT_cornhybrids"}\NormalTok{)}
+\NormalTok{### fit the model}
+\NormalTok{modFD <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(Yield}\OperatorTok{~}\DecValTok{1}\NormalTok{, }
+               \DataTypeTok{random=}\OperatorTok{~}\StringTok{ }\KeywordTok{vs}\NormalTok{(}\KeywordTok{at}\NormalTok{(Location,}\KeywordTok{c}\NormalTok{(}\StringTok{"3"}\NormalTok{,}\StringTok{"4"}\NormalTok{)),GCA2), }
+               \DataTypeTok{rcov=} \OperatorTok{~}\StringTok{ }\KeywordTok{vs}\NormalTok{(}\KeywordTok{ds}\NormalTok{(Location),units),}
+               \DataTypeTok{data=}\NormalTok{DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -190.104   13:35:29      0           0
+##     2      -171.543   13:35:30      1           0
+##     3      -165.319   13:35:30      1           0
+##     4      -164.691   13:35:31      2           0
+##     5      -164.684   13:35:31      2           0
+##     6      -164.684   13:35:32      3           0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{summary}\NormalTok{(modFD)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## ============================================================
+##          Multivariate Linear Mixed Model fit by REML         
+## **********************  sommer 3.7  ********************** 
+## ============================================================
+##          logLik      AIC      BIC Method Converge
+## Value -164.6839 331.3677 335.3592     NR     TRUE
+## ============================================================
+## Variance-Covariance components:
+##                     VarComp VarCompSE Zratio Constraint
+## 3:GCA2.Yield-Yield    62.48     53.45  1.169   Positive
+## 4:GCA2.Yield-Yield    97.99     79.56  1.232   Positive
+## 1:units.Yield-Yield  216.82     30.77  7.047   Positive
+## 2:units.Yield-Yield  216.82     30.77  7.047   Positive
+## 3:units.Yield-Yield  493.05     77.27  6.381   Positive
+## 4:units.Yield-Yield  711.98    111.63  6.378   Positive
+## ============================================================
+## Fixed effects:
+##   Trait      Effect Estimate Std.Error t.value
+## 1 Yield (Intercept)    138.1    0.9442   146.3
+## ============================================================
+## Groups and observations:
+##        Yield
+## 3:GCA2    20
+## 4:GCA2    20
+## ============================================================
+## Use the '$' sign to access results and parameters
+\end{verbatim}
+
+In the previous example we showed how the \texttt{at()} function is used
+in the \texttt{mmer} solver. By using the \texttt{at} function you can
+specify that i.e.~the GCA2 has a different variance in different
+Locations, in this case locations 3 and 4, but also a main GCA variance.
+This is considered a CS + DIAG (compound symmetry + diagonal) model.
+
+In addition, other functions can be added on top to fit models with
+covariance structures, i.e.~the Gu argument from the \texttt{vs()}
+function to indicate a covariance matrix (A, pedigree or genomic
+relationship matrix)
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data}\NormalTok{(}\StringTok{"DT_cornhybrids"}\NormalTok{)}
+\NormalTok{GT[}\DecValTok{1}\OperatorTok{:}\DecValTok{4}\NormalTok{,}\DecValTok{1}\OperatorTok{:}\DecValTok{4}\NormalTok{]}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##             A258       A634        A641        A680
+## A258  2.23285528 -0.3504778 -0.04756856 -0.32239362
+## A634 -0.35047780  1.4529169  0.45203869 -0.02293680
+## A641 -0.04756856  0.4520387  1.96940221 -0.09896791
+## A680 -0.32239362 -0.0229368 -0.09896791  1.65221984
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{### fit the model}
+\NormalTok{modFD <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(Yield}\OperatorTok{~}\DecValTok{1}\NormalTok{, }
+              \DataTypeTok{random=}\OperatorTok{~}\StringTok{ }\KeywordTok{vs}\NormalTok{(}\KeywordTok{at}\NormalTok{(Location,}\KeywordTok{c}\NormalTok{(}\StringTok{"3"}\NormalTok{,}\StringTok{"4"}\NormalTok{)),GCA2,}\DataTypeTok{Gu=}\NormalTok{GT), }
+              \DataTypeTok{rcov=} \OperatorTok{~}\StringTok{ }\KeywordTok{vs}\NormalTok{(}\KeywordTok{ds}\NormalTok{(Location),units),}
+              \DataTypeTok{data=}\NormalTok{DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -191.286   13:35:32      0           0
+##     2      -172.247   13:35:33      1           0
+##     3      -165.948   13:35:33      1           0
+##     4      -165.248   13:35:34      2           0
+##     5      -165.23   13:35:34      2           0
+##     6      -165.229   13:35:35      3           0
+##     7      -165.229   13:35:35      3           0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{summary}\NormalTok{(modFD)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## ============================================================
+##          Multivariate Linear Mixed Model fit by REML         
+## **********************  sommer 3.7  ********************** 
+## ============================================================
+##          logLik      AIC      BIC Method Converge
+## Value -165.2286 332.4571 336.4486     NR     TRUE
+## ============================================================
+## Variance-Covariance components:
+##                     VarComp VarCompSE Zratio Constraint
+## 3:GCA2.Yield-Yield    26.64     26.16 1.0185   Positive
+## 4:GCA2.Yield-Yield    37.51     37.78 0.9927   Positive
+## 1:units.Yield-Yield  216.77     30.75 7.0489   Positive
+## 2:units.Yield-Yield  216.77     30.75 7.0489   Positive
+## 3:units.Yield-Yield  503.62     77.87 6.4673   Positive
+## 4:units.Yield-Yield  738.86    114.17 6.4715   Positive
+## ============================================================
+## Fixed effects:
+##   Trait      Effect Estimate Std.Error t.value
+## 1 Yield (Intercept)    138.1    0.9147     151
+## ============================================================
+## Groups and observations:
+##        Yield
+## 3:GCA2    20
+## 4:GCA2    20
+## ============================================================
+## Use the '$' sign to access results and parameters
+\end{verbatim}
+
+\subsection{3) Using the pin calculator}\label{using-the-pin-calculator}
+
+Sometimes the user needs to calculate ratios or functions of specific
+variance-covariance components and obtain the standard error for such
+parameters. Examples of these are the genetic correlations,
+heritabilities, etc. Using the CPdata we will show how to estimate the
+heritability and the standard error using the pin function that uses the
+delta method to come up with these parameters. This can be extended for
+any linear combination of the variance components.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data}\NormalTok{(}\StringTok{"DT_cpdata"}\NormalTok{)}
+\NormalTok{### look at the data}
+\NormalTok{A <-}\StringTok{ }\KeywordTok{A.mat}\NormalTok{(GT) }\CommentTok{# additive relationship matrix}
+\NormalTok{ans <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(color}\OperatorTok{~}\DecValTok{1}\NormalTok{, }
+                \DataTypeTok{random=}\OperatorTok{~}\KeywordTok{vs}\NormalTok{(id,}\DataTypeTok{Gu=}\NormalTok{A), }
+                \DataTypeTok{rcov=}\OperatorTok{~}\NormalTok{units,}
+                \DataTypeTok{data=}\NormalTok{DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -137.304   13:35:36      0           0
+##     2      -115.507   13:35:36      0           0
+##     3      -111.236   13:35:36      0           0
+##     4      -110.755   13:35:37      1           0
+##     5      -110.741   13:35:37      1           0
+##     6      -110.741   13:35:37      1           0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{(}\KeywordTok{summary}\NormalTok{(ans.ADE)}\OperatorTok{$}\NormalTok{varcomp)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##                       VarComp    VarCompSE   Zratio Constraint
+## u:id.color-color  0.003662202 0.0012194130 3.003250   Positive
+## u:idd.color-color 0.001820079 0.0007406216 2.457502   Positive
+## units.color-color 0.002106929 0.0002864724 7.354736   Positive
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{pin}\NormalTok{(ans, h2 }\OperatorTok{~}\StringTok{ }\NormalTok{(V1) }\OperatorTok{/}\StringTok{ }\NormalTok{( V1}\OperatorTok{+}\NormalTok{V2) )}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##     Estimate         SE
+## h2 0.6512157 0.06107574
+\end{verbatim}
+
+The same can be used for multivariate models. Please check the
+documentation of the \texttt{pin} function to see more examples.
+
+\subsection{4) Half and full diallel designs (use of the
+overlay)}\label{half-and-full-diallel-designs-use-of-the-overlay}
+
+When breeders are looking for the best single cross combinations,
+diallel designs have been by far the most used design in crops like
+maize. There are 4 types of diallel designs depending if reciprocate and
+self cross (omission of parents) are performed (full diallel with
+parents n\^{}2; full diallel without parents n(n-1); half diallel with
+parents 1/2 * n(n+1); half diallel without parents 1/2 * n(n-1) ). In
+this example we will show a full dialle design (reciprocate crosses are
+performed) and half diallel designs (only one of the directions is
+performed).
+
+In the first data set we show a full diallel among 40 lines from 2
+heterotic groups, 20 in each. Therefore 400 possible hybrids are
+possible. We have pehnotypic data for 100 of them across 4 locations. We
+use the data available to fit a model of the form:
+
+\(y = X\beta + Zu_1 + Zu_2 + Zu_S + \epsilon\)
+
+We estimate variance components for \(GCA_1\), \(GCA_2\) and \(SCA\) and
+use them to estimate heritability. Additionally BLUPs for GCA and SCA
+effects can be used to predict crosses.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data}\NormalTok{(}\StringTok{"DT_cornhybrids"}\NormalTok{)}
+
+\NormalTok{modFD <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(Yield}\OperatorTok{~}\NormalTok{Location, }
+               \DataTypeTok{random=}\OperatorTok{~}\NormalTok{GCA1}\OperatorTok{+}\NormalTok{GCA2}\OperatorTok{+}\NormalTok{SCA, }
+               \DataTypeTok{rcov=}\OperatorTok{~}\NormalTok{units,}
+               \DataTypeTok{data=}\NormalTok{DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -149.436   13:35:38      0           0
+##     2      -136.475   13:35:38      0           1
+##     3      -132.852   13:35:39      1           1
+##     4      -132.625   13:35:39      1           1
+##     5      -132.596   13:35:39      1           1
+##     6      -132.59   13:35:40      2           1
+##     7      -132.589   13:35:40      2           1
+##     8      -132.589   13:35:41      3           1
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{(suma <-}\StringTok{ }\KeywordTok{summary}\NormalTok{(modFD)}\OperatorTok{$}\NormalTok{varcomp)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##                      VarComp VarCompSE     Zratio Constraint
+## GCA1.Yield-Yield    0.000000  16.50337  0.0000000   Positive
+## GCA2.Yield-Yield    7.412226  18.94200  0.3913116   Positive
+## SCA.Yield-Yield   187.560303  41.59428  4.5092817   Positive
+## units.Yield-Yield 221.142463  18.14716 12.1860656   Positive
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{Vgca <-}\StringTok{ }\KeywordTok{sum}\NormalTok{(suma[}\DecValTok{1}\OperatorTok{:}\DecValTok{2}\NormalTok{,}\DecValTok{1}\NormalTok{])}
+\NormalTok{Vsca <-}\StringTok{ }\NormalTok{suma[}\DecValTok{3}\NormalTok{,}\DecValTok{1}\NormalTok{]}
+\NormalTok{Ve <-}\StringTok{ }\NormalTok{suma[}\DecValTok{4}\NormalTok{,}\DecValTok{1}\NormalTok{]}
+\NormalTok{Va =}\StringTok{ }\DecValTok{4}\OperatorTok{*}\NormalTok{Vgca}
+\NormalTok{Vd =}\StringTok{ }\DecValTok{4}\OperatorTok{*}\NormalTok{Vsca}
+\NormalTok{Vg <-}\StringTok{ }\NormalTok{Va }\OperatorTok{+}\StringTok{ }\NormalTok{Vd}
+\NormalTok{(H2 <-}\StringTok{ }\NormalTok{Vg }\OperatorTok{/}\StringTok{ }\NormalTok{(Vg }\OperatorTok{+}\StringTok{ }\NormalTok{(Ve)) )}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0.7790856
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{(h2 <-}\StringTok{ }\NormalTok{Va }\OperatorTok{/}\StringTok{ }\NormalTok{(Vg }\OperatorTok{+}\StringTok{ }\NormalTok{(Ve)) )}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0.02961832
+\end{verbatim}
+
+Don't worry too much about the small h2 value, the data was simulated to
+be mainly dominance variance, therefore the Va was simulated extremely
+small leading to such value of narrow sense h2.
+
+In this second data set we show a small half diallel with 7 parents
+crossed in one direction. n(n-1)/2 crosses are possible 7(6)/2 = 21
+unique crosses. Parents appear as males or females indistictly. Each
+with two replications in a CRD. For a half diallel design a single GCA
+variance component for both males and females can be estimated and an
+SCA as well (\(\sigma^2_GCA\) and \(\sigma^2_SCA\) respectively), and
+BLUPs for GCA and SCA of the parents can be extracted. We would show
+first how to use it with the \texttt{mmer} function using the
+\texttt{overlay()} function. The specific model here is:
+
+\(y = X\beta + Zu_g + Zu_s + \epsilon\)
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data}\NormalTok{(}\StringTok{"DT_halfdiallel"}\NormalTok{)}
+\KeywordTok{head}\NormalTok{(DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##   rep geno male female     sugar
+## 1   1   12    1      2 13.950509
+## 2   2   12    1      2  9.756918
+## 3   1   13    1      3 13.906355
+## 4   2   13    1      3  9.119455
+## 5   1   14    1      4  5.174483
+## 6   2   14    1      4  8.452221
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{DT}\OperatorTok{$}\NormalTok{femalef <-}\StringTok{ }\KeywordTok{as.factor}\NormalTok{(DT}\OperatorTok{$}\NormalTok{female)}
+\NormalTok{DT}\OperatorTok{$}\NormalTok{malef <-}\StringTok{ }\KeywordTok{as.factor}\NormalTok{(DT}\OperatorTok{$}\NormalTok{male)}
+\NormalTok{DT}\OperatorTok{$}\NormalTok{genof <-}\StringTok{ }\KeywordTok{as.factor}\NormalTok{(DT}\OperatorTok{$}\NormalTok{geno)}
+\NormalTok{#### model using overlay}
+\NormalTok{modh <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(sugar}\OperatorTok{~}\DecValTok{1}\NormalTok{, }
+             \DataTypeTok{random=}\OperatorTok{~}\KeywordTok{vs}\NormalTok{(}\KeywordTok{overlay}\NormalTok{(femalef,malef)) }
+             \OperatorTok{+}\StringTok{ }\NormalTok{genof,}
+             \DataTypeTok{data=}\NormalTok{DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -10.425   13:35:41      0           0
+##     2      -6.487   13:35:41      0           0
+##     3      -5.732   13:35:41      0           0
+##     4      -5.67494   13:35:41      0           0
+##     5      -5.67441   13:35:41      0           0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{summary}\NormalTok{(modh)}\OperatorTok{$}\NormalTok{varcomp}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##                        VarComp VarCompSE   Zratio Constraint
+## u:femalef.sugar-sugar 5.507899 3.5741151 1.541052   Positive
+## genof.sugar-sugar     1.815784 1.3629575 1.332238   Positive
+## units.sugar-sugar     3.117538 0.9626094 3.238632   Positive
+\end{verbatim}
+
+Notice how the \texttt{overlay()} argument makes the overlap of
+incidence matrices possible making sure that male and female are joint
+into a single random effect.
+
+\subsection{5) Genomic selection}\label{genomic-selection}
+
+In this section we will use wheat data from CIMMYT to show how is
+genomic selection performed. This is the case of prediction of specific
+individuals within a population. It basically uses a similar model of
+the form:
+
+\(y = X\beta + Zu + \epsilon\)
+
+and takes advantage of the variance covariance matrix for the genotype
+effect known as the additive relationship matrix (A) and calculated
+using the \texttt{A.mat} function to establish connections among all
+individuals and predict the BLUPs for individuals that were not
+measured. The prediction accuracy depends on several factors such as the
+heritability (\(h^2\)), training population used (TP), size of TP, etc.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data}\NormalTok{(}\StringTok{"DT_wheat"}\NormalTok{); }
+\KeywordTok{colnames}\NormalTok{(DT) <-}\StringTok{ }\KeywordTok{paste0}\NormalTok{(}\StringTok{"X"}\NormalTok{,}\DecValTok{1}\OperatorTok{:}\KeywordTok{ncol}\NormalTok{(DT))}
+\NormalTok{DT <-}\StringTok{ }\KeywordTok{as.data.frame}\NormalTok{(DT);DT}\OperatorTok{$}\NormalTok{id <-}\StringTok{ }\KeywordTok{as.factor}\NormalTok{(}\KeywordTok{rownames}\NormalTok{(DT))}
+\CommentTok{# select environment 1}
+\KeywordTok{rownames}\NormalTok{(GT) <-}\StringTok{ }\KeywordTok{rownames}\NormalTok{(DT)}
+\NormalTok{K <-}\StringTok{ }\KeywordTok{A.mat}\NormalTok{(GT) }\CommentTok{# additive relationship matrix}
+\KeywordTok{colnames}\NormalTok{(K) <-}\StringTok{ }\KeywordTok{rownames}\NormalTok{(K) <-}\StringTok{ }\KeywordTok{rownames}\NormalTok{(DT)}
+\CommentTok{# GBLUP pedigree-based approach}
+\KeywordTok{set.seed}\NormalTok{(}\DecValTok{12345}\NormalTok{)}
+\NormalTok{y.trn <-}\StringTok{ }\NormalTok{DT}
+\NormalTok{vv <-}\StringTok{ }\KeywordTok{sample}\NormalTok{(}\KeywordTok{rownames}\NormalTok{(DT),}\KeywordTok{round}\NormalTok{(}\KeywordTok{nrow}\NormalTok{(DT)}\OperatorTok{/}\DecValTok{5}\NormalTok{))}
+\NormalTok{y.trn[vv,}\StringTok{"X1"}\NormalTok{] <-}\StringTok{ }\OtherTok{NA}
+\KeywordTok{head}\NormalTok{(y.trn)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##              X1          X2          X3         X4   id
+## 775          NA -1.72746986 -1.89028479  0.0509159  775
+## 2166 -0.2527028  0.40952243  0.30938553 -1.7387588 2166
+## 2167  0.3418151 -0.64862633 -0.79955921 -1.0535691 2167
+## 2465         NA  0.09394919  0.57046773  0.5517574 2465
+## 3881         NA -0.28248062  1.61868192 -0.1142848 3881
+## 3889  2.3360969  0.62647587  0.07353311  0.7195856 3889
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{## GBLUP}
+\NormalTok{ans <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(X1}\OperatorTok{~}\DecValTok{1}\NormalTok{,}
+            \DataTypeTok{random=}\OperatorTok{~}\KeywordTok{vs}\NormalTok{(id,}\DataTypeTok{Gu=}\NormalTok{K), }
+            \DataTypeTok{rcov=}\OperatorTok{~}\NormalTok{units, }
+            \DataTypeTok{data=}\NormalTok{y.trn) }\CommentTok{# kinship based}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -202.344   13:35:42      0           0
+##     2      -198.717   13:35:43      1           0
+##     3      -197.634   13:35:43      1           0
+##     4      -197.51   13:35:44      2           0
+##     5      -197.508   13:35:44      2           0
+##     6      -197.508   13:35:45      3           0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{ans}\OperatorTok{$}\NormalTok{U}\OperatorTok{$}\StringTok{`}\DataTypeTok{u:id}\StringTok{`}\OperatorTok{$}\NormalTok{X1 <-}\StringTok{ }\KeywordTok{as.data.frame}\NormalTok{(ans}\OperatorTok{$}\NormalTok{U}\OperatorTok{$}\StringTok{`}\DataTypeTok{u:id}\StringTok{`}\OperatorTok{$}\NormalTok{X1)}
+\KeywordTok{rownames}\NormalTok{(ans}\OperatorTok{$}\NormalTok{U}\OperatorTok{$}\StringTok{`}\DataTypeTok{u:id}\StringTok{`}\OperatorTok{$}\NormalTok{X1) <-}\StringTok{ }\KeywordTok{gsub}\NormalTok{(}\StringTok{"id"}\NormalTok{,}\StringTok{""}\NormalTok{,}\KeywordTok{rownames}\NormalTok{(ans}\OperatorTok{$}\NormalTok{U}\OperatorTok{$}\StringTok{`}\DataTypeTok{u:id}\StringTok{`}\OperatorTok{$}\NormalTok{X1))}
+\KeywordTok{cor}\NormalTok{(ans}\OperatorTok{$}\NormalTok{U}\OperatorTok{$}\StringTok{`}\DataTypeTok{u:id}\StringTok{`}\OperatorTok{$}\NormalTok{X1[vv,],DT[vv,}\StringTok{"X1"}\NormalTok{], }\DataTypeTok{use=}\StringTok{"complete"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0.4885674
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{## rrBLUP}
+\NormalTok{ans2 <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(X1}\OperatorTok{~}\DecValTok{1}\NormalTok{,}
+             \DataTypeTok{random=}\OperatorTok{~}\KeywordTok{vs}\NormalTok{(}\KeywordTok{list}\NormalTok{(GT)), }
+             \DataTypeTok{rcov=}\OperatorTok{~}\NormalTok{units,}
+             \DataTypeTok{data=}\NormalTok{y.trn) }\CommentTok{# kinship based}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -343.082   13:35:47      2           0
+##     2      -243.965   13:35:47      2           0
+##     3      -208.257   13:35:48      3           0
+##     4      -197.982   13:35:49      4           0
+##     5      -197.519   13:35:49      4           0
+##     6      -197.508   13:35:50      5           0
+##     7      -197.508   13:35:50      5           0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{u <-}\StringTok{ }\NormalTok{GT }\OperatorTok{%*%}\StringTok{ }\KeywordTok{as.matrix}\NormalTok{(ans2}\OperatorTok{$}\NormalTok{U}\OperatorTok{$}\StringTok{`}\DataTypeTok{u:GT}\StringTok{`}\OperatorTok{$}\NormalTok{X1) }\CommentTok{# BLUPs for individuals}
+\KeywordTok{rownames}\NormalTok{(u) <-}\StringTok{ }\KeywordTok{rownames}\NormalTok{(GT)}
+\KeywordTok{cor}\NormalTok{(u[vv,],DT[vv,}\StringTok{"X1"}\NormalTok{]) }\CommentTok{# same correlation}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0.4885716
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\CommentTok{# the same can be applied in multi-response models in GBLUP or rrBLUP}
+\end{Highlighting}
+\end{Shaded}
+
+\subsection{6) Single cross prediction}\label{single-cross-prediction}
+
+When doing prediction of single cross performance the phenotype can be
+dissected in three main components, the general combining abilities
+(GCA) and specific combining abilities (SCA). This can be expressed with
+the same model analyzed in the diallel experiment mentioned before:
+
+\(y = X\beta + Zu_1 + Zu_2 + Zu_S + \epsilon\)
+
+with:
+
+\(u_1\) \textasciitilde{} N(0, \(K_1\)\(\sigma^2_u1\))
+
+\(u_2\) \textasciitilde{} N(0, \(K_2\)\(\sigma^2_u2\))
+
+\(u_s\) \textasciitilde{} N(0, \(K_3\)\(\sigma^2_us\))
+
+And we can specify the K matrices. The main difference between this
+model and the full and half diallel designs is the fact that this model
+will include variance covariance structures in each of the three random
+effects (GCA1, GCA2 and SCA) to be able to predict the crosses that have
+not ocurred yet. We will use the data published by Technow et al. (2015)
+to show how to do prediction of single crosses.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data}\NormalTok{(}\StringTok{"DT_technow"}\NormalTok{)}
+\CommentTok{# RUN THE PREDICTION MODEL}
+\NormalTok{y.trn <-}\StringTok{ }\NormalTok{DT}
+\NormalTok{vv1 <-}\StringTok{ }\KeywordTok{which}\NormalTok{(}\OperatorTok{!}\KeywordTok{is.na}\NormalTok{(DT}\OperatorTok{$}\NormalTok{GY))}
+\NormalTok{vv2 <-}\StringTok{ }\KeywordTok{sample}\NormalTok{(vv1, }\DecValTok{100}\NormalTok{)}
+\NormalTok{y.trn[vv2,}\StringTok{"GY"}\NormalTok{] <-}\StringTok{ }\OtherTok{NA}
+\NormalTok{anss2 <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(GY}\OperatorTok{~}\DecValTok{1}\NormalTok{, }
+               \DataTypeTok{random=}\OperatorTok{~}\KeywordTok{vs}\NormalTok{(dent,}\DataTypeTok{Gu=}\NormalTok{Ad) }\OperatorTok{+}\StringTok{ }\KeywordTok{vs}\NormalTok{(flint,}\DataTypeTok{Gu=}\NormalTok{Af), }
+               \DataTypeTok{rcov=}\OperatorTok{~}\NormalTok{units,}
+               \DataTypeTok{data=}\NormalTok{y.trn) }
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      93.142   13:36:0      7           0
+##     2      135.18   13:36:8      15           0
+##     3      145.517   13:36:16      23           0
+##     4      147.085   13:36:23      30           0
+##     5      147.178   13:36:31      38           0
+##     6      147.184   13:36:38      45           0
+##     7      147.184   13:36:46      53           0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{summary}\NormalTok{(anss2)}\OperatorTok{$}\NormalTok{varcomp}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##                VarComp VarCompSE    Zratio Constraint
+## u:dent.GY-GY  16.93639 2.6917284  6.292012   Positive
+## u:flint.GY-GY 12.47174 2.3248074  5.364634   Positive
+## units.GY-GY   16.75020 0.7662471 21.860045   Positive
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{zu1 <-}\StringTok{ }\KeywordTok{model.matrix}\NormalTok{(}\OperatorTok{~}\NormalTok{dent}\OperatorTok{-}\DecValTok{1}\NormalTok{,y.trn) }\OperatorTok{%*%}\StringTok{ }\NormalTok{anss2}\OperatorTok{$}\NormalTok{U}\OperatorTok{$}\StringTok{`}\DataTypeTok{u:dent}\StringTok{`}\OperatorTok{$}\NormalTok{GY}
+\NormalTok{zu2 <-}\StringTok{ }\KeywordTok{model.matrix}\NormalTok{(}\OperatorTok{~}\NormalTok{flint}\OperatorTok{-}\DecValTok{1}\NormalTok{,y.trn) }\OperatorTok{%*%}\StringTok{ }\NormalTok{anss2}\OperatorTok{$}\NormalTok{U}\OperatorTok{$}\StringTok{`}\DataTypeTok{u:flint}\StringTok{`}\OperatorTok{$}\NormalTok{GY}
+\NormalTok{u <-}\StringTok{ }\NormalTok{zu1}\OperatorTok{+}\NormalTok{zu2}\OperatorTok{+}\NormalTok{anss2}\OperatorTok{$}\NormalTok{Beta[}\DecValTok{1}\NormalTok{,}\StringTok{"Estimate"}\NormalTok{]}
+\KeywordTok{cor}\NormalTok{(u[vv2,], DT}\OperatorTok{$}\NormalTok{GY[vv2])}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## [1] 0.8234584
+\end{verbatim}
+
+In the previous model we only used the GCA effects (GCA1 and GCA2) for
+practicity, altough it's been shown that the SCA effect doesn't actually
+help that much in increasing prediction accuracy and increase a lot the
+computation intensity required since the variance covariance matrix for
+SCA is the kronecker product of the variance covariance matrices for the
+GCA effects, resulting in a 10578x10578 matrix that increases in a very
+intensive manner the computation required.
+
+A model without covariance structures would show that the SCA variance
+component is insignificant compared to the GCA effects. This is why
+including the third random effect doesn't increase the prediction
+accuracy.
+
+\subsection{7) Spatial modeling (using the 2-dimensional
+spline)}\label{spatial-modeling-using-the-2-dimensional-spline}
+
+We will use the CPdata to show the use of 2-dimensional splines for
+accomodating spatial effects in field experiments. In early generation
+variety trials the availability of seed is low, which makes the use of
+unreplicated design a neccesity more than anything else. Experimental
+designs such as augmented designs and partially-replicated (p-rep)
+designs become every day more common this days.
+
+In order to do a good job modeling the spatial trends happening in the
+field special covariance structures have been proposed to accomodate
+such spatial trends (i.e.~autoregressive residuals; ar1). Unfortunately,
+some of these covariance structures make the modeling rather unstable.
+More recently other research groups have proposed the use of
+2-dimensional splines to overcome such issues and have a more robust
+modeling of the spatial terms (Lee et al. 2013; Rodríguez-Álvarez et al.
+2018).
+
+In this example we assume an unreplicated population where row and range
+information is available which allows us to fit a 2 dimensional spline
+model.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data}\NormalTok{(}\StringTok{"DT_cpdata"}\NormalTok{)}
+\NormalTok{### mimic two fields}
+\NormalTok{A <-}\StringTok{ }\KeywordTok{A.mat}\NormalTok{(GT)}
+\NormalTok{mix <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(Yield}\OperatorTok{~}\DecValTok{1}\NormalTok{,}
+            \DataTypeTok{random=}\OperatorTok{~}\KeywordTok{vs}\NormalTok{(id, }\DataTypeTok{Gu=}\NormalTok{A) }\OperatorTok{+}
+\StringTok{              }\KeywordTok{vs}\NormalTok{(Rowf) }\OperatorTok{+}
+\StringTok{              }\KeywordTok{vs}\NormalTok{(Colf) }\OperatorTok{+}
+\StringTok{              }\KeywordTok{vs}\NormalTok{(}\KeywordTok{spl2D}\NormalTok{(Row,Col)),}
+            \DataTypeTok{rcov=}\OperatorTok{~}\KeywordTok{vs}\NormalTok{(units),}
+            \DataTypeTok{data=}\NormalTok{DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -154.198   13:36:48      0           0
+##     2      -152.064   13:36:49      1           0
+##     3      -151.265   13:36:49      1           0
+##     4      -151.202   13:36:49      1           0
+##     5      -151.201   13:36:50      2           0
+\end{verbatim}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{summary}\NormalTok{(mix)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## ============================================================
+##          Multivariate Linear Mixed Model fit by REML         
+## **********************  sommer 3.7  ********************** 
+## ============================================================
+##          logLik      AIC      BIC Method Converge
+## Value -151.2011 304.4021 308.2938     NR     TRUE
+## ============================================================
+## Variance-Covariance components:
+##                     VarComp VarCompSE Zratio Constraint
+## u:id.Yield-Yield      783.4     319.3 2.4536   Positive
+## u:Rowf.Yield-Yield    814.7     390.5 2.0863   Positive
+## u:Colf.Yield-Yield    182.2     129.7 1.4053   Positive
+## u:Row.Yield-Yield     513.6     694.7 0.7393   Positive
+## u:units.Yield-Yield  2922.6     294.1 9.9368   Positive
+## ============================================================
+## Fixed effects:
+##   Trait      Effect Estimate Std.Error t.value
+## 1 Yield (Intercept)    132.1     8.791   15.03
+## ============================================================
+## Groups and observations:
+##        Yield
+## u:id     363
+## u:Rowf    13
+## u:Colf    36
+## u:Row    168
+## ============================================================
+## Use the '$' sign to access results and parameters
+\end{verbatim}
+
+Notice that the job is done by the \texttt{spl2D()} function that takes
+the Row and Col information to fit a spatial kernel.
+
+\subsection{8) Multivariate genetic models and genetic
+correlations}\label{multivariate-genetic-models-and-genetic-correlations}
+
+Sometimes is important to estimate genetic variance-covariance among
+traits, multi-reponse models are very useful for such task. Let see an
+example with 3 traits (color, Yield, and Firmness) and a single random
+effect (genotype; id) although multiple effects can be modeled as well.
+We need to use a variance covariance structure for the random effect to
+be able to obtain the genetic covariance among traits.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{data}\NormalTok{(}\StringTok{"DT_cpdata"}\NormalTok{)}
+\NormalTok{A <-}\StringTok{ }\KeywordTok{A.mat}\NormalTok{(GT)}
+\NormalTok{ans.m <-}\StringTok{ }\KeywordTok{mmer}\NormalTok{(}\KeywordTok{cbind}\NormalTok{(Yield,color)}\OperatorTok{~}\DecValTok{1}\NormalTok{,}
+               \DataTypeTok{random=}\OperatorTok{~}\StringTok{ }\KeywordTok{vs}\NormalTok{(id, }\DataTypeTok{Gu=}\NormalTok{A)}
+               \OperatorTok{+}\StringTok{ }\KeywordTok{vs}\NormalTok{(Rowf,}\DataTypeTok{Gtc=}\KeywordTok{diag}\NormalTok{(}\DecValTok{2}\NormalTok{))}
+               \OperatorTok{+}\StringTok{ }\KeywordTok{vs}\NormalTok{(Colf,}\DataTypeTok{Gtc=}\KeywordTok{diag}\NormalTok{(}\DecValTok{2}\NormalTok{)),}
+               \DataTypeTok{rcov=}\OperatorTok{~}\StringTok{ }\KeywordTok{vs}\NormalTok{(units),}
+               \DataTypeTok{data=}\NormalTok{DT)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## iteration    LogLik     wall    cpu(sec)   restrained
+##     1      -375.872   13:36:55      4           0
+##     2      -291.932   13:36:59      8           0
+##     3      -258.273   13:37:4      13           0
+##     4      -253.459   13:37:8      17           0
+##     5      -253.291   13:37:12      21           0
+##     6      -253.278   13:37:17      26           0
+##     7      -253.277   13:37:22      31           0
+##     8      -253.277   13:37:26      35           0
+\end{verbatim}
+
+Now you can extract the BLUPs using the `randef' function or simple
+accesing with the `\$' sign and pick `u.hat'. Also, genetic correlations
+and heritabilities can be calculated easily.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\KeywordTok{cov2cor}\NormalTok{(ans.m}\OperatorTok{$}\NormalTok{sigma}\OperatorTok{$}\StringTok{`}\DataTypeTok{u:id}\StringTok{`}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##           Yield     color
+## Yield 1.0000000 0.1234441
+## color 0.1234441 1.0000000
+\end{verbatim}
+
+\subsection{9) Final remarks}\label{final-remarks}
+
+Keep in mind that sommer uses direct inversion (DI) algorithm which can
+be very slow for large datasets. The package is focused in problems of
+the type p \textgreater{} n (more random effect levels than
+observations) and models with dense covariance structures. For example,
+for experiment with dense covariance structures with low-replication
+(i.e.~2000 records from 1000 individuals replicated twice with a
+covariance structure of 1000x1000) sommer will be faster than MME-based
+software. Also for genomic problems with large number of random effect
+levels, i.e.~300 individuals (n) with 100,000 genetic markers (p). For
+highly replicated trials with small covariance structures or n
+\textgreater{} p (i.e.~2000 records from 200 individuals replicated 10
+times with covariance structure of 200x200) asreml or other MME-based
+algorithms will be much faster and we recommend you to opt for those
+software.
+
+\subsection{Literature}\label{literature}
+
+Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative
+traits using the R package sommer. PLoS ONE 11(6):1-15.
+
+Covarrubias-Pazaran G. 2018. Software update: Moving the R package
+sommer to multivariate mixed models for genome-assisted prediction. doi:
+\url{https://doi.org/10.1101/354639}
+
+Bernardo Rex. 2010. Breeding for quantitative traits in plants. Second
+edition. Stemma Press. 390 pp.
+
+Gilmour et al. 1995. Average Information REML: An efficient algorithm
+for variance parameter estimation in linear mixed models. Biometrics
+51(4):1440-1450.
+
+Henderson C.R. 1975. Best Linear Unbiased Estimation and Prediction
+under a Selection Model. Biometrics vol.~31(2):423-447.
+
+Kang et al. 2008. Efficient control of population structure in model
+organism association mapping. Genetics 178:1709-1723.
+
+Lee, D.-J., Durban, M., and Eilers, P.H.C. (2013). Efficient
+two-dimensional smoothing with P-spline ANOVA mixed models and nested
+bases. Computational Statistics and Data Analysis, 61, 22 - 37.
+
+Lee et al. 2015. MTG2: An efficient algorithm for multivariate linear
+mixed model analysis based on genomic information. Cold Spring Harbor.
+doi: \url{http://dx.doi.org/10.1101/027201}.
+
+Maier et al. 2015. Joint analysis of psychiatric disorders increases
+accuracy of risk prediction for schizophrenia, bipolar disorder, and
+major depressive disorder. Am J Hum Genet; 96(2):283-294.
+
+Rodriguez-Alvarez, Maria Xose, et al. Correcting for spatial
+heterogeneity in plant breeding experiments with P-splines. Spatial
+Statistics 23 (2018): 52-71.
+
+Searle. 1993. Applying the EM algorithm to calculating ML and REML
+estimates of variance components. Paper invited for the 1993 American
+Statistical Association Meeting, San Francisco.
+
+Yu et al. 2006. A unified mixed-model method for association mapping
+that accounts for multiple levels of relatedness. Genetics 38:203-208.
+
+Abdollahi Arpanahi R, Morota G, Valente BD, Kranis A, Rosa GJM, Gianola
+D. 2015. Assessment of bagging GBLUP for whole genome prediction of
+broiler chicken traits. Journal of Animal Breeding and Genetics
+132:218-228.
+
+Tunnicliffe W. 1989. On the use of marginal likelihood in time series
+model estimation. JRSS 51(1):15-27.
+
+
+\end{document}

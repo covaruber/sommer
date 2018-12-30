@@ -11,16 +11,16 @@
 \arguments{
   \item{...}{unknown variance-covariance structures (i.e. us,ds,at,cs) and the random effect where such covariance structure will be used (the random effect of interest).}
   \item{Gu}{the known variance-covariance structure for the random effect (i.e. relationship matrix among individuals or any other known covariance structure). If NULL, then an identity matrix is assumed.}
-  \item{Gt}{matrix with initial values of the variance-covariance components for the random effect. If NULL the program will provide these.}
-  \item{Gtc}{matrix of constraints for the variance-covariance components for the random effect (Gt) according to the following rules:
+  \item{Gt}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument If NULL the program will provide these.}
+  \item{Gtc}{matrix with dimensions t x t (t equal to number of traits) of constraints for the variance-covariance components for the random effect specified in the ... argument according to the following rules:
   
   0: not to be estimated
   
-  1: estimated and constrained to be positive
+  1: estimated and constrained to be positive (i.e. variance component)
   
-  2: estimated and unconstrained
+  2: estimated and unconstrained (can be negative or positive, i.e. covariance component)
   
-  3: not to be estimated but fixed value provided in Gt
+  3: not to be estimated but fixed (value has to be provided in the Gt argument)
   
   }
 }
