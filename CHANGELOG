@@ -325,11 +325,16 @@ version 3.7 (2018-09-01)
   + anova() function enabled for single model to get sum of squares and MS
   + EIGEN functionality not available anymore, same with EMMA called from mmer
   + mmer2 and GWAS2 have been deprecated, now mmer and GWAS functions can do all 
-  
+ 
+########################
+version 3.8 (2019-01-01)
+######################## 
+
+  + stable version of c++ implementation, all bugs reported by users in 3.7 have been fixed
+  + implement overlayed and leg in fixed effects
 
 ######################
 ## PENDINGS
 + IMPLEMENT WALD TEST
-+ implement overlay and leg in fixed effects
 
  
