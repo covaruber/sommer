@@ -11,7 +11,7 @@ Fits a multivariate/univariate linear mixed model GWAS by likelihood methods (RE
 
 Complex covariance structures can be fitted using the \code{\link{vs}} function. The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model covariances among genotypes for plant and animal breeding problems. Overlayed models can be implemented as well (\code{\link{overlay}} function), and spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). 
 
-The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed easily typing the following in the R console:
+The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed typing the following in the R console:
 
 library(devtools)
 
@@ -48,15 +48,13 @@ GWAS(fixed, random, rcov, data, weights,
   
   Useful functions can be used to fit heterogeneous variances and other special models (\emph{see 'Special Functions' in the Details section for more information}):
   
-  \code{\link{vs}(...,Gu,Gt,Gtc)} is the main function to specify special variance-covariance structures for random effects. On the ... argument you provide the unknown variance-covariance structures (i.e. us,ds,at,cs) and the random effect where such covariance structure will be used (the random effect of interest).
-    
-  \code{\link{at}(x,levs)} can be used to specify heterogeneous variance for specific levels of a random effect
+  \code{\link{vs}(...,Gu,Gt,Gtc)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (i.e. us,ds,at,cs) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance structures, Gt initial values and Gtc for constraints. Auxiliar functions for building the variance models are:
   
-  \code{\link{ds}(x)}, \code{\link{us}(x)}, \code{\link{cs}(x)} can be used to specify unknown diagonal, unstructured and customized covariance structures respectively among levels of a random effect to be estimated by REML.
+  ** \code{\link{ds}(x)}, \code{\link{us}(x)}, \code{\link{cs}(x)} and \code{\link{at}(x,levs)} can be used to specify unknown diagonal, unstructured and customized unstructured and diagonal covariance structures to be estimated by REML.
   
-  \code{\link{overlay}(...,rlist,prefix)} can be used to specify overlay of design matrices of random effects
-
-  \code{\link{spl2D}(...)}   can be used to fit a 2-dimensional spline (i.e. spatial modeling; see Special functions section below).
+  ** \code{\link{unsm}(x)}, \code{\link{uncm}(x)}, and \code{\link{fixm}(x)} can be used to specify constraints easily in the Gtc argument of the \code{\link{vs}()} function.
+  
+  ** \code{\link{overlay}()}, \code{\link{spl2D}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vs}()} function.
   
   }
   \item{rcov}{a formula specifying the name of the \strong{error term}, i.e. \emph{rcov= ~ units}.

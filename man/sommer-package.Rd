@@ -22,7 +22,7 @@ Starting with version 3.0 the GWAS models that use the M argument have their own
 }
 
 \section{Keeping updated}{
-The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed easily typing the following in the R console:
+The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed typing the following in the R console:
 
 library(devtools)
 
@@ -212,9 +212,9 @@ head(DT)
 
 ## Compound simmetry (CS) model
 ans1 <- mmer(Yield~Env,
-              random= ~ Name + Env:Name,
-              rcov= ~ units,
-              data=DT)
+             random= ~ Name + Env:Name,
+             rcov= ~ units,
+             data=DT)
 summary(ans1)
 
 ####===========================================####
@@ -223,9 +223,9 @@ summary(ans1)
 
 ## Compound simmetry (CS) + Diagonal (DIAG) model
 ans2 <- mmer(Yield~Env,
-              random= ~Name + vs(ds(Env),Name),
-              rcov= ~ vs(ds(Env),units),
-              data=DT)
+             random= ~Name + vs(ds(Env),Name),
+             rcov= ~ vs(ds(Env),units),
+             data=DT)
 summary(ans2)
 
 ####===========================================####
@@ -245,8 +245,8 @@ summary(ans3)
 # ## Multivariate Compound simmetry (CS) model
 # DT$EnvName <- paste(DT$Env,DT$Name)
 # ans4 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(Name) + vs(EnvName),
-#               rcov= ~ vs(units),
+#               random= ~ vs(Name, Gtc = unsm(2)) + vs(EnvName,Gtc = unsm(2)),
+#               rcov= ~ vs(units, Gtc = unsm(2)),
 #               data=DT)
 # summary(ans4)
 # 
@@ -256,8 +256,8 @@ summary(ans3)
 # 
 # ## Multivariate Compound simmetry (CS) + Diagonal (DIAG) model
 # ans5 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(Name) + vs(ds(Env),Name),
-#               rcov= ~ vs(ds(Env),units),
+#               random= ~ vs(Name, Gtc = unsm(2)) + vs(ds(Env),Name, Gtc = unsm(2)),
+#               rcov= ~ vs(ds(Env),units, Gtc = unsm(2)),
 #               data=DT)
 # summary(ans5)
 # 
@@ -266,8 +266,8 @@ summary(ans3)
 # ####===========================================####
 # 
 # ans6 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(us(Env),Name),
-#               rcov= ~ vs(ds(Env),units),
+#               random= ~ vs(us(Env),Name, Gtc = unsm(2)),
+#               rcov= ~ vs(ds(Env),units, Gtc = unsm(2)),
 #               data=DT)
 # summary(ans6)
 

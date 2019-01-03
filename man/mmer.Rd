@@ -11,7 +11,7 @@ Fits a multivariate/univariate linear mixed model by likelihood methods (REML). 
 
 The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model covariances among genotypes for plant and animal breeding problems. Overlayed models can be implemented as well (\code{\link{overlay}} function). Spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). Autoregresive (\code{\link{AR1}}), compound symmetry (\code{\link{CS}}) and autoregressive moving average (\code{\link{ARMA}}) covariance matrices can be used in sommer, but the user needs to fix the correlation value for such models. Random regression models can also be fitted through the (\code{\link{leg}}) function (orthopolynom package installation is needed for using the leg function).
 
-The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed easily typing the following in the R console:
+The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed typing the following in the R console:
 
 library(devtools)
 
@@ -28,13 +28,10 @@ or visit \strong{https://covaruber.github.io}
 }
 \usage{
 
-mmer(fixed, random, rcov, data, weights, 
-    iters=20, tolpar = 1e-03, tolparinv = 1e-06, 
-    init=NULL, constraints=NULL,method="NR", 
-    getPEV=TRUE,na.method.X="exclude",
-    na.method.Y="exclude",return.param=FALSE, 
-    date.warning=TRUE,verbose=TRUE,
-    reshape.output=TRUE)
+mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03, 
+     tolparinv = 1e-06, init=NULL, constraints=NULL,method="NR", getPEV=TRUE,
+     na.method.X="exclude", na.method.Y="exclude",return.param=FALSE, 
+     date.warning=TRUE,verbose=TRUE, reshape.output=TRUE)
 }
 \arguments{
   \item{fixed}{a formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -43,7 +40,7 @@ mmer(fixed, random, rcov, data, weights,
   
   \emph{cbind(response.i,response.j) ~ covariate} for multivariate models
   
-  The \code{\link{fcm}(x)} function can be used to constrain fixed effects in multi-response models.
+  The \code{\link{fcm}()} function can be used to constrain fixed effects in multi-response models.
   
   }
   
@@ -53,20 +50,16 @@ mmer(fixed, random, rcov, data, weights,
   
   \code{\link{vs}(...,Gu,Gt,Gtc)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (i.e. us,ds,at,cs) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance structures, Gt initial values and Gtc for constraints. Auxiliar functions for building the variance models are:
   
-  * \code{\link{ds}(x)}, \code{\link{us}(x)}, \code{\link{cs}(x)} can be used to specify unknown diagonal, unstructured and customized covariance structures respectively among levels of a random effect to be estimated by REML.
+  ** \code{\link{ds}(x)}, \code{\link{us}(x)}, \code{\link{cs}(x)} and \code{\link{at}(x,levs)} can be used to specify unknown diagonal, unstructured and customized unstructured and diagonal covariance structures to be estimated by REML.
   
-  * \code{\link{at}(x,levs)} can be used to specify heterogeneous variance for specific levels of a random effect
+  ** \code{\link{unsm}(x)}, \code{\link{uncm}(x)}, and \code{\link{fixm}(x)} can be used to specify constraints easily in the Gtc argument of the \code{\link{vs}()} function.
   
-  * \code{\link{overlay}(...,rlist,prefix)} can be used to specify overlay of design matrices of random effects
-
-  * \code{\link{spl2D}(...)}   can be used to fit a 2-dimensional spline (i.e. spatial modeling; see Special functions section below).
-  
-  * \code{\link{leg}(...)}   can be used to fit a random regression model.
+  ** \code{\link{overlay}()}, \code{\link{spl2D}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vs}()} function.
   
   }
   \item{rcov}{a formula specifying the name of the \strong{error term}, i.e. \emph{rcov= ~ units}.
   
-  Special variance models for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, i.e. \emph{rcov=~vs(ds(covariate),units)}
+  Special heterogeneous and special variance models and constraints for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, i.e. \emph{rcov=~vs(ds(covariate),units)}
   
   }
   \item{data}{a data frame containing the variables specified in the formulas for response, fixed, and random effects.}
@@ -234,7 +227,7 @@ Giovanny Covarrubias-Pazaran
 ####=========================================####
 
 ####=========================================####
-#### EXAMPLE 1
+#### EXAMPLES
 #### Different models with sommer
 ####=========================================####
 
@@ -280,8 +273,8 @@ summary(ans3)
 # ## Multivariate Compound simmetry (CS) model
 # DT$EnvName <- paste(DT$Env,DT$Name)
 # ans4 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(Name) + vs(EnvName),
-#               rcov= ~ vs(units),
+#               random= ~ vs(Name, Gtc = unsm(2)) + vs(EnvName,Gtc = unsm(2)),
+#               rcov= ~ vs(units, Gtc = unsm(2)),
 #               data=DT)
 # summary(ans4)
 # 
@@ -291,8 +284,8 @@ summary(ans3)
 # 
 # ## Multivariate Compound simmetry (CS) + Diagonal (DIAG) model
 # ans5 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(Name) + vs(ds(Env),Name),
-#               rcov= ~ vs(ds(Env),units),
+#               random= ~ vs(Name, Gtc = unsm(2)) + vs(ds(Env),Name, Gtc = unsm(2)),
+#               rcov= ~ vs(ds(Env),units, Gtc = unsm(2)),
 #               data=DT)
 # summary(ans5)
 # 
@@ -301,26 +294,25 @@ summary(ans3)
 # ####===========================================####
 # 
 # ans6 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(us(Env),Name),
-#               rcov= ~ vs(ds(Env),units),
+#               random= ~ vs(us(Env),Name, Gtc = unsm(2)),
+#               rcov= ~ vs(ds(Env),units, Gtc = unsm(2)),
 #               data=DT)
 # summary(ans6)
-
-####=========================================####
-####=========================================####
-#### EXAMPLE 2
-#### 2 variance components
-#### one random effect with variance covariance structure
-####=========================================####
-####=========================================####
-
+# 
+# ####=========================================####
+# ####=========================================####
+# #### EXAMPLE SET 2
+# #### 2 variance components
+# #### one random effect with variance covariance structure
+# ####=========================================####
+# ####=========================================####
+# 
 # data("DT_cpdata")
 # head(DT)
 # GT[1:4,1:4]
 # #### create the variance-covariance matrix
 # A <- A.mat(GT)
 # #### look at the data and fit the model
-# head(DT)
 # mix1 <- mmer(Yield~1,
 #              random=~vs(id, Gu=A) + Rowf,
 #              rcov=~units,
@@ -330,22 +322,22 @@ summary(ans3)
 # pin(mix1, h1 ~ V1/(V1+V3) )
 # #### multi trait example
 # mix2 <- mmer(cbind(Yield,color)~1,
-#               random = ~ vs(id, Gu=A) +
+#               random = ~ vs(id, Gu=A, Gtc = unsm(2)) + # unstructured at trait level
 #                             vs(Rowf, Gtc=diag(2)) + # diagonal structure at trait level
 #                                 vs(Colf, Gtc=diag(2)), # diagonal structure at trait level
-#               rcov = ~ vs(units),
+#               rcov = ~ vs(units, Gtc = unsm(2)), # unstructured at trait level
 #               data=DT)
 # summary(mix2)
-
-####=========================================####
-#### EXAMPLE 3
-#### comparison with lmer, install 'lme4' 
-#### and run the code below
-####=========================================####
-
-#### lmer cannot use var-cov matrices so we will not 
-#### use them in this comparison example
-
+# 
+# ####=========================================####
+# #### EXAMPLE SET 3
+# #### comparison with lmer, install 'lme4' 
+# #### and run the code below
+# ####=========================================####
+# 
+# #### lmer cannot use var-cov matrices so we will not 
+# #### use them in this comparison example
+# 
 # library(lme4)
 # library(sommer)
 # data("DT_cornhybrids")
@@ -365,11 +357,12 @@ summary(ans3)
 # 
 # ### a more complex model specifying which locations
 # head(DT)
-# out2 <- mmer(Yield ~ 1,
-#               random = ~ vs(at(Location,c("3","4")),GCA2) + 
+# out2 <- mmer(Yield ~ Location,
+#               random = ~ vs(at(Location,c("3","4")),GCA2) +
 #                          vs(at(Location,c("3","4")),SCA),
 #               rcov = ~ vs(ds(Location),units),
 #               data=DT)
 # summary(out2)
+
 
 }

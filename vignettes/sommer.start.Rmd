@@ -24,18 +24,24 @@ B2) Background on covariance structures
 4) Multivariate homogeneous variance models
 5) Multivariate heterogeneous variance models
 6) Multivariate unstructured variance models
-7) Random regression models
-8) GWAS models
-9) Including special functions
-   + the major vs() function for special variance models and its auxiliars:
-      + at() specific levels structure
-      + ds() diagonal structure
-      + us() unstructured
-      + cs() customized structure
-      + overlay() overlayed models
-      + spl2D() two dimensional spline models
-10) The specification of constraints
-11) Final remarks
+7) Details on special functions for variance models
+  + the major vs() function for special variance models and its auxiliars:
+    + at() specific levels heterogeneous variance structure
+    + ds() diagonal covariance structure
+    + us() unstructured covariance
+    + cs() customized covariance structure
+8) The specification of constraints in the variance components (Gtc argument)
+    + unsm() unstructured constraint
+    + uncm() unconstrained 
+    + fixm() fixed constraint
+    + fcm() constraints on fixed effects
+9) Special functions for special models
+    + Random regression models
+    + Overlayed models
+    + Spatial models
+    + GWAS models
+    + Customized random effects
+10) Final remarks
 
 ## B1) Background on mixed models
 
@@ -127,7 +133,7 @@ In the following section we will go in detail over several examples on how to us
 
 ## B2) Background on covariance structures
 
-One of the major strenghts of linear mixed models is the flexibility to specify variance-covariance structures at all levels. In general, variance structures of mixed models can be seen as tensor (kronecker) products of multiple variance-covariance stuctures. For example, a multi-response model (i.e. 2 traits) where "g" individuals (i.e. 100 genotypes) are tested in "e" treatments (i.e. 3 environments), the variance-covariance for the random effect "individuals" can be seen as the following multiplicative model:
+One of the major strenghts of linear mixed models is the flexibility to specify variance-covariance structures at all levels. In general, variance structures of mixed models can be seen as tensor (kronecker) products of multiple variance-covariance stuctures. For example, a multi-response model (i.e. 2 traits) where "g" individuals (i.e. 100 individuals) are tested in "e" treatments (i.e. 3 environments), the variance-covariance for the random effect "individuals" can be seen as the following multiplicative model:
 
 T $\otimes$ G $\otimes$ A
 
@@ -198,30 +204,6 @@ $$\mathbf{\Sigma} = \left[\begin{array}
 $$
 
 among others. Sommer has the capabilities to fit some of these covariance structures in the mixed model machinery. 
-
-# forming variance structures in sommer using the vs() function 
-
-The sommer function `vs()` allows to construct very structured variance models that are passed to the `mmer()` function it's one of the most important functions in the sommer package. Its specification is:
-
-random=~vs(..., Gu, Gt, Gtc)
-
-The idea is that the `vs()` function reflects  the special variance structure that each random effect could have:
-
-$T \bigotimes E \bigotimes ... \bigotimes A$
-
-where the ... argument in the `vs()` function is used to specify the kronecker products from all matrices that form the variance for the random effect , where the auxiliar function ds(), us(), cs(), at(), can be used to define such structure. The idea is that a variance model for a random effect x (i.e. individuals) might require a more flexible model than just:
-
-random=~x
-
-For example, if individuals are tested in different time-points and environment, we can assume a different variance and covariance components among the individuals in the different environment-timepoint combinations. An example of variance structure of the type:
-
-$T \bigotimes E \bigotimes S \bigotimes A$
-
-would be specified in the `vs()` function as:
-
-random=~vs(us(e),us(s),x, Gu=A, Gtc=T)
-
-where the `e` would be a column vector in a data frame for the environments, `s` a vector in the dataframe for the time points, `x` is the vector in the datrame for the identifier of individuals, `A` is a known square variance covariance matrix among individuals, and T is a square matrices with as many rows and columns as the number of traits. 
 
 ## 1) Univariate homogeneous variance models
 
@@ -331,7 +313,158 @@ summary(ans6)
 
 Any number of random effects can be specified with different structures.
 
-## 7) Random regression models
+## 7) Details on special functions for variance models
+
+# the major vs() function for special variance models and its auxiliars
+
+The sommer function `vs()` allows to construct complex variance models that are passed to the `mmer()` function it constitutes one of the most important features of the sommer package. Its specification of the `vs()` function has the form:
+
+`random=~vs(..., Gu, Gt, Gtc)`
+
+The idea is that the `vs()` function reflects  the special variance structure that each random effect could have in the matrix notation:
+
+$var(u) = T \bigotimes E \bigotimes ... \bigotimes A$
+
+where the ... argument in the `vs()` function is used to specify the kronecker products from all matrices that form the variance for the random effect , where the auxiliar function ds(), us(), cs(), at(), can be used to define such structure variance structure. The idea is that a variance model for a random effect x (i.e. individuals) might require a more flexible model than just:
+
+`random=~x`
+
+For example, if individuals are tested in different time-points and environment, we can assume a different variance and covariance components among the individuals in the different environment-timepoint combinations. An example of variance structure of the type:
+
+$var(u) = T \bigotimes E \bigotimes S \bigotimes A$
+
+would be specified in the `vs()` function as:
+
+`random=~vs(us(e),us(s),x, Gu=A, Gtc=T)`
+
+where the `e` would be a column vector in a data frame for the environments, `s` a column vector in the dataframe for the time points, `x` is the vector in the datrame for the identifier of individuals, `A` is a known square variance covariance matrix among individuals (usually an identity matrix; default if not specified), and T is a square matrices with as many rows and columns as the number of traits that specifyies the trait covariance structure. 
+
+The auxiliar function to build the variance models for the random effect are:
+  + ds() diagonal covariance structure
+  + us() unstructured covariance
+  + at() specific levels heterogeneous variance structure
+  + cs() customized covariance structure
+
+
+# ds() to specify a diagonal (DIAG) covariance structures
+
+A diagonal covariance structure looks like this:
+
+$$\mathbf{\Sigma} = \left[\begin{array}
+{rrr}
+{\sigma^2_{g_{_{e1,e1}}}} & 0 & 0 \\
+\vdots & \ddots & \vdots \\
+0 & 0 & {\sigma^2_{g_{_{ei,ei}}}} \\
+\end{array}\right]
+$$
+Considering an example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments) the model would look like:
+
+`random=~vs(ds(e),g)`
+
+# us() to specify an unstructured (US) covariance
+
+A unstructured covariance looks like this:
+
+$$\mathbf{G} = \left[\begin{array}
+{rrr}
+{\sigma^2_{g_{_{e1,e1}}}} & {\sigma_{g_{_{e1,e2}}}} & {\sigma_{g_{_{e1,e3}}}} \\
+{\sigma_{g_{_{e2,e1}}}} & {\sigma^2_{g_{_{e2,e2}}}} & {\sigma_{g_{_{e2,e3}}}} \\
+{\sigma_{g_{_{e3,e1}}}} & {\sigma_{g_{_{e3,e2}}}} & {\sigma^2_{g_{_{e3,e3}}}} \\
+\end{array}\right]
+$$
+
+Considering same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments) the model would look like:
+
+`random=~vs(us(e),g)`
+
+# at() to specify a level-specific heterogeneous variance
+
+A diagonal covariance structure for specific levels of the second random effect looks like this:
+
+$$\mathbf{\Sigma} = \left[\begin{array}
+{rrr}
+{\sigma^2_{g_{_{e1,e1}}}} & 0 & 0 \\
+\vdots & \ddots & \vdots \\
+0 & 0 & {\sigma^2_{g_{_{ei,ei}}}} \\
+\end{array}\right]
+$$
+
+Considering same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments A,B,C) the model would look like:
+
+`random=~vs(at(e,c("A","B")),g)`
+
+where the variance component for g is only fitted at levels A and B.
+
+# cs() to specify a level-specific variance-covariance structure
+
+A customized covariance structure for specific levels of the second random effect (variance and covariances) looks i.e. like this:
+
+$$\mathbf{\Sigma} = \left[\begin{array}
+{rrr}
+{\sigma^2_{g_{_{e1,e1}}}} & {\sigma_{g_{_{e1,e2}}}} & 0 \\
+\vdots & \ddots & \vdots \\
+0 & 0 & {\sigma^2_{g_{_{ei,ei}}}} \\
+\end{array}\right]
+$$
+
+Considering same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments A,B,C) the model would look like:
+
+`random=~vs(cs(e,mm),g)`
+
+where mm indicates which variance and covariance components are estimated for g.
+
+## 8) The specification of constraints in the variance components (Gtc argument)
+
+One of the major strengths of sommer is its extreme flexibility to specify variance-covariance structures in the multi-trait framework. Since sommer 3.7 this is easily achieved by the use of the `vs()` function and it's argument `Gtc`. The `Gtc` argument expects a matrix of constraints for the variance-covariance components for the random effect filled with numbers according to the following rules:
+
+0: parameter not to be estimated
+1: estimated and constrained to be positive
+2: estimated and unconstrained
+3: not to be estimated but fixed value provided in Gt
+
+Some useful function to specify quickly the contraint matrices are `unsm()` for unstructured, `uncm` for unconstrained, `fixm()` for fixed constraint, and `fcm()` for fixed effect constrains. 
+
+Consider a multi-trait model with 4 traits (y1,...,y4) and 1 random effects (u) and 1 fixed effect (x)
+
+`fixed=cbind(y1,y2,y3,y4)~x`
+
+`random= ~vs(u, Gtc=?)`
+
+The constraint for the 4 x 4 matrix of variance covariance components to be estimated can be an: 
+
+a) unstructured (variance components have to be positive and covariances either positive or negative)
+`random= ~vs(u, Gtc=unsm(4))`
+
+```{r}
+unsm(4)
+```
+b) unconstrained (any component variance or covariance can be positive or negative)
+`random= ~vs(u, Gtc=uncm(4))`
+
+```{r} 
+uncm(4)
+```
+c) fixed (variance or covariance components indicated with a 3 are considered fixed and values are provided in the Gt argument)
+`random= ~vs(u, Gtc=fixm(4), Gt=mm)`
+
+```{r} 
+fixm(4)
+```
+where mm is a 4 x 4 matrix with initial values for the variance components.
+
+d) constraints for fixed effects 
+`fixed= cbind(y1,y2,y3,y4)~vs(x, Gtc=fcm(c(1,0,1,0)))`
+
+```{r}
+fcm(c(1,0,1,0))
+```
+
+where 1's and 0's indicate the traits where the fixed effect will be estimated (1's) and where it won't (0's).
+
+
+## 9) Special functions for special models
+
+# Random regression models
 
 In order to fit random regression models the user can use the `leg()` function to fit Legendre polynomials. This can be combined with other special covariance structures such as `ds()`, `us()`, etc.
 
@@ -349,7 +482,7 @@ summary(mRR2)$varcomp
 
 Here, a numeric covariate X is used to explain the trajectory of the SUBJECT's and combined with an unstructured covariance matrix. The details can be found in the theory.
 
-## 8) GWAS models
+# GWAS models
 
 Although genome wide association studies can be conducted through a variety of approaches, the use of mixed models to find association between markers and phenotypes still one of the most popular approaches. Two of the most classical and popular approaches is to test marker by marker trough mixed modeling (1 model by marker) to obtain the marker effect and an statistic reflecting the level of association usually provided as the -log10 p-value. The second most popular approach is to assume that the genetic variance component is similar for all markers and therefore the variance components are only estimated once (1 model for all markers) and use the inverse of the phenotypic variance matrix (V.inverse) to test all markers in the generalized linear model b=(XV-X)-XV-y. This makes the GWAS much faster and efficient without major loses. Given the straight forward extension, sommer provides the `GWAS` function which can fit both type of approaches (be aware that these are 2 among many existant in the literature) in univariate and multivariate models, that way genetically correlated traits can be tested together to increase the power of detection.
 
@@ -380,98 +513,7 @@ manhattan(MP2, pch=20,cex=.5, PVCN = "color score")
 
 Be aware that the marker matrix M has to be imputed (no missing data allowed) and make sure that the number of rows in the M matrix is equivalent to the levels of the gTerm specified (i.e. if the gTerm is "id" and has 300 levels or in other words 300 individuals, then M has dimensions 300 x p, being p the number of markers).
 
-## 9) Including special functions
-
-Including special functions
-   + the major vs() function for special variance models
-   + at() specific levels structure
-   + ds() diagonal structure
-   + us() unstructured
-   + cs() customized structure
-   + overlay() overlayed models
-   + spl2D() two dimensional spline models
-
-In a mixed model framework there's two types of covariance structures, the unknown and known. An example of a known covariance structure is the relationship matrix among individuals commonly present in plant an animal breeding programs. On the other hand, an example of an unknown covariance structure is in a multi-environment trial the covariance among genotypes in these environments, can be assumed diagonal, compound simmetry or unstructured but any needs to be estimated. In the following section we show how to specify unknow and known covariance structured for the random effects.
-
-## the vs() function and its auxiliars ds(), us(), at() and cs()
-
-The vs() function allows to fit different types of variance models (please take the time to read the documentation of this function). As explained in the introduction to covariance structures section in this document, the terms in the vs() function define the kronecker products that will be performed to define the variance and covariance components to be estimated. For example:
-
-fixed=~cbind(Y1,Y2,Y3)~1
-random=~vs(ds(Env),us(Time),Geno, Gu=A, Gtc=unsm(3))
-rcov=~vs(ds(Env),us(Time),units)
-
-defines a very complex model for the Geno random effect, where assumes that genotypes in different environments will be independent (diagonal structure using ds() function), but within each environment the different time points hold an unstructured variance-covariance structure (using the us() function), and at the same time a known covariance structure for Geno is specified in the Gu argument (here A is a square matrix provided by the user).
-
-## the Gtc argument for constraints 
-
-At the same time all these is embebbed in a multivariate model and the var-cov model is specified in the Gtc argument, here a full unstructured multivariate model is used by putting a 3x3 matrix in the Gtc argument with the following format:
-
-$$\mathbf{Gtc} = \left[\begin{array}
-{rrr}
-1 & 2 & 2 \\
-0 & 1 & 2 \\
-0 & 0 & 1 \\
-\end{array}\right]
-$$
-
-By default, sommer assumes an unstructured model if the Gtc argument is not provided. If the user wanted a DIAG model for the multivariate structure the argument would be Gtc=diag(3) which is again a 3x3 matrix but of a diagonal form:
-
-$$\mathbf{Gtc} = \left[\begin{array}
-{rrr}
-1 & 0 & 0 \\
-0 & 1 & 0 \\
-0 & 0 & 1 \\
-\end{array}\right]
-$$
-Remember that the numbers of the Gtc argument define the constraint applied in the model (1 positive, 2 unconstrained, 3 fixed)
-
-Estimating a DIAG unknown covariance structure among genotypes in different environments (using the ds() function), same for residuals, and using a known covariance structure among genotypes (additive relationship matrix A applied in the Gu argument of the vs function).
-
-```{r}
-
-data(DT_example)
-head(DT)
-ans2 <- mmer(Yield~Env,
-              random= ~ vs(ds(Env),Name, Gu=A),
-              rcov= ~ vs(ds(Env),units),
-              data=DT)
-summary(ans2)
-
-```
-
-and for multivariate models:
-  
-```{r}
-
-data(DT_example)
-head(DT)
-ans2 <- mmer(cbind(Yield,Weight)~Env,
-              random= ~ vs(ds(Env),Name, Gu=A, Gtc=unsm(2)),
-              rcov= ~ vs(ds(Env),units, Gtc=diag(2)),
-              data=DT)
-summary(ans2)
-
-```
-
-## customized random effects
-
-One of the most powerful features of sommer is the ability to provide any customized matrix and estimate any random effect. For example:
-
-```{r}
-
-data(DT_cpdata)
-GT[1:4,1:4]
-#### look at the data and fit the model
-mix1 <- mmer(Yield~1,
-              random=~vs(list(GT)),
-              rcov=~units,
-              data=DT)
-
-```
-the matrix GT is provided as a random effect by encapsulating the matrix in a list and provided in the `vs()` function.
-
-## the overlay() function
+# Overlayed models [the overlay() function]
 
 Another very useful function is the `overlay` function, which allows to overlay matrices of different random effects and estimate a single variance component for the overlayed terms.
 
@@ -484,7 +526,7 @@ DT$malef <- as.factor(DT$male)
 DT$genof <- as.factor(DT$geno)
 #### model using overlay
 modh <- mmer(sugar~1, 
-             random=~vs(overlay(DT$femalef,DT$malef)) 
+             random=~vs(overlay(femalef,malef)) 
              + genof,
              data=DT)
 
@@ -492,7 +534,7 @@ modh <- mmer(sugar~1,
 
 here the femalef and malef random effects are overlayed becoming a single random effect that has the same variance component.
 
-## the spl2D() function (using the 2-dimensional spline)
+# Spatial models (using the 2-dimensional spline)
 
 We will use the CPdata to show the use of 2-dimensional splines for accomodating spatial effects in field experiments. In early generation variety trials the availability of seed is low, which makes the use of unreplicated design a neccesity more than anything else. Experimental designs such as augmented designs and partially-replicated (p-rep) designs become every day more common this days. 
 
@@ -516,94 +558,24 @@ summary(mix)
 
 Notice that the job is done by the `spl2D()` function that takes the Row and Col information to fit a spatial kernel. 
 
-## 10) The specification of constraints
+# Customized random effects
 
-One of the major strengths of sommer is its extreme flexibility to specify variance-covariance structures in the multi-trait framework. Since sommer 3.7 this is easily achieved by the use of the `vs()` function and it's argument `Gtc`. The idea behind how to specify the constraints has been explained in section 7) and here we will only show some examples.
-
-Some useful function to create contrained matrices quickly are `unsm()` for unstructured, `uncm` for unconstrained, `fixm()` for fixed constraint, and `fcm()` for fixed effect constrains and it's use is very easy:
+One of the most powerful features of sommer is the ability to provide any customized matrix and estimate any random effect. For example:
 
 ```{r}
-unsm(4)
+
+data(DT_cpdata)
+GT[1:4,1:4]
+#### look at the data and fit the model
+mix1 <- mmer(Yield~1,
+              random=~vs(list(GT)),
+              rcov=~units,
+              data=DT)
+
 ```
-can be used in vs(x,Gtc=unsm(4)) to specify unstructured model for RE x
+the matrix GT is provided as a random effect by encapsulating the matrix in a list and provided in the `vs()` function.
 
-```{r} 
-uncm(4)
-```
-can be used in vs(x,Gtc=uncm(4)) to specify unconstrained model for RE x
-
-```{r} 
-fixm(4)
-```
-can be used in vs(x,Gtc=fixm(4),Gt=mm) to specify a fixed var-cov model for RE x and Gt needs to be provided
-
-```{r}
-fcm(c(1,0,1,0))
-```
-can be used in vs(xf,Gtc=fcm(c(1,0,1,0)))  to specify that the fixed effect xf should be only estimated for traits 1 and 3
-
-A matrix can combine the different constraints (0: not estimated, 1: positive, 2:unconstrained, 3:fixed) as desired.
-
-First we show how to fit fixed effects for an specific trait. Here we assume two traits (Yield and Weight) and a fixed effect called "Env", which we only want to fit for the trait number 2 and defaults for the random effects.
-
-```{r}
-data(DT_example)
-ansf <- mmer(cbind(Yield,Weight)~vs(Env,Gtc=fcm(c(0,1))),
-             random= ~ vs(ds(Env),Name),
-             rcov= ~ vs(ds(Env),units),
-             data=DT)
-summary(ansf)
-```
-Now we specify an unstructured model for the random effect Name and the residuals and after a diagonal for both.
-
-```{r}
-data(DT_example)
-ans.uns <- mmer(cbind(Yield,Weight)~Env,
-             random= ~ vs(Name,Gtc=unsm(2)),
-             rcov= ~ vs(units,Gtc=unsm(2)),
-             data=DT)
-summary(ans.uns)
-
-ans.diag <- mmer(cbind(Yield,Weight)~Env,
-             random= ~ vs(Name,Gtc=diag(2)),
-             rcov= ~ vs(units,Gtc=diag(2)),
-             data=DT)
-summary(ans.diag)
-```
-
-As a final example we will fit a multivariate model to deal with separate sexes which is a common problem in animal genetics.
-
-```{r}
-# Generate some fake data: 
-# 100 males and 100 females
-# Two traits are measured on each male, and two traits on each female
-# 20 individuals per sex are measured for each of 5 different genotypes 
-set.seed(3434)
-df <- data.frame(
-  sex = rep(c("female", "male"), each = 100),
-  female_trait_1 = c(rnorm(100), rep(NA, 100)),
-  female_trait_2 = c(rnorm(100), rep(NA, 100)),
-  male_trait_1 = c(rep(NA, 100), rnorm(100)),
-  male_trait_2 = c(rep(NA, 100), rnorm(100)),
-  genotype = rep(rep(1:5, each = 20), 2),
-  individual = 1:200
-)
-df$genotype <- as.factor(df$genotype)
-df$individual <- as.factor(df$individual)
-
-mm <- adiag1(unsm(2),unsm(2));mm
-# mix <- mmer(cbind(female_trait_1, 
-#                   female_trait_2,
-#                   male_trait_1,
-#                   male_trait_2) ~ 1,
-#             random=~vs(genotype,Gtc=unsm(4)) + vs(individual,Gtc=mm),
-#             rcov=~vs(units), na.method.Y = "include",
-#             data=df)
-# summary(mix)
-```
-I have silenced this colde because data is not meaningful but this must show the way.
-
-## 11) Final remarks
+## 10) Final remarks
 
 Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
 
