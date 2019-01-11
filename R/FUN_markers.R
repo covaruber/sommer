@@ -1,4 +1,12 @@
-atcg1234 <- function(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, silent=FALSE, by.allele=FALSE, imp=TRUE){
+atcg1234 <- function(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, silent=FALSE, by.allele=FALSE, imp=TRUE, ref.alleles=NULL){
+
+  impute.mode <- function(x) {
+    ix <- which(is.na(x))
+    if (length(ix) > 0) {
+      x[ix] <- as.integer(names(which.max(table(x))))
+    }
+    return(x)
+  }
   ##### START GBS.TO.BISNP DATA ######
   gbs.to.bisnp <- function(x) {
     y <- rep(NA,length(x))
@@ -34,8 +42,7 @@ atcg1234 <- function(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, silent=FA
     return(data2)
   }
   #### apply with progress bar ######
-  apply_pb <- function(X, MARGIN, FUN, ...)
-  {
+  apply_pb <- function(X, MARGIN, FUN, ...){
     env <- environment()
     pb_Total <- sum(dim(X)[MARGIN])
     counter <- 0
@@ -117,13 +124,14 @@ atcg1234 <- function(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, silent=FA
     return(fin.mat)
   }
   
-  
   ## remove all markers or columns that are all missing data
   all.na <- apply(data,2,function(x){length(which(is.na(x)))/length(x)})
   bad.na <- which(all.na==1)
   if(length(bad.na) > 0){
     data <- data[,-bad.na]
   }
+  
+  if(is.null(ref.alleles)){
   #############################
   if(by.allele){ ####&&&&&&&&&&&&&&&&&&&&&& use zero.one function
     user.code <- apply(data[,c(1:(round(dim(data)[2]/20)))], 2, function(x){q <- which(!is.na(x))[1];ss1 <- substr(x[q], start=1,stop=1);ss2 <- substr(x[q], start=2,stop=2);vv1 <-which(c(ss1,ss2)=="");if(length(vv1)>0){y <-1}else{y <- 0}; return(y)})
@@ -279,58 +287,72 @@ atcg1234 <- function(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, silent=FA
     if (bad > 0) {
       stop("Invalid marker calls.")
     }
-    ####################################
-    # by column or markers calculate MAF
-    ####################################
-    cat("Calculating minor allele frequency (MAF)\n")
-    if(silent){
-      MAF <- apply(M, 2, function(x) {
-        AF <- mean(x, na.rm = T)/ploidy
-        MAF <- ifelse(AF > 0.5, 1 - AF, AF)
-      })
-    }else{
-      MAF <- apply_pb(M, 2, function(x) {
-        AF <- mean(x, na.rm = T)/ploidy
-        MAF <- ifelse(AF > 0.5, 1 - AF, AF)
-      })
-    }
-    ####################################
-    # which markers have MAF > 0, JUST GET THOSE
-    ####################################
-    polymorphic <- which(MAF > maf)
-    M <- M[, polymorphic]
-    ####################################
-    # function to impute markers with the mode
-    ####################################
-    impute.mode <- function(x) {
-      ix <- which(is.na(x))
-      if (length(ix) > 0) {
-        x[ix] <- as.integer(names(which.max(table(x))))
-      }
-      return(x)
-    }
-    # time to impute
-    if(imp){
-      missing <- which(is.na(M))
-      if (length(missing) > 0) {
-        cat("Imputing missing data with mode \n")
-        if(silent){
-          M <- apply(M, 2, impute.mode)
-        }else{
-          M <- apply_pb(M, 2, impute.mode)
-        }
-      }
-    }else{
-      cat("Imputation not required. Be careful using non-imputed matrices in mixed model solvers\n")
-    }
-    if(ploidy == 2){
-      M <- M - 1
-    }
+    
   }
   #rownames(M) <- rownames(data)
   ####################################
   rownames(tmp) <- c("Alt","Ref")
-  return(list(M=M,ref.allele=tmp))
+  }else{# user provides reference alleles and just want a conversion
+    
+    common.mark <- intersect(colnames(data), colnames(ref.alleles))
+    data <- data[,common.mark]
+    tmp <- ref.alleles[,common.mark]; #rownames(refa) <- c("Alt","Ref")
+    cat("Converting to numeric format\n")
+    M <- apply_pb(data.frame(1:ncol(data)),1,function(k){
+      x <- as.character(data[,k])
+      x2 <- strsplit(x,"")
+      x3 <- unlist(lapply(x2,function(y){length(which(y == tmp[2,k]))}))
+      return(x3)
+    })
+    #M <- M-1
+    colnames(M) <- colnames(data)
+    
+  }
+  
+  ####################################
+  # by column or markers calculate MAF
+  ####################################
+  cat("Calculating minor allele frequency (MAF)\n")
+  if(silent){
+    MAF <- apply(M, 2, function(x) {
+      AF <- mean(x, na.rm = T)/ploidy
+      MAF <- ifelse(AF > 0.5, 1 - AF, AF)
+    })
+  }else{
+    MAF <- apply_pb(M, 2, function(x) {
+      AF <- mean(x, na.rm = T)/ploidy
+      MAF <- ifelse(AF > 0.5, 1 - AF, AF)
+    })
+  }
+  ####################################
+  # which markers have MAF > 0, JUST GET THOSE
+  ####################################
+  polymorphic <- which(MAF > maf)
+  M <- M[, polymorphic]
+  ####################################
+  # function to impute markers with the mode
+  ####################################
+  
+  # time to impute
+  if(imp){
+    missing <- which(is.na(M))
+    if (length(missing) > 0) {
+      cat("Imputing missing data with mode \n")
+      if(silent){
+        M <- apply(M, 2, impute.mode)
+      }else{
+        M <- apply_pb(M, 2, impute.mode)
+      }
+    }
+  }else{
+    cat("Imputation not required. Be careful using non-imputed matrices in mixed model solvers\n")
+  }
+  ## ploidy 2 needs to be adjusted to -1,0,1
+  if(ploidy == 2){
+    M <- M - 1
+  }
+  
+  return(list(M=M,ref.alleles=tmp))
 }
 
 build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE){

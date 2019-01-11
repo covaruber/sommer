@@ -484,7 +484,20 @@ Here, a numeric covariate X is used to explain the trajectory of the SUBJECT's a
 
 # GWAS models
 
-Although genome wide association studies can be conducted through a variety of approaches, the use of mixed models to find association between markers and phenotypes still one of the most popular approaches. Two of the most classical and popular approaches is to test marker by marker trough mixed modeling (1 model by marker) to obtain the marker effect and an statistic reflecting the level of association usually provided as the -log10 p-value. The second most popular approach is to assume that the genetic variance component is similar for all markers and therefore the variance components are only estimated once (1 model for all markers) and use the inverse of the phenotypic variance matrix (V.inverse) to test all markers in the generalized linear model b=(XV-X)-XV-y. This makes the GWAS much faster and efficient without major loses. Given the straight forward extension, sommer provides the `GWAS` function which can fit both type of approaches (be aware that these are 2 among many existant in the literature) in univariate and multivariate models, that way genetically correlated traits can be tested together to increase the power of detection.
+Although genome wide association studies can be conducted through a variety of approaches, the use of mixed models to find association between markers and phenotypes still one of the most popular approaches. Two of the most classical and popular approaches is to test marker by marker trough mixed modeling (1 model by marker) to obtain the marker effect and an statistic reflecting the level of association usually provided as the -log10 p-value. The second most popular approach is to assume that the genetic variance component is similar for all markers and therefore the variance components are only estimated once (1 model for all markers) and use the inverse of the phenotypic variance matrix (V.inverse) to test all markers in the generalized linear model b=(XV-X)-XV-y. This makes the GWAS much faster and efficient without major loses. Given the straight forward extension, sommer provides the `GWAS` function which can fit both type of approaches (be aware that these are 2 among many existant in the literature) in univariate and multivariate models, that way genetically correlated traits can be tested together to increase the power of detection. In summary the GWAS model implemented in sommer to obtain marker effect is a generalized linear model of the form:
+
+b = (X'V-X)X'V-y
+
+with X = ZMi
+
+where:
+b is the marker effect (dimensions 1 x mt)
+y is the response variable (univariate or multivariate) (dimensions 1 x nt)
+V- is the inverse of the phenotypic variance matrix (dimensions nt x nt)
+Z is the incidence matrix for the random effect selected (gTerm argument) to perform the GWAS (dimensions nt x ut)
+Mi is the ith column of the marker matrix (M argument) (dimensions u x m)
+
+for t traits, n observations, m markers and u levels of the random effect. Depending if P3D is TRUE or FALSE the V- matrix will be calculated once and used for all marker tests (P3D=TRUE) or estimated through REML for each marker (P3D=FALSE).
 
 Here we show a simple GWAS model for an univariate example. 
 
@@ -511,7 +524,7 @@ manhattan(MP2, pch=20,cex=.5, PVCN = "color score")
 
 ```
 
-Be aware that the marker matrix M has to be imputed (no missing data allowed) and make sure that the number of rows in the M matrix is equivalent to the levels of the gTerm specified (i.e. if the gTerm is "id" and has 300 levels or in other words 300 individuals, then M has dimensions 300 x p, being p the number of markers).
+Be aware that the marker matrix M has to be imputed (no missing data allowed) and make sure that the number of rows in the M matrix is equivalent to the levels of the gTerm specified (i.e. if the gTerm is "id" and has 300 levels or in other words 300 individuals, then M has dimensions 300 x m, being m the number of markers).
 
 # Overlayed models [the overlay() function]
 

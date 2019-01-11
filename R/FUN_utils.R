@@ -81,16 +81,23 @@
   
   fnamesindex <- list()
   counter <- 1
+  kept <- numeric()
   for(i in 1:nfixedeff){
-    pX <- kronecker(prov[[2]][[i]],prov[[3]][[i]])
-    # pX <- kronecker(prov[[3]][[i]],prov[[2]][[i]])
-    endcounter <- (counter+ncol(pX)-1)
-    fnamesindex[[i]] <- counter:endcounter
-    counter <- endcounter+1
+    if(ncol(prov[[2]][[i]]) > 0){ # the fixed effect was fitted
+      pX <- kronecker(prov[[2]][[i]],prov[[3]][[i]])
+      # pX <- kronecker(prov[[3]][[i]],prov[[2]][[i]])
+      endcounter <- (counter+ncol(pX)-1)
+      fnamesindex[[i]] <- counter:endcounter
+      counter <- endcounter+1
+      kept[i] <- i
+    }
   }
+  fnamesindex <- fnamesindex[which(unlist(lapply(fnamesindex,length)) > 0)]
+  nfixedeff <- length(fnamesindex)
+  fnames <- fnames[na.omit(kept)]
   # fpicked <- which(fnames %in% c("(Intercept)",classify.split))
   if(!is.null(FtermsToForce)){
-    fpicked <- FtermsToForce
+    fpicked <- intersect(FtermsToForce,1:nfixedeff)
   }else{
     fpicked <- 1:length(fnames)
   }
@@ -191,7 +198,7 @@
     # Xmv <- Xm
     # print(fnonpicked)
     if(length(fnonpicked) > 0){ #then we have to average across those terms
-      for(ifnp in fnonpicked){
+      for(ifnp in fnonpicked){ # ifnp <- fnonpicked[5]
         fnonpickedindex <- fnamesindex[[ifnp]]
         if(ncol(as.matrix(Xm[,fnonpickedindex])) > 1){ ## if is factor or character type
           Xm[,fnonpickedindex] <- ((Xm[,fnonpickedindex]*0)+1)/(ncol(as.matrix(Xm[,fnonpickedindex]))+1)

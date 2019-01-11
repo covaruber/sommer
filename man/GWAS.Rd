@@ -7,7 +7,7 @@ Genome wide association study
 }
 \description{
 
-Fits a multivariate/univariate linear mixed model GWAS by likelihood methods (REML), see the Details section below. It uses the \code{\link{mmer}} function and its core coded in C++ using the Armadillo library to opmitime dense matrix operations common in the derect-inversion algorithms. After the model fit extracts the inverse of the phenotypic variance matrix to perform the association test for the "p" markers. 
+Fits a multivariate/univariate linear mixed model GWAS by likelihood methods (REML), see the Details section below. It uses the \code{\link{mmer}} function and its core coded in C++ using the Armadillo library to opmitime dense matrix operations common in the derect-inversion algorithms. After the model fit extracts the inverse of the phenotypic variance matrix to perform the association test for the "p" markers. Please check the Details section (Model enabled) if you have any issue with making the function run.
 
 Complex covariance structures can be fitted using the \code{\link{vs}} function. The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model covariances among genotypes for plant and animal breeding problems. Overlayed models can be implemented as well (\code{\link{overlay}} function), and spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). 
 
@@ -77,8 +77,8 @@ GWAS(fixed, random, rcov, data, weights,
    \item{return.param}{a TRUE/FALSE value to indicate if the program should return the parameters used for modeling without fitting the model.}
    \item{date.warning}{a TRUE/FALSE value to indicate if the program should warn you when is time to update the sommer package.}
   \item{verbose}{a TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
-  \item{M}{The marker matrix containing the marker scores for each line, coded as {-1,0,1} = {aa,Aa,AA}, individuals in rows and markers in columns. No additional columns should be provided, is a purely numerical matrix.}
-  \item{gTerm}{a character vector indicating the genetic term in the model.}
+  \item{M}{The marker matrix containing the marker scores for each level of the random effect selected in the gTerm argument, coded as {-1,0,1} = {aa,Aa,AA}, levels (i.e. individuals) in rows and markers in columns. No additional columns should be provided, is a purely numerical matrix.}
+  \item{gTerm}{a character vector indicating the random effect linked to the marker matrix M (i.e. the genetic term) in the model. The random effect selected should have the same number of levels than the number of rows of M.}
   \item{n.PC}{Number of principal components to include as fixed effects. Default is 0 (equals K model).}
   \item{min.MAF}{Specifies the minimum minor allele frequency (MAF). If a marker has a MAF less than min.MAF, it is assigned a zero score.}
   \item{n.core}{Setting n.core > 1 will enable parallel execution on a machine with multiple cores (use only at UNIX command line).}
@@ -87,6 +87,23 @@ GWAS(fixed, random, rcov, data, weights,
 }
 
 \details{
+
+\strong{Models Enabled}
+
+For details about the models enabled and more information about the covariance structures please check the help page of the package (\code{\link{sommer}}). In general the GWAS model implemented in sommer to obtain marker effect is a generalized linear model of the form:
+
+b = (X'V-X)X'V-y
+
+with X = ZMi
+
+where:
+b is the marker effect (dimensions 1 x mt)
+y is the response variable (univariate or multivariate) (dimensions 1 x nt)
+V- is the inverse of the phenotypic variance matrix (dimensions nt x nt)
+Z is the incidence matrix for the random effect selected (gTerm argument) to perform the GWAS (dimensions nt x ut)
+Mi is the ith column of the marker matrix (M argument) (dimensions u x m)
+
+for t traits, n observations, m markers and u levels of the random effect. Depending if P3D is TRUE or FALSE the V- matrix will be calculated once and used for all marker tests (P3D=TRUE) or estimated through REML for each marker (P3D=FALSE).
 
 \strong{Special Functions}
 
@@ -151,10 +168,6 @@ Other functions such as \code{\link{summary}}, \code{\link{fitted}}, \code{\link
 Additional functions for genetic analysis have been included such as heritability (\code{\link{h2.fun}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), creation of manhattan plots (\code{\link{manhattan}}). If you need to use pedigree you need to convert your pedigree into a relationship matrix (i.e. use the \code{getA} function from the pedigreemm package). 
 
 Useful functions for analyzing field trials are included such as the \code{spl2D}, \code{\link{spatPlots}}, and \code{\link{fill.design}}.
-
-\strong{Models Enabled}
-
-For details about the models enabled and more information about the covariance structures please check the help page of the package (\code{\link{sommer}}).
 
 }
 

@@ -9,7 +9,7 @@ This function was designed to help users to transform their data in letter forma
 }
 \usage{
 atcg1234(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, 
-        silent=FALSE, by.allele=FALSE, imp=TRUE)
+        silent=FALSE, by.allele=FALSE, imp=TRUE, ref.alleles=NULL)
 }
 \arguments{
   \item{data}{a dataframe with markers in columns and individuals in rows. Preferable the rownames are the ID of the plants so you don't lose track of what is what.}
@@ -20,6 +20,7 @@ atcg1234(data, ploidy=2, format="ATCG", maf=0, multi=TRUE,
   \item{silent}{a TRUE/FALSE value indicating if a progress bar should be drawn for each step of the conversion. The default is silent=FALSE, which means that we want progress bar to be drawn.}
   \item{by.allele}{a TRUE/FALSE value indicating if the program should transform the data in a zero/one matrix of presence/absense per allele. For example, a marker with 3 alleles A,T,C in a diploid organism will yield 6 possible configurations; AA, AT, AC, TT, TC, CC. Therefore, the program would create 3 columns for this marker indicating the presence/absence of each allele for each genotype. }
     \item{imp}{a TRUE/FALSE value indicating if the function should impute the missing data using the median for each marker. If FALSE, then the program will not impute.}
+    \item{ref.alleles}{a matrix with reference alleles to be used for the conversion. The matrix should have as many columns as markers with reference alleles and with 2 rows, being the first row the alternate allele (Alt) and the second row the reference allele (Ref). Rownames should be "Alt" and "Ref" respectively. If not provided the program will decide the reference allele.}
   
 }
 \value{
