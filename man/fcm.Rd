@@ -5,16 +5,17 @@
   \code{fcm} creates a matrix with the correct number of columns to specify a constraint in the fixed effects using the Gtc argument of the \code{\link{vs}} function.
 }
 \usage{
-  fcm(x)
+  fcm(x, reps=NULL)
 }
 
 \arguments{
   \item{x}{vector of 1's and 0's corresponding to the traits for which this fixed effect should be fitted. For example, for a trivariate model if the fixed effect "x" wants to be fitted only for trait 1 and 2 but not for the 3rd trait then you would use fcm(c(1,1,0)) in the Gtc argument of the vs() function.}
+  \item{reps}{integer specifying the number of times the matrix should be repeated in a list format to provide easily the constraints in complex models that use the ds(), us() or cs() structures.}
 }
 \value{
   \describe{
     
-    \item{$res}{ a list with the provided vector and the variance covariance structure expected for the levels of the random effect.}
+    \item{$res}{ a matrix or a list of matrices with the constraints to be provided in the Gtc argument of the \code{\link{vs}} function.}
   }
 }
 \references{
@@ -28,6 +29,8 @@
 fcm(c(1,1,0))
 fcm(c(0,1,1))
 fcm(c(1,1,1))
+
+fcm(c(1,1,1),2)
 
 # ## model with Env estimated for both traits
 # ans4 <- mmer(cbind(Yield, Weight) ~ Env,

@@ -398,27 +398,33 @@ us <- function(x){
   colnames(mm) <- rownames(mm) <- colnames(dummy) 
   return(list(dummy,mm))
 }
-unsm <- function(x){
+unsm <- function(x, reps=NULL){
   mm <- matrix(1,x,x)
   mm[upper.tri(mm)] <- 2
   mm[lower.tri(mm)] <- 2
-  return(mm)
+  if(!is.null(reps)){
+    return(rep(list(mm),reps))
+  }else{return(mm)}
 }
-uncm <- function(x){
+uncm <- function(x, reps=NULL){
   mm <- matrix(2,x,x)
-  # mm[lower.tri(mm)] <- 0
-  return(mm)
+  if(!is.null(reps)){
+    return(rep(list(mm),reps))
+  }else{return(mm)}
 }
-fixm <- function(x){
+fixm <- function(x, reps=NULL){
   mm <- matrix(3,x,x)
-  # mm[lower.tri(mm)] <- 0
-  return(mm)
+  if(!is.null(reps)){
+    return(rep(list(mm),reps))
+  }else{return(mm)}
 }
-fcm <- function(x){
+fcm <- function(x, reps=NULL){
   mm <- diag(x)
   mm <- mm[,which(apply(mm,2,sum) > 0)]
   mm <- as.matrix(mm)
-  return(mm)
+  if(!is.null(reps)){
+    return(rep(list(mm),reps))
+  }else{return(mm)}
 }
 
 vs <- function(..., Gu=NULL, Gt=NULL, Gtc=NULL){
@@ -565,35 +571,61 @@ vs <- function(..., Gu=NULL, Gt=NULL, Gtc=NULL){
   
   if(is.null(Gtc)){
     if(!is.null(Gt)){
-      nt <- ncol(Gt)
-      mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
-      Gtc <- mm
+      if(is.list(Gt)){
+        Gtc <- lapply(Gt, function(x){
+          nt <- ncol(x)
+          mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
+          return(mm)
+        })
+      }else{
+        nt <- ncol(Gt)
+        mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
+        Gtc <- mm
+      }
     }
   }
   
-  if(is.null(Gt)){
+  if(is.null(Gt)){ # user didn't provide Gt
     # Gt[lower.tri(Gt)] <- 0
-    if(!is.null(Gtc)){
-      nt <- ncol(Gtc)
-      if(is.residual){
-        # mm <- ( matrix(1,nt,nt) * 0 + 1) * 0.04977728 + diag(0.02488864, nt,nt)
-        bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
-        # print(Gtc)
-        com <- (Gtc/Gtc); com[which(is.nan(com),arr.ind = TRUE)] <- 0
-        if((ncol(bnmm) == ncol(com)) & (nrow(bnmm) == nrow(com)) ){ # random
-          mm <- (bnmm*5)*com
-        }else{mm <- bnmm}#fixed
-      }else{
-        bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
-        # print(Gtc)
-        com <- (Gtc/Gtc); com[which(is.nan(com),arr.ind = TRUE)] <- 0
-        if((ncol(bnmm) == ncol(com)) & (nrow(bnmm) == nrow(com)) ){ # random
-          mm <- bnmm*com
-        }else{mm <- bnmm}#fixed
+    if(!is.null(Gtc)){ # user did provide Gtc so we need to complete them
+      
+      if(is.list(Gtc)){ ## if user provided a list
         
-        # mm <- (matrix(1,nt,nt) * 0 + 1) * 0.1 + diag(0.05, nt)
+        if(is.residual){ftu <- 5}else{ftu <- 1}
+        Gt <- lapply(Gtc,function(x){
+          nt <- ncol(x)
+          bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
+          com <- (x/x); com[which(is.nan(com),arr.ind = TRUE)] <- 0
+          if((ncol(bnmm) == ncol(com)) & (nrow(bnmm) == nrow(com)) ){ # random
+            mm <- (bnmm*ftu)*com
+          }else{mm <- bnmm}#fixed
+        })
+        
+      }else{ # user provided a matrix
+        
+        nt <- ncol(Gtc)
+        if(is.residual){
+          # mm <- ( matrix(1,nt,nt) * 0 + 1) * 0.04977728 + diag(0.02488864, nt,nt)
+          bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
+          # print(Gtc)
+          com <- (Gtc/Gtc); com[which(is.nan(com),arr.ind = TRUE)] <- 0
+          if((ncol(bnmm) == ncol(com)) & (nrow(bnmm) == nrow(com)) ){ # random
+            mm <- (bnmm*5)*com
+          }else{mm <- bnmm}#fixed
+        }else{
+          bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
+          # print(Gtc)
+          com <- (Gtc/Gtc); com[which(is.nan(com),arr.ind = TRUE)] <- 0
+          if((ncol(bnmm) == ncol(com)) & (nrow(bnmm) == nrow(com)) ){ # random
+            mm <- bnmm*com
+          }else{mm <- bnmm}#fixed
+          
+          # mm <- (matrix(1,nt,nt) * 0 + 1) * 0.1 + diag(0.05, nt)
+        }
+        Gt <- mm
+        
       }
-      Gt <- mm
+      
     }
   }
   # S3$Gt <- Gt

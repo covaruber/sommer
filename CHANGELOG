@@ -333,8 +333,25 @@ version 3.8 (2019-01-01)
   + stable version of c++ implementation, all bugs reported by users in 3.7 have been fixed
   + implement overlayed and leg in fixed effects
 
+########################
+version 3.9 (2019-04-01)
+########################
+
+  + documentation on the changes from old to new versions of sommer added to vignettes among better
+    structure of the documentation
+  + atcg1234() function now can take a marker matrix and a matrix with reference alleles and do the
+    conversion with the customized reference alleles.
+  + bug in the fixed effects depending of the order has been fixed. Is due to a strange behavior of the 
+    model.matrix() function.
+  + Now Gtc and Gt arguments can take a list of matrices to apply different constraints when using the 
+    ds() and us() functions, although the cs() can provide the same results.
+  + Now unsm(), uncm(), fixm(), fcm() have the rep argument to repeat the constraint matrix multiple times
+  + Now DF for 
+
 ######################
 ## PENDINGS
 + IMPLEMENT WALD TEST
++ document explicit nesting and overspecified (rank-defficient) models
++ debug the predict function when a new dataset is provided and check again the SE's
 
  

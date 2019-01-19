@@ -77,7 +77,6 @@ mmer <- function(fixed, random, rcov, data, weights,
     # print(str(as(model.matrix(~id-1,data), Class = "sparseMatrix")))
     for(u in 1:length(rtermss)){
       checkvs <- grep("vs\\(",rtermss[u])
-      check2d <- grep("spl2D\\(",rtermss[u])
       if(length(checkvs)>0){ ## if this term is a variance structure
         # print(mm)
         ff <- eval(parse(text = rtermss[u]),data, parent.frame())# envir = data) 
@@ -100,7 +99,13 @@ mmer <- function(fixed, random, rcov, data, weights,
             mml[[k]] <- bnmm/div
           }
           ges[[u]] <- mml
-        }else{ges[[u]] <- rep(list(ff$Gt),length(ff$Z))}
+        }else{ ## user provides initial values
+          if(is.list(ff$Gt)){ ## user provides a list of initial values
+            ges[[u]] <- ff$Gt
+          }else{
+            ges[[u]] <- rep(list(ff$Gt),length(ff$Z))
+          }
+        }
         # print(str(ff))
         # print(ff$Gtc)
         if(is.null(ff$Gtc)){ ## contraints if user don't provide them
@@ -111,8 +116,13 @@ mmer <- function(fixed, random, rcov, data, weights,
           }
           gesI[[u]] <- mml
         }else{
-          ff$Gtc[lower.tri(ff$Gtc)] <- 0
-          gesI[[u]] <- rep(list(ff$Gtc),length(ff$Z))
+          if(is.list(ff$Gtc)){# user provides a list of constraints
+            gesI[[u]] <- lapply(ff$Gtc, function(x){x[lower.tri(x)] <- 0; return(x)})
+          }else{
+            ff$Gtc[lower.tri(ff$Gtc)] <- 0
+            gesI[[u]] <- rep(list(ff$Gtc),length(ff$Z))
+          }
+          
         }
         # print(ff$Gtc)
         # print(gesI[[u]])
@@ -246,7 +256,7 @@ mmer <- function(fixed, random, rcov, data, weights,
   if(colsdropped > 0){
     cat(blue(paste("fixed-effect model matrix is rank deficient so dropping",colsdropped,"columns / coefficients\n")))
   }
-  
+  # print(colnames(baseX))
   xs <- list()
   gesf <- list()
   gesIf <- list()
@@ -275,7 +285,33 @@ mmer <- function(fixed, random, rcov, data, weights,
         findlevs <- colnames(model.matrix(as.formula(paste("~",allfixedterms[u])), data=data))
       }else{
         findlevs <- colnames(model.matrix(as.formula(paste("~",allfixedterms[u],"-1")), data=data)) 
+        
+        check9 <- grep(":",allfixedterms[u])
+        if(length(check9) > 0){
+          splitby0 <- strsplit(allfixedterms[u],":")[[1]]
+          splitby1 <- rep(list(splitby0), length(splitby0))
+          splitby1 <- expand.grid(splitby1)
+          splitby1 <- splitby1[which(apply(splitby1,1,function(x){length(unique(x))}) > 1),]
+          splitby2 <- lapply(as.list(1:nrow(splitby1)), function(x){colnames(model.matrix(as.formula(paste("~", paste(as.vector(t(splitby1[x,])),collapse = ":"), "-1")), data = data))})
+          matches0 <- unlist(lapply(splitby2,function(x){length(which(colnames(baseX) %in% x))}))
+          best <- which(matches0 == max(matches0))[1]
+          findlevs <- colnames(model.matrix(as.formula(paste("~",paste(as.vector(t(splitby1[best,])),collapse = ":"), "-1")), data = data))
+        }
+        check10 <- grep("[*]",allfixedterms[u])
+        if(length(check10) > 0){
+          splitby0 <- strsplit(allfixedterms[u],"[*]")[[1]]
+          splitby1 <- rep(list(splitby0), length(splitby0))
+          splitby1 <- expand.grid(splitby1)
+          splitby1 <- splitby1[which(apply(splitby1,1,function(x){length(unique(x))}) > 1),]
+          splitby2 <- lapply(as.list(1:nrow(splitby1)), function(x){colnames(model.matrix(as.formula(paste("~", paste(as.vector(t(splitby1[x,])),collapse = "*"), "-1")), data = data))})
+          matches0 <- unlist(lapply(splitby2,function(x){length(which(colnames(baseX) %in% x))}))
+          best <- which(matches0 == max(matches0))[1]
+          findlevs <- colnames(model.matrix(as.formula(paste("~",paste(as.vector(t(splitby1[best,])),collapse = "*"), "-1")), data = data))
+        }
+        # 
       }
+      # print(allfixedterms[u])
+      # print(findlevs)
       findlevs2 <- which(colnames(baseX) %in% findlevs)
       xpp <- as.matrix(baseX[, findlevs2])
       colnames(xpp) <- colnames(baseX)[findlevs2]

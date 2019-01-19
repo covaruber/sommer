@@ -107,13 +107,13 @@ Going back to the point. The additional unknown covariance structures besides th
 
 `fixed= y1~x`
 
-`random= ~ diag(env):id`  or `random= ~ us(env):id`
+`random= ~ diag(env):id`     or    `random= ~ us(env):id`
 
 and now it would be specified as:
 
 `fixed= y1~x`
 
-`random= ~ vs(ds(env),id)` or `random= ~ vs(us(env),id)`
+`random= ~ vs(ds(env),id)`    or    `random= ~ vs(us(env),id)`
 
 where the `ds()` and `us()` functions specifie a diagonal and unstructured models respectively. Now in addition `cs()` for a customized structure is available. The main gain from having changed the formulation is that the new specification trhough the `vs()` function allows to contruct more complex moels. For example, assume individuals specified in a column called 'id' tested in three environments in a column called 'env' measured at two different time points specified in a column called 'time'. We may want something more flexible than:
 
@@ -168,7 +168,7 @@ In previous version the use of asreml formulation really limited the expansion o
 
 Previous versions:
 
-### overlay models 
+### Overlay models 
 
 Previous version: limited to 2 columns and only random and no covariance structures.
 

@@ -354,6 +354,7 @@
   mycons <- do.call(rbind,consl)
   
   rrr <- lapply(vcsl,rownames)
+  rrr <- rrr[which(unlist(lapply(rrr, length)) > 0)]
   for(o in 1:length(rrr)){rrr[[o]] <- paste(names(rrr)[o],rrr[[o]],sep=".")}
   rownames(mys2) <- as.vector(unlist(rrr))
   
@@ -657,7 +658,7 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
   digits = max(3, getOption("digits") - 3)
   if(is.null(object2)){
     # stop("The 'anova' function for the sommer package only works to compare mixed models by likelihood ratio tests (LRT), was not intended to provide regular sum of squares output.")
-    sequential.fit(object,type=type)
+    result <- sequential.fit(object,type=type)
   }else{
     #if(object$maxim){ # user used REML=TRUE, not possible to do LRT
     #  stop("Please fit the models using ML instead of REML by setting the argument REML=FALSE and try again")
@@ -692,12 +693,13 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
                         ChiDf=c("",as.character(df)), PrChisq=c("",chichi2 ))
       rownames(result) <- c(mods[vv],mods[vv2])
       print(result)
+      # print(result)
       cat("==============================================================\n")
       cat("Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1")
     }
     #}
   }
-  #return(result)
+  return(result)
 }
 #### =========== ####
 ## PLOTING FUNCTION #

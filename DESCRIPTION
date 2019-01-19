@@ -1,8 +1,8 @@
 Package: sommer
 Type: Package
 Title: Solving Mixed Model Equations in R
-Version: 3.8.2
-Date: 2019-01-01
+Version: 3.8.3
+Date: 2019-04-01
 Author: Giovanny Covarrubias-Pazaran
 Maintainer: Giovanny Covarrubias-Pazaran <cova_ruber@live.com.mx>
 Description: Structural multivariate-univariate linear mixed model solver for multiple random effects and estimation of unknown variance-covariance structures (i.e. heterogeneous and unstructured variance models) (Covarrubias-Pazaran, 2016 <doi:10.1371/journal.pone.0156744>; Maier et al., 2015 <doi:10.1016/j.ajhg.2014.12.006>). ML/REML estimates can be obtained using the Direct-Inversion Newton-Raphson and Direct-Inversion Average Information algorithms. Designed for genomic prediction and genome wide association studies (GWAS), particularly focused in the p > n problem (more coefficients than observations) to include multiple known relationship matrices and estimate complex unknown covariance structures. Spatial models can be fitted using the two-dimensional spline functionality in sommer.
