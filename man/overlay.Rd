@@ -9,7 +9,7 @@
 }
 
 \arguments{
-  \item{...}{as many vectors to factor vectors to do the overlay.}
+  \item{...}{as many vectors as desired to overlay.}
   \item{rlist}{a list of scalar values indicating the times that each incidence matrix overlayed should be multiplied by. By default r=1.}
   \item{prefix}{a character name to be added before the column names of the final overlay matrix. This may be useful if you have entries with names starting with numbers which programs such as asreml doesn't like, or for posterior extraction of parameters, that way 'grep'ing is easier.}
 }

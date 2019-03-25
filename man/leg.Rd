@@ -2,7 +2,7 @@
 \alias{leg}
 \title{Legendre polynomial matrix}
 \description{
-  Legendre polynomials of order n are created given a vector x and normalized to lay between values u and v.
+  Legendre polynomials of order 'n' are created given a vector 'x' and normalized to lay between values u and v.
 }
 \usage{
   leg(x,n=1,u=-1,v=1, intercept=TRUE, intercept1=FALSE)

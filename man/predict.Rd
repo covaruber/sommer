@@ -5,14 +5,13 @@
 }
 \usage{
 \method{predict}{mmer}(object, classify=NULL,
-        newdata=NULL, RtermsToForce=NULL,
+        RtermsToForce=NULL,
         FtermsToForce=NULL,
         \dots)
 }
 \arguments{
  \item{object}{an object of class \code{"mmer"}}
  \item{classify}{an optional character string with the variables that define the margins of the multiway table to be predicted (see Details).}
- \item{newdata}{an optional data frame to be used for obtaining the predictions.}
  \item{RtermsToForce}{numeric vector to force the random effects to be used instead of the ones defined in the classify argument.}
 \item{FtermsToForce}{numeric vector to force the fixed effects to be used instead of the ones defined in the classify argument.}
  \item{\dots}{Further arguments to be passed}

@@ -417,7 +417,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
             V = V + (D*(tolparinv*1000));
             arma::inv_sympd(Vi,V);
             if(Vi.n_rows == 0){ // finally stop
-              Rcpp::Rcout << "Sistem is singular. Stopping the job" << arma::endl;
+              Rcpp::Rcout << "Sistem is singular. Stopping the job. Try a smaller number of tolparinv." << arma::endl;
             }
           }
         }
@@ -449,7 +449,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         if(tXVXVX.n_rows == 0){ // if fails try to invert with diag(1e-4)
           arma::solve(tXVXVX,tXVX + (D*(tolparinv*100)),VX.t());
           if(tXVXVX.n_rows == 0){ // finally stop
-            Rcpp::Rcout << "Sistem is singular. Stopping the job" << arma::endl;
+            Rcpp::Rcout << "Sistem is singular. Stopping the job. Try a smaller number of tolparinv." << arma::endl;
           }
         }
       }
@@ -624,7 +624,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         if(tXVXi.n_rows == 0){// if fails try to invert with diag(1e-5)
           arma::inv(tXVXi,tXVX+(D*(tolparinv*10)));
           if(tXVXi.n_rows == 0){
-            Rcpp::Rcout << "Sistem is singular. Stopping the job" << arma::endl;
+            Rcpp::Rcout << "Sistem is singular. Stopping the job. Try a smaller number of tolparinv." << arma::endl;
           }
         }
       }

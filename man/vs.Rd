@@ -1,26 +1,44 @@
 \name{vs}
 \alias{vs}
-\title{variance structure}
+\title{variance structure specification}
 \description{
-  `vs` is the main function to create the variance-covariance structure for the random effect to be fitted in the mmer solver.
+  \code{vs} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmer}} solver.
 }
 \usage{
   vs(..., Gu=NULL, Gt=NULL, Gtc=NULL)
 }
 
 \arguments{
-  \item{...}{unknown variance-covariance structures (i.e. us,ds,at,cs) and the random effect where such covariance structure will be used (the random effect of interest).}
-  \item{Gu}{the known variance-covariance structure for the random effect (i.e. relationship matrix among individuals or any other known covariance structure). If NULL, then an identity matrix is assumed.}
-  \item{Gt}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument If NULL the program will provide these.}
+  \item{...}{variance structure to be specified following the logic desired in the internal kronecker product. For example, if user wants to define a diagonal variance structure for the random effect 'genotypes'(g) with respect to a random effect 'environments'(e), this is:
+  
+  \code{var(g) = G.e @ I.g}
+  
+  being \code{G.e}  a matrix containing the variance covariance components for g (genotypes) in each level of e (environments), \code{I.g} is the covariance among levels of g (genotypes; i.e. relationship matrix), and @ is the kronecker product. This would be specified in the mmer solver as:
+  
+  \code{random=~vs(ds(e),g)}
+  
+  One strength of sommer is the ability to specify very complex structures with as many kronecker products as desired. For example:
+  
+  \code{var(g) = G.e @ G.f @ G.h @ I.g}
+  
+  is equivalent to
+  
+  \code{random=~vs(e,f,h,g)}
+  
+  where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{ds}}, \code{\link{us}}, \code{\link{cs}}, \code{\link{at}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
+  \item{Gu}{matrix with the known variance-covariance structure for the random effect levels (i.e. relationship matrix among individuals or any other known covariance structure). If NULL, then an identity matrix is assumed.}
+  \item{Gt}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument. If NULL the program will provide the initial values.}
   \item{Gtc}{matrix with dimensions t x t (t equal to number of traits) of constraints for the variance-covariance components for the random effect specified in the ... argument according to the following rules:
   
-  0: not to be estimated
+  \code{0: not to be estimated}
   
-  1: estimated and constrained to be positive (i.e. variance component)
+  \code{1: estimated and constrained to be positive (i.e. variance component)}
   
-  2: estimated and unconstrained (can be negative or positive, i.e. covariance component)
+  \code{2: estimated and unconstrained (can be negative or positive, i.e. covariance component)}
   
-  3: not to be estimated but fixed (value has to be provided in the Gt argument)
+  \code{3: not to be estimated but fixed (value has to be provided in the Gt argument)}
+  
+  In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense.
   
   }
 }
@@ -31,6 +49,10 @@
 }
 \references{
   Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
+  
+  Covarrubias-Pazaran G (2018) Software update: Moving the R package sommer to
+  multivariate mixed models for genome-assisted prediction. doi:
+  https://doi.org/10.1101/354639
 }
 \author{
   Giovanny Covarrubias-Pazaran

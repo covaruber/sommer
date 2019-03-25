@@ -268,8 +268,8 @@ data(DT_example)
 head(DT)
 DT$EnvName <- paste(DT$Env,DT$Name)
 ans4 <- mmer(cbind(Yield, Weight) ~ Env,
-              random= ~ vs(Name) + vs(EnvName),
-              rcov= ~ vs(units),
+              random= ~ vs(Name, Gtc=unsm(2)) + vs(EnvName, Gtc=unsm(2)),
+              rcov= ~ vs(units, Gtc=unsm(2)),
               data=DT)
 summary(ans4)
 
@@ -287,8 +287,8 @@ data(DT_example)
 head(DT)
 DT$EnvName <- paste(DT$Env,DT$Name)
 ans5 <- mmer(cbind(Yield, Weight) ~ Env,
-              random= ~ vs(Name) + vs(ds(Env),Name),
-              rcov= ~ vs(ds(Env),units),
+              random= ~ vs(Name, Gtc=unsm(2)) + vs(ds(Env),Name, Gtc=unsm(2)),
+              rcov= ~ vs(ds(Env),units, Gtc=unsm(2)),
               data=DT)
 summary(ans5)
 
@@ -304,8 +304,8 @@ data(DT_example)
 head(DT)
 DT$EnvName <- paste(DT$Env,DT$Name)
 ans6 <- mmer(cbind(Yield, Weight) ~ Env,
-              random= ~ vs(us(Env),Name),
-              rcov= ~ vs(ds(Env),units),
+              random= ~ vs(us(Env),Name, Gtc=unsm(2)),
+              rcov= ~ vs(ds(Env),units, Gtc=unsm(2)),
               data=DT)
 summary(ans6)
 

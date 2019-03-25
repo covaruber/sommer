@@ -382,10 +382,10 @@ Sometimes is important to estimate genetic variance-covariance among traits, mul
 data("DT_cpdata")
 A <- A.mat(GT)
 ans.m <- mmer(cbind(Yield,color)~1,
-               random=~ vs(id, Gu=A)
+               random=~ vs(id, Gu=A, Gtc=unsm(2))
                + vs(Rowf,Gtc=diag(2))
                + vs(Colf,Gtc=diag(2)),
-               rcov=~ vs(units),
+               rcov=~ vs(units, Gtc=unsm(2)),
                data=DT)
 ```
 

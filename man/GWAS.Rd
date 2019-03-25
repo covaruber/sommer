@@ -2,14 +2,14 @@
 \alias{GWAS}
 \title{
 
-Genome wide association study
+Genome wide association study analysis
 
 }
 \description{
 
 Fits a multivariate/univariate linear mixed model GWAS by likelihood methods (REML), see the Details section below. It uses the \code{\link{mmer}} function and its core coded in C++ using the Armadillo library to opmitime dense matrix operations common in the derect-inversion algorithms. After the model fit extracts the inverse of the phenotypic variance matrix to perform the association test for the "p" markers. Please check the Details section (Model enabled) if you have any issue with making the function run.
 
-Complex covariance structures can be fitted using the \code{\link{vs}} function. The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model covariances among genotypes for plant and animal breeding problems. Overlayed models can be implemented as well (\code{\link{overlay}} function), and spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). 
+The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model known covariances among genotypes typical in plant and animal breeding problems. Other functions to build known covariance structures among levels of random effects are autoregresive (\code{\link{AR1}}), compound symmetry (\code{\link{CS}}) and autoregressive moving average (\code{\link{ARMA}}) where the user needs to fix the correlation value for such models (this is different to estimating unknown covariance structures). Additionally, overlayed models can be implemented as well (\code{\link{overlay}} function). Spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). Random regression models can also be fitted through the (\code{\link{leg}}) function (orthopolynom package installation is needed for using the leg function).
 
 The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed typing the following in the R console:
 
@@ -20,6 +20,10 @@ install_github("covaruber/sommer")
 This is recommended since bugs fixes will be immediately available in the GitHub source. \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
 \strong{vignette("sommer.start")} 
+
+\strong{vignette("sommer.changes")}
+
+\strong{vignette("sommer.FAQ")}
 
 \strong{vignette("sommer")}
 
@@ -48,11 +52,11 @@ GWAS(fixed, random, rcov, data, weights,
   
   Useful functions can be used to fit heterogeneous variances and other special models (\emph{see 'Special Functions' in the Details section for more information}):
   
-  \code{\link{vs}(...,Gu,Gt,Gtc)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (i.e. us,ds,at,cs) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance structures, Gt initial values and Gtc for constraints. Auxiliar functions for building the variance models are:
+  \code{\link{vs}(...,Gu,Gt,Gtc)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (i.e. us,ds,at,cs) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance matrices among the levels of the random effect, Gt initial values and Gtc for constraints. Auxiliar functions for building the variance models are:
   
   ** \code{\link{ds}(x)}, \code{\link{us}(x)}, \code{\link{cs}(x)} and \code{\link{at}(x,levs)} can be used to specify unknown diagonal, unstructured and customized unstructured and diagonal covariance structures to be estimated by REML.
   
-  ** \code{\link{unsm}(x)}, \code{\link{uncm}(x)}, and \code{\link{fixm}(x)} can be used to specify constraints easily in the Gtc argument of the \code{\link{vs}()} function.
+  ** \code{\link{unsm}(x)}, \code{\link{uncm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can be used to build easily matrices to specify constraints in the Gtc argument of the \code{\link{vs}()} function.
   
   ** \code{\link{overlay}()}, \code{\link{spl2D}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vs}()} function.
   
@@ -177,7 +181,7 @@ If all parameters are correctly indicated the program will return a list with th
 \item{Vi}{the inverse of the phenotypic variance matrix V^- = (ZGZ+R)^-1}
 \item{sigma}{a list with the values of the variance-covariance components with one list element for each random effect.}
 \item{sigma_scaled}{a list with the values of the scaled variance-covariance components with one list element for each random effect.}
-\item{sigmaSE}{standard errors for the variance covariance components.}
+\item{sigmaSE}{Hessian matrix containing the variance-covariance for the variance components. SE's can be obtained taking the square root of the diagonal values of the Hessian.}
 \item{Beta}{a data frame for trait BLUEs (fixed effects).}
 \item{VarBeta}{a variance-covariance matrix for trait BLUEs}
 \item{U}{a list (one element for each random effect) with a data frame for trait BLUPs.}
