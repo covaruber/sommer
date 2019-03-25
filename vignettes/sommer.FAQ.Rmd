@@ -1,0 +1,83 @@
+---
+title: "Frequently asked questions for the sommer package"
+author: "Giovanny Covarrubias-Pazaran"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{FAQ for the sommer package}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused in problems of the type p > n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, and specify heterogeneous variances, and obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+
+The purpose of this vignette is to provide answers to frequently asked questions (FAQ) related to performance and possible issues:  
+
+### 1) I got an error similar to: 
+
+```{r}
+# iteration    LogLik     wall    cpu(sec)   restrained
+#     1      -224.676   18:11:23      3           0
+# Sistem is singular. Stopping the job
+# matrix multiplication: incompatible matrix dimensions: 0x0 and ...x...
+```
+
+This error indicates that your model is singular (phenotypic variance V matrix is not invertible) and therefore the model is stopped throwing the "incompatible matrix dimensions: 0x0 and ...x..." error message. Whether you can try a simpler model or just modify the argument `tolparinv` in the `mmer` function. The default is 1e-6, which means that it will try to invert V and if it fails it will try to add a small value to the diagonal of V of 1e-6 to make it invertible. If this fails then the program will stop returning that error message which should make you check the quality of your data or model attempted.
+
+Sometimes the model becomes singular when you use variance covariance matrices (i.e. genomic relationship matrices) that are not full-rank. You can try to make it full-rank and try again.
+
+## 2) My model runs very slow
+
+Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
+
+## 3) Can I run rrBLUP for markers and GBLUP for individuals in sommer
+
+Both types of models can be fitted in sommer. The only thing that it changes is what is the random effect of interest; the marker matrix or the identifier for the individual.
+
+```{r}
+librayr(sommer)
+## rrBLUP for makers
+data(DT_cpdata)
+mix.rrblup <- mmer(fixed=cbind(color,Yield)~1,
+                   random=~vs(GT,Gtc=unsm(2)) + vs(Rowf,Gtc=diag(2))
+                   rcov=~vs(units,Gtc=unsm(2)),
+                   data=DT)
+summary(mix.rrblup)
+## GBLUP for individuals
+A <- A.mat(GT)
+mix.gblup <- mmer(fixed=cbind(color,Yield)~1,
+                  random=~vs(id,Gu=A, Gtc=unsm(2)) + vs(Rowf,Gtc=diag(2))
+                  rcov=~vs(units,Gtc=unsm(2)),
+                  data=DT)
+summary(mix.gblup)
+```
+
+## Literature
+
+Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6):1-15.
+
+Covarrubias-Pazaran G. 2018. Software update: Moving the R package sommer to multivariate mixed models for genome-assisted prediction. doi: https://doi.org/10.1101/354639
+
+Bernardo Rex. 2010. Breeding for quantitative traits in plants. Second edition. Stemma Press. 390 pp.
+
+Gilmour et al. 1995. Average Information REML: An efficient algorithm for variance parameter estimation in linear mixed models. Biometrics 51(4):1440-1450.
+
+Henderson C.R. 1975. Best Linear Unbiased Estimation and Prediction under a Selection Model. Biometrics vol. 31(2):423-447.
+
+Kang et al. 2008. Efficient control of population structure in model organism association mapping. Genetics 178:1709-1723.
+
+Lee, D.-J., Durban, M., and Eilers, P.H.C. (2013). Efficient two-dimensional smoothing with P-spline ANOVA mixed models and nested bases. Computational Statistics and Data Analysis, 61, 22 - 37.
+
+Lee et al. 2015. MTG2: An efficient algorithm for multivariate linear mixed model analysis based on genomic information. Cold Spring Harbor. doi: http://dx.doi.org/10.1101/027201.
+
+Maier et al. 2015. Joint analysis of psychiatric disorders increases accuracy of risk prediction for schizophrenia, bipolar disorder, and major depressive disorder. Am J Hum Genet; 96(2):283-294.
+
+Rodriguez-Alvarez, Maria Xose, et al. Correcting for spatial heterogeneity in plant breeding experiments with P-splines. Spatial Statistics 23 (2018): 52-71.
+
+Searle. 1993. Applying the EM algorithm to calculating ML and REML estimates of variance components. Paper invited for the 1993 American Statistical Association Meeting, San Francisco.
+
+Yu et al. 2006. A unified mixed-model method for association mapping that accounts for multiple levels of relatedness. Genetics 38:203-208.
+
+Abdollahi Arpanahi R, Morota G, Valente BD, Kranis A, Rosa GJM, Gianola D. 2015. Assessment of bagging GBLUP for whole genome prediction of broiler chicken traits. Journal of Animal Breeding and Genetics 132:218-228.
+
+Tunnicliffe W. 1989. On the use of marginal likelihood in time series model estimation. JRSS 51(1):15-27.
