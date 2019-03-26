@@ -5,12 +5,15 @@
   This function creates takes the inverse of the asreml Ainverse function (ginv element) and creates the additive relationship matrix to use it as a covariance matrix for a random effect. Other packages that allows you to obtain an additive relationship matrix from a pedigree is the `pedigreemm` package.
 }
 \usage{
-  pedtoK(x, type="asreml")
+  pedtoK(x, row="Row",column="Column",value="Ainverse", returnInverse=TRUE)
 }
 
 \arguments{
   \item{x}{ginv element, output from the Ainverse function.}
-  \item{type}{program used to obtain the pedigree. Currently only asreml.}
+  \item{row}{name of the column in x that indicates the row in the original relationship matrix.}
+  \item{column}{name of the column in x that indicates the column in the original relationship matrix.}
+  \item{value}{name of the column in x that indicates the value for a given row and column in the original relationship matrix.}
+  \item{returnInverse}{a TRUE/FALSE value indicating if the inverse of the x matrix should be computed once the data frame x is converted into a matrix.}
 }
 \value{
     

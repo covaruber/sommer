@@ -41,7 +41,10 @@ B2) Background on covariance structures
     + Spatial models
     + GWAS models
     + Customized random effects
-10) Final remarks
+10) Genomic selection (predicting mendelian sampling)
+    + GBLUP
+    + rrBLUP
+11) Final remarks
 
 ## B1) Background on mixed models
 
@@ -588,7 +591,54 @@ mix1 <- mmer(Yield~1,
 ```
 the matrix GT is provided as a random effect by encapsulating the matrix in a list and provided in the `vs()` function.
 
-## 10) Final remarks
+## 10) Genomic selection
+
+In this section I decided to show the way you can fit an rrBLUP and GBLUP model in sommer using some wheat example data from CIMMYT in the genomic selection framework. This is the case of prediction of specific individuals within a population. It basically uses a similar model of the form:
+
+<br>
+
+$y = X\beta + Zu + \epsilon$ 
+
+<br>
+
+and takes advantage of the variance covariance matrix for the genotype effect known as the additive relationship matrix (A) and calculated using the `A.mat` function to establish connections among all individuals and predict the BLUPs for individuals that were not measured. In case the interest is to get BLUPs for markers the random effect is the actual marker matrix and the relationship among markers can be specified as well but in this example is assume a diagonal.
+
+```{r}
+data("DT_wheat"); 
+colnames(DT) <- paste0("X",1:ncol(DT))
+DT <- as.data.frame(DT);DT$id <- as.factor(rownames(DT))
+# select environment 1
+rownames(GT) <- rownames(DT)
+K <- A.mat(GT) # additive relationship matrix
+colnames(K) <- rownames(K) <- rownames(DT)
+# GBLUP pedigree-based approach
+set.seed(12345)
+y.trn <- DT
+vv <- sample(rownames(DT),round(nrow(DT)/5))
+y.trn[vv,"X1"] <- NA
+head(y.trn)
+## GBLUP
+ans <- mmer(X1~1,
+            random=~vs(id,Gu=K), 
+            rcov=~units, 
+            data=y.trn) # kinship based
+ans$U$`u:id`$X1 <- as.data.frame(ans$U$`u:id`$X1)
+rownames(ans$U$`u:id`$X1) <- gsub("id","",rownames(ans$U$`u:id`$X1))
+cor(ans$U$`u:id`$X1[vv,],DT[vv,"X1"], use="complete")
+
+## rrBLUP
+ans2 <- mmer(X1~1,
+             random=~vs(list(GT)), 
+             rcov=~units,
+             data=y.trn) # kinship based
+
+u <- GT %*% as.matrix(ans2$U$`u:GT`$X1) # BLUPs for individuals
+rownames(u) <- rownames(GT)
+cor(u[vv,],DT[vv,"X1"]) # same correlation
+# the same can be applied in multi-response models in GBLUP or rrBLUP
+```
+
+## 11) Final remarks
 
 Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
 

@@ -35,18 +35,18 @@ Keep in mind that sommer uses direct inversion (DI) algorithm which can be very 
 Both types of models can be fitted in sommer. The only thing that it changes is what is the random effect of interest; the marker matrix or the identifier for the individual.
 
 ```{r}
-librayr(sommer)
+library(sommer)
 ## rrBLUP for makers
 data(DT_cpdata)
 mix.rrblup <- mmer(fixed=cbind(color,Yield)~1,
-                   random=~vs(GT,Gtc=unsm(2)) + vs(Rowf,Gtc=diag(2))
-                   rcov=~vs(units,Gtc=unsm(2)),
+                   random=~vs(GT,Gtc=unsm(2)) + vs(Rowf,Gtc=diag(2)),
+                   rcov=~vs(units,Gtc=unsm(2)), getPEV = FALSE,
                    data=DT)
 summary(mix.rrblup)
 ## GBLUP for individuals
 A <- A.mat(GT)
 mix.gblup <- mmer(fixed=cbind(color,Yield)~1,
-                  random=~vs(id,Gu=A, Gtc=unsm(2)) + vs(Rowf,Gtc=diag(2))
+                  random=~vs(id,Gu=A, Gtc=unsm(2)) + vs(Rowf,Gtc=diag(2)),
                   rcov=~vs(units,Gtc=unsm(2)),
                   data=DT)
 summary(mix.gblup)

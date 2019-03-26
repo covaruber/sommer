@@ -337,14 +337,14 @@ E.mat <- function(X,min.MAF=NULL,max.missing=NULL,impute.method="mean",tol=0.02,
   return(X5)
 }
 
-pedtoK <- function(x, type="asreml"){
+pedtoK <- function(x, row="Row",column="Column",value="Ainverse", returnInverse=TRUE){
   
-  if(type=="asreml"){
-    K <- matrix(NA,max(x$Row),max(x$Column))
+  # if(type=="asreml"){
+    K <- matrix(NA,max(x[,row]),max(x[,column]))
     for(i in 1:nrow(x)){
-      K[x$Row[i],x$Column[i]] <- x$Ainverse[i]
+      K[x[i,row],x[i,column]] <- x[i,value]
     }
-    K[1:3,1:3]
+    # K[1:3,1:3]
     copying <- function(m) { # copy upper triangular in lower triangular
       m[lower.tri(m)] <- t(m)[lower.tri(m)]
       m
@@ -360,10 +360,13 @@ pedtoK <- function(x, type="asreml"){
     rownames(K) <- colnames(K) <- attr(x, "rowNames")
     
     Ks <- as(K, Class = "sparseMatrix")
-    Ksi <- solve(Ks)
-    rownames(Ksi) <- colnames(Ksi) <- attr(x, "rowNames")
-    image(Ks)
-    return(list(K=Ksi, Kinv=Ks))
-  }
+    if(returnInverse){
+      Ksi <- solve(Ks)
+      rownames(Ksi) <- colnames(Ksi) <- attr(x, "rowNames")
+    }else{
+      Ksi <- NULL
+    }
+    return(list(K=Ks, Kinv=Ksi))
+  # }
 }
 
