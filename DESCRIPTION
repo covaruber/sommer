@@ -1,7 +1,7 @@
 Package: sommer
 Type: Package
 Title: Solving Mixed Model Equations in R
-Version: 3.9.1
+Version: 3.9.3
 Date: 2019-04-01
 Author: Giovanny Covarrubias-Pazaran
 Maintainer: Giovanny Covarrubias-Pazaran <cova_ruber@live.com.mx>

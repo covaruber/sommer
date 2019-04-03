@@ -9,7 +9,7 @@ mmer <- function(fixed, random, rcov, data, weights,
                  verbose=TRUE,reshape.output=TRUE){
   
   my.year <- 2019
-  my.month <- 3 #month when the user will start to get notifications the 1st day of next month
+  my.month <- 6 #month when the user will start to get notifications the 1st day of next month
   ### if my month = 3, user will start to get notification in april 1st (next month)
   datee <- Sys.Date()
   year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
@@ -378,10 +378,10 @@ mmer <- function(fixed, random, rcov, data, weights,
                         verbose=verbose,reshape.output=reshape.output)
     }
    
-    res <- list(yvar, X,Gx,Z,K,R,GES,GESI, ws,
-                iters, tolpar, tolparinv, 
-                selected,getPEV,verbose, FALSE,
-                re_names,good,fixedtermss,args
+    res <- list(yvar=yvar, X=X,Gx=Gx,Z=Z,K=K,R=R,GES=GES,GESI=GESI, ws=ws,
+                iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
+                selected=selected,getPEV=getPEV,verbose=verbose, retscaled=FALSE,
+                re_names=re_names,good=good,fixedtermss=fixedtermss,args=args
     )
   }else{
     res <- .Call("_sommer_MNR",PACKAGE = "sommer",yvar, X,Gx,Z,K,R,GES,GESI, ws,

@@ -468,6 +468,13 @@ h2.fun <- function(object, data, gTerm=NULL, eTerm=NULL, md=NULL) {
     stop("Please provide the dataset used to fit the model.\n", call. = FALSE)
   }
   
+  prov <- mmer(fixed=object$call$fixed,
+               #random=object$call$random,
+               rcov=object$call$rcov,
+               data=object$data, return.param = TRUE,#reshape.results=TRUE,
+               na.method.Y = object$call$na.method.Y, 
+               na.method.X = object$call$na.method.X)
+  
   if(!is.null(eTerm)){
     elevels <- as.character(na.omit(unique(data[,eTerm])))
   }else{
@@ -485,7 +492,7 @@ h2.fun <- function(object, data, gTerm=NULL, eTerm=NULL, md=NULL) {
     }
     geTerm
     ## now get the heritability for each location
-    v <- which(names(object$PEV.u.hat) %in% geTerm)
+    v <- which(names(object$PevU) %in% geTerm)
     if(length(v)==0){
       stop("The gTerm provided was not found in the model. You may not be providing the entire name.\n")
     }
@@ -505,12 +512,12 @@ h2.fun <- function(object, data, gTerm=NULL, eTerm=NULL, md=NULL) {
     #print(nn)
     
     if(length(elevels)==1){ # single field
-      f2 <- grep("units",names(object$var.comp))
-      ve <- object$var.comp[[f2]]
+      f2 <- grep("units",names(object$sigma))
+      ve <- object$sigma[[f2]]
     }else{
-      f1 <- grep(e,names(object$var.comp))
-      f2 <- grep("units",names(object$var.comp))
-      ve <- object$var.comp[[intersect(f1,f2)]]
+      f1 <- grep(e,names(object$sigma))
+      f2 <- grep("units",names(object$sigma))
+      ve <- object$sigma[[intersect(f1,f2)]]
     }
     ve
     ##
@@ -520,17 +527,17 @@ h2.fun <- function(object, data, gTerm=NULL, eTerm=NULL, md=NULL) {
     counter <- 0
     meandiag <- numeric() # store the diagonal of the covariance matrix
     co <- 0
-    for(gs in geTerm){
+    for(gs in geTerm){# gs <- geTerm[1]
       co = co+1
       counter <- counter + 1
       if(counter==1){
-        pev.mat <- pev.mat + object$PEV.u.hat[[gs]][[1]]
+        pev.mat <- pev.mat + object$PevU[[gs]][[1]]
       }; pev.mat[1:4,1:4]
-      A<- object$ZETA[[gs]]$K
+      if(length(prov$K)==0){A <- diag(nrow(pev.mat))}else{A <- prov$K[[v]]}
       if(is.null(md)){
         meandiag[co] <- mean(diag(A))
       }else{meandiag[co] <- md}
-      vc <- as.numeric(object$var.comp[[gs]])
+      vc <- as.numeric(object$sigma[[gs]])
       vcs[[gs]] <- vc
       G <- G + A * vc
     }
