@@ -5,7 +5,7 @@
 half diallel data for corn hybrids
 }
 \description{
-This dataset contains phenotpic data for 21 corn hybrids, with 2 technical repetitions, coming from a half diallel design and evaluated for sugar content. The column geno indicates the hybrid and male and female origin columns are included as well. Since there's 2 technical reps the error variance obtained by REML/ML has to be divided over 2. 
+This dataset contains phenotpic data for 21 corn hybrids, with 2 technical repetitions, coming from a half diallel design and evaluated for sugar content. The column geno indicates the hybrid and male and female origin columns are included as well.
 
 }
 \usage{data("DT_halfdiallel")}

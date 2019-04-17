@@ -30,27 +30,123 @@ Sometimes the model becomes singular when you use variance covariance matrices (
 
 Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
 
-## 3) Can I run rrBLUP for markers and GBLUP for individuals in sommer
+## 3) Can I run rrBLUP for markers and GBLUP for individuals in sommer?
 
-Both types of models can be fitted in sommer. The only thing that it changes is what is the random effect of interest; the marker matrix or the identifier for the individual.
+Both types of models can be fitted in sommer. The only thing that it changes is what is the random effect of interest; the marker matrix or the identifier for the individual. Here there is a complex example using multi-trait models but can be used with only one trait.
 
 ```{r}
 library(sommer)
 ## rrBLUP for makers
 data(DT_cpdata)
-mix.rrblup <- mmer(fixed=cbind(color,Yield)~1,
-                   random=~vs(GT,Gtc=unsm(2)) + vs(Rowf,Gtc=diag(2)),
-                   rcov=~vs(units,Gtc=unsm(2)), getPEV = FALSE,
-                   data=DT)
+mix.rrblup <- mmer(fixed=color~1,
+                   random=~vs(GT,Gtc=unsm(1)) + vs(Rowf,Gtc=diag(1)),
+                   rcov=~vs(units,Gtc=unsm(1)), getPEV = FALSE,
+                   data=DT, verbose = FALSE)
 summary(mix.rrblup)
 ## GBLUP for individuals
 A <- A.mat(GT)
-mix.gblup <- mmer(fixed=cbind(color,Yield)~1,
-                  random=~vs(id,Gu=A, Gtc=unsm(2)) + vs(Rowf,Gtc=diag(2)),
-                  rcov=~vs(units,Gtc=unsm(2)),
-                  data=DT)
+mix.gblup <- mmer(fixed=color~1,
+                  random=~vs(id,Gu=A, Gtc=unsm(1)) + vs(Rowf,Gtc=diag(1)),
+                  rcov=~vs(units,Gtc=unsm(1)),
+                  data=DT, verbose = FALSE)
 summary(mix.gblup)
+## Equivalence
+plot(GT%*%mix.rrblup$U$`u:GT`$color, mix.gblup$U$`u:id`$color)
 ```
+
+## 4) I am missing BLUPs for individuals even when I provided them in the relationship matrix
+
+I got this good question in the past: "when I want to fit an animal model with sommer package using additive relationship matrix(A), this A matrix would contain parents. But the random effects only contains animals in the random effect but not including parents in the A matrix. How can I get the random effects for parents?""
+
+Answer: The easy way to do it is to make sure that even if the parents don't show up in the dataset, you need to make sure that they are present in the levels of the column that contains the animals, in addition they have to be provided in the relationship matrix and that's it. They should be returned in the blups.
+
+```{r}
+library(sommer)
+
+data(DT_cpdata)
+#### create the variance-covariance matrix
+A <- A.mat(GT) # additive relationship matrix
+#### look at the data and fit the model
+set.seed(12)
+DT2 <- droplevels(DT[sample(1:nrow(DT),100),]) # we simulate a dataset with only 100 animals
+nrow(DT2); length(levels(DT2$id))
+
+# we fit a model with the reduced datatset where only 100 blups will be returned since only
+# 100 levels exist in the "id" column
+mix1 <- mmer(Yield~1,
+              random=~vs(id,Gu=A)
+                      + Rowf + Colf,
+              rcov=~units,
+              data=DT2, verbose = FALSE)
+summary(mix1)
+length(mix1$U$`u:id`$Yield) # only 100 levels
+
+# we add additional levels to the "id" column and also provide them in the relationship matrix
+levels(DT2$id) <- c(levels(DT2$id), setdiff(levels(DT$id), levels(DT2$id)))
+mix2 <- mmer(Yield~1,
+             random=~vs(id,Gu=A)
+             + Rowf + Colf,
+             rcov=~units,
+             data=DT2, verbose = FALSE)
+summary(mix2)
+length(mix2$U$`u:id`$Yield) # now 363 levels
+```
+
+## 5) How can I use the AR1(), CS() and ARMA() functions
+
+Sommer doesn't support the estimation of additional correlation components like AR1 in the way asreml does. Still, if the user know the correlation value or can do an iterative approach to find the best value then these functions can be used to specify the variance covariance structure for a given random effect.
+
+For example, in the DT_cpdata dataset we have a field with row and column coordinates. This allows to fit row and column as random effects:
+
+```{r}
+library(sommer)
+data(DT_cpdata)
+mix1 <- mmer(Yield~1,
+              random=~ Rowf + Colf,
+              rcov=~units,
+              data=DT, verbose = FALSE)
+summary(mix1)$varcomp
+```
+
+If the user wants to relax the independence between rows and define an AR1 covariance structure among rows then the model could be fitted as:
+
+```{r}
+library(sommer)
+data(DT_cpdata)
+mixAR1row <- mmer(Yield~1,
+             random=~ vs(Rowf, Gu=AR1(Rowf, rho=0.3)) + Colf,
+             rcov=~units,
+             data=DT, verbose = FALSE)
+summary(mixAR1row)$varcomp
+```
+
+Same could be done for the column random effect:
+
+```{r}
+library(sommer)
+data(DT_cpdata)
+mixAR1col <- mmer(Yield~1,
+             random=~ Rowf + vs(Colf, Gu=AR1(Colf, rho=0.3)),
+             rcov=~units,
+             data=DT, verbose = FALSE)
+summary(mixAR1col)$varcomp
+```
+
+If on the other hand, you would like to stablish the presence of correlation in row and columns at the same time the model would look like this:
+
+```{r}
+library(sommer)
+data(DT_cpdata)
+mixAR1rowcol <- mmer(Yield~1,
+                  random=~ vs(Rowf:Colf, 
+                              Gu=kronecker(AR1(Rowf, rho=0.3),AR1(Colf, rho=0.3),make.dimnames = TRUE) 
+                              ),
+                  rcov=~units,
+                  data=DT, verbose = FALSE)
+summary(mixAR1rowcol)$varcomp
+```
+
+Notice that if you specify a random effect that is the interaction between 2 random effects the covariance structure to be specified in the `Gu` argument has to be built using the `kronecker()` function. The same applies to the `ARMA()` and `CS()` functions. Please keep in mind that the correlation values (rho argument) is a fixed value not estimated by REML like asreml does but you can always follow an iterative approach.
 
 ## Literature
 
