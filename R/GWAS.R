@@ -225,6 +225,10 @@ GWAS <- function(fixed, random, rcov, data, weights,
     # lastmodel$jkl <- colnames(M)[tokeep]
     rownames(scores) <- c(mm$tt,"R2","R2s")
     lastmodel$scores <- scores
+    lastmodel$method <- method
+    lastmodel$constraints <- res[[8]]
+    # lastmodel$constraintsF <- res[[9]]
+    class(lastmodel)<-c("mmergwas")
   }
   
   return(lastmodel)

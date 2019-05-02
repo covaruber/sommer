@@ -58,7 +58,7 @@ plot(GT%*%mix.rrblup$U$`u:GT`$color, mix.gblup$U$`u:id`$color)
 
 I got this good question in the past: "when I want to fit an animal model with sommer package using additive relationship matrix(A), this A matrix would contain parents. But the random effects only contains animals in the random effect but not including parents in the A matrix. How can I get the random effects for parents?""
 
-Answer: The easy way to do it is to make sure that even if the parents don't show up in the dataset, you need to make sure that they are present in the levels of the column that contains the animals, in addition they have to be provided in the relationship matrix and that's it. They should be returned in the blups.
+Answer: The easy way to do it is to make sure that even if the parents don't show up in the dataset, you need to make sure that they are present in the levels of the column that contains the individuals (i.e. animal IDs), in addition they have to be provided in the relationship matrix and that's it. They should be returned in the blups.
 
 ```{r}
 library(sommer)
@@ -147,6 +147,103 @@ summary(mixAR1rowcol)$varcomp
 ```
 
 Notice that if you specify a random effect that is the interaction between 2 random effects the covariance structure to be specified in the `Gu` argument has to be built using the `kronecker()` function. The same applies to the `ARMA()` and `CS()` functions. Please keep in mind that the correlation values (rho argument) is a fixed value not estimated by REML like asreml does but you can always follow an iterative approach.
+
+## 6) Can I run GWAS in MET experiments with replicates? 
+
+Although the direct-inversion algorithm that sommer uses in the background is not the best choice to solve GWAS models for the n > p scenario it is still possible to perform GWAS in MET models.
+
+For example, assume a MET model that has 41 lines with 1000 SNP markers, tested in 3 environments. The genetic term in a MET can be modeled as CS, DIAG or US covariance. The whole point of the GWAS function in sommer is to provide the name of the gTerm (random effect) that will match the marker data provided. 
+
+We first make up marker data for the MET data for example purposes
+```{r}
+library(sommer)
+data(DT_example)
+M <- matrix(rep(0,41*1000),1000,41)
+for (i in 1:41) {
+  M[,i] <- ifelse(runif(1000)<0.5,-1,1)
+}
+tM <- t(M)
+```
+
+We then fit the MET model of the type compound simmetry (CS) and evaluate the GWAS for the main genetic term "Name":
+
+```{r}
+## GWAS for main term in CS model
+ansx <- GWAS(Yield~Env,
+             random= ~ Name + Env:Name,
+             rcov= ~ units,
+             data=DT,
+             M=tM,
+             gTerm = "Name", verbose = FALSE)
+
+ms <- as.data.frame(t(ansx$scores))
+plot(ms$`Yield score`, ylim=c(0,8))
+```
+
+We could do the same but evaluate the GWAS considering the genetic term as the interaction term "Env:Name"
+
+```{r}
+## GWAS for the interaction term in CS model
+E <- matrix(1,nrow = length(unique(DT$Env)));E
+EtM <- kronecker(E,tM)
+ansx <- GWAS(Yield~Env,
+             random= ~ Name + Env:Name,
+             rcov= ~ units,
+             data=DT,
+             M=EtM,
+             gTerm = "Env:Name", verbose = FALSE)
+
+ms <- as.data.frame(t(ansx$scores))
+plot(ms$`Yield score`, ylim=c(0,8))
+```
+
+If the MET is a diagonal model, there's a variance components and BLUPs for each environment. Therefore we can evaluate the GWAS at any environment, here for example we evaluate the GWAS at the genetic term in the environment 'CA.2011'.
+
+```{r}
+## GWAS for the interaction term in DIAG model
+E <- matrix(1,nrow = length(unique(DT$Env)));E
+EtM <- kronecker(E,tM)
+ansx <- GWAS(Yield~Env,
+             random= ~Name + vs(ds(Env),Name),
+             rcov= ~ vs(ds(Env),units),
+             data=DT,
+             M=tM,
+             gTerm = "CA.2011:Name", verbose = FALSE )
+
+ms <- as.data.frame(t(ansx$scores))
+plot(ms$`Yield score`, ylim=c(0,8))
+```
+
+If the MET is an unstructured model, there's a variance components and BLUPs for each environment and a covariance component among the different combinations of environments. Therefore we can evaluate the GWAS at any environment as before, here for example we evaluate the GWAS at the genetic term in the environment 'CA.2011'. The difference with the previous model is that here we expect a greater accuracy in the environment CA.2011 since it has borrowed information from the other environments given the covariance fitted among environments.
+
+```{r}
+## GWAS for main term in US model
+ansx <- GWAS(Yield~Env,
+             random= ~vs(us(Env),Name),
+             rcov= ~ vs(us(Env),units),
+             data=DT,
+             M=tM,
+             gTerm = "CA.2011:Name", verbose = FALSE)
+
+ms <- as.data.frame(t(ansx$scores))
+plot(ms$`Yield score`, ylim=c(0,8))
+```
+
+Same theory applies for the multitrait model:
+
+```{r}
+## GWAS for main term in multitrait DIAG model
+ansx <- GWAS(cbind(Weight,Yield)~Env,
+             random= ~vs(ds(Env),Name, Gtc=unsm(2)),
+             rcov= ~ vs(ds(Env),units, Gtc=diag(2)),
+             data=DT,
+             M=tM,
+             gTerm = "CA.2011:Name", verbose = FALSE)
+
+ms <- as.data.frame(t(ansx$scores))
+plot(ms$`Yield score`, ylim=c(0,8))
+```
+
 
 ## Literature
 

@@ -370,3 +370,38 @@ pedtoK <- function(x, row="Row",column="Column",value="Ainverse", returnInverse=
   # }
 }
 
+simGECorMat <- function(nEnv,nMegaEnv, mu=0.7, v=0.2, mu2=0, v2=0.3){
+  ff <- function(m) {
+    m[lower.tri(m)] <- t(m)[lower.tri(m)]
+    m
+  }
+  
+  G = matrix(NA,nEnv,nEnv)
+  (nEnv2 <- nEnv/nMegaEnv)
+  G
+  
+  starts <- seq(1,nEnv,nEnv/nMegaEnv)
+  ends <- c((starts-1)[-1],nEnv)
+  
+  for(i in 1:nMegaEnv){
+    corsprov <- rnorm((nEnv2*(nEnv2-1))/2,mu,v)
+    counter=1
+    for(j in starts[i]:ends[i]){
+      for(k in j:ends[i]){
+        if(j == k){
+          G[j,k] <- 1
+        }else{
+          G[j,k] <- corsprov[counter]
+          counter <- counter+1
+        }
+      }
+    }
+  }
+  G <- ff(G)
+  tofill <- which(is.na(G),arr.ind = TRUE)
+  G[tofill] <- rnorm(nrow(tofill),mu2,v2)
+  G[which((G) > 1)] <- .98
+  G[which((G) < -1)] <- -.98
+  G <- ff(G)
+  return(G)
+}

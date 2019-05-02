@@ -5,7 +5,7 @@
 Additive relationship matrix
 }
 \description{
-Calculates the realized additive relationship matrix. Is a wrapper of the A.mat function from the rrBLUP package published by Endelman (2011).
+Calculates the realized additive relationship matrix. Is a wrapper of the A.mat function from the rrBLUP package published by Endelman (2011). If using this function please cite Endelman (2011). 
 }
 \usage{
 A.mat(X,min.MAF=NULL,max.missing=NULL,impute.method="mean",tol=0.02,
