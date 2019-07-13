@@ -648,8 +648,8 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
           arma::mat ZKfv = VarK * arma::kron(Zprov.t(),dD);
           U(i) = ZKfv * Vie; // Z' G Vi (Y - Xb)
           if(pev==true){
-            VarU(i) = ZKfv * (P * ZKfv.t()); // Z' G [Vi - (VX*tXVXVX)] G Z'
-            PevU(i) = VarK - Rcpp::as<arma::mat>(VarU(i)); // G - PEV
+            VarU(i) = ZKfv * (P * ZKfv.t()); // var(u) = Z' G [Vi - (VX*tXVXVX)] G Z'
+            PevU(i) = VarK - Rcpp::as<arma::mat>(VarU(i)); // PEV = G - var(u)
           }
         }
       }

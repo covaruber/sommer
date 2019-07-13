@@ -2,7 +2,7 @@
 \alias{simGECorMat}
 
 \title{
-Simulate a GE correlation matrix for simulation purposes. 
+Create a GE correlation matrix for simulation purposes. 
 }
 \description{
 Makes a simple correlation matrix based on the number of environments and megaenvironments desired. 
@@ -17,13 +17,16 @@ Number of environments to simulate. Needs to be divisible by the nMegaEnv argume
 }
 \item{nMegaEnv}{
 Number of megaenvironments to simulate.
+}
 \item{mu}{
 Mean value of the genetic correlation within megaenvironments.
+}
 \item{v}{
 variance in the genetic correlation within megaenvironments.
 }
 \item{mu2}{
 Mean value of the genetic correlation between megaenvironments.
+}
 \item{v2}{
 variance in the genetic correlation between megaenvironments.
 }

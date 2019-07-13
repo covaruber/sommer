@@ -347,6 +347,12 @@ version 3.9 (2019-04-01)
     ds() and us() functions, although the cs() can provide the same results.
   + Now unsm(), uncm(), fixm(), fcm() have the rep argument to repeat the constraint matrix multiple times
   + Now DF for 
+  
+########################
+version 4.0 (2019-07-01)
+########################
+
+ + No updates for now other than documentation
 
 ######################
 ## PENDINGS

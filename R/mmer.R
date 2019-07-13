@@ -9,7 +9,7 @@ mmer <- function(fixed, random, rcov, data, weights,
                  verbose=TRUE,reshape.output=TRUE){
   
   my.year <- 2019
-  my.month <- 6 #month when the user will start to get notifications the 1st day of next month
+  my.month <- 10 #month when the user will start to get notifications the 1st day of next month
   ### if my month = 3, user will start to get notification in april 1st (next month)
   datee <- Sys.Date()
   year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])

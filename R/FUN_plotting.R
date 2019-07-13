@@ -434,7 +434,7 @@ map.plot <- function(data, trait=NULL, trait.scale="same", col.chr=NULL, col.tra
     
   }
 }
-maxi.qtl <-   function(sma, distan=10, no.qtl=5, q95=2.5, LOD.int=FALSE, LODdrop=2, allCI=TRUE){
+maxi.qtl <- function(sma, distan=10, no.qtl=5, q95=2.5, LOD.int=FALSE, LODdrop=2, allCI=TRUE){
   param=NULL
   sma <- data.frame(sma)
   rnn <- rownames(sma)
@@ -483,7 +483,7 @@ maxi.qtl <-   function(sma, distan=10, no.qtl=5, q95=2.5, LOD.int=FALSE, LODdrop
         res[k,c(1:3)] <- prov2[w[k],c(1:3)]
         rownames(res)[k] <- rownames(prov2)[w[k]] #$$$$$$$$$$$$$$$$$$$$
         to.elim <- distan#abs(prov2$pos[w[k]] - 10)
-        zz <- (which(prov2$pos > (provi - to.elim) & prov2$pos < (provi + to.elim) ))[-w[k]]
+        zz <- setdiff(which(prov2$pos > (provi - to.elim) & prov2$pos < (provi + to.elim) ), w[k])# [-w[k]]
         if(length(zz) > 0){
           prov2 <- prov2[-zz,]
         }else{prov2 <- prov2}
@@ -491,7 +491,7 @@ maxi.qtl <-   function(sma, distan=10, no.qtl=5, q95=2.5, LOD.int=FALSE, LODdrop
         prov2 <- prov2[-selected,]
         #rownames(prov2.1)[-selected]
         k=k+1
-        if(length(which(is.na(prov2))) > 0 | dim(prov2)[1] == 0 ){GOOD<-FALSE}
+        if(length(which(is.na(prov2))) > 0 | dim(prov2)[1] == 0 | k > no.qtl){GOOD<-FALSE}
         #}
       }
       

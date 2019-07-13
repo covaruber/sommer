@@ -384,7 +384,7 @@
   ################################################
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by REML",rlt,"\n", collapse = ""))
-  cat(paste(rlh," sommer 3.9 ",rlh, "\n", collapse = ""))
+  cat(paste(rlh," sommer 4.0 ",rlh, "\n", collapse = ""))
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\n")
   cat("")
@@ -514,7 +514,7 @@
 #   ################################################
 #   cat(paste(rep("=",nmaxchar), collapse = ""))
 #   cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by REML",rlt,"\n", collapse = ""))
-#   cat(paste(rlh," sommer 3.9 ",rlh, "\n", collapse = ""))
+#   cat(paste(rlh," sommer 4.0 ",rlh, "\n", collapse = ""))
 #   cat(paste(rep("=",nmaxchar), collapse = ""))
 #   cat("\n")
 #   cat("")
@@ -875,7 +875,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 2.1 or later")
   assign(".sommer.home", file.path(library, pkg),
          pos=match("package:sommer", search()))
-  sommer.version = "3.9 (2019-04-01)" # usually 2 months before it expires
+  sommer.version = "4.0 (2019-07-01)" # usually 2 months before it expires
   
   ##%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ### check which version is more recent
@@ -900,7 +900,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     packageStartupMessage(cyan("[]   Type 'vignette('sommer.start')' for a short tutorial           []"),appendLF=TRUE)
     packageStartupMessage(cyan("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
     packageStartupMessage(cyan(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(cyan("sommer is updated on CRAN every 3-months due to CRAN policies"),appendLF=TRUE)
+    packageStartupMessage(cyan("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
     packageStartupMessage(cyan("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
     packageStartupMessage(cyan("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
     
@@ -908,7 +908,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     #  packageStartupMessage(paste("Version",current,"is now available."),appendLF=TRUE) # version current
     #  packageStartupMessage(paste("Please update 'sommer' installing the new version."),appendLF=TRUE) # version current
     #}
-    #print(image(diag(10),main="sommer 3.9"))
+    #print(image(diag(10),main="sommer 4.0"))
   }
   invisible()
 }

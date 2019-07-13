@@ -145,6 +145,10 @@ GWAS <- function(fixed, random, rcov, data, weights,
       stop(paste("Marker matrix M needs to have same numbers of rows(",nrow(M),") than columns of the gTerm incidence matrix(",ncol(Zb),")."),call. = FALSE)
     }
     
+    if(length(which(rownames(M) != colnames(Zb)))){
+      M <- M[colnames(Zb),]
+    }
+    
     m <- ncol(M)
     colnamesM <- colnames(M)
     scorecalc <- function(i){
