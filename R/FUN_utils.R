@@ -1,4 +1,13 @@
-
+vcsExtract <- function(object){
+  nre <- length(object$sigma)
+  vcs <- list()
+  for(i in 1:nre){
+    toextract <- which(object$constraints[[i]] > 0,arr.ind = TRUE)
+    vcs[[i]] <- object$sigma[[i]][toextract]
+  }
+  vcs <- unlist(vcs)
+  return(vcs)
+}
 #### =========== ######
 ## PREDICT FUNCTION #
 #### =========== ######

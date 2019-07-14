@@ -425,6 +425,7 @@ mmer <- function(fixed, random, rcov, data, weights,
     res$constraints <- GESI
     res$constraintsF <- Gx
     res$data <- data#dataor
+    res$sigmaVector <- vcsExtract(res)
     class(res)<-c("mmer")
   }
   
