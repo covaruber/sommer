@@ -5,7 +5,7 @@ leg <- function(x,n=1,u=-1,v=1, intercept=TRUE, intercept1=FALSE){
                                                     x=orthopolynom::scaleX(x, u=u, v=v))))
   colnames(leg4) <- paste("leg",0:(ncol(leg4)-1),sep="")
   if(!intercept){
-    leg4 <- as.matrix(leg4[, 2:ncol(leg4)])
+    leg4 <- leg4[, 2:ncol(leg4), drop = FALSE]
   }
   if(intercept1){
     leg4 <- leg4*sqrt(2)
