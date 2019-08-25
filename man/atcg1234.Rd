@@ -37,7 +37,7 @@ Giovanny Covarrubias-Pazaran
 
 \examples{
 data(DT_polyploid)
-genotypes <- GT
+genotypes <- GT_polyploid
 genotypes[1:5,1:5] # look the original format
 
 ####=================================================####
@@ -52,7 +52,7 @@ genotypes[1:5,1:5] # look the original format
 #### A=AA, T=TT, C=CC, G=GG 
 ####=================================================####
 # data(DT_rice)
-# X <- GT; X[1:5,1:5]; dim(X)
+# X <- GT_rice; X[1:5,1:5]; dim(X)
 # numo2 <- atcg1234(data=X, ploidy=2)
 # numo2$M[1:5,1:5]
 }

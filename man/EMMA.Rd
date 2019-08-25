@@ -91,13 +91,16 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #### remove them and run the examples
 ####=========================================####
 # data(CPdata)
+# DT <- DT_cpdata
+# GT <- GT_cpdata
+# MP <- MP_cpdata
 # ### look at the data
-# head(CPpheno)
-# CPgeno[1:5,1:5]
+# head(DT)
+# GT[1:5,1:5]
 # ## fit a model including additive and dominance effects
-# Y <- CPpheno[,c("color","Yield")]
+# Y <- DT[,c("color","Yield")]
 # Za <- diag(dim(Y)[1])
-# A <- A.mat(CPgeno) # additive relationship matrix
+# A <- A.mat(GT) # additive relationship matrix
 # ####================####
 # #### ADDITIVE MODEL ####
 # ####================####

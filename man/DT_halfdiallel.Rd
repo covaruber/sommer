@@ -30,6 +30,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 ####=========================================####
 
 data(DT_halfdiallel)
+DT <- DT_halfdiallel
 head(DT)
 
 ####=========================================####

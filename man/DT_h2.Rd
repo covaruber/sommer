@@ -28,6 +28,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #### remove them and run the examples
 ####=========================================####
 data(DT_h2)
+DT <- DT_h2
 head(DT)
 # ####=========================================####
 # #### fit the mixed model (very heavy model)

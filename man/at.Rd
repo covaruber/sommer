@@ -26,8 +26,8 @@
 }
 
 \examples{
-data(DT_cpdata)
-at(DT$Rowf)
-at(DT$Rowf,c("1","2"))
+x <- as.factor(c(1:5,1:5,1:5));x
+at(x)
+at(x, c("1","2"))
 }
 \seealso{The function \code{\link{vs}} to know how to use \code{at} in the \code{\link{mmer}} solver. }

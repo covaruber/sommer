@@ -37,14 +37,17 @@ The calculations are based on the estimated variance parameters and their varian
 #### simple example with univariate models
 ####=========================================####
 ####=========================================####
-# data(CPdata)
+# data(DT_cpdata)
+# DT <- DT_cpdata
+# GT <- GT_cpdata
+# MP <- MP_cpdata
 # #### create the variance-covariance matrix 
-# A <- A.mat(CPgeno)
+# A <- A.mat(GT)
 # #### look at the data and fit the model
-# head(CPpheno)
-# mix1 <- mmer2(Yield~1,
-#               random=~g(id), 
-#               G=list(id=A), data=CPpheno)
+# head(DT)
+# mix1 <- mmer(Yield~1,
+#               random=~vs(id,Gu=A), 
+#               data=DT)
 # summary(mix1)
 # #### run the pin function
 # pin(mix1, h2 ~ V1 / ( V1 + V2 ) )
@@ -55,18 +58,18 @@ The calculations are based on the estimated variance parameters and their varian
 # #### simple example with multivariate models
 # ####=========================================####
 # ####=========================================####
-# data(CPdata)
-# CPpheno <- CPdata$pheno
-# CPgeno <- CPdata$geno
+# data(DT_cpdata)
+# DT <- DT_cpdata
+# GT <- GT_cpdata
+# MP <- MP_cpdata
 # #### create the variance-covariance matrix 
-# A <- A.mat(CPgeno)
+# A <- A.mat(GT)
 # #### look at the data and fit the model
-# head(CPpheno)
-# mix2 <- mmer2(cbind(Yield,color)~1,
-#                random=~us(trait):g(id), 
-#                rcov=~us(trait):units,
-#                G=list(id=A), 
-#               data=CPpheno, MVM=TRUE)
+# head(DT)
+# mix2 <- mmer(cbind(Yield,color)~1,
+#                random=~vs(id,Gu=A, Gt=unsm(2)), 
+#                rcov=~vs(units, Gt=unsm(2)),
+#               data=DT)
 # summary(mix2)
 # ## genetic correlation
 # pin(mix2, gen.cor ~ V2 / sqrt(V1*V3))
@@ -77,11 +80,12 @@ The calculations are based on the estimated variance parameters and their varian
 # #### more complex multivariate model
 # ####=========================================####
 # ####=========================================####
-# data(BTdata)
-# mix3 <- mmer2(cbind(tarsus, back) ~ sex,
-#                random = ~ us(trait):dam + diag(trait):fosternest,
-#                rcov=~us(trait):units,
-#                data = BTdata)
+# data(DT_btdata)
+# DT <- DT_btdata
+# mix3 <- mmer(cbind(tarsus, back) ~ sex,
+#                random = ~ vs(dam, Gtc=unsm(2)) + vs(fosternest,Gtc=diag(2)),
+#                rcov=~vs(units,Gtc=unsm(2)),
+#                data = DT)
 # summary(mix3)
 # #### calculate the genetic correlation
 # pin(mix3, gen.cor ~ V2 / sqrt(V1*V3))
@@ -92,9 +96,10 @@ The calculations are based on the estimated variance parameters and their varian
 # #### going back to simple examples
 # ####=========================================####
 # ####=========================================####
-# data(BTdata)
+# data(DT_btdata)
+# DT <- DT_btdata
 # mix4 <- mmer2(tarsus ~ sex, random = ~ dam + fosternest,
-#                data = BTdata) 
+#                data = DT) 
 # summary(mix4)
 # #### calculate the ratio and its SE
 # pin(mix4, dam.prop ~ V1 / ( V1 + V2 + V3 ) )

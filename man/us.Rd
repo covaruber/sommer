@@ -25,7 +25,7 @@
 }
 
 \examples{
-data(DT_cpdata)
-us(DT$Rowf)
+x <- as.factor(c(1:5,1:5,1:5));x
+us(x)
 }
 \seealso{The function \code{\link{vs}} to know how to use \code{us} in the \code{\link{mmer}} solver.}

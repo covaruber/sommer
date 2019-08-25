@@ -59,7 +59,10 @@ Gilmour, A.R., Cullis, B.R., and Verbyla, A.P. (1997). Accounting for Natural an
 ## ============================ ##
 ## example to use spl2D() + vs() structure
 ## ============================ ## 
-data("DT_cpdata")
+data(DT_cpdata)
+# DT <- DT_cpdata
+# GT <- GT_cpdata
+# MP <- MP_cpdata
 ### mimic two fields
 # aa <- DT; bb <- DT
 # aa$FIELD <- "A";bb$FIELD <- "B"

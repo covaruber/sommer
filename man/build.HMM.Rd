@@ -60,6 +60,12 @@ Su G, Christensen OF, Ostersen T, Henryon M, Lund MS. 2012. Estimating Additive 
 #### use Technow data as example
 ####=========================================####
 data(DT_technow)
+DT <- DT_technow
+Md <- Md_technow
+Mf <- Mf_technow
+Ad <- Ad_technow
+Af <- Af_technow
+
 M.flint <- Mf # Marker matrix Flint
 M.dent <- Md # Marker matrix Dent
 

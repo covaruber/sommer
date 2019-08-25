@@ -1,5 +1,6 @@
 \name{DT_wheat}
 \alias{DT_wheat}
+\alias{GT_wheat}
 \title{wheat lines dataset}
 \description{
 
@@ -58,6 +59,8 @@ A platform for meta-analysis of rice crop data. \emph{Plant Physiology} \bold{13
 ####=========================================####
 
 # data(DT_wheat)
+# DT <- DT_wheat
+# GT <- GT_wheat
 # DT <- as.data.frame(DT);colnames(DT) <- paste0("x",1:4);DT$line <- rownames(DT); 
 # rownames(GT) <- DT$line
 # K <- A.mat(GT) # additive relationship matrix

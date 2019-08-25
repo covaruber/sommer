@@ -18,11 +18,10 @@ The purpose of this vignette is to provide answers to frequently asked questions
 ```{r}
 # iteration    LogLik     wall    cpu(sec)   restrained
 #     1      -224.676   18:11:23      3           0
-# Sistem is singular. Stopping the job
-# matrix multiplication: incompatible matrix dimensions: 0x0 and ...x...
+# Sistem is singular. Aborting the job. You could try a bigger tolparinv value.
 ```
 
-This error indicates that your model is singular (phenotypic variance V matrix is not invertible) and therefore the model is stopped throwing the "incompatible matrix dimensions: 0x0 and ...x..." error message. Whether you can try a simpler model or just modify the argument `tolparinv` in the `mmer` function. The default is 1e-6, which means that it will try to invert V and if it fails it will try to add a small value to the diagonal of V of 1e-6 to make it invertible. If this fails then the program will stop returning that error message which should make you check the quality of your data or model attempted.
+This error indicates that your model is singular (phenotypic variance V matrix is not invertible) and therefore the model is stopped throwing the error message and returning an empty list. Whether you can try a simpler model or just modify the argument `tolparinv` in the `mmer` function. The default is 1e-3, which means that it will try to invert V and if it fails it will try to add a small value to the diagonal of V of 1e-3 to make it invertible and try bigger and biger numbers. If this fails then the program will return the empty list.
 
 Sometimes the model becomes singular when you use variance covariance matrices (i.e. genomic relationship matrices) that are not full-rank. You can try to make it full-rank and try again.
 
@@ -38,6 +37,9 @@ Both types of models can be fitted in sommer. The only thing that it changes is 
 library(sommer)
 ## rrBLUP for makers
 data(DT_cpdata)
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
 mix.rrblup <- mmer(fixed=color~1,
                    random=~vs(GT,Gtc=unsm(1)) + vs(Rowf,Gtc=diag(1)),
                    rcov=~vs(units,Gtc=unsm(1)), getPEV = FALSE,
@@ -64,6 +66,9 @@ Answer: The easy way to do it is to make sure that even if the parents don't sho
 library(sommer)
 
 data(DT_cpdata)
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
 #### create the variance-covariance matrix
 A <- A.mat(GT) # additive relationship matrix
 #### look at the data and fit the model
@@ -101,6 +106,7 @@ For example, in the DT_cpdata dataset we have a field with row and column coordi
 ```{r}
 library(sommer)
 data(DT_cpdata)
+DT <- DT_cpdata
 mix1 <- mmer(Yield~1,
               random=~ Rowf + Colf,
               rcov=~units,
@@ -113,6 +119,7 @@ If the user wants to relax the independence between rows and define an AR1 covar
 ```{r}
 library(sommer)
 data(DT_cpdata)
+DT <- DT_cpdata
 mixAR1row <- mmer(Yield~1,
              random=~ vs(Rowf, Gu=AR1(Rowf, rho=0.3)) + Colf,
              rcov=~units,
@@ -125,6 +132,7 @@ Same could be done for the column random effect:
 ```{r}
 library(sommer)
 data(DT_cpdata)
+DT <- DT_cpdata
 mixAR1col <- mmer(Yield~1,
              random=~ Rowf + vs(Colf, Gu=AR1(Colf, rho=0.3)),
              rcov=~units,
@@ -137,6 +145,7 @@ If on the other hand, you would like to stablish the presence of correlation in 
 ```{r}
 library(sommer)
 data(DT_cpdata)
+DT <- DT_cpdata
 mixAR1rowcol <- mmer(Yield~1,
                   random=~ vs(Rowf:Colf, 
                               Gu=kronecker(AR1(Rowf, rho=0.3),AR1(Colf, rho=0.3),make.dimnames = TRUE) 
@@ -158,6 +167,8 @@ We first make up marker data for the MET data for example purposes
 ```{r}
 library(sommer)
 data(DT_example)
+DT <- DT_example
+A <- A_example
 M <- matrix(rep(0,41*1000),1000,41)
 for (i in 1:41) {
   M[,i] <- ifelse(runif(1000)<0.5,-1,1)

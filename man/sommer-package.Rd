@@ -204,6 +204,7 @@ Tunnicliffe W. 1989. On the use of marginal likelihood in time series model esti
 ####=========================================####
 
 data(DT_example)
+DT <- DT_example
 head(DT)
 
 ####=========================================####

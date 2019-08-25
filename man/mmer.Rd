@@ -236,6 +236,7 @@ Giovanny Covarrubias-Pazaran
 ####=========================================####
 
 data(DT_example)
+DT <- DT_example
 head(DT)
 
 ####=========================================####
@@ -312,6 +313,9 @@ summary(ans3)
 # ####=========================================####
 # 
 # data("DT_cpdata")
+# DT <- DT_cpdata
+# GT <- GT_cpdata
+# MP <- MP_cpdata
 # head(DT)
 # GT[1:4,1:4]
 # #### create the variance-covariance matrix
@@ -345,6 +349,10 @@ summary(ans3)
 # library(lme4)
 # library(sommer)
 # data("DT_cornhybrids")
+# DT <- DT_cornhybrids
+# DTi <- DTi_cornhybrids
+# GT <- GT_cornhybrids
+# 
 # fm1 <- lmer(Yield ~ Location + (1|GCA1) + (1|GCA2) + (1|SCA),
 #             data=DT )
 # out <- mmer(Yield ~ Location,

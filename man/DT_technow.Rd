@@ -1,5 +1,9 @@
 \name{DT_technow}
 \alias{DT_technow}
+\alias{Ad_technow}
+\alias{Af_technow}
+\alias{Md_technow}
+\alias{Mf_technow}
 \docType{data}
 \title{
 Genotypic and Phenotypic data from single cross hybrids (Technow et al. (2014))
@@ -32,6 +36,11 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #### command + shift + C |OR| control + shift + C
 ####=========================================####
 data(DT_technow)
+DT <- DT_technow
+Md <- Md_technow
+Mf <- Mf_technow
+Ad <- Ad_technow
+Af <- Af_technow
 ####=========================================####
 ####=========================================####
 # ans2 <- mmer(GY~1, 

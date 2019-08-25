@@ -1,5 +1,7 @@
 \name{DT_cpdata}
 \alias{DT_cpdata}
+\alias{GT_cpdata}
+\alias{MP_cpdata}
 \docType{data}
 \title{
 Genotypic and Phenotypic data for a CP population
@@ -32,6 +34,9 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 ####=========================================####
 # 
 # data(DT_cpdata)
+# DT <- DT_cpdata
+# GT <- GT_cpdata
+# MP <- MP_cpdata
 # #### create the variance-covariance matrix
 # A <- A.mat(GT) # additive relationship matrix
 # #### look at the data and fit the model

@@ -31,6 +31,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # you need to install the orthopolynom library to do random regression models
 # library(orthopolynom)
 # data(DT_legendre)
+# DT <- DT_legendre
 # mRR2<-mmer(Y~ 1 + Xf
 #            , random=~ vs(us(leg(X,1)),SUBJECT)
 #            , rcov=~vs(units)

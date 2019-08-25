@@ -1,5 +1,7 @@
 \name{DT_cornhybrids}
 \alias{DT_cornhybrids}
+\alias{DTi_cornhybrids}
+\alias{GT_cornhybrids}
 \docType{data}
 \title{
 Corn crosses and markers
@@ -36,8 +38,9 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 ####=========================================####
 # 
 # data(DT_cornhybrids)
-# DT_cornhybrids <- DT
-# 
+# DT <- DT_cornhybrids
+# DTi <- DTi_cornhybrids
+# GT <- GT_cornhybrids
 # hybrid2 <- DT # extract cross data
 # A <- GT
 # K1 <- A[levels(hybrid2$GCA1), levels(hybrid2$GCA1)]; dim(K1)
@@ -59,6 +62,8 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # 
 # data(DT_cornhybrids)
 # hybrid2 <- DT_cornhybrids # extract cross data
+# DTi <- DTi_cornhybrids
+# GT <- GT_cornhybrids
 # hybrid2 <- hybrid2[which(!is.na(hybrid2$Yield)),]
 # names(hybrid2)[5:6] <- c("TY","PH")
 # head(hybrid2)

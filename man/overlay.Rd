@@ -37,6 +37,7 @@
 #### remove them and run the examples
 ####=========================================####
 data("DT_halfdiallel")
+DT <- DT_halfdiallel
 head(DT)
 DT$femalef <- as.factor(DT$female)
 DT$malef <- as.factor(DT$male)

@@ -3,6 +3,7 @@
 // we only include RcppArmadillo.h which pulls Rcpp.h in for us
 #define ARMA_DONT_PRINT_ERRORS
 #include "RcppArmadillo.h"
+#include "stdlib.h" 
 
 // via the depends attribute we tell Rcpp to create hooks for
 // RcppArmadillo so that the build process will know what to do
@@ -404,21 +405,18 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     // invert V and P (projection matrix)
     
     arma::inv_sympd(Vi,V); // try to invert normally
-    if(Vi.n_rows == 0){ // if fails try to invert with diag(1e-6)
+    if(Vi.n_rows == 0){ // if fails try to invert with diag(1e-3)
       V = V + (D*tolparinv);
       arma::inv_sympd(Vi,V);
-      if(Vi.n_rows == 0){// if fails try to invert with diag(1e-5)
+      if(Vi.n_rows == 0){// if fails try to invert with diag(1e-2)
         V = V + (D*(tolparinv*10));
         arma::inv_sympd(Vi,V);
-        if(Vi.n_rows == 0){ // if fails try to invert with diag(1e-4)
+        if(Vi.n_rows == 0){ // if fails try to invert with diag(1e-1)
           V = V + (D*(tolparinv*100));
           arma::inv_sympd(Vi,V);
           if(Vi.n_rows == 0){ // finally, if fails try to invert with diag(1e-3)
-            V = V + (D*(tolparinv*1000));
-            arma::inv_sympd(Vi,V);
-            if(Vi.n_rows == 0){ // finally stop
-              Rcpp::Rcout << "Sistem is singular. Stopping the job. Try a smaller number of tolparinv." << arma::endl;
-            }
+            Rcpp::Rcout << "Sistem is singular (V). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
+            return 0;
           }
         }
       }
@@ -449,7 +447,8 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         if(tXVXVX.n_rows == 0){ // if fails try to invert with diag(1e-4)
           arma::solve(tXVXVX,tXVX + (D*(tolparinv*100)),VX.t());
           if(tXVXVX.n_rows == 0){ // finally stop
-            Rcpp::Rcout << "Sistem is singular. Stopping the job. Try a smaller number of tolparinv." << arma::endl;
+            Rcpp::Rcout << "Sistem is singular (tXVXVX). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
+            return 0;
           }
         }
       }
@@ -534,6 +533,11 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       A = arma::symmatu(A); // copy lower in upper triangular
       A_svd = arma::pinv(A, 1.490116e-08); // Inverse of Fishers
       
+      if(A_svd.n_rows == 0){ // if fails 
+        Rcpp::Rcout << "Sistem is singular (A_svd). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
+        return 0;
+      }
+      
       // F- * sigma(k) * dL/ds
       arma::vec new_ww(kk);
       new_ww = A_svd * ww; //update variance components
@@ -555,6 +559,10 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         arma::uvec no_restrain = find((constraints == 1 && coef_ut_unC > 0) || (constraints > 1)); // indices of columns that are OK to use
         arma::mat Ac = A.submat(no_restrain,no_restrain); // subset of A
         arma::mat Ac_svd = arma::inv(Ac); // Inverse of Fishers (subset of A)
+        if(Ac_svd.n_rows == 0){ // if fails 
+          Rcpp::Rcout << "Sistem is singular (Ac_svd). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
+          return 0;
+        }
         arma::vec wwc = ww(no_restrain); // subset of ww
         arma::vec newc_wwc = Ac_svd * wwc; //update variance components
         new_ww(no_restrain) = newc_wwc;
@@ -614,6 +622,10 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         arma::vec sp = ((sigmatwo - myone) % pos) + myone;
         arma::mat FI_c = FI / (sp * sp.t());
         sigma_cov = pinv(FI_c);
+        if(sigma_cov.n_rows == 0){ // if fails 
+          Rcpp::Rcout << "System is singular (sigma_cov). Aborting the job." << arma::endl;
+          return 0;
+        }
       }
       
     }else{// if we are in the last iteration now we calculate u, PEV, B, XB
@@ -624,7 +636,8 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         if(tXVXi.n_rows == 0){// if fails try to invert with diag(1e-5)
           arma::inv(tXVXi,tXVX+(D*(tolparinv*10)));
           if(tXVXi.n_rows == 0){
-            Rcpp::Rcout << "Sistem is singular. Stopping the job. Try a smaller number of tolparinv." << arma::endl;
+            Rcpp::Rcout << "System is singular (tXVXi). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
+            return 0;
           }
         }
       }

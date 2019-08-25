@@ -119,7 +119,8 @@ The following dataset has 41 potato lines evaluated in 5 locations across 3 year
 ```{r}
 library(sommer)
 data(DT_example)
-head(DT)
+DT <- DT_example
+A <- A_example
 
 ans1 <- mmer(Yield~1,
              random= ~ Name + Env + Env:Name + Env:Block,
@@ -135,7 +136,10 @@ Recently with markers becoming cheaper, thousand of markers can be run in the br
 Assume you have a population (even unreplicated) in the field but in addition we have genetic markers. Now we can fit the model and estimate the genomic heritability that explains a portion of the additive genetic variance (with high marker density $\sigma^2_A$ = $\sigma^2_g$)
 
 ```{r}
-data("DT_cpdata")
+data(DT_cpdata)
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
 DT$idd <-DT$id; DT$ide <-DT$id
 ### look at the data
 A <- A.mat(GT) # additive relationship matrix
@@ -159,7 +163,10 @@ Very often in multi-environment trials, the assumption that genetic variance is 
 We estimate variance components for $GCA_2$ and $SCA$ specifying the variance structure.
 
 ```{r, fig.show='hold'}
-data("DT_cornhybrids")
+data(DT_cornhybrids)
+DT <- DT_cornhybrids
+DTi <- DTi_cornhybrids
+GT <- GT_cornhybrids
 ### fit the model
 modFD <- mmer(Yield~1, 
                random=~ vs(at(Location,c("3","4")),GCA2), 
@@ -173,7 +180,10 @@ In the previous example we showed how the `at()` function is used in the `mmer` 
 In addition, other functions can be added on top to fit models with covariance structures, i.e. the Gu argument from the `vs()` function to indicate a covariance matrix (A, pedigree or genomic relationship matrix)
 
 ```{r}
-data("DT_cornhybrids")
+data(DT_cornhybrids)
+DT <- DT_cornhybrids
+DTi <- DTi_cornhybrids
+GT <- GT_cornhybrids
 GT[1:4,1:4]
 ### fit the model
 modFD <- mmer(Yield~1, 
@@ -188,7 +198,10 @@ summary(modFD)
 Sometimes the user needs to calculate ratios or functions of specific variance-covariance components and obtain the standard error for such parameters. Examples of these are the genetic correlations, heritabilities, etc. Using the CPdata we will show how to estimate the heritability and the standard error using the pin function that uses the delta method to come up with these parameters. This can be extended for any linear combination of the variance components.
 
 ```{r}
-data("DT_cpdata")
+data(DT_cpdata)
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
 ### look at the data
 A <- A.mat(GT) # additive relationship matrix
 ans <- mmer(color~1, 
@@ -216,7 +229,10 @@ $y = X\beta + Zu_1 + Zu_2 + Zu_S + \epsilon$
 We estimate variance components for $GCA_1$, $GCA_2$ and $SCA$ and use them to estimate heritability. Additionally BLUPs for GCA and SCA effects can be used to predict crosses.
 
 ```{r}
-data("DT_cornhybrids")
+data(DT_cornhybrids)
+DT <- DT_cornhybrids
+DTi <- DTi_cornhybrids
+GT <- GT_cornhybrids
 
 modFD <- mmer(Yield~Location, 
                random=~GCA1+GCA2+SCA, 
@@ -241,6 +257,7 @@ $y = X\beta + Zu_g + Zu_s + \epsilon$
 
 ```{r}
 data("DT_halfdiallel")
+DT <- DT_halfdiallel
 head(DT)
 DT$femalef <- as.factor(DT$female)
 DT$malef <- as.factor(DT$male)
@@ -268,7 +285,9 @@ $y = X\beta + Zu + \epsilon$
 and takes advantage of the variance covariance matrix for the genotype effect known as the additive relationship matrix (A) and calculated using the `A.mat` function to establish connections among all individuals and predict the BLUPs for individuals that were not measured. The prediction accuracy depends on several factors such as the heritability ($h^2$), training population used (TP), size of TP, etc.
 
 ```{r}
-data("DT_wheat"); 
+data(DT_wheat)
+DT <- DT_wheat
+GT <- GT_wheat
 colnames(DT) <- paste0("X",1:ncol(DT))
 DT <- as.data.frame(DT);DT$id <- as.factor(rownames(DT))
 # select environment 1
@@ -327,7 +346,12 @@ $u_s$ ~ N(0, $K_3$$\sigma^2_us$)
 And we can specify the K matrices. The main difference between this model and the full and half diallel designs is the fact that this model will include variance covariance structures in each of the three random effects (GCA1, GCA2 and SCA) to be able to predict the crosses that have not ocurred yet. We will use the data published by Technow et al. (2015) to show how to do prediction of single crosses.
 
 ```{r}
-data("DT_technow")
+data(DT_technow)
+DT <- DT_technow
+Md <- Md_technow
+Mf <- Mf_technow
+Ad <- Ad_technow
+Af <- Af_technow
 # RUN THE PREDICTION MODEL
 y.trn <- DT
 vv1 <- which(!is.na(DT$GY))
@@ -358,7 +382,10 @@ In order to do a good job modeling the spatial trends happening in the field spe
 In this example we assume an unreplicated population where row and range information is available which allows us to fit a 2 dimensional spline model.
 
 ```{r}
-data("DT_cpdata")
+data(DT_cpdata)
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
 ### mimic two fields
 A <- A.mat(GT)
 mix <- mmer(Yield~1,
@@ -379,7 +406,10 @@ Notice that the job is done by the `spl2D()` function that takes the Row and Col
 Sometimes is important to estimate genetic variance-covariance among traits, multi-reponse models are very useful for such task. Let see an example with 3 traits (color, Yield, and Firmness) and a single random effect (genotype; id) although multiple effects can be modeled as well. We need to use a variance covariance structure for the random effect to be able to obtain the genetic covariance among traits.
 
 ```{r}
-data("DT_cpdata")
+data(DT_cpdata)
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
 A <- A.mat(GT)
 ans.m <- mmer(cbind(Yield,color)~1,
                random=~ vs(id, Gu=A, Gtc=unsm(2))

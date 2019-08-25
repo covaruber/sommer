@@ -38,6 +38,7 @@
 # #### ===== Augmented Block Design 1 ==== ####
 # #### =================================== ####
 # data(DT_expdesigns)
+# DT <- DT_expdesigns
 # names(DT)
 # data1 <- DT$au1
 # head(data1)

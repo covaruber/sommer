@@ -33,6 +33,9 @@ fcm(c(1,1,1))
 fcm(c(1,1,1),2)
 
 # ## model with Env estimated for both traits
+# data(DT_example)
+# DT <- DT_example
+# A <- A_example
 # ans4 <- mmer(cbind(Yield, Weight) ~ Env,
 #               random= ~ vs(Name) + vs(Env:Name),
 #               rcov= ~ vs(units),

@@ -26,14 +26,14 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #### AUGMENTED DESIGN EXAMPLE
 ####=========================================####
 # data(DT_augment)
-# DT_augment <- DT
-# head(DT_augment)
+# DT <- DT_augment
+# head(DT)
 # ####=========================================####
 # #### fit the mixed model and check summary
 # ####=========================================####
 # mix1 <- mmer(TSW ~ Check.Gen, 
 #              random = ~ Block + Genotype:Check, 
-#              data=DT_augment)
+#              data=DT)
 # summary(mix1)
 # blup <- mix1$U$`Genotype:Check`$TSW
 # blup

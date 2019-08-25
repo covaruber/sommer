@@ -38,6 +38,7 @@
 ### ========================== ###
 ### ========================== ###
 data(DT_yatesoats)
+DT <- DT_yatesoats
 head(DT)
 # m3 <- mmer(fixed=Y ~ V + N + V:N, 
 #            random = ~ B + B:MP,

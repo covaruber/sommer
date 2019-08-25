@@ -34,6 +34,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # ####=========================================####
 # ####=========================================####
 # data(DT_btdata)
+# DT <- DT_btdata
 # head(DT)
 # mix4 <- mmer(tarsus ~ sex, 
 #              random = ~ dam + fosternest,
@@ -49,6 +50,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # ####=========================================####
 # ####=========================================####
 # data(DT_btdata)
+# DT <- DT_btdata
 # mix3 <- mmer(cbind(tarsus, back) ~ sex,
 #                 random = ~ vs(dam) + vs(fosternest),
 #                 rcov= ~ vs(units, Gtc=diag(2)),

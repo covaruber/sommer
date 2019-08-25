@@ -39,6 +39,7 @@
 #### command + shift + C |OR| control + shift + C
 ####=========================================####
 # data(DT_cpdata)
+# DT <- DT_cpdata
 # #### look at the data
 # head(DT)
 # #### fill the design

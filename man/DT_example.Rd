@@ -1,5 +1,6 @@
 \name{DT_example}
 \alias{DT_example}
+\alias{A_example}
 \docType{data}
 \title{
 Broad sense heritability calculation.
@@ -33,6 +34,8 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 ####=========================================####
 
 data(DT_example)
+DT <- DT_example
+A <- A_example
 head(DT)
 
 ####=========================================####

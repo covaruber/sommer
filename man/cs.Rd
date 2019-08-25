@@ -26,7 +26,7 @@
 }
 
 \examples{
-data(DT_cpdata)
-cs(DT$Rowf,matrix(1,13,13))
+x <- as.factor(c(1:5,1:5,1:5));x
+cs(x,matrix(1,5,5))
 }
 \seealso{The function \code{\link{vs}} to know how to use \code{cs} in the \code{\link{mmer}} solver.}

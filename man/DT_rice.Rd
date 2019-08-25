@@ -1,5 +1,7 @@
 \name{DT_rice}
 \alias{DT_rice}
+\alias{GT_rice}
+\alias{GTn_rice}
 \title{Rice lines dataset}
 \description{
 
@@ -37,7 +39,10 @@ Keyan Zhao, Chih-Wei Tung, Georgia C. Eizenga, Mark H. Wright, M. Liakat Ali, Ad
 #### command + shift + C |OR| control + shift + C
 ####=========================================####
 data(DT_rice)
-head(DT)
+# DT <- DT_rice
+# GT <- GT_rice
+# GTn <- GTn_rice
+# head(DT)
 # M <- atcg1234(GT)
 # A <- A.mat(M$M)
 # mix <- mmer(Protein.content~1,

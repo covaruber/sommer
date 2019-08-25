@@ -61,7 +61,8 @@
 \examples{
 
 data(DT_example)
-head(DT)
+DT <- DT_example
+A <- A_example
 
 ## ============================ ##
 ## example to use ds() structure (DIAGONAL)
@@ -104,6 +105,7 @@ mix <- mmer(Yield~Env,
 ## example to use overlay() + vs() structure
 ## ============================ ##
 data("DT_halfdiallel")
+DT <- DT_halfdiallel
 head(DT)
 DT$femalef <- as.factor(DT$female)
 DT$malef <- as.factor(DT$male)
@@ -119,6 +121,10 @@ modh <- mmer(sugar~1,
 ## example to use spl2D() + vs() structure
 ## ============================ ##            
 # ### mimic two fields
+# data(DT_cpdata)
+# DT <- DT_cpdata
+# GT <- GT_cpdata
+# MP <- MP_cpdata
 # aa <- DT; bb <- DT
 # aa$FIELD <- "A";bb$FIELD <- "B"
 # set.seed(1234)

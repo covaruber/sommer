@@ -54,6 +54,8 @@ Falconer, Douglas S., Trudy FC Mackay, and Richard Frankham. "Introduction to qu
 \examples{
 
 data(DT_example)
+DT <- DT_example
+A <- A_example
 head(DT)
 # ####=========================================####
 # #### fit the mixed model (very heavy model)

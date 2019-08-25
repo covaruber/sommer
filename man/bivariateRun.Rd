@@ -36,6 +36,9 @@
 # ####=========================================####
 # ####=========================================####
 # data("DT_cpdata")
+# DT <- DT_cpdata
+# GT <- GT_cpdata
+# MP <- MP_cpdata
 # #### create the variance-covariance matrix
 # A <- A.mat(GT)
 # #### look at the data and fit the model

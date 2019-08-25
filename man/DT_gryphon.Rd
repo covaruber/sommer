@@ -1,5 +1,7 @@
 \name{DT_gryphon}
 \alias{DT_gryphon}
+\alias{A_gryphon}
+\alias{P_gryphon}
 \docType{data}
 \title{
 Gryphon data from the Journal of Animal Ecology
@@ -39,6 +41,10 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #### command + shift + C |OR| control + shift + C
 ####=========================================####
 # data(DT_gryphon)
+# DT <- DT_gryphon
+# A <- A_gryphon
+# P <- P_gryphon
+
 # #### look at the data
 # head(DT)
 # #### fit the model with no fixed effects (intercept only)

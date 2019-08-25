@@ -1,5 +1,7 @@
 \name{DT_polyploid}
 \alias{DT_polyploid}
+\alias{GT_polyploid}
+\alias{MP_polyploid}
 \docType{data}
 \title{
 Genotypic and Phenotypic data for a potato polyploid population
@@ -33,7 +35,9 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 ####=========================================####
 
 data(DT_polyploid)
-
+# DT <- DT_polyploid
+# GT <- GT_polyploid
+# MP <- MP_polyploid
 # ####=========================================####
 # ####### convert markers to numeric format
 # ####=========================================####

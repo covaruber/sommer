@@ -243,6 +243,9 @@ Giovanny Covarrubias-Pazaran
 ####=========================================####
 
 # data(DT_cpdata)
+# DT <- DT_cpdata
+# GT <- GT_cpdata
+# MP <- MP_cpdata
 # #### create the variance-covariance matrix
 # A <- A.mat(GT) # additive relationship matrix
 # #### look at the data and fit the model
@@ -263,6 +266,9 @@ Giovanny Covarrubias-Pazaran
 #####=========================================####
 # 
 # data(DT_polyploid)
+# DT <- DT_polyploid
+# GT <- GT_polyploid
+# MP <- MP_polyploid
 # ####=========================================####
 # ####### convert markers to numeric format
 # ####=========================================####

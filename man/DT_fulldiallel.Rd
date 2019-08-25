@@ -29,6 +29,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #### remove them and run the examples
 ####=========================================####
 data(DT_fulldiallel)
+DT <- DT_fulldiallel
 head(DT)
 mix <- mmer(stems~1, random=~female+male, data=DT)
 summary(mix)
@@ -40,6 +41,7 @@ summary(mix)
 ####=========================================####
 
 data(DT_fulldiallel)
+DT <- DT_fulldiallel
 head(DT)
 
 mix <- mmer(cbind(stems,pods,seeds)~1,

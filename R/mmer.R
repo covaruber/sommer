@@ -358,26 +358,26 @@ mmer <- function(fixed, random, rcov, data, weights,
     good <- provdat$good
     if(missing(weights)){
       args <- list(fixed=fixed, random=random, rcov=rcov, data=data, 
-                        iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
-                        init=init, constraints=constraints, method=method, 
-                        getPEV=getPEV,
-                        na.method.X=na.method.X,
-                        na.method.Y=na.method.Y,
-                        return.param=return.param, 
-                        date.warning=date.warning,
-                        verbose=verbose,reshape.output=reshape.output)
+                   iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
+                   init=init, constraints=constraints, method=method, 
+                   getPEV=getPEV,
+                   na.method.X=na.method.X,
+                   na.method.Y=na.method.Y,
+                   return.param=return.param, 
+                   date.warning=date.warning,
+                   verbose=verbose,reshape.output=reshape.output)
     }else{
       args <- list(fixed=fixed, random=random, rcov=rcov, data=data, weights=weights, 
-                        iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
-                        init=init, constraints=constraints, method=method, 
-                        getPEV=getPEV,
-                        na.method.X=na.method.X,
-                        na.method.Y=na.method.Y,
-                        return.param=return.param, 
-                        date.warning=date.warning,
-                        verbose=verbose,reshape.output=reshape.output)
+                   iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
+                   init=init, constraints=constraints, method=method, 
+                   getPEV=getPEV,
+                   na.method.X=na.method.X,
+                   na.method.Y=na.method.Y,
+                   return.param=return.param, 
+                   date.warning=date.warning,
+                   verbose=verbose,reshape.output=reshape.output)
     }
-   
+    
     res <- list(yvar=yvar, X=X,Gx=Gx,Z=Z,K=K,R=R,GES=GES,GESI=GESI, ws=ws,
                 iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
                 selected=selected,getPEV=getPEV,verbose=verbose, retscaled=FALSE,
@@ -388,45 +388,47 @@ mmer <- function(fixed, random, rcov, data, weights,
                  iters, tolpar, tolparinv,
                  selected,getPEV,verbose, FALSE)
     
-    # res <- MNR(yvar, X,Gx,Z,K,R,GES,GESI, ws,
-    #              iters, tolpar, tolparinv,
-    #              selected,getPEV,verbose, FALSE)
+    ## res <- MNR(yvar, X,Gx,Z,K,R,GES,GESI, ws,
+    ##              iters, tolpar, tolparinv,
+    ##              selected,getPEV,verbose, FALSE)
     
-    nslices <- dim(res$sigma)[3]
-    itraits <- colnames(yvar)
-    re_names <- gsub("\\(Intercept):","",re_names)
-    re_names_onlyrandom <- gsub("\\(Intercept):","",re_namel1)
-    dimnames(res$sigma) <- list(itraits,itraits,re_names)
-    names(res$U) <- re_names_onlyrandom
-    names(res$VarU) <- re_names_onlyrandom
-    names(res$PevU) <- re_names_onlyrandom
-    res$method <- method
-    res$call <- list(fixed=fixed,random=random,rcov=rcov,
-                     na.method.Y=na.method.Y,na.method.X=na.method.X)
-    if(!missing(random)){
-      namelist <- lapply(Z,function(x){colnames(x)})
-    }else{namelist <- list()}
-    # print(Gx)
-    namesbeta <- lapply(as.list(1:length(X)),function(x){
-      # print(Gx[[x]])
-      tt <- colnames(yvar)[as.logical(apply(Gx[[x]],1,sum))]
-      # print(head(X[[x]]))
-      ttp <- expand.grid(tt,colnames(X[[x]]))
-      # print(ttp)
-      return(ttp)
-    })
-    # print(namesbeta)
-    namesbeta <- do.call(rbind,namesbeta); 
-    namelist[[length(namelist)+1]] <- namesbeta
-    # res$namelist <- namelist
-    if(reshape.output){
-      res <- reshape_mmer(res,namelist) 
+    if(length(res) > 0){
+      nslices <- dim(res$sigma)[3]
+      itraits <- colnames(yvar)
+      re_names <- gsub("\\(Intercept):","",re_names)
+      re_names_onlyrandom <- gsub("\\(Intercept):","",re_namel1)
+      dimnames(res$sigma) <- list(itraits,itraits,re_names)
+      names(res$U) <- re_names_onlyrandom
+      names(res$VarU) <- re_names_onlyrandom
+      names(res$PevU) <- re_names_onlyrandom
+      res$method <- method
+      res$call <- list(fixed=fixed,random=random,rcov=rcov,
+                       na.method.Y=na.method.Y,na.method.X=na.method.X)
+      if(!missing(random)){
+        namelist <- lapply(Z,function(x){colnames(x)})
+      }else{namelist <- list()}
+      # print(Gx)
+      namesbeta <- lapply(as.list(1:length(X)),function(x){
+        # print(Gx[[x]])
+        tt <- colnames(yvar)[as.logical(apply(Gx[[x]],1,sum))]
+        # print(head(X[[x]]))
+        ttp <- expand.grid(tt,colnames(X[[x]]))
+        # print(ttp)
+        return(ttp)
+      })
+      # print(namesbeta)
+      namesbeta <- do.call(rbind,namesbeta);
+      namelist[[length(namelist)+1]] <- namesbeta
+      # res$namelist <- namelist
+      if(reshape.output){
+        res <- reshape_mmer(res,namelist)
+      }
+      res$constraints <- GESI
+      res$constraintsF <- Gx
+      res$data <- data#dataor
+      res$sigmaVector <- vcsExtract(res)
+      class(res)<-c("mmer")
     }
-    res$constraints <- GESI
-    res$constraintsF <- Gx
-    res$data <- data#dataor
-    res$sigmaVector <- vcsExtract(res)
-    class(res)<-c("mmer")
   }
   
   return(res)

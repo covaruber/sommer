@@ -1,15 +1,16 @@
-DT_btdata
-DT_cpdata
-DT_expdesigns
-DT_fulldiallel
-DT_example
-DT_gryphon
-DT_h2
-DT_halfdiallel
-DT_legendre
-DT_polyploid
-DT_rice
-DT_technow
-DT_augment
-DT_cornhybrids
-DT_wheat
+DT_augment: DT_augment
+DT_btdata: DT_btdata
+DT_cornhybrids: DT_cornhybrids GT_cornhybrids DTi_cornhybrids
+DT_cpdata: DT_cpdata GT_cpdata MP_cpdata
+DT_example: DT_example A_example
+DT_expdesigns: DT_expdesigns
+DT_fulldiallel: DT_fulldiallel
+DT_gryphon: DT_gryphon A_gryphon P_gryphon
+DT_h2: DT_h2
+DT_halfdiallel: DT_halfdiallel
+DT_legendre: DT_legendre
+DT_polyploid: DT_polyploid GT_polyploid MP_polyploid
+DT_rice: DT_rice GT_rice GTn_rice
+DT_technow: DT_technow Md_technow Mf_technow Ad_technow Af_technow
+DT_wheat: DT_wheat GT_wheat
+DT_yatesoats: DT_yatesoats

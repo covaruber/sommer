@@ -31,10 +31,10 @@
 }
 
 \examples{
-data("DT_legendre")
+x <- sort(rep(1:3,100))
 # you need to install the orthopolynom library
-# leg(DT$X, n=1)
-# leg(DT$X, n=2)
+# leg(x, n=1)
+# leg(x, n=2)
 
 }
 \seealso{The core functions of the package \code{\link{mmer}}}

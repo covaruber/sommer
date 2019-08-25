@@ -215,6 +215,7 @@ This type of models refer to single response models where a variable of interest
 ```{r}
 library(sommer)
 data(DT_example)
+DT <- DT_example
 head(DT)
 
 ans1 <- mmer(Yield~Env,
@@ -232,6 +233,7 @@ Very often in multi-environment trials, the assumption that the genetic variance
 ```{r}
 
 data(DT_example)
+DT <- DT_example
 head(DT)
 ans2 <- mmer(Yield~Env,
               random= ~Name + vs(ds(Env),Name),
@@ -250,6 +252,7 @@ A more relaxed asumption than the CS+DIAG model is the unstructured model (US) w
 ```{r}
 
 data(DT_example)
+DT <- DT_example
 head(DT)
 ans3 <- mmer(Yield~Env,
              random=~ vs(us(Env),Name),
@@ -268,6 +271,7 @@ Currently there's a great push for multi-response models. This is motivated by t
 ```{r}
 
 data(DT_example)
+DT <- DT_example
 head(DT)
 DT$EnvName <- paste(DT$Env,DT$Name)
 ans4 <- mmer(cbind(Yield, Weight) ~ Env,
@@ -287,6 +291,7 @@ This is just an extension of the univariate heterogeneous variance models but at
 ```{r}
 
 data(DT_example)
+DT <- DT_example
 head(DT)
 DT$EnvName <- paste(DT$Env,DT$Name)
 ans5 <- mmer(cbind(Yield, Weight) ~ Env,
@@ -304,6 +309,7 @@ This is just an extension of the univariate unstructured variance models but at 
 ```{r}
 
 data(DT_example)
+DT <- DT_example
 head(DT)
 DT$EnvName <- paste(DT$Env,DT$Name)
 ans6 <- mmer(cbind(Yield, Weight) ~ Env,
@@ -474,6 +480,7 @@ In order to fit random regression models the user can use the `leg()` function t
 ```{r}
 library(orthopolynom)
 data(DT_legendre)
+DT <- DT_legendre
 head(DT)
 mRR2<-mmer(Y~ 1 + Xf
            , random=~ vs(us(leg(X,1)),SUBJECT)
@@ -507,6 +514,9 @@ Here we show a simple GWAS model for an univariate example.
 ```{r}
 
 data(DT_cpdata)
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
 #### create the variance-covariance matrix
 A <- A.mat(GT) # additive relationship matrix
 #### look at the data and fit the model
@@ -536,6 +546,7 @@ Another very useful function is the `overlay` function, which allows to overlay 
 ```{r}
 
 data("DT_halfdiallel")
+DT <- DT_halfdiallel
 head(DT)
 DT$femalef <- as.factor(DT$female)
 DT$malef <- as.factor(DT$male)
@@ -559,7 +570,10 @@ In order to do a good job modeling the spatial trends happening in the field spe
 In this example we assume an unreplicated population where row and range information is available which allows us to fit a 2 dimensional spline model.
 
 ```{r}
-data("DT_cpdata")
+data(DT_cpdata)
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
 ### mimic two fields
 A <- A.mat(GT)
 mix <- mmer(Yield~1,
@@ -581,6 +595,9 @@ One of the most powerful features of sommer is the ability to provide any custom
 ```{r}
 
 data(DT_cpdata)
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
 GT[1:4,1:4]
 #### look at the data and fit the model
 mix1 <- mmer(Yield~1,
@@ -604,7 +621,9 @@ $y = X\beta + Zu + \epsilon$
 and takes advantage of the variance covariance matrix for the genotype effect known as the additive relationship matrix (A) and calculated using the `A.mat` function to establish connections among all individuals and predict the BLUPs for individuals that were not measured. In case the interest is to get BLUPs for markers the random effect is the actual marker matrix and the relationship among markers can be specified as well but in this example is assume a diagonal.
 
 ```{r}
-data("DT_wheat"); 
+data(DT_wheat)
+DT <- DT_wheat
+GT <- GT_wheat
 colnames(DT) <- paste0("X",1:ncol(DT))
 DT <- as.data.frame(DT);DT$id <- as.factor(rownames(DT))
 # select environment 1

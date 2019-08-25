@@ -59,7 +59,10 @@ Rodriguez-Alvarez, M.X, Boer, M.P., van Eeuwijk, F.A., and Eilers, P.H.C. (2017)
 }
 
 \examples{
-# data("DT_cpdata")
+# data(DT_cpdata)
+# DT <- DT_cpdata
+# GT <- GT_cpdata
+# MP <- MP_cpdata
 # ### mimic two fields
 # aa <- DT; bb <- DT
 # aa$FIELD <- "A";bb$FIELD <- "B"
