@@ -2,7 +2,7 @@
 \alias{vs}
 \title{variance structure specification}
 \description{
-  \code{vs} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmer}} solver.
+  \code{vs} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmer}} solver. 
 }
 \usage{
   vs(..., Gu=NULL, Gt=NULL, Gtc=NULL)

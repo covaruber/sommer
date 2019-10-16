@@ -86,6 +86,8 @@ mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03,
 
 \details{
 
+The use of this function requires a good understanding of mixed models. Please review the 'sommer.start' vignette and pay attention to details like format of your random and fixed variables (i.e. character and factor variables have different properties when returning BLUEs or BLUPs, please see the 'FAQ' vignettes). 
+
 \strong{Special Functions}
 
  \code{\link{vs}(\link{at}(x,levels),y)}   

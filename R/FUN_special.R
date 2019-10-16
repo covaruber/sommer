@@ -519,7 +519,7 @@ vs <- function(..., Gu=NULL, Gt=NULL, Gtc=NULL){
           if(is.null(Gu)){
             Gux <- diag(ncol(Z))
           }else{
-            colnames(zz) <- gsub(ref_name,"",colnames(zz))
+            # colnames(zz) <- gsub(ref_name,"",colnames(zz)) ## why I wrote this?
             checkg <- setdiff(colnames(zz),colnames(Gu))
             if(length(checkg)>0){
               stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
@@ -542,8 +542,8 @@ vs <- function(..., Gu=NULL, Gt=NULL, Gtc=NULL){
             Gu0 <- Gux*0
             Gu1 <- rbind(cbind(Gu0,Gux),cbind(Gux,Gu0))
           }else{
-            colnames(z1) <- gsub(ref_name,"",colnames(z1))
-            colnames(z2) <- gsub(ref_name,"",colnames(z2))
+            # colnames(z1) <- gsub(ref_name,"",colnames(z1)) ## why I wrote this?
+            # colnames(z2) <- gsub(ref_name,"",colnames(z2)) ## why I wrote this?
             checkg <- setdiff(colnames(z1),colnames(Gu))
             if(length(checkg)>0){
               stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
