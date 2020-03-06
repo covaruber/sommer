@@ -96,7 +96,7 @@ A multi environment model is the one that is fitted when the breeding program ca
 ```{r}
 
 ansMain <- mmer(Yield~Env,
-              random= ~ vs(Name, Gu=A) + vs(dg(Env),Name, Gu=A),
+              random= ~ vs(Name, Gu=A) + vs(ds(Env),Name, Gu=A),
               rcov= ~ units,
               data=DT)
 summary(ansMain)
