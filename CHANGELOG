@@ -353,7 +353,16 @@ version 4.0 (2019-07-01)
 ########################
 
  + No updates for now other than documentation
+ + Bug in the GWAS function for P3D=TRUE/FALSE fixed
 
+########################
+version 4.1 (2020-06-01)
+########################
+
+ + Bug for removing the intercept fixed
+ + Better documentation for GxE models
+ + Addition if the unsBLUP function to extract right BLUPs for unstructured models
+ 
 ######################
 ## PENDINGS
 + IMPLEMENT WALD TEST

@@ -1,0 +1,185 @@
+---
+title: "Fitting genotype by environment models in sommer"
+author: "Giovanny Covarrubias-Pazaran"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{GxE models in sommer}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused in problems of the type p > n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, and specify heterogeneous variances, and obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+
+The purpose of this vignette is to show how to fit different genotype by environment (GxE) models using the sommer package:  
+
+1) Single environment model
+2) Multienvironment model: Main effect model
+3) Multienvironment model: Diagonal model (DG)
+4) Multienvironment model: Compund symmetry model (CS)
+5) Multienvironment model: Compund symmetry + diagonal model (CS+DG)
+6) Multienvironment model: Unstructured model (US)
+7) Multienvironment model: Random regression model (RR)
+8) Multienvironment model: Other covariance structures for GxE
+
+
+When the breeder decides to run a trial and apply selection in a single environment wheter because the amount of seed is a limitation or there's no availability for any location the breeder takes the risk of selecting material for a target population of environments (TPEs) and this environment tested not being representative of the larger TPE. Therefore, many breeding programs try to based their selection decision using multi-environment trial (MET) data. Although, models could be adjusted by adding additional information like spatial information, experimental design information, etc., in this tutorial we will focus mainly on the covariance structures for GxE and the incorporation of relationship matrices for the genotype effect.
+
+## 1) Single environment model
+
+A single environment model is the one that is fitted when the breeding program can only afford one location leaving out the possible information available from other environments. This will be used to further expand to GxE models.
+
+```{r}
+library(sommer)
+data(DT_example)
+DT <- DT_example
+A <- A_example
+
+ansSingle <- mmer(Yield~1,
+              random= ~ vs(Name, Gu=A),
+              rcov= ~ units,
+              data=DT)
+summary(ansSingle)
+
+```
+
+In this model the only term to be estimated is the one for the germplasm (here called Name). For the sake of example we have added a relationship matrices among the levels of the random effect Name. This is just a diagonal matrix with as many rows and columns as levels present in the random effect Name, but any other non-diagonal relationship matrix could be used.
+
+## 2) MET: main effect model
+
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+
+```{r}
+
+ansMain <- mmer(Yield~Env,
+              random= ~ vs(Name, Gu=A),
+              rcov= ~ units,
+              data=DT)
+summary(ansMain)
+
+```
+
+## 3) MET: diagonal model (DG)
+
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+
+```{r}
+
+ansDG <- mmer(Yield~Env,
+              random= ~ vs(ds(Env),Name, Gu=A),
+              rcov= ~ units,
+              data=DT)
+summary(ansDG)
+
+```
+
+## 4) MET: compund symmetry model (CS)
+
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+
+```{r}
+E <- diag(length(unique(DT$Env)))
+rownames(E) <- colnames(E) <- unique(DT$Env)
+EA <- kronecker(E,A, make.dimnames = TRUE)
+ansCS <- mmer(Yield~Env,
+              random= ~ vs(Name, Gu=A) + vs(Env:Name, Gu=EA),
+              rcov= ~ units,
+              data=DT)
+summary(ansCS)
+
+```
+
+## 5) MET: compund symmetry plus diagonal (CS+DIAG)
+
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+
+```{r}
+
+ansMain <- mmer(Yield~Env,
+              random= ~ vs(Name, Gu=A) + vs(dg(Env),Name, Gu=A),
+              rcov= ~ units,
+              data=DT)
+summary(ansMain)
+
+```
+
+## 6) MET: unstructured model (US)
+
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+
+```{r}
+
+ansUS <- mmer(Yield~Env,
+              random= ~ vs(us(Env),Name, Gu=A),
+              rcov= ~ units,
+              data=DT)
+summary(ansUS)
+# adjust variance BLUPs by adding covariances
+ansUS$U[1:6] <- unsBLUP(ansUS$U[1:6])
+```
+
+## 7) MET: random regression model
+
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+
+```{r}
+DT$EnvN <- as.numeric(as.factor(DT$Env))
+ansRR <- mmer(Yield~Env,
+              random= ~ vs(leg(EnvN,1),Name),
+              rcov= ~ units,
+              data=DT)
+summary(ansRR)
+
+```
+
+## 8) Other GxE covariance structures
+
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+
+```{r}
+
+E <- CS(DT$Env)
+rownames(E) <- colnames(E) <- unique(DT$Env)
+EA <- kronecker(E,A, make.dimnames = TRUE)
+ansCS <- mmer(Yield~Env,
+              random= ~ vs(Name, Gu=A) + vs(Env:Name, Gu=EA),
+              rcov= ~ units,
+              data=DT)
+summary(ansCS)
+
+```
+
+
+## Final remarks
+
+Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
+
+## Literature
+
+Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6):1-15.
+
+Covarrubias-Pazaran G. 2018. Software update: Moving the R package sommer to multivariate mixed models for genome-assisted prediction. doi: https://doi.org/10.1101/354639
+
+Bernardo Rex. 2010. Breeding for quantitative traits in plants. Second edition. Stemma Press. 390 pp.
+
+Gilmour et al. 1995. Average Information REML: An efficient algorithm for variance parameter estimation in linear mixed models. Biometrics 51(4):1440-1450.
+
+Henderson C.R. 1975. Best Linear Unbiased Estimation and Prediction under a Selection Model. Biometrics vol. 31(2):423-447.
+
+Kang et al. 2008. Efficient control of population structure in model organism association mapping. Genetics 178:1709-1723.
+
+Lee, D.-J., Durban, M., and Eilers, P.H.C. (2013). Efficient two-dimensional smoothing with P-spline ANOVA mixed models and nested bases. Computational Statistics and Data Analysis, 61, 22 - 37.
+
+Lee et al. 2015. MTG2: An efficient algorithm for multivariate linear mixed model analysis based on genomic information. Cold Spring Harbor. doi: http://dx.doi.org/10.1101/027201.
+
+Maier et al. 2015. Joint analysis of psychiatric disorders increases accuracy of risk prediction for schizophrenia, bipolar disorder, and major depressive disorder. Am J Hum Genet; 96(2):283-294.
+
+Rodriguez-Alvarez, Maria Xose, et al. Correcting for spatial heterogeneity in plant breeding experiments with P-splines. Spatial Statistics 23 (2018): 52-71.
+
+Searle. 1993. Applying the EM algorithm to calculating ML and REML estimates of variance components. Paper invited for the 1993 American Statistical Association Meeting, San Francisco.
+
+Yu et al. 2006. A unified mixed-model method for association mapping that accounts for multiple levels of relatedness. Genetics 38:203-208.
+
+Abdollahi Arpanahi R, Morota G, Valente BD, Kranis A, Rosa GJM, Gianola D. 2015. Assessment of bagging GBLUP for whole genome prediction of broiler chicken traits. Journal of Animal Breeding and Genetics 132:218-228.
+
+Tunnicliffe W. 1989. On the use of marginal likelihood in time series model estimation. JRSS 51(1):15-27.

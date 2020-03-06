@@ -14,6 +14,10 @@ GWAS <- function(fixed, random, rcov, data, weights,
     stop("Please provide the name of the genetic term in the model in the gTerm argument", call. = FALSE)
   }
   
+  if(length(which(is.na(M))) > 0){
+    stop("Please provide an imputed marker matrix (M).", call. = FALSE)
+  }
+  
   qvalue <- function(p) {
     smooth.df = 3
     if (min(p) < 0 || max(p) > 1) {
@@ -177,11 +181,13 @@ GWAS <- function(fixed, random, rcov, data, weights,
           #                    res[[10]],res[[11]],res[[12]], res[[13]],res[[14]],FALSE,
           #                    TRUE)
           # H2inv <- lastmodel$Vi
+          # print(as.matrix(X3))
           lastmodel <- .Call("_sommer_MNR",PACKAGE = "sommer",res[[1]], list(as.matrix(X3)) ,res[[3]],
                              res[[4]],res[[5]],res[[6]],res[[7]],res[[8]],res[[9]],
                              res[[10]],res[[11]],res[[12]], res[[13]],res[[14]],FALSE,
                              TRUE)
           H2inv <- lastmodel$Vi
+          # print(lastmodel$sigma)
         }
         W <- crossprod(X3, H2inv %*% X3)
         Winv <- try(solve(W), silent = TRUE)

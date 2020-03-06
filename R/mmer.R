@@ -9,7 +9,7 @@ mmer <- function(fixed, random, rcov, data, weights,
                  verbose=TRUE,reshape.output=TRUE){
   
   my.year <- 2020
-  my.month <- 1 #month when the user will start to get notifications the 1st day of next month
+  my.month <- 5 #month when the user will start to get notifications the 1st day of next month
   ### if my month = 3, user will start to get notification in april 1st (next month)
   datee <- Sys.Date()
   year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
@@ -210,12 +210,14 @@ mmer <- function(fixed, random, rcov, data, weights,
   ## get Xs
   
   yuyuf <- strsplit(as.character(fixed[3]), split = "[+-]")[[1]]
+  yuyufint <- strsplit(as.character(fixed[3]), split = "[+]")[[1]]
   fixedtermss <- apply(data.frame(yuyuf),1,function(x){
     strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
   })
   # identify if user wants intercept or not
   test1 <- length(which(fixedtermss %in% "1"))
-  test2 <- length(which(fixedtermss %in% "-1"))
+  # test2 <- length(which(fixedtermss %in% "-1"))
+  test2 <- length(c( grep("-1", yuyufint), grep("- 1", yuyufint) ))
   
   if(test1 == 0 & test2 == 0){ # there should be intercept
     useinter <- TRUE
@@ -224,7 +226,7 @@ mmer <- function(fixed, random, rcov, data, weights,
   }else{ # there's no intercept
     useinter <- FALSE
   }
-  
+  # print(useinter)
   vsterms <- grep("vs\\(",fixedtermss)
   if(length(vsterms)>0){
     fixedvsterms <- fixedtermss[c(vsterms)]
@@ -237,15 +239,22 @@ mmer <- function(fixed, random, rcov, data, weights,
     addxs <- do.call(cbind,addxs)
   }else{fixedvsterms <- NULL}
   
+  '%!in%' <- function(x,y)!('%in%'(x,y))
   if(test1 == 0 & test2 == 0){ # there should be intercept
     fixedtermss <- c("1",fixedtermss)
+  }else if(test1 > 0 & test2 == 0){# there should be intercept as well
+    fixedtermss <- c(fixedtermss)
+  }else{ # there's no intercept
+    fixedtermss <- fixedtermss[which(fixedtermss%!in%"1")]
+    fixedtermss <- c("-1",fixedtermss)
   }
-  '%!in%' <- function(x,y)!('%in%'(x,y))
   
+  # print(fixedtermss)
   newfixed <- as.formula(paste("~",paste(fixedtermss,collapse = "+")))
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
   mf <- eval(mf, parent.frame())
   baseX <- model.matrix(newfixed, mf)
+  # print(head(baseX))
   if(length(vsterms) > 0){baseX <- cbind(baseX,addxs)}
   qr <- qr(baseX)
   keepx <- qr$pivot[1:qr$rank]
