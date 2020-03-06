@@ -115,7 +115,7 @@ ansUS <- mmer(Yield~Env,
               data=DT)
 summary(ansUS)
 # adjust variance BLUPs by adding covariances
-ansUS$U[1:6] <- unsBLUP(ansUS$U[1:6])
+# ansUS$U[1:6] <- unsBLUP(ansUS$U[1:6])
 ```
 
 ## 7) MET: random regression model
@@ -123,6 +123,7 @@ ansUS$U[1:6] <- unsBLUP(ansUS$U[1:6])
 A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
 
 ```{r}
+library(orthopolynom)
 DT$EnvN <- as.numeric(as.factor(DT$Env))
 ansRR <- mmer(Yield~Env,
               random= ~ vs(leg(EnvN,1),Name),

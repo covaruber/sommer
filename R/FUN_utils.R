@@ -399,7 +399,7 @@ vcsExtract <- function(object){
   ################################################
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by REML",rlt,"\n", collapse = ""))
-  cat(paste(rlh," sommer 4.0 ",rlh, "\n", collapse = ""))
+  cat(paste(rlh," sommer 4.1 ",rlh, "\n", collapse = ""))
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\n")
   cat("")
@@ -529,7 +529,7 @@ vcsExtract <- function(object){
 #   ################################################
 #   cat(paste(rep("=",nmaxchar), collapse = ""))
 #   cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by REML",rlt,"\n", collapse = ""))
-#   cat(paste(rlh," sommer 4.0 ",rlh, "\n", collapse = ""))
+#   cat(paste(rlh," sommer 4.1 ",rlh, "\n", collapse = ""))
 #   cat(paste(rep("=",nmaxchar), collapse = ""))
 #   cat("\n")
 #   cat("")
@@ -890,7 +890,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 2.1 or later")
   assign(".sommer.home", file.path(library, pkg),
          pos=match("package:sommer", search()))
-  sommer.version = "4.0 (2020-02-01)" # usually 2 months before it expires
+  sommer.version = "4.1 (2020-06-01)" # usually 2 months before it expires
   
   ##%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ### check which version is more recent
@@ -923,7 +923,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     #  packageStartupMessage(paste("Version",current,"is now available."),appendLF=TRUE) # version current
     #  packageStartupMessage(paste("Please update 'sommer' installing the new version."),appendLF=TRUE) # version current
     #}
-    #print(image(diag(10),main="sommer 4.0"))
+    #print(image(diag(10),main="sommer 4.1"))
   }
   invisible()
 }

@@ -19,7 +19,7 @@ export(at,cs,ds,us,vs,
        unsm,uncm,fixm,fcm,
        list2usmat, transformConstraints,
        overlay, spl2D,
-       bivariateRun)
+       bivariateRun, unsBLUP)
 
 ## FUN_markers
 export(atcg1234,build.HMM,h2.fun)
