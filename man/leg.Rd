@@ -36,5 +36,7 @@ x <- sort(rep(1:3,100))
 # leg(x, n=1)
 # leg(x, n=2)
 
+# see dataset data(DT_legendre) for a random regression modeling example
+
 }
 \seealso{The core functions of the package \code{\link{mmer}}}

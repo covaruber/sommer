@@ -359,7 +359,7 @@ version 4.0 (2019-07-01)
 version 4.1 (2020-06-01)
 ########################
 
- + Bug for removing the intercept fixed
+ + Bug for removing the intercept in models has been fixed
  + Better documentation for GxE models
  + Addition if the unsBLUP function to extract right BLUPs for unstructured models
  
@@ -369,4 +369,6 @@ version 4.1 (2020-06-01)
 + document explicit nesting and overspecified (rank-defficient) models
 + debug the predict function when a new dataset is provided and check again the SE's
 + constraints for variance components to be equal among specific ones
++ predict tutorial
++ letter color
  
