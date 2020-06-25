@@ -185,13 +185,13 @@ overlay<- function (..., rlist = NULL, prefix = NULL){
 subdata <- function(data,fixed,na.method.Y=NULL,na.method.X=NULL){
   
   # silently change all columns that are defined as character into factors
-  columnTypes <- unlist(lapply(data, class))
-  columnTypesC <- which(columnTypes == "character")
-  if(length(columnTypesC) > 0){ # if there's character types change them to factor
-    for(cti in 1:length(columnTypesC)){
-      data[,cti] <- as.factor(data[,cti])
-    }
-  }
+  # columnTypes <- unlist(lapply(data, class))
+  # columnTypesC <- which(columnTypes == "character")
+  # if(length(columnTypesC) > 0){ # if there's character types change them to factor
+  #   for(cti in 1:length(columnTypesC)){
+  #     data[,cti] <- as.factor(data[,cti])
+  #   }
+  # }
   ####
   expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
   expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=T)}

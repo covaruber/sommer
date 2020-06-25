@@ -423,12 +423,12 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb6-7"><a href="#cb6-7"></a>             <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
 <span id="cb6-8"><a href="#cb6-8"></a>             <span class="dt">data=</span>DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -40.765   14:0:34      0           0
-##     2      -30.2657   14:0:34      0           0
-##     3      -25.8227   14:0:34      0           1
-##     4      -24.7277   14:0:34      0           1
-##     5      -24.7203   14:0:35      1           1
-##     6      -24.7202   14:0:35      1           1</code></pre>
+##     1      -40.765   17:15:1      0           0
+##     2      -30.2657   17:15:1      0           0
+##     3      -25.8227   17:15:1      0           1
+##     4      -24.7277   17:15:1      0           1
+##     5      -24.7203   17:15:1      0           1
+##     6      -24.7202   17:15:1      0           1</code></pre>
 <div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a><span class="kw">summary</span>(ans1)<span class="op">$</span>varcomp</span></code></pre></div>
 <pre><code>##                         VarComp  VarCompSE    Zratio Constraint
 ## Name.Yield-Yield       3.718279  1.6959834 2.1924029   Positive
@@ -457,12 +457,12 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb14-12"><a href="#cb14-12"></a>                 <span class="dt">rcov=</span><span class="op">~</span>units,</span>
 <span id="cb14-13"><a href="#cb14-13"></a>                 <span class="dt">data=</span>DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -123   14:0:36      0           0
-##     2      -107.864   14:0:36      0           0
-##     3      -103.867   14:0:36      0           0
-##     4      -103.315   14:0:36      0           0
-##     5      -103.294   14:0:36      0           0
-##     6      -103.293   14:0:36      0           0</code></pre>
+##     1      -123   17:15:3      0           0
+##     2      -107.864   17:15:3      0           0
+##     3      -103.867   17:15:3      0           0
+##     4      -103.315   17:15:3      0           0
+##     5      -103.294   17:15:3      0           0
+##     6      -103.293   17:15:3      0           0</code></pre>
 <div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1"></a>(<span class="kw">summary</span>(ans.ADE)<span class="op">$</span>varcomp)</span></code></pre></div>
 <pre><code>##                       VarComp    VarCompSE   Zratio Constraint
 ## u:id.color-color  0.003662202 0.0012194130 3.003250   Positive
@@ -490,12 +490,12 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb22-8"><a href="#cb22-8"></a>               <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">ds</span>(Location),units),</span>
 <span id="cb22-9"><a href="#cb22-9"></a>               <span class="dt">data=</span>DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -190.104   14:0:36      0           0
-##     2      -171.543   14:0:36      0           0
-##     3      -165.319   14:0:36      0           0
-##     4      -164.691   14:0:36      0           0
-##     5      -164.684   14:0:37      1           0
-##     6      -164.684   14:0:37      1           0</code></pre>
+##     1      -190.104   17:15:3      0           0
+##     2      -171.543   17:15:3      0           0
+##     3      -165.319   17:15:3      0           0
+##     4      -164.691   17:15:4      1           0
+##     5      -164.684   17:15:4      1           0
+##     6      -164.684   17:15:4      1           0</code></pre>
 <div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1"></a><span class="kw">summary</span>(modFD)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
@@ -541,13 +541,13 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb28-4"><a href="#cb28-4"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">ds</span>(Location),units),</span>
 <span id="cb28-5"><a href="#cb28-5"></a>              <span class="dt">data=</span>DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -191.286   14:0:37      0           0
-##     2      -172.247   14:0:37      0           0
-##     3      -165.948   14:0:37      0           0
-##     4      -165.248   14:0:37      0           0
-##     5      -165.23   14:0:37      0           0
-##     6      -165.229   14:0:37      0           0
-##     7      -165.229   14:0:37      0           0</code></pre>
+##     1      -191.286   17:15:4      0           0
+##     2      -172.247   17:15:4      0           0
+##     3      -165.948   17:15:4      0           0
+##     4      -165.248   17:15:4      0           0
+##     5      -165.23   17:15:4      0           0
+##     6      -165.229   17:15:4      0           0
+##     7      -165.229   17:15:4      0           0</code></pre>
 <div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1"></a><span class="kw">summary</span>(modFD)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
@@ -592,12 +592,12 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb32-9"><a href="#cb32-9"></a>                <span class="dt">rcov=</span><span class="op">~</span>units,</span>
 <span id="cb32-10"><a href="#cb32-10"></a>                <span class="dt">data=</span>DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -137.304   14:0:38      0           0
-##     2      -115.507   14:0:38      0           0
-##     3      -111.236   14:0:38      0           0
-##     4      -110.755   14:0:38      0           0
-##     5      -110.741   14:0:38      0           0
-##     6      -110.741   14:0:38      0           0</code></pre>
+##     1      -137.304   17:15:5      0           0
+##     2      -115.507   17:15:5      0           0
+##     3      -111.236   17:15:5      0           0
+##     4      -110.755   17:15:5      0           0
+##     5      -110.741   17:15:5      0           0
+##     6      -110.741   17:15:5      0           0</code></pre>
 <div class="sourceCode" id="cb34"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1"></a>(<span class="kw">summary</span>(ans.ADE)<span class="op">$</span>varcomp)</span></code></pre></div>
 <pre><code>##                       VarComp    VarCompSE   Zratio Constraint
 ## u:id.color-color  0.003662202 0.0012194130 3.003250   Positive
@@ -617,15 +617,15 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb38-5"><a href="#cb38-5"></a>               <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vs</span>(units,<span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)),</span>
 <span id="cb38-6"><a href="#cb38-6"></a>               <span class="dt">data =</span> DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -934.205   14:0:44      6           0
-##     2      -745.644   14:0:48      10           0
-##     3      -661.568   14:0:53      15           0
-##     4      -652.061   14:0:57      19           0
-##     5      -651.67   14:1:0      22           0
-##     6      -651.605   14:1:4      26           0
-##     7      -651.591   14:1:8      30           0
-##     8      -651.587   14:1:12      34           0
-##     9      -651.586   14:1:17      39           0</code></pre>
+##     1      -934.205   17:15:10      5           0
+##     2      -745.644   17:15:14      9           0
+##     3      -661.568   17:15:18      13           0
+##     4      -652.061   17:15:22      17           0
+##     5      -651.67   17:15:26      21           0
+##     6      -651.605   17:15:30      25           0
+##     7      -651.591   17:15:35      30           0
+##     8      -651.587   17:15:41      36           0
+##     9      -651.586   17:15:46      41           0</code></pre>
 <div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1"></a><span class="kw">summary</span>(mix3)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
@@ -684,14 +684,14 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb44-8"><a href="#cb44-8"></a>               <span class="dt">rcov=</span><span class="op">~</span>units,</span>
 <span id="cb44-9"><a href="#cb44-9"></a>               <span class="dt">data=</span>DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -149.436   14:1:18      0           0
-##     2      -136.475   14:1:19      1           1
-##     3      -132.852   14:1:19      1           1
-##     4      -132.625   14:1:19      1           1
-##     5      -132.596   14:1:19      1           1
-##     6      -132.59   14:1:19      1           1
-##     7      -132.589   14:1:19      1           1
-##     8      -132.589   14:1:19      1           1</code></pre>
+##     1      -149.436   17:15:48      0           0
+##     2      -136.475   17:15:48      0           1
+##     3      -132.852   17:15:48      0           1
+##     4      -132.625   17:15:48      0           1
+##     5      -132.596   17:15:48      0           1
+##     6      -132.59   17:15:48      0           1
+##     7      -132.589   17:15:48      0           1
+##     8      -132.589   17:15:48      0           1</code></pre>
 <div class="sourceCode" id="cb46"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1"></a>(suma &lt;-<span class="st"> </span><span class="kw">summary</span>(modFD)<span class="op">$</span>varcomp)</span></code></pre></div>
 <pre><code>##                      VarComp VarCompSE     Zratio Constraint
 ## GCA1.Yield-Yield    0.000000  16.50337  0.0000000   Positive
@@ -730,11 +730,11 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb54-7"><a href="#cb54-7"></a>             <span class="op">+</span><span class="st"> </span>genof,</span>
 <span id="cb54-8"><a href="#cb54-8"></a>             <span class="dt">data=</span>DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -10.425   14:1:19      0           0
-##     2      -6.487   14:1:19      0           0
-##     3      -5.732   14:1:19      0           0
-##     4      -5.67494   14:1:19      0           0
-##     5      -5.67441   14:1:19      0           0</code></pre>
+##     1      -10.425   17:15:49      0           0
+##     2      -6.487   17:15:49      0           0
+##     3      -5.732   17:15:49      0           0
+##     4      -5.67494   17:15:49      0           0
+##     5      -5.67441   17:15:49      0           0</code></pre>
 <div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1"></a><span class="kw">summary</span>(modh)<span class="op">$</span>varcomp</span></code></pre></div>
 <pre><code>##                        VarComp VarCompSE   Zratio Constraint
 ## u:femalef.sugar-sugar 5.507899 3.5741151 1.541052   Positive
@@ -777,12 +777,12 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb60-4"><a href="#cb60-4"></a>            <span class="dt">rcov=</span><span class="op">~</span>units, </span>
 <span id="cb60-5"><a href="#cb60-5"></a>            <span class="dt">data=</span>y.trn) <span class="co"># kinship based</span></span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -207.28   14:1:20      0           0
-##     2      -204.823   14:1:20      0           0
-##     3      -203.988   14:1:20      0           0
-##     4      -203.866   14:1:21      1           0
-##     5      -203.862   14:1:21      1           0
-##     6      -203.861   14:1:22      2           0</code></pre>
+##     1      -207.28   17:15:50      0           0
+##     2      -204.823   17:15:50      0           0
+##     3      -203.988   17:15:50      0           0
+##     4      -203.866   17:15:50      0           0
+##     5      -203.862   17:15:50      0           0
+##     6      -203.861   17:15:50      0           0</code></pre>
 <div class="sourceCode" id="cb62"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1"></a>ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1 &lt;-<span class="st"> </span><span class="kw">as.data.frame</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1)</span>
 <span id="cb62-2"><a href="#cb62-2"></a><span class="kw">rownames</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1) &lt;-<span class="st"> </span><span class="kw">gsub</span>(<span class="st">&quot;id&quot;</span>,<span class="st">&quot;&quot;</span>,<span class="kw">rownames</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1))</span>
 <span id="cb62-3"><a href="#cb62-3"></a><span class="kw">cor</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1[vv,],DT[vv,<span class="st">&quot;X1&quot;</span>], <span class="dt">use=</span><span class="st">&quot;complete&quot;</span>)</span></code></pre></div>
@@ -793,13 +793,13 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb64-4"><a href="#cb64-4"></a>             <span class="dt">rcov=</span><span class="op">~</span>units,</span>
 <span id="cb64-5"><a href="#cb64-5"></a>             <span class="dt">data=</span>y.trn) <span class="co"># kinship based</span></span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -351.655   14:1:25      2           0
-##     2      -249.864   14:1:25      2           0
-##     3      -214.384   14:1:26      3           0
-##     4      -204.423   14:1:26      3           0
-##     5      -203.883   14:1:26      3           0
-##     6      -203.862   14:1:26      3           0
-##     7      -203.861   14:1:26      3           0</code></pre>
+##     1      -351.655   17:15:52      1           0
+##     2      -249.864   17:15:52      1           0
+##     3      -214.384   17:15:53      2           0
+##     4      -204.423   17:15:53      2           0
+##     5      -203.883   17:15:53      2           0
+##     6      -203.862   17:15:53      2           0
+##     7      -203.861   17:15:53      2           0</code></pre>
 <div class="sourceCode" id="cb66"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb66-1"><a href="#cb66-1"></a>u &lt;-<span class="st"> </span>GT <span class="op">%*%</span><span class="st"> </span><span class="kw">as.matrix</span>(ans2<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:GT</span><span class="st">`</span><span class="op">$</span>X1) <span class="co"># BLUPs for individuals</span></span>
 <span id="cb66-2"><a href="#cb66-2"></a><span class="kw">rownames</span>(u) &lt;-<span class="st"> </span><span class="kw">rownames</span>(GT)</span>
 <span id="cb66-3"><a href="#cb66-3"></a><span class="kw">cor</span>(u[vv,],DT[vv,<span class="st">&quot;X1&quot;</span>]) <span class="co"># same correlation</span></span></code></pre></div>
@@ -835,13 +835,13 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb69-14"><a href="#cb69-14"></a>               <span class="dt">rcov=</span><span class="op">~</span>units,</span>
 <span id="cb69-15"><a href="#cb69-15"></a>               <span class="dt">data=</span>y.trn) </span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      104.311   14:1:29      1           0
-##     2      143.766   14:1:31      3           0
-##     3      152.662   14:1:32      4           0
-##     4      153.91   14:1:34      6           0
-##     5      153.974   14:1:35      7           0
-##     6      153.978   14:1:37      9           0
-##     7      153.978   14:1:38      10           0</code></pre>
+##     1      104.311   17:15:57      2           0
+##     2      143.766   17:15:58      3           0
+##     3      152.662   17:15:59      4           0
+##     4      153.91   17:16:0      5           0
+##     5      153.974   17:16:1      6           0
+##     6      153.978   17:16:2      7           0
+##     7      153.978   17:16:3      8           0</code></pre>
 <div class="sourceCode" id="cb71"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb71-1"><a href="#cb71-1"></a><span class="kw">summary</span>(anss2)<span class="op">$</span>varcomp</span></code></pre></div>
 <pre><code>##                VarComp VarCompSE    Zratio Constraint
 ## u:dent.GY-GY  16.06423 2.5737578  6.241548   Positive
@@ -874,11 +874,11 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb75-12"><a href="#cb75-12"></a>            <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vs</span>(units),</span>
 <span id="cb75-13"><a href="#cb75-13"></a>            <span class="dt">data=</span>DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -154.198   14:1:39      0           0
-##     2      -152.064   14:1:39      0           0
-##     3      -151.265   14:1:39      0           0
-##     4      -151.202   14:1:40      1           0
-##     5      -151.201   14:1:40      1           0</code></pre>
+##     1      -154.198   17:16:4      1           0
+##     2      -152.064   17:16:4      1           0
+##     3      -151.265   17:16:4      1           0
+##     4      -151.202   17:16:4      1           0
+##     5      -151.201   17:16:4      1           0</code></pre>
 <div class="sourceCode" id="cb77"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb77-1"><a href="#cb77-1"></a><span class="kw">summary</span>(mix)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
@@ -929,14 +929,14 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb80-10"><a href="#cb80-10"></a>               <span class="dt">rcov=</span><span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(units, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)),</span>
 <span id="cb80-11"><a href="#cb80-11"></a>               <span class="dt">data=</span>DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -375.872   14:1:42      1           0
-##     2      -291.932   14:1:44      3           0
-##     3      -258.273   14:1:44      3           0
-##     4      -253.459   14:1:45      4           0
-##     5      -253.291   14:1:46      5           0
-##     6      -253.278   14:1:47      6           0
-##     7      -253.277   14:1:47      6           0
-##     8      -253.277   14:1:48      7           0</code></pre>
+##     1      -375.872   17:16:6      1           0
+##     2      -291.932   17:16:6      1           0
+##     3      -258.273   17:16:7      2           0
+##     4      -253.459   17:16:8      3           0
+##     5      -253.291   17:16:9      4           0
+##     6      -253.278   17:16:10      5           0
+##     7      -253.277   17:16:10      5           0
+##     8      -253.277   17:16:11      6           0</code></pre>
 <p>Now you can extract the BLUPs using the ‘randef’ function or simple accesing with the ‘$’ sign and pick ‘u.hat’. Also, genetic correlations and heritabilities can be calculated easily.</p>
 <div class="sourceCode" id="cb82"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb82-1"><a href="#cb82-1"></a><span class="kw">cov2cor</span>(ans.m<span class="op">$</span>sigma<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span>)</span></code></pre></div>
 <pre><code>##           Yield     color
@@ -1162,11 +1162,11 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb102-6"><a href="#cb102-6"></a>            <span class="dt">random=</span><span class="op">~</span>femalef<span class="op">:</span>malef<span class="op">:</span>setf <span class="op">+</span><span class="st"> </span>malef<span class="op">:</span>setf <span class="op">+</span><span class="st"> </span>femalef<span class="op">:</span>setf, </span>
 <span id="cb102-7"><a href="#cb102-7"></a>            <span class="dt">data=</span>DT)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -47.2423   14:2:32      0           0
-##     2      -46.9375   14:2:32      0           0
-##     3      -46.8452   14:2:32      0           0
-##     4      -46.8361   14:2:32      0           0
-##     5      -46.836   14:2:32      0           0</code></pre>
+##     1      -47.2423   17:17:0      0           0
+##     2      -46.9375   17:17:1      1           0
+##     3      -46.8452   17:17:1      1           0
+##     4      -46.8361   17:17:1      1           0
+##     5      -46.836   17:17:1      1           0</code></pre>
 <div class="sourceCode" id="cb104"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb104-1"><a href="#cb104-1"></a>vc &lt;-<span class="st"> </span><span class="kw">summary</span>(mix2)<span class="op">$</span>varcomp; vc</span></code></pre></div>
 <pre><code>##                                  VarComp VarCompSE    Zratio Constraint
 ## femalef:malef:setf.yield-yield  2215.618  2284.794 0.9697231   Positive
