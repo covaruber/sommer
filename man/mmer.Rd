@@ -192,7 +192,7 @@ If all parameters are correctly indicated the program will return a list with th
 \item{constraints}{contraints used in the mixed models for the random effects.}
 \item{constraintsF}{contraints used in the mixed models for the fixed effects.}
 \item{data}{dataset used in the model.}
-\item{sigmaVector}{a vectorized version of the sigma element normally used for fitting additional summary functions of the package.}
+\item{sigmaVector}{a vectorized version of the sigma element (variance-covariance components) to match easily the standard errors of the var-cov components stored in the element sigmaSE.}
 
 }
 \references{

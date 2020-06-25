@@ -436,6 +436,7 @@ mmer <- function(fixed, random, rcov, data, weights,
       res$constraintsF <- Gx
       res$data <- data#dataor
       res$sigmaVector <- vcsExtract(res)
+      colnames(res$sigmaSE) <- rownames(res$sigmaSE) <- names(res$sigmaVector)
       class(res)<-c("mmer")
     }
   }

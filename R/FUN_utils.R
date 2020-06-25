@@ -1,9 +1,13 @@
 vcsExtract <- function(object){
   nre <- length(object$sigma)
+  namesre <- names(object$sigma)
   vcs <- list()
   for(i in 1:nre){
     toextract <- which(object$constraints[[i]] > 0,arr.ind = TRUE)
     vcs[[i]] <- object$sigma[[i]][toextract]
+    names1 <- apply(toextract,1,function(x){paste(colnames(object$sigma[[i]])[x[1]],colnames(object$sigma[[i]])[x[2]], sep="-")})
+    names2 <- paste(namesre[i],names1, sep=".")
+    names(vcs[[i]]) <- names2
   }
   vcs <- unlist(vcs)
   return(vcs)
