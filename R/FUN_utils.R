@@ -912,7 +912,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     packageStartupMessage(magenta("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
     packageStartupMessage(magenta("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
     packageStartupMessage(magenta("[]   Dedicated to the University of Chapingo and the UW-Madison     []"),appendLF=TRUE)
-    packageStartupMessage(magenta("[]   Type 'vignette('sommer.start')' for a short tutorial           []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Type 'vignette('sommer.quick.start')' for a short tutorial     []"),appendLF=TRUE)
     packageStartupMessage(magenta("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
     packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
     packageStartupMessage(magenta("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)

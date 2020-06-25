@@ -19,13 +19,13 @@ install_github("covaruber/sommer")
 
 This is recommended since bugs fixes will be immediately available in the GitHub source. \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
-\strong{vignette("sommer.start")} 
+\strong{vignette("v1.sommer.quick.start")} 
 
-\strong{vignette("sommer.changes")}
+\strong{vignette("v2.sommer.changes.and.faqs")}
 
-\strong{vignette("sommer.FAQ")}
+\strong{vignette("v3.sommer.qg")}
 
-\strong{vignette("sommer")}
+\strong{vignette("v4.sommer.gxe")}
 
 or visit \strong{https://covaruber.github.io}
 
@@ -38,7 +38,7 @@ mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03,
      date.warning=TRUE,verbose=TRUE, reshape.output=TRUE)
 }
 \arguments{
-  \item{fixed}{a formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
+  \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
   
   \emph{response ~ covariate} for univariate models
   
@@ -48,7 +48,7 @@ mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03,
   
   }
   
-  \item{random}{a formula specifying the name of the \strong{random effects}, i.e. \emph{random= ~ genotype + year}.
+  \item{random}{A formula specifying the name of the \strong{random effects}, i.e. \emph{random= ~ genotype + year}.
   
   Useful functions can be used to fit heterogeneous variances and other special models (\emph{see 'Special Functions' in the Details section for more information}):
   
@@ -61,60 +61,62 @@ mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03,
   ** \code{\link{overlay}()}, \code{\link{spl2D}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vs}()} function.
   
   }
-  \item{rcov}{a formula specifying the name of the \strong{error term}, i.e. \emph{rcov= ~ units}.
+  \item{rcov}{A formula specifying the name of the \strong{error term}, i.e. \emph{rcov= ~ units}.
   
   Special heterogeneous and special variance models and constraints for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, i.e. \emph{rcov=~vs(ds(covariate),units)}
   
   }
-  \item{data}{a data frame containing the variables specified in the formulas for response, fixed, and random effects.}
-  \item{weights}{name of the covariate for weights. To be used for the product R = Wsi*R*Wsi, where * is the matrix product, Wsi is the square root of the inverse of W and R is the residual matrix.}
+  \item{data}{A data frame containing the variables specified in the formulas for response, fixed, and random effects.}
+  \item{weights}{Name of the covariate for weights. To be used for the product R = Wsi*R*Wsi, where * is the matrix product, Wsi is the square root of the inverse of W and R is the residual matrix.}
    \item{iters}{Maximum number of iterations allowed.}
   \item{tolpar}{Convergence criteria for the change in log-likelihood.}
-  \item{tolparinv}{tolerance parameter for matrix inverse used when singularities are encountered in the estimation procedure.}
-  \item{init}{initial values for the variance components. By default this is NULL and initial values for the variance components are provided by the algorithm, but in case the user want to provide initial values for ALL var-cov components this argument is functional. It has to be provided as a list, where each list element corresponds to one random effect (1x1 matrix) and if multitrait model is pursued each element of the list is a matrix of variance covariance components among traits for such random effect. Initial values can also be provided in the Gt argument of the \link{vs} function. Is highly encouraged to use the Gt and Gtc arguments of the \link{vs} function instead of this argument, but these argument can be used to provide all initial values at once}
-  \item{constraints}{when initial values are provided these have to be accompanied by their constraints. See the \link{vs} function for more details on the constraints. Is highly encouraged to use the Gt and Gtc arguments of the \link{vs} function instead of this argument but these argument can be used to provide all constraints at once.}
-  \item{method}{this refers to the method or algorithm to be used for estimating variance components. Direct-inversion Newton-Raphson \strong{NR} and Average Information \strong{AI} (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2015).}
-  \item{getPEV}{a TRUE/FALSE value indicating if the program should return the predicted error variance and variance for random effects. This option is provided since this can take a long time for certain models where p is > n by a big extent.}
-   \item{na.method.X}{one of the two possible values; "include" or "exclude". If "include" is selected then the function will impute the X matrices for fixed effects with the median value. If "exclude" is selected it will get rid of all rows with missing values for the X (fixed) covariates. The default is "exclude". The "include" option should be used carefully.}
-   \item{na.method.Y}{one of the three possible values; "include", "include2" or "exclude" (default) to treat the observations in response variable to be used in the estimation of variance components. The first option "include" will impute the response variables for all rows with the median value, whereas "include2" imputes the responses only for rows where there is observation(s) for at least one of the responses (only available in the multi-response models). If "exclude" is selected (default) it will get rid of rows in response(s) where missing values are present for at least one of the responses.}
-   \item{return.param}{a TRUE/FALSE value to indicate if the program should return the parameters to be used for fitting the model instead of fitting the model.}
-   \item{date.warning}{a TRUE/FALSE value to indicate if the program should warn you when is time to update the sommer package.}
-  \item{verbose}{a TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
-  \item{reshape.output}{a TRUE/FALSE value to indicate if the output should be reshaped to be easier to interpret for the user, some information is missing from the multivariate models for an easy interpretation.}
+  \item{tolparinv}{Tolerance parameter for matrix inverse used when singularities are encountered in the estimation procedure.}
+  \item{init}{Initial values for the variance components. By default this is NULL and initial values for the variance components are provided by the algorithm, but in case the user want to provide initial values for ALL var-cov components this argument is functional. It has to be provided as a list, where each list element corresponds to one random effect (1x1 matrix) and if multitrait model is pursued each element of the list is a matrix of variance covariance components among traits for such random effect. Initial values can also be provided in the Gt argument of the \link{vs} function. Is highly encouraged to use the Gt and Gtc arguments of the \link{vs} function instead of this argument, but these argument can be used to provide all initial values at once}
+  \item{constraints}{When initial values are provided these have to be accompanied by their constraints. See the \link{vs} function for more details on the constraints. Is highly encouraged to use the Gt and Gtc arguments of the \link{vs} function instead of this argument but these argument can be used to provide all constraints at once.}
+  \item{method}{This refers to the method or algorithm to be used for estimating variance components. Direct-inversion Newton-Raphson \strong{NR} and Average Information \strong{AI} (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2015).}
+  \item{getPEV}{A TRUE/FALSE value indicating if the program should return the predicted error variance and variance for random effects. This option is provided since this can take a long time for certain models where p is > n by a big extent.}
+   \item{na.method.X}{One of the two possible values; "include" or "exclude". If "include" is selected then the function will impute the X matrices for fixed effects with the median value. If "exclude" is selected it will get rid of all rows with missing values for the X (fixed) covariates. The default is "exclude". The "include" option should be used carefully.}
+   \item{na.method.Y}{One of the three possible values; "include", "include2" or "exclude" (default) to treat the observations in response variable to be used in the estimation of variance components. The first option "include" will impute the response variables for all rows with the median value, whereas "include2" imputes the responses only for rows where there is observation(s) for at least one of the responses (only available in the multi-response models). If "exclude" is selected (default) it will get rid of rows in response(s) where missing values are present for at least one of the responses.}
+   \item{return.param}{A TRUE/FALSE value to indicate if the program should return the parameters to be used for fitting the model instead of fitting the model.}
+   \item{date.warning}{A TRUE/FALSE value to indicate if the program should warn you when is time to update the sommer package.}
+  \item{verbose}{A TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
+  \item{reshape.output}{A TRUE/FALSE value to indicate if the output should be reshaped to be easier to interpret for the user, some information is missing from the multivariate models for an easy interpretation.}
     
 }
 
 \details{
 
-The use of this function requires a good understanding of mixed models. Please review the 'sommer.start' vignette and pay attention to details like format of your random and fixed variables (i.e. character and factor variables have different properties when returning BLUEs or BLUPs, please see the 'FAQ' vignettes). 
+The use of this function requires a good understanding of mixed models. Please review the 'sommer.quick.start' vignette and pay attention to details like format of your random and fixed variables (i.e. character and factor variables have different properties when returning BLUEs or BLUPs, please see the 'sommer.changes.and.faqs' vignette). 
 
-\strong{Special Functions}
+\strong{Citation}
+
+Type \emph{citation("sommer")} to know how to cite the sommer package in your publications. 
+
+\strong{Use of Special Functions}
 
  \code{\link{vs}(\link{at}(x,levels),y)}   
  
- can be used to specify heterogeneous variance for the "y"" factor covariate at specific levels of the factor covariate "x", i.e. \emph{random=~vs(at(Location,c("A","B")),ID)} fits a variance component for ID at levels A and B of the factor covariate Location.
+ can be used to specify heterogeneous variance for the "y" covariate at specific levels of the covariate "x", i.e. \emph{random=~vs(at(Location,c("A","B")),ID)} fits a variance component for ID at levels A and B of the covariate Location.
   
  \code{\link{vs}(\link{ds}(x),y)}   
  
- can be used to specify a diagonal covariance structure for the "y"" covariate for all levels of the factor covariate "x", i.e. \emph{random=~vs(ds(Location,ID)}  fits a variance component for ID at all levels of the factor covariate Location.
+ can be used to specify a diagonal covariance structure for the "y" covariate for all levels of the covariate "x", i.e. \emph{random=~vs(ds(Location,ID)}  fits a variance component for ID at all levels of the covariate Location.
   
  \code{\link{vs}(\link{us}(x),y)}   
  
- can be used to specify an unstructured covariance structure for the "y"" covariate for all levels of the factor covariate "x", i.e. \emph{random=~vs(us(Location),ID)}  fits variance and covariance components for ID at all levels of the factor covariate Location.
+ can be used to specify an unstructured covariance structure for the "y" covariate for all levels of the  covariate "x", i.e. \emph{random=~vs(us(Location),ID)}  fits variance and covariance components for ID at all levels of the covariate Location.
  
   \code{\link{vs}(\link{overlay}(...,rlist=NULL,prefix=NULL))}   
  
  can be used to specify overlay of design matrices between consecutive random effects specified, i.e. \emph{random=~vs(overlay(male,female))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vs().
   
-  \code{\link{vs}(\link{spl2D}(x.coord, y.coord, at, at.levels, type, 
-      nseg, pord, degree, 
-      nest.div))}
+  \code{\link{vs}(\link{spl2D}(x.coord, y.coord, at, at.levels))}
       
   can be used to fit a 2-dimensional spline (i.e. spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class). The 2D spline can be fitted at specific levels using the \code{at} and \code{at.levels} arguments. For example \emph{random=~vs(spl2D(x.coord=Row,y.coord=Range,at=FIELD))}.
   
   \code{\link{vs}(\link{leg}(x,n),y)}
       
-  can be used to fit a random regression model using a numerical variable \code{x} that marks the trayectory for the random effect \code{y}. The leg function can be combined with the special functions \code{ds}, \code{us} \code{at} and \code{cs}. For example \emph{random=~vs(us(leg(x,1)),y)}.
+  can be used to fit a random regression model using a numerical variable \code{x} that marks the trayectory for the random effect \code{y}. The leg function can be combined with the special functions \code{ds}, \code{us} \code{at} and \code{cs}. For example \emph{random=~vs(leg(x,1),y)} or \emph{random=~vs(us(leg(x,1)),y)}.
   
   \code{\link{vs}(x,Gtc=\link{fcm}(v))}
       
@@ -122,13 +124,13 @@ The use of this function requires a good understanding of mixed models. Please r
 
 For a short tutorial on how to use this special functions you can look at the vignettes by typing in the terminal:
 
-\emph{vignette('sommer.start')}
+\emph{vignette('sommer.quick.start')}
 
 \strong{Bug report and contact}{
 
 If you have any technical questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com and send me an email with the link at cova_ruber@live.com.mx
 
-If you have any bug report please go to https://github.com/covaruber/sommer or send me an email to address it asap.
+If you have any bug report please go to https://github.com/covaruber/sommer or send me an email to address it asap, just make sure you have read the vignettes carefully before sending your question.
 
 }
 \strong{Example Datasets}
@@ -190,6 +192,7 @@ If all parameters are correctly indicated the program will return a list with th
 \item{constraints}{contraints used in the mixed models for the random effects.}
 \item{constraintsF}{contraints used in the mixed models for the fixed effects.}
 \item{data}{dataset used in the model.}
+\item{sigmaVector}{a vectorized version of the sigma element normally used for fitting additional summary functions of the package.}
 
 }
 \references{

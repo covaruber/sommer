@@ -186,6 +186,31 @@ bool isIdentity_spmat(const arma::sp_mat x){
   return true; 
 } 
 
+
+// [[Rcpp::export]]
+bool isDiagonal_mat(const arma::mat x){
+  int N = x.n_rows;
+  for (int row = 0; row < N; row++){ 
+    for (int col = 0; col < N; col++){ 
+      if (row != col && x(row,col) != 0) 
+        return false; 
+    }  
+  } 
+  return true; 
+} 
+
+// [[Rcpp::export]]
+bool isDiagonal_spmat(const arma::sp_mat x){
+  int N = x.n_rows;
+  for (int row = 0; row < N; row++){ 
+    for (int col = 0; col < N; col++){ 
+      if (row != col && x(row,col) != 0) 
+        return false; 
+    }  
+  } 
+  return true; 
+} 
+
 // [[Rcpp::export]]
 Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
                const Rcpp::List & Gx,

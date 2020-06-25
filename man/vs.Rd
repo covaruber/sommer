@@ -5,7 +5,7 @@
   \code{vs} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmer}} solver. 
 }
 \usage{
-  vs(..., Gu=NULL, Gt=NULL, Gtc=NULL)
+  vs(..., Gu=NULL, Gti=NULL, Gtc=NULL)
 }
 
 \arguments{
@@ -26,8 +26,8 @@
   \code{random=~vs(e,f,h,g)}
   
   where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{ds}}, \code{\link{us}}, \code{\link{cs}}, \code{\link{at}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
-  \item{Gu}{matrix with the known variance-covariance structure for the random effect levels (i.e. relationship matrix among individuals or any other known covariance structure). If NULL, then an identity matrix is assumed.}
-  \item{Gt}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument. If NULL the program will provide the initial values.}
+  \item{Gu}{matrix with the known variance-covariance values for the levels of the u.th random effect (i.e. relationship matrix among individuals or any other known covariance matrix). If NULL, then an identity matrix is assumed.}
+  \item{Gti}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument. If NULL the program will provide the initial values.}
   \item{Gtc}{matrix with dimensions t x t (t equal to number of traits) of constraints for the variance-covariance components for the random effect specified in the ... argument according to the following rules:
   
   \code{0: not to be estimated}
@@ -36,9 +36,9 @@
   
   \code{2: estimated and unconstrained (can be negative or positive, i.e. covariance component)}
   
-  \code{3: not to be estimated but fixed (value has to be provided in the Gt argument)}
+  \code{3: not to be estimated but fixed (value has to be provided in the Gti argument)}
   
-  In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense.
+  In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense. Useful functions to specify constraints are; \code{\link{diag}}(), \code{\link{unsm}}(), \code{\link{uncm}}(), \code{\link{fixm}}().
   
   }
 }
@@ -64,6 +64,26 @@ data(DT_example)
 DT <- DT_example
 A <- A_example
 
+## ============================ ##
+## example to without structure
+## ============================ ##
+ds(DT$Year)
+mix <- mmer(Yield~Env, 
+            random= ~ vs(Name),
+            rcov=~ vs(units),
+            data=DT)
+            
+## ============================ ##
+## example to without structure but 
+## using covariance among levels in the
+## random effect Name
+## ============================ ##
+ds(DT$Year)
+mix <- mmer(Yield~Env, 
+            random= ~ vs(Name, Gu=A),
+            rcov=~ vs(units),
+            data=DT)
+            
 ## ============================ ##
 ## example to use ds() structure (DIAGONAL)
 ## ============================ ##
@@ -118,7 +138,7 @@ modh <- mmer(sugar~1,
               data=DT)
 
 ## ============================ ##
-## example to use spl2D() + vs() structure
+## example to use vs() + ds() + spl2D() structure
 ## ============================ ##            
 # ### mimic two fields
 # data(DT_cpdata)

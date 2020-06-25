@@ -9,8 +9,8 @@ mmer <- function(fixed, random, rcov, data, weights,
                  verbose=TRUE,reshape.output=TRUE){
   
   my.year <- 2020
-  my.month <- 5 #month when the user will start to get notifications the 1st day of next month
-  ### if my month = 3, user will start to get notification in april 1st (next month)
+  my.month <- 9 #month when the user will start to get notifications the 1st day of next month
+  ### if my month = 5, user will start to get notification in June 1st (next month)
   datee <- Sys.Date()
   year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
   your.year <- year.mo.day[1]
@@ -91,7 +91,7 @@ mmer <- function(fixed, random, rcov, data, weights,
         re_namel1[[u]] <- ff$re_name
         zs[[u]] <- ff$Z
         ks[[u]] <- ff$K
-        if(is.null(ff$Gt)){ ## initial vc if user don't provide them
+        if(is.null(ff$Gti)){ ## initial vc if user don't provide them
           mml <- list()
           for(k in 1:length(ff$Z)){ ## the diagonal of the matrix should be 1 is vc and 2 if cov
             if(ff$typevc[k] == 2){div=2}else{div=1}## divisor
@@ -100,10 +100,10 @@ mmer <- function(fixed, random, rcov, data, weights,
           }
           ges[[u]] <- mml
         }else{ ## user provides initial values
-          if(is.list(ff$Gt)){ ## user provides a list of initial values
-            ges[[u]] <- ff$Gt
+          if(is.list(ff$Gti)){ ## user provides a list of initial values
+            ges[[u]] <- ff$Gti
           }else{
-            ges[[u]] <- rep(list(ff$Gt),length(ff$Z))
+            ges[[u]] <- rep(list(ff$Gti),length(ff$Z))
           }
         }
         # print(str(ff))
@@ -162,7 +162,7 @@ mmer <- function(fixed, random, rcov, data, weights,
       ff <- eval(parse(text = rcovtermss[u]),data,parent.frame())# envir = data)
       rs[[u]] <- ff$Z
       re_namel2[[u]] <- ff$re_name
-      if(is.null(ff$Gt)){ ## initial vc if user don't provide them
+      if(is.null(ff$Gti)){ ## initial vc if user don't provide them
         mml <- list()
         for(k in 1:length(ff$Z)){ ## the diagonal of the matrix should be 1 is vc and 2 if cov
           if(ff$typevc[k] == 2){div=2}else{div=1}## divisor
@@ -170,7 +170,7 @@ mmer <- function(fixed, random, rcov, data, weights,
           mml[[k]] <- (bnmm/div)*5
         }
         gesr[[u]] <-  mml
-      }else{gesr[[u]] <- rep(list(ff$Gt),length(ff$Z))}
+      }else{gesr[[u]] <- rep(list(ff$Gti),length(ff$Z))}
       if(is.null(ff$Gtc)){ ## contraints if user don't provide them
         mml <- list()
         for(k in 1:length(ff$Z)){ ## the diagonal of the matrix should be 1 is vc and 2 if cov
@@ -280,9 +280,9 @@ mmer <- function(fixed, random, rcov, data, weights,
       colnames(xpp) <- colnames(baseX)[findlevs2]
       # print(ff$Gtc)
       xs[[u]] <- list(xpp)
-      if(is.null(ffx$Gt)){ ## initial vc if user don't provide them
+      if(is.null(ffx$Gti)){ ## initial vc if user don't provide them
         gesf[[u]] <- list(( matrix(1,nt,nt) * 0 + 1) * 0.1 + diag(0.05, nt)) 
-      }else{gesf[[u]] <- rep(list(ffx$Gt),length(ffx$Z))}
+      }else{gesf[[u]] <- rep(list(ffx$Gti),length(ffx$Z))}
       
       if(is.null(ffx$Gtc)){ ## contraints if user don't provide them
         mm <- diag(1,nt,nt); mm[lower.tri(mm)] <- 0; #mm[upper.tri(mm)] <- 2
@@ -362,7 +362,7 @@ mmer <- function(fixed, random, rcov, data, weights,
   if(!is.null(init)){GES <- init}
   if(!is.null(constraints)){GESI <- constraints}
   re_names <- c(re_namel1,re_namel2)
-  
+  # print("good")
   if(return.param){
     good <- provdat$good
     if(missing(weights)){
@@ -439,6 +439,6 @@ mmer <- function(fixed, random, rcov, data, weights,
       class(res)<-c("mmer")
     }
   }
-  
+  # print("good")
   return(res)
 }

@@ -38,7 +38,7 @@ A <- A_example
 ansSingle <- mmer(Yield~1,
               random= ~ vs(Name, Gu=A),
               rcov= ~ units,
-              data=DT)
+              data=DT, verbose = FALSE)
 summary(ansSingle)
 
 ```
@@ -47,35 +47,35 @@ In this model the only term to be estimated is the one for the germplasm (here c
 
 ## 2) MET: main effect model
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. The main effect model assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
 
 ```{r}
 
 ansMain <- mmer(Yield~Env,
               random= ~ vs(Name, Gu=A),
               rcov= ~ units,
-              data=DT)
+              data=DT, verbose = FALSE)
 summary(ansMain)
 
 ```
 
 ## 3) MET: diagonal model (DG)
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. The diagonal model assumes that GxE exist and that the genotype variation is expressed differently at each location, therefore fitting a variance component for the genotype effect at each location. The main drawback is that assumes no covariance among locations, like if genotypes were independent (despite the fact that is the same genotypes). The fixed effect for environment plus the location-specific BLUP is used to predict the genotype effect in each locations of interest.
 
 ```{r}
 
 ansDG <- mmer(Yield~Env,
               random= ~ vs(ds(Env),Name, Gu=A),
               rcov= ~ units,
-              data=DT)
+              data=DT, verbose = FALSE)
 summary(ansDG)
 
 ```
 
 ## 4) MET: compund symmetry model (CS)
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. The compound symmetry model assumes that GxE exist and that a main genotype variance-covariance component is expressed across all location. In addition, it assumes that a main genotype by environment variance is expressed across all locations. The main drawback is that assumes same variance and covariance among locations. The fixed effect for environment plus the main effect BLUP plus genotype by environment effect is used to predict the genotype effect in each location of interest.
 
 ```{r}
 E <- diag(length(unique(DT$Env)))
@@ -84,35 +84,35 @@ EA <- kronecker(E,A, make.dimnames = TRUE)
 ansCS <- mmer(Yield~Env,
               random= ~ vs(Name, Gu=A) + vs(Env:Name, Gu=EA),
               rcov= ~ units,
-              data=DT)
+              data=DT, verbose = FALSE)
 summary(ansCS)
 
 ```
 
 ## 5) MET: compund symmetry plus diagonal (CS+DIAG)
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. The compound symmetry plus diagonal model is very similar to the CS model assuming that GxE exist and that a main genotype variance-covariance component is expressed across all location. In addition, it assumes that a location-specific genotype by environment variance is expressed in each location. The main drawback is that assumes same covariance among locations. The fixed effect for environment plus the main effect BLUP plus environment-specific genotype by environment effect is used to predict the genotype effect in each location of interest.
 
 ```{r}
 
 ansMain <- mmer(Yield~Env,
               random= ~ vs(Name, Gu=A) + vs(ds(Env),Name, Gu=A),
               rcov= ~ units,
-              data=DT)
+              data=DT, verbose = FALSE)
 summary(ansMain)
 
 ```
 
 ## 6) MET: unstructured model (US)
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. The unstructured model is the most flexible model assuming that GxE exist and that a environment-specific variance exist in addition to as many covariances for each environment to environment combinations. The main drawback is that is difficult to make this models converge given the big number of variance components, the fact that some of this variance or covariance components are zero and the difficult to have good starting values. The fixed effect for environment plus the environment specific BLUP (adjusted by covariances) is used to predict the genotype effect in each location of interest.
 
 ```{r}
 
 ansUS <- mmer(Yield~Env,
               random= ~ vs(us(Env),Name, Gu=A),
               rcov= ~ units,
-              data=DT)
+              data=DT, verbose = FALSE)
 summary(ansUS)
 # adjust variance BLUPs by adding covariances
 # ansUS$U[1:6] <- unsBLUP(ansUS$U[1:6])
@@ -120,7 +120,7 @@ summary(ansUS)
 
 ## 7) MET: random regression model
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+A multi environment model is the one that is fitted when the breeding program can afford more than one location. The random regression model assumes that the environment can be seen as a continuous variable and therefore a variance component for the intercept and a variance component for the slope can be fitted. The number of variance components will depend on the order of the Legendre polynomial fitted.
 
 ```{r}
 library(orthopolynom)
@@ -128,24 +128,38 @@ DT$EnvN <- as.numeric(as.factor(DT$Env))
 ansRR <- mmer(Yield~Env,
               random= ~ vs(leg(EnvN,1),Name),
               rcov= ~ units,
-              data=DT)
+              data=DT, verbose = FALSE)
 summary(ansRR)
 
 ```
 
+In addition, an unstructured, diagonal or other variance-covariance structure can be put on top of the polynomial model:
+
+```{r}
+library(orthopolynom)
+DT$EnvN <- as.numeric(as.factor(DT$Env))
+ansRR <- mmer(Yield~Env,
+              random= ~ vs(us(leg(EnvN,1)),Name),
+              rcov= ~ units,
+              data=DT, verbose = FALSE)
+summary(ansRR)
+
+```
+
+
 ## 8) Other GxE covariance structures
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. This assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+Although not very commonly used in GxE models, the autoregressive of order 1 (AR1) and other covariance structures could be used in the GxE modeling. Here we show how to do it (not recommending it).
 
 ```{r}
 
-E <- CS(DT$Env)
+E <- AR1(DT$Env) # can be AR1() or CS(), etc.
 rownames(E) <- colnames(E) <- unique(DT$Env)
 EA <- kronecker(E,A, make.dimnames = TRUE)
 ansCS <- mmer(Yield~Env,
               random= ~ vs(Name, Gu=A) + vs(Env:Name, Gu=EA),
               rcov= ~ units,
-              data=DT)
+              data=DT, verbose = FALSE)
 summary(ansCS)
 
 ```
@@ -153,7 +167,7 @@ summary(ansCS)
 
 ## Final remarks
 
-Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
+Keep in mind that sommer uses the direct inversion (DI) algorithms which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small number of individuals and covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
 
 ## Literature
 
@@ -180,7 +194,5 @@ Rodriguez-Alvarez, Maria Xose, et al. Correcting for spatial heterogeneity in pl
 Searle. 1993. Applying the EM algorithm to calculating ML and REML estimates of variance components. Paper invited for the 1993 American Statistical Association Meeting, San Francisco.
 
 Yu et al. 2006. A unified mixed-model method for association mapping that accounts for multiple levels of relatedness. Genetics 38:203-208.
-
-Abdollahi Arpanahi R, Morota G, Valente BD, Kranis A, Rosa GJM, Gianola D. 2015. Assessment of bagging GBLUP for whole genome prediction of broiler chicken traits. Journal of Animal Breeding and Genetics 132:218-228.
 
 Tunnicliffe W. 1989. On the use of marginal likelihood in time series model estimation. JRSS 51(1):15-27.

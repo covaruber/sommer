@@ -427,11 +427,11 @@ fcm <- function(x, reps=NULL){
   }else{return(mm)}
 }
 
-vs <- function(..., Gu=NULL, Gt=NULL, Gtc=NULL){
+vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
   
   ## ... list of structures to define the random effect
   ## Gu the known covariance matrix of the vs
-  ## Gt the multitrait structure and constraints for it
+  ## Gti the multitrait structure and constraints for it
   ## Gtc the initial values for the var-cov components
   init <- list(...)
   namess <- as.character(substitute(list(...)))[-1L]
@@ -570,29 +570,29 @@ vs <- function(..., Gu=NULL, Gt=NULL, Gtc=NULL){
   }
   
   if(is.null(Gtc)){
-    if(!is.null(Gt)){
-      if(is.list(Gt)){
-        Gtc <- lapply(Gt, function(x){
+    if(!is.null(Gti)){
+      if(is.list(Gti)){
+        Gtc <- lapply(Gti, function(x){
           nt <- ncol(x)
           mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
           return(mm)
         })
       }else{
-        nt <- ncol(Gt)
+        nt <- ncol(Gti)
         mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
         Gtc <- mm
       }
     }
   }
   
-  if(is.null(Gt)){ # user didn't provide Gt
-    # Gt[lower.tri(Gt)] <- 0
+  if(is.null(Gti)){ # user didn't provide Gti
+    # Gti[lower.tri(Gti)] <- 0
     if(!is.null(Gtc)){ # user did provide Gtc so we need to complete them
       
       if(is.list(Gtc)){ ## if user provided a list
         
         if(is.residual){ftu <- 5}else{ftu <- 1}
-        Gt <- lapply(Gtc,function(x){
+        Gti <- lapply(Gtc,function(x){
           nt <- ncol(x)
           bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
           com <- (x/x); com[which(is.nan(com),arr.ind = TRUE)] <- 0
@@ -622,17 +622,17 @@ vs <- function(..., Gu=NULL, Gt=NULL, Gtc=NULL){
           
           # mm <- (matrix(1,nt,nt) * 0 + 1) * 0.1 + diag(0.05, nt)
         }
-        Gt <- mm
+        Gti <- mm
         
       }
       
     }
   }
-  # S3$Gt <- Gt
+  # S3$Gti <- Gti
   # S3$Gtc <- Gtc
   # S3$vcs <- vcs
   # Gtc <- lapply(Gtc,function(x){x[lower.tri(x)] <- 0; return(x)})
-  S3 <- list(Z=Zup,K=Kup,Gt=Gt,Gtc=Gtc,typevc=typevc,re_name=re_name,vcs=vcs)
+  S3 <- list(Z=Zup,K=Kup,Gti=Gti,Gtc=Gtc,typevc=typevc,re_name=re_name,vcs=vcs)
   return(S3)
 }
 

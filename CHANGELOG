@@ -362,6 +362,7 @@ version 4.1 (2020-06-01)
  + Bug for removing the intercept in models has been fixed
  + Better documentation for GxE models
  + Addition if the unsBLUP function to extract right BLUPs for unstructured models
+ + Change of the vs() argument from Gt to Gti to specify initial values
  
 ######################
 ## PENDINGS

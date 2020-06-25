@@ -19,13 +19,13 @@ install_github("covaruber/sommer")
 
 This is recommended since bugs fixes will be immediately available in the GitHub source. \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
-\strong{vignette("sommer.start")} 
+\strong{vignette("v1.sommer.quick.start")} 
 
-\strong{vignette("sommer.changes")}
+\strong{vignette("v2.sommer.changes.and.faqs")}
 
-\strong{vignette("sommer.FAQ")}
+\strong{vignette("v3.sommer.qg")}
 
-\strong{vignette("sommer")}
+\strong{vignette("v4.sommer.gxe")}
 
 or visit \strong{https://covaruber.github.io}
 
@@ -42,11 +42,15 @@ GWAS(fixed, random, rcov, data, weights,
     n.core = 1, P3D = TRUE)
 }
 \arguments{
-  \item{fixed}{a formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
+  \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
   
-  \emph{Yield ~ Location} for univariate models
+  \emph{response ~ covariate} for univariate models
   
-  \emph{cbind(Yield,color) ~ Location} for multivariate models.}
+  \emph{cbind(response.i,response.j) ~ covariate} for multivariate models
+  
+  The \code{\link{fcm}()} function can be used to constrain fixed effects in multi-response models.
+  
+  }
   
   \item{random}{a formula specifying the name of the \strong{random effects}, i.e. \emph{random= ~ genotype + year}.
   
@@ -91,6 +95,10 @@ GWAS(fixed, random, rcov, data, weights,
 }
 
 \details{
+
+\strong{Citation}
+
+Type \emph{citation("sommer")} to know how to cite the sommer package in your publications. 
 
 \strong{Models Enabled}
 
@@ -193,12 +201,21 @@ If all parameters are correctly indicated the program will return a list with th
 \item{BIC}{Bayesian information criterion}
 \item{convergence}{a TRUE/FALSE statement indicating if the model converged.}
 \item{monitor}{The values of log-likelihood and variance-covariance components across iterations during the REML estimation.}
+\item{scores}{ A dataframe with as many columns as markers analyzed and 5 rows containing the following:
+
+\emph{beta}: marker effects.
+
+\emph{score}: marker scores (-log_{10}p) for the traits.
+
+\emph{Fstat}: F-statistic associated to the test.
+
+\emph{R2}: R2 value for each marker.
+
+\emph{R2s}: R2 value for each marker scaled.
+
+}
 \item{method}{The method for extimation of variance components specified by the user.}
-\item{call}{Formula for fixed, random and rcov used.}
-\item{scores}{marker scores (-log_{10}p) for the traits.}
-\item{betasm}{marker effects.}
-\item{Fstatm}{F statistic associate to the test.}
-\item{r2m}{R2 value for each marker.}
+\item{constraints}{contraints used in the mixed models for the random effects.}
 
 }
 \references{
