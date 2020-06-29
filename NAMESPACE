@@ -26,7 +26,7 @@ export(atcg1234,build.HMM,h2.fun)
 
 ## FUN_stats
 export(adiag1, imputev,
-       leg,
+       leg, wald,
        pin)
 
 ## FUN_relationships

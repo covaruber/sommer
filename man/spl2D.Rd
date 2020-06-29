@@ -5,7 +5,7 @@ Two-dimensional penalised tensor-product of marginal B-Spline basis.
 }
 \description{
 
-Auxiliary function used for modelling the spatial or environmental effect as a two-dimensional penalised tensor-product of marginal B-spline basis functions with anisotropic penalties on the basis of the spl2D approach by Lee et al. (2013) and Rodriguez-Alvarez et al. (2018). This is a modified wrapper of some functions from the SpATS package associated with the proposal described in Rodriguez-Alvarez et al. (2018). You may be interested in reading and citing the publication if using this methodology.
+Auxiliary function used for modelling the spatial or environmental effect as a two-dimensional penalised tensor-product (isotropic approach) based on Lee et al. (2013) and Rodriguez-Alvarez et al. (2018). This is a modified wrapper of some portions of the SpATS package to build a single incidence matrix containing all the columns from tensor products of the x and y coordinates and it fits such matrix as a single random effect. Then the heterogeneous covariances structure capabilities of sommer can be used to enhance the model fit. You may be interested in reading and citing not only sommer but also Wageningen publications if using this 2D spline methodology.
 
 }
 \usage{

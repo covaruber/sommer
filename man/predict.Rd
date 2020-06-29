@@ -28,4 +28,22 @@
 \author{Giovanny Covarrubias \email{covarrubiasp@wisc.edu}}
 \seealso{\code{\link{predict}}, \code{\link{mmer}}}
 \keyword{models}
+\examples{
+data(DT_yatesoats)
+DT <- DT_yatesoats
 
+m3 <- mmer(fixed=Y ~ V + N + V:N,
+           random = ~ B + B:MP,
+           rcov=~units,
+           data = DT)
+summary(m3)$varcomp
+
+p0 <- predict.mmer(object=m3, classify = "N")
+p0$predictions
+
+p0 <- predict.mmer(object=m3, classify = "V")
+p0$predictions
+
+p0 <- predict.mmer(object=m3, classify = "B")
+p0$predictions
+}

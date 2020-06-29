@@ -143,7 +143,7 @@ A <- A_example
 ans1 <- mmer(Yield~1,
              random= ~ Name + Env + Env:Name + Env:Block,
              rcov= ~ units,
-             data=DT)
+             data=DT, verbose = FALSE)
 summary(ans1)$varcomp
 (n.env <- length(levels(DT$Env)))
 pin(ans1, h2 ~ V1 / ( V1 + (V3/n.env) + (V5/(2*n.env)) ) )
@@ -166,7 +166,7 @@ E <- E.mat(GT) # epistatic relationship matrix
 ans.ADE <- mmer(color~1, 
                  random=~vs(id,Gu=A) + vs(idd,Gu=D), 
                  rcov=~units,
-                 data=DT)
+                 data=DT,verbose = FALSE)
 (summary(ans.ADE)$varcomp)
 pin(ans.ADE, h2 ~ (V1) / ( V1+V3) )
 pin(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) )
@@ -189,7 +189,7 @@ GT <- GT_cornhybrids
 modFD <- mmer(Yield~1, 
                random=~ vs(at(Location,c("3","4")),GCA2), 
                rcov= ~ vs(ds(Location),units),
-               data=DT)
+               data=DT, verbose = FALSE)
 summary(modFD)
 ```
 
@@ -207,7 +207,7 @@ GT[1:4,1:4]
 modFD <- mmer(Yield~1, 
               random=~ vs(at(Location,c("3","4")),GCA2,Gu=GT), 
               rcov= ~ vs(ds(Location),units),
-              data=DT)
+              data=DT, verbose = FALSE)
 summary(modFD)
 ```
 
@@ -227,7 +227,7 @@ A <- A.mat(GT) # additive relationship matrix
 ans <- mmer(color~1, 
                 random=~vs(id,Gu=A), 
                 rcov=~units,
-                data=DT)
+                data=DT, verbose = FALSE)
 (summary(ans.ADE)$varcomp)
 pin(ans, h2 ~ (V1) / ( V1+V2) )
 
@@ -241,7 +241,7 @@ DT <- DT_btdata
 mix3 <- mmer(cbind(tarsus, back) ~ sex,
                random = ~ vs(dam, Gtc=unsm(2)) + vs(fosternest,Gtc=diag(2)),
                rcov=~vs(units,Gtc=unsm(2)),
-               data = DT)
+               data = DT, verbose = FALSE)
 summary(mix3)
 #### calculate the genetic correlation
 pin(mix3, gen.cor ~ V2 / sqrt(V1*V3))
@@ -270,7 +270,7 @@ GT <- GT_cornhybrids
 modFD <- mmer(Yield~Location, 
                random=~GCA1+GCA2+SCA, 
                rcov=~units,
-               data=DT)
+               data=DT, verbose = FALSE)
 (suma <- summary(modFD)$varcomp)
 Vgca <- sum(suma[1:2,1])
 Vsca <- suma[3,1]
@@ -299,7 +299,7 @@ DT$genof <- as.factor(DT$geno)
 modh <- mmer(sugar~1, 
              random=~vs(overlay(femalef,malef)) 
              + genof,
-             data=DT)
+             data=DT, verbose = FALSE)
 summary(modh)$varcomp
 ```
 
@@ -337,7 +337,7 @@ head(y.trn)
 ans <- mmer(X1~1,
             random=~vs(id,Gu=K), 
             rcov=~units, 
-            data=y.trn) # kinship based
+            data=y.trn, verbose = FALSE) # kinship based
 ans$U$`u:id`$X1 <- as.data.frame(ans$U$`u:id`$X1)
 rownames(ans$U$`u:id`$X1) <- gsub("id","",rownames(ans$U$`u:id`$X1))
 cor(ans$U$`u:id`$X1[vv,],DT[vv,"X1"], use="complete")
@@ -346,7 +346,7 @@ cor(ans$U$`u:id`$X1[vv,],DT[vv,"X1"], use="complete")
 ans2 <- mmer(X1~1,
              random=~vs(list(GT)), 
              rcov=~units,
-             data=y.trn) # kinship based
+             data=y.trn, verbose = FALSE) # kinship based
 
 u <- GT %*% as.matrix(ans2$U$`u:GT`$X1) # BLUPs for individuals
 rownames(u) <- rownames(GT)
@@ -393,7 +393,7 @@ y.trn[vv2,"GY"] <- NA
 anss2 <- mmer(GY~1, 
                random=~vs(dent,Gu=Ad) + vs(flint,Gu=Af), 
                rcov=~units,
-               data=y.trn) 
+               data=y.trn, verbose = FALSE) 
 summary(anss2)$varcomp
 
 zu1 <- model.matrix(~dent-1,y.trn) %*% anss2$U$`u:dent`$GY
@@ -427,7 +427,7 @@ mix <- mmer(Yield~1,
               vs(Colf) +
               vs(spl2D(Row,Col)),
             rcov=~vs(units),
-            data=DT)
+            data=DT, verbose = FALSE)
 summary(mix)
 # make a plot to observe the spatial effects found by the spl2D()
 W <- with(DT,spl2D(Row,Col)) # 2D spline incidence matrix
@@ -453,7 +453,7 @@ ans.m <- mmer(cbind(Yield,color)~1,
                + vs(Rowf,Gtc=diag(2))
                + vs(Colf,Gtc=diag(2)),
                rcov=~ vs(units, Gtc=unsm(2)),
-               data=DT)
+               data=DT, verbose = FALSE)
 ```
 
 Now you can extract the BLUPs using the 'randef' function or simple accesing with the '$' sign and pick 'u.hat'. Also, genetic correlations and heritabilities can be calculated easily. 
@@ -655,7 +655,7 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 
 mix2 <- mmer(yield~ setf + setf:repf ,
             random=~femalef:malef:setf + malef:setf + femalef:setf, 
-            data=DT)
+            data=DT, verbose = FALSE)
 vc <- summary(mix2)$varcomp; vc
 Vfm <- vc[1,"VarComp"]
 Vm <- vc[2,"VarComp"]

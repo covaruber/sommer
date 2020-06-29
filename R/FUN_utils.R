@@ -130,6 +130,9 @@ vcsExtract <- function(object){
     # print(fpickedindex)
     # print(fnonpickedindex)
     ## build the matrices
+    ##################################
+    ## START PREDICTION
+    ##################################
     if(length(arepresent) > 0){
       ## build the multivariate K and Z
       VarKl <- lapply(as.list((arepresent)),function(x){
@@ -182,10 +185,10 @@ vcsExtract <- function(object){
       tZm2 <- do.call(rbind,Zl2)
       MMnsp <- t(tZm2) ## random term
       
-      # standard.errors <- sqrt(rowSums((MMspv%*%xvxi)*MMspv) + 
-      #                           rowSums(2*(MMspv%*%cov.b.pev)*MMnsp) + 
-      #                           rowSums((MMnsp%*%pev)*MMnsp))
-      standard.errors <- NA
+      standard.errors <- sqrt(rowSums((MMspv%*%xvxi)*MMspv) +
+                                rowSums(2*(MMspv%*%cov.b.pev)*MMnsp) +
+                                rowSums((MMnsp%*%pev)*MMnsp))
+      # standard.errors <- NA
       
       blups <- unlist(prov2$U[arepresent])
       blues <- prov2$Beta#[fpickedindex,]
@@ -203,7 +206,7 @@ vcsExtract <- function(object){
       
       newd <- data.frame(newd,preds,ses)
       
-    }else{
+    }else{ ############################################################
       
       Xlist <- list()
       for(o in 1:length(prov[[3]])){
@@ -228,8 +231,8 @@ vcsExtract <- function(object){
       xvxi <- as.matrix(prov2$VarBeta)
       MMsp <- Xm## fixed part
       MMspv <- Xmv## fixed part
-      # standard.errors <- sqrt(rowSums((MMspv%*%xvxi)*MMspv))
-      standard.errors <- NA
+      standard.errors <- sqrt(rowSums((MMspv%*%xvxi)*MMspv))
+      # standard.errors <- NA
       coeffs <- c(prov2$Beta) #[fpickedindex,]
       predicted.value <- as.vector(cbind(MMsp)%*%as.vector(coeffs))
       newd <- as.data.frame(newdata)
@@ -303,6 +306,7 @@ vcsExtract <- function(object){
 #### =========== ####
 "summary.mmer" <- function(object, ...) {
   
+  if(!object$reshape.output){stop("summary function only works for reshaped output.", call. = FALSE)}
   #dim(object$u.hat)
   digits = max(3, getOption("digits") - 3)
   #forget <- length(object)

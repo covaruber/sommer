@@ -366,7 +366,6 @@ version 4.1 (2020-06-01)
  
 ######################
 ## PENDINGS
-+ IMPLEMENT WALD TEST
 + document explicit nesting and overspecified (rank-defficient) models
 + debug the predict function when a new dataset is provided and check again the SE's
 + constraints for variance components to be equal among specific ones
