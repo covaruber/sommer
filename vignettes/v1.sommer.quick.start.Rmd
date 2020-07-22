@@ -49,6 +49,11 @@ The purpose of this quick start guide is to show the flexibility of the package 
 11) Likelihood ratio tests
 12) Final remarks
 
+**SECTION 3: The predict function**
+
+1) Background on prediction
+2) Predicting means
+
 ## SECTION 1: Introduction
 
 ### 1) Background on mixed models
@@ -732,7 +737,94 @@ lrt <- anova(modelBase, modelCov)
 
 As can be seen, in this case fitting the covariance among the genotypes improves the model fit considerably and the probablity fro the Chi-square distribution is < 0.05. Then you the model with the covariance is the preferred model.
 
-### 12) Final remarks
+
+## SECTION 3: The predict function
+
+### 1) Background on prediction
+
+In a linear mixed model where y is nx1 vector of observations, the linear mixed model can be written as:
+
+$y = X\tau + Zu + e =  W \beta + e$
+
+where $\tau$ is a vector tx1 of fixed effects, X is an nxt design matrix which associates observations with the appropriate combinations of fixed effects, u is the qx1 vector of random effects, Z is the nxq matrix which associates observations with the appropriate random effects, and e is the nx1 vectors of residual errors. For shorthand W and $\beta$ represent the combined design matrix and vector of eefects, respectively. It is assumed:
+
+$$ \left[\begin{array}
+{r}
+u \\
+e \\
+\end{array}\right] = N(\left[\begin{array}
+{r}
+0 \\
+0 \\
+\end{array}\right] , \left[\begin{array}
+{rr}
+G{(\gamma)} & 0 \\
+0 & R{(\phi)} \\
+\end{array}\right]) 
+$$
+
+where the covariance matrices G and R for random effects and residuals are functions of parameters $\gamma$ and $\phi$ respectively. The covariance matrix of data can be written as:
+
+$var(y) = \sigma^2 (ZGZ'+R)$
+
+The variance parameters $\gamma$ and $\phi$ are usually estimated by maximum likelihood or REML (Patterson and Thompson, 1971). 
+
+The BLUP of a linear combination for known D, $\gamma$, and $\phi$ is then:
+
+$$\mathbf{D\overline{\beta}} = \left[\begin{array}
+{rr}
+D_{\tau} & D_u \\
+\end{array}\right]  \left[\begin{array}
+{r}
+\overline{\tau} \\
+\overline{u} \\
+\end{array}\right] = {D \overline{\tau}} + {D_{u}\overline{u}}
+$$
+where $\overline{\beta} = (\tau, u)$ is the solution of the mixed moel equations:
+
+$$ \left[\begin{array}
+{rr}
+X^TR^{-1}X & X^TR^{-1}Z  \\
+Z^TR^{-1}X & Z^TR^{-1}Z + G^{-1} \\
+\end{array}\right]  \left[\begin{array}
+{r}
+\tau \\
+u \\
+\end{array}\right] = \left[\begin{array}
+{r}
+X^TR^{-1}y \\
+Z^TR^{-1}X \\
+\end{array}\right] 
+$$
+
+These can also be written as $C \overline{\beta} = W^TR^{-1}y$. The $\overline{\tau}$ is the best linear unbiased estimator (BLUE) of $\tau$ and $\overline{u}$ is the best linear unbiased predictor (BLUP) of $u$, this with variance $var(\overline{\beta}-\beta)=C^{-1}$. Consideration of the values required to form the confidence intervals make it clear that is the prediction error variance (PEV or $var(\overline{\beta}-\beta)$), rather than the variance of the estimator $var(\overline{\beta})$ that is usually of interest. The prediction error variance for a linear combination $D\overline{\beta}$ is then $DC^{-1}D^T$. Since the variance parameters are unknown, we replace the unknown variance parameters by their REML estimates and use the empirical values. 
+
+The predict function of the sommer package then builts the $C^{-1}$ matrix from the mixed model equations and the $D$ matrix of linear combinations to obtain the PEV and SEs for the predictions. For the means it uses the $D$ matrix of linear combinations times the vector of required fixed and random effects $X\overline{\tau} + Z \overline{u}$ or $D\overline{\beta}$, where the matrix D is a linear combination of specific fixed and/or random effects from matrices $X$ and/or $Z$.
+
+### 2) Predicting means
+
+The sommer package is equiped with a predict() function that can be used to calculate means and standard errors for fixed and random effects specified in the models fitted with the mmer function. Using the yatesoats dataset we will will fit some fixed and random effects.
+
+```{r}
+library(sommer)
+data(DT_yatesoats)
+DT <- DT_yatesoats
+m3 <- mmer(fixed=Y ~ V + N + V:N,
+           random = ~ B + B:MP,
+           rcov=~units,
+           data = DT, verbose=FALSE)
+summary(m3)$varcomp
+```
+
+Now, the model can be used together with the classify argument to obtain means for the classify argument. For example, the model includes in the fixed formula the terms "V" for variety, "N" for nitrogen treatments, and "V:N" for the interaction between variety and nitrogen. The classify argument can be used to specify the term for which means are desired. In the following example the means for the nitrogen treatments are obtained as follows:
+
+```{r}
+p0 <- predict.mmer(object=m3, classify = "N")
+p0$predictions
+```
+
+
+### Final remarks
 
 Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
 
