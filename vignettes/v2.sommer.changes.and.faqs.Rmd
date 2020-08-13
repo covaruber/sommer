@@ -32,6 +32,7 @@ The purpose of this vignette is to first show the changes in sintax for sommer a
 5) How can I use the AR1(), CS() and ARMA() functions
 6) Can I run GWAS in MET experiments with replicates? 
 7) How can I constrain the value of specific random effects? 
+8) How can I constrain two variance components to be equal?
 
 ## SECTION 1: The new sintax of sommer
 
@@ -554,6 +555,52 @@ mix3 <- mmer(Yield~1,
 summary(mix1)$varcomp
 summary(mix3)$varcomp
 ```
+
+### 8) How can I constrain two variance components to be equal? 
+
+Sometimes the built-in capacities of sommer are not flexible enough to do all what users want. One of those situations is to fix variance components to be equal. Let's simulate some multitrait data:
+
+```{r}
+library("MASS")  ## needed for mvrnorm
+n <- 100
+mu <- c(1,2)
+Sigma <- matrix(c(10,5,5,10),2,2)
+Y <- mvrnorm(n,mu,Sigma); colnames(Y) <- c("y1","y2")
+## this simulates multivariate normal rvs
+y <- as.vector(t(Y))
+df1 <- data.frame(Y)
+df2 <- data.frame(y)
+```
+
+Now lets assume that we want to fit a multitrait model with an unstructured error variance structure with the built-in capacity. That would be as easy as this:
+
+```{r}
+mix1 <- mmer(cbind(y1,y2)~1, rcov=~vs(units, Gtc=unsm(2)), data=df1, verbose = FALSE)
+mix1$sigma
+```
+
+But now assume that you would like to constraint the variance of y1 and y2 to be equal. This requires the user to take a different approach. The user can build externally the multitrait matrices and fit them directly. Let's do this to recreate the exact same result than using the bil-in capabilities:
+```{r}
+X <- kronecker(rep(1,n),diag(1,2))
+V1 <- matrix(c(1,0,0,0),2,2)
+V2 <- matrix(c(0,0,0,1),2,2)
+V3 <- matrix(c(0,1,1,0),2,2)
+sig1 <- kronecker(diag(1,n),V1) # variance component 1
+sig2 <- kronecker(diag(1,n),V2) # variance component 2
+gam <- kronecker(diag(1,n),V3) # covariance component
+# now fit the model
+mix2 <- mmer(y~X-1, rcov = ~vs(sig1)+vs(sig2)+vs(gam), data=df2, verbose = FALSE)
+summary(mix2)$varcomp
+```
+Notice that we fitted a univariate model but we built the kernels and fitted those kernels one by one.
+
+Now we will constraint the two variance components to be equal. This is done the following way:
+```{r}
+sig <- sig1+sig2
+mix3 <- mmer(y~X-1, rcov = ~vs(sig)+vs(gam), data=df2, iters=30, verbose = FALSE)
+summary(mix3)$varcomp
+```
+
 
 ## Literature
 

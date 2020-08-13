@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2020-06-25" />
+<meta name="date" content="2020-07-29" />
 
 <title>Changes and FAQs for the sommer package</title>
 
@@ -315,7 +315,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Changes and FAQs for the sommer package</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2020-06-25</h4>
+<h4 class="date">2020-07-29</h4>
 
 
 
@@ -339,6 +339,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <li>How can I use the AR1(), CS() and ARMA() functions</li>
 <li>Can I run GWAS in MET experiments with replicates?</li>
 <li>How can I constrain the value of specific random effects?</li>
+<li>How can I constrain two variance components to be equal?</li>
 </ol>
 <div id="section-1-the-new-sintax-of-sommer" class="section level2">
 <h2>SECTION 1: The new sintax of sommer</h2>
@@ -876,6 +877,49 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <pre><code>##                       VarComp VarCompSE    Zratio Constraint
 ## u:id.Yield-Yield     325.2072  259.0889  1.255196      Fixed
 ## u:units.Yield-Yield 4051.3786  352.4804 11.493912   Positive</code></pre>
+</div>
+<div id="how-can-i-constrain-two-variance-components-to-be-equal" class="section level3">
+<h3>8) How can I constrain two variance components to be equal?</h3>
+<p>Sometimes the built-in capacities of sommer are not flexible enough to do all what users want. One of those situations is to fix variance components to be equal. Let’s simulate some multitrait data:</p>
+<div class="sourceCode" id="cb67"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb67-1"><a href="#cb67-1"></a><span class="kw">library</span>(<span class="st">&quot;MASS&quot;</span>)  <span class="co">## needed for mvrnorm</span></span>
+<span id="cb67-2"><a href="#cb67-2"></a>n &lt;-<span class="st"> </span><span class="dv">100</span></span>
+<span id="cb67-3"><a href="#cb67-3"></a>mu &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="dv">1</span>,<span class="dv">2</span>)</span>
+<span id="cb67-4"><a href="#cb67-4"></a>Sigma &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">c</span>(<span class="dv">10</span>,<span class="dv">5</span>,<span class="dv">5</span>,<span class="dv">10</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb67-5"><a href="#cb67-5"></a>Y &lt;-<span class="st"> </span><span class="kw">mvrnorm</span>(n,mu,Sigma); <span class="kw">colnames</span>(Y) &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;y1&quot;</span>,<span class="st">&quot;y2&quot;</span>)</span>
+<span id="cb67-6"><a href="#cb67-6"></a><span class="co">## this simulates multivariate normal rvs</span></span>
+<span id="cb67-7"><a href="#cb67-7"></a>y &lt;-<span class="st"> </span><span class="kw">as.vector</span>(<span class="kw">t</span>(Y))</span>
+<span id="cb67-8"><a href="#cb67-8"></a>df1 &lt;-<span class="st"> </span><span class="kw">data.frame</span>(Y)</span>
+<span id="cb67-9"><a href="#cb67-9"></a>df2 &lt;-<span class="st"> </span><span class="kw">data.frame</span>(y)</span></code></pre></div>
+<p>Now lets assume that we want to fit a multitrait model with an unstructured error variance structure with the built-in capacity. That would be as easy as this:</p>
+<div class="sourceCode" id="cb68"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb68-1"><a href="#cb68-1"></a>mix1 &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(y1,y2)<span class="op">~</span><span class="dv">1</span>, <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vs</span>(units, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)), <span class="dt">data=</span>df1, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb68-2"><a href="#cb68-2"></a>mix1<span class="op">$</span>sigma</span></code></pre></div>
+<pre><code>## $`u:units`
+##          y1        y2
+## y1 8.804435  5.324279
+## y2 5.324279 10.806112</code></pre>
+<p>But now assume that you would like to constraint the variance of y1 and y2 to be equal. This requires the user to take a different approach. The user can build externally the multitrait matrices and fit them directly. Let’s do this to recreate the exact same result than using the bil-in capabilities:</p>
+<div class="sourceCode" id="cb70"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb70-1"><a href="#cb70-1"></a>X &lt;-<span class="st"> </span><span class="kw">kronecker</span>(<span class="kw">rep</span>(<span class="dv">1</span>,n),<span class="kw">diag</span>(<span class="dv">1</span>,<span class="dv">2</span>))</span>
+<span id="cb70-2"><a href="#cb70-2"></a>V1 &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb70-3"><a href="#cb70-3"></a>V2 &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">c</span>(<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">1</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb70-4"><a href="#cb70-4"></a>V3 &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb70-5"><a href="#cb70-5"></a>sig1 &lt;-<span class="st"> </span><span class="kw">kronecker</span>(<span class="kw">diag</span>(<span class="dv">1</span>,n),V1) <span class="co"># variance component 1</span></span>
+<span id="cb70-6"><a href="#cb70-6"></a>sig2 &lt;-<span class="st"> </span><span class="kw">kronecker</span>(<span class="kw">diag</span>(<span class="dv">1</span>,n),V2) <span class="co"># variance component 2</span></span>
+<span id="cb70-7"><a href="#cb70-7"></a>gam &lt;-<span class="st"> </span><span class="kw">kronecker</span>(<span class="kw">diag</span>(<span class="dv">1</span>,n),V3) <span class="co"># covariance component</span></span>
+<span id="cb70-8"><a href="#cb70-8"></a><span class="co"># now fit the model</span></span>
+<span id="cb70-9"><a href="#cb70-9"></a>mix2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(y<span class="op">~</span>X<span class="dv">-1</span>, <span class="dt">rcov =</span> <span class="op">~</span><span class="kw">vs</span>(sig1)<span class="op">+</span><span class="kw">vs</span>(sig2)<span class="op">+</span><span class="kw">vs</span>(gam), <span class="dt">data=</span>df2, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb70-10"><a href="#cb70-10"></a><span class="kw">summary</span>(mix2)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##              VarComp VarCompSE   Zratio Constraint
+## u:sig1.y-y  8.804453  1.251613 7.034484   Positive
+## u:sig2.y-y 10.806046  1.536041 7.034999   Positive
+## u:gam.y-y   5.324242  1.117070 4.766259   Positive</code></pre>
+<p>Notice that we fitted a univariate model but we built the kernels and fitted those kernels one by one.</p>
+<p>Now we will constraint the two variance components to be equal. This is done the following way:</p>
+<div class="sourceCode" id="cb72"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb72-1"><a href="#cb72-1"></a>sig &lt;-<span class="st"> </span>sig1<span class="op">+</span>sig2</span>
+<span id="cb72-2"><a href="#cb72-2"></a>mix3 &lt;-<span class="st"> </span><span class="kw">mmer</span>(y<span class="op">~</span>X<span class="dv">-1</span>, <span class="dt">rcov =</span> <span class="op">~</span><span class="kw">vs</span>(sig)<span class="op">+</span><span class="kw">vs</span>(gam), <span class="dt">data=</span>df2, <span class="dt">iters=</span><span class="dv">30</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb72-3"><a href="#cb72-3"></a><span class="kw">summary</span>(mix3)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##            VarComp VarCompSE   Zratio Constraint
+## u:sig.y-y 9.805147  1.121404 8.743631   Positive
+## u:gam.y-y 5.324050  1.121404 4.747662   Positive</code></pre>
 </div>
 </div>
 <div id="literature" class="section level2">

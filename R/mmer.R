@@ -75,7 +75,7 @@ mmer <- function(fixed, random, rcov, data, weights,
     # print(str(data))
     # print(str(model.matrix(~id-1,data)))
     # print(str(as(model.matrix(~id-1,data), Class = "sparseMatrix")))
-    for(u in 1:length(rtermss)){
+    for(u in 1:length(rtermss)){ # for each random effect
       checkvs <- grep("vs\\(",rtermss[u])
       if(length(checkvs)>0){ ## if this term is a variance structure
         # print(mm)
@@ -397,9 +397,9 @@ mmer <- function(fixed, random, rcov, data, weights,
                  iters, tolpar, tolparinv,
                  selected,getPEV,verbose, FALSE)
     
-    ## res <- MNR(yvar, X,Gx,Z,K,R,GES,GESI, ws,
-    ##              iters, tolpar, tolparinv,
-    ##              selected,getPEV,verbose, FALSE)
+    # res <- MNR(yvar, X,Gx,Z,K,R,GES,GESI, ws,
+    #              iters, tolpar, tolparinv,
+    #              selected,getPEV,verbose, FALSE)
     
     if(length(res) > 0){
       nslices <- dim(res$sigma)[3]

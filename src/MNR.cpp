@@ -440,7 +440,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
           V = V + (D*(tolparinv*100));
           arma::inv_sympd(Vi,V);
           if(Vi.n_rows == 0){ // finally, if fails try to invert with diag(1e-3)
-            Rcpp::Rcout << "Sistem is singular (V). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
+            Rcpp::Rcout << "System is singular (V). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
             return 0;
           }
         }
@@ -472,7 +472,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         if(tXVXVX.n_rows == 0){ // if fails try to invert with diag(1e-4)
           arma::solve(tXVXVX,tXVX + (D*(tolparinv*100)),VX.t());
           if(tXVXVX.n_rows == 0){ // finally stop
-            Rcpp::Rcout << "Sistem is singular (tXVXVX). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
+            Rcpp::Rcout << "System is singular (tXVXVX). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
             return 0;
           }
         }
@@ -559,7 +559,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       A_svd = arma::pinv(A, 1.490116e-08); // Inverse of Fishers
       
       if(A_svd.n_rows == 0){ // if fails 
-        Rcpp::Rcout << "Sistem is singular (A_svd). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
+        Rcpp::Rcout << "System is singular (A_svd). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
         return 0;
       }
       
@@ -585,7 +585,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         arma::mat Ac = A.submat(no_restrain,no_restrain); // subset of A
         arma::mat Ac_svd = arma::inv(Ac); // Inverse of Fishers (subset of A)
         if(Ac_svd.n_rows == 0){ // if fails 
-          Rcpp::Rcout << "Sistem is singular (Ac_svd). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
+          Rcpp::Rcout << "System is singular (Ac_svd). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
           return 0;
         }
         arma::vec wwc = ww(no_restrain); // subset of ww
@@ -606,6 +606,16 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       sigmatwo(arma::find(pos == 1)) = exp(coef_ut_un(arma::find(pos == 1)));
       // the fixed paramters are forced to be the original value
       sigmatwo(find(constraints == 3)) = sigmaF_ut_un(find(constraints == 3));
+      // the equalized paramters are forced to be equal
+      // arma::uvec ko = find(constraints == 4);
+      // if(ko.n_elem > 0){
+      //   
+      //   double meansigman = mean(sigmatwo(find(constraints == 4)));
+      //   sigmatwo(find(constraints == 4)) = (sigmatwo(find(constraints == 4))*0) + meansigman;
+      //   Rcpp::Rcout << meansigman << arma::endl;
+      //   Rcpp::Rcout << sigmatwo(find(constraints == 4)) << arma::endl;
+      //   // sigmatwo(find(constraints == 4))[1] = sigmatwo(find(constraints == 4))[1];
+      // }
       // bring back sigma as a list
       sigma = vec_to_cubeCpp(sigmatwo, GeI);
       // check if likelihood has reached it's maximum and stop if so

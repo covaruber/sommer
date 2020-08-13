@@ -131,10 +131,21 @@ reshape_mmer <- function(object, namelist){
 
 overlay<- function (..., rlist = NULL, prefix = NULL){
   init <- list(...)
+  ## keep track of factor variables
+  myTypes <- unlist(lapply(init,class))
+  init0 <- init
+  ##
   init <- lapply(init, as.character)
   names <- as.character(substitute(list(...)))[-1L]
   dat <- as.data.frame(do.call(cbind, init))
   dat <- as.data.frame(dat)
+  ## bring back the levels
+  for(j in 1:length(myTypes)){
+    if(myTypes[j]=="factor"){
+      levels(dat[,j]) <- levels(init0[[j]])
+    }
+  }
+  ##
   if (is.null(dim(dat))) {
     stop("Please provide a data frame to the overlay function, not a vector.\\n", 
          call. = FALSE)
