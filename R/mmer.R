@@ -41,6 +41,7 @@ mmer <- function(fixed, random, rcov, data, weights,
   provdat <- subdata(data, fixed=fixed, na.method.Y = na.method.Y,na.method.X=na.method.X)
   # print(str(provdat))
   data <- provdat$datar
+  nonMissing <- data$good
   # randomization <- sample(1:nrow(data))
   # data <- data[randomization,]
   #################
@@ -78,10 +79,12 @@ mmer <- function(fixed, random, rcov, data, weights,
     for(u in 1:length(rtermss)){ # for each random effect
       checkvs <- grep("vs\\(",rtermss[u])
       if(length(checkvs)>0){ ## if this term is a variance structure
-        # print(mm)
+        # print(rtermss[u])
+        # print(data)
         ff <- eval(parse(text = rtermss[u]),data, parent.frame())# envir = data) 
         # print(nrow(ff$Z[[1]]))
         # print(length(provdat$good))
+        # print((ff$Z[[1]]))
         if(nrow(ff$Z[[1]]) != length(provdat$good)){
           ## if the incidence matrix is different than the size of good very likely the user provided a matrix
           ff$Z <- lapply(ff$Z,function(xxx){as.matrix(xxx[provdat$good,])})

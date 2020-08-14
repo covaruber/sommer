@@ -142,7 +142,7 @@ overlay<- function (..., rlist = NULL, prefix = NULL){
   ## bring back the levels
   for(j in 1:length(myTypes)){
     if(myTypes[j]=="factor"){
-      levels(dat[,j]) <- levels(init0[[j]])
+      levels(dat[,j]) <- c(levels(dat[,j]),setdiff(levels(init0[[j]]),levels(dat[,j]) ))
     }
   }
   ##
