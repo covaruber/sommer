@@ -12,294 +12,6 @@ vcsExtract <- function(object){
   vcs <- unlist(vcs)
   return(vcs)
 }
-#### =========== ######
-## PREDICT FUNCTION #
-#### =========== ######
-"predict.mmer" <- function(object,classify=NULL,RtermsToForce=NULL,FtermsToForce=NULL,...){
-  
-  newdata=NULL
-  if(is.null(newdata)){
-    newdata <- object$data
-  }
-  
-  if(is.null(object$call$random)){
-    prov <- mmer(fixed=object$call$fixed,
-                 #random=object$call$random,
-                 rcov=object$call$rcov,
-                 data=object$data, return.param = TRUE,#reshape.results=TRUE,
-                 na.method.Y = object$call$na.method.Y, 
-                 na.method.X = object$call$na.method.X)
-    prov2 <- mmer(fixed=object$call$fixed,
-                  # random=object$call$random,
-                  rcov=object$call$rcov, iters=1,
-                  data=newdata, return.param = FALSE,reshape.output=FALSE,
-                  init = object$sigma_scaled, constraints = object$constraints,
-                  na.method.Y = object$call$na.method.Y, 
-                  na.method.X = object$call$na.method.X)
-  }else{
-    prov <- mmer(fixed=object$call$fixed,
-                 random=object$call$random,
-                 rcov=object$call$rcov,
-                 data=object$data, return.param = TRUE,#reshape.results=TRUE,
-                 na.method.Y = object$call$na.method.Y, 
-                 na.method.X = object$call$na.method.X)
-    prov2 <- mmer(fixed=object$call$fixed,
-                  random=object$call$random,
-                  rcov=object$call$rcov,
-                  data=newdata, return.param = FALSE,reshape.output =FALSE,
-                  init = object$sigma_scaled, constraints = object$constraints,
-                  na.method.Y = object$call$na.method.Y, iters = 1,
-                  na.method.X = object$call$na.method.X)
-  }
-  
-  if(length(prov2) > 0){
-    nt <- ncol(prov[[1]])
-    
-    if(is.null(classify)){
-      # cat(paste("Returning predictions including all random effects.\n"))
-      classify.split <- names(object$U)
-    }else{
-      classify.split <- unique(c(classify,unlist(strsplit(classify,":"))))
-      classify.split <- unique(c(classify,classify.split))
-      # classify.split <- classify
-    }
-    ## term names in the random effects
-    if(is.null(classify) & is.null(RtermsToForce)){
-      RtermsToForce <- 1:length(object$U)
-    }
-    # if(include=="all"){
-    if(!is.null(object$call$random)){
-      namesres <- lapply(as.list(names(object$U)),function(x){
-        strsplit(x,":")[[1]]
-      })
-      ## the != 0 should be used for the predict
-      presence <- unlist(lapply(namesres,function(x){
-        length(which(x %in% classify.split))
-      }))
-      arepresent <- which(presence!=0)
-      if(!is.null(RtermsToForce)){
-        arepresent <- RtermsToForce
-      }
-      used <- unlist(names(object$U))[arepresent]
-      # cat(paste("Random effects included in the predictions:\n",used))
-      # cat("\n")
-    }else{ #there's no random effects
-      arepresent <- integer()
-      used <- character()
-    }
-    ## get the index for each fixed effect
-    nfixedeff <- length(prov[[2]])
-    if(nfixedeff != length(prov[[19]])){
-      fnames <- c("(Intercept)",prov[[19]])
-    }else{fnames <- c(prov[[19]])}
-    
-    fnamesindex <- list()
-    counter <- 1
-    kept <- numeric()
-    for(i in 1:nfixedeff){
-      if(ncol(prov[[2]][[i]]) > 0){ # the fixed effect was fitted
-        pX <- kronecker(prov[[2]][[i]],prov[[3]][[i]])
-        # pX <- kronecker(prov[[3]][[i]],prov[[2]][[i]])
-        endcounter <- (counter+ncol(pX)-1)
-        fnamesindex[[i]] <- counter:endcounter
-        counter <- endcounter+1
-        kept[i] <- i
-      }
-    }
-    fnamesindex <- fnamesindex[which(unlist(lapply(fnamesindex,length)) > 0)]
-    nfixedeff <- length(fnamesindex)
-    fnames <- fnames[na.omit(kept)]
-    # fpicked <- which(fnames %in% c("(Intercept)",classify.split))
-    if(!is.null(FtermsToForce)){
-      fpicked <- intersect(FtermsToForce,1:nfixedeff)
-    }else{
-      fpicked <- 1:length(fnames)
-    }
-    usedf <- fnames[fpicked] # used fixed
-    # cat(paste("Fixed effects included in the predictions:\n",usedf))
-    # cat("\n")
-    fpickedindex <- fnamesindex[fpicked]
-    fpickedindex <- unlist(fpickedindex)
-    
-    fnonpicked <- setdiff(1:length(fnamesindex),fpicked)
-    
-    nonusedf <- fnames[fnonpicked] # simple averaging set
-    # fnonpicked <- setdiff(1:length(fnames),fpicked)
-    # fnonpickedindex <- fnamesindex[fnonpicked]
-    # fnonpickedindex <- unlist(fnonpickedindex)
-    # print(fpickedindex)
-    # print(fnonpickedindex)
-    ## build the matrices
-    ##################################
-    ## START PREDICTION
-    ##################################
-    if(length(arepresent) > 0){
-      ## build the multivariate K and Z
-      VarKl <- lapply(as.list((arepresent)),function(x){
-        kronecker(as.matrix(prov[[5]][[x]]),object$sigma[[x]])
-      })
-      VarK <- do.call(adiag1,VarKl)
-      
-      Zl <- lapply(as.list((arepresent)),function(x){
-        kronecker(as.matrix(t(prov[[4]][[x]])),diag(nt))
-      })
-      tZm <- do.call(rbind,Zl)
-      
-      ZKfv <- VarK %*% tZm
-      
-      Xlist <- list()
-      for(o in 1:length(prov[[3]])){
-        Xlist[[o]] <- kronecker(prov[[2]][[o]],prov[[3]][[o]])
-      }
-      Xm <- do.call(cbind,Xlist)
-      Xmv <- Xm
-      if(length(fnonpicked) > 0){ #then we have to average across those terms
-        for(ifnp in fnonpicked){
-          fnonpickedindex <- fnamesindex[[ifnp]]
-          if(ncol(as.matrix(Xm[,fnonpickedindex])) > 1){
-            Xm[,fnonpickedindex] <- ((Xm[,fnonpickedindex]*0)+1)/(ncol(as.matrix(Xm[,fnonpickedindex]))+1)
-          }else{
-            Xm[,fnonpickedindex] <- mean(Xm[,fnonpickedindex],na.rm=TRUE)
-          }
-        }
-      }
-      Xmv <- Xm# Xmv/ncol(Xmv)
-      # Xm <- Xm/ncol(Xm)
-      
-      #### cov(b,u - u.hat), xvxi, pev (C12,C11,C22)
-      cov.b.pev <- 0 - t(prov2$P %*% (Xmv)) %*% prov2$Vi %*% t(ZKfv)
-      # xvxi <- as.matrix(prov2$VarBeta[fpickedindex,fpickedindex])
-      xvxi <- as.matrix(prov2$VarBeta)
-      # print(dim(Xm))
-      # print(dim(xvxi))
-      # xvxi <- xvxi*3
-      # xvxi[2:3,2:3] <- xvxi[2:3,2:3]/3
-      pev <- do.call(adiag1,prov2$PevU[arepresent])
-      
-      MMsp <- Xm# for predictions
-      MMspv <- Xmv# for SE's
-      Zl2 <- lapply(as.list((arepresent)),function(x){
-        kronecker(as.matrix(t(prov[[4]][[x]])),diag(nt))
-      })
-      
-      tZm2 <- do.call(rbind,Zl2)
-      MMnsp <- t(tZm2) ## random term
-      
-      standard.errors <- sqrt(rowSums((MMspv%*%xvxi)*MMspv) +
-                                rowSums(2*(MMspv%*%cov.b.pev)*MMnsp) +
-                                rowSums((MMnsp%*%pev)*MMnsp))
-      # standard.errors <- NA
-      
-      blups <- unlist(prov2$U[arepresent])
-      blues <- prov2$Beta#[fpickedindex,]
-      
-      coeffs <- c(blues, blups)
-      # 
-      predicted.value <- as.vector(cbind(MMsp, MMnsp)%*%as.vector(coeffs))
-      
-      newd <- as.data.frame(newdata)#data.frame(,predicted.value,standard.errors)
-      
-      preds <- as.data.frame(matrix(predicted.value,ncol=nt,byrow = TRUE))
-      ses <- as.data.frame(matrix(standard.errors,ncol=nt,byrow = TRUE))
-      colnames(preds) <- paste("predicted.value",colnames(prov[[1]]),sep=".")
-      colnames(ses) <- paste("standard.errors",colnames(prov[[1]]),sep=".")
-      
-      newd <- data.frame(newd,preds,ses)
-      
-    }else{ ############################################################
-      
-      Xlist <- list()
-      for(o in 1:length(prov[[3]])){
-        Xlist[[o]] <- kronecker(prov[[2]][[o]],prov[[3]][[o]])
-      }
-      Xm <- do.call(cbind,Xlist)
-      # Xmv <- Xm
-      # print(fnonpicked)
-      if(length(fnonpicked) > 0){ #then we have to average across those terms
-        for(ifnp in fnonpicked){ # ifnp <- fnonpicked[5]
-          fnonpickedindex <- fnamesindex[[ifnp]]
-          if(ncol(as.matrix(Xm[,fnonpickedindex])) > 1){ ## if is factor or character type
-            Xm[,fnonpickedindex] <- ((Xm[,fnonpickedindex]*0)+1)/(ncol(as.matrix(Xm[,fnonpickedindex]))+1)
-          }else{ # if is a numeric covariate we average across the covariate
-            Xm[,fnonpickedindex] <- mean(Xm[,fnonpickedindex],na.rm=TRUE)
-          }
-        }
-      }
-      # print(head(Xm))
-      Xmv <- Xm#Xmv/ncol(Xmv)
-      
-      xvxi <- as.matrix(prov2$VarBeta)
-      MMsp <- Xm## fixed part
-      MMspv <- Xmv## fixed part
-      standard.errors <- sqrt(rowSums((MMspv%*%xvxi)*MMspv))
-      # standard.errors <- NA
-      coeffs <- c(prov2$Beta) #[fpickedindex,]
-      predicted.value <- as.vector(cbind(MMsp)%*%as.vector(coeffs))
-      newd <- as.data.frame(newdata)
-      preds <- as.data.frame(matrix(predicted.value,ncol=nt,byrow = TRUE))
-      ses <- as.data.frame(matrix(standard.errors,ncol=nt,byrow = TRUE))
-      colnames(preds) <- paste("predicted.value",colnames(prov[[1]]),sep=".")
-      colnames(ses) <- paste("standard.errors",colnames(prov[[1]]),sep=".")
-      newd <- data.frame(newd,preds,ses)
-      cov.b.pev <- NULL
-      pev <- NULL
-    }
-    
-    if(is.null(classify)){
-      toreturn2 <- list(predictions=newd,RE.used=used, FE.used=usedf,fitted=newd, 
-                        C11=xvxi, C12=cov.b.pev, C22=pev)
-    }else{
-      resp0 <- paste(c(colnames(preds),colnames(ses)),collapse = ",")
-      myform <- paste(paste("cbind(",resp0,")~"),paste(classify.split,collapse = "+"))
-      toreturn <- aggregate(as.formula(myform),data=newd, FUN=mean,na.rm=TRUE)
-      toreturn2 <- list(predictions=toreturn,RE.used=used, FE.used=usedf,
-                        FE.nonused=nonusedf,fitted=newd, 
-                        C11=xvxi, C12=cov.b.pev, C22=pev)
-    }
-    
-    attr(toreturn2, "class")<-c("predict.mmer", "list")
-    
-    return(toreturn2)
-  }else{
-    return(prov2)
-  }
-}
-
-"print.predict.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
-  aver <- paste(x$FE.nonused,collapse = ", ")
-  fused <- paste(x$FE.used,collapse = ", ")
-  rused <- paste(x$RE.used,collapse = ", ")
-  cat(blue(paste("\n  The predictions are obtained by averaging across the hypertable
-  calculated from model terms constructed solely from factors in
-  the averaging and classify sets.
- - Use 'FtermsToForce' to move ignored fixed factors into the averaging set.
- - Use 'RtermsToForce' to move ignored random factors into the averaging set.
- - The simple averaging set:",aver,"\n",
-                 "- The fixed effects included:",fused,"\n",
-                 "- The random effects included:",rused,"\n\n")
-  ))
-  head(x$predictions,...)
-  # head(print.predict.mmer(pp))
-  # print((x$predictions))
-}
-
-"head.predict.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
-  aver <- paste(x$FE.nonused,collapse = ", ")
-  fused <- paste(x$FE.used,collapse = ", ")
-  rused <- paste(x$RE.used,collapse = ", ")
-  cat(blue(paste("\n  The predictions are obtained by averaging across the hypertable
-  calculated from model terms constructed solely from factors in
-  the averaging and classify sets.
- - Use 'FtermsToForce' to move ignored fixed factors into the averaging set.
- - Use 'RtermsToForce' to move ignored random factors into the averaging set.
- - The simple averaging set:",aver,"\n",
-                 "- The fixed effects included:",fused,"\n",
-                 "- The random effects included:",rused,"\n\n")
-  ))
-  head(x$predictions, ...)
-  # head(print.predict.mmer(pp))
-  # print((x$predictions))
-}
 
 #### =========== ####
 ## SUMMARY FUNCTION mmer #
@@ -898,7 +610,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 2.1 or later")
   assign(".sommer.home", file.path(library, pkg),
          pos=match("package:sommer", search()))
-  sommer.version = "4.1 (2020-06-01)" # usually 2 months before it expires
+  sommer.version = "4.1 (2020-10-01)" # usually 2 months before it expires
   
   ##%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ### check which version is more recent
@@ -914,18 +626,18 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
   assign(".sommer.version", sommer.version, pos=match("package:sommer", search()))
   if(interactive())
   {
-    packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(magenta(paste("[]   Solving Mixed Model Equations in R (sommer) ", sommer.version, "   []",sep="")),appendLF=TRUE)
-    packageStartupMessage(magenta(paste("[]   ------------ Multivariate Linear Mixed Models --------------   []")),appendLF=TRUE)
-    packageStartupMessage(magenta("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
-    packageStartupMessage(magenta("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
-    packageStartupMessage(magenta("[]   Dedicated to the University of Chapingo and the UW-Madison     []"),appendLF=TRUE)
-    packageStartupMessage(magenta("[]   Type 'vignette('v1.sommer.quick.start')' for a short tutorial  []"),appendLF=TRUE)
-    packageStartupMessage(magenta("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
-    packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(magenta("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
-    packageStartupMessage(magenta("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
-    packageStartupMessage(magenta("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
+    packageStartupMessage(blue$bold(paste("[]==================================================================[]")),appendLF=TRUE)
+    packageStartupMessage(blue$bold(paste("[]   Solving Mixed Model Equations in R (sommer) ", sommer.version, "   []",sep="")),appendLF=TRUE)
+    packageStartupMessage(blue$bold(paste("[]   ------------ Multivariate Linear Mixed Models --------------   []")),appendLF=TRUE)
+    packageStartupMessage(blue$bold("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
+    packageStartupMessage(blue$bold("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
+    packageStartupMessage(blue$bold("[]   Dedicated to the University of Chapingo and the UW-Madison     []"),appendLF=TRUE)
+    packageStartupMessage(blue$bold("[]   Type 'vignette('v1.sommer.quick.start')' for a short tutorial  []"),appendLF=TRUE)
+    packageStartupMessage(blue$bold("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
+    packageStartupMessage(blue$bold(paste("[]==================================================================[]")),appendLF=TRUE)
+    packageStartupMessage(blue$bold("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
+    packageStartupMessage(blue$bold("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
+    packageStartupMessage(blue$bold("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
     
     #if(yyy > current){ # yyy < current in CRAN
     #  packageStartupMessage(paste("Version",current,"is now available."),appendLF=TRUE) # version current

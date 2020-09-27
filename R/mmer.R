@@ -8,8 +8,8 @@ mmer <- function(fixed, random, rcov, data, weights,
                  date.warning=TRUE,
                  verbose=TRUE,reshape.output=TRUE){
   
-  my.year <- 2020
-  my.month <- 9 #month when the user will start to get notifications the 1st day of next month
+  my.year <- 2021
+  my.month <- 1 #month when the user will start to get notifications the 1st day of next month
   ### if my month = 5, user will start to get notification in June 1st (next month)
   datee <- Sys.Date()
   year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
@@ -56,21 +56,27 @@ mmer <- function(fixed, random, rcov, data, weights,
   }
   mfna <- eval(mfna, data, parent.frame())
   yvar <- as.matrix(model.response(mfna))
+  # print(head(yvar))
   nt <- ncol(yvar)
   if(nt==1){colnames(yvar) <- response}
-  
+  # print(colnames(yvar))
   #################
   ## get Zs and Ks
+  termsR <- list()
+  termsRN <- numeric()
   if(!missing(random)){
     yuyu <- strsplit(as.character(random[2]), split = "[+]")[[1]]
     rtermss <- apply(data.frame(yuyu),1,function(x){
       strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
     })
+    # print(rtermss)
     zs <- list()
     ks <- list()
     ges <- list()
     gesI <- list()
     re_namel1 <- list()
+    
+    
     # bn=0.1
     bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
     # print(str(data))
@@ -91,7 +97,9 @@ mmer <- function(fixed, random, rcov, data, weights,
         }
         # print(rtermss[u])
         # print(ff$Gtc)
-        re_namel1[[u]] <- ff$re_name
+        re_namel1[[u]] <- ff$re_name # store the levels
+        termsR[[u]] <- ff$terms # store the variables used for this variance structure
+        termsRN[u] <- length(ff$Z)
         zs[[u]] <- ff$Z
         ks[[u]] <- ff$K
         if(is.null(ff$Gti)){ ## initial vc if user don't provide them
@@ -134,7 +142,9 @@ mmer <- function(fixed, random, rcov, data, weights,
         zs[[u]] <- list(zpp)
         nu <- ncol(zpp)
         ks[[u]] <- list(diag(1, nu,nu))
-        re_namel1[[u]] <- list(rtermss[u])
+        re_namel1[[u]] <- list(rtermss[u]) # store the levels
+        termsR[[u]] <- rtermss[u] # store the varibles used
+        termsRN[u] <- 1
         ges[[u]] <- list(bnmm) 
         mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
         gesI[[u]] <- list(mm)
@@ -158,6 +168,8 @@ mmer <- function(fixed, random, rcov, data, weights,
   gesr <- list()
   gesIr <- list()
   re_namel2 <- list()
+  termsE <- list()
+  termsEN <- numeric()
   bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
   for(u in 1:length(rcovtermss)){
     checkvs <- grep("vs\\(",rcovtermss[u])
@@ -165,6 +177,8 @@ mmer <- function(fixed, random, rcov, data, weights,
       ff <- eval(parse(text = rcovtermss[u]),data,parent.frame())# envir = data)
       rs[[u]] <- ff$Z
       re_namel2[[u]] <- ff$re_name
+      termsE[[u]] <- ff$terms
+      termsEN[u] <- length(ff$Z)
       if(is.null(ff$Gti)){ ## initial vc if user don't provide them
         mml <- list()
         for(k in 1:length(ff$Z)){ ## the diagonal of the matrix should be 1 is vc and 2 if cov
@@ -189,6 +203,8 @@ mmer <- function(fixed, random, rcov, data, weights,
       rpp <- model.matrix(as.formula(paste("~",rcovtermss[u],"-1")), data=data)
       rs[[u]] <- list(rpp)
       re_namel2[[u]] <- rcovtermss[u]
+      termsE[[u]] <- rcovtermss[u]
+      termsEN[u] <- 1
       # gesr[[u]] <- list(( matrix(1,nt,nt) * 0 + 1) * 0.04977728 + diag(0.02488864, nt,nt))
       gesr[[u]] <- list(bnmm*5)
       mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
@@ -438,9 +454,12 @@ mmer <- function(fixed, random, rcov, data, weights,
       res$constraints <- GESI
       res$constraintsF <- Gx
       res$data <- data#dataor
-      res$sigmaVector <- vcsExtract(res)
+      res$dataOriginal <- dataor
+      res$terms <- list(response=list(colnames(yvar)),fixed=list(allfixedterms), random=termsR, rcov=termsE)
+      res$termsN <- list(response=ncol(yvar),fixed=length(X), random=termsRN, rcov=termsEN)
       if(reshape.output){
-      colnames(res$sigmaSE) <- rownames(res$sigmaSE) <- names(res$sigmaVector)
+        colnames(res$sigmaSE) <- rownames(res$sigmaSE) <- names(res$sigmaVector)
+        res$sigmaVector <- vcsExtract(res)
       }
       res$reshape.output <- reshape.output
       class(res)<-c("mmer")

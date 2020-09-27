@@ -820,7 +820,7 @@ Now, the model can be used together with the classify argument to obtain means f
 
 ```{r}
 p0 <- predict.mmer(object=m3, classify = "N")
-p0$predictions
+p0$pvals
 ```
 
 

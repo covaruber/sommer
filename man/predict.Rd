@@ -39,11 +39,11 @@ m3 <- mmer(fixed=Y ~ V + N + V:N,
 summary(m3)$varcomp
 
 p0 <- predict.mmer(object=m3, classify = "N")
-p0$predictions
+p0$pvals
 
 p0 <- predict.mmer(object=m3, classify = "V")
-p0$predictions
+p0$pvals
 
 p0 <- predict.mmer(object=m3, classify = "B")
-p0$predictions
+p0$pvals
 }

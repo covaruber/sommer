@@ -6,7 +6,7 @@
 \alias{Mf_technow}
 \docType{data}
 \title{
-Genotypic and Phenotypic data from single cross hybrids (Technow et al. (2014))
+Genotypic and Phenotypic data from single cross hybrids (Technow et al.,2014)
 }
 \description{
 This dataset contains phenotpic data for 2 traits measured in 1254 single cross hybrids coming from the cross of Flint x Dent heterotic groups. In addition contains the genotipic data (35,478 markers) for each of the 123 Dent lines and 86 Flint lines. The purpose of this data is to demosntrate the prediction of unrealized crosses (9324 unrealized crosses, 1254 evaluated, total 10578 single crosses). We have added the additive relationship matrix (A) but can be easily obtained using the A.mat function on the marker data. Please if using this data for your own research cite Technow et al. (2014) publication (see References).
