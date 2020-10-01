@@ -397,7 +397,7 @@ vcsExtract <- function(object){
   
   y.hat.df <- matrix(y.hat[,1],byrow = TRUE, ncol=nt)
   colnames(y.hat.df) <- paste0(object$terms$response[[1]],".fitted")
-  dataWithFitted <- cbind(object$dataOriginal,y.hat.df)
+  dataWithFitted <- cbind(object$data,y.hat.df)
   # build summary table
   nLevels <- c(unlist(lapply(originalModelForMatrices$X,ncol)), unlist(lapply(originalModelForMatrices$Z,ncol)))
   namesLevels <- c(unlist(object$terms$fixed),names(object$U))
