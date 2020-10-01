@@ -35,9 +35,13 @@ This is recommended since bugs fixes will be immediately available in the GitHub
 
  \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
-\strong{vignette("sommer.start")} 
+\strong{vignette("v1.sommer.quick.start")} 
 
-\strong{vignette("sommer")}
+\strong{vignette("v2.sommer.changes.and.faqs")}
+
+\strong{vignette("v3.sommer.qg")}
+
+\strong{vignette("v4.sommer.gxe")}
 
 or visit \strong{https://covaruber.github.io}
 

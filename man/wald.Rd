@@ -1,12 +1,12 @@
-\name{wald}
-\alias{wald}
-\alias{print.wald}
+\name{wald.test}
+\alias{wald.test}
+\alias{print.wald.test}
 \title{Wald Test for Model Coefficients}
 \description{Computes a Wald \eqn{\chi^2}{chi-squared} test for 1 or more coefficients, given their variance-covariance matrix.}
 \usage{
-  wald(Sigma, b, Terms = NULL, L = NULL, H0 = NULL,  
+  wald.test(Sigma, b, Terms = NULL, L = NULL, H0 = NULL,  
             df = NULL, verbose = FALSE)
-  \method{print}{wald}(x, digits = 2, ...)
+  \method{print}{wald.test}(x, digits = 2, ...)
   }
 
 \arguments{
@@ -39,7 +39,7 @@
     A logical scalar controlling the amount of output information. The default is \code{FALSE}, providing minimum output.
     }
   \item{x}{
-    Object of class \dQuote{wald}
+    Object of class \dQuote{wald.test}
     }
   \item{digits}{
     Number of decimal places for displaying test results. Default to 2.
@@ -60,7 +60,7 @@
   }
 
 \value{
-  An object of class \code{wald}, printed with \code{print.wald}.
+  An object of class \code{wald.test}, printed with \code{print.wald.test}.
   }
 
 \references{
@@ -68,7 +68,7 @@
   Draper, N.R., Smith, H., 1998. Applied Regression Analysis. New York, John Wiley & Sons, Inc., 706 p.
   }
 
-\seealso{ \code{\link{vcov}} } 
+
 
 \examples{
   data(DT_yatesoats)
@@ -79,15 +79,14 @@ m3 <- mmer(fixed=Y ~ V + N + V:N-1,
            rcov=~units,
            data = DT)
 
-wald(b = m3$Beta$Estimate, Sigma = m3$VarBeta, Terms = 2)
+wald.test(b = m3$Beta$Estimate, Sigma = m3$VarBeta, Terms = 2)
 
 LL <- matrix(0,nrow=1, ncol=12)
 LL[1,2] <- 1
 LL[1,3] <- -1
 LL
 
-wald(b = m3$Beta$Estimate, Sigma = m3$VarBeta, L=LL)
+wald.test(b = m3$Beta$Estimate, Sigma = m3$VarBeta, L=LL)
 
   }
 
-\keyword{htest}

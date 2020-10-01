@@ -370,12 +370,13 @@ version 4.1.1 (2020-10-01)
 
  + Redesign of the predict function to predict full grids
  + Better structure of the documentation
- 
+ + bug in predict for models that include spl2D() or overlay() functions fixed 
+
 ######################
 ## PENDINGS
 + document explicit nesting and overspecified (rank-defficient) models
 + constraints for variance components to be equal among specific ones
-+ predict tutorial (in progress)
++ predict tutorial (in progress) and make sure it works with models using overlay() and spl2D()
 + MME-based Average Information algorithm in progress (n > p problem. Hope to have it ready for v4.2)
 
  

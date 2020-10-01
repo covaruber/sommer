@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2020-07-14" />
+<meta name="date" content="2020-09-27" />
 
 <title>Quick start for the sommer package</title>
 
@@ -315,7 +315,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Quick start for the sommer package</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2020-07-14</h4>
+<h4 class="date">2020-09-27</h4>
 
 
 
@@ -375,13 +375,18 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <div id="background-on-mixed-models" class="section level3">
 <h3>1) Background on mixed models</h3>
 <p>The core of the package is the <code>mmer</code> function which solve the mixed model equations. The functions are an interface to call the <code>NR</code> Direct-Inversion Newton-Raphson or Average Information algorithms (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). From version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:</p>
+<p><br></p>
 <p><span class="math inline">\(y_1 = X_1\beta_1 + Z_1u_1 + \epsilon_1\)</span></p>
 <p><span class="math inline">\(y_2 = X_2\beta_2 + Z_2u_2 + \epsilon_2\)</span></p>
 <p>…</p>
 <p><span class="math inline">\(y_i = X_i\beta_i + Z_iu_i + \epsilon_i\)</span></p>
+<p><br></p>
 <p>where <span class="math inline">\(y_i\)</span> is a vector of trait phenotypes, <span class="math inline">\(\beta_i\)</span> is a vector of fixed effects, <span class="math inline">\(u_i\)</span> is a vector of random effects for individuals and <span class="math inline">\(e_i\)</span> are residuals for trait ‘i’ (i = 1, …, t). The random effects (<span class="math inline">\(u_1\)</span> … <span class="math inline">\(u_i\)</span> and <span class="math inline">\(e_i\)</span>) are assumed to be normally distributed with mean zero. X and Z are incidence matrices for fixed and random effects respectively. The distribution of the multivariate response and the phenotypic variance covariance (V) are:</p>
+<p><br></p>
 <p><span class="math inline">\(Y = X\beta + ZU + \epsilon_i\)</span></p>
+<p><br></p>
 <p>Y ~ MVN(<span class="math inline">\(X\beta\)</span>, V)</p>
+<p><br></p>
 <p><span class="math display">\[\mathbf{Y} = \left[\begin{array}
 {r}
 y_1 \\
@@ -390,6 +395,7 @@ y_2 \\
 y_t \\
 \end{array}\right]
 \]</span></p>
+<p><br></p>
 <p><span class="math display">\[\mathbf{X} = \left[\begin{array}
 {rrr}
 X_1 &amp; 0 &amp; 0 \\
@@ -397,6 +403,7 @@ X_1 &amp; 0 &amp; 0 \\
 0 &amp; 0 &amp; X_t \\
 \end{array}\right]
 \]</span></p>
+<p><br></p>
 <p><span class="math display">\[\mathbf{V} = \left[\begin{array}
 {rrr}
 Z_1 K{\sigma^2_{g_{1}}} Z_1&#39; + H{\sigma^2_{\epsilon_{1}}} &amp; ... &amp; Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} \\
@@ -404,13 +411,19 @@ Z_1 K{\sigma^2_{g_{1}}} Z_1&#39; + H{\sigma^2_{\epsilon_{1}}} &amp; ... &amp; Z_
 Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_t K{\sigma^2_{g_{t}}} Z_t&#39; + H{\sigma^2_{\epsilon_{t}}} \\
 \end{array}\right]
 \]</span></p>
+<p><br></p>
 <p>where K is the relationship or covariance matrix for the kth random effect (u=1,…,k), and H=I is an identity matrix or a partial identity matrix for the residual term. The terms <span class="math inline">\(\sigma^2_{g_{i}}\)</span> and <span class="math inline">\(\sigma^2_{\epsilon_{i}}\)</span> denote the genetic (or any of the kth random terms) and residual variance of trait ‘i’, respectively and <span class="math inline">\(\sigma_{g_{_{ij}}}\)</span> and <span class="math inline">\(\sigma_{\epsilon_{_{ij}}}\)</span> the genetic (or any of the kth random terms) and residual covariance between traits ‘i’ and ‘j’ (i=1,…,t, and j=1,…,t). The algorithm implemented optimizes the log likelihood:</p>
+<p><br></p>
 <p><span class="math inline">\(logL = 1/2 * ln(|V|) + ln(X&#39;|V|X) + Y&#39;PY\)</span></p>
+<p><br></p>
 <p>where || is the determinant of a matrix. And the REML estimates are updated using a Newton optimization algorithm of the form:</p>
+<p><br></p>
 <p><span class="math inline">\(\theta^{k+1} = \theta^{k} + (H^{k})^{-1}*\frac{dL}{d\sigma^2_i}|\theta^k\)</span></p>
+<p><br></p>
 <p>Where, <span class="math inline">\(\theta\)</span> is the vector of variance components for random effects and covariance components among traits, <span class="math inline">\(H^{-1}\)</span> is the inverse of the Hessian matrix of second derivatives for the kth cycle, <span class="math inline">\(\frac{dL}{d\sigma^2_i}\)</span> is the vector of first derivatives of the likelihood with respect to the variance-covariance components. The Eigen decomposition of the relationship matrix proposed by Lee and Van Der Werf (2016) was included in the Newton-Raphson algorithm to improve time efficiency. Additionally, the popular pin function to estimate standard errors for linear combinations of variance components (i.e. heritabilities and genetic correlations) was added to the package as well.</p>
 <p>Please refer to the canonical papers listed in the Literature section to check how the algorithms work. We have tested widely the methods to make sure they provide the same solution when the likelihood behaves well but for complex problems they might lead to slightly different answers. If you have any concern please contact me at <a href="mailto:cova_ruber@live.com.mx" class="email">cova_ruber@live.com.mx</a>.</p>
 <p>In the following section we will go in detail over several examples on how to use mixed models in univariate and multivariate case and their use in quantitative genetics.</p>
+<p><br></p>
 </div>
 <div id="background-on-covariance-structures" class="section level3">
 <h3>2) Background on covariance structures</h3>
@@ -1064,7 +1077,9 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <div id="genomic-selection" class="section level3">
 <h3>10) Genomic selection</h3>
 <p>In this section I decided to show the way you can fit an rrBLUP and GBLUP model in sommer using some wheat example data from CIMMYT in the genomic selection framework. This is the case of prediction of specific individuals within a population. It basically uses a similar model of the form:</p>
+<p><br></p>
 <p><span class="math inline">\(y = X\beta + Zu + \epsilon\)</span></p>
+<p><br></p>
 <p>and takes advantage of the variance covariance matrix for the genotype effect known as the additive relationship matrix (A) and calculated using the <code>A.mat</code> function to establish connections among all individuals and predict the BLUPs for individuals that were not measured. In case the interest is to get BLUPs for markers the random effect is the actual marker matrix and the relationship among markers can be specified as well but in this example is assume a diagonal.</p>
 <div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1"></a><span class="kw">data</span>(DT_wheat)</span>
 <span id="cb45-2"><a href="#cb45-2"></a>DT &lt;-<span class="st"> </span>DT_wheat</span>
@@ -1185,7 +1200,7 @@ e \\
 0 \\
 0 \\
 \end{array}\right] , \left[\begin{array}
-{r}
+{rr}
 G{(\gamma)} &amp; 0 \\
 0 &amp; R{(\phi)} \\
 \end{array}\right]) 
@@ -1195,7 +1210,7 @@ G{(\gamma)} &amp; 0 \\
 <p>The variance parameters <span class="math inline">\(\gamma\)</span> and <span class="math inline">\(\phi\)</span> are usually estimated by maximum likelihood or REML (Patterson and Thompson, 1971).</p>
 <p>The BLUP of a linear combination for known D, <span class="math inline">\(\gamma\)</span>, and <span class="math inline">\(\phi\)</span> is then:</p>
 <p><span class="math display">\[\mathbf{D\overline{\beta}} = \left[\begin{array}
-{r}
+{rr}
 D_{\tau} &amp; D_u \\
 \end{array}\right]  \left[\begin{array}
 {r}
@@ -1204,7 +1219,7 @@ D_{\tau} &amp; D_u \\
 \end{array}\right] = {D \overline{\tau}} + {D_{u}\overline{u}}
 \]</span> where <span class="math inline">\(\overline{\beta} = (\tau, u)\)</span> is the solution of the mixed moel equations:</p>
 <p><span class="math display">\[ \left[\begin{array}
-{r}
+{rr}
 X^TR^{-1}X &amp; X^TR^{-1}Z  \\
 Z^TR^{-1}X &amp; Z^TR^{-1}Z + G^{-1} \\
 \end{array}\right]  \left[\begin{array}
@@ -1238,13 +1253,16 @@ Z^TR^{-1}X \\
 <p>Now, the model can be used together with the classify argument to obtain means for the classify argument. For example, the model includes in the fixed formula the terms “V” for variety, “N” for nitrogen treatments, and “V:N” for the interaction between variety and nitrogen. The classify argument can be used to specify the term for which means are desired. In the following example the means for the nitrogen treatments are obtained as follows:</p>
 <div class="sourceCode" id="cb58"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1"></a>p0 &lt;-<span class="st"> </span><span class="kw">predict.mmer</span>(<span class="dt">object=</span>m3, <span class="dt">classify =</span> <span class="st">&quot;N&quot;</span>)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -0.745921   20:19:40      0           0</code></pre>
-<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1"></a>p0<span class="op">$</span>predictions</span></code></pre></div>
-<pre><code>##     N predicted.value.Y standard.errors.Y
-## 1   0          79.38889          9.106816
-## 2 0.2          98.88889          9.106816
-## 3 0.4         114.22222          9.106816
-## 4 0.6         123.38889          9.106816</code></pre>
+##     1      -0.745921   12:32:57      0           0
+##     2      -0.745921   12:32:57      0           0
+##     3      -0.745921   12:32:57      0           0
+##     4      -0.745921   12:32:57      0           0</code></pre>
+<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1"></a>p0<span class="op">$</span>pvals</span></code></pre></div>
+<pre><code>##   trait   N predicted.value standard.error
+## 1     Y   0         80.0000       9.106977
+## 2     Y 0.2         98.5000       9.106977
+## 3     Y 0.4        114.6667       9.106977
+## 4     Y 0.6        124.8333       9.106977</code></pre>
 </div>
 <div id="final-remarks" class="section level3">
 <h3>Final remarks</h3>

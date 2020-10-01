@@ -26,7 +26,7 @@ export(atcg1234,build.HMM,h2.fun)
 
 ## FUN_stats
 export(adiag1, imputev,
-       leg, wald,
+       leg, wald.test,
        pin)
 
 ## FUN_relationships
@@ -46,10 +46,13 @@ S3method(summary, mmer)
 S3method(print, summary.mmer)
 #S3method(summary, mmergwas)
 #S3method(print, summary.mmergwas)
+S3method(print, wald.test)
+
 S3method(residuals, mmer)
 S3method(print, residuals.mmer)
 S3method(fitted, mmer)
 S3method(print, fitted.mmer)
+S3method(head, fitted.mmer)
 S3method(coef, mmer)
 S3method(print, coef.mmer)
 S3method(anova, mmer)

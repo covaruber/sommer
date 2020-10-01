@@ -51,7 +51,7 @@ The calculations are based on the estimated variance parameters and their varian
 # summary(mix1)
 # #### run the pin function
 # pin(mix1, h2 ~ V1 / ( V1 + V2 ) )
-
+# 
 # ####=========================================####
 # ####=========================================####
 # #### EXAMPLE 2
@@ -98,7 +98,7 @@ The calculations are based on the estimated variance parameters and their varian
 # ####=========================================####
 # data(DT_btdata)
 # DT <- DT_btdata
-# mix4 <- mmer2(tarsus ~ sex, random = ~ dam + fosternest,
+# mix4 <- mmer(tarsus ~ sex, random = ~ dam + fosternest,
 #                data = DT) 
 # summary(mix4)
 # #### calculate the ratio and its SE

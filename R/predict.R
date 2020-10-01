@@ -3,6 +3,10 @@
 #### =========== ######
 
 "predict.mmer" <- function(object,classify=NULL,...){
+  
+  if(is.null(classify)){
+    stop("Please provide the classify argument. For fitted values use the fitted() function.",call. = FALSE)
+  }
   oto <- object$terms
   for(u in 1:length(object$terms)){
     prov <- object$terms[[u]]
@@ -20,11 +24,13 @@
   
   toAgg <- unique(unlist(strsplit(classify,":")))
   ignored <- setdiff(allTermsUsed,toAgg)
+  # print(ignored)
   
   levelsOfTerms <- apply(data.frame(toAgg),1,function(x){unique(object$dataOriginal[,x])})
   DTX <- expand.grid(levelsOfTerms); colnames(DTX) <- toAgg
+  # print(str(object$dataOriginal[,c(colnames(DTX),ignored,object$terms$response[[1]])]))
   DTX <-merge(object$dataOriginal[,c(colnames(DTX),ignored,object$terms$response[[1]])], DTX, all.y = TRUE)
-  
+  # print(str(DTX))
   # DTX <-merge(DTX, object$dataOriginal[,c(colnames(DTX),ignored)], all.x = TRUE)
   
   if(length(object$terms$response[[1]]) < 2){
@@ -32,13 +38,17 @@
   }else{YY = DTX[,object$terms$response[[1]]]}
   
   DTX[,object$terms$response[[1]]] <- apply(YY,2,imputev)
-  if(length(ignored) == 1){
-    # v=which(colnames(DTX) == ignored)
-    DTX[,ignored] <- imputev(DTX[,ignored])
-  }else{
-    DTX[,ignored] <- apply(DTX[,ignored],2,imputev)
+  if(length(ignored) > 0){ # if there's ignored columns
+    if(length(ignored) == 1){
+      # v=which(colnames(DTX) == ignored)
+      DTX[,ignored] <- imputev(DTX[,ignored])
+    }else{
+      for(o in 1:length(ignored)){
+        DTX[,ignored[o]] <- imputev(DTX[,ignored[o]])
+      }
+    }
   }
-  
+  # print(str(DTX))
   ##################################################
   # step 1 create all models
   # 1. extended data model (just get matrices)
@@ -115,13 +125,13 @@
     start= max(betas0[[i]])+1
   }
   # new X extended
-  Xm.extended <- kronecker(X,TT)
-  Xb=Xm.extended%*%modelForMatrices$Beta[unlist(betas0[fToUse]),1] # calculate Xb
+  X.mv.extended <- kronecker(X,TT)
+  Xb=X.mv.extended%*%modelForMatrices$Beta[unlist(betas0[fToUse]),1] # calculate Xb
   # X'ViX
   XtViX = modelForMatrices$VarBeta[unlist(betas0[fToUse]),unlist(betas0[fToUse])]
   # build X multivariate from original model
   Xo <- do.call(cbind,originalModelForMatricesSE$X[fToUse])
-  Xm.original <- kronecker(Xo,TT)
+  X.mv.original <- kronecker(Xo,TT)
   ##################################################
   # calculate Zu
   if(!is.null(object$call$random)){
@@ -145,7 +155,7 @@
     zToUse <- unique(unlist(zToUse[which(reUsed0 == 1)]))
     
     nz <- length(modelForMatrices$Z)
-    Zu <- vector(mode = "list", length = nre) # list for Zu
+    Zu <- vector(mode = "list", length = nz) # list for Zu
     for(ir in 1:nz){ # for each random effect
       Z <- modelForMatrices$Z[[ir]] # provisional Z
       Zu[[ir]] <- kronecker(Z,TT) %*% modelForMatrices$U[[ir]] # calculate Zu
@@ -156,36 +166,36 @@
     ## build the multivariate K and Z from the original odel to build 
     # ZKfv, Xo, cov.b.pev, pev
     if(!is.null(zToUse)){ # if not only there's random terms but they are relevant for predict
-      VarKl <- lapply(as.list((zToUse)),function(x){
+      G.mv.original.List <- lapply(as.list((zToUse)),function(x){
         kronecker(as.matrix(originalModelForMatricesSE$K[[x]]),originalModel$sigma[,,x])
-      }); VarK <- do.call(adiag1,VarKl)
+      }); G.mv.original <- do.call(adiag1,G.mv.original.List)
       
-      Zl <- lapply(as.list((zToUse)),function(x){
+      tZ.mv.original.List <- lapply(as.list((zToUse)),function(x){
         kronecker(as.matrix(t(originalModelForMatricesSE$Z[[x]])),TT)
-      }); tZm <- do.call(rbind,Zl)
+      }); tZ.mv.original <- do.call(rbind,tZ.mv.original.List)
       
-      ZKfv <- VarK %*% tZm # as many rows as obs, as many cols as levels
+      G.tZ.mv.original <- G.mv.original %*% tZ.mv.original # as many rows as obs, as many cols as levels
       
-      cov.b.pev <- 0 - t(originalModel$P %*% Xm.original) %*% originalModel$Vi %*% t(ZKfv)
+      cov.b.pev <- 0 - t(originalModel$P %*% X.mv.original) %*% originalModel$Vi %*% t(G.tZ.mv.original)
       pev <- do.call(adiag1,originalModel$PevU[zToUse])
       # (185 x 3)' (185 x 185) = (3 x 185)  (185 x 185) (levs164 x obs185)' = (3 x 164)
       # bring the design matrices for extended model to get standard errors for the extended model
-      Znew <- lapply(as.list((zToUse)),function(x){
+      Z.extended <- lapply(as.list((zToUse)),function(x){
         kronecker(as.matrix(t(modelForMatrices$Z[[x]])),TT)
-      }); Znew <- do.call(rbind,Znew)
-      tZnew <- t(Znew)
+      }); Z.extended <- do.call(rbind,Z.extended)
+      tZ.extended <- t(Z.extended)
     }
   }
   ##################################################
   # add them up
   if(!is.null(object$call$random) & !is.null(zToUse)){
     y.hat <- Xb + Reduce("+",Zu[zToUse]) # y.hat = Xb + Zu.1 + ... + Zu.n
-    standard.errors <- sqrt(rowSums((Xm.extended%*%XtViX)*Xm.extended) +
-                              rowSums(2*(Xm.extended%*%cov.b.pev)*tZnew) +
-                              rowSums((tZnew%*%pev)*tZnew))
+    standard.errors <- sqrt(abs(rowSums((X.mv.extended%*%XtViX)*X.mv.extended) +
+                              rowSums(2*(X.mv.extended%*%cov.b.pev)*tZ.extended) +
+                              rowSums((tZ.extended%*%pev)*tZ.extended)))
   }else{
     y.hat <- Xb # y.hat = Xb 
-    standard.errors <- sqrt(rowSums((Xm.extended%*%XtViX)*Xm.extended))
+    standard.errors <- sqrt(abs(rowSums((X.mv.extended%*%XtViX)*X.mv.extended)))
   }
   ##################################################
   # add y.hat to the grid
@@ -221,12 +231,26 @@
   colnames(pvalsSE)[ncol(pvalsSE)] <- "standard.error"
   pvals <- merge(pvals,pvalsSE, by=c("trait",toAgg))
   
-  toreturn2 <- list(pvals=pvals, 
-                    FE.used = unique(unlist(object$terms$fixed[[1]][fToUse])), 
-                    RE.used=unique(unlist(oto$random[which(reUsed0==1)])),
-                    Ignored= setdiff(allTermsUsed,toAgg),
+  # ##################################################
+  nLevels <- c(unlist(lapply(originalModelForMatricesSE$X,ncol)), unlist(lapply(originalModelForMatricesSE$Z,ncol)))
+  namesLevels <- c(unlist(oto$fixed),names(object$U))
+  formLevels <- c(rep("fixed",length(unlist(oto$fixed))),rep("random",length(names(object$U))))
+  id <- 1:length(formLevels)
+  averaged <- rep(TRUE,length(id))
+  classify <- rep(FALSE,length(id))
+  
+  classify[fToUse]=TRUE
+  classify[length(modelForMatrices$X)+zToUse]=TRUE
+  
+  averaged[fToUse]=FALSE
+  averaged[length(modelForMatrices$X)+zToUse]=FALSE
+  
+  predictSummary <- data.frame(namesLevels,formLevels,nLevels,id,averaged,classify)
+  colnames(predictSummary) <- c("term","type","nLevels","id","averaged","classify")
+  
+  toreturn2 <- list(pvals=pvals,
+                    predictSummary=predictSummary,
                     model=modelForMatrices
-                    #EE.used=unique(unlist(object$terms$rcov))
   )
   attr(toreturn2, "class")<-c("predict.mmer", "list")
   
@@ -235,34 +259,24 @@
 
 
 "print.predict.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
-  aver <- paste(x$Ignored,collapse = ", ")
-  fused <- paste(x$FE.used,collapse = ", ")
-  rused <- paste(x$RE.used,collapse = ", ")
   cat(blue(paste("\n  The predictions are obtained by averaging across the hypertable
                  calculated from model terms constructed solely from factors in
-                 the averaging and classify sets.
-                 - The simple averaging set:",aver,"\n",
-                 "- The fixed effects included:",fused,"\n",
-                 "- The random effects included:",rused,"\n\n")
+                 the averaging and classify sets. Used terms in predict:\n")
+  ))
+  print(x$predictSummary)
+  cat(blue(paste("\n Head of predictions:\n")
   ))
   head(x$pvals,...)
-  # head(print.predict.mmer(pp))
-  # print((x$predictions))
 }
 
 "head.predict.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
-  aver <- paste(x$Ignored,collapse = ", ")
-  fused <- paste(x$FE.used,collapse = ", ")
-  rused <- paste(x$RE.used,collapse = ", ")
   cat(blue(paste("\n  The predictions are obtained by averaging across the hypertable
                  calculated from model terms constructed solely from factors in
-                 the averaging and classify sets.
-                 - The simple averaging set:",aver,"\n",
-                 "- The fixed effects included:",fused,"\n",
-                 "- The random effects included:",rused,"\n\n")
+                 the averaging and classify sets. Used terms in predict:\n")
   ))
-  head(x$pvals, ...)
-  # head(print.predict.mmer(pp))
-  # print((x$predictions))
+  print(x$predictSummary)
+  cat(blue(paste("\n Head of predictions:\n")
+  ))
+  head(x$pvals,...)
 }
 

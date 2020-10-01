@@ -1,4 +1,4 @@
-wald <- function (Sigma, b, Terms = NULL, L = NULL, H0 = NULL, df = NULL, 
+wald.test <- function (Sigma, b, Terms = NULL, L = NULL, H0 = NULL, df = NULL, 
                   verbose = FALSE) {
   if (is.null(Terms) & is.null(L)) 
     stop("One of the arguments Terms or L must be used.")
@@ -37,7 +37,44 @@ wald <- function (Sigma, b, Terms = NULL, L = NULL, H0 = NULL, df = NULL,
                  L = L, result = res, verbose = verbose, df = df), class = "wald.test")
 }
 
+print.wald.test <- function(x, digits = 2, ...){
+  Terms <- x[["Terms"]]; b <- x[["b"]]; H0 <- x[["H0"]]; v <- x[["result"]][["chi2"]]; df <- x[["df"]]
+  verbose <- x[["verbose"]]
+  namb <- names(b)[Terms]
+  cat("Wald test:\n", "----------\n", sep = "")
+  if(verbose){
+    cat("\nCoefficients:\n")
+    print(format(b, digits = digits), quote = FALSE)
+    cat("\nVar-cov matrix of the coefficients:\n")
+    print(format(x[["Sigma"]], digits = digits), quote = FALSE)
+    cat("\nTest-design matrix:\n")
+    print(x[["L"]])
+    cat("\nPositions of tested coefficients in the vector of coefficients:", paste(Terms, collapse = ", "), "\n")
+    if(is.null(namb))
+      cat("\nH0: ", paste(paste(format(b[Terms], digits), format(H0, digits = digits), sep = " = "), collapse = "; "), "\n")
+    else{
+      cat("\nH0: ", paste(paste(namb, format(H0, digits = digits), sep = " = "), collapse = "; "), "\n")
+    }
+    #    cat("\nTest results:\n")
+  }
+  cat("\nChi-squared test:\n")
+  cat("X2 = ", format(v["chi2"], digits = digits, nsmall = 1), ", df = ", v["df"],
+      ", P(> X2) = ", format(v["P"], digits = digits, nsmall = 1), "\n", sep = "")
+  if(!is.null(df)){
+    v <- x[["result"]][["Ftest"]]
+    cat("\nF test:\n")
+    cat("W = ", format(v["Fstat"], digits = digits, nsmall = 1), 
+        ", df1 = ", v["df1"],
+        ", df2 = ", v["df2"],
+        ", P(> W) = ", format(v["P"], digits = digits), "\n", sep = "")
+  }
+}
+
 leg <- function(x,n=1,u=-1,v=1, intercept=TRUE, intercept1=FALSE){
+  
+  init0 <- as.character(substitute(list(x)))[-1L]
+  
+  
   requireNamespace("orthopolynom",quietly=TRUE)
   (leg4coef <- orthopolynom::legendre.polynomials(n=n, normalized=TRUE))
   leg4 <- as.matrix(as.data.frame(orthopolynom::polynomial.values(polynomials=leg4coef,
@@ -50,6 +87,7 @@ leg <- function(x,n=1,u=-1,v=1, intercept=TRUE, intercept1=FALSE){
     leg4 <- leg4*sqrt(2)
     # leg4[,1] <- leg4[,1]*sqrt(2)
   }
+  attr(leg4,"variables") <- c(init0)
   return(leg4)
 }
 
@@ -104,7 +142,6 @@ hadamard.prod <-function (x, y){
     stop("arguments x and y do not have the same column order")
   return(Xmat * Ymat)
 }
-
 
 adiag1 <- function (..., pad = as.integer(0), do.dimnames = TRUE){
   args <- list(...)
@@ -259,7 +296,6 @@ fdr <- function(p, fdr.level=0.05){
   result <- list(p.ad=pvalA, fdr.p=fdr.p, p.log10=pvalA.l10, fdr.10=fdr.10 )
   return(result)
 }
-
 
 fdr2 <- function(p, fdr.level=0.05){
   

@@ -331,23 +331,107 @@ vcsExtract <- function(object){
 ## FITTED FUNCTION ##
 #### =========== ####
 
-"fitted.mmer" <- function(object, type="complete", ...) {
-  #type="complete" 
-  # digits = max(3, getOption("digits") - 3)
-  # if(type=="complete"){
-  #   output<- object$fitted.y
-  #   #colnames(output) <- names(object)
-  # }else{
-  #   output<- object$fitted.u
-  #   #colnames(output) <- names(object)
-  # }
-  output<- object$fitted
-  return(output)
+#### =========== ######
+## PREDICT FUNCTION #
+#### =========== ######
+
+"fitted.mmer" <- function(object,...){
+  
+  if(is.null(object$call$random)){
+    originalModelForMatrices <- mmer(fixed=object$call$fixed,
+                                     # random=object$call$random,
+                                     rcov=object$call$rcov,
+                                     data=object$dataOriginal, return.param = TRUE,#reshape.output =FALSE,
+                                     init = object$sigma_scaled, constraints = object$constraints,
+                                     na.method.Y = object$call$na.method.Y,
+                                     na.method.X = object$call$na.method.X,...)
+    
+    originalModelForParameters <- mmer(fixed=object$call$fixed,
+                                       # random=object$call$random,
+                                       rcov=object$call$rcov, iters=1, verbose=FALSE,
+                                       data=object$dataOriginal, reshape.output =FALSE,
+                                       init = object$sigma_scaled, constraints = object$constraints,
+                                       na.method.Y = object$call$na.method.Y,
+                                       na.method.X = object$call$na.method.X,...)
+  }else{
+    originalModelForMatrices <- mmer(fixed=object$call$fixed,
+                                     random=object$call$random,
+                                     rcov=object$call$rcov,
+                                     data=object$dataOriginal, return.param = TRUE,#reshape.output =FALSE,
+                                     init = object$sigma_scaled, constraints = object$constraints,
+                                     na.method.Y = object$call$na.method.Y,
+                                     na.method.X = object$call$na.method.X,...)
+    
+    originalModelForParameters <- mmer(fixed=object$call$fixed,
+                                       random=object$call$random,
+                                       rcov=object$call$rcov, iters=1, verbose=FALSE,
+                                       data=object$dataOriginal, reshape.output =FALSE,
+                                       init = object$sigma_scaled, constraints = object$constraints,
+                                       na.method.Y = object$call$na.method.Y,
+                                       na.method.X = object$call$na.method.X,...)
+  }
+  ys <- object$terms$response[[1]]
+  nt <- length(ys) # number of traits
+  TT <- diag(nt) # diagonal matrix
+  
+  Xo <- do.call(cbind,originalModelForMatrices$X)
+  X.mv.original <- kronecker(Xo,TT)
+  
+  Xb=X.mv.original%*%originalModelForParameters$Beta
+  
+  Zu=NULL
+  if(!is.null(object$call$random)){
+    nz <- length(originalModelForMatrices$Z)
+    Zu <- vector(mode = "list", length = nz) # list for Zu
+    for(ir in 1:nz){ # for each random effect
+      Z <- originalModelForMatrices$Z[[ir]] # provisional Z
+      Zu[[ir]] <- kronecker(Z,TT) %*% originalModelForParameters$U[[ir]] # calculate Zu
+    }
+  }
+  
+  if(!is.null(object$call$random)){
+    y.hat <- Xb + Reduce("+",Zu) # y.hat = Xb + Zu.1 + ... + Zu.n
+  }else{
+    y.hat <- Xb # y.hat = Xb
+  }
+  
+  y.hat.df <- matrix(y.hat[,1],byrow = TRUE, ncol=nt)
+  colnames(y.hat.df) <- paste0(object$terms$response[[1]],".fitted")
+  dataWithFitted <- cbind(object$dataOriginal,y.hat.df)
+  # build summary table
+  nLevels <- c(unlist(lapply(originalModelForMatrices$X,ncol)), unlist(lapply(originalModelForMatrices$Z,ncol)))
+  namesLevels <- c(unlist(object$terms$fixed),names(object$U))
+  formLevels <- c(rep("fixed",length(unlist(object$terms$fixed))),rep("random",length(names(object$U))))
+  id <- 1:length(formLevels)
+  used <- rep(TRUE,length(id))
+  fittedSummary <- data.frame(namesLevels,formLevels,nLevels,id,used)
+  colnames(fittedSummary) <- c("term","type","nLevels","id","used")
+  
+  return(list(dataWithFitted=dataWithFitted,Xb=Xb, Zu=Zu,fittedSummary=fittedSummary))
 }
 
+
 "print.fitted.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
-  print((x))
-} 
+  cat(blue(paste("\n  The fitted values are obtained by adding Xb + Zu.1 + ... + Zu.n
+                 containing: \n")
+  ))
+  print(x$fittedSummary)
+  cat(blue(paste("\n  head of fitted values: \n")
+  ))
+  head(x$dataWithFitted,...)
+}
+
+"head.fitted.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
+  cat(blue(paste("\n  The fitted values are obtained by adding Xb + Zu.1 + ... + Zu.n
+                 containing: \n")
+  ))
+  print(x$fittedSummary)
+  cat(blue(paste("\n  head of fitted values: \n")
+  ))
+  head(x$dataWithFitted,...)
+}
+
+
 
 
 #### =========== ####
