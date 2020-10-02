@@ -4,7 +4,7 @@
 \description{\code{fitted} method for class \code{"mmer"}.
 }
 \usage{
-\method{fitted}{mmer}(object, type = "complete", \dots)
+\method{fitted}{mmer}(object, \dots)
 }
 \arguments{
  \item{object}{an object of class \code{"mmer"}}

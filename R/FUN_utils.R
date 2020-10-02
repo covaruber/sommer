@@ -143,150 +143,20 @@ vcsExtract <- function(object){
   ################################################
 }
 
-#### =========== ####
-## SUMMARY FUNCTION mmergwas #
-#### =========== ####
-# "summary.mmergwas" <- function(object, ...) {
-#   
-#   #dim(object$u.hat)
-#   digits = max(3, getOption("digits") - 3)
-#   #forget <- length(object)
-#   
-#   groupss.nn <- lapply(object$U,function(x){
-#     dim(x)
-#   })
-#   groupss.nn <- as.data.frame(do.call(rbind,groupss.nn))
-#   
-#   lll <- object$monitor[1,]
-#   lll <- lll[which(lll > 1e-300 | lll < 0)]
-#   lll2 <- lll[length(lll)]
-#   
-#   LLAIC <- data.frame(as.numeric(lll2), as.numeric(object$AIC),
-#                       as.numeric(object$BIC), object$method, object$convergence)
-#   colnames(LLAIC) = c("logLik","AIC","BIC","Method","Converge")
-#   rownames(LLAIC) <- "Value"
-#   
-#   method=object$method
-#   #extract fixed effects
-#   coef <- data.frame(Estimate=unlist(object$Beta))#, Std.Error=(matrix(sqrt(diag(object$Var.beta.hat)),ncol=1)), t.value=(matrix((object$beta.hat-0)/sqrt(diag(object$Var.beta.hat)), ncol=1)))
-#   # if(dim(coef)[1] == 1){rownames(coef) <- "Intercept"}
-#   
-#   ## se and t values for fixed effects
-#   ts <- dim(object$sigma)[1]
-#   s2.beta <- diag(as.matrix(object$VarBeta))
-#   coef$Std.Error <- sqrt(abs(s2.beta))
-#   coef$t.value <- coef$Estimate/coef$Std.Error
-#   # print(coef)
-#   # nse.beta <- length(s2.beta)/ts
-#   # inits <- seq(1,length(s2.beta),nse.beta)
-#   # ends <- inits+nse.beta-1
-#   # seti <- list() # stardard errors partitioned by trait
-#   # for(u in 1:ts){
-#   #   prox <- data.frame(coef[,u],sqrt(abs(s2.beta[inits[u]:ends[u]])))
-#   #   prox$`t value` <- prox[,1]/prox[,2]
-#   #   colnames(prox) <- c("Estimate","Std. Error","t value")
-#   #   rownames(prox) <- rownames(coef)
-#   #   seti[[u]] <- prox
-#   # }
-#   # names(seti) <- colnames(object$sigma[[1]])
-#   
-#   vcsl <- list()
-#   consl <- list()
-#   nnn <- dim(object$sigma)
-#   for(k in 1:nnn[3]){
-#     x <- as.matrix(object$sigma[,,k])
-#     y <- object$constraints[[k]]
-#     xn <- k#names(object$sigma)[k]
-#     vcs <- numeric()
-#     cons <- numeric()
-#     counter <-1
-#     for(i in 1:ncol(x)){
-#       for(j in i:ncol(x)){
-#         # print(y[i,j])
-#         if( y[i,j] != 0 ){
-#           vcs[counter] <- x[i,j]
-#           cons[counter] <- y[i,j]
-#           names(vcs)[counter] <- paste(colnames(x)[i],colnames(x)[j],sep="-" )
-#           counter <- counter+1
-#         }
-#       }
-#     }
-#     vcsl[[xn]] <- as.data.frame(vcs)
-#     consl[[xn]] <- as.data.frame(cons)
-#   }
-#   mys2 <- do.call(rbind,vcsl)
-#   mycons <- do.call(rbind,consl)
-#   
-#   # rrr <- lapply(vcsl,rownames)
-#   # rrr <- rrr[which(unlist(lapply(rrr, length)) > 0)]
-#   # for(o in 1:length(rrr)){rrr[[o]] <- paste(names(rrr)[o],rrr[[o]],sep=".")}
-#   # rownames(mys2) <- as.vector(unlist(rrr))
-#   
-#   varcomp <- as.data.frame(cbind(mys2,sqrt(abs(diag(object$sigmaSE)))))
-#   varcomp[,3] <- varcomp[,1]/varcomp[,2]
-#   colnames(varcomp) <- c("VarComp","VarCompSE","Zratio")
-#   varcomp$Constraint <- replace.values(mycons$cons, 1:3, c("Positive","Unconstr","Fixed"))
-#   
-#   output <- list(groups=groupss.nn, varcomp=varcomp, betas=coef, method=method,logo=LLAIC)
-#   attr(output, "class")<-c("summary.mmergwas", "list")
-#   return(output)
-# }
-# 
-# "print.summary.mmergwas"<-function (x, digits = max(3, getOption("digits") - 3),  ...){
-#   
-#   nmaxchar0 <- max(as.vector(unlist(apply(data.frame(rownames(x$varcomp)),1,nchar))),na.rm = TRUE)
-#   
-#   if(nmaxchar0 < 26){
-#     nmaxchar0 <- 26
-#   } # + 26 spaces we have nmaxchar0+26  spaces to put the title
-#   
-#   nmaxchar <- nmaxchar0+34 ## add spaces from the 3 columns
-#   nmaxchar2 <- nmaxchar0+18
-#   nmaxchar3 <- nmaxchar0+34-46 #round(nmaxchar0/2)
-#   rlh <- paste(rep("*",round(nmaxchar2/2)),collapse = "")
-#   rlt <- paste(rep(" ",ceiling(nmaxchar3/2)),collapse = "")
-#   digits = max(3, getOption("digits") - 3)
-#   ################################################
-#   cat(paste(rep("=",nmaxchar), collapse = ""))
-#   cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by REML",rlt,"\n", collapse = ""))
-#   cat(paste(rlh," sommer 4.1 ",rlh, "\n", collapse = ""))
-#   cat(paste(rep("=",nmaxchar), collapse = ""))
-#   cat("\n")
-#   cat("")
-#   print(x$logo)#, digits = digits)
-#   cat(paste(rep("=",nmaxchar), collapse = ""))
-#   cat("\nScaled Variance-Covariance components:\n")
-#   print(x$varcomp, digits = digits)
-#   cat(paste(rep("=",nmaxchar), collapse = ""))
-#   cat("\nScaled Fixed effects:\n")
-#   if(nrow(x$betas) > 8){
-#     print(x$betas[1:8,], digits = digits)
-#     cat("   ... please access the object to see more\n")
-#   }else{
-#     print(x$betas, digits = digits)
-#   }
-#   cat(paste(rep("=",nmaxchar), collapse = ""))
-#   cat("\nGroups and observations:\n")
-#   print(x$groups, digits = digits)
-#   cat(paste(rep("=",nmaxchar), collapse = ""))
-#   cat("\nUse the '$' sign to access results and parameters")#\nArguments set to FALSE for multiresponse models:\n'draw', and 'gwas.plots'\n")
-#   ################################################
-# }
-
 #### =========== ######
 ## RESIDUALS FUNCTION #
 #### =========== ######
 "residuals.mmer" <- function(object, ...) {
   digits = max(3, getOption("digits") - 3)
   
-  # if(type=="conditional"){
-  #   output <- object$cond.residuals
-  #   #colnames(output) <- names(object)
-  # }else{
-  output <- object$residuals
-  #colnames(output) <- names(object)
-  # }
-  return(output)
+  pp <- fitted.mmer(object)
+  responses <- object$terms$response[[1]]
+  dat <- pp$dataWithFitted
+  for(ir in 1:length(responses)){
+    dat[,paste0(responses[ir],".residuals")] = dat[,responses[ir]] - dat[,paste0(responses[ir],".fitted")]
+  }
+
+  return(dat)
 }
 
 "print.residuals.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
@@ -308,10 +178,6 @@ vcsExtract <- function(object){
   return(output)
 }
 
-#"print.ranef.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
-#  print((x))
-#}
-
 #### =========== ######
 ## FIXEF FUNCTION #
 #### =========== ######
@@ -330,10 +196,6 @@ vcsExtract <- function(object){
 #### =========== ####
 ## FITTED FUNCTION ##
 #### =========== ####
-
-#### =========== ######
-## PREDICT FUNCTION #
-#### =========== ######
 
 "fitted.mmer" <- function(object,...){
   
@@ -409,7 +271,6 @@ vcsExtract <- function(object){
   
   return(list(dataWithFitted=dataWithFitted,Xb=Xb, Zu=Zu,fittedSummary=fittedSummary))
 }
-
 
 "print.fitted.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
   cat(blue(paste("\n  The fitted values are obtained by adding Xb + Zu.1 + ... + Zu.n

@@ -134,6 +134,8 @@
   X.mv.original <- kronecker(Xo,TT)
   ##################################################
   # calculate Zu
+  pev=NULL
+  cov.b.pev=NULL
   if(!is.null(object$call$random)){
     nre <- length(object$terms$random) # number of random effects
     reUsed0 <- list()
@@ -250,7 +252,11 @@
   
   toreturn2 <- list(pvals=pvals,
                     predictSummary=predictSummary,
-                    model=modelForMatrices
+                    model=modelForMatrices,
+                    C11=XtViX,
+                    C12=cov.b.pev,
+                    C22=pev
+                    
   )
   attr(toreturn2, "class")<-c("predict.mmer", "list")
   

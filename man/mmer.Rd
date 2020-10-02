@@ -7,17 +7,9 @@
 }
 \description{
 
-Fits a multivariate/univariate linear mixed model by likelihood methods (REML). The optimization methods are; Direct-Inversion Newton-Raphson (NR), Average Information (AI) (Tunnicliffe 1989; Lee et al. 2015; Maier et al. 2015), and Efficient Mixed Model Association (EMMA) (Kang et al. 2008) coded in C++ using the Armadillo library to opmitime dense matrix operations common in the derect-inversion algorithms. These algorithms are \strong{intended to be used for problems of the type p > n or dense matrices}. For problems with sparse covariance structures, or problems of the type n > p, the MME-based algorithms are faster and we recommend to shift to the use of such software (i.e. lme4, breedR, or asreml-R).
+Sommer is a structural multivariate-univariate linear mixed model solver for multiple random effects allowing the specification and/or estimation of variance covariance structures. REML estimates can be obtained using the Direct-Inversion Newton-Raphson, Average Information and Efficient Mixed Model Association algorithms coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic selection models. Sommer was designed for genomic prediction and genome wide association studies (GWAS), but also functional as a regular mixed model program. These algorithms are \strong{intended to be used for problems of the type p > n or dense matrices}. For problems with sparse covariance structures, or problems of the type n > p, the MME-based algorithms are faster and we recommend to shift to the use of such software (i.e. lme4, breedR, or asreml-R).
 
-The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model known covariances among genotypes typical in plant and animal breeding problems. Other functions to build known covariance structures among levels of random effects are autoregresive (\code{\link{AR1}}), compound symmetry (\code{\link{CS}}) and autoregressive moving average (\code{\link{ARMA}}) where the user needs to fix the correlation value for such models (this is different to estimating unknown covariance structures). Additionally, overlayed models can be implemented as well (\code{\link{overlay}} function). Spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). Random regression models can also be fitted through the (\code{\link{leg}}) function (orthopolynom package installation is needed for using the leg function).
-
-The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed typing the following in the R console:
-
-library(devtools)
-
-install_github("covaruber/sommer")
-
-This is recommended since bugs fixes will be immediately available in the GitHub source. \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
+\strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
 \strong{vignette("v1.sommer.quick.start")} 
 
@@ -27,9 +19,8 @@ This is recommended since bugs fixes will be immediately available in the GitHub
 
 \strong{vignette("v4.sommer.gxe")}
 
-or visit \strong{https://covaruber.github.io}
-
 }
+
 \usage{
 
 mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03, 
@@ -126,6 +117,16 @@ For a short tutorial on how to use this special functions you can look at the vi
 
 \emph{vignette('sommer.quick.start')}
 
+\strong{S3 methods}{
+
+S3 methods are available for some parameter extraction such as \code{\link{fitted.mmer}}, \code{\link{residuals.mmer}}, \code{\link{summary.mmer}}, \code{\link{randef}}, \code{\link{coef.mmer}}, \code{\link{anova.mmer}}, \code{\link{plot.mmer}}, and \code{\link{predict.mmer}} to obtain adjusted means. In addition, the \code{\link{pin}} function can be used to estimate standard errors for linear combinations of variance components (i.e. ratios like h2). 
+
+}
+
+\strong{Additional Functions}
+
+Additional functions for genetic analysis have been included such as heritability (\code{\link{h2.fun}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), creation of manhattan plots (\code{\link{manhattan}}). If you need to use pedigree you need to convert your pedigree into a relationship matrix (i.e. use the \code{getA} function from the pedigreemm package). 
+
 \strong{Bug report and contact}{
 
 If you have any technical questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com and send me an email with the link at cova_ruber@live.com.mx
@@ -154,14 +155,6 @@ The package has been equiped with several datasets to learn how to use the somme
 * \code{\link{DT_btdata}} dataset contains an animal (birds) model.
 
 * \code{\link{DT_legendre}} simulated dataset for random regression model.
-
-\strong{Additional Functions}
-
-Other standard functions such as \code{\link{summary}}, \code{\link{fitted}}, \code{\link{randef}} (notice here is randef not ranef), \code{\link{anova}}, \code{\link{predict}}, \code{\link{residuals}}, \code{\link{coef}} and \code{\link{plot}} applicable to typical linear models can also be applied to models fitted using the mmer function. 
-
-Additional functions for genetic analysis have been included such as heritability (\code{\link{h2.fun}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), creation of manhattan plots (\code{\link{manhattan}}). If you need to use pedigree you need to convert your pedigree into a relationship matrix (i.e. use the \code{getA} function from the pedigreemm package). 
-
-Useful functions for analyzing field trials are included such as the \code{spl2D}, \code{\link{spatPlots}}, and \code{\link{fill.design}}.
 
 \strong{Models Enabled}
 

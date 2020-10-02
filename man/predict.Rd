@@ -14,6 +14,23 @@
 }
 \details{
   This function allows to produce predictions specifying those variables that define the margins of the hypertable to be predicted (argument classify). Predictions are obtained for each combination of values of the specified variables that is present in the data set used to fit the model. See vignettes for more details. 
+  
+  For predicted values the pertinent design matrices X and Z together with BLUEs (b) and BLUPs (u) are multiplied and added together.
+  
+  predicted.value equal Xb + Zu.1 + ... + Zu.n
+  
+  For computing standard errors for predictions the parts of the coefficient matrix:
+  
+  C11 equal X'ViX
+  
+  C12 equal 0 - [(PX)'Vi(GZ')'] 
+  
+  C22 equal PEV equal G - [Z'G[Vi - (VX*tXVXVX)]GZ']
+  
+  and are summarized as:
+  
+  standard.errors equal sqrt( rowSums(XC11X') + rowSums(2*(XC12Z')) + rowSums(ZC22Z') )
+  
  }
 \value{
   The data frame used for obtaining the predictions, jointly with the predicted values and the corresponding standard errors. 
