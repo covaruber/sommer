@@ -275,7 +275,12 @@ mmer <- function(fixed, random, rcov, data, weights,
   baseX <- model.matrix(newfixed, mf)
   # print(head(baseX))
   if(length(vsterms) > 0){baseX <- cbind(baseX,addxs)}
-  qr <- qr(baseX)
+  if(nrow(baseX)*ncol(baseX) > 2147483647) {
+        qr <- qr(baseX, LAPACK = TRUE)
+    }
+  else {
+        qr <- qr(baseX)
+    }
   keepx <- qr$pivot[1:qr$rank]
   nameskeepx <- colnames(baseX)[keepx]
   colsdropped <- ncol(baseX) - length(nameskeepx)
