@@ -1,14 +1,19 @@
 #### =========== ######
 ## PREDICT FUNCTION #
 #### =========== ######
-
-"predict.mmer" <- function(object,classify=NULL,...){
+# include is used for aggregating
+# averaged is used to be included in the prediction
+# ignored is not used included in the prediction
+"predict.mmer" <- function(object,classify=NULL,include=NULL,hypertable=NULL,...){
   
   if(is.null(classify)){
     stop("Please provide the classify argument. For fitted values use the fitted() function.",call. = FALSE)
   }
+  if(is.null(include)){
+    include=classify
+  }
   oto <- object$terms
-  for(u in 1:length(object$terms)){
+  for(u in 3:length(object$terms)){ # change random terms to spit by ":"
     prov <- object$terms[[u]]
     if(length(prov) > 0){
       for(v in 1:length(prov)){
@@ -22,7 +27,7 @@
   allTermsUsed<- allTermsUsed[which(allTermsUsed!= "1")]
   allTermsUsed <- unique(unlist(strsplit(allTermsUsed,":")))
   
-  toAgg <- unique(unlist(strsplit(classify,":")))
+  toAgg <- unique(unlist(strsplit(include,":")))
   ignored <- setdiff(allTermsUsed,toAgg)
   # print(ignored)
   
@@ -111,33 +116,44 @@
   nt <- length(ys) # number of traits
   TT <- diag(nt) # diagonal matrix
   # which fixed effects to include
+  # print(object$terms$fixed[[1]])
   fToUse <- list()
   for(i in 1:length(toAgg)){
     fToUse[[i]]<-grep(toAgg[i],object$terms$fixed[[1]])
   }
   fToUse = sort(c(1,unique(unlist(fToUse))))
-  X <- do.call(cbind,modelForMatrices$X[fToUse]) # build X cbinding the ones required
-  # find the betas to use
-  ncolsX <- unlist(lapply(modelForMatrices$X,ncol))
-  start=1; betas0 <- list()
-  for(i in 1:length(ncolsX)){
-    betas0[[i]] <- start:(start+(ncolsX[i]*nt)-1)
-    start= max(betas0[[i]])+1
+  
+  if(!is.null(hypertable)){ # if user provides a hypertable, use the customization instead
+    fToUse <- which(hypertable$type == "fixed" & hypertable$include == TRUE)
+    fNotToUse <- which(hypertable$type == "fixed" & hypertable$ignored == TRUE)
+    if(length(fNotToUse) > 0){fToUse <- setdiff(fToUse,fNotToUse)}
   }
-  # new X extended
-  X.mv.extended <- kronecker(X,TT)
-  Xb=X.mv.extended%*%modelForMatrices$Beta[unlist(betas0[fToUse]),1] # calculate Xb
-  # X'ViX
-  XtViX = modelForMatrices$VarBeta[unlist(betas0[fToUse]),unlist(betas0[fToUse])]
-  # build X multivariate from original model
-  Xo <- do.call(cbind,originalModelForMatricesSE$X[fToUse])
-  X.mv.original <- kronecker(Xo,TT)
+  
+  if(length(fToUse) > 0){ # if there's fixed effects to add
+    X <- do.call(cbind,modelForMatrices$X[fToUse]) # build X cbinding the ones required
+    # find the betas to use
+    ncolsX <- unlist(lapply(modelForMatrices$X,ncol))
+    start=1; betas0 <- list()
+    for(i in 1:length(ncolsX)){
+      betas0[[i]] <- start:(start+(ncolsX[i]*nt)-1)
+      start= max(betas0[[i]])+1
+    }
+    # new X extended
+    X.mv.extended <- kronecker(X,TT)
+    Xb=X.mv.extended%*%modelForMatrices$Beta[unlist(betas0[fToUse]),1] # calculate Xb
+    # X'ViX
+    XtViX = modelForMatrices$VarBeta[unlist(betas0[fToUse]),unlist(betas0[fToUse])]
+    # build X multivariate from original model
+    Xo <- do.call(cbind,originalModelForMatricesSE$X[fToUse])
+    X.mv.original <- kronecker(Xo,TT)
+  }
   ##################################################
   # calculate Zu
   pev=NULL
   cov.b.pev=NULL
   if(!is.null(object$call$random)){
     nre <- length(object$terms$random) # number of random effects
+    # identify which random terms in the model should be added
     reUsed0 <- list()
     for(i in 1:length(toAgg)){
       reUsed <- numeric()
@@ -148,7 +164,9 @@
       reUsed0[[i]] <- reUsed
     }; 
     reUsed0 <- Reduce("+",reUsed0); reUsed0[which(reUsed0 > 0)]=reUsed0[which(reUsed0 > 0)]/reUsed0[which(reUsed0 > 0)]
-    # identify which effects estimated correspond to such random terms
+    # print(reUsed0)
+    
+    # identify which effects estimated correspond to each random term in the model
     zToUse <- list(); start=1
     for(i in 1:nre){
       zToUse[[i]] <-  start:(start+object$termsN$random[i]-1)
@@ -156,6 +174,23 @@
     }
     zToUse <- unique(unlist(zToUse[which(reUsed0 == 1)]))
     
+    if(!is.null(hypertable)){ # if user provides a hypertable, use the customization instead
+      nFixed <- max(which(hypertable$type == "fixed"))
+      # which ones the user wants to force to be included
+      rForce <- which(hypertable$type == "random" & hypertable$include == TRUE)
+      if(length(rForce) > 0){
+        rForce <- rForce - nFixed
+        zToUse <- rForce
+      }
+      # which ones the user wants to force to be excluded
+      rNotForce <- which(hypertable$type == "random" & hypertable$ignored == TRUE)
+      if(length(rNotForce) > 0){
+        rNotForce <- rNotForce - nFixed
+        zToUse <- setdiff(zToUse,rNotForce)
+      }
+    }
+    
+    # print(zToUse)
     nz <- length(modelForMatrices$Z)
     Zu <- vector(mode = "list", length = nz) # list for Zu
     for(ir in 1:nz){ # for each random effect
@@ -190,14 +225,26 @@
   }
   ##################################################
   # add them up
-  if(!is.null(object$call$random) & !is.null(zToUse)){
+  if(length(fToUse) > 0 & !is.null(zToUse)){ # fixed and random effects included
     y.hat <- Xb + Reduce("+",Zu[zToUse]) # y.hat = Xb + Zu.1 + ... + Zu.n
-    standard.errors <- sqrt(abs(rowSums((X.mv.extended%*%XtViX)*X.mv.extended) +
+    standard.errors <- sqrt(abs(
+                              rowSums((X.mv.extended%*%XtViX)*X.mv.extended) +
                               rowSums(2*(X.mv.extended%*%cov.b.pev)*tZ.extended) +
-                              rowSums((tZ.extended%*%pev)*tZ.extended)))
-  }else{
+                              rowSums((tZ.extended%*%pev)*tZ.extended)
+                               )
+                            )
+  }else if( length(fToUse) == 0 & !is.null(zToUse) ){ # only random effects included
+    y.hat <- Reduce("+",Zu[zToUse]) # y.hat = Xb + Zu.1 + ... + Zu.n
+    standard.errors <- sqrt(abs(
+                                rowSums((tZ.extended%*%pev)*tZ.extended)
+                                )
+                            )
+  }else if( length(fToUse) > 0 & is.null(zToUse) ){ # only fixed effects included
     y.hat <- Xb # y.hat = Xb 
-    standard.errors <- sqrt(abs(rowSums((X.mv.extended%*%XtViX)*X.mv.extended)))
+    standard.errors <- sqrt(abs(
+                                rowSums((X.mv.extended%*%XtViX)*X.mv.extended)
+                                )
+                            )
   }
   ##################################################
   # add y.hat to the grid
@@ -225,33 +272,35 @@
   ##################################################
   # aggregate to desired shape
   
-  myForm <- paste0("predicted.value~",paste(toAgg, collapse = "+"), "+trait")
+  myForm <- paste0("predicted.value~",paste(classify, collapse = "+"), "+trait")
   pvals <- aggregate(as.formula(myForm), FUN=mean, data=DTX2)
-  myFormSE <- paste0("standard.error~",paste(toAgg, collapse = "+"), "+trait")
+  myFormSE <- paste0("standard.error~",paste(classify, collapse = "+"), "+trait")
   pvalsSE <- aggregate(as.formula(myFormSE), FUN=mean, data=DTX2)
   # pvalsSE <- aggregate(as.formula(myForm), FUN=function(x){1.96 * (sd(x)/sqrt(length(x)))}, data=DTX2)
   colnames(pvalsSE)[ncol(pvalsSE)] <- "standard.error"
-  pvals <- merge(pvals,pvalsSE, by=c("trait",toAgg))
+  pvals <- merge(pvals,pvalsSE, by=c("trait",classify))
   
   # ##################################################
   nLevels <- c(unlist(lapply(originalModelForMatricesSE$X,ncol)), unlist(lapply(originalModelForMatricesSE$Z,ncol)))
   namesLevels <- c(unlist(oto$fixed),names(object$U))
   formLevels <- c(rep("fixed",length(unlist(oto$fixed))),rep("random",length(names(object$U))))
   id <- 1:length(formLevels)
-  averaged <- rep(TRUE,length(id))
-  classify <- rep(FALSE,length(id))
+  ignored <- rep(TRUE,length(id)) # all ignored by default
+  include <- rep(FALSE,length(id)) # none include by default
   
-  classify[fToUse]=TRUE
-  classify[length(modelForMatrices$X)+zToUse]=TRUE
+  include[fToUse]=TRUE # specify which fixed effects where used
+  if(!is.null(zToUse)){include[length(modelForMatrices$X)+zToUse]=TRUE} # specify which random effects where used
   
-  averaged[fToUse]=FALSE
-  averaged[length(modelForMatrices$X)+zToUse]=FALSE
+  # print(fToUse)
+  # print(length(modelForMatrices$X)+zToUse)
+  ignored[fToUse]=FALSE # specify which fixed effects ARE NOT ignored
+  if(!is.null(zToUse)){ignored[length(modelForMatrices$X)+zToUse]=FALSE} # specify which random effects ARE NOT ignored
   
-  predictSummary <- data.frame(namesLevels,formLevels,nLevels,id,averaged,classify)
-  colnames(predictSummary) <- c("term","type","nLevels","id","averaged","classify")
+  predictSummary <- data.frame(namesLevels,formLevels,nLevels,id,ignored,include)
+  colnames(predictSummary) <- c("term","type","nLevels","id","ignored","include")
   
   toreturn2 <- list(pvals=pvals,
-                    predictSummary=predictSummary,
+                    hypertable=predictSummary,
                     model=modelForMatrices,
                     C11=XtViX,
                     C12=cov.b.pev,
@@ -265,24 +314,41 @@
 
 
 "print.predict.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
-  cat(blue(paste("\n  The predictions are obtained by averaging across the hypertable
-                 calculated from model terms constructed solely from factors in
-                 the averaging and classify sets. Used terms in predict:\n")
+  cat(blue(paste("
+    The predictions are obtained by averaging/aggregating across 
+    the hypertable calculated from model terms constructed solely 
+    from factors in the include sets. You can customize the model 
+    terms used with the 'hypertable' argument. Current model terms used:\n")
   ))
-  print(x$predictSummary)
+  print(x$hypertable)
   cat(blue(paste("\n Head of predictions:\n")
   ))
   head(x$pvals,...)
 }
 
 "head.predict.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
-  cat(blue(paste("\n  The predictions are obtained by averaging across the hypertable
-                 calculated from model terms constructed solely from factors in
-                 the averaging and classify sets. Used terms in predict:\n")
+  cat(blue(paste(" 
+    The predictions are obtained by averaging/aggregating across 
+    the hypertable calculated from model terms constructed solely 
+    from factors in the include sets. You can customize the model 
+    terms used with the 'hypertable' argument. Current model terms used:\n")
   ))
-  print(x$predictSummary)
+  print(x$hypertable)
   cat(blue(paste("\n Head of predictions:\n")
   ))
   head(x$pvals,...)
 }
 
+
+"tail.predict.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
+  cat(blue(paste("
+    The predictions are obtained by averaging/aggregating across 
+    the hypertable calculated from model terms constructed solely 
+    from factors in the include sets. You can customize the model 
+    terms used with the 'hypertable' argument. Current model terms used:\n")
+  ))
+  print(x$hypertable)
+  cat(blue(paste("\n Tail of predictions:\n")
+  ))
+  tail(x$pvals,...)
+}

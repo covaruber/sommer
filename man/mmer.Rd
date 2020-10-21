@@ -119,7 +119,7 @@ For a short tutorial on how to use this special functions you can look at the vi
 
 \strong{S3 methods}{
 
-S3 methods are available for some parameter extraction such as \code{\link{fitted.mmer}}, \code{\link{residuals.mmer}}, \code{\link{summary.mmer}}, \code{\link{randef}}, \code{\link{coef.mmer}}, \code{\link{anova.mmer}}, \code{\link{plot.mmer}}, and \code{\link{predict.mmer}} to obtain adjusted means. In addition, the \code{\link{pin}} function can be used to estimate standard errors for linear combinations of variance components (i.e. ratios like h2). 
+S3 methods are available for some parameter extraction such as \code{\link{fitted.mmer}}, \code{\link{residuals.mmer}}, \code{\link{summary.mmer}}, \code{\link{randef}}, \code{\link{coef.mmer}}, \code{\link{anova.mmer}}, \code{\link{plot.mmer}}, and \code{\link{predict.mmer}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function can be used to estimate standard errors for linear combinations of variance components (i.e. ratios like h2). 
 
 }
 
@@ -325,7 +325,7 @@ summary(ans3)
 #              data=DT)
 # summary(mix1)$varcomp
 # #### calculate heritability
-# pin(mix1, h1 ~ V1/(V1+V3) )
+# vpredict(mix1, h1 ~ V1/(V1+V3) )
 # #### multi trait example
 # mix2 <- mmer(cbind(Yield,color)~1,
 #               random = ~ vs(id, Gu=A, Gtc = unsm(2)) + # unstructured at trait level

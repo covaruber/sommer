@@ -27,7 +27,7 @@ export(atcg1234,build.HMM,h2.fun)
 ## FUN_stats
 export(adiag1, imputev,
        leg, wald.test,
-       pin)
+       vpredict)
 
 ## FUN_relationships
 export(A.mat, D.mat, E.mat, AR1, CS, ARMA, simGECorMat)
@@ -60,6 +60,7 @@ S3method(plot, mmer)
 S3method(predict, mmer)
 S3method(print, predict.mmer)
 S3method(head, predict.mmer)
+S3method(tail, predict.mmer)
 
 #S3method(variogram, mmer)
 #S3method(plot, variogram.mmer)

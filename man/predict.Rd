@@ -4,13 +4,15 @@
 \description{\code{predict} method for class \code{"mmer"}.
 }
 \usage{
-\method{predict}{mmer}(object, classify=NULL,
+\method{predict}{mmer}(object,classify=NULL,include=NULL,hypertable=NULL,
         \dots)
 }
 \arguments{
- \item{object}{an object of class \code{"mmer"}}
- \item{classify}{an optional character string with the variables that define the margins of the multiway table to be predicted (see Details).}
- \item{\dots}{Further arguments to be passed to the model fit}
+ \item{object}{an mixed model of class \code{"mmer"}}
+ \item{classify}{a character vector with the variables that define the margins of the multiway table to be aggregated.}
+ \item{include}{an optional character vector with the variables that define the margins of the multiway table to be predicted to later be aggregated according to the classify argument. If NULL assumes to be equal to classify variables in classify.}
+ \item{hypertable}{an optional table to force the terms to be included and ignored with same format as the output hypertable of this function (see examples).}
+ \item{\dots}{Further arguments to be passed to the model fit (i.e. iters, etc.).}
 }
 \details{
   This function allows to produce predictions specifying those variables that define the margins of the hypertable to be predicted (argument classify). Predictions are obtained for each combination of values of the specified variables that is present in the data set used to fit the model. See vignettes for more details. 
@@ -31,6 +33,8 @@
   
   standard.errors equal sqrt( rowSums(XC11X') + rowSums(2*(XC12Z')) + rowSums(ZC22Z') )
   
+  when both fixed and random effects are present in the inclusion set. If only fixed and random effects are included, only the respective terms from the SE for fixed or random effects are calculated.
+  
  }
 \value{
   The data frame used for obtaining the predictions, jointly with the predicted values and the corresponding standard errors. 
@@ -42,6 +46,7 @@
 \seealso{\code{\link{predict}}, \code{\link{mmer}}}
 \keyword{models}
 \examples{
+
 data(DT_yatesoats)
 DT <- DT_yatesoats
 
@@ -52,11 +57,40 @@ m3 <- mmer(fixed=Y ~ V + N + V:N,
 summary(m3)$varcomp
 
 p0 <- predict.mmer(object=m3, classify = "N")
-p0$pvals
+p0$hypertable; p0$pvals
 
 p0 <- predict.mmer(object=m3, classify = "V")
-p0$pvals
+p0$hypertable; p0$pvals
 
 p0 <- predict.mmer(object=m3, classify = "B")
+p0$hypertable; p0$pvals
+
+########################################
+## force the inclusion of specific terms
+## in the hypertable
+########################################
+p0 <- predict.mmer(object=m3, classify = "N")
+hypertable <- p0$hypertable; hypertable
 p0$pvals
+# force inclusion of 5th term
+hypertable[6,c("ignored","include")] <- c(FALSE,TRUE) 
+hypertable
+
+p1 <- predict.mmer(object=m3, classify = "N", hypertable = hypertable)
+p1$hypertable;p1$pvals
+
+########################################
+## force the exclusion of specific terms
+## in the hypertable
+########################################
+p0 <- predict.mmer(object=m3, classify = "N")
+hypertable <- p0$hypertable; hypertable
+p0$pvals
+# force inclusion of 4th term
+hypertable[4,c("ignored","include")] <- c(TRUE,FALSE) 
+hypertable
+
+p1 <- predict.mmer(object=m3, classify = "N", hypertable = hypertable)
+p1$hypertable;p1$pvals
+
 }

@@ -24,7 +24,7 @@ Vignettes aim to provide several examples in how to use the sommer package under
 
 1) Heritability ($h^2$) calculation
 2) Specifying heterogeneous variances in mixed models
-3) Using the pin calculator
+3) Using the vpredict calculator
 4) Half and full diallel designs (using the overlay)
 5) Genomic selection (predicting mendelian sampling)
     + GBLUP
@@ -116,7 +116,7 @@ $\theta^{k+1} = \theta^{k} + (H^{k})^{-1}*\frac{dL}{d\sigma^2_i}|\theta^k$
 
 <br>
 
-Where, $\theta$ is the vector of variance components for random effects and covariance components among traits, $H^{-1}$ is the inverse of the Hessian matrix of second derivatives for the kth cycle, $\frac{dL}{d\sigma^2_i}$ is the vector of first derivatives of the likelihood with respect to the variance-covariance components. The Eigen decomposition of the relationship matrix proposed by Lee and Van Der Werf (2016) was included in the Newton-Raphson algorithm to improve time efficiency. Additionally, the popular pin function to estimate standard errors for linear combinations of variance components (i.e. heritabilities and genetic correlations) was added to the package as well.
+Where, $\theta$ is the vector of variance components for random effects and covariance components among traits, $H^{-1}$ is the inverse of the Hessian matrix of second derivatives for the kth cycle, $\frac{dL}{d\sigma^2_i}$ is the vector of first derivatives of the likelihood with respect to the variance-covariance components. The Eigen decomposition of the relationship matrix proposed by Lee and Van Der Werf (2016) was included in the Newton-Raphson algorithm to improve time efficiency. Additionally, the popular vpredict function to estimate standard errors for linear combinations of variance components (i.e. heritabilities and genetic correlations) was added to the package as well.
 
 Please refer to the canonical papers listed in the Literature section to check how the algorithms work. We have tested widely the methods to make sure they provide the same solution when the likelihood behaves well but for complex problems they might lead to slightly different answers. If you have any concern please contact me at cova_ruber@live.com.mx.
 
@@ -146,7 +146,7 @@ ans1 <- mmer(Yield~1,
              data=DT, verbose = FALSE)
 summary(ans1)$varcomp
 (n.env <- length(levels(DT$Env)))
-pin(ans1, h2 ~ V1 / ( V1 + (V3/n.env) + (V5/(2*n.env)) ) )
+vpredict(ans1, h2 ~ V1 / ( V1 + (V3/n.env) + (V5/(2*n.env)) ) )
 ```
 
 Recently with markers becoming cheaper, thousand of markers can be run in the breeding materials. When markers are available, an special design is not neccesary to disect the additive genetic variance. The availability of the additive, dominance and epistatic relationship matrices allow us to estimate $\sigma^2_A$, $\sigma^2_D$ and $\sigma^2_I$, although given that A, D and E are not orthogonal the interpretation of models that fit more than A and D become cumbersome.
@@ -168,8 +168,8 @@ ans.ADE <- mmer(color~1,
                  rcov=~units,
                  data=DT,verbose = FALSE)
 (summary(ans.ADE)$varcomp)
-pin(ans.ADE, h2 ~ (V1) / ( V1+V3) )
-pin(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) )
+vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) )
+vpredict(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) )
 ```
 
 In the previous example we showed how to estimate the additive ($\sigma^2_A$), dominance ($\sigma^2_D$), and epistatic ($\sigma^2_I$) variance components based on markers and estimate broad ($H^2$) and narrow sense heritability ($h^2$). Notice that we used the `vs()` function which indicates that the random effect inside the parenthesis (i.e. id, idd or ide) has a covariance matrix (A, D, or E), that will be specified in the Gu argument  of the vs() function. Please DO NOT provide the inverse but the original covariance matrix.
@@ -211,9 +211,9 @@ modFD <- mmer(Yield~1,
 summary(modFD)
 ```
 
-### 3) Using the pin calculator
+### 3) Using the vpredict calculator
 
-Sometimes the user needs to calculate ratios or functions of specific variance-covariance components and obtain the standard error for such parameters. Examples of these are the genetic correlations, heritabilities, etc. Using the CPdata we will show how to estimate the heritability and the standard error using the pin function that uses the delta method to come up with these parameters. This can be extended for any linear combination of the variance components.
+Sometimes the user needs to calculate ratios or functions of specific variance-covariance components and obtain the standard error for such parameters. Examples of these are the genetic correlations, heritabilities, etc. Using the CPdata we will show how to estimate the heritability and the standard error using the vpredict function that uses the delta method to come up with these parameters. This can be extended for any linear combination of the variance components.
 
 
 #### 3.1) Standar error for heritability
@@ -229,10 +229,10 @@ ans <- mmer(color~1,
                 rcov=~units,
                 data=DT, verbose = FALSE)
 (summary(ans.ADE)$varcomp)
-pin(ans, h2 ~ (V1) / ( V1+V2) )
+vpredict(ans, h2 ~ (V1) / ( V1+V2) )
 
 ```
-The same can be used for multivariate models. Please check the documentation of the `pin` function to see more examples.
+The same can be used for multivariate models. Please check the documentation of the `vpredict` function to see more examples.
 
 #### 3.2) Standar error for genetic correlation
 ```{r}
@@ -244,7 +244,7 @@ mix3 <- mmer(cbind(tarsus, back) ~ sex,
                data = DT, verbose = FALSE)
 summary(mix3)
 #### calculate the genetic correlation
-pin(mix3, gen.cor ~ V2 / sqrt(V1*V3))
+vpredict(mix3, gen.cor ~ V2 / sqrt(V1*V3))
 ```
 
 ### 4) Half and full diallel designs (use of the overlay)
