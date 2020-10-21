@@ -275,7 +275,7 @@ mmer <- function(fixed, random, rcov, data, weights,
   baseX <- model.matrix(newfixed, mf)
   # print(head(baseX))
   if(length(vsterms) > 0){baseX <- cbind(baseX,addxs)}
-  if(1.0 * nrow(baseX) * ncol(baseX) > 2147483647) {
+  if(as.double(nrow(baseX)) * as.double(ncol(baseX)) > 2147483647) {
         qr <- qr(baseX, LAPACK = TRUE)
     }
   else {
