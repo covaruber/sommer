@@ -1,10 +1,11 @@
 \name{predict.mmer}
 \alias{predict.mmer}
-\title{Predict form a LMM fitted with mmer}
+\title{Predict form of a LMM fitted with mmer}
 \description{\code{predict} method for class \code{"mmer"}.
 }
 \usage{
-\method{predict}{mmer}(object,classify=NULL,include=NULL,hypertable=NULL,
+\method{predict}{mmer}(object, classify=NULL, 
+        include=NULL, hypertable=NULL,
         \dots)
 }
 \arguments{
@@ -37,7 +38,19 @@
   
  }
 \value{
-  The data frame used for obtaining the predictions, jointly with the predicted values and the corresponding standard errors. 
+
+  \item{pvals}{the table of predictions according to the specified arguments.}
+  
+  \item{hypertable}{the summary table specifying the ignored and include sets.}
+  
+  \item{model}{the mixed model used within predict.}
+  
+  \item{C11}{the inverse of the coefficient matrix corresponding to the fixed effects.}
+  
+  \item{C12}{the inverse of the coefficient matrix corresponding to the covariance between fixed and random effects.}
+  
+  \item{C22}{the inverse of the coefficient matrix corresponding to the random effects.}
+  
  }
  \references{
   Welham, S., Cullis, B., Gogel, B., Gilmour, A., and Thompson, R. (2004). Prediction in linear mixed models. Australian and New Zealand Journal of Statistics, 46, 325 - 347.
@@ -63,6 +76,9 @@ p0 <- predict.mmer(object=m3, classify = "V")
 p0$hypertable; p0$pvals
 
 p0 <- predict.mmer(object=m3, classify = "B")
+p0$hypertable; p0$pvals
+
+p0 <- predict.mmer(object=m3, classify = c("V","N"))
 p0$hypertable; p0$pvals
 
 ########################################
