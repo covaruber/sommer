@@ -151,6 +151,7 @@
   # calculate Zu
   pev=NULL
   cov.b.pev=NULL
+  zToUse=NULL
   if(!is.null(object$call$random)){
     nre <- length(object$terms$random) # number of random effects
     # identify which random terms in the model should be added

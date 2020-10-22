@@ -8,7 +8,7 @@
         \dots)
 }
 \arguments{
- \item{object}{an mixed model of class \code{"mmer"}}
+ \item{object}{a mixed model of class \code{"mmer"}}
  \item{classify}{a character vector with the variables that define the margins of the multiway table to be aggregated.}
  \item{include}{an optional character vector with the variables that define the margins of the multiway table to be predicted to later be aggregated according to the classify argument. If NULL assumes to be equal to classify variables in classify.}
  \item{hypertable}{an optional table to force the terms to be included and ignored with same format as the output hypertable of this function (see examples).}
