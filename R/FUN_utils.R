@@ -250,6 +250,7 @@ vcsExtract <- function(object){
       Zu[[ir]] <- kronecker(Z,TT) %*% originalModelForParameters$U[[ir]] # calculate Zu
     }
   }
+  names(Zu) <- names(object$U)
   
   if(!is.null(object$call$random)){
     y.hat <- Xb + Reduce("+",Zu) # y.hat = Xb + Zu.1 + ... + Zu.n
@@ -257,9 +258,11 @@ vcsExtract <- function(object){
     y.hat <- Xb # y.hat = Xb
   }
   
+  Zudf <- as.matrix(do.call(cbind,Zu)); colnames(Zudf) <- paste0(names(Zu),".fitted")
+  Xbdf <- as.matrix(Xb); colnames(Xbdf) <- "Xb.fitted"
   y.hat.df <- matrix(y.hat[,1],byrow = TRUE, ncol=nt)
   colnames(y.hat.df) <- paste0(object$terms$response[[1]],".fitted")
-  dataWithFitted <- cbind(object$data,y.hat.df)
+  dataWithFitted <- cbind(object$data,y.hat.df,Xbdf,Zudf)
   # build summary table
   nLevels <- c(unlist(lapply(originalModelForMatrices$X,ncol)), unlist(lapply(originalModelForMatrices$Z,ncol)))
   namesLevels <- c(unlist(object$terms$fixed),names(object$U))
@@ -534,12 +537,17 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
   # std vs residuals, QQplot (std vs teor quantiles), sqrt(std residuals) vs fitted, std res vs leverage = cook's distance
   traits <- ncol(x$fitted)
   layout(matrix(1:4,2,2))
+  
+  resp <- x$terms$response[[1]]
+  # ff <- fitted(x)
+  rr <- residuals(x)
   for(i in 1:traits){
-    plot(x$fitted[,i],scale(x$residuals[,i]),pch=20, col=transp("cadetblue"), ylab="Std Residuals", xlab="Fitted values", main="Residual vs Fitted", bty="n", ...); grid()
-    plot(x$fitted[,i],sqrt(abs(scale(x$residuals[,i]))),pch=20, col=transp("thistle4"), ylab="Sqrt Abs Std Residuals", xlab="Fitted values", main="Scale-Location", bty="n", ...); grid()
-    qqnorm(scale(x$residuals), pch=20, col=transp("tomato1"), ylab="Std Residuals", bty="n",...); grid()
+    
+    plot(rr[,paste0(resp[i],".fitted")],scale(rr[,paste0(resp[i],".residuals")]),pch=20, col=transp("cadetblue"), ylab="Std Residuals", xlab="Fitted values", main="Residual vs Fitted", bty="n", ...); grid()
+    plot(rr[,paste0(resp[i],".fitted")],sqrt(abs(scale(rr[,paste0(resp[i],".residuals")]))),pch=20, col=transp("thistle4"), ylab="Sqrt Abs Std Residuals", xlab="Fitted values", main="Scale-Location", bty="n", ...); grid()
+    qqnorm(scale(rr[,paste0(resp[i],".residuals")]), pch=20, col=transp("tomato1"), ylab="Std Residuals", bty="n",...); grid()
     hat <- Xm%*%solve(t(Xm)%*%x$Vi%*%Xm)%*%t(Xm)%*%x$Vi # leverage including variance from random effects H= X(X'V-X)X'V-
-    plot(diag(hat), scale(x$residuals), pch=20, col=transp("springgreen3"), ylab="Std Residuals", xlab="Leverage", main="Residual vs Leverage", bty="n", ...); grid()
+    plot(diag(hat), scale(rr[,paste0(resp[i],".residuals")]), pch=20, col=transp("springgreen3"), ylab="Std Residuals", xlab="Leverage", main="Residual vs Leverage", bty="n", ...); grid()
   }
   #####################
   layout(matrix(1,1,1))

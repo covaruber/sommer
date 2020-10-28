@@ -337,9 +337,14 @@ E.mat <- function(X,min.MAF=NULL,max.missing=NULL,impute.method="mean",tol=0.02,
   return(X5)
 }
 
-pedtoK <- function(x, row="Row",column="Column",value="Ainverse", returnInverse=TRUE){
+dftToMatrix <- function(x, row="Row",column="Column",value="Ainverse", returnInverse=FALSE, bend=1e-6){
   
   # if(type=="asreml"){
+  all <- unique(c(as.character(x[,row]),as.character(x[,column])))
+  alldf <- data.frame(x=1:length(all)); rownames(alldf) <- all
+  x[,row] <- as.numeric(as.character(alldf[x[,row],"x"]))
+  x[,column] <- as.numeric(as.character(alldf[x[,column],"x"]))
+  
     K <- matrix(NA,max(x[,row]),max(x[,column]))
     for(i in 1:nrow(x)){
       K[x[i,row],x[i,column]] <- x[i,value]
@@ -361,7 +366,7 @@ pedtoK <- function(x, row="Row",column="Column",value="Ainverse", returnInverse=
     
     Ks <- as(K, Class = "sparseMatrix")
     if(returnInverse){
-      Ksi <- solve(Ks)
+      Ksi <- solve(Ks + diag(bend, nrow(Ks)))
       rownames(Ksi) <- colnames(Ksi) <- attr(x, "rowNames")
     }else{
       Ksi <- NULL

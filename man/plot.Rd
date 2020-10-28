@@ -15,6 +15,16 @@
   vector of plot
  }
 \author{Giovanny Covarrubias \email{covarrubiasp@wisc.edu}}
+\examples{
+data(DT_yatesoats)
+DT <- DT_yatesoats
+head(DT)
+m3 <- mmer(fixed=Y ~ V + N + V:N,
+           random = ~ B + B:MP,
+           rcov=~units,
+           data = DT)
+plot(m3)
+}
 \seealso{\code{\link{plot}}, \code{\link{mmer}}}
 \keyword{models}
 

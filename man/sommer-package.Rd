@@ -36,7 +36,7 @@ The \code{\link{vpredict}} function can be used to estimate standard errors for 
 
 \section{Functions for trial analysis}{
 
-Recently, spatial modeling has been added added to sommer using the two-dimensional spline (\code{\link{spl2D}}) function. The \code{\link{fill.design}} can be used to complete grids if required.
+Recently, spatial modeling has been added added to sommer using the two-dimensional spline (\code{\link{spl2D}}) function.
 
 }
 

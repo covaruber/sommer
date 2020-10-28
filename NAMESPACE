@@ -3,13 +3,13 @@ importFrom(Rcpp, evalCpp)
 #exportPattern("^[[:alpha:]]+")
 
 export(   
-       fill.design, 
+       # fill.design, 
        transp,jet.colors,bathy.colors,
       #  hits, big.peaks.col,
       # maxi.qtl, nna, 
       manhattan, map.plot, 
-       pedtoK,
-       spatPlots)
+       dfToMatrix
+       )
 
 ## FUN_main
 export(mmer, mmer2, GWAS, GWAS2)
