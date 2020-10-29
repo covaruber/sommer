@@ -37,6 +37,22 @@ isIdentity_spmat <- function(x) {
     .Call(`_sommer_isIdentity_spmat`, x)
 }
 
+isDiagonal_mat <- function(x) {
+    .Call(`_sommer_isDiagonal_mat`, x)
+}
+
+isDiagonal_spmat <- function(x) {
+    .Call(`_sommer_isDiagonal_spmat`, x)
+}
+
+amat <- function(X, shrink) {
+    .Call(`_sommer_amat`, X, shrink)
+}
+
+dmat <- function(X, nishio) {
+    .Call(`_sommer_dmat`, X, nishio)
+}
+
 MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled) {
     .Call(`_sommer_MNR`, Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled)
 }

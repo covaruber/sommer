@@ -107,6 +107,52 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// isDiagonal_mat
+bool isDiagonal_mat(const arma::mat x);
+RcppExport SEXP _sommer_isDiagonal_mat(SEXP xSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat >::type x(xSEXP);
+    rcpp_result_gen = Rcpp::wrap(isDiagonal_mat(x));
+    return rcpp_result_gen;
+END_RCPP
+}
+// isDiagonal_spmat
+bool isDiagonal_spmat(const arma::sp_mat x);
+RcppExport SEXP _sommer_isDiagonal_spmat(SEXP xSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat >::type x(xSEXP);
+    rcpp_result_gen = Rcpp::wrap(isDiagonal_spmat(x));
+    return rcpp_result_gen;
+END_RCPP
+}
+// amat
+arma::mat amat(const arma::mat& X, const bool& shrink);
+RcppExport SEXP _sommer_amat(SEXP XSEXP, SEXP shrinkSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type shrink(shrinkSEXP);
+    rcpp_result_gen = Rcpp::wrap(amat(X, shrink));
+    return rcpp_result_gen;
+END_RCPP
+}
+// dmat
+arma::mat dmat(const arma::mat& X, const bool& nishio);
+RcppExport SEXP _sommer_dmat(SEXP XSEXP, SEXP nishioSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type nishio(nishioSEXP);
+    rcpp_result_gen = Rcpp::wrap(dmat(X, nishio));
+    return rcpp_result_gen;
+END_RCPP
+}
 // MNR
 Rcpp::List MNR(const arma::mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::vec& ws, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled);
 RcppExport SEXP _sommer_MNR(SEXP YSEXP, SEXP XSEXP, SEXP GxSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP RSEXP, SEXP GeSEXP, SEXP GeISEXP, SEXP wsSEXP, SEXP itersSEXP, SEXP tolparSEXP, SEXP tolparinvSEXP, SEXP aiSEXP, SEXP pevSEXP, SEXP verboseSEXP, SEXP retscaledSEXP) {
@@ -144,6 +190,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_makeFull", (DL_FUNC) &_sommer_makeFull, 1},
     {"_sommer_isIdentity_mat", (DL_FUNC) &_sommer_isIdentity_mat, 1},
     {"_sommer_isIdentity_spmat", (DL_FUNC) &_sommer_isIdentity_spmat, 1},
+    {"_sommer_isDiagonal_mat", (DL_FUNC) &_sommer_isDiagonal_mat, 1},
+    {"_sommer_isDiagonal_spmat", (DL_FUNC) &_sommer_isDiagonal_spmat, 1},
+    {"_sommer_amat", (DL_FUNC) &_sommer_amat, 2},
+    {"_sommer_dmat", (DL_FUNC) &_sommer_dmat, 2},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 16},
     {NULL, NULL, 0}
 };

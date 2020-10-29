@@ -213,6 +213,63 @@ bool isDiagonal_spmat(const arma::sp_mat x){
 } 
 
 // [[Rcpp::export]]
+arma::mat amat(const arma::mat & X, const bool & shrink) {
+  
+  // double lambda
+  int p = X.n_cols;
+  int n = X.n_rows;
+  arma::mat A(n,n);
+  
+  if(shrink == true){ //  Endelman
+    
+    Rcpp::Rcout << "Method not implemented yet. Wait for updates."  << arma::endl;
+    return 0;
+    
+  }else{ // regular vanRaden
+    
+    // IN R: M <- scale(X, center = TRUE, scale = FALSE)
+    arma::rowvec ms = mean( X, 0 ); // means of columns
+    arma::mat M = X.each_row() - ms;
+    // IN R: tcrossprod(M)
+    arma::mat K = M * M.t();
+    // IN R: K/mean(diag(K))   mean(K.diag())
+    double v = mean(diagvec(K));
+    A = K/v;
+  }
+  
+  return A;
+}
+
+// [[Rcpp::export]]
+arma::mat dmat(const arma::mat & X, const bool & nishio) {
+  
+  // double lambda
+  int p = X.n_cols;
+  int n = X.n_rows;
+  arma::mat D(n,n);
+  
+  if(nishio == true){ //  Nishio ans Satoh. (2014)
+    
+    Rcpp::Rcout << "Method not implemented yet. Wait for updates."  << arma::endl;
+    return 0;
+    
+  }else{ // Su et al. (2012)
+    
+    // IN R: M <- scale(X, center = TRUE, scale = FALSE)
+    arma::rowvec ms = mean( X, 0 ); // means of columns
+    arma::mat M = X.each_row() - ms;
+    // IN R: tcrossprod(M)
+    arma::mat K = M * M.t();
+    // IN R: K/mean(diag(K))   mean(K.diag())
+    double v = mean(diagvec(K));
+    D = K/v;
+  }
+  
+  return D;
+}
+
+
+// [[Rcpp::export]]
 Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
                const Rcpp::List & Gx,
                const Rcpp::List & Z, const Rcpp::List & K,
