@@ -53,6 +53,10 @@ dmat <- function(X, nishio) {
     .Call(`_sommer_dmat`, X, nishio)
 }
 
+emat <- function(X1, X2) {
+    .Call(`_sommer_emat`, X1, X2)
+}
+
 MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled) {
     .Call(`_sommer_MNR`, Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled)
 }

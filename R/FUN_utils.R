@@ -540,7 +540,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
   
   resp <- x$terms$response[[1]]
   # ff <- fitted(x)
-  rr <- residuals(x)
+  rr <- residuals.mmer(x)
   for(i in 1:traits){
     
     plot(rr[,paste0(resp[i],".fitted")],scale(rr[,paste0(resp[i],".residuals")]),pch=20, col=transp("cadetblue"), ylab="Std Residuals", xlab="Fitted values", main="Residual vs Fitted", bty="n", ...); grid()

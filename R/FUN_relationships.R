@@ -76,19 +76,26 @@ D.mat <- function(X, nishio=FALSE, return.imputed=FALSE){
 E.mat <- function(X,shrink=FALSE,nishio=FALSE,type="A#A"){
   
   if(type == "A#A"){
-    X4 <- A.mat(X, shrink=shrink)
-    X5 <- hadamard.prod(X4,X4)
+    A <- A.mat(X, shrink=shrink)
+    E <- .Call("_sommer_emat",PACKAGE = "sommer",
+                 A, A
+    )
   }
   if(type == "A#D"){
-    X4 <- A.mat(X, shrink=shrink)
-    X4D <-D.mat(X, nishio=nishio)
-    X5 <- hadamard.prod(X4,X4D)
+    A <- A.mat(X, shrink=shrink)
+    D <- D.mat(X, nishio=nishio)
+    E <- .Call("_sommer_emat",PACKAGE = "sommer",
+                 A, D
+    )
   }
   if(type == "D#D"){
-    X4D <-D.mat(X, nishio=nishio)
-    X5 <- hadamard.prod(X4D,X4D)
+    D <- D.mat(X, nishio=nishio)
+    E <- .Call("_sommer_emat",PACKAGE = "sommer",
+               D, D
+    )
   }
-  return(X5)
+  colnames(E) <- rownames(E) <- rownames(X)
+  return(E)
 }
 
 dfToMatrix <- function(x, row="Row",column="Column",value="Ainverse", returnInverse=FALSE, bend=1e-6){

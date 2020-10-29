@@ -5,7 +5,9 @@
   This function takes a matrix that is in data frame format and transforms it into a matrix. Other packages that allows you to obtain an additive relationship matrix from a pedigree is the `pedigreemm` package.
 }
 \usage{
-  dfToMatrix(x, row="Row",column="Column",value="Ainverse", returnInverse=FALSE, bend=1e-6)
+  dfToMatrix(x, row="Row",column="Column",
+             value="Ainverse", returnInverse=FALSE, 
+             bend=1e-6)
 }
 
 \arguments{

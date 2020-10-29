@@ -153,6 +153,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// emat
+arma::mat emat(const arma::mat& X1, const arma::mat& X2);
+RcppExport SEXP _sommer_emat(SEXP X1SEXP, SEXP X2SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    rcpp_result_gen = Rcpp::wrap(emat(X1, X2));
+    return rcpp_result_gen;
+END_RCPP
+}
 // MNR
 Rcpp::List MNR(const arma::mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::vec& ws, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled);
 RcppExport SEXP _sommer_MNR(SEXP YSEXP, SEXP XSEXP, SEXP GxSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP RSEXP, SEXP GeSEXP, SEXP GeISEXP, SEXP wsSEXP, SEXP itersSEXP, SEXP tolparSEXP, SEXP tolparinvSEXP, SEXP aiSEXP, SEXP pevSEXP, SEXP verboseSEXP, SEXP retscaledSEXP) {
@@ -194,6 +206,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_isDiagonal_spmat", (DL_FUNC) &_sommer_isDiagonal_spmat, 1},
     {"_sommer_amat", (DL_FUNC) &_sommer_amat, 2},
     {"_sommer_dmat", (DL_FUNC) &_sommer_dmat, 2},
+    {"_sommer_emat", (DL_FUNC) &_sommer_emat, 2},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 16},
     {NULL, NULL, 0}
 };

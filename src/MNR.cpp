@@ -248,24 +248,50 @@ arma::mat dmat(const arma::mat & X, const bool & nishio) {
   int n = X.n_rows;
   arma::mat D(n,n);
   
+  arma::mat Xd = 1 - abs(X);
+  
   if(nishio == true){ //  Nishio ans Satoh. (2014)
     
-    Rcpp::Rcout << "Method not implemented yet. Wait for updates."  << arma::endl;
-    return 0;
+    // IN R: M <- scale(Xd, center = TRUE, scale = FALSE)
+    arma::rowvec ms = mean( Xd, 0 ); // means of columns
+    arma::mat M = Xd.each_row() - ms; // centered Xd matrix
+    // IN R: bAlleleFrequency <- colMeans(X+1)/2; 0-1-2 
+    arma::rowvec bAlleleFrequency = mean( X+1, 0 )/2; // means of columns
+    // IN R: varHW <- sum((2 * bAlleleFrequency * (1 - bAlleleFrequency))^2) 
+    double varHW = arma::accu(arma::square(2 * bAlleleFrequency % (1 - bAlleleFrequency)));
+    // IN R: tcrossprod(M)
+    arma::mat K = M * M.t();
+    //
+    D = K/varHW;
     
   }else{ // Su et al. (2012)
     
     // IN R: M <- scale(X, center = TRUE, scale = FALSE)
-    arma::rowvec ms = mean( X, 0 ); // means of columns
-    arma::mat M = X.each_row() - ms;
+    // arma::rowvec ms = mean( Xd, 0 ); // means of columns
+    // arma::mat M = Xd.each_row() - ms; // centered Xd matrix
+    // IN R: p <- colSums(X+1)/(2*n) # from marker marix in 0,1,2 format
+    arma::rowvec p = sum( X+1, 0 )/(2*n); // means of columns
+    arma::rowvec q = 1-p;
+    // IN R: varHW <- sum(2*p*q * (1-(2*p*q)) )
+    arma::rowvec p2q = 2*(p%q);
+    double varHW = arma::accu( p2q % (1-p2q) );
+    // IN R: Xdpq <- apply(Xd, 1, function(x){ x - (2 * p * q)})
+    arma::mat M = Xd.each_row() - p2q;
     // IN R: tcrossprod(M)
     arma::mat K = M * M.t();
-    // IN R: K/mean(diag(K))   mean(K.diag())
-    double v = mean(diagvec(K));
-    D = K/v;
+    D = K/varHW;
+    
   }
   
   return D;
+}
+
+// [[Rcpp::export]]
+arma::mat emat(const arma::mat & X1, const arma::mat & X2) {
+  
+  arma::mat E = X1 % X2;
+  
+  return E;
 }
 
 
