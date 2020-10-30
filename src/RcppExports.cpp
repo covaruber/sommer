@@ -130,14 +130,14 @@ BEGIN_RCPP
 END_RCPP
 }
 // amat
-arma::mat amat(const arma::mat& X, const bool& shrink);
-RcppExport SEXP _sommer_amat(SEXP XSEXP, SEXP shrinkSEXP) {
+arma::mat amat(const arma::mat& X, const bool& endelman);
+RcppExport SEXP _sommer_amat(SEXP XSEXP, SEXP endelmanSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type shrink(shrinkSEXP);
-    rcpp_result_gen = Rcpp::wrap(amat(X, shrink));
+    Rcpp::traits::input_parameter< const bool& >::type endelman(endelmanSEXP);
+    rcpp_result_gen = Rcpp::wrap(amat(X, endelman));
     return rcpp_result_gen;
 END_RCPP
 }

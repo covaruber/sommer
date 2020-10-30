@@ -5,10 +5,10 @@
 Epistatic relationship matrix
 }
 \description{
-Calculates the realized epistatic relationship matrix of second order (additive x additive, additive x dominance, or dominance x dominance).
+Calculates the realized epistatic relationship matrix of second order (additive x additive, additive x dominance, or dominance x dominance) using hadamard products with the C++ Armadillo library.
 }
 \usage{
-E.mat(X,shrink=FALSE,nishio=FALSE,type="A#A")
+E.mat(X,endelman=TRUE,nishio=TRUE,type="A#A")
 }
 
 \arguments{
@@ -16,11 +16,11 @@ E.mat(X,shrink=FALSE,nishio=FALSE,type="A#A")
 Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} lines and \eqn{m} biallelic markers, 
 coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are allowed.
 }
-\item{shrink}{
-Set shrink=TRUE to use the shrinkage estimation procedure (see Details).  
+\item{endelman}{
+Set endelman=TRUE to use the estimation procedure for the A matrix (see Details in the A.mat help page).  
 }
 \item{nishio}{
-Nishio ans Satoh. (2014), otherwise Su et al. (2012). See references.
+If TRUE Nishio ans Satoh. (2014), otherwise Su et al. (2012) (see Details in the D.mat help page).
 }
 \item{type}{
 An argument specifying the type of epistatic relationship matrix desired. The default is the second order epistasis (additive x additive) type="A#A". Other options are additive x dominant (type="A#D"), or dominant by dominant (type="D#D").  
@@ -28,7 +28,7 @@ An argument specifying the type of epistatic relationship matrix desired. The de
 }
 
 \details{
-it is computed as the Hadamard product of the epistatic relationship matrix (A); E=A#A.
+it is computed as the Hadamard product of the epistatic relationship matrix; E=A#A, E=A#D, E=D#D. 
 }
 \value{
 The epistatic relationship matrix is returned.
@@ -39,11 +39,12 @@ The epistatic relationship matrix is returned.
 
 Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
 
-Su G, Christensen OF, Ostersen T, Henryon M, Lund MS. 2012. Estimating Additive and Non-Additive Genetic Variances and Predicting Genetic Merits Using Genome-Wide Dense Single Nucleotide Polymorphism Markers. PLoS ONE 7(9): e45293. doi:10.1371/journal.pone.0045293
-
 Endelman, J.B., and J.-L. Jannink. 2012. Shrinkage estimation of the realized relationship matrix. G3:Genes, Genomes, Genetics. 2:1405-1413. doi: 10.1534/g3.112.004259
 
-Poland, J., J. Endelman et al. 2012. Genomic selection in wheat breeding using genotyping-by-sequencing. Plant Genome 5:103-113. doi: 10.3835/plantgenome2012.06.0006
+Nishio M and Satoh M. 2014. Including Dominance Effects in the Genomic BLUP Method for Genomic Evaluation. Plos One 9(1), doi:10.1371/journal.pone.0085792
+
+Su G, Christensen OF, Ostersen T, Henryon M, Lund MS. 2012. Estimating Additive and Non-Additive Genetic Variances and Predicting Genetic Merits Using Genome-Wide Dense Single Nucleotide Polymorphism Markers. PLoS ONE 7(9): e45293. doi:10.1371/journal.pone.0045293
+
 }
 
 \examples{

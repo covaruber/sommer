@@ -161,6 +161,9 @@ GWAS <- function(fixed, random, rcov, data, weights,
     
     m <- ncol(M)
     colnamesM <- colnames(M)
+    ######################
+    ## scorecalc function
+    ######################
     scorecalc <- function(i){
       
       Mi <- as.matrix(M[, i]);# colnames(Mi) <- colnamesM[i]
@@ -176,25 +179,18 @@ GWAS <- function(fixed, random, rcov, data, weights,
         v1 <- 1
         v2 <- n2 - p
         if (!P3D) {## estimate varcomp for each marker 
-          # lastmodel <- .Call("_sommer_MNR",PACKAGE = "sommer",res[[1]], res[[2]],res[[3]],
-          #                    res[[4]],res[[5]],res[[6]],res[[7]],res[[8]],res[[9]],
-          #                    res[[10]],res[[11]],res[[12]], res[[13]],res[[14]],FALSE,
-          #                    TRUE)
-          # H2inv <- lastmodel$Vi
-          # print(as.matrix(X3))
           lastmodel <- .Call("_sommer_MNR",PACKAGE = "sommer",res[[1]], list(as.matrix(X3)) ,res[[3]],
                              res[[4]],res[[5]],res[[6]],res[[7]],res[[8]],res[[9]],
                              res[[10]],res[[11]],res[[12]], res[[13]],res[[14]],FALSE,
                              TRUE)
           H2inv <- lastmodel$Vi
-          # print(lastmodel$sigma)
         }
         W <- crossprod(X3, H2inv %*% X3)
         Winv <- try(solve(W), silent = TRUE)
         if (class(Winv) != "try-error") {
           xvy <- crossprod(X3, H2inv %*% y2)
           beta <- Winv %*% xvy # (XV-X)- XV-y
-          # print(beta)
+          
           resid <- y2 - X3 %*% beta # Y - XB
           s2 <- as.double(crossprod(resid, H2inv %*%resid))/v2 # eV-e/(n-p) = variance
           CovBeta <- s2 * Winv # eVe * B
@@ -222,7 +218,6 @@ GWAS <- function(fixed, random, rcov, data, weights,
       }
     }
     
-    
     cat("Performing GWAS evaluation\n")
     if ((n.core > 1) & requireNamespace("parallel",quietly=TRUE)) {
       scores <- parallel::mclapply(as.list(1:m), function(x) {
@@ -233,22 +228,19 @@ GWAS <- function(fixed, random, rcov, data, weights,
         scorecalc(x)
       })
     }
+    ########################
     
     tokeep <- which(!unlist(lapply(scores, is.null)))
     
     scores <- do.call(cbind,scores[tokeep])
-    # print(scores)
-    # scores <- matrix(scores,nrow=(nt*3)+2,byrow = FALSE)
     
     mm <- as.data.frame(expand.grid(ntnames,c("beta","score","Fstat")))
     mm$tt <- paste(mm[,1],mm[,2])
     colnames(scores) <- colnames(M)[tokeep]
-    # lastmodel$jkl <- colnames(M)[tokeep]
     rownames(scores) <- c(mm$tt,"R2","R2s")
     lastmodel$scores <- scores
     lastmodel$method <- method
     lastmodel$constraints <- res[[8]]
-    # lastmodel$constraintsF <- res[[9]]
     class(lastmodel)<-c("mmergwas")
   }
   

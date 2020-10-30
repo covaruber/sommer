@@ -213,17 +213,25 @@ bool isDiagonal_spmat(const arma::sp_mat x){
 } 
 
 // [[Rcpp::export]]
-arma::mat amat(const arma::mat & X, const bool & shrink) {
+arma::mat amat(const arma::mat & X, const bool & endelman) {
   
   // double lambda
-  int p = X.n_cols;
+  int p = X.n_cols;// number of markers
   int n = X.n_rows;
   arma::mat A(n,n);
   
-  if(shrink == true){ //  Endelman
+  if(endelman == true){ //  Endelman
     
-    Rcpp::Rcout << "Method not implemented yet. Wait for updates."  << arma::endl;
-    return 0;
+    arma::rowvec ms012 = mean( X+1, 0 ); // means of columns
+    arma::rowvec freq = ms012/2;
+    double v = 2 * mean(freq % (1 - freq));
+    
+    arma::mat one(n, 1, arma::fill::ones);
+    arma::mat freqmat = one * freq;
+    arma::mat W = (X + 1) - (2 * freqmat);
+    // 
+    arma::mat K = W * W.t();
+    A = K/v/p;
     
   }else{ // regular vanRaden
     
@@ -235,6 +243,7 @@ arma::mat amat(const arma::mat & X, const bool & shrink) {
     // IN R: K/mean(diag(K))   mean(K.diag())
     double v = mean(diagvec(K));
     A = K/v;
+    
   }
   
   return A;

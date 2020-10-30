@@ -35,7 +35,7 @@ ARMA = function(x, rho=0.25, lambda=0.25) {
   return(MN)
 }
 
-A.mat <- function(X, shrink=FALSE, return.imputed=FALSE){
+A.mat <- function(X, endelman=TRUE, return.imputed=FALSE){
   
   missingCheck <- which(is.na(X))
   if(length(missingCheck) > 0){
@@ -43,9 +43,8 @@ A.mat <- function(X, shrink=FALSE, return.imputed=FALSE){
     X <- apply(X,2,imputev)
   }
   res <- .Call("_sommer_amat",PACKAGE = "sommer",
-               X, shrink
+               X, endelman
                )
-  # res <- amat(X,shrink)
   colnames(res) <- rownames(res) <- rownames(X)
   if(return.imputed){
     return(list(X=X,A=res))
@@ -55,7 +54,7 @@ A.mat <- function(X, shrink=FALSE, return.imputed=FALSE){
   
 }
 
-D.mat <- function(X, nishio=FALSE, return.imputed=FALSE){
+D.mat <- function(X, nishio=TRUE, return.imputed=FALSE){
   
   missingCheck <- which(is.na(X))
   if(length(missingCheck) > 0){
@@ -73,16 +72,16 @@ D.mat <- function(X, nishio=FALSE, return.imputed=FALSE){
   }
 }
 
-E.mat <- function(X,shrink=FALSE,nishio=FALSE,type="A#A"){
+E.mat <- function(X,endelman=TRUE,nishio=TRUE,type="A#A"){
   
   if(type == "A#A"){
-    A <- A.mat(X, shrink=shrink)
+    A <- A.mat(X, endelman=endelman)
     E <- .Call("_sommer_emat",PACKAGE = "sommer",
                  A, A
     )
   }
   if(type == "A#D"){
-    A <- A.mat(X, shrink=shrink)
+    A <- A.mat(X, endelman=endelman)
     D <- D.mat(X, nishio=nishio)
     E <- .Call("_sommer_emat",PACKAGE = "sommer",
                  A, D

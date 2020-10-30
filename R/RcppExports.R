@@ -45,8 +45,8 @@ isDiagonal_spmat <- function(x) {
     .Call(`_sommer_isDiagonal_spmat`, x)
 }
 
-amat <- function(X, shrink) {
-    .Call(`_sommer_amat`, X, shrink)
+amat <- function(X, endelman) {
+    .Call(`_sommer_amat`, X, endelman)
 }
 
 dmat <- function(X, nishio) {
