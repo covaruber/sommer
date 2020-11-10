@@ -8,7 +8,7 @@ Dominance relationship matrix
 C++ implementation of the dominance matrix. Calculates the realized dominance relationship matrix. Can help to increase the prediction accuracy when 2 conditions are met; 1) The trait has intermediate to high heritability, 2) The population contains a big number of individuals that are half or full sibs (HS & FS).
 }
 \usage{
-D.mat(X,nishio=TRUE,return.imputed=FALSE)
+D.mat(X,nishio=TRUE,min.MAF=0,return.imputed=FALSE)
 }
 
 \arguments{
@@ -17,7 +17,11 @@ Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} lines and \eqn{m} bi
 coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are allowed.
 }
 \item{nishio}{
-If TRUE Nishio ans Satoh. (2014), otherwise Su et al. (2012). See references.}
+If TRUE Nishio ans Satoh. (2014), otherwise Su et al. (2012). See references.
+}
+\item{min.MAF}{
+Minimum minor allele frequency. The D matrix is not sensitive to rare alleles, so by default only monomorphic markers are removed.
+}
 \item{return.imputed}{
 When TRUE, the imputed marker matrix is returned.  
 }
@@ -28,7 +32,7 @@ When TRUE, the imputed marker matrix is returned.
 
 The additive marker coefficients will be used to compute dominance coefficients as: Xd = 1-abs(X) for diploids.
 
-For su method: the marker matrix is centered by subtracting column means \eqn{M= Xd - ms} where ms is the column means. Then \eqn{A=M M'/c}, where \eqn{c = 2 \sum_k {p_k (1-p_k)}}.
+For nishio method: the marker matrix is centered by subtracting column means \eqn{M= Xd - ms} where ms is the column means. Then \eqn{A=M M'/c}, where \eqn{c = 2 \sum_k {p_k (1-p_k)}}.
 
 For su method: the marker matrix is normalized by subtracting row means \eqn{M= Xd - 2pq} where 2pq is the product of allele frequencies times 2. Then \eqn{A=M M'/c}, where \eqn{c = 2 \sum_k {2pq_k (1-2pq_k)}}.
 

@@ -39,7 +39,7 @@ GWAS(fixed, random, rcov, data, weights,
     na.method.Y="exclude",return.param=FALSE, 
     date.warning=TRUE,verbose=TRUE,
     M=NULL, gTerm=NULL, n.PC = 0, min.MAF = 0.05, 
-    n.core = 1, P3D = TRUE)
+    P3D = TRUE)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -89,7 +89,6 @@ GWAS(fixed, random, rcov, data, weights,
   \item{gTerm}{a character vector indicating the random effect linked to the marker matrix M (i.e. the genetic term) in the model. The random effect selected should have the same number of levels than the number of rows of M.}
   \item{n.PC}{Number of principal components to include as fixed effects. Default is 0 (equals K model).}
   \item{min.MAF}{Specifies the minimum minor allele frequency (MAF). If a marker has a MAF less than min.MAF, it is assigned a zero score.}
-  \item{n.core}{Setting n.core > 1 will enable parallel execution on a machine with multiple cores (use only at UNIX command line).}
   \item{P3D}{When P3D=TRUE, variance components are estimated by REML only once, without any markers in the model. When P3D=FALSE, variance components are estimated by REML for each marker separately.}
     
 }
@@ -274,10 +273,10 @@ Giovanny Covarrubias-Pazaran
 #              data=DT,
 #              M=GT, gTerm = "u:id")
 # summary(mix1)
-# ms <- as.data.frame(t(mix1$scores))
+# ms <- as.data.frame(mix2$scores)
 # ms$Locus <- rownames(ms)
 # MP2 <- merge(MP,ms,by="Locus",all.x = TRUE);
-# manhattan(MP2, pch=20,cex=.5, PVCN = "color score")
+# manhattan(MP2, pch=20,cex=.5, PVCN = "color")
 #####=========================================####
 ##### potato example
 #####=========================================####

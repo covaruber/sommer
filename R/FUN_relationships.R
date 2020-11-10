@@ -35,16 +35,20 @@ ARMA = function(x, rho=0.25, lambda=0.25) {
   return(MN)
 }
 
-A.mat <- function(X, endelman=TRUE, return.imputed=FALSE){
-  
-  missingCheck <- which(is.na(X))
-  if(length(missingCheck) > 0){
+A.mat <- function(X, endelman=TRUE, min.MAF=0, return.imputed=FALSE){
+  ################
+  ## impute
+  missingCheck <- which(is.na(X), arr.ind = TRUE)
+  if(nrow(missingCheck) > 0){
     cat("Imputing markers with mean value\n")
-    X <- apply(X,2,imputev)
+    uniqueCols <- unique(missingCheck[,2])
+    X[,uniqueCols] <- apply(X[,uniqueCols],2,imputev)
   }
+  
+  ##################
   res <- .Call("_sommer_amat",PACKAGE = "sommer",
-               X, endelman
-               )
+               X, endelman, min.MAF
+  )
   colnames(res) <- rownames(res) <- rownames(X)
   if(return.imputed){
     return(list(X=X,A=res))
@@ -54,15 +58,18 @@ A.mat <- function(X, endelman=TRUE, return.imputed=FALSE){
   
 }
 
-D.mat <- function(X, nishio=TRUE, return.imputed=FALSE){
-  
-  missingCheck <- which(is.na(X))
-  if(length(missingCheck) > 0){
+D.mat <- function(X, nishio=TRUE, min.MAF=0, return.imputed=FALSE){
+  ################
+  ## impute
+  missingCheck <- which(is.na(X), arr.ind = TRUE)
+  if(nrow(missingCheck) > 0){
     cat("Imputing markers with mean value\n")
-    X <- apply(X,2,imputev)
+    uniqueCols <- unique(missingCheck[,2])
+    X[,uniqueCols] <- apply(X[,uniqueCols],2,imputev)
   }
+  ##################
   res <- .Call("_sommer_dmat",PACKAGE = "sommer", 
-               X, nishio
+               X, nishio, min.MAF
   )
   colnames(res) <- rownames(res) <- rownames(X)
   if(return.imputed){
@@ -72,23 +79,23 @@ D.mat <- function(X, nishio=TRUE, return.imputed=FALSE){
   }
 }
 
-E.mat <- function(X,endelman=TRUE,nishio=TRUE,type="A#A"){
+E.mat <- function(X,endelman=TRUE,nishio=TRUE,type="A#A",min.MAF=0.02){
   
   if(type == "A#A"){
-    A <- A.mat(X, endelman=endelman)
+    A <- A.mat(X, endelman=endelman,min.MAF=min.MAF)
     E <- .Call("_sommer_emat",PACKAGE = "sommer",
-                 A, A
+               A, A
     )
   }
   if(type == "A#D"){
-    A <- A.mat(X, endelman=endelman)
-    D <- D.mat(X, nishio=nishio)
+    A <- A.mat(X, endelman=endelman,min.MAF=min.MAF)
+    D <- D.mat(X, nishio=nishio,min.MAF=min.MAF)
     E <- .Call("_sommer_emat",PACKAGE = "sommer",
-                 A, D
+               A, D
     )
   }
   if(type == "D#D"){
-    D <- D.mat(X, nishio=nishio)
+    D <- D.mat(X, nishio=nishio,min.MAF=min.MAF)
     E <- .Call("_sommer_emat",PACKAGE = "sommer",
                D, D
     )
@@ -105,33 +112,33 @@ dfToMatrix <- function(x, row="Row",column="Column",value="Ainverse", returnInve
   x[,row] <- as.numeric(as.character(alldf[x[,row],"x"]))
   x[,column] <- as.numeric(as.character(alldf[x[,column],"x"]))
   
-    K <- matrix(NA,max(x[,row]),max(x[,column]))
-    for(i in 1:nrow(x)){
-      K[x[i,row],x[i,column]] <- x[i,value]
-    }
-    # K[1:3,1:3]
-    copying <- function(m) { # copy upper triangular in lower triangular
-      m[lower.tri(m)] <- t(m)[lower.tri(m)]
-      m
-    }
-    copying2 <- function(m) { # copy lower triangular in upper triangular
-      m[upper.tri(m)] <- t(m)[upper.tri(m)]
-      m
-    }
-    
-    K <- copying2(K)
-    K[which(is.na(K), arr.ind = TRUE)] <- 0
-    
-    rownames(K) <- colnames(K) <- attr(x, "rowNames")
-    
-    Ks <- as(K, Class = "sparseMatrix")
-    if(returnInverse){
-      Ksi <- solve(Ks + diag(bend, nrow(Ks)))
-      rownames(Ksi) <- colnames(Ksi) <- attr(x, "rowNames")
-    }else{
-      Ksi <- NULL
-    }
-    return(list(K=Ks, Kinv=Ksi))
+  K <- matrix(NA,max(x[,row]),max(x[,column]))
+  for(i in 1:nrow(x)){
+    K[x[i,row],x[i,column]] <- x[i,value]
+  }
+  # K[1:3,1:3]
+  copying <- function(m) { # copy upper triangular in lower triangular
+    m[lower.tri(m)] <- t(m)[lower.tri(m)]
+    m
+  }
+  copying2 <- function(m) { # copy lower triangular in upper triangular
+    m[upper.tri(m)] <- t(m)[upper.tri(m)]
+    m
+  }
+  
+  K <- copying2(K)
+  K[which(is.na(K), arr.ind = TRUE)] <- 0
+  
+  rownames(K) <- colnames(K) <- attr(x, "rowNames")
+  
+  Ks <- as(K, Class = "sparseMatrix")
+  if(returnInverse){
+    Ksi <- solve(Ks + diag(bend, nrow(Ks)))
+    rownames(Ksi) <- colnames(Ksi) <- attr(x, "rowNames")
+  }else{
+    Ksi <- NULL
+  }
+  return(list(K=Ks, Kinv=Ksi))
   # }
 }
 

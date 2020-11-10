@@ -213,9 +213,21 @@ bool isDiagonal_spmat(const arma::sp_mat x){
 } 
 
 // [[Rcpp::export]]
-arma::mat amat(const arma::mat & X, const bool & endelman) {
+arma::mat amat(const arma::mat & Xo, const bool & endelman, double minMAF) {
   
-  // double lambda
+  // remove min.MAF
+  arma::rowvec pfreq = mean(Xo+1,0)/2; // frequency of p
+  arma::mat pqfreq = arma::join_cols(pfreq,1-pfreq); // frequencies of p and q
+  arma::rowvec MAF = min(pqfreq,0); // minor allele freqs
+  arma::uvec indexMAF = find(MAF > minMAF); // index for good markers > minMAF
+  arma::mat Xo2 = Xo.cols(indexMAF); // new X only with polymorphic markers
+  
+  // remove monomorphic markers
+  arma::rowvec xVar = var(Xo2,0); // column variance
+  arma::uvec index = find(xVar > 0); // index for good markers
+  arma::mat X = Xo2.cols(index); // new X only with polymorphic markers
+  
+  // initialize A
   int p = X.n_cols;// number of markers
   int n = X.n_rows;
   arma::mat A(n,n);
@@ -250,9 +262,21 @@ arma::mat amat(const arma::mat & X, const bool & endelman) {
 }
 
 // [[Rcpp::export]]
-arma::mat dmat(const arma::mat & X, const bool & nishio) {
+arma::mat dmat(const arma::mat & Xo, const bool & nishio, double minMAF) {
   
-  // double lambda
+  // remove min.MAF
+  arma::rowvec pfreq = mean(Xo+1,0)/2; // frequency of p
+  arma::mat pqfreq = arma::join_cols(pfreq,1-pfreq); // frequencies of p and q
+  arma::rowvec MAF = min(pqfreq,0); // minor allele freqs
+  arma::uvec indexMAF = find(MAF > minMAF); // index for good markers > minMAF
+  arma::mat Xo2 = Xo.cols(indexMAF); // new X only with polymorphic markers
+  
+  // remove monomorphic markers
+  arma::rowvec xVar = var(Xo2,0); // column variance
+  arma::uvec index = find(xVar > 0); // index for good markers
+  arma::mat X = Xo2.cols(index); // new X only with polymorphic markers
+  
+  // initialize A
   int p = X.n_cols;
   int n = X.n_rows;
   arma::mat D(n,n);
@@ -303,6 +327,98 @@ arma::mat emat(const arma::mat & X1, const arma::mat & X2) {
   return E;
 }
 
+// [[Rcpp::export]]
+arma::rowvec scorecalc(const arma::mat & Mimv, 
+                       const arma::mat & Ymv, // Y is provided as multitrait
+                       const arma::mat & Zmv, // Z is provided as univariate
+                       const arma::mat & Xmv, // X is provided as univariate
+                       const arma::mat & Vinv, // multivariate inverse of V
+                       int nt, double minMAF
+) {
+  
+  double tolparinv = 0.00001;
+  
+  // 
+  arma::rowvec pf = mean(Mimv+1)/2; // allele frequency of p
+  arma::rowvec qf = 1 - pf; // allele frequency of q
+  double MAF = min(arma::join_rows(pf,qf)); // calculate MAF
+  
+  // start calculation
+  double n = Ymv.n_rows;
+  arma::mat ZMimv = Zmv * Mimv;
+  arma::mat XZMimv = join_rows( Xmv, ZMimv);
+  double p = XZMimv.n_cols;
+  double v1 = 1;
+  double v2 = n - p;
+  // create Wi = (XZ Vi ZX)-1
+  arma::mat Winv;
+  arma::mat W = XZMimv.t() * (Vinv * XZMimv); 
+  arma::sp_mat D = arma::speye<arma::sp_mat>(W.n_cols,W.n_cols);
+  arma::inv_sympd(Winv,W); // try to invert normally
+  if(Winv.n_rows == 0){ // if fails try to invert with diag(1e-3)
+    W = W + (D*tolparinv);
+    arma::inv_sympd(Winv,W);
+  }
+  // make the test if the inversion went well
+  arma::rowvec score(nt, arma::fill::zeros);
+  if(Winv.n_rows > 0 && MAF > minMAF){ 
+    arma::mat XZMimvVy = XZMimv.t() * (Vinv*Ymv); // XZM Vi y
+    arma::colvec b = Winv * XZMimvVy; // (XZV-ZX)- XZV-y
+    arma::colvec e = Ymv - (XZMimv * b); // Y - XB
+    arma::mat mVar = (e.t() * (Vinv * e))/v2; // eV-e/(n-p) = variance
+    double mVarAsDouble = mVar(0,0);
+    arma::mat bVar = Winv * mVarAsDouble; // eVe * B
+    // extract the right fixed effect
+    arma::mat bn(b.n_rows,1); // empty vector 
+    for (int i = 0; i < b.n_rows; ++i) {
+      bn(i) = i; // fill it with their own position
+    }
+    arma::uvec ps = find(bn > (Xmv.n_cols-1)); // index for good markers
+    arma::colvec bMarker = b(ps); // beta for marker
+    arma::mat bMarkerVar = bVar(ps,ps); // var beta for marker
+    arma::vec fStat = arma::pow(bMarker,2)/diagvec(bMarkerVar);//F statistic
+    arma::vec x = v2/(v2 + v1 * fStat); // probabilty
+    for (int j = 0; j < nt; ++j) {
+      score(j) = x(j);
+    }
+    // score = x;//-1 * (log10(x)); // log10(pbeta(x, v2/2, v1/2)); 
+  }
+  
+  return score; // return score, fStat, bMarker, R2
+}
+
+// [[Rcpp::export]]
+arma::mat gwasForLoop(const arma::mat & M, // marker matrix 
+                      const arma::mat & Y, // Y is provided as multitrait
+                      const arma::mat & Z, // Z is provided as univariate
+                      const arma::mat & X, // X is provided as univariate
+                      const arma::mat & Vinv, // multivariate inverse of V
+                      double minMAF
+) {
+  int nt = Y.n_cols;
+  arma::mat Dnt = arma::eye<arma::mat>(nt,nt) ; // diagonal of nt dimensions
+  // multivariate versions
+  arma::mat Ymv = arma::vectorise(Y.t(),0); // multivariate Y
+  // arma::mat Ymv = Ymvt.t(); 
+  arma::mat Zmv = arma::kron(Z,Dnt); // kronecker
+  arma::mat Xmv = arma::kron(X,Dnt); // kronecker
+  
+  // start calculation
+  int n_marker = M.n_cols;
+  arma::vec dummy(nt, arma::fill::ones);
+  arma::uvec pos = arma::find(dummy > 0); // index for good markers
+  arma::mat scores(n_marker,nt, arma::fill::zeros); 
+  for (int i = 0; i < n_marker; ++i) {
+    arma::mat Mi = M.col(i); // extract marker i
+    arma::mat Mimv = arma::kron(Mi,Dnt); // kronecker for multivariate
+    arma::rowvec prov = scorecalc(Mimv,Ymv, Zmv, Xmv, Vinv, nt, minMAF);
+    for (int j = 0; j < nt; ++j) {
+      scores(i,j) = prov(j);
+    }
+  }
+  
+  return scores;
+}
 
 // [[Rcpp::export]]
 Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
@@ -567,7 +683,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         }
       }
     }
-
+    
     // projection matrix
     P = Vi - (VX*tXVXVX); // V - V(XVX)-V 
     
@@ -681,7 +797,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       // end of parameter restrain
       // ^^^^^^^^^^^^^^^^^^
       // ^^^^^^^^^^^^^^^^^^
-     
+      
       // update
       // sigma + f[s*F-*dL/ds] ..... = coef + taper[x]
       coef_ut_un = coef_ut_un + (taper(cycle) * new_ww); 

@@ -8,7 +8,7 @@ Additive relationship matrix
 Calculates the realized additive relationship matrix. Currently is the C++ implementation of Endelman and Jannink (2012) and van Raden (2008). 
 }
 \usage{
-A.mat(X,endelman=TRUE,return.imputed=FALSE)
+A.mat(X,endelman=TRUE,min.MAF=0,return.imputed=FALSE)
 }
 
 \arguments{
@@ -18,6 +18,9 @@ coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are allowed.
 }
 \item{endelman}{
 Set endelman=TRUE to use the method from Endelman and Jannink (2012) (without the shrinkage, for that method look at the rrBLUP package). If FALSE, regular vanRaden is used.
+}
+\item{min.MAF}{
+Minimum minor allele frequency. The A matrix is not sensitive to rare alleles, so by default only monomorphic markers are removed.
 }
 \item{return.imputed}{
 When TRUE, the imputed marker matrix is returned.  

@@ -34,7 +34,8 @@
   levelsOfTerms <- apply(data.frame(toAgg),1,function(x){unique(object$dataOriginal[,x])})
   DTX <- expand.grid(levelsOfTerms); colnames(DTX) <- toAgg
   # print(str(object$dataOriginal[,c(colnames(DTX),ignored,object$terms$response[[1]])]))
-  DTX <-merge(object$dataOriginal[,c(colnames(DTX),ignored,object$terms$response[[1]])], DTX, all.y = TRUE)
+  toMerge <- object$dataOriginal[,c(colnames(DTX),ignored,object$terms$response[[1]])]
+  DTX <-merge(toMerge, DTX, all.y = TRUE) # by=intersect(colnames(DTX),colnames(toMerge)),
   # print(str(DTX))
   # DTX <-merge(DTX, object$dataOriginal[,c(colnames(DTX),ignored)], all.x = TRUE)
   
@@ -174,6 +175,7 @@
       start <- max(zToUse[[i]])+1
     }
     zToUse <- unique(unlist(zToUse[which(reUsed0 == 1)]))
+   
     
     if(!is.null(hypertable)){ # if user provides a hypertable, use the customization instead
       nFixed <- max(which(hypertable$type == "fixed"))
@@ -191,6 +193,7 @@
       }
     }
     
+    if(length(zToUse) == 0){zToUse=NULL}
     # print(zToUse)
     nz <- length(modelForMatrices$Z)
     Zu <- vector(mode = "list", length = nz) # list for Zu
@@ -204,6 +207,7 @@
     ## build the multivariate K and Z from the original odel to build 
     # ZKfv, Xo, cov.b.pev, pev
     if(!is.null(zToUse)){ # if not only there's random terms but they are relevant for predict
+      # print(originalModel$sigma)
       G.mv.original.List <- lapply(as.list((zToUse)),function(x){
         kronecker(as.matrix(originalModelForMatricesSE$K[[x]]),originalModel$sigma[,,x])
       }); G.mv.original <- do.call(adiag1,G.mv.original.List)
@@ -212,10 +216,16 @@
         kronecker(as.matrix(t(originalModelForMatricesSE$Z[[x]])),TT)
       }); tZ.mv.original <- do.call(rbind,tZ.mv.original.List)
       
-      G.tZ.mv.original <- G.mv.original %*% tZ.mv.original # as many rows as obs, as many cols as levels
+      G.tZ.mv.original <- G.mv.original %*% tZ.mv.original # GZ' as many rows as obs, as many cols as levels
       
-      cov.b.pev <- 0 - t(originalModel$P %*% X.mv.original) %*% originalModel$Vi %*% t(G.tZ.mv.original)
-      pev <- do.call(adiag1,originalModel$PevU[zToUse])
+      if(length(fToUse) > 0){ # Cov(b,u) = 0 - (X'ViX)-X' Vi GZ
+        cov.b.pev <- 0 - ( XtViX %*% t(X.mv.original) %*% originalModel$Vi %*% t(G.tZ.mv.original) )
+        GZtViZG <-  G.tZ.mv.original%*%originalModel$Vi%*%t(G.tZ.mv.original)
+        GZtViXPXViZG <-  G.tZ.mv.original %*% originalModel$Vi %*% X.mv.original %*% XtViX %*% t(X.mv.original) %*% originalModel$Vi %*% t(G.tZ.mv.original)
+        VarU <- GZtViZG - GZtViXPXViZG
+        pev <- G.mv.original - VarU
+      }
+        
       # (185 x 3)' (185 x 185) = (3 x 185)  (185 x 185) (levs164 x obs185)' = (3 x 164)
       # bring the design matrices for extended model to get standard errors for the extended model
       Z.extended <- lapply(as.list((zToUse)),function(x){
@@ -240,6 +250,7 @@
                                 rowSums((tZ.extended%*%pev)*tZ.extended)
                                 )
                             )
+    XtViX=NULL
   }else if( length(fToUse) > 0 & is.null(zToUse) ){ # only fixed effects included
     y.hat <- Xb # y.hat = Xb 
     standard.errors <- sqrt(abs(
@@ -279,7 +290,8 @@
   pvalsSE <- aggregate(as.formula(myFormSE), FUN=mean, data=DTX2)
   # pvalsSE <- aggregate(as.formula(myForm), FUN=function(x){1.96 * (sd(x)/sqrt(length(x)))}, data=DTX2)
   colnames(pvalsSE)[ncol(pvalsSE)] <- "standard.error"
-  pvals <- merge(pvals,pvalsSE, by=c("trait",classify))
+  # print(classify)
+  pvals <- merge(pvals,pvalsSE, by=c("trait",toAgg))
   
   # ##################################################
   nLevels <- c(unlist(lapply(originalModelForMatricesSE$X,ncol)), unlist(lapply(originalModelForMatricesSE$Z,ncol)))

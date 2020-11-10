@@ -542,10 +542,10 @@ mix1 <- GWAS(color~1,
              M=GT, gTerm = "u:id", 
              verbose = FALSE)
 
-ms <- as.data.frame(t(mix1$scores))
+ms <- as.data.frame(mix1$scores)
 ms$Locus <- rownames(ms)
 MP2 <- merge(MP,ms,by="Locus",all.x = TRUE);
-manhattan(MP2, pch=20,cex=.5, PVCN = "color score")
+manhattan(MP2, pch=20,cex=.5, PVCN = "color")
 
 ```
 

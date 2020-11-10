@@ -45,16 +45,24 @@ isDiagonal_spmat <- function(x) {
     .Call(`_sommer_isDiagonal_spmat`, x)
 }
 
-amat <- function(X, endelman) {
-    .Call(`_sommer_amat`, X, endelman)
+amat <- function(Xo, endelman, minMAF) {
+    .Call(`_sommer_amat`, Xo, endelman, minMAF)
 }
 
-dmat <- function(X, nishio) {
-    .Call(`_sommer_dmat`, X, nishio)
+dmat <- function(Xo, nishio, minMAF) {
+    .Call(`_sommer_dmat`, Xo, nishio, minMAF)
 }
 
 emat <- function(X1, X2) {
     .Call(`_sommer_emat`, X1, X2)
+}
+
+scorecalc <- function(Mimv, Ymv, Zmv, Xmv, Vinv, nt, minMAF) {
+    .Call(`_sommer_scorecalc`, Mimv, Ymv, Zmv, Xmv, Vinv, nt, minMAF)
+}
+
+gwasForLoop <- function(M, Y, Z, X, Vinv, minMAF) {
+    .Call(`_sommer_gwasForLoop`, M, Y, Z, X, Vinv, minMAF)
 }
 
 MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled) {

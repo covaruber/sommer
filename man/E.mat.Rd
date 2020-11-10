@@ -8,7 +8,7 @@ Epistatic relationship matrix
 Calculates the realized epistatic relationship matrix of second order (additive x additive, additive x dominance, or dominance x dominance) using hadamard products with the C++ Armadillo library.
 }
 \usage{
-E.mat(X,endelman=TRUE,nishio=TRUE,type="A#A")
+E.mat(X,endelman=TRUE,nishio=TRUE,type="A#A",min.MAF=0.02)
 }
 
 \arguments{
@@ -24,6 +24,9 @@ If TRUE Nishio ans Satoh. (2014), otherwise Su et al. (2012) (see Details in the
 }
 \item{type}{
 An argument specifying the type of epistatic relationship matrix desired. The default is the second order epistasis (additive x additive) type="A#A". Other options are additive x dominant (type="A#D"), or dominant by dominant (type="D#D").  
+}
+\item{min.MAF}{
+Minimum minor allele frequency. The A matrix is not sensitive to rare alleles, so by default only monomorphic markers are removed.
 }
 }
 

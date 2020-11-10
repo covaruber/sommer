@@ -24,15 +24,15 @@
   
   For computing standard errors for predictions the parts of the coefficient matrix:
   
-  C11 equal X'ViX
+  C11 equal (X'ViX)-
   
-  C12 equal 0 - [(PX)'Vi(GZ')'] 
+  C12 equal 0 - [(X'V-X)-X' V- GZ] 
   
-  C22 equal PEV equal G - [Z'G[Vi - (VX*tXVXVX)]GZ']
+  C22 equal PEV equal G - [Z'G[V- - (VX*tXVXVX)]GZ']
   
   and are summarized as:
   
-  standard.errors equal sqrt( rowSums(XC11X') + rowSums(2*(XC12Z')) + rowSums(ZC22Z') )
+  standard.errors equal sqrt( rowSums(XC11*X') + rowSums(2*(XC12*Z')) + rowSums(ZC22*Z') )
   
   when both fixed and random effects are present in the inclusion set. If only fixed and random effects are included, only the respective terms from the SE for fixed or random effects are calculated.
   

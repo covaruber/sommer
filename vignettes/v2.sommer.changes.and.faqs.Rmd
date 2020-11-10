@@ -417,8 +417,8 @@ ansx <- GWAS(Yield~Env,
              M=tM,
              gTerm = "Name", verbose = FALSE)
 
-ms <- as.data.frame(t(ansx$scores))
-plot(ms$`Yield score`, ylim=c(0,8))
+ms <- as.data.frame(ansx$scores)
+plot(ms$Yield, ylim=c(0,8))
 ```
 
 We could do the same but evaluate the GWAS considering the genetic term as the interaction term "Env:Name"
@@ -434,8 +434,8 @@ ansx <- GWAS(Yield~Env,
              M=EtM,
              gTerm = "Env:Name", verbose = FALSE)
 
-ms <- as.data.frame(t(ansx$scores))
-plot(ms$`Yield score`, ylim=c(0,8))
+ms <- as.data.frame(ansx$scores)
+plot(ms$Yield, ylim=c(0,8))
 ```
 
 If the MET is a diagonal model, there's a variance components and BLUPs for each environment. Therefore we can evaluate the GWAS at any environment, here for example we evaluate the GWAS at the genetic term in the environment 'CA.2011'.
@@ -451,8 +451,8 @@ ansx <- GWAS(Yield~Env,
              M=tM,
              gTerm = "CA.2011:Name", verbose = FALSE )
 
-ms <- as.data.frame(t(ansx$scores))
-plot(ms$`Yield score`, ylim=c(0,8))
+ms <- as.data.frame(ansx$scores)
+plot(ms$Yield, ylim=c(0,8))
 ```
 
 If the MET is an unstructured model, there's a variance components and BLUPs for each environment and a covariance component among the different combinations of environments. Therefore we can evaluate the GWAS at any environment as before, here for example we evaluate the GWAS at the genetic term in the environment 'CA.2011'. The difference with the previous model is that here we expect a greater accuracy in the environment CA.2011 since it has borrowed information from the other environments given the covariance fitted among environments.
@@ -466,8 +466,8 @@ ansx <- GWAS(Yield~Env,
              M=tM,
              gTerm = "CA.2011:Name", verbose = FALSE)
 
-ms <- as.data.frame(t(ansx$scores))
-plot(ms$`Yield score`, ylim=c(0,8))
+ms <- as.data.frame(ansx$scores)
+plot(ms$Yield, ylim=c(0,8))
 ```
 
 Same theory applies for the multitrait model:
@@ -481,8 +481,8 @@ ansx <- GWAS(cbind(Weight,Yield)~Env,
              M=tM,
              gTerm = "CA.2011:Name", verbose = FALSE)
 
-ms <- as.data.frame(t(ansx$scores))
-plot(ms$`Yield score`, ylim=c(0,8))
+ms <- as.data.frame(ansx$scores)
+plot(ms$Yield, ylim=c(0,8))
 ```
 
 ### 7) How can I constrain the value of specific random effects? 
