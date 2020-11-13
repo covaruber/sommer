@@ -50,6 +50,9 @@
   # toMerge <- object$dataOriginal[,c(colnames(DTX),ignored,object$terms$response[[1]])]
   
   toMerge <- unique(object$dataOriginal[,c(colnames(DTX),ignored)])
+  if(!is.data.frame(toMerge)){
+    toMerge <- data.frame(toMerge); colnames(toMerge) <- colnames(DTX)
+  }
   toMerge[,object$terms$response[[1]]] <- 1
   # print(toMerge)
   # print(DTX)
