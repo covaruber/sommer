@@ -104,6 +104,23 @@ E.mat <- function(X,endelman=TRUE,nishio=TRUE,type="A#A",min.MAF=0.02){
   return(E)
 }
 
+H.mat <- function(A, G, tau = 1, omega = 1, tolparinv=1e-6){
+  
+  idA <- rownames(A)
+  idG <- rownames(G)
+  idH <- unique(c(idG, idA))
+  idH <- rev(idH)
+  A <- A[idH, idH]
+  index = is.na(match(idH, idG))
+  G22 <- G[idH[!index], idH[!index]]
+  H <- .Call("_sommer_hmat",PACKAGE = "sommer",
+             A, G22, index, tolparinv, tau, omega
+  )
+  colnames(H) <- rownames(H) <- idH
+  return(H)
+  
+}
+
 dfToMatrix <- function(x, row="Row",column="Column",value="Ainverse", returnInverse=FALSE, bend=1e-6){
   
   # if(type=="asreml"){

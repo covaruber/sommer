@@ -6,7 +6,7 @@ GWAS <- function(fixed, random, rcov, data, weights,
                  na.method.Y="exclude",
                  return.param=FALSE, 
                  date.warning=TRUE,
-                 verbose=TRUE,
+                 verbose=FALSE,
                  M=NULL, gTerm=NULL, n.PC = 0, min.MAF = 0.05, 
                  P3D = TRUE){
   
@@ -86,10 +86,13 @@ GWAS <- function(fixed, random, rcov, data, weights,
     ######################
     ## scorecalc function
     ######################
-    cat("Performing GWAS evaluation\n")
+    cat(red("Performing GWAS evaluation\n"))
     preScores <- .Call("_sommer_gwasForLoop",PACKAGE = "sommer",
-                       M,Y,as.matrix(Z),X,Vinv,min.MAF
+                       M,Y,as.matrix(Z),X,Vinv,min.MAF,TRUE
                        ) # we need a different function for P3D that uses MNR
+    # preScores <- gwasForLoop(
+    #                    M,Y,as.matrix(Z),X,Vinv,min.MAF
+    # ) # we need a different function for P3D that uses MNR
     v2 <- length(Y) - ((ncol(X)+1)*ncol(Y)) # ncol(XZMi)
     scores <- -log10(pbeta(preScores, v2/2, 1/2))
     ########################

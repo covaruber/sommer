@@ -563,7 +563,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 2.1 or later")
   assign(".sommer.home", file.path(library, pkg),
          pos=match("package:sommer", search()))
-  sommer.version = "4.1 (2020-10-01)" # usually 2 months before it expires
+  sommer.version = "4.1.2 (2020-10-01)" # usually 2 months before it expires
   
   ##%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ### check which version is more recent
@@ -579,18 +579,18 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
   assign(".sommer.version", sommer.version, pos=match("package:sommer", search()))
   if(interactive())
   {
-    packageStartupMessage(blue$bold(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(blue$bold(paste("[]   Solving Mixed Model Equations in R (sommer) ", sommer.version, "   []",sep="")),appendLF=TRUE)
-    packageStartupMessage(blue$bold(paste("[]   ------------ Multivariate Linear Mixed Models --------------   []")),appendLF=TRUE)
-    packageStartupMessage(blue$bold("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("[]   Dedicated to the University of Chapingo and the UW-Madison     []"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("[]   Type 'vignette('v1.sommer.quick.start')' for a short tutorial  []"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
-    packageStartupMessage(blue$bold(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(blue$bold("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]   Solving Mixed Model Equations in R (sommer) ", sommer.version, " []",sep="")),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]   ------------- Multivariate Linear Mixed Models --------------  []")),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Dedicated to the University of Chapingo and UW-Madison         []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Type 'vignette('v1.sommer.quick.start')' for a short tutorial  []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
+    packageStartupMessage(magenta("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
+    packageStartupMessage(magenta("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
+    packageStartupMessage(magenta("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
     
     #if(yyy > current){ # yyy < current in CRAN
     #  packageStartupMessage(paste("Version",current,"is now available."),appendLF=TRUE) # version current

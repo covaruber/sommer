@@ -7,6 +7,7 @@ export(
        transp,jet.colors,bathy.colors,
       #  hits, big.peaks.col,
       # maxi.qtl, nna, 
+      LD.decay,
       manhattan, map.plot, 
        dfToMatrix
        )
@@ -30,7 +31,7 @@ export(adiag1, imputev,
        vpredict)
 
 ## FUN_relationships
-export(A.mat, D.mat, E.mat, AR1, CS, ARMA, simGECorMat)
+export(A.mat, D.mat, E.mat, H.mat, AR1, CS, ARMA, simGECorMat)
 
 ## FUN_algorithms
 export(EM, MEMMA)

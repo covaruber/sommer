@@ -5,6 +5,8 @@
 #include "RcppArmadillo.h"
 #include "stdlib.h" 
 
+#include <progress.hpp>
+
 // via the depends attribute we tell Rcpp to create hooks for
 // RcppArmadillo so that the build process will know what to do
 //
@@ -328,6 +330,60 @@ arma::mat emat(const arma::mat & X1, const arma::mat & X2) {
 }
 
 // [[Rcpp::export]]
+arma::mat hmat(const arma::mat & A, const arma::mat & G22,
+               const arma::vec & index, double tolparinv,
+               double tau, double omega) {
+  
+  arma::uvec index1 = find(index == true); // index for good markers
+  arma::uvec index2 = find(index == false); // index for good markers
+  // A11 <- A[index, index]
+  arma::mat A11 = A.submat(index1,index1);
+  // A12 <- A[index, !index]
+  arma::mat A12 = A.submat(index1,index2);
+  // A21 <- A[!index, index]
+  arma::mat A21 = A.submat(index2,index1);
+  // A22 <- A[!index, !index]
+  arma::mat A22 = A.submat(index2,index2);
+  // A22inv = solve(A22)
+  arma::mat A22inv(A22.n_cols,A22.n_cols);
+  arma::inv_sympd(A22inv,A22); // try to invert normally
+  arma::sp_mat Ia = arma::speye<arma::sp_mat>(A22.n_cols,A22.n_cols);
+  if(A22inv.n_rows == 0){ // if fails try to invert with diag(1e-3)
+    arma::mat A22b = A22 + (Ia*tolparinv);
+    arma::inv_sympd(A22inv,A22b);
+  }
+  // G22inv = try(solve(G22), silent = TRUE)
+  arma::mat G22inv(G22.n_cols,G22.n_cols);
+  arma::inv_sympd(G22inv,G22); // try to invert normally
+  arma::sp_mat Ig = arma::speye<arma::sp_mat>(G22.n_cols,G22.n_cols);
+  if(G22inv.n_rows == 0){ // if fails try to invert with diag(1e-3)
+    arma::mat G22b = G22 + (Ig*tolparinv);
+    arma::inv_sympd(G22inv,G22b);
+  }
+  //   H22 = solve((tau * G22inv + (1 - omega) * A22inv))
+  arma::mat H22p = (tau * G22inv) + ((1 - omega) * A22inv); //constant by matrix product
+  arma::mat H22inv(H22p.n_cols,H22p.n_cols);
+  arma::inv_sympd(H22inv,H22p); // try to invert normally
+  arma::sp_mat Ih = arma::speye<arma::sp_mat>(H22p.n_cols,H22p.n_cols);
+  if(H22inv.n_rows == 0){ // if fails try to invert with diag(1e-3)
+    arma::mat H22pb = H22p + (Ih*tolparinv);
+    arma::inv_sympd(H22inv,H22pb);
+  }
+  //   H11 = A12 %*% A22inv %*% (H22 - A22) %*% A22inv %*% A21
+  arma::mat H11 = A12 * A22inv * (H22inv - A22) * A22inv * A21;
+  //   H12 = A12 %*% A22inv %*% (H22 - A22)
+  arma::mat H12 = A12 * A22inv * (H22inv - A22);
+  //   H21 = (H22 - A22) %*% A22inv %*% A21
+  arma::mat H21 = (H22inv - A22) * A22inv * A21;
+  //   H22 = (H22 - A22)
+  arma::mat H22 = (H22inv - A22);
+  //   H = A + cbind(rbind(H11, H21), rbind(H12, H22))
+  arma::mat H = A + join_rows(join_cols(H11, H21), join_cols(H12, H22));
+  
+  return H;
+}
+
+// [[Rcpp::export]]
 arma::rowvec scorecalc(const arma::mat & Mimv, 
                        const arma::mat & Ymv, // Y is provided as multitrait
                        const arma::mat & Zmv, // Z is provided as univariate
@@ -387,13 +443,15 @@ arma::rowvec scorecalc(const arma::mat & Mimv,
   return score; // return score, fStat, bMarker, R2
 }
 
+// [[Rcpp::depends(RcppProgress)]]
 // [[Rcpp::export]]
 arma::mat gwasForLoop(const arma::mat & M, // marker matrix 
                       const arma::mat & Y, // Y is provided as multitrait
                       const arma::mat & Z, // Z is provided as univariate
                       const arma::mat & X, // X is provided as univariate
                       const arma::mat & Vinv, // multivariate inverse of V
-                      double minMAF
+                      double minMAF,
+                      bool display_progress=true
 ) {
   int nt = Y.n_cols;
   arma::mat Dnt = arma::eye<arma::mat>(nt,nt) ; // diagonal of nt dimensions
@@ -408,10 +466,18 @@ arma::mat gwasForLoop(const arma::mat & M, // marker matrix
   arma::vec dummy(nt, arma::fill::ones);
   arma::uvec pos = arma::find(dummy > 0); // index for good markers
   arma::mat scores(n_marker,nt, arma::fill::zeros); 
+  
+  // start for loop for each marker
+  Progress p(n_marker, display_progress);
   for (int i = 0; i < n_marker; ++i) {
+    if (Progress::check_abort() ){
+      return 0;
+    }
+    p.increment(); 
     arma::mat Mi = M.col(i); // extract marker i
     arma::mat Mimv = arma::kron(Mi,Dnt); // kronecker for multivariate
     arma::rowvec prov = scorecalc(Mimv,Ymv, Zmv, Xmv, Vinv, nt, minMAF);
+    // fill the vector in case of multiple traits
     for (int j = 0; j < nt; ++j) {
       scores(i,j) = prov(j);
     }

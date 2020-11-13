@@ -167,6 +167,22 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// hmat
+arma::mat hmat(const arma::mat& A, const arma::mat& G22, const arma::vec& index, double tolparinv, double tau, double omega);
+RcppExport SEXP _sommer_hmat(SEXP ASEXP, SEXP G22SEXP, SEXP indexSEXP, SEXP tolparinvSEXP, SEXP tauSEXP, SEXP omegaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type A(ASEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type G22(G22SEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type index(indexSEXP);
+    Rcpp::traits::input_parameter< double >::type tolparinv(tolparinvSEXP);
+    Rcpp::traits::input_parameter< double >::type tau(tauSEXP);
+    Rcpp::traits::input_parameter< double >::type omega(omegaSEXP);
+    rcpp_result_gen = Rcpp::wrap(hmat(A, G22, index, tolparinv, tau, omega));
+    return rcpp_result_gen;
+END_RCPP
+}
 // scorecalc
 arma::rowvec scorecalc(const arma::mat& Mimv, const arma::mat& Ymv, const arma::mat& Zmv, const arma::mat& Xmv, const arma::mat& Vinv, int nt, double minMAF);
 RcppExport SEXP _sommer_scorecalc(SEXP MimvSEXP, SEXP YmvSEXP, SEXP ZmvSEXP, SEXP XmvSEXP, SEXP VinvSEXP, SEXP ntSEXP, SEXP minMAFSEXP) {
@@ -185,8 +201,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // gwasForLoop
-arma::mat gwasForLoop(const arma::mat& M, const arma::mat& Y, const arma::mat& Z, const arma::mat& X, const arma::mat& Vinv, double minMAF);
-RcppExport SEXP _sommer_gwasForLoop(SEXP MSEXP, SEXP YSEXP, SEXP ZSEXP, SEXP XSEXP, SEXP VinvSEXP, SEXP minMAFSEXP) {
+arma::mat gwasForLoop(const arma::mat& M, const arma::mat& Y, const arma::mat& Z, const arma::mat& X, const arma::mat& Vinv, double minMAF, bool display_progress);
+RcppExport SEXP _sommer_gwasForLoop(SEXP MSEXP, SEXP YSEXP, SEXP ZSEXP, SEXP XSEXP, SEXP VinvSEXP, SEXP minMAFSEXP, SEXP display_progressSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -196,7 +212,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
     Rcpp::traits::input_parameter< const arma::mat& >::type Vinv(VinvSEXP);
     Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
-    rcpp_result_gen = Rcpp::wrap(gwasForLoop(M, Y, Z, X, Vinv, minMAF));
+    Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
+    rcpp_result_gen = Rcpp::wrap(gwasForLoop(M, Y, Z, X, Vinv, minMAF, display_progress));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -242,8 +259,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_amat", (DL_FUNC) &_sommer_amat, 3},
     {"_sommer_dmat", (DL_FUNC) &_sommer_dmat, 3},
     {"_sommer_emat", (DL_FUNC) &_sommer_emat, 2},
+    {"_sommer_hmat", (DL_FUNC) &_sommer_hmat, 6},
     {"_sommer_scorecalc", (DL_FUNC) &_sommer_scorecalc, 7},
-    {"_sommer_gwasForLoop", (DL_FUNC) &_sommer_gwasForLoop, 6},
+    {"_sommer_gwasForLoop", (DL_FUNC) &_sommer_gwasForLoop, 7},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 16},
     {NULL, NULL, 0}
 };

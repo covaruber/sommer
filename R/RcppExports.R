@@ -57,12 +57,16 @@ emat <- function(X1, X2) {
     .Call(`_sommer_emat`, X1, X2)
 }
 
+hmat <- function(A, G22, index, tolparinv, tau, omega) {
+    .Call(`_sommer_hmat`, A, G22, index, tolparinv, tau, omega)
+}
+
 scorecalc <- function(Mimv, Ymv, Zmv, Xmv, Vinv, nt, minMAF) {
     .Call(`_sommer_scorecalc`, Mimv, Ymv, Zmv, Xmv, Vinv, nt, minMAF)
 }
 
-gwasForLoop <- function(M, Y, Z, X, Vinv, minMAF) {
-    .Call(`_sommer_gwasForLoop`, M, Y, Z, X, Vinv, minMAF)
+gwasForLoop <- function(M, Y, Z, X, Vinv, minMAF, display_progress = TRUE) {
+    .Call(`_sommer_gwasForLoop`, M, Y, Z, X, Vinv, minMAF, display_progress)
 }
 
 MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled) {
