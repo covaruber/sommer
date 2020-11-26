@@ -5,11 +5,10 @@
 Epistatic relationship matrix
 }
 \description{
-Calculates the realized epistatic relationship matrix of second order (additive x additive, additive x dominance, or dominance x dominance).
+Calculates the realized epistatic relationship matrix of second order (additive x additive, additive x dominance, or dominance x dominance) using hadamard products with the C++ Armadillo library.
 }
 \usage{
-E.mat(X,min.MAF=NULL,max.missing=NULL,impute.method="mean",tol=0.02,
-      n.core=1,shrink=FALSE,return.imputed=FALSE, type="A#A", ploidy=2)
+E.mat(X,endelman=TRUE,nishio=TRUE,type="A#A",min.MAF=0.02)
 }
 
 \arguments{
@@ -17,55 +16,38 @@ E.mat(X,min.MAF=NULL,max.missing=NULL,impute.method="mean",tol=0.02,
 Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} lines and \eqn{m} biallelic markers, 
 coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are allowed.
 }
-\item{min.MAF}{
-Minimum minor allele frequency. The A matrix is not sensitive to rare alleles, so by default only monomorphic markers are removed.
+\item{endelman}{
+Set endelman=TRUE to use the estimation procedure for the A matrix (see Details in the A.mat help page).  
 }
-\item{max.missing}{
-Maximum proportion of missing data; default removes completely missing markers.
-}
-\item{impute.method}{
-There are two options. The default is "mean", which imputes with the mean for each marker.  The "EM" option imputes with an EM algorithm (see details).
-}
-\item{tol}{
-Specifies the convergence criterion for the EM algorithm (see details). 
-}
-\item{n.core}{
-Specifies the number of cores to use for parallel execution of the EM algorithm (use only at UNIX command line).
-}
-\item{shrink}{
-Set shrink=TRUE to use the shrinkage estimation procedure (see Details).  
-}
-\item{return.imputed}{
-When TRUE, the imputed marker matrix is returned.  
+\item{nishio}{
+If TRUE Nishio ans Satoh. (2014), otherwise Su et al. (2012) (see Details in the D.mat help page).
 }
 \item{type}{
 An argument specifying the type of epistatic relationship matrix desired. The default is the second order epistasis (additive x additive) type="A#A". Other options are additive x dominant (type="A#D"), or dominant by dominant (type="D#D").  
 }
-\item{ploidy}{
-The ploidy of the organism. The default is 2 which means diploid but higher ploidy levels are supported.} 
+\item{min.MAF}{
+Minimum minor allele frequency. The A matrix is not sensitive to rare alleles, so by default only monomorphic markers are removed.
 }
+}
+
 \details{
-it is computed as the Hadamard product of the epistatic relationship matrix (A); E=A#A.
+it is computed as the Hadamard product of the epistatic relationship matrix; E=A#A, E=A#D, E=D#D. 
 }
 \value{
-If return.imputed = FALSE, the \eqn{n \times n} epistatic relationship matrix is returned.
+The epistatic relationship matrix is returned.
 
-If return.imputed = TRUE, the function returns a list containing
-\describe{
-\item{$E}{the E matrix}
-\item{$imputed}{the imputed marker matrix}
-}
 }
 
 \references{
 
 Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
 
-Su G, Christensen OF, Ostersen T, Henryon M, Lund MS. 2012. Estimating Additive and Non-Additive Genetic Variances and Predicting Genetic Merits Using Genome-Wide Dense Single Nucleotide Polymorphism Markers. PLoS ONE 7(9): e45293. doi:10.1371/journal.pone.0045293
-
 Endelman, J.B., and J.-L. Jannink. 2012. Shrinkage estimation of the realized relationship matrix. G3:Genes, Genomes, Genetics. 2:1405-1413. doi: 10.1534/g3.112.004259
 
-Poland, J., J. Endelman et al. 2012. Genomic selection in wheat breeding using genotyping-by-sequencing. Plant Genome 5:103-113. doi: 10.3835/plantgenome2012.06.0006
+Nishio M and Satoh M. 2014. Including Dominance Effects in the Genomic BLUP Method for Genomic Evaluation. Plos One 9(1), doi:10.1371/journal.pone.0085792
+
+Su G, Christensen OF, Ostersen T, Henryon M, Lund MS. 2012. Estimating Additive and Non-Additive Genetic Variances and Predicting Genetic Merits Using Genome-Wide Dense Single Nucleotide Polymorphism Markers. PLoS ONE 7(9): e45293. doi:10.1371/journal.pone.0045293
+
 }
 
 \examples{

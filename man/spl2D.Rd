@@ -63,7 +63,18 @@ data(DT_cpdata)
 # DT <- DT_cpdata
 # GT <- GT_cpdata
 # MP <- MP_cpdata
-### mimic two fields
+# A <- A.mat(GT)
+# mix <- mmer(Yield~1,
+#             random=~vs(id, Gu=A) +
+#               vs(Rowf) +
+#               vs(Colf) +
+#               vs(spl2D(Row,Col)),
+#             rcov=~units,
+#             data=DT)
+# summary(mix)$varcomp
+## ============================ ##
+## mimic 2 fields
+## ============================ ## 
 # aa <- DT; bb <- DT
 # aa$FIELD <- "A";bb$FIELD <- "B"
 # set.seed(1234)

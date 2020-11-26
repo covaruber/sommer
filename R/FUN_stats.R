@@ -185,7 +185,7 @@ adiag1 <- function (..., pad = as.integer(0), do.dimnames = TRUE){
   return(out)
 }
 
-pin <- function (object, transform){
+vpredict <- function (object, transform){
   
   # if(object$method %in% c("EMMA","EM")){
   #   stop("The pin function only works for 'NR' and 'AI' methods.",call. = FALSE)

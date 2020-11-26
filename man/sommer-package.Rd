@@ -22,7 +22,7 @@ The sommer package has been developed to provide R users with open-source code t
 
 \section{Functions for genetic analysis}{
 
-The package provides kernels to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices for diploid and polyploid organisms. It also provides flexibility to fit other genetic models such as full and half diallel models and random regression models.
+The package provides kernels to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), epistatic (\code{\link{E.mat}}), (\code{\link{H.mat}}) relationship matrices for diploid and polyploid organisms. It also provides flexibility to fit other genetic models such as full and half diallel models and random regression models.
 
 A good converter from letter code to numeric format is implemented in the function \code{\link{atcg1234}}, which supports higher ploidy levels than diploid. Additional functions for genetic analysis have been included such as heritability (\code{\link{h2.fun}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), creation of manhattan plots (\code{\link{manhattan}}). If you need to use pedigree you need to convert your pedigree into a relationship matrix (use the `getA` function from the pedigreemm package).
 
@@ -30,13 +30,13 @@ A good converter from letter code to numeric format is implemented in the functi
 
 \section{Functions for statistical analysis and S3 methods}{
 
-The \code{\link{pin}} function can be used to estimate standard errors for linear combinations of variance components (i.e. ratios like h2). S3 methods are available for some parameter extraction such as \code{\link{fitted.mmer}}, \code{\link{residuals.mmer}}, \code{\link{summary.mmer}}, \code{\link{randef}}, \code{\link{coef.mmer}}, \code{\link{anova.mmer}}, \code{\link{plot.mmer}}.
+The \code{\link{vpredict}} function can be used to estimate standard errors for linear combinations of variance components (i.e. ratios like h2). S3 methods are available for some parameter extraction such as \code{\link{fitted.mmer}}, \code{\link{residuals.mmer}}, \code{\link{summary.mmer}}, \code{\link{randef}}, \code{\link{coef.mmer}}, \code{\link{anova.mmer}}, \code{\link{plot.mmer}}.
 
 }
 
 \section{Functions for trial analysis}{
 
-Recently, spatial modeling has been added added to sommer using the two-dimensional spline (\code{\link{spl2D}}) function. The \code{\link{fill.design}} can be used to complete grids if required.
+Recently, spatial modeling has been added added to sommer using the two-dimensional spline (\code{\link{spl2D}}) function.
 
 }
 
@@ -69,7 +69,7 @@ or visit \strong{https://covaruber.github.io}
 \section{Getting started}{
 The package has been equiped with several datasets to learn how to use the sommer package: 
 
-* \code{\link{DT_halfdiallel}} and \code{\link{DT_fulldiallel}} datasets have examples to fit half and full diallel designs. 
+* \code{\link{DT_halfdiallel}}, \code{\link{DT_fulldiallel}} and \code{\link{DT_mohring}} datasets have examples to fit half and full diallel designs. 
 
 * \code{\link{DT_h2}} to calculate heritability
 
@@ -86,6 +86,8 @@ The package has been equiped with several datasets to learn how to use the somme
 * \code{\link{DT_btdata}} dataset contains an animal (birds) model.
 
 * \code{\link{DT_legendre}} simulated dataset for random regression model.
+
+* \code{\link{DT_sleepstudy}} dataset to know how to translate lme4 models to sommer models.
 
 }
 
@@ -148,7 +150,7 @@ where || is the determinant of a matrix. And the REML estimates are updated usin
 
 
 
-Where, \eqn{\theta} is the vector of variance components for random effects and covariance components among traits, H^{-1} is the inverse of the Hessian matrix of second derivatives for the kth cycle, dL/d\eqn{\sigma^2_i} is the vector of first derivatives of the likelihood with respect to the variance-covariance components. The Eigen decomposition of the relationship matrix proposed by Lee and Van Der Werf (2016) was included in the Newton-Raphson algorithm to improve time efficiency. Additionally, the popular pin function to estimate standard errors for linear combinations of variance components (i.e. heritabilities and genetic correlations) was added to the package as well.
+Where, \eqn{\theta} is the vector of variance components for random effects and covariance components among traits, H^{-1} is the inverse of the Hessian matrix of second derivatives for the kth cycle, dL/d\eqn{\sigma^2_i} is the vector of first derivatives of the likelihood with respect to the variance-covariance components. The Eigen decomposition of the relationship matrix proposed by Lee and Van Der Werf (2016) was included in the Newton-Raphson algorithm to improve time efficiency. Additionally, the popular vpredict function to estimate standard errors for linear combinations of variance components (i.e. heritabilities and genetic correlations) was added to the package as well.
 
 
 }

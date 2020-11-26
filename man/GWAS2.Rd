@@ -140,7 +140,7 @@ Other functions such as \code{\link{summary}}, \code{\link{fitted}}, \code{\link
 
 Additional functions for genetic analysis have been included such as heritability (\code{\link{h2.fun}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), creation of manhattan plots (\code{\link{manhattan}}). If you need to use pedigree you need to convert your pedigree into a relationship matrix (i.e. use the \code{getA} function from the pedigreemm package). 
 
-Useful functions for analyzing field trials are included such as the \code{spl2D}, \code{\link{spatPlots}}, and \code{\link{fill.design}}.
+Useful functions for analyzing field trials are included such as the \code{spl2D}.
 
 \strong{Models Enabled}
 

@@ -83,7 +83,7 @@ The use of this function requires a good understanding of mixed models. Please r
 
 Type \emph{citation("sommer")} to know how to cite the sommer package in your publications. 
 
-\strong{Use of Special Functions}
+\strong{Special variance structures}
 
  \code{\link{vs}(\link{at}(x,levels),y)}   
  
@@ -91,7 +91,7 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
   
  \code{\link{vs}(\link{ds}(x),y)}   
  
- can be used to specify a diagonal covariance structure for the "y" covariate for all levels of the covariate "x", i.e. \emph{random=~vs(ds(Location,ID)}  fits a variance component for ID at all levels of the covariate Location.
+ can be used to specify a diagonal covariance structure for the "y" covariate for all levels of the covariate "x", i.e. \emph{random=~vs(ds(Location),ID)}  fits a variance component for ID at all levels of the covariate Location.
   
  \code{\link{vs}(\link{us}(x),y)}   
  
@@ -113,19 +113,15 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
       
   can be used to constrain fixed effects in the multi-response mixed models. This is a vector that specifies if the fixed effect is to be estimated for such trait. For example \emph{fixed=cbind(response.i, response.j)~vs(Rowf, Gtc=fcm(c(1,0)))} means that the fixed effect Rowf should only be estimated for the first response and the second should only have the intercept.
 
-For a short tutorial on how to use this special functions you can look at the vignettes by typing in the terminal:
-
-\emph{vignette('sommer.quick.start')}
-
 \strong{S3 methods}{
 
-S3 methods are available for some parameter extraction such as \code{\link{fitted.mmer}}, \code{\link{residuals.mmer}}, \code{\link{summary.mmer}}, \code{\link{randef}}, \code{\link{coef.mmer}}, \code{\link{anova.mmer}}, \code{\link{plot.mmer}}, and \code{\link{predict.mmer}} to obtain adjusted means. In addition, the \code{\link{pin}} function can be used to estimate standard errors for linear combinations of variance components (i.e. ratios like h2). 
+S3 methods are available for some parameter extraction such as \code{\link{fitted.mmer}}, \code{\link{residuals.mmer}}, \code{\link{summary.mmer}}, \code{\link{randef}}, \code{\link{coef.mmer}}, \code{\link{anova.mmer}}, \code{\link{plot.mmer}}, and \code{\link{predict.mmer}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function can be used to estimate standard errors for linear combinations of variance components (i.e. ratios like h2). 
 
 }
 
 \strong{Additional Functions}
 
-Additional functions for genetic analysis have been included such as heritability (\code{\link{h2.fun}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), creation of manhattan plots (\code{\link{manhattan}}). If you need to use pedigree you need to convert your pedigree into a relationship matrix (i.e. use the \code{getA} function from the pedigreemm package). 
+Additional functions for genetic analysis have been included such as relationship matrix building (\code{\link{A.mat}}, \code{\link{D.mat}}, \code{\link{E.mat}}, \code{\link{H.mat}}),  heritability (\code{\link{h2.fun}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), and manhattan plots (\code{\link{manhattan}}). If you need to build a pedigree-based relationship matrix use the \code{getA} function from the pedigreemm package. 
 
 \strong{Bug report and contact}{
 
@@ -138,7 +134,7 @@ If you have any bug report please go to https://github.com/covaruber/sommer or s
 
 The package has been equiped with several datasets to learn how to use the sommer package: 
 
-* \code{\link{DT_halfdiallel}} and \code{\link{DT_fulldiallel}} datasets have examples to fit half and full diallel designs. 
+* \code{\link{DT_halfdiallel}}, \code{\link{DT_fulldiallel}} and \code{\link{DT_mohring}} datasets have examples to fit half and full diallel designs. 
 
 * \code{\link{DT_h2}} to calculate heritability
 
@@ -155,6 +151,8 @@ The package has been equiped with several datasets to learn how to use the somme
 * \code{\link{DT_btdata}} dataset contains an animal (birds) model.
 
 * \code{\link{DT_legendre}} simulated dataset for random regression model.
+
+* \code{\link{DT_sleepstudy}} dataset to know how to translate lme4 models to sommer models.
 
 \strong{Models Enabled}
 
@@ -325,7 +323,7 @@ summary(ans3)
 #              data=DT)
 # summary(mix1)$varcomp
 # #### calculate heritability
-# pin(mix1, h1 ~ V1/(V1+V3) )
+# vpredict(mix1, h1 ~ V1/(V1+V3) )
 # #### multi trait example
 # mix2 <- mmer(cbind(Yield,color)~1,
 #               random = ~ vs(id, Gu=A, Gtc = unsm(2)) + # unstructured at trait level

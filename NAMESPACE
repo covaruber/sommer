@@ -3,13 +3,14 @@ importFrom(Rcpp, evalCpp)
 #exportPattern("^[[:alpha:]]+")
 
 export(   
-       fill.design, 
+       # fill.design, 
        transp,jet.colors,bathy.colors,
       #  hits, big.peaks.col,
       # maxi.qtl, nna, 
+      LD.decay,
       manhattan, map.plot, 
-       pedtoK,
-       spatPlots)
+       dfToMatrix
+       )
 
 ## FUN_main
 export(mmer, mmer2, GWAS, GWAS2)
@@ -27,10 +28,10 @@ export(atcg1234,build.HMM,h2.fun)
 ## FUN_stats
 export(adiag1, imputev,
        leg, wald.test,
-       pin)
+       vpredict)
 
 ## FUN_relationships
-export(A.mat, D.mat, E.mat, AR1, CS, ARMA, simGECorMat)
+export(A.mat, D.mat, E.mat, H.mat, AR1, CS, ARMA, simGECorMat)
 
 ## FUN_algorithms
 export(EM, MEMMA)
@@ -60,6 +61,7 @@ S3method(plot, mmer)
 S3method(predict, mmer)
 S3method(print, predict.mmer)
 S3method(head, predict.mmer)
+S3method(tail, predict.mmer)
 
 #S3method(variogram, mmer)
 #S3method(plot, variogram.mmer)

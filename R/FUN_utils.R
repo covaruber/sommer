@@ -250,6 +250,7 @@ vcsExtract <- function(object){
       Zu[[ir]] <- kronecker(Z,TT) %*% originalModelForParameters$U[[ir]] # calculate Zu
     }
   }
+  names(Zu) <- names(object$U)
   
   if(!is.null(object$call$random)){
     y.hat <- Xb + Reduce("+",Zu) # y.hat = Xb + Zu.1 + ... + Zu.n
@@ -257,9 +258,11 @@ vcsExtract <- function(object){
     y.hat <- Xb # y.hat = Xb
   }
   
+  Zudf <- as.matrix(do.call(cbind,Zu)); colnames(Zudf) <- paste0(names(Zu),".fitted")
+  Xbdf <- as.matrix(Xb); colnames(Xbdf) <- "Xb.fitted"
   y.hat.df <- matrix(y.hat[,1],byrow = TRUE, ncol=nt)
   colnames(y.hat.df) <- paste0(object$terms$response[[1]],".fitted")
-  dataWithFitted <- cbind(object$data,y.hat.df)
+  dataWithFitted <- cbind(object$data,y.hat.df,Xbdf,Zudf)
   # build summary table
   nLevels <- c(unlist(lapply(originalModelForMatrices$X,ncol)), unlist(lapply(originalModelForMatrices$Z,ncol)))
   namesLevels <- c(unlist(object$terms$fixed),names(object$U))
@@ -534,12 +537,17 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
   # std vs residuals, QQplot (std vs teor quantiles), sqrt(std residuals) vs fitted, std res vs leverage = cook's distance
   traits <- ncol(x$fitted)
   layout(matrix(1:4,2,2))
+  
+  resp <- x$terms$response[[1]]
+  # ff <- fitted(x)
+  rr <- residuals.mmer(x)
   for(i in 1:traits){
-    plot(x$fitted[,i],scale(x$residuals[,i]),pch=20, col=transp("cadetblue"), ylab="Std Residuals", xlab="Fitted values", main="Residual vs Fitted", bty="n", ...); grid()
-    plot(x$fitted[,i],sqrt(abs(scale(x$residuals[,i]))),pch=20, col=transp("thistle4"), ylab="Sqrt Abs Std Residuals", xlab="Fitted values", main="Scale-Location", bty="n", ...); grid()
-    qqnorm(scale(x$residuals), pch=20, col=transp("tomato1"), ylab="Std Residuals", bty="n",...); grid()
+    
+    plot(rr[,paste0(resp[i],".fitted")],scale(rr[,paste0(resp[i],".residuals")]),pch=20, col=transp("cadetblue"), ylab="Std Residuals", xlab="Fitted values", main="Residual vs Fitted", bty="n", ...); grid()
+    plot(rr[,paste0(resp[i],".fitted")],sqrt(abs(scale(rr[,paste0(resp[i],".residuals")]))),pch=20, col=transp("thistle4"), ylab="Sqrt Abs Std Residuals", xlab="Fitted values", main="Scale-Location", bty="n", ...); grid()
+    qqnorm(scale(rr[,paste0(resp[i],".residuals")]), pch=20, col=transp("tomato1"), ylab="Std Residuals", bty="n",...); grid()
     hat <- Xm%*%solve(t(Xm)%*%x$Vi%*%Xm)%*%t(Xm)%*%x$Vi # leverage including variance from random effects H= X(X'V-X)X'V-
-    plot(diag(hat), scale(x$residuals), pch=20, col=transp("springgreen3"), ylab="Std Residuals", xlab="Leverage", main="Residual vs Leverage", bty="n", ...); grid()
+    plot(diag(hat), scale(rr[,paste0(resp[i],".residuals")]), pch=20, col=transp("springgreen3"), ylab="Std Residuals", xlab="Leverage", main="Residual vs Leverage", bty="n", ...); grid()
   }
   #####################
   layout(matrix(1,1,1))
@@ -555,7 +563,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 2.1 or later")
   assign(".sommer.home", file.path(library, pkg),
          pos=match("package:sommer", search()))
-  sommer.version = "4.1 (2020-10-01)" # usually 2 months before it expires
+  sommer.version = "4.1.2 (2020-10-01)" # usually 2 months before it expires
   
   ##%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
   ### check which version is more recent
@@ -571,18 +579,18 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
   assign(".sommer.version", sommer.version, pos=match("package:sommer", search()))
   if(interactive())
   {
-    packageStartupMessage(blue$bold(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(blue$bold(paste("[]   Solving Mixed Model Equations in R (sommer) ", sommer.version, "   []",sep="")),appendLF=TRUE)
-    packageStartupMessage(blue$bold(paste("[]   ------------ Multivariate Linear Mixed Models --------------   []")),appendLF=TRUE)
-    packageStartupMessage(blue$bold("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("[]   Dedicated to the University of Chapingo and the UW-Madison     []"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("[]   Type 'vignette('v1.sommer.quick.start')' for a short tutorial  []"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
-    packageStartupMessage(blue$bold(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(blue$bold("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
-    packageStartupMessage(blue$bold("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]   Solving Mixed Model Equations in R (sommer) ", sommer.version, " []",sep="")),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]   ------------- Multivariate Linear Mixed Models --------------  []")),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Dedicated to the University of Chapingo and UW-Madison         []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Type 'vignette('v1.sommer.quick.start')' for a short tutorial  []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
+    packageStartupMessage(magenta("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
+    packageStartupMessage(magenta("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
+    packageStartupMessage(magenta("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
     
     #if(yyy > current){ # yyy < current in CRAN
     #  packageStartupMessage(paste("Version",current,"is now available."),appendLF=TRUE) # version current

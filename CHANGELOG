@@ -370,7 +370,7 @@ version 4.1.1 (2020-10-01)
 
  + Redesign of the predict function to predict full grids
  + Better structure of the documentation
- + bug in predict for models that include spl2D() or overlay() functions fixed 
+ + Bug in predict for models that include spl2D() or overlay() functions fixed 
  
 ########################
 version 4.1.2 (2021-02-01)
@@ -378,12 +378,17 @@ version 4.1.2 (2021-02-01)
 
  + Addition of the fitted() function to return Xb + Zu.1 + ... + Zu.n instead of just Xb
  + Bugs reported for the predict() function addressed
- + residuals() function now returns e = y - Xb - Zu instead of e = y - Xb
+ + The function residuals() now returns e = y - Xb - Zu instead of e = y - Xb
+ + A.mat, D.mat and E.mat functions are now C++ Armadillo implementations
+ + Addition of the H.mat function in C++ Armadillo
+ + When providing and Gu argument in the vs() function, missing levels in the data vector are added
+   to provide all BLUPs
+ + The predict function now provides the correct standard errors
+ + Progress bar for GWAS function added
 
 ######################
 ## PENDINGS
-+ document explicit nesting and overspecified (rank-defficient) models
-+ constraints for variance components to be equal among specific ones
++ make GWAS C++ implementation (P3D to be enabled and progress bar)
 + MME-based Average Information algorithm in progress (n > p problem. Hope to have it ready for v4.2.0)
 
  

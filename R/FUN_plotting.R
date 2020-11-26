@@ -609,41 +609,6 @@ manhattan <- function(map, col=NULL, fdr.level=0.05, show.fdr=TRUE, PVCN=NULL, y
   #marker <- as.character(map$Locus[marker])
 }
 
-spatPlots <- function(object, by=NULL, colfunc=NULL,row="ROW",range="RANGE", wire=FALSE, terms=NULL){
-  
-  nameslist <- lapply(as.list(names(object$U)),function(x){strsplit(x,":")[[1]]})
-  if(is.null(terms)){
-    tolook <- 1:length(object$U)
-  }else{
-    tolook <- which(unlist(lapply(nameslist,function(x){y <- which(terms%in%x); if(length(y) > 0){return(TRUE)}else{return(FALSE)}})))
-    # tolook <- grep(terms,names(object$U))
-  }
-  pp <- predict(object, RtermsToForce = tolook)
-  fits <- pp$fitted
-  resp <- colnames(fits)[grep("predicted.value",colnames(fits))]
-  if(is.null(by)){
-    form <- as.formula(paste(resp,"~",row,"*",range))
-  }else{
-    form <- as.formula(paste(resp,"~",row,"*",range,"|",by))
-  }
-  
-  if(is.null(colfunc)){
-    colfunc <- colorRampPalette(c("gold","springgreen","steelblue4"))
-  }
-  
-  maint <- paste(terms,collapse = ",")
-  
-  if(wire){ # wireframe
-    print(wireframe(form, data=fits,  
-                    aspect=c(61/87,0.4), drape=TRUE,
-                    light.source=c(10,0,10), #=colfunc,
-                    main=maint)
-    )
-  }else{ # levelplot
-    print(levelplot(form, data=fits, main=maint, col.regions = colfunc))
-  }
-  return(fits)
-}
 transp <- function (col, alpha = 0.5) {
   res <- apply(col2rgb(col), 2, function(c) rgb(c[1]/255, c[2]/255, 
                                                 c[3]/255, alpha))

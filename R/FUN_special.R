@@ -480,14 +480,13 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
     if(is.list(init[[i]])){ ## if it comes from a ds, us, cs function
       
       init2[[i]] <- init[[i]]
+      
     }else{ # is a single vector with numbers or characters, ...
       
-      if(is.matrix(init[[i]])){
-        # print(str(init[[i]]))
-        # print(attributes(init[[i]])$variables)
+      if(is.matrix(init[[i]])){ # a mtrix is provided already so no need to create it
         mm=diag(ncol(init[[i]])); rownames(mm) <- colnames(mm) <- colnames(init[[i]])
         init2[[i]] <- list(x=init[[i]],mm)
-      }else{
+      }else{ # is a vector
         dummy <- init[[i]]
         if(!is.character(dummy) & !is.factor(dummy)){
           dummy <- matrix(dummy,ncol=1)
@@ -540,7 +539,7 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
       # print(paste(i,j))
       if(vcs[i,j] > 0){ ## to be estimated
         
-        if(i==j){## var
+        if(i==j){## variance component
           # commonlevs <- intersect(colnames(allzs),namz)
           # if(length(commonlevs) == 0){stop(paste("You may not be using a special variance structure in",paste(namess2,collapse = ","),"combination"),call. = FALSE)}
           namz <- strsplit(rownames(vcs)[i],":")[[1]]
@@ -554,6 +553,12 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
             if(length(checkg)>0){
               stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
             }
+            checkg2 <- setdiff(colnames(Gu),colnames(zz))
+            if(length(checkg2)>0){
+              if(i==1){cat(paste0("Adding additional levels of Gu in the model matrix of '",ref_name,"' \n"))}
+              added <- matrix(0, nrow = nrow(zz), ncol = length(checkg2)); colnames(added) <- checkg2
+              zz <- cbind(zz,added)
+            }
             nameszz <- colnames(zz)
             Gux <- Gu[nameszz,nameszz]
           }
@@ -562,22 +567,40 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
           typevc[counter] <- 1
           re_name[counter] <- paste(rownames(vcs)[i],ref_name,sep=":")
           counter <- counter + 1
-        }else{## cov
-          namz1 <- strsplit(rownames(vcs)[i],":")[[1]]
-          namz2 <- strsplit(colnames(vcs)[j],":")[[1]]
+        }else{## covariance component
+          namz1 <- strsplit(rownames(vcs)[i],":")[[1]] # name of term1
+          namz2 <- strsplit(colnames(vcs)[j],":")[[1]] # name of term2
           z1 <- as.matrix(apply(as.matrix(allzs[,namz1]),1,prod) * Z)
           z2 <- as.matrix(apply(as.matrix(allzs[,namz2]),1,prod) * Z)
+          
           if(is.null(Gu)){
             Gux <- diag(ncol(Z))
             Gu0 <- Gux*0
             Gu1 <- rbind(cbind(Gu0,Gux),cbind(Gux,Gu0))
           }else{
-            # colnames(z1) <- gsub(ref_name,"",colnames(z1)) ## why I wrote this?
-            # colnames(z2) <- gsub(ref_name,"",colnames(z2)) ## why I wrote this?
+            
             checkg <- setdiff(colnames(z1),colnames(Gu))
             if(length(checkg)>0){
               stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
             }
+            checkg2 <- setdiff(colnames(Gu),colnames(z1))
+            if(length(checkg2)>0){
+              if(i==1){cat(paste0("Adding additional levels of Gu in the model matrix of '",ref_name,"' \n"))}
+              added <- matrix(0, nrow = nrow(z1), ncol = length(checkg2)); colnames(added) <- checkg2
+              z1 <- cbind(z1,added)
+            }
+            
+            checkg <- setdiff(colnames(z2),colnames(Gu))
+            if(length(checkg)>0){
+              stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
+            }
+            checkg2 <- setdiff(colnames(Gu),colnames(z2))
+            if(length(checkg2)>0){
+              if(i==1){cat(paste0("Adding additional levels of Gu in the model matrix of '",ref_name,"' \n"))}
+              added <- matrix(0, nrow = nrow(z2), ncol = length(checkg2)); colnames(added) <- checkg2
+              z2 <- cbind(z2,added)
+            }
+            
             nameszz <- colnames(z1)
             Gu <- Gu[nameszz,nameszz]
             Gu0 <- Gux*0
@@ -658,10 +681,6 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
       
     }
   }
-  # S3$Gti <- Gti
-  # S3$Gtc <- Gtc
-  # S3$vcs <- vcs
-  # Gtc <- lapply(Gtc,function(x){x[lower.tri(x)] <- 0; return(x)})
   if(!is.null(specialVariables)){
     namess2 <- specialVariables
   }

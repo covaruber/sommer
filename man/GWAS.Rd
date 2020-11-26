@@ -9,7 +9,7 @@ Genome wide association study analysis
 
 Fits a multivariate/univariate linear mixed model GWAS by likelihood methods (REML), see the Details section below. It uses the \code{\link{mmer}} function and its core coded in C++ using the Armadillo library to opmitime dense matrix operations common in the derect-inversion algorithms. After the model fit extracts the inverse of the phenotypic variance matrix to perform the association test for the "p" markers. Please check the Details section (Model enabled) if you have any issue with making the function run.
 
-The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), and epistatic (\code{\link{E.mat}}) relationship matrices to model known covariances among genotypes typical in plant and animal breeding problems. Other functions to build known covariance structures among levels of random effects are autoregresive (\code{\link{AR1}}), compound symmetry (\code{\link{CS}}) and autoregressive moving average (\code{\link{ARMA}}) where the user needs to fix the correlation value for such models (this is different to estimating unknown covariance structures). Additionally, overlayed models can be implemented as well (\code{\link{overlay}} function). Spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). Random regression models can also be fitted through the (\code{\link{leg}}) function (orthopolynom package installation is needed for using the leg function).
+The package also provides functions to estimate additive (\code{\link{A.mat}}), dominance (\code{\link{D.mat}}), epistatic (\code{\link{E.mat}}) and single step (\code{\link{H.mat}}) relationship matrices to model known covariances among genotypes typical in plant and animal breeding problems. Other functions to build known covariance structures among levels of random effects are autoregresive (\code{\link{AR1}}), compound symmetry (\code{\link{CS}}) and autoregressive moving average (\code{\link{ARMA}}) where the user needs to fix the correlation value for such models (this is different to estimating unknown covariance structures). Additionally, overlayed models can be implemented as well (\code{\link{overlay}} function). Spatial modeling can be done through the two dimensional splines (\code{\link{spl2D}}). Random regression models can also be fitted through the (\code{\link{leg}}) function (orthopolynom package installation is needed for using the leg function).
 
 The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed typing the following in the R console:
 
@@ -37,9 +37,9 @@ GWAS(fixed, random, rcov, data, weights,
     init=NULL, constraints=NULL,method="NR", 
     getPEV=TRUE,na.method.X="exclude",
     na.method.Y="exclude",return.param=FALSE, 
-    date.warning=TRUE,verbose=TRUE,
+    date.warning=TRUE,verbose=FALSE,
     M=NULL, gTerm=NULL, n.PC = 0, min.MAF = 0.05, 
-    n.core = 1, P3D = TRUE)
+    P3D = TRUE)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -89,7 +89,6 @@ GWAS(fixed, random, rcov, data, weights,
   \item{gTerm}{a character vector indicating the random effect linked to the marker matrix M (i.e. the genetic term) in the model. The random effect selected should have the same number of levels than the number of rows of M.}
   \item{n.PC}{Number of principal components to include as fixed effects. Default is 0 (equals K model).}
   \item{min.MAF}{Specifies the minimum minor allele frequency (MAF). If a marker has a MAF less than min.MAF, it is assigned a zero score.}
-  \item{n.core}{Setting n.core > 1 will enable parallel execution on a machine with multiple cores (use only at UNIX command line).}
   \item{P3D}{When P3D=TRUE, variance components are estimated by REML only once, without any markers in the model. When P3D=FALSE, variance components are estimated by REML for each marker separately.}
     
 }
@@ -179,7 +178,7 @@ Other functions such as \code{\link{summary}}, \code{\link{fitted}}, \code{\link
 
 Additional functions for genetic analysis have been included such as heritability (\code{\link{h2.fun}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), creation of manhattan plots (\code{\link{manhattan}}). If you need to use pedigree you need to convert your pedigree into a relationship matrix (i.e. use the \code{getA} function from the pedigreemm package). 
 
-Useful functions for analyzing field trials are included such as the \code{spl2D}, \code{\link{spatPlots}}, and \code{\link{fill.design}}.
+Useful functions for analyzing field trials are included such as the \code{spl2D}.
 
 }
 
@@ -273,11 +272,10 @@ Giovanny Covarrubias-Pazaran
 #              rcov=~units,
 #              data=DT,
 #              M=GT, gTerm = "u:id")
-# summary(mix1)
-# ms <- as.data.frame(t(mix1$scores))
+# ms <- as.data.frame(mix1$scores)
 # ms$Locus <- rownames(ms)
 # MP2 <- merge(MP,ms,by="Locus",all.x = TRUE);
-# manhattan(MP2, pch=20,cex=.5, PVCN = "color score")
+# manhattan(MP2, pch=20,cex=1.5, PVCN = "color")
 #####=========================================####
 ##### potato example
 #####=========================================####
@@ -318,7 +316,6 @@ Giovanny Covarrubias-Pazaran
 #              rcov=~units,
 #              gTerm = "u:Name",
 #              M=marks, data=DT2)
-# summary(ans2)
 # plot(ans2$scores[1,])
 # plot(ans2$r2m[1,])
 }

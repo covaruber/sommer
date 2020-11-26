@@ -120,6 +120,7 @@ If all parameters are correctly indicated the program will return a list with th
 }
 \references{
 Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
+
 Bernardo Rex. 2010. Breeding for quantitative traits in plants. Second edition. Stemma Press. 390 pp.
 Searle. 1993. Applying the EM algorithm to calculating ML and REML estimates of variance components. Paper invited for the 1993 American Statistical Association Meeting, San Francisco.
 }
@@ -130,16 +131,11 @@ Searle. 1993. Applying the EM algorithm to calculating ML and REML estimates of 
 #### remove them and run the examples
 ####=========================================####
 
-# ###################################################
-# ###################################################
-# # IMPORT DATA FOR  ESTIMATING 3 VARIANCE COMPONENTS
-# ###################################################
-# ###################################################
 # ## Import phenotypic data on inbred performance
 # ## Full data
-# data(cornHybrid)
-# hybrid2 <- cornHybrid$hybrid # extract cross data
-# A <- cornHybrid$K # extract the var-cov K
+# data("DT_cornhybrids")
+# hybrid2 <- DT_cornhybrids # extract cross data
+# A <- GT_cornhybrids # extract the var-cov K
 # ############################################
 # ############################################
 # ## breeding values with 3 variance components
@@ -151,16 +147,23 @@ Searle. 1993. Applying the EM algorithm to calculating ML and REML estimates of 
 # Z2 <- model.matrix(~ GCA2 -1, data = hybrid2);dim(Z2)
 # Z3 <- model.matrix(~ SCA -1, data = hybrid2);dim(Z3)
 # 
-# K1 <- A[levels(hybrid2$GCA1), levels(hybrid2$GCA1)]; dim(K1)     
+# K1 <- A[levels(hybrid2$GCA1), levels(hybrid2$GCA1)]; dim(K1)
 # ## Realized IBS relationships for set of parents 1
-# K2 <- A[levels(hybrid2$GCA2), levels(hybrid2$GCA2)]; dim(K2)     
+# K2 <- A[levels(hybrid2$GCA2), levels(hybrid2$GCA2)]; dim(K2)
 # ## Realized IBS relationships for set of parents 2
-# S <- kronecker(K1, K2) ; dim(S)   
+# S <- kronecker(K1, K2) ; dim(S)
 # ## Realized IBS relationships for cross (as the Kronecker product of K1 and K2)
 # rownames(S) <- colnames(S) <- levels(hybrid2$SCA)
 # 
-# ETA <- list(list(Z=Z1, K=K1), list(Z=Z2, K=K2), list(Z=Z3, K=S))
-# #ans <- EM(y=y, ZETA=ETA, iters=20)
+# ETA <- list(list(Z=Z1, K=K1), list(Z=Z2, K=K2))#, list(Z=Z3, K=S))
+# ans <- EM(y=y, ZETA=ETA, iters=50)
+# ans$var.comp
+# 
+# # compare with NR method
+# mix1 <- mmer(Yield~1, random=~vs(GCA1,Gu=K1)+vs(GCA2,Gu=K2), data=hybrid2)
+# summary(mix1)$varcomp
+# 
+
 
 }
 \seealso{The core functions of the package \code{\link{mmer}} }

@@ -9,8 +9,8 @@ imputev(x, method="median")
 }
 
 \arguments{
-  \item{x}{a numeric or character vector}
-  \item{method}{the method to choose between mean or median}
+  \item{x}{a numeric or character vector.}
+  \item{method}{the method to choose between mean or median.}
 }
 \value{
 \describe{

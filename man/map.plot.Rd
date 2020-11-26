@@ -61,5 +61,11 @@ map.plot(geno, trait="X2", type="line")
 map.plot(geno, trait="X2", type="hist")
 map.plot(geno, trait="X2", type="dot")
 
+# data("DT_cpdata")
+# MP <- MP_cpdata
+# colnames(MP)[3] <- c("LG")
+# head(MP)
+# map.plot(MP, type="line", cex=0.6)
+
 }
 \seealso{The core functions of the package \code{\link{mmer}}}

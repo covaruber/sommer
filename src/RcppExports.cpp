@@ -107,6 +107,116 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// isDiagonal_mat
+bool isDiagonal_mat(const arma::mat x);
+RcppExport SEXP _sommer_isDiagonal_mat(SEXP xSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat >::type x(xSEXP);
+    rcpp_result_gen = Rcpp::wrap(isDiagonal_mat(x));
+    return rcpp_result_gen;
+END_RCPP
+}
+// isDiagonal_spmat
+bool isDiagonal_spmat(const arma::sp_mat x);
+RcppExport SEXP _sommer_isDiagonal_spmat(SEXP xSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat >::type x(xSEXP);
+    rcpp_result_gen = Rcpp::wrap(isDiagonal_spmat(x));
+    return rcpp_result_gen;
+END_RCPP
+}
+// amat
+arma::mat amat(const arma::mat& Xo, const bool& endelman, double minMAF);
+RcppExport SEXP _sommer_amat(SEXP XoSEXP, SEXP endelmanSEXP, SEXP minMAFSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Xo(XoSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type endelman(endelmanSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    rcpp_result_gen = Rcpp::wrap(amat(Xo, endelman, minMAF));
+    return rcpp_result_gen;
+END_RCPP
+}
+// dmat
+arma::mat dmat(const arma::mat& Xo, const bool& nishio, double minMAF);
+RcppExport SEXP _sommer_dmat(SEXP XoSEXP, SEXP nishioSEXP, SEXP minMAFSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Xo(XoSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type nishio(nishioSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    rcpp_result_gen = Rcpp::wrap(dmat(Xo, nishio, minMAF));
+    return rcpp_result_gen;
+END_RCPP
+}
+// emat
+arma::mat emat(const arma::mat& X1, const arma::mat& X2);
+RcppExport SEXP _sommer_emat(SEXP X1SEXP, SEXP X2SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    rcpp_result_gen = Rcpp::wrap(emat(X1, X2));
+    return rcpp_result_gen;
+END_RCPP
+}
+// hmat
+arma::mat hmat(const arma::mat& A, const arma::mat& G22, const arma::vec& index, double tolparinv, double tau, double omega);
+RcppExport SEXP _sommer_hmat(SEXP ASEXP, SEXP G22SEXP, SEXP indexSEXP, SEXP tolparinvSEXP, SEXP tauSEXP, SEXP omegaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type A(ASEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type G22(G22SEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type index(indexSEXP);
+    Rcpp::traits::input_parameter< double >::type tolparinv(tolparinvSEXP);
+    Rcpp::traits::input_parameter< double >::type tau(tauSEXP);
+    Rcpp::traits::input_parameter< double >::type omega(omegaSEXP);
+    rcpp_result_gen = Rcpp::wrap(hmat(A, G22, index, tolparinv, tau, omega));
+    return rcpp_result_gen;
+END_RCPP
+}
+// scorecalc
+arma::rowvec scorecalc(const arma::mat& Mimv, const arma::mat& Ymv, const arma::mat& Zmv, const arma::mat& Xmv, const arma::mat& Vinv, int nt, double minMAF);
+RcppExport SEXP _sommer_scorecalc(SEXP MimvSEXP, SEXP YmvSEXP, SEXP ZmvSEXP, SEXP XmvSEXP, SEXP VinvSEXP, SEXP ntSEXP, SEXP minMAFSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Mimv(MimvSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Ymv(YmvSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Zmv(ZmvSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Xmv(XmvSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Vinv(VinvSEXP);
+    Rcpp::traits::input_parameter< int >::type nt(ntSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    rcpp_result_gen = Rcpp::wrap(scorecalc(Mimv, Ymv, Zmv, Xmv, Vinv, nt, minMAF));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gwasForLoop
+arma::mat gwasForLoop(const arma::mat& M, const arma::mat& Y, const arma::mat& Z, const arma::mat& X, const arma::mat& Vinv, double minMAF, bool display_progress);
+RcppExport SEXP _sommer_gwasForLoop(SEXP MSEXP, SEXP YSEXP, SEXP ZSEXP, SEXP XSEXP, SEXP VinvSEXP, SEXP minMAFSEXP, SEXP display_progressSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Vinv(VinvSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
+    rcpp_result_gen = Rcpp::wrap(gwasForLoop(M, Y, Z, X, Vinv, minMAF, display_progress));
+    return rcpp_result_gen;
+END_RCPP
+}
 // MNR
 Rcpp::List MNR(const arma::mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::vec& ws, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled);
 RcppExport SEXP _sommer_MNR(SEXP YSEXP, SEXP XSEXP, SEXP GxSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP RSEXP, SEXP GeSEXP, SEXP GeISEXP, SEXP wsSEXP, SEXP itersSEXP, SEXP tolparSEXP, SEXP tolparinvSEXP, SEXP aiSEXP, SEXP pevSEXP, SEXP verboseSEXP, SEXP retscaledSEXP) {
@@ -144,6 +254,14 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_makeFull", (DL_FUNC) &_sommer_makeFull, 1},
     {"_sommer_isIdentity_mat", (DL_FUNC) &_sommer_isIdentity_mat, 1},
     {"_sommer_isIdentity_spmat", (DL_FUNC) &_sommer_isIdentity_spmat, 1},
+    {"_sommer_isDiagonal_mat", (DL_FUNC) &_sommer_isDiagonal_mat, 1},
+    {"_sommer_isDiagonal_spmat", (DL_FUNC) &_sommer_isDiagonal_spmat, 1},
+    {"_sommer_amat", (DL_FUNC) &_sommer_amat, 3},
+    {"_sommer_dmat", (DL_FUNC) &_sommer_dmat, 3},
+    {"_sommer_emat", (DL_FUNC) &_sommer_emat, 2},
+    {"_sommer_hmat", (DL_FUNC) &_sommer_hmat, 6},
+    {"_sommer_scorecalc", (DL_FUNC) &_sommer_scorecalc, 7},
+    {"_sommer_gwasForLoop", (DL_FUNC) &_sommer_gwasForLoop, 7},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 16},
     {NULL, NULL, 0}
 };

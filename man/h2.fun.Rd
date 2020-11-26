@@ -65,6 +65,7 @@ head(DT)
 #               rcov=~vs(ds(Env),units),
 #               data=DT)
 # summary(ans1)
+# h2.fun(ans1, data=DT, gTerm = "Name", eTerm = "Env")
 
 }
 \seealso{

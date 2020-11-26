@@ -9,8 +9,10 @@ DT_gryphon: DT_gryphon A_gryphon P_gryphon
 DT_h2: DT_h2
 DT_halfdiallel: DT_halfdiallel
 DT_legendre: DT_legendre
+DT_mohring: DT_mohring
 DT_polyploid: DT_polyploid GT_polyploid MP_polyploid
 DT_rice: DT_rice GT_rice GTn_rice
+DT_sleepstudy: DT_sleepstudy
 DT_technow: DT_technow Md_technow Mf_technow Ad_technow Af_technow
 DT_wheat: DT_wheat GT_wheat
 DT_yatesoats: DT_yatesoats
