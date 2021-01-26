@@ -11,7 +11,7 @@
  \item{\dots}{Further arguments to be passed to the mmer function}
 }
 \value{
-  vector of fitted
+  vector of fitted values of the form y.hat = Xb + Zu including all terms of the model.
  }
 \author{Giovanny Covarrubias \email{cova_ruber@live.com.mx}}
 \examples{
