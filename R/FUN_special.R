@@ -1,3 +1,78 @@
+add.diallel.vars <- function(df, par1="Par1", par2="Par2",sep.cross="-"){
+  # Dummy variables for selfs, crosses, combinations
+  df[,"is.cross"] <- ifelse(df[,par1] == df[,par2], 0, 1)
+  df[,"is.self"] <- ifelse(df[,par1] == df[,par2], 1, 0)
+  df[,"cross.type"] <- ifelse(as.character(df[,par1]) < as.character(df[,par2]), -1,
+                              ifelse(as.character(df[,par1]) == as.character(df[,par2]), 0, 1))
+  # Dummy variable for the combinations, ignoring the reciprocals
+  df[,"cross.id"]<-factor(ifelse(as.character(df[,par1]) <= as.character(df[,par2]),
+                                 paste(df[,par1], df[,par2], sep =sep.cross),
+                                 paste(df[,par2], df[,par1], sep =sep.cross)) )
+  return(df)
+}
+
+overlay<- function (..., rlist = NULL, prefix = NULL){
+  init <- list(...)
+  ## keep track of factor variables
+  myTypes <- unlist(lapply(init,class))
+  init0 <- init
+  ##
+  init <- lapply(init, as.character)
+  names <- as.character(substitute(list(...)))[-1L]
+  dat <- as.data.frame(do.call(cbind, init))
+  dat <- as.data.frame(dat)
+  ## bring back the levels
+  for(j in 1:length(myTypes)){
+    if(myTypes[j]=="factor"){
+      levels(dat[,j]) <- c(levels(dat[,j]),setdiff(levels(init0[[j]]),levels(dat[,j]) ))
+    }
+  }
+  ##
+  if (is.null(dim(dat))) {
+    stop("Please provide a data frame to the overlay function, not a vector.\\n", 
+         call. = FALSE)
+  }
+  if (is.null(rlist)) {
+    rlist <- as.list(rep(1, dim(dat)[2]))
+  }
+  ss1 <- colnames(dat)
+  dat2 <- as.data.frame(dat[, ss1])
+  head(dat2)
+  colnames(dat2) <- ss1
+  femlist <- list()
+  S1list <- list()
+  for (i in 1:length(ss1)) {
+    femlist[[i]] <- ss1[i]
+    dat2[, femlist[[i]]] <- as.factor(dat2[, femlist[[i]]])
+    S1 <- model.matrix(as.formula(paste("~", femlist[[i]], 
+                                        "-1")), dat2)
+    colnames(S1) <- gsub(femlist[[i]], "", colnames(S1))
+    S1list[[i]] <- S1
+  }
+  levo <- sort(unique(unlist(lapply(S1list, function(x) {
+    colnames(x)
+  }))))
+  S3 <- matrix(0, nrow = dim(dat2)[1], ncol = length(levo))
+  rownames(S3) <- rownames(dat2)
+  colnames(S3) <- levo
+  for (i in 1:length(S1list)) {
+    if (i == 1) {
+      S3[rownames(S1list[[i]]), colnames(S1list[[i]])] <- S1list[[i]] * 
+        rlist[[i]]
+    }
+    else {
+      S3[rownames(S1list[[i]]), colnames(S1list[[i]])] <- S3[rownames(S1list[[i]]), 
+                                                             colnames(S1list[[i]])] + (S1list[[i]][rownames(S1list[[i]]), 
+                                                                                                   colnames(S1list[[i]])] * rlist[[i]])
+    }
+  }
+  if (!is.null(prefix)) {
+    colnames(S3) <- paste(prefix, colnames(S3), sep = "")
+  }
+  attr(S3,"variables") <- names
+  return(S3)
+}
+
 list2usmat <- function(sigmaL){
   
   f <- function(n, x){
@@ -129,67 +204,7 @@ reshape_mmer <- function(object, namelist){
   return(object)
 }
 
-overlay<- function (..., rlist = NULL, prefix = NULL){
-  init <- list(...)
-  ## keep track of factor variables
-  myTypes <- unlist(lapply(init,class))
-  init0 <- init
-  ##
-  init <- lapply(init, as.character)
-  names <- as.character(substitute(list(...)))[-1L]
-  dat <- as.data.frame(do.call(cbind, init))
-  dat <- as.data.frame(dat)
-  ## bring back the levels
-  for(j in 1:length(myTypes)){
-    if(myTypes[j]=="factor"){
-      levels(dat[,j]) <- c(levels(dat[,j]),setdiff(levels(init0[[j]]),levels(dat[,j]) ))
-    }
-  }
-  ##
-  if (is.null(dim(dat))) {
-    stop("Please provide a data frame to the overlay function, not a vector.\\n", 
-         call. = FALSE)
-  }
-  if (is.null(rlist)) {
-    rlist <- as.list(rep(1, dim(dat)[2]))
-  }
-  ss1 <- colnames(dat)
-  dat2 <- as.data.frame(dat[, ss1])
-  head(dat2)
-  colnames(dat2) <- ss1
-  femlist <- list()
-  S1list <- list()
-  for (i in 1:length(ss1)) {
-    femlist[[i]] <- ss1[i]
-    dat2[, femlist[[i]]] <- as.factor(dat2[, femlist[[i]]])
-    S1 <- model.matrix(as.formula(paste("~", femlist[[i]], 
-                                        "-1")), dat2)
-    colnames(S1) <- gsub(femlist[[i]], "", colnames(S1))
-    S1list[[i]] <- S1
-  }
-  levo <- sort(unique(unlist(lapply(S1list, function(x) {
-    colnames(x)
-  }))))
-  S3 <- matrix(0, nrow = dim(dat2)[1], ncol = length(levo))
-  rownames(S3) <- rownames(dat2)
-  colnames(S3) <- levo
-  for (i in 1:length(S1list)) {
-    if (i == 1) {
-      S3[rownames(S1list[[i]]), colnames(S1list[[i]])] <- S1list[[i]] * 
-        rlist[[i]]
-    }
-    else {
-      S3[rownames(S1list[[i]]), colnames(S1list[[i]])] <- S3[rownames(S1list[[i]]), 
-                                                             colnames(S1list[[i]])] + (S1list[[i]][rownames(S1list[[i]]), 
-                                                                                                   colnames(S1list[[i]])] * rlist[[i]])
-    }
-  }
-  if (!is.null(prefix)) {
-    colnames(S3) <- paste(prefix, colnames(S3), sep = "")
-  }
-  attr(S3,"variables") <- names
-  return(S3)
-}
+
 
 ##############
 ## na.methods

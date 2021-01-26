@@ -2,7 +2,7 @@
 version 1.1 (2016-01-24)
 ########################
 
-  Initial release
+  Initial release, the sun shines and sommer has arrived!
   
 ########################  
 version 1.2 (2016-02-07)
@@ -384,11 +384,12 @@ version 4.1.2 (2021-02-01)
  + When providing and Gu argument in the vs() function, missing levels in the data vector are added
    to provide all BLUPs
  + The predict function now provides the correct standard errors
+ + GWAS C++ implementation
  + Progress bar for GWAS function added
 
 ######################
 ## PENDINGS
-+ make GWAS C++ implementation (P3D to be enabled and progress bar)
++ enable P3D argument
 + MME-based Average Information algorithm in progress (n > p problem. Hope to have it ready for v4.2.0)
 
  

@@ -6,6 +6,7 @@
 # ignored is not used included in the prediction
 "predict.mmer" <- function(object,classify=NULL,hypertable=NULL,...){
   
+  fToAverage=NULL
   classify<- unique(unlist(strsplit(classify,":")))
 
   if(is.null(classify)){
@@ -146,17 +147,29 @@
     fToUse[[i]]<-grep(toAgg[i],object$terms$fixed[[1]])
   }
   fToUse = sort(c(1,unique(unlist(fToUse))))
+  
+  
   # print(fToUse)
   # print(length(modelForMatrices$X))
   if(!is.null(hypertable)){ # if user provides a hypertable, use the customization instead
     fToUse <- which(hypertable$type == "fixed" & hypertable$include == TRUE)
     fNotToUse <- which(hypertable$type == "fixed" & hypertable$ignored == TRUE)
+    fToAverage <- which(hypertable$type == "fixed" & hypertable$average == TRUE)
     if(length(fNotToUse) > 0){fToUse <- setdiff(fToUse,fNotToUse)}
   }
   
   if(length(fToUse) > 0){ # if there's fixed effects to add
+    #
+    if(length(fToAverage) > 0){# if there's terms to average
+      for(xi in 1:length(fToAverage)){
+        # we add a 1 to those terms and then divide over the number of factor levels (columns)
+        averFactor <- hypertable[fToAverage[xi],"nLevels"]+1
+        modelForMatrices$X[[fToAverage[xi]]] <- ((modelForMatrices$X[[fToAverage[xi]]]+1)/(modelForMatrices$X[[fToAverage[xi]]]+1)) / averFactor
+      }
+    }
+    
     X <- do.call(cbind,modelForMatrices$X[fToUse]) # build X cbinding the ones required
-    # print(head(X))
+    # 
     # find the betas to use
     ncolsX <- unlist(lapply(modelForMatrices$X,ncol))
     # print(ncolsX)
@@ -167,8 +180,7 @@
         start= max(betas0[[i]])+1
       }
     }
-    # print(betas0)
-    # new X extended
+    
     X.mv.extended <- kronecker(X,TT)
     Xb=X.mv.extended%*%modelForMatrices$Beta[unlist(betas0[fToUse]),1] # calculate Xb
     # X'ViX
@@ -182,6 +194,7 @@
   pev=NULL
   cov.b.pev=NULL
   zToUse=NULL
+  Z.extended=NULL
   if(!is.null(object$call$random)){
     nre <- length(object$terms$random) # number of random effects
     # identify which random terms in the model should be added
@@ -220,6 +233,17 @@
         rNotForce <- rNotForce - nFixed
         zToUse <- setdiff(zToUse,rNotForce)
       }
+      #########################
+      # print(str(modelForMatrices))
+      rToAverage <- which(hypertable$type == "random" & hypertable$average == TRUE) - length(which(hypertable$type == "fixed"))
+      if(length(rToAverage) > 0){# if there's random terms to average
+        for(zi in 1:length(rToAverage)){
+          # we add a 1 to those terms and then divide over the number of factor levels (columns)
+          averFactor <- hypertable[rToAverage[zi],"nLevels"]
+          modelForMatrices$Z[[rToAverage[zi]]] <- ((modelForMatrices$Z[[rToAverage[zi]]]+1)/(modelForMatrices$Z[[rToAverage[zi]]]+1)) / averFactor
+        }
+      }
+      
     }
     
     if(length(zToUse) == 0){zToUse=NULL}
@@ -335,8 +359,14 @@
   id <- 1:length(formLevels)
   ignored <- rep(TRUE,length(id)) # all ignored by default
   include <- rep(FALSE,length(id)) # none include by default
+  average <- rep(FALSE, length(id))
   
   include[fToUse]=TRUE # specify which fixed effects where used
+  if(!is.null(fToAverage)){
+    average[fToAverage]=TRUE # specify which fixed effects where used
+  }
+  
+  
   if(!is.null(zToUse)){include[length(modelForMatrices$X)+zToUse]=TRUE} # specify which random effects where used
   
   # print(fToUse)
@@ -344,15 +374,17 @@
   ignored[fToUse]=FALSE # specify which fixed effects ARE NOT ignored
   if(!is.null(zToUse)){ignored[length(modelForMatrices$X)+zToUse]=FALSE} # specify which random effects ARE NOT ignored
   
-  predictSummary <- data.frame(namesLevelsO,namesLevels,formLevels,nLevels,id,ignored,include)
-  colnames(predictSummary) <- c("termHL","term","type","nLevels","id","ignored","include")
+  predictSummary <- data.frame(namesLevelsO,namesLevels,formLevels,nLevels,id,ignored,include, average)
+  colnames(predictSummary) <- c("termHL","term","type","nLevels","id","ignored","include","average")
   
   toreturn2 <- list(pvals=pvals,
                     hypertable=predictSummary,
                     model=modelForMatrices,
                     C11=XtViX,
                     C12=cov.b.pev,
-                    C22=pev
+                    C22=pev,
+                    Xextended=X.mv.extended,
+                    Zextended=Z.extended
                     
   )
   attr(toreturn2, "class")<-c("predict.mmer", "list")

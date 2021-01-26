@@ -1,0 +1,162 @@
+---
+title: "Translating lme4 models to sommer"
+author: "Giovanny Covarrubias-Pazaran"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{lme4 vs sommer}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused in problems of the type p > n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, and specify heterogeneous variances, and obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+
+The purpose of this vignette is to show how to translate the sintax formula from lme4 models to sommer models. Feel free to remove the silencing marks from the lme4 code so you can compare the results.
+
+1) Random slopes with same intercept
+2) Random slopes and random intercepts (without correlation)
+3) Random slopes and random intercepts (with correlation)
+4) Random slopes with a different intercept
+5) Other models not available in lme4
+
+## 1) Random slopes
+
+This is the simplest model people use when a random effect is desired and the levels of the random effect are considered to have the same intercept.
+
+```{r}
+# install.packages("lme4")
+# library(lme4)
+library(sommer)
+data(DT_sleepstudy)
+DT <- DT_sleepstudy
+
+## lme4
+# fm1 <- lmer(Reaction ~ Days + (1 | Subject), data=DT)
+## sommer
+fm2 <- mmer(Reaction ~ Days,
+            random= ~ Subject, 
+            data=DT, tolparinv = 1e-6, verbose = FALSE)
+summary(fm2)$varcomp
+# vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
+
+```
+
+## 2) Random slopes and random intercepts (without correlation)
+
+This is the a model where you assume that the random effect has different intercepts based on the levels of another variable. In addition the || in lme4 assumes that slopes and intercepts have no correlation.
+
+```{r}
+
+## lme4
+# fm1 <- lmer(Reaction ~ Days + (Days || Subject), data=DT)
+## sommer
+fm2 <- mmer(Reaction ~ Days,
+            random= ~ Subject + vs(Days, Subject), 
+            data=DT, tolparinv = 1e-6, verbose = FALSE)
+
+# vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
+summary(fm2)$varcomp
+
+```
+
+Notice that Days is a numerical (not factor) variable.
+
+## 3) Random slopes and random intercepts (with correlation)
+
+This is the a model where you assume that the random effect has different intercepts based on the levels of another variable. In addition a single | in lme4 assumes that slopes and intercepts have a correlation to be estimated.
+
+```{r}
+
+## lme4
+# fm1 <- lmer(Reaction ~ Days + (Days | Subject), data=DT)
+## sommer
+## no equivalence in sommer to find the correlation between the 2 vc
+## this is the most similar which is equivalent to (intercept || slope)
+fm2 <- mmer(Reaction ~ Days,
+            random= ~ Subject + vs(Days, Subject), 
+            data=DT, tolparinv = 1e-6, verbose = FALSE)
+
+# vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
+summary(fm2)$varcomp
+
+```
+
+## 4) Random slopes with a different intercept
+
+This is the a model where you assume that the random effect has different intercepts based on the levels of another variable but there's no a main effect. The 0 in the intercept in lme4 assumes that random slopes interact with an intercept but without main effect.
+
+```{r}
+
+## lme4
+# fm1 <- lmer(Reaction ~ Days + (0 + Days | Subject), data=DT)
+## sommer
+fm2 <- mmer(Reaction ~ Days,
+            random= ~ vs(Days, Subject), 
+            data=DT, tolparinv = 1e-6, verbose = FALSE)
+
+# vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
+summary(fm2)$varcomp
+
+```
+
+## 4) Other models not available in lme4 but available in sommer
+
+One of the strengths of sommer is the availability of other variance covariance structures. In this section we show 4 models available in sommer that are not available in lme4 and might be useful.
+
+```{r}
+library(orthopolynom)
+## diagonal model
+fm2 <- mmer(Reaction ~ Days,
+            random= ~ vs(ds(Daysf), Subject), 
+            data=DT, tolparinv = 1e-6, verbose = FALSE)
+summary(fm2)$varcomp
+## unstructured model
+fm2 <- mmer(Reaction ~ Days,
+            random= ~ vs(us(Daysf), Subject), 
+            data=DT, tolparinv = 1e-6, verbose = FALSE)
+summary(fm2)$varcomp
+## random regression (legendre polynomials)
+fm2 <- mmer(Reaction ~ Days,
+            random= ~ vs(leg(Days,1), Subject), 
+            data=DT, tolparinv = 1e-6, verbose = FALSE)
+summary(fm2)$varcomp
+## unstructured random regression (legendre)
+fm2 <- mmer(Reaction ~ Days,
+            random= ~ vs(us(leg(Days,1)), Subject), 
+            data=DT, tolparinv = 1e-6, verbose = FALSE)
+summary(fm2)$varcomp
+
+
+```
+
+## Final remarks
+
+Keep in mind that sommer uses the direct inversion (DI) algorithms which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small number of individuals and covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
+
+## Literature
+
+Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6):1-15.
+
+Covarrubias-Pazaran G. 2018. Software update: Moving the R package sommer to multivariate mixed models for genome-assisted prediction. doi: https://doi.org/10.1101/354639
+
+Bernardo Rex. 2010. Breeding for quantitative traits in plants. Second edition. Stemma Press. 390 pp.
+
+Gilmour et al. 1995. Average Information REML: An efficient algorithm for variance parameter estimation in linear mixed models. Biometrics 51(4):1440-1450.
+
+Henderson C.R. 1975. Best Linear Unbiased Estimation and Prediction under a Selection Model. Biometrics vol. 31(2):423-447.
+
+Kang et al. 2008. Efficient control of population structure in model organism association mapping. Genetics 178:1709-1723.
+
+Lee, D.-J., Durban, M., and Eilers, P.H.C. (2013). Efficient two-dimensional smoothing with P-spline ANOVA mixed models and nested bases. Computational Statistics and Data Analysis, 61, 22 - 37.
+
+Lee et al. 2015. MTG2: An efficient algorithm for multivariate linear mixed model analysis based on genomic information. Cold Spring Harbor. doi: http://dx.doi.org/10.1101/027201.
+
+Maier et al. 2015. Joint analysis of psychiatric disorders increases accuracy of risk prediction for schizophrenia, bipolar disorder, and major depressive disorder. Am J Hum Genet; 96(2):283-294.
+
+Rodriguez-Alvarez, Maria Xose, et al. Correcting for spatial heterogeneity in plant breeding experiments with P-splines. Spatial Statistics 23 (2018): 52-71.
+
+Searle. 1993. Applying the EM algorithm to calculating ML and REML estimates of variance components. Paper invited for the 1993 American Statistical Association Meeting, San Francisco.
+
+Yu et al. 2006. A unified mixed-model method for association mapping that accounts for multiple levels of relatedness. Genetics 38:203-208.
+
+Tunnicliffe W. 1989. On the use of marginal likelihood in time series model estimation. JRSS 51(1):15-27.

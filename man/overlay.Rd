@@ -51,4 +51,4 @@ modh <- mmer(sugar~1,
               data=DT)
 
 }
-\seealso{The core functions of the package \code{\link{mmer}}}
+\seealso{The core functions of the package \code{\link{mmer}} and a function for creating dummy variables for diallel models named \code{\link{add.diallel.vars}}. }
