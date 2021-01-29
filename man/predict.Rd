@@ -46,7 +46,7 @@
 
   \item{pvals}{the table of predictions according to the specified arguments.}
   
-  \item{hypertable}{the summary table specifying the ignored and include sets.}
+  \item{hypertable}{the summary table specifying the ignored, include and average sets.}
   
   \item{model}{the mixed model used within predict.}
   
@@ -55,6 +55,10 @@
   \item{C12}{the inverse of the coefficient matrix corresponding to the covariance between fixed and random effects.}
   
   \item{C22}{the inverse of the coefficient matrix corresponding to the random effects.}
+  
+  \item{Xextended}{the model matrix for fixed effects used to compute BLUPs and SEs.}
+  
+  \item{Zextended}{the model matrix for random effects used to compute BLUPs and SEs.}
   
  }
  \references{

@@ -36,12 +36,15 @@ head(DT)
 DT2 <- add.diallel.vars(DT,par1="Par1", par2="Par2")
 head(DT2)
 
-# GRIFFING MODEL 2 with reciprocal effects ################################
+# GRIFFING MODEL 2 with reciprocal effects ###########################
 mod1h <- mmer(Ftime ~ 1, data=DT2,
               random = ~ Block
-              + overlay(Par1, Par2) # GCA male & female overlayed
-              + cross.id # SCA effects (includes cross and selfs)
-              + cross.id:cross.type) # SCAR reciprocal effects (if zero there's no reciprocal effects)
+              # GCA male & female overlayed
+              + overlay(Par1, Par2) 
+              # SCA effects (includes cross and selfs)
+              + cross.id 
+              # SCAR reciprocal effects (if zero there's no reciprocal effects)
+              + cross.id:cross.type) 
 summary(mod1h)$varcomp
 ##                                    VarComp VarCompSE   Zratio 
 ## Block.Ftime-Ftime                  0.00000   9.32181 0.000000 
@@ -50,11 +53,15 @@ summary(mod1h)$varcomp
 ## cross.id:cross.type.Ftime-Ftime   66.02295  49.26876 1.340057 
 ## units.Ftime-Ftime                418.47949  74.56442 5.612321  
 ##
-# GRIFFING MODEL 2, no reciprocal effects #######################################
+# GRIFFING MODEL 2, no reciprocal effects ##############################
 mod1h <- mmer(Ftime ~ Block + is.cross, data=DT2,
-              random = ~ overlay(Par1, Par2)  # GCA for all (female and male)
-              + overlay(Par1, Par2):is.cross  # GCA (only for hybrids)
-              + cross.id:is.cross) # SCA (hybrids only)
+              random = ~ 
+              # GCA for all (female and male)
+              overlay(Par1, Par2)  
+              # GCA (only for hybrids)
+              + overlay(Par1, Par2):is.cross  
+              # SCA (hybrids only)
+              + cross.id:is.cross) 
 summary(mod1h)$varcomp
 ##                                           VarComp  VarCompSE   Zratio
 ## overlay(Par1, Par2).Ftime-Ftime          2304.1781 1261.63193 1.826347
@@ -62,11 +69,15 @@ summary(mod1h)$varcomp
 ## cross.id:is.cross.Ftime-Ftime             340.7030  148.56225 2.293335
 ## units.Ftime-Ftime                         501.6275   74.36075 6.745864
 ##
-# GRIFFING MODEL 3, no reciprocal effects ############################################
+# GRIFFING MODEL 3, no reciprocal effects ###############################
 mod1h <- mmer(Ftime ~ Block + is.cross, data=DT2,
-              random = ~ overlay(Par1, Par2):is.cross # GCAC (only for hybrids)
-              + Par1:is.self # male GCA (only for inbreds)
-              + cross.id:is.cross) # SCA (for hybrids only)
+              random = ~ 
+              # GCAC (only for hybrids)
+              overlay(Par1, Par2):is.cross 
+              # male GCA (only for inbreds)
+              + Par1:is.self 
+              # SCA (for hybrids only)
+              + cross.id:is.cross) 
 summary(mod1h)$varcomp
 ##                                           VarComp  VarCompSE   Zratio
 ## overlay(Par1, Par2):is.cross.Ftime-Ftime  927.7895  537.91218 1.724797
@@ -74,13 +85,18 @@ summary(mod1h)$varcomp
 ## cross.id:is.cross.Ftime-Ftime             341.4567  148.53667 2.298804
 ## units.Ftime-Ftime                         498.5974   73.92066 6.745035
 ##
-# GRIFFING MODEL 2, with reciprocal effects ###########################################
+# GRIFFING MODEL 2, with reciprocal effects #############################
 # In Mohring: mixed model 3 reduced
 mod1h <- mmer(Ftime ~ Block + is.cross, data=DT2,
-              random = ~ overlay(Par1, Par2):is.cross # GCAC (for hybrids only)
-              + Par1:is.self # male GCA (for selfs only)
-              + cross.id:is.cross # SCA (for hybrids only)
-              + cross.id:cross.type) # SCAR reciprocal effects
+              random = ~ 
+              # GCAC (for hybrids only)
+              overlay(Par1, Par2):is.cross 
+              # male GCA (for selfs only)
+              + Par1:is.self 
+              # SCA (for hybrids only)
+              + cross.id:is.cross 
+              # SCAR reciprocal effects
+              + cross.id:cross.type) 
 summary(mod1h)$varcomp
 ##                                             VarComp  VarCompSE   Zratio
 ## overlay(Par1, Par2):is.cross.Ftime-Ftime   927.78742  537.89981 1.724833
@@ -89,15 +105,20 @@ summary(mod1h)$varcomp
 ## cross.id:cross.type.Ftime-Ftime             66.43695   49.24492 1.349113
 ## units.Ftime-Ftime                          416.82960   74.27202 5.612203
 ##
-# GRIFFING MODEL 3, with RGCA + RSCA ##################################################
+# GRIFFING MODEL 3, with RGCA + RSCA ####################################
 # In Mohring: mixed model 3
 mod1h <- mmer(Ftime ~ Block + is.cross, data=DT2,
               random = ~ 
-                overlay(Par1,Par2):is.cross # GCAC (for hybrids only)
-              + overlay(Par1,Par2):cross.type # RGCA: exclude selfs (to identify reciprocal effects)
-              + Par1:is.self # male GCA (for selfs only)
-              + cross.id:is.cross # SCA (for hybrids only)
-              + cross.id:cross.type) # SCAR: exclude selfs (if zero there's no reciprocal effects)
+              # GCAC (for hybrids only)
+                overlay(Par1,Par2):is.cross 
+              # RGCA: exclude selfs (to identify reciprocal effects)
+              + overlay(Par1,Par2):cross.type 
+              # male GCA (for selfs only)
+              + Par1:is.self 
+              # SCA (for hybrids only)
+              + cross.id:is.cross 
+              # SCAR: exclude selfs (if zero there's no reciprocal effects)
+              + cross.id:cross.type) 
 summary(mod1h)$varcomp
 ##                                            VarComp  VarCompSE    Zratio
 ## overlay(Par1, Par2):is.cross.Ftime-Ftime   927.7843  537.88164 1.7248857
