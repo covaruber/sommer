@@ -278,17 +278,23 @@
     fToAverage <- which(hypertable$type == "fixed" & hypertable$average == TRUE)
     if(length(fNotToUse) > 0){fToUse <- setdiff(fToUse,fNotToUse)}
   }
-  
+  # fToUse<- 1:3
   if(length(fToUse) > 0){ # if there's fixed effects to add
-    #
+    # print(hypertable)
     if(length(fToAverage) > 0){# if there's terms to average
       for(xi in 1:length(fToAverage)){
         # we add a 1 to those terms and then divide over the number of factor levels (columns)
-        averFactor <- hypertable[fToAverage[xi],"nLevels"]+1
+        if(length(which(hypertable$term == "1")) > 0){fact1<-1}else{fact1<-0}
+        averFactor <- hypertable[fToAverage[xi],"nLevels"]+fact1
         modelForMatrices$X[[fToAverage[xi]]] <- ((modelForMatrices$X[[fToAverage[xi]]]+1)/(modelForMatrices$X[[fToAverage[xi]]]+1)) / averFactor
       }
     }
+    # # correction for intercept if exists
+    # if(hypertable$term[1] == "1"){
+    #   modelForMatrices$X[[1]] <- modelForMatrices$X[[1]]/averFactor
+    # }
     
+    # print(str(modelForMatrices$X))
     X <- do.call(cbind,modelForMatrices$X[fToUse]) # build X cbinding the ones required
     # 
     # find the betas to use
@@ -301,7 +307,11 @@
         start= max(betas0[[i]])+1
       }
     }
-    
+    # print(betas0)
+    # print(start)
+    # print(head(X))
+    # print(fToUse)
+    # print(start)
     X.mv.extended <- kronecker(X,TT)
     Xb=X.mv.extended%*%modelForMatrices$Beta[unlist(betas0[fToUse]),1] # calculate Xb
     # X'ViX
@@ -338,7 +348,7 @@
       start <- max(zToUse[[i]])+1
     }
     zToUse <- unique(unlist(zToUse[which(reUsed0 == 1)]))
-   
+    # print(zToUse)
     
     if(!is.null(hypertable)){ # if user provides a hypertable, use the customization instead
       nFixed <- max(which(hypertable$type == "fixed"))
