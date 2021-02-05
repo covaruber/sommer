@@ -4,7 +4,7 @@ author: "Giovanny Covarrubias-Pazaran"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{lme4 vs sommer}
+  %\VignetteIndexEntry{translate lme4 to sommer}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -29,15 +29,24 @@ This is the simplest model people use when a random effect is desired and the le
 library(sommer)
 data(DT_sleepstudy)
 DT <- DT_sleepstudy
-
+###########
 ## lme4
+###########
 # fm1 <- lmer(Reaction ~ Days + (1 | Subject), data=DT)
+# summary(fm1) # or vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
+# Random effects:
+#  Groups   Name        Variance Std.Dev.
+#  Subject  (Intercept) 1378.2   37.12   
+#  Residual              960.5   30.99   
+# Number of obs: 180, groups:  Subject, 18
+###########
 ## sommer
+###########
 fm2 <- mmer(Reaction ~ Days,
             random= ~ Subject, 
             data=DT, tolparinv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
-# vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
+
 
 ```
 
@@ -46,15 +55,23 @@ summary(fm2)$varcomp
 This is the a model where you assume that the random effect has different intercepts based on the levels of another variable. In addition the || in lme4 assumes that slopes and intercepts have no correlation.
 
 ```{r}
-
+###########
 ## lme4
+###########
 # fm1 <- lmer(Reaction ~ Days + (Days || Subject), data=DT)
+# summary(fm1) # or vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
+# Random effects:
+#  Groups    Name        Variance Std.Dev.
+#  Subject   (Intercept) 627.57   25.051  
+#  Subject.1 Days         35.86    5.988  
+#  Residual              653.58   25.565  
+# Number of obs: 180, groups:  Subject, 18
+###########
 ## sommer
+###########
 fm2 <- mmer(Reaction ~ Days,
             random= ~ Subject + vs(Days, Subject), 
             data=DT, tolparinv = 1e-6, verbose = FALSE)
-
-# vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
 summary(fm2)$varcomp
 
 ```
@@ -66,17 +83,25 @@ Notice that Days is a numerical (not factor) variable.
 This is the a model where you assume that the random effect has different intercepts based on the levels of another variable. In addition a single | in lme4 assumes that slopes and intercepts have a correlation to be estimated.
 
 ```{r}
-
+###########
 ## lme4
+###########
 # fm1 <- lmer(Reaction ~ Days + (Days | Subject), data=DT)
+# summary(fm1) # or # vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
+# Random effects:
+#  Groups   Name        Variance Std.Dev. Corr
+#  Subject  (Intercept) 612.10   24.741       
+#           Days         35.07    5.922   0.07
+#  Residual             654.94   25.592       
+# Number of obs: 180, groups:  Subject, 18
+###########
 ## sommer
+###########
 ## no equivalence in sommer to find the correlation between the 2 vc
 ## this is the most similar which is equivalent to (intercept || slope)
 fm2 <- mmer(Reaction ~ Days,
             random= ~ Subject + vs(Days, Subject), 
             data=DT, tolparinv = 1e-6, verbose = FALSE)
-
-# vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
 summary(fm2)$varcomp
 
 ```
@@ -86,20 +111,27 @@ summary(fm2)$varcomp
 This is the a model where you assume that the random effect has different intercepts based on the levels of another variable but there's no a main effect. The 0 in the intercept in lme4 assumes that random slopes interact with an intercept but without main effect.
 
 ```{r}
-
+###########
 ## lme4
+###########
 # fm1 <- lmer(Reaction ~ Days + (0 + Days | Subject), data=DT)
+# summary(fm1) # or vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
+# Random effects:
+#  Groups   Name Variance Std.Dev.
+#  Subject  Days  52.71    7.26   
+#  Residual      842.03   29.02   
+# Number of obs: 180, groups:  Subject, 18
+###########
 ## sommer
+###########
 fm2 <- mmer(Reaction ~ Days,
             random= ~ vs(Days, Subject), 
             data=DT, tolparinv = 1e-6, verbose = FALSE)
-
-# vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
 summary(fm2)$varcomp
 
 ```
 
-## 4) Other models not available in lme4 but available in sommer
+## 4) Other models available in sommer but not in lme4
 
 One of the strengths of sommer is the availability of other variance covariance structures. In this section we show 4 models available in sommer that are not available in lme4 and might be useful.
 
