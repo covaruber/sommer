@@ -490,7 +490,7 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
     is.residual =TRUE
   }else{is.residual=FALSE}
   ### get the data
-  init2 <- list()
+  init2 <- list() # store the matrices for each random effect provided in ...
   for(i in 1:length(init)){
     if(is.list(init[[i]])){ ## if it comes from a ds, us, cs function
       
@@ -549,21 +549,27 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
   typevc <- numeric()
   re_name <- character()
   counter <- 1
+  # print(vcs)
   for(i in 1:ncol(vcs)){ ## for each row
     for(j in 1:i){ ## for each column
       # print(paste(i,j))
       if(vcs[i,j] > 0){ ## to be estimated
         
-        if(i==j){## variance component
-          # commonlevs <- intersect(colnames(allzs),namz)
-          # if(length(commonlevs) == 0){stop(paste("You may not be using a special variance structure in",paste(namess2,collapse = ","),"combination"),call. = FALSE)}
+        if(i==j){## variance component (diagonal term in vcs) and either positive or fixed
           namz <- strsplit(rownames(vcs)[i],":")[[1]]
-          # print(matrix(apply(allzs[,namz],1,prod)))
           zz <- as.matrix(apply(as.matrix(allzs[,namz]),1,prod) * Z)
           if(is.null(Gu)){
+            
+            if(!is.null(Gtc)){ # warning for possible mistake
+              if(Gtc[i,j] == 2){ # if the user provides a covariance component as a variance component warn him he might not be providing the proper relationship matrix
+                warning("You have provided an unconstrained variance component for a term with diagonal structure. \nA customized relationship structure may be needed.",call. = FALSE)
+              }
+            }
+            
             Gux <- diag(ncol(Z))
-          }else{
-            # colnames(zz) <- gsub(ref_name,"",colnames(zz)) ## why I wrote this?
+            
+          }else{ # if Gu is provided
+            
             checkg <- setdiff(colnames(zz),colnames(Gu))
             if(length(checkg)>0){
               stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
@@ -576,6 +582,13 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
             }
             nameszz <- colnames(zz)
             Gux <- Gu[nameszz,nameszz]
+            if(!is.null(Gtc)){ # fix possible mistake
+              if(Gtc[i,j] == 2){ # if the user provides a covariance component as a variance component do not rearrange the relationship matrix
+                # print("cov")
+                Gux <- Gu
+              }
+            }
+            
           }
           Zup[[counter]] <- zz
           Kup[[counter]] <- Gux
@@ -583,6 +596,7 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
           re_name[counter] <- paste(rownames(vcs)[i],ref_name,sep=":")
           counter <- counter + 1
         }else{## covariance component
+          # print("cov")
           namz1 <- strsplit(rownames(vcs)[i],":")[[1]] # name of term1
           namz2 <- strsplit(colnames(vcs)[j],":")[[1]] # name of term2
           z1 <- as.matrix(apply(as.matrix(allzs[,namz1]),1,prod) * Z)
@@ -591,7 +605,7 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
           if(is.null(Gu)){
             Gux <- diag(ncol(Z))
             Gu0 <- Gux*0
-            Gu1 <- rbind(cbind(Gu0,Gux),cbind(Gux,Gu0))
+            Gu1 <- rbind(cbind(Gu0,Gux),cbind(Gux,Gu0)) # image(as(Gu1, Class="sparseMatrix"))
           }else{
             
             checkg <- setdiff(colnames(z1),colnames(Gu))

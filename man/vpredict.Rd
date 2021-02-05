@@ -1,18 +1,17 @@
-\name{vpredict}
-\alias{vpredict}
-\title{vpredict functionality}
-\description{
+\name{vpredict.mmer}
+\alias{vpredict.mmer}
+\title{Predict form of a LMM fitted with mmer}
+\description{\code{vpredict} method for class \code{"mmer"}.
+
 Post-analysis procedure to calculate linear combinations of variance components. Its intended use is when the variance components are either simple variances or are variances and covariances in an unstructured matrix. The functions covered are linear combinations of the variance components (for example, phenotypic variance), a ratio of two components (for example, heritabilities) and the correlation based on three components (for example, genetic correlation). 
  
 The calculations are based on the estimated variance parameters and their variance matrix as represented by the inverse of the Fisher or Average information matrix. Note that this matrix has zero values for fixed variance parameters including those near the parameter space boundary.
 
 The transform is specified with a formula. On the left side of the formula is a name for the transformation. On the right side of the formula is a transformation specified with shortcut names like `V1`, `V2`, etc.  The easiest way to identify these shortcut names is to use `summary(object)$varcomp`. The rows of this object can referred to with shortcuts `V1`, `V2`, etc.  See the example below.
-
 }
 \usage{
-  vpredict(object, transform)
+\method{vpredict}{mmer}(object, transform)
 }
-
 \arguments{
   \item{object}{a model fitted with the mmer or mmer2 functions.}
   \item{transform}{a formula to calculate the function.}

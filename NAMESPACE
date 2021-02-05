@@ -27,8 +27,8 @@ export(atcg1234,build.HMM,h2.fun)
 
 ## FUN_stats
 export(adiag1, imputev,
-       leg, wald.test,
-       vpredict)
+       leg, wald.test
+       )
 
 ## FUN_relationships
 export(A.mat, D.mat, E.mat, H.mat, AR1, CS, ARMA, simGECorMat)
@@ -38,7 +38,7 @@ export(EM, MEMMA)
 
 ## FUN_utils
 export(summary.mmer, residuals.mmer, fitted.mmer, plot.mmer, 
-       predict.mmer,
+       predict.mmer, vpredict.mmer,
        #variogram, variogram.mmer, plot.variogram.mmer,
        anova.mmer, coef.mmer, randef)
 
