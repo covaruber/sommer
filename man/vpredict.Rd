@@ -2,11 +2,12 @@
 \alias{vpredict}
 \title{vpredict functionality}
 \description{
- Post-analysis procedure to calculate functions of variance components. Its intended use is when the variance components are either simple variances or are variances and covariances in an unstructured matrix. The functions covered are linear combinations of the variance components (for example, phenotypic variance), a ratio of two components (for example, heritabilities) and the correlation based on three components (for example, genetic correlation). 
+Post-analysis procedure to calculate linear combinations of variance components. Its intended use is when the variance components are either simple variances or are variances and covariances in an unstructured matrix. The functions covered are linear combinations of the variance components (for example, phenotypic variance), a ratio of two components (for example, heritabilities) and the correlation based on three components (for example, genetic correlation). 
  
-The vpredict file specifies the functions to be calculated.
-
 The calculations are based on the estimated variance parameters and their variance matrix as represented by the inverse of the Fisher or Average information matrix. Note that this matrix has zero values for fixed variance parameters including those near the parameter space boundary.
+
+The transform is specified with a formula. On the left side of the formula is a name for the transformation. On the right side of the formula is a transformation specified with shortcut names like `V1`, `V2`, etc.  The easiest way to identify these shortcut names is to use `summary(object)$varcomp`. The rows of this object can referred to with shortcuts `V1`, `V2`, etc.  See the example below.
+
 }
 \usage{
   vpredict(object, transform)
@@ -14,7 +15,7 @@ The calculations are based on the estimated variance parameters and their varian
 
 \arguments{
   \item{object}{a model fitted with the mmer or mmer2 functions.}
-  \item{transform}{formula to calculate the function.}
+  \item{transform}{a formula to calculate the function.}
 }
 \value{
   \describe{
@@ -48,7 +49,7 @@ The calculations are based on the estimated variance parameters and their varian
 # mix1 <- mmer(Yield~1,
 #               random=~vs(id,Gu=A), 
 #               data=DT)
-# summary(mix1)
+# summary(mix1)$varcomp
 # #### run the vpredict function
 # vpredict(mix1, h2 ~ V1 / ( V1 + V2 ) )
 # 
@@ -70,7 +71,7 @@ The calculations are based on the estimated variance parameters and their varian
 #                random=~vs(id,Gu=A, Gt=unsm(2)), 
 #                rcov=~vs(units, Gt=unsm(2)),
 #               data=DT)
-# summary(mix2)
+# summary(mix2)$varcomp
 # ## genetic correlation
 # vpredict(mix2, gen.cor ~ V2 / sqrt(V1*V3))
 # 
@@ -86,7 +87,7 @@ The calculations are based on the estimated variance parameters and their varian
 #                random = ~ vs(dam, Gtc=unsm(2)) + vs(fosternest,Gtc=diag(2)),
 #                rcov=~vs(units,Gtc=unsm(2)),
 #                data = DT)
-# summary(mix3)
+# summary(mix3)$varcomp
 # #### calculate the genetic correlation
 # vpredict(mix3, gen.cor ~ V2 / sqrt(V1*V3))
 # 
@@ -100,7 +101,7 @@ The calculations are based on the estimated variance parameters and their varian
 # DT <- DT_btdata
 # mix4 <- mmer(tarsus ~ sex, random = ~ dam + fosternest,
 #                data = DT) 
-# summary(mix4)
+# summary(mix4)$varcomp
 # #### calculate the ratio and its SE
 # vpredict(mix4, dam.prop ~ V1 / ( V1 + V2 + V3 ) )
 
