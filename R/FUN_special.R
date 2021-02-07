@@ -561,7 +561,10 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
           if(is.null(Gu)){
             
             if(!is.null(Gtc)){ # warning for possible mistake
-              if(Gtc[i,j] == 2){ # if the user provides a covariance component as a variance component warn him he might not be providing the proper relationship matrix
+              # print(Gtc)
+              # print("a")
+              # print(Gtc[i,j])
+              if(vcs[i,j] == 2){ # if the user provides a covariance component as a variance component warn him he might not be providing the proper relationship matrix
                 warning("You have provided an unconstrained variance component for a term with diagonal structure. \nA customized relationship structure may be needed.",call. = FALSE)
               }
             }
@@ -583,7 +586,9 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
             nameszz <- colnames(zz)
             Gux <- Gu[nameszz,nameszz]
             if(!is.null(Gtc)){ # fix possible mistake
-              if(Gtc[i,j] == 2){ # if the user provides a covariance component as a variance component do not rearrange the relationship matrix
+              # print("b")
+              # print(Gtc[i,j])
+              if(vcs[i,j] == 2){ # if the user provides a covariance component as a variance component do not rearrange the relationship matrix
                 # print("cov")
                 Gux <- Gu
               }

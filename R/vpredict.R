@@ -1,4 +1,10 @@
+vpredict <- function(...) {
+  UseMethod("vpredict")
+}
+
 vpredict.mmer <- function (object, transform){
+  
+  # UseMethod("vpredict.mmer")
   
   # if(object$method %in% c("EMMA","EM")){
   #   stop("The pin function only works for 'NR' and 'AI' methods.",call. = FALSE)
@@ -43,6 +49,7 @@ vpredict.mmer <- function (object, transform){
   ## d''(x) * d'(x) * d'
   ## those var(vc.i) and covar(covar.ij) from the variance comp. come from the inverse if the second derivatives (Fisher's)
   toreturn2 <- data.frame(row.names = tname, Estimate = tvalue, SE = se)
-  attr(toreturn2, "class")<-c("vpredict.mmer", "data.frame")
+  class(toreturn2) <- "vpredict.mmer"
+  # attr(toreturn2, "class")<-c("vpredict.mmer", "data.frame")
   return(toreturn2)
 }
