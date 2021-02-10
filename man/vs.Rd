@@ -5,7 +5,7 @@
   \code{vs} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmer}} solver. 
 }
 \usage{
-  vs(..., Gu=NULL, Gti=NULL, Gtc=NULL)
+  vs(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE)
 }
 
 \arguments{
@@ -26,8 +26,11 @@
   \code{random=~vs(e,f,h,g)}
   
   where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{ds}}, \code{\link{us}}, \code{\link{cs}}, \code{\link{at}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
+
   \item{Gu}{matrix with the known variance-covariance values for the levels of the u.th random effect (i.e. relationship matrix among individuals or any other known covariance matrix). If NULL, then an identity matrix is assumed.}
+
   \item{Gti}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument. If NULL the program will provide the initial values.}
+
   \item{Gtc}{matrix with dimensions t x t (t equal to number of traits) of constraints for the variance-covariance components for the random effect specified in the ... argument according to the following rules:
   
   \code{0: not to be estimated}
@@ -39,8 +42,9 @@
   \code{3: not to be estimated but fixed (value has to be provided in the Gti argument)}
   
   In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense. Useful functions to specify constraints are; \code{\link{diag}}(), \code{\link{unsm}}(), \code{\link{uncm}}(), \code{\link{fixm}}().
-  
   }
+  
+  \item{reorderGu}{a TRUE/FALSE statement if the Gu matrix should be reordered or passed with the custom order of the user. This may be important when fitting covariance components in a customized fashion. Only for advance usage.}
 }
 \value{
   \describe{

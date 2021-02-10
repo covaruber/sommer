@@ -16,7 +16,7 @@ export(
 export(mmer, mmer2, GWAS, GWAS2)
 
 ## FUN_special
-export(at,cs,ds,us,vs,
+export(at,cs,ds,us,vs, gvs,
        unsm,uncm,fixm,fcm,
        list2usmat, transformConstraints,
        overlay, add.diallel.vars, spl2D,

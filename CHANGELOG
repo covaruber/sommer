@@ -386,6 +386,13 @@ version 4.1.2 (2021-02-01)
  + The predict function now provides the correct standard errors
  + GWAS C++ implementation
  + Progress bar for GWAS function added
+ 
+########################
+version 4.1.3 (2021-04-01)
+########################
+
+ + Addition of the gvs() function to fit indirect genetic effects and other competition models
+ + Addition of an example of indirect genetic effects to vignettes.
 
 ######################
 ## PENDINGS

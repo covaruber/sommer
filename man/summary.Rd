@@ -15,7 +15,7 @@
 \value{
   vector of summary
  }
-\author{Giovanny Covarrubias-Pazaran \email{covarrubiasp@wisc.edu}}
+\author{Giovanny Covarrubias-Pazaran \email{cova_ruberlive.com.mx}}
 \seealso{\code{\link{summary}}, \code{\link{mmer}}}
 \keyword{models}
 

@@ -26,8 +26,7 @@
   }
 }
 \references{
-  Mohring J, Melchinger AE, Piepho HP (2011) REML-based diallel analysis. Crop Sci 51:470–478. https://doi.org/10.2135/cropsci2010.05.0272
-  
+
   Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
   
 }

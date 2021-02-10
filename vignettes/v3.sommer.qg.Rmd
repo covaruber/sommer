@@ -29,10 +29,10 @@ Vignettes aim to provide several examples in how to use the sommer package under
 5) Genomic selection (predicting mendelian sampling)
     + GBLUP
     + rrBLUP
-6) Single cross prediction (hybrid prediction)
-7) Spatial modeling (using the 2-dimensional splines)
-8) Multivariate genetic models and genetic correlations
-9) Final remarks
+6) Indirect genetic effects
+7) Single cross prediction (hybrid prediction)
+8) Spatial modeling (using the 2-dimensional splines)
+9) Multivariate genetic models and genetic correlations
 
 **SECTION 3: Special topics in quantitative genetics**
 
@@ -354,7 +354,39 @@ cor(u[vv,],DT[vv,"X1"]) # same correlation
 # the same can be applied in multi-response models in GBLUP or rrBLUP
 ```
 
-### 6) Genomic selection: single cross prediction
+
+### 6) Indirect genetic effects
+
+General variance structures can be used to fit indirect genetic effects. Here, we use an example dataset to show how we can fit the variance and covariance components between two or more different random effects.
+
+We first fit a direct genetic effects model:
+```{r}
+data(DT_ige)
+DT <- DT_ige
+A <- A_ige
+
+## Direct genetic effects model
+modDGE <- mmer(trait ~ block,
+               random = ~ vs(focal) + vs(neighbour),
+               rcov = ~ units,
+               data = DT, verbose=FALSE)
+summary(modDGE)$varcomp
+
+```
+We know fit the indirect genetic effects model:
+
+```{r}
+
+### Indirect genetic effects model
+modIGE <- mmer(trait ~ block,
+               random = ~ gvs(focal, neighbour),
+               rcov = ~ units, 
+               data = DT, verbose=FALSE)
+summary(modIGE)$varcomp
+
+```
+
+### 7) Genomic selection: single cross prediction
 
 When doing prediction of single cross performance the phenotype can be dissected in three main components, the general combining abilities (GCA) and specific combining abilities (SCA). This can be expressed with the same model analyzed in the diallel experiment mentioned before:
 
@@ -406,7 +438,7 @@ In the previous model we only used the GCA effects (GCA1 and GCA2) for practicit
 
 A model without covariance structures would show that the SCA variance component is insignificant compared to the GCA effects. This is why including the third random effect doesn't increase the prediction accuracy.
 
-### 7) Spatial modeling: using the 2-dimensional spline
+### 8) Spatial modeling: using the 2-dimensional spline
 
 We will use the CPdata to show the use of 2-dimensional splines for accomodating spatial effects in field experiments. In early generation variety trials the availability of seed is low, which makes the use of unreplicated design a neccesity more than anything else. Experimental designs such as augmented designs and partially-replicated (p-rep) designs become every day more common this days. 
 
@@ -438,7 +470,7 @@ lattice::levelplot(spatial~Row*Col, data=DT) # plot the spatial effect by row an
 Notice that the job is done by the `spl2D()` function that takes the Row and Col information to fit a spatial kernel. 
 
 
-### 8) Multivariate genetic models and genetic correlations
+### 9) Multivariate genetic models and genetic correlations
 
 Sometimes is important to estimate genetic variance-covariance among traits, multi-reponse models are very useful for such task. Let see an example with 3 traits (color, Yield, and Firmness) and a single random effect (genotype; id) although multiple effects can be modeled as well. We need to use a variance covariance structure for the random effect to be able to obtain the genetic covariance among traits.
 

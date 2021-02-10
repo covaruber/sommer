@@ -12,8 +12,8 @@ devtools::install_github('covaruber/sommer')
 
 ## Vignettes
 
- - [Quick start for the sommer package](https://cran.r-project.org/web/packages/sommer/vignettes/v1.sommer.quick.start.pdf)
- - [Moving to newer versions of sommer](https://cran.r-project.org/web/packages/sommer/vignettes/v2.sommer.changes.and.faqs.pdf)
- - [Quantitative genetics using the sommer package](https://cran.r-project.org/web/packages/sommer/vignettes/v3.sommer.qg.pdf)
- - [GxE models in sommer](https://cran.r-project.org/web/packages/sommer/vignettes/v4.sommer.gxe.pdf)
- - [lme4 vs sommer](https://cran.r-project.org/web/packages/sommer/vignettes/v5.sommer.vs.lme4.pdf)
+ - [Quick start for the sommer package](https://cran.r-project.org/package=sommer/vignettes/v1.sommer.quick.start.pdf)
+ - [Moving to newer versions of sommer](https://cran.r-project.org/package=sommer/vignettes/v2.sommer.changes.and.faqs.pdf)
+ - [Quantitative genetics using the sommer package](https://cran.r-project.org/package=sommer/vignettes/v3.sommer.qg.pdf)
+ - [GxE models in sommer](https://cran.r-project.org/package=sommer/vignettes/v4.sommer.gxe.pdf)
+ - [lme4 vs sommer](https://cran.r-project.org/package=sommer/vignettes/v5.sommer.vs.lme4.pdf)

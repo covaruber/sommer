@@ -1,4 +1,4 @@
-vpredict <- function(...) {
+vpredict <- function(object, transform) {
   UseMethod("vpredict")
 }
 
