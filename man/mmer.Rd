@@ -51,6 +51,8 @@ mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03,
   
   ** \code{\link{overlay}()}, \code{\link{spl2D}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vs}()} function.
   
+    \code{\link{gvs}(...,Gu,Guc,Gti,Gtc)} is an alternative function to specify general variance structures between different random effects. An special case in the indirect genetic effect models. Is similar to the vs function but in the ... argument the different random effects are provided.
+  
   }
   \item{rcov}{A formula specifying the name of the \strong{error term}, i.e. \emph{rcov= ~ units}.
   
@@ -112,6 +114,10 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
   \code{\link{vs}(x,Gtc=\link{fcm}(v))}
       
   can be used to constrain fixed effects in the multi-response mixed models. This is a vector that specifies if the fixed effect is to be estimated for such trait. For example \emph{fixed=cbind(response.i, response.j)~vs(Rowf, Gtc=fcm(c(1,0)))} means that the fixed effect Rowf should only be estimated for the first response and the second should only have the intercept.
+  
+  \code{\link{gvs}(x,y)}  
+  
+  can be used to fit variance and covariance parameters between two or more random effects. For example, indirect genetic effect models.
 
 \strong{S3 methods}{
 
@@ -153,6 +159,8 @@ The package has been equiped with several datasets to learn how to use the somme
 * \code{\link{DT_legendre}} simulated dataset for random regression model.
 
 * \code{\link{DT_sleepstudy}} dataset to know how to translate lme4 models to sommer models.
+
+* \code{\link{DT_ige}} dataset to show how to fit indirect genetic effect models.
 
 \strong{Models Enabled}
 

@@ -321,7 +321,7 @@ gvs <- function(..., Gu=NULL, Guc=NULL, Gti=NULL, Gtc=NULL, form=NULL){ # genera
             mm=diag(1); rownames(mm) <- colnames(mm) <- namess2[i] # K is a 1 x 1 matrix
           }
           
-        }else{ # user provided a factor or character vector
+        }else{ # user provided a factor or character vector, normal case
           levs <- na.omit(unique(dummy)) # extract all levels
           if(length(levs) > 1){ # if more than one level build a design matrix
             dummy  <- model.matrix(~dummy-1,na.action = na.pass) # form Z
@@ -348,7 +348,7 @@ gvs <- function(..., Gu=NULL, Guc=NULL, Gti=NULL, Gtc=NULL, form=NULL){ # genera
     }
   }
   # make a dataframe with the vectors and matrices provided by the user
-  
+  # print(str(init2))
   #########################################################
   ## build new design and covariance matrices for the structures
   ## specified in the form argument
@@ -376,8 +376,12 @@ gvs <- function(..., Gu=NULL, Guc=NULL, Gti=NULL, Gtc=NULL, form=NULL){ # genera
           Zx <- cbind(init2[[i]][[1]],init2[[j]][[1]])
           Ai <- init2[[i]][[2]]
           Aj <- init2[[j]][[2]]
-          Zeroi <- Ai * 0
-          Zeroj <- Aj * 0
+          Zeroi <- matrix(0, nrow=nrow(Aj),ncol=ncol(Ai)); rownames(Zeroi) <- rownames(Aj); colnames(Zeroi) <- colnames(Ai)
+          Zeroj <- matrix(0, nrow=nrow(Ai),ncol=ncol(Aj)); rownames(Zeroj) <- rownames(Ai); colnames(Zeroj) <- colnames(Aj)
+          # print(dim(Ai))
+          # print(dim(Aj))
+          # print(dim(Zeroi))
+          # print(dim(Zeroj))
           Ax <- rbind(cbind(Zeroj,Ai),cbind(Aj,Zeroi))
           init3[[counter]] <- list(x=Zx,Ax) # store Z and K 
         }
