@@ -19,15 +19,35 @@
 
 \code{| sigma.pm   sigma2.p |}
   
-  where not only variance components for each random effect will be estimated but also the covariance component between the 2 random effects is estimated. The user can also provide a numeric vector or matrix to be considered the design matrix for the ith random effect.
+  where not only variance components for each random effect will be estimated but also the covariance component between the 2 random effects is estimated. The user can also provide a numeric vector or matrix to be considered the design matrix for the ith random effect. More than two random effects can be provided.
   
   }
 
-  \item{Gu}{matrix with the known variance-covariance values for the levels of the u.th random effect (i.e. relationship matrix among individuals or any other known covariance matrix). If NULL, then an identity matrix is assumed.}
+  \item{Gu}{list of matrices with the known variance-covariance values for the levels of the different random effects provided in the "..." argument (i.e. relationship matrix among individuals or any other known covariance matrix). If NULL, then an identity matrix is assumed. For example, a model with 2 random effects with covariance structure should be provided as:
   
-  \item{Guc}{matrix with the constraints for the u random effects. This is used to specify which variance and covariance parameters between the 1 to 1 combinations of random effects should be estimated.}
+  \code{gvs(mom, progeny, Gu=list(Am,Ap))}
+  
+  where \code{Am} and \code{Ap} are the relationship matrices for the random effects for mom and progeny respectively.
+  
+  }
+  
+  \item{Guc}{matrix with the constraints for the u random effects. This is used to specify which variance and covariance parameters between the 1 to 1 combinations of random effects should be estimated. For example, for 2 random effects the expected variance-covariance matrix expected to be estimated (when the default Guc=NULL) is and unstructured model:
+  
+  \code{| sigma2.m   sigma.pm |}
 
-  \item{Gti}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument. If NULL the program will provide the initial values.}
+  \code{| sigma.pm   sigma2.p |}
+
+but the user can constrain which parameters should be estimated. Providing:
+
+\code{Guc=diag(2)}     would fit:
+
+  \code{| sigma2.m  ...0... |}
+
+  \code{| ...0...  sigma2.p |}
+
+  }
+
+  \item{Gti}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument. If the value is NULL the program will provide the initial values.}
 
   \item{Gtc}{matrix with dimensions t x t (t equal to number of traits) of constraints for the variance-covariance components for the random effect specified in the ... argument according to the following rules:
   
