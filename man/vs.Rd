@@ -44,7 +44,7 @@
   In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense. Useful functions to specify constraints are; \code{\link{diag}}(), \code{\link{unsm}}(), \code{\link{uncm}}(), \code{\link{fixm}}().
   }
   
-  \item{reorderGu}{a TRUE/FALSE statement if the Gu matrix should be reordered or passed with the custom order of the user. This may be important when fitting covariance components in a customized fashion. Only for advance usage.}
+  \item{reorderGu}{a TRUE/FALSE statement if the Gu matrix should be reordered based on the names of the design matrix of the random effect or passed with the custom order of the user. This may be important when fitting covariance components in a customized fashion. Only for advanced use.}
 }
 \value{
   \describe{

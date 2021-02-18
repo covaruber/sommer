@@ -363,23 +363,54 @@ We first fit a direct genetic effects model:
 ```{r}
 data(DT_ige)
 DT <- DT_ige
-A <- A_ige
+Af <- A_ige
+An <- A_ige
 
 ## Direct genetic effects model
 modDGE <- mmer(trait ~ block,
-               random = ~ vs(focal) + vs(neighbour),
+               random = ~ focal,
                rcov = ~ units,
                data = DT, verbose=FALSE)
 summary(modDGE)$varcomp
 
 ```
-We know fit the indirect genetic effects model:
+
+We know fit the indirect genetic effects model without covariance between DGE and IGE:
+
+```{r}
+data(DT_ige)
+DT <- DT_ige
+A <- A_ige
+
+## Indirect genetic effects model
+modDGE <- mmer(trait ~ block,
+               random = ~ focal + neighbour,
+               rcov = ~ units,
+               data = DT, verbose=FALSE)
+summary(modDGE)$varcomp
+
+```
+
+We know fit the indirect genetic effects model with covariance between DGE and IGE for which we will use the gvs() function:
 
 ```{r}
 
 ### Indirect genetic effects model
 modIGE <- mmer(trait ~ block,
                random = ~ gvs(focal, neighbour),
+               rcov = ~ units, 
+               data = DT, verbose=FALSE)
+summary(modIGE)$varcomp
+
+```
+
+On top of that we can a relationship matrix for the two random effects that are being forced to covary
+
+```{r}
+
+### Indirect genetic effects model
+modIGE <- mmer(trait ~ block,
+               random = ~ gvs(focal, neighbour, Gu=list(Af,An)),
                rcov = ~ units, 
                data = DT, verbose=FALSE)
 summary(modIGE)$varcomp

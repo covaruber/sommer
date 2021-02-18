@@ -36,22 +36,35 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 data(DT_ige)
 DT <- DT_ige
-A <- A_ige
-
+Af <- A_ige
+An <- A_ige
 ### Direct genetic effects model
 # modDGE <- mmer(trait ~ block,
-#                random = ~ vs(focal) + vs(neighbour),
+#                random = ~ focal,
 #                rcov = ~ units, 
 #                data = DT)
 # summary(modDGE)$varcomp
-
-### Indirect genetic effects model
+# 
+### Indirect genetic effects model without covariance between DGE and IGE
+# modDGE <- mmer(trait ~ block,
+#                random = ~focal + neighbour,
+#                rcov = ~ units, 
+#                data = DT)
+# summary(modDGE)$varcomp
+# 
+### Indirect genetic effects model with covariance between DGE and IGE
 modIGE <- mmer(trait ~ block,
                random = ~ gvs(focal, neighbour),
                rcov = ~ units, 
                data = DT)
 summary(modIGE)$varcomp
-
+#
+### Indirect genetic effects model with covariance between DGE and IGE using relatioship matrices
+# modIGEb <- mmer(trait ~ block,
+#                random = ~ gvs(focal, neighbour, Gu=list(Af,An)),
+#                rcov = ~ units, 
+#                data = DT)
+# summary(modIGEb)$varcomp
 }
 \keyword{datasets}
 \seealso{The core functions of the package \code{\link{mmer}} }
