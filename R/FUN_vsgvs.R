@@ -249,8 +249,9 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE){
       
     }
   }
+  # print(is.null(specialVariables));print(namess2)
   if(!is.null(specialVariables)){
-    namess2 <- specialVariables
+    namess2 <- unique(c(namess2,specialVariables))
   }
   S3 <- list(Z=Zup,K=Kup,Gti=Gti,Gtc=Gtc,typevc=typevc,re_name=re_name,vcs=vcs, terms=namess2)
   return(S3)

@@ -48,7 +48,7 @@ names(mapCP) <- c("Locus","Position","LG")
 mapCP <- mapCP[which(mapCP$LG <= 3),]
 #### run the function
 # res <- LD.decay(CPgeno, mapCP)
-names(res)
+# names(res)
 #### subset only markers with significant LD
 # res$all.LG <- res$all.LG[which(res$all.LG$p < .001),]
 #### plot the LD decay

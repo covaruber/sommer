@@ -647,6 +647,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   arma::vec popo = arma::vec(rankX, arma::fill::zeros);
   for(int i=0; i < rankX; i++){popo(i) = 1;}
   arma::mat A(kk,kk,arma::fill::zeros); // to store second derivatives
+  arma::vec ww(kk); // vector to store first derivatives, the product Y'PViPY - tr(PVi) = dL/ds 
   arma::mat A_svd;
   arma::vec eigval2; // will be used for the decomposition of P, within the algorithm
   arma::mat eigvec2; // will be used for the decomposition of P
@@ -793,7 +794,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       }
       
       // calculate first derivatives (dL/ds)
-      arma::vec ww(kk); // vector to store the product Y'PViPY - tr(PVi) = dL/ds
+      
       arma::cube PdViList(nom,nom,kk); // list to store the multivariate derivatives * P or PVi=P*dZKZ'/ds
       for(int i=0; i < kk; i++){
         int re = re_mapper(i);
@@ -1013,6 +1014,8 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     Rcpp::Named("AIC") = AIC,
     Rcpp::Named("BIC") = BIC,
     Rcpp::Named("convergence") = convergence,
-    Rcpp::Named("monitor") = monitor2
+    Rcpp::Named("monitor") = monitor2,
+    Rcpp::Named("dL") = ww,
+    Rcpp::Named("dL2") = A
   );
 }

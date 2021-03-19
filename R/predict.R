@@ -17,7 +17,7 @@
     oto <- oto2 <- object$terms
     oto2$fixed[[1]] <- setdiff(oto2$fixed[[1]],c("1","-1"))
     oto2$fixed <- lapply(oto2$fixed,function(x){paste(x,collapse = ":")})
-    oto2$random <- lapply(oto2$random,function(x){paste(x,collapse = ":")})
+    oto2$random <- lapply(oto2$random,function(x){paste(x,collapse = ":")}) # paste to present as A:B:C
     
     for(u in 3:length(object$terms)){ # change random terms to split by ":"
       prov <- object$terms[[u]]
@@ -29,19 +29,22 @@
     }
     
     include <- setdiff(unique(c(unlist(object$terms$fixed),unlist(object$terms$random))),c("1","-1"))
-    
+    include <- unique(unlist(lapply(include,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
     ##################################################
     # step 0. find all variables used in the modeling
     allTermsUsed <- unique(c(unlist(object$terms$fixed), unlist(object$terms$random)))
     allTermsUsed<- allTermsUsed[which(allTermsUsed!= "1")]
     allTermsUsed<- allTermsUsed[which(allTermsUsed!= "-1")]
     allTermsUsed <- unique(unlist(strsplit(allTermsUsed,":")))
-    
+    allTermsUsed <- unique(unlist(lapply(allTermsUsed,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
+    # print(allTermsUsed)
     toAgg <- unique(unlist(strsplit(include,":")))
     ignored <- setdiff(allTermsUsed,toAgg)
     # print(toAgg)
-    levelsOfTerms <- apply(data.frame(toAgg),1,function(x){unique(object$dataOriginal[,x])})
+    levelsOfTerms <- lapply(as.list(toAgg),function(x){(unique(object$dataOriginal[,x]))})
+    # print(levelsOfTerms)
     DTX <- expand.grid(levelsOfTerms); 
+    # print(head(DTX))
     colnames(DTX) <- toAgg
     
     toMerge <- unique(object$dataOriginal[,c(colnames(DTX),ignored)])
@@ -93,7 +96,7 @@
     nLevels <- c(unlist(lapply(originalModelForMatricesSE$X,ncol)), unlist(lapply(originalModelForMatricesSE$Z,ncol)))
     namesLevels <- c(unlist(oto$fixed),names(object$U))
     namesLevelsO <- data.frame( x=c(unlist(oto2$fixed),unlist(oto2$random)), y=c(object$termsN$fixed, object$termsN$random))
-    namesLevelsO <- unlist(apply(namesLevelsO,1,function(x){rep(x[1],x[2])}))
+    namesLevelsO <- as.vector(unlist(apply(namesLevelsO,1,function(x){rep(x[1],x[2])})))
     formLevels <- c(rep("fixed",length(unlist(oto$fixed))),rep("random",length(names(object$U))))
     id <- 1:length(formLevels)
     ignored <- rep(FALSE,length(id)) # all ignored by default
@@ -105,6 +108,7 @@
     
     return(predictSummary)
   }
+  
   
   if(is.null(hypertable)){
     # if user doesn't provide hypertable, we build one that : 
@@ -154,6 +158,7 @@
     include <- setdiff(hypertable[which(hypertable$include),"termHL"],c("1","-1"))
     # print(include)
   }
+  include <- unique(unlist(lapply(include,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
   
   ##################################################
   # step 0. find all variables used in the modeling
@@ -161,12 +166,21 @@
   allTermsUsed<- allTermsUsed[which(allTermsUsed!= "1")]
   allTermsUsed<- allTermsUsed[which(allTermsUsed!= "-1")]
   allTermsUsed <- unique(unlist(strsplit(allTermsUsed,":")))
+  allTermsUsed <- unique(unlist(lapply(allTermsUsed,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
   
   toAgg <- unique(unlist(strsplit(include,":")))
   ignored <- setdiff(allTermsUsed,toAgg)
   # print(ignored)
   
-  levelsOfTerms <- apply(data.frame(toAgg),1,function(x){unique(object$dataOriginal[,x])})
+  ## impute variables to avoid issues in dimensions
+  for(i in 1:length(allTermsUsed)){
+    if(is.numeric(object$dataOriginal[,allTermsUsed[i]]) | is.factor(object$dataOriginal[,allTermsUsed[i]]) ){
+      object$dataOriginal[,allTermsUsed[i]] <- imputev(object$dataOriginal[,allTermsUsed[i]])
+    }
+  }
+  
+  
+  levelsOfTerms <- lapply(as.list(toAgg),function(x){unique(object$dataOriginal[,x])})
   DTX <- expand.grid(levelsOfTerms); 
   colnames(DTX) <- toAgg
   # toMerge <- object$dataOriginal[,c(colnames(DTX),ignored,object$terms$response[[1]])]
