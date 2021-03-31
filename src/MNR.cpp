@@ -851,7 +851,8 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         // rest0 = '(';  rest1=cc.n_elem; rest2 = 'restrained)';
         arma::uvec no_restrain = find((constraints == 1 && coef_ut_unC > 0) || (constraints > 1)); // indices of columns that are OK to use
         arma::mat Ac = A.submat(no_restrain,no_restrain); // subset of A
-        arma::mat Ac_svd = arma::inv(Ac); // Inverse of Fishers (subset of A)
+        arma::mat Ac_svd;
+        arma::inv(Ac_svd, Ac); // Inverse of Fishers (subset of A)
         if(Ac_svd.n_rows == 0){ // if fails 
           Rcpp::Rcout << "System is singular (Ac_svd). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
           return 0;
