@@ -59,7 +59,7 @@ modIGE <- mmer(trait ~ block,
                data = DT)
 summary(modIGE)$varcomp
 #
-### Indirect genetic effects model with covariance between DGE and IGE using relatioship matrices
+### Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
 # modIGEb <- mmer(trait ~ block,
 #                random = ~ gvs(focal, neighbour, Gu=list(Af,An)),
 #                rcov = ~ units, 
