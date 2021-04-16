@@ -494,7 +494,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
                const Rcpp::List & GeI, const arma::vec & ws,
                int iters, double tolpar, double tolparinv, 
                const bool & ai, const bool & pev, 
-               const bool & verbose,const bool & retscaled) {
+               const bool & verbose,const bool & retscaled,
+               const arma::vec & stepweight,
+               const arma::vec & emupdate) {
   
   time_t before = time(0);
   localtime(&before);
@@ -511,7 +513,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   // calculate and concatenate ZKZ' and R
   arma::cube ZKZtR(no,no,n_re);
   
-  for (int i = 0; i < n_re; ++i) {
+  for (int i = 0; i < n_re; ++i) { // for each random effect
     int irw = i - n_random;
     if(i < n_random && n_random > 0){
       arma::sp_mat zp = Rcpp::as<arma::sp_mat>(Z[i]);
@@ -596,7 +598,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   arma::vec sigmaF_ut_un = sigma_ut_un; // make a copy for fixed-value vc's when we use constraints
   arma::vec coef_ut_un = sigma_ut_un; // make a 2nd copy of the same vector for stabilization
   
-  arma::vec taper(iters);  taper.fill(0.9); // create the weight vector for VC
+  // arma::vec stepweight(iters);  stepweight.fill(0.9); // create the weight vector for VC
+  // stepweight(0) = 0.5;
+  // stepweight(1) = 0.7;
   
   int  kk = sigma_ut_un.n_elem; // how many VCs are in the model?
   arma::vec llstore(iters); // container for LL
@@ -646,9 +650,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   arma::vec seqkk = seqCpp(0,kk-1);
   arma::vec popo = arma::vec(rankX, arma::fill::zeros);
   for(int i=0; i < rankX; i++){popo(i) = 1;}
-  arma::mat A(kk,kk,arma::fill::zeros); // to store second derivatives
-  arma::vec ww(kk); // vector to store first derivatives, the product Y'PViPY - tr(PVi) = dL/ds 
-  arma::mat A_svd;
+  arma::mat Inf(kk,kk,arma::fill::zeros); // to store second derivatives (information matrix)
+  arma::vec score(kk); // vector to store first derivatives, the product Y'PViPY - tr(PVi) = dL/ds 
+  arma::mat Inf_inv; // to store the inverse of the information matrix
   arma::vec eigval2; // will be used for the decomposition of P, within the algorithm
   arma::mat eigvec2; // will be used for the decomposition of P
   arma::mat sigma_store(sigma_ut_un.n_elem,iters); // to store variance comp through the different iterations
@@ -672,9 +676,6 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   // LOOP for cycles
   // ###############
   for(cycle=0; cycle < iters; cycle++){ // for each cycle
-    
-    if(cycle == 0){taper(cycle) = 0.5;} // taper 0.5 to relax change in variance component in the 1st iteration
-    if(cycle == 1){taper(cycle) = 0.7;} // taper 0.5 to relax change in variance component in the 2nd iteration
     
     for (int i = 0; i < n_re; ++i) {  // for each random effect in the formula
       sigma_ut[i] = mat_to_vecCpp(sigma.slice(i),Rcpp::as<arma::mat>(GeI[i])) ; // extract upper triangular in a vector form
@@ -793,7 +794,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         var_components(ind) = sigmatwo(ind); // var_components[which(pos==1)] = sigmatwo[which(pos==1)]
       }
       
-      // calculate first derivatives (dL/ds)
+      // calculate first derivatives (dL/ds = score)
       
       arma::cube PdViList(nom,nom,kk); // list to store the multivariate derivatives * P or PVi=P*dZKZ'/ds
       for(int i=0; i < kk; i++){
@@ -801,39 +802,45 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         arma::mat zkzp = ZKZtR.slice(re); // it repeats the same ZKZtR if is a vc for the same random effect
         arma::mat PdVi = P * kron(deriv_dummy.slice(i),zkzp); // multivariate dVi = dZKZ'/ds
         if(ai && cycle > 2){
-          ww[i] = - (0.5 * arma::as_scalar(trace(PdVi))) + (0.5 * arma::as_scalar((Ysm.t() * PdVi * P * Ysm)));
+          score[i] = - (0.5 * arma::as_scalar(trace(PdVi))) + (0.5 * arma::as_scalar((Ysm.t() * PdVi * P * Ysm)));
         }else{
-          ww[i] = arma::as_scalar(Ysm.t() * PdVi * P * Ysm) - accu(diagvec(PdVi));
+          score[i] = arma::as_scalar(Ysm.t() * PdVi * P * Ysm) - accu(diagvec(PdVi));
         }
         PdViList.slice(i) = PdVi;
       }
       // theta(k) * dL/ds  ..... are scalar values
-      ww = ww % var_components; // to be used later for updating the variance components
+      score = score % var_components; // to be used later for updating the variance components
+                                // if all goes well var_components is just ones 
       
       // calculate second derivatives (AverageInformation)
       // Fisher's Information tr(PVi * PVi) .... A*=Vi=dV/ds .... [Vi Vj'] si sj ; TT is the list of derivatives for all random effects - trait combos
       for (int i = 0; i < kk; i++){
         for (int j = 0; j < kk; j++){
           if (i > j){}else{//only upper triangular
-            if(ai && cycle > 2){ // if average informatio
-              A(i,j) = 0.5 * arma::as_scalar(Ysm.t() * PdViList.slice(i) * P * PdViList.slice(j) * P * (P * Ysm)); // j is .t() ?
+            if(ai && cycle > 2){ // if average information
+              Inf(i,j) = 0.5 * arma::as_scalar(Ysm.t() * PdViList.slice(i) * P * PdViList.slice(j) * P * (P * Ysm)); // j is .t() ?
             }else{ // if newton raphson
-              A(i,j) = accu(PdViList.slice(i) % PdViList.slice(j).t()) * arma::as_scalar(var_components(i)) * arma::as_scalar(var_components(j));
+              Inf(i,j) = accu(PdViList.slice(i) % PdViList.slice(j).t()) * arma::as_scalar(var_components(i)) * arma::as_scalar(var_components(j));
             }
           }
         }
       }
-      A = arma::symmatu(A); // copy lower in upper triangular
-      A_svd = arma::pinv(A, 1.490116e-08); // Inverse of Fishers
+      Inf = arma::symmatu(Inf); // copy lower in upper triangular
+      Inf_inv = arma::pinv(Inf, 1.490116e-08); // Inverse of Fishers
       
-      if(A_svd.n_rows == 0){ // if fails 
-        Rcpp::Rcout << "System is singular (A_svd). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
+      if(Inf_inv.n_rows == 0){ // if fails 
+        Rcpp::Rcout << "System is singular (Inf_inv). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
         return 0;
       }
       
       // F- * sigma(k) * dL/ds
-      arma::vec new_ww(kk);
-      new_ww = A_svd * ww; //update variance components where: ww = theta(k) * dL/ds
+      arma::vec delta(kk);
+      
+      if(emupdate(cycle) == 1){ // if user wants an EM update (1st derivatives)
+        delta = coef_ut_un % score % coef_ut_un;  
+      }else{ // if user wants an information*score update
+        delta = Inf_inv * score; //update for variance components where: delta = Information.inv * dL/ds
+      }
       
       // ^^^^^^^^^^^^^^^^^^
       // ^^^^^^^^^^^^^^^^^^
@@ -843,32 +850,39 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       // 1 positive
       // 2 flexible
       // 3 fixed
-      arma::vec coef_ut_unC = coef_ut_un + (taper(cycle) * new_ww);
+      arma::vec coef_ut_unC = coef_ut_un + (stepweight(cycle) * delta);
       arma::uvec restrain = find(constraints == 1 && coef_ut_unC < 0);
       arma::vec cc = coef_ut_unC(restrain); // extract the ones that suppose to be positive
       // arma::vec cc2 = cc(find(cc < 0)); // identify var comp < 0 (1's)
       if(cc.n_elem > 0){ // we have to restrain
         // rest0 = '(';  rest1=cc.n_elem; rest2 = 'restrained)';
         arma::uvec no_restrain = find((constraints == 1 && coef_ut_unC > 0) || (constraints > 1)); // indices of columns that are OK to use
-        arma::mat Ac = A.submat(no_restrain,no_restrain); // subset of A
-        arma::mat Ac_svd;
-        arma::inv(Ac_svd, Ac); // Inverse of Fishers (subset of A)
-        if(Ac_svd.n_rows == 0){ // if fails 
-          Rcpp::Rcout << "System is singular (Ac_svd). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
+        arma::mat Inf_norestrain = Inf.submat(no_restrain,no_restrain); // subset of Information matrix
+        arma::mat Inf_norestrain_inv;
+        arma::inv(Inf_norestrain_inv, Inf_norestrain); // Inverse of Fishers (subset of Inf)
+        if(Inf_norestrain_inv.n_rows == 0){ // if fails 
+          Rcpp::Rcout << "System is singular (Inf_norestrain_inv). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
           return 0;
         }
-        arma::vec wwc = ww(no_restrain); // subset of ww
-        arma::vec newc_wwc = Ac_svd * wwc; //update variance components
-        new_ww(no_restrain) = newc_wwc;
-        new_ww(restrain) = new_ww(restrain)*0;
+        arma::vec scorenorestrain = score(no_restrain); // subset of score
+        arma::vec coef_ut_un_norestrain = coef_ut_un(no_restrain); // subset of vc
+        arma::vec deltanorestrain;
+        if(emupdate(cycle) == 1){ // if user wants an EM update (1st derivatives)
+          deltanorestrain = coef_ut_un_norestrain % scorenorestrain % coef_ut_un_norestrain;
+        }else{ // if user wants an information*score update
+          deltanorestrain = Inf_norestrain_inv * scorenorestrain; //update variance components
+        }
+        delta(no_restrain) = deltanorestrain;
+        delta(restrain) = delta(restrain)*0;
+        
       }//else just keep going
       // end of parameter restrain
       // ^^^^^^^^^^^^^^^^^^
       // ^^^^^^^^^^^^^^^^^^
       
       // update
-      // sigma + f[s*F-*dL/ds] ..... = coef + taper[x]
-      coef_ut_un = coef_ut_un + (taper(cycle) * new_ww); 
+      // sigma + f[s*F-*dL/ds] ..... = coef + stepweight[x]
+      coef_ut_un = coef_ut_un + (stepweight(cycle) * delta); 
       if(cc.n_elem > 0){
         coef_ut_un(restrain) = coef_ut_un(restrain)*0; // the ones that still go below zero and shouldn't let's fix them
       }
@@ -923,7 +937,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         }
         
         // Fisher inverse
-        arma::mat  FI = A/2;
+        arma::mat  FI = Inf/2;
         arma::vec myone(pos.n_elem,arma::fill::ones);
         arma::vec sp = ((sigmatwo - myone) % pos) + myone;
         arma::mat FI_c = FI / (sp * sp.t());
@@ -1016,7 +1030,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     Rcpp::Named("BIC") = BIC,
     Rcpp::Named("convergence") = convergence,
     Rcpp::Named("monitor") = monitor2,
-    Rcpp::Named("dL") = ww,
-    Rcpp::Named("dL2") = A
+    Rcpp::Named("dL") = score,
+    Rcpp::Named("dL2") = Inf
   );
 }

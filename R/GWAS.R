@@ -7,6 +7,7 @@ GWAS <- function(fixed, random, rcov, data, weights,
                  return.param=FALSE, 
                  date.warning=TRUE,
                  verbose=FALSE,
+                 stepweight=NULL, emupdate=NULL,
                  M=NULL, gTerm=NULL, n.PC = 0, min.MAF = 0.05, 
                  P3D = TRUE){
   
@@ -44,13 +45,13 @@ GWAS <- function(fixed, random, rcov, data, weights,
       lastmodel <- .Call("_sommer_MNR",PACKAGE = "sommer",res$yvar, res$X,res$Gx,
                          res$Z,res$K,res$R,res$GES,res$GESI,res$ws,
                          res$iters,res$tolpar,res$tolparinv, res$selected,res$getPEV,res$verbose,
-                         TRUE)
+                         TRUE, res$stepweight, res$emupdate)
       Vinv <- lastmodel$Vi
     }else{
       lastmodel <- .Call("_sommer_MNR",PACKAGE = "sommer",res$yvar, res$X,res$Gx,
                          res$Z,res$K,res$R,res$GES,res$GESI,res$ws,
                          res$iters,res$tolpar,res$tolparinv, res$selected,res$getPEV,FALSE,
-                         TRUE)
+                         TRUE, res$stepweight, res$emupdate)
       Vinv <- lastmodel$Vi
     }
     ## get names of random effects

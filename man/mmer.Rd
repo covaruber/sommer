@@ -26,7 +26,8 @@ Sommer is a structural multivariate-univariate linear mixed model solver for mul
 mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03, 
      tolparinv = 1e-06, init=NULL, constraints=NULL,method="NR", getPEV=TRUE,
      na.method.X="exclude", na.method.Y="exclude",return.param=FALSE, 
-     date.warning=TRUE,verbose=TRUE, reshape.output=TRUE)
+     date.warning=TRUE,verbose=TRUE, reshape.output=TRUE, stepweight=NULL,
+     emupdate=NULL)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -74,6 +75,8 @@ mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03,
    \item{date.warning}{A TRUE/FALSE value to indicate if the program should warn you when is time to update the sommer package.}
   \item{verbose}{A TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
   \item{reshape.output}{A TRUE/FALSE value to indicate if the output should be reshaped to be easier to interpret for the user, some information is missing from the multivariate models for an easy interpretation.}
+  \item{stepweight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which doesn't happen very often with the NR method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight to the initial 8-10 iterations.}
+  \item{emupdate}{A vector of values (of length equal to the number of iterations) indicating with 1's the iterations where the algorithm should calculate an EM update instead of an update based on first and second derivatives indicated with zeros (i.e. NR or AI methods).}
     
 }
 
@@ -172,6 +175,7 @@ For details about the models enabled and more information about the covariance s
 If all parameters are correctly indicated the program will return a list with the following information:
 
 \item{Vi}{the inverse of the phenotypic variance matrix V^- = (ZGZ+R)^-1}
+\item{P}{the projection matrix  Vi - [Vi*(X*Vi*X)^-*Vi] }
 \item{sigma}{a list with the values of the variance-covariance components with one list element for each random effect.}
 \item{sigma_scaled}{a list with the values of the scaled variance-covariance components with one list element for each random effect.}
 \item{sigmaSE}{Hessian matrix containing the variance-covariance for the variance components. SE's can be obtained taking the square root of the diagonal values of the Hessian.}
@@ -186,12 +190,18 @@ If all parameters are correctly indicated the program will return a list with th
 \item{BIC}{Bayesian information criterion}
 \item{convergence}{a TRUE/FALSE statement indicating if the model converged.}
 \item{monitor}{The values of log-likelihood and variance-covariance components across iterations during the REML estimation.}
+\item{dL}{The vector of first derivatives of the likelihood with respect to the ith variance-covariance component.}
+\item{dL2}{The matrix of second derivatives of the likelihood with respect to the i.j th variance-covariance component.}
 \item{method}{The method for extimation of variance components specified by the user.}
 \item{call}{Formula for fixed, random and rcov used.}
 \item{constraints}{contraints used in the mixed models for the random effects.}
 \item{constraintsF}{contraints used in the mixed models for the fixed effects.}
-\item{data}{dataset used in the model.}
+\item{data}{The dataset used in the model after removing missing records for the response variable.}
+\item{dataOriginal}{The original dataset used in the model.}
+\item{terms}{The name of terms for responses, fixed, random and residual effects in the model.}
+\item{termsN}{The number of effects associated to fixed, random and residual effects in the model.}
 \item{sigmaVector}{a vectorized version of the sigma element (variance-covariance components) to match easily the standard errors of the var-cov components stored in the element sigmaSE.}
+\item{reshape.output}{The value provided to the mmer function for the argument with the same name.}
 
 }
 \references{
@@ -271,7 +281,7 @@ summary(ans2)
 
 ans3 <- mmer(Yield~Env,
              random=~ vs(us(Env),Name),
-             rcov=~vs(us(Env),units), 
+             rcov=~vs(ds(Env),units), 
              data=DT)
 summary(ans3)
 

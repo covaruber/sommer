@@ -69,7 +69,7 @@ gwasForLoop <- function(M, Y, Z, X, Vinv, minMAF, display_progress = TRUE) {
     .Call(`_sommer_gwasForLoop`, M, Y, Z, X, Vinv, minMAF, display_progress)
 }
 
-MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled) {
-    .Call(`_sommer_MNR`, Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled)
+MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emupdate) {
+    .Call(`_sommer_MNR`, Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emupdate)
 }
 

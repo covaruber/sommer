@@ -393,11 +393,15 @@ version 4.1.3 (2021-04-01)
 
  + Addition of the gvs() function to fit indirect genetic effects and other competition models
  + Addition of an example of indirect genetic effects to vignettes.
+ + Bug in predict() when missing data in covariates (x) exist was fixed.
 
 ######################
-## PENDINGS
-+ enable P3D argument
-+ bring back the betas, and R2 for markers in GWAS. Need to use cube (sort of list) to store betas, scores and R so we extract them in a good order.
+## PENDINGS AND PRIORITIES
++ Add EM steps to direct inversion and heuristics to problems where the information matrix explodes
 + MME-based Average Information algorithm in progress (n > p problem. Hope to have it ready for v4.2.0)
-
++ Correlation models
++ bring back the betas, and R2 for markers in GWAS. Need to use cube (sort of list) to store betas, scores and R so we extract them in a good order.
++ enable P3D argument
++ Enable GWAS for unimputed markers
++ Generalized linear models
  

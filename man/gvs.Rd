@@ -101,11 +101,11 @@ An <- A_ige
 # summary(modDGE)$varcomp
 # 
 ### Indirect genetic effects model with covariance between DGE and IGE
-modIGE <- mmer(trait ~ block,
-               random = ~ gvs(focal, neighbour),
-               rcov = ~ units, 
-               data = DT)
-summary(modIGE)$varcomp
+# modIGE <- mmer(trait ~ block,
+#               random = ~ gvs(focal, neighbour),
+#               rcov = ~ units, iters=4, 
+#               data = DT)
+# summary(modIGE)$varcomp
 #
 ### Indirect genetic effects model with covariance between DGE and IGE using relatioship matrices
 # modIGEb <- mmer(trait ~ block,

@@ -547,7 +547,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     plot(rr[,paste0(resp[i],".fitted")],sqrt(abs(scale(rr[,paste0(resp[i],".residuals")]))),pch=20, col=transp("thistle4"), ylab="Sqrt Abs Std Residuals", xlab="Fitted values", main="Scale-Location", bty="n", ...); grid()
     qqnorm(scale(rr[,paste0(resp[i],".residuals")]), pch=20, col=transp("tomato1"), ylab="Std Residuals", bty="n",...); grid()
     hat <- Xm%*%solve(t(Xm)%*%x$Vi%*%Xm)%*%t(Xm)%*%x$Vi # leverage including variance from random effects H= X(X'V-X)X'V-
-    plot(diag(hat), scale(rr[,paste0(resp[i],".residuals")]), pch=20, col=transp("springgreen3"), ylab="Std Residuals", xlab="Leverage", main="Residual vs Leverage", bty="n", ...); grid()
+    plot(diag(hat), scale(rr[,paste0(resp[i],".residuals")]), pch=20, col=transp("springblue3"), ylab="Std Residuals", xlab="Leverage", main="Residual vs Leverage", bty="n", ...); grid()
   }
   #####################
   layout(matrix(1,1,1))
@@ -579,18 +579,18 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
   assign(".sommer.version", sommer.version, pos=match("package:sommer", search()))
   if(interactive())
   {
-    packageStartupMessage(green(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(green(paste("[]   Solving Mixed Model Equations in R (sommer) ", sommer.version, " []",sep="")),appendLF=TRUE)
-    packageStartupMessage(green(paste("[]   ------------- Multivariate Linear Mixed Models --------------  []")),appendLF=TRUE)
-    packageStartupMessage(green("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
-    packageStartupMessage(green("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
-    packageStartupMessage(green("[]   Dedicated to the University of Chapingo and UW-Madison         []"),appendLF=TRUE)
-    packageStartupMessage(green("[]   Type 'vignette('v1.sommer.quick.start')' for a short tutorial  []"),appendLF=TRUE)
-    packageStartupMessage(green("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
-    packageStartupMessage(green(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(green("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
-    packageStartupMessage(green("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
-    packageStartupMessage(green("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
+    packageStartupMessage(blue(paste("[]==================================================================[]")),appendLF=TRUE)
+    packageStartupMessage(blue(paste("[]   Solving Mixed Model Equations in R (sommer) ", sommer.version, " []",sep="")),appendLF=TRUE)
+    packageStartupMessage(blue(paste("[]   ------------- Multivariate Linear Mixed Models --------------  []")),appendLF=TRUE)
+    packageStartupMessage(blue("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
+    packageStartupMessage(blue("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
+    packageStartupMessage(blue("[]   Dedicated to the University of Chapingo and UW-Madison         []"),appendLF=TRUE)
+    packageStartupMessage(blue("[]   Type 'vignette('v1.sommer.quick.start')' for a short tutorial  []"),appendLF=TRUE)
+    packageStartupMessage(blue("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
+    packageStartupMessage(blue(paste("[]==================================================================[]")),appendLF=TRUE)
+    packageStartupMessage(blue("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
+    packageStartupMessage(blue("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
+    packageStartupMessage(blue("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
     
     #if(yyy > current){ # yyy < current in CRAN
     #  packageStartupMessage(paste("Version",current,"is now available."),appendLF=TRUE) # version current
