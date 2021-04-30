@@ -507,6 +507,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   int n_re = n_random + n_rcov; // define nre=number of total random effects z+r
   int n_traits = Y.n_cols; // define n_traits=number of traits
   int no = Y.n_rows; // define n_traits=number of traits
+  arma::vec n_levels(n_re, arma::fill::ones); // to store the number of columns each Z and R matrix has
   // ****************************************************
   // define ZKZ' and R
   // ****************************************************
@@ -515,8 +516,10 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   
   for (int i = 0; i < n_re; ++i) { // for each random effect
     int irw = i - n_random;
-    if(i < n_random && n_random > 0){
-      arma::sp_mat zp = Rcpp::as<arma::sp_mat>(Z[i]);
+    if(i < n_random && n_random > 0){ // if random effect (not residual)
+      
+      arma::sp_mat zp = Rcpp::as<arma::sp_mat>(Z[i]); // transform as sparse
+      n_levels(i) = zp.n_cols; // store the number of columns or levels for this random effect
       bool dcheck = isIdentity_mat(Rcpp::as<arma::mat>(K[i]));
       if(dcheck == true){ // if K[i] is diagonal
         if(zp.n_rows == zp.n_cols){//is a square matrix
@@ -548,6 +551,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         arma::mat Wis = diagmat(ws2); // W inverse squared
         ZKZtR.slice(i) = Wis * Rcpp::as<arma::sp_mat>(R[irw]) * Wis;
       }
+      n_levels(i) = ZKZtR.slice(i).n_cols; // store the number of columns or levels for this random effect
     }
   }
   // ****************************************************
@@ -597,6 +601,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   }
   arma::vec sigmaF_ut_un = sigma_ut_un; // make a copy for fixed-value vc's when we use constraints
   arma::vec coef_ut_un = sigma_ut_un; // make a 2nd copy of the same vector for stabilization
+  arma::vec coef_ut_un_explode = sigma_ut_un; // make a 3rd copy of the same vector for checking issues with vc going too early outside the parameter space
   
   // arma::vec stepweight(iters);  stepweight.fill(0.9); // create the weight vector for VC
   // stepweight(0) = 0.5;
@@ -656,6 +661,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   arma::vec eigval2; // will be used for the decomposition of P, within the algorithm
   arma::mat eigvec2; // will be used for the decomposition of P
   arma::mat sigma_store(sigma_ut_un.n_elem,iters); // to store variance comp through the different iterations
+  arma::mat sigma_perc_change(sigma_ut_un.n_elem,iters); // to store percent change of variance components
   arma::mat llik_store(1,iters); // to store llik through the different iterations
   
   arma::mat beta, fitted, residuals; // empty matrices for ..
@@ -810,10 +816,12 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       }
       // theta(k) * dL/ds  ..... are scalar values
       score = score % var_components; // to be used later for updating the variance components
-                                // if all goes well var_components is just ones 
+      // if all goes well var_components is just ones 
       
       // calculate second derivatives (AverageInformation)
       // Fisher's Information tr(PVi * PVi) .... A*=Vi=dV/ds .... [Vi Vj'] si sj ; TT is the list of derivatives for all random effects - trait combos
+      
+      // if(emupdate(cycle) == 0){ // if user wants an EM update (1st derivatives) . It works but it didn't speed up the algorithm when using EM. This leads to don't have information matrix and therefore SE for variance components.
       for (int i = 0; i < kk; i++){
         for (int j = 0; j < kk; j++){
           if (i > j){}else{//only upper triangular
@@ -826,18 +834,19 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         }
       }
       Inf = arma::symmatu(Inf); // copy lower in upper triangular
-      Inf_inv = arma::pinv(Inf, 1.490116e-08); // Inverse of Fishers
+      Inf_inv = arma::pinv(Inf, 1.490116e-08); // Inverse of Fishers or information matrix
       
       if(Inf_inv.n_rows == 0){ // if fails 
         Rcpp::Rcout << "System is singular (Inf_inv). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
         return 0;
       }
+      // }
       
-      // F- * sigma(k) * dL/ds
+      // vector to store the update = F- * sigma(k) * dL/ds
       arma::vec delta(kk);
       
       if(emupdate(cycle) == 1){ // if user wants an EM update (1st derivatives)
-        delta = coef_ut_un % score % coef_ut_un;  
+        delta = (coef_ut_un % score % coef_ut_un)/n_levels;  
       }else{ // if user wants an information*score update
         delta = Inf_inv * score; //update for variance components where: delta = Information.inv * dL/ds
       }
@@ -848,27 +857,27 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       // GeI values
       // 0 not estimated
       // 1 positive
-      // 2 flexible
+      // 2 unconstrained
       // 3 fixed
-      arma::vec coef_ut_unC = coef_ut_un + (stepweight(cycle) * delta);
-      arma::uvec restrain = find(constraints == 1 && coef_ut_unC < 0);
+      arma::vec coef_ut_unC = coef_ut_un + (stepweight(cycle) * delta); // provisional new variance components
+      arma::uvec restrain = find(constraints == 1 && coef_ut_unC < 0); // which vcs are negative and should be positive
       arma::vec cc = coef_ut_unC(restrain); // extract the ones that suppose to be positive
       // arma::vec cc2 = cc(find(cc < 0)); // identify var comp < 0 (1's)
       if(cc.n_elem > 0){ // we have to restrain
         // rest0 = '(';  rest1=cc.n_elem; rest2 = 'restrained)';
-        arma::uvec no_restrain = find((constraints == 1 && coef_ut_unC > 0) || (constraints > 1)); // indices of columns that are OK to use
+        arma::uvec no_restrain = find((constraints == 1 && coef_ut_unC > 0) || (constraints > 1)); // indices of columns that are OK to use (no restrain)
         arma::mat Inf_norestrain = Inf.submat(no_restrain,no_restrain); // subset of Information matrix
-        arma::mat Inf_norestrain_inv;
+        arma::mat Inf_norestrain_inv; // define the inverse of the information matrix
         arma::inv(Inf_norestrain_inv, Inf_norestrain); // Inverse of Fishers (subset of Inf)
         if(Inf_norestrain_inv.n_rows == 0){ // if fails 
           Rcpp::Rcout << "System is singular (Inf_norestrain_inv). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
           return 0;
         }
-        arma::vec scorenorestrain = score(no_restrain); // subset of score
+        arma::vec scorenorestrain = score(no_restrain); // subset of scores (1st derivatives)
         arma::vec coef_ut_un_norestrain = coef_ut_un(no_restrain); // subset of vc
-        arma::vec deltanorestrain;
+        arma::vec deltanorestrain; //  define the delta for no restrained
         if(emupdate(cycle) == 1){ // if user wants an EM update (1st derivatives)
-          deltanorestrain = coef_ut_un_norestrain % scorenorestrain % coef_ut_un_norestrain;
+          deltanorestrain = (coef_ut_un_norestrain % scorenorestrain % coef_ut_un_norestrain)/n_levels;
         }else{ // if user wants an information*score update
           deltanorestrain = Inf_norestrain_inv * scorenorestrain; //update variance components
         }
@@ -882,7 +891,23 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       
       // update
       // sigma + f[s*F-*dL/ds] ..... = coef + stepweight[x]
+      
+      // coef_ut_un_explode = coef_ut_un + (stepweight(cycle) * delta);
+      // // apply the stepweight 0.1 if variance components are above x hundred %
+      // if(cycle > 0){ // if cycle is > 1 calculate the % change
+      //   sigma_perc_change.col(cycle) = ((coef_ut_un_explode/sigma_store.col(cycle-1))-1) * 100; // percent change
+      //   arma::uvec explode = arma::find(abs(sigma_perc_change.col(cycle)) > 100); // which variance components went beyond x00 %
+      //   if(explode.n_elem > 0){ // if there's components exploding
+      //     coef_ut_un = coef_ut_un + (0.1 * delta);
+      //   }else{ // if there was no vc exploding we do a regular update using the predefined stepweights
+      //     coef_ut_un = coef_ut_un + (stepweight(cycle) * delta);
+      //   }
+      // }else{ // if is the 1st cycle do a regular update
       coef_ut_un = coef_ut_un + (stepweight(cycle) * delta); 
+      // }
+      
+      
+      // constraint the parameters that should be positive and are going negative
       if(cc.n_elem > 0){
         coef_ut_un(restrain) = coef_ut_un(restrain)*0; // the ones that still go below zero and shouldn't let's fix them
       }
@@ -891,20 +916,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       sigmatwo(arma::find(pos == 1)) = exp(coef_ut_un(arma::find(pos == 1)));
       // the fixed paramters are forced to be the original value
       sigmatwo(find(constraints == 3)) = sigmaF_ut_un(find(constraints == 3));
-      // the equalized paramters are forced to be equal
-      // arma::uvec ko = find(constraints == 4);
-      // if(ko.n_elem > 0){
-      //   
-      //   double meansigman = mean(sigmatwo(find(constraints == 4)));
-      //   sigmatwo(find(constraints == 4)) = (sigmatwo(find(constraints == 4))*0) + meansigman;
-      //   Rcpp::Rcout << meansigman << arma::endl;
-      //   Rcpp::Rcout << sigmatwo(find(constraints == 4)) << arma::endl;
-      //   // sigmatwo(find(constraints == 4))[1] = sigmatwo(find(constraints == 4))[1];
-      // }
       // bring back sigma as a list
       sigma = vec_to_cubeCpp(sigmatwo, GeI);
       // check if likelihood has reached it's maximum and stop if so
-      
       llstore(cycle) = llik;
       // get current time
       time_t now = time(0);
@@ -916,6 +930,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       localtime(&before);
       // store paramaters
       sigma_store.col(cycle) = sigmatwo;
+      if(cycle > 0){
+        sigma_perc_change.col(cycle) = ((coef_ut_un/sigma_store.col(cycle-1))-1) * 100; // percent change
+      }
       llik_store(cycle) = llik;
       // return output to the console
       if(verbose == true){ //  arma::cout
@@ -1009,6 +1026,13 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   // arma::uvec indices(cycle2,arma::fill::ones);
   // arma::mat monitor2 = monitor.cols(find(indices == 1));
   arma::mat monitor2 = monitor.cols(0, cycle2);
+  arma::mat sigma_perc_change2;
+  if(iters > 1){
+    sigma_perc_change2 = sigma_perc_change.cols(1, cycle2); // indicate first and last column to subset to return at the end
+  }else{
+    sigma_perc_change2 = sigma_perc_change; // indicate first and last column to subset to return at the end
+  }
+  
   // ****************************************************
   // return the results
   // ****************************************************
@@ -1029,7 +1053,8 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     Rcpp::Named("AIC") = AIC,
     Rcpp::Named("BIC") = BIC,
     Rcpp::Named("convergence") = convergence,
-    Rcpp::Named("monitor") = monitor2,
+    Rcpp::Named("monitor") = monitor2, 
+    Rcpp::Named("percChange") = sigma_perc_change2,
     Rcpp::Named("dL") = score,
     Rcpp::Named("dL2") = Inf
   );

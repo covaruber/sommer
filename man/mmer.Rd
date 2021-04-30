@@ -190,6 +190,7 @@ If all parameters are correctly indicated the program will return a list with th
 \item{BIC}{Bayesian information criterion}
 \item{convergence}{a TRUE/FALSE statement indicating if the model converged.}
 \item{monitor}{The values of log-likelihood and variance-covariance components across iterations during the REML estimation.}
+\item{percChange}{The percent change of variance components across iterations. There should be one column less than the number of iterations. Calculated as percChange = ((x_i/x_i-1) - 1) * 100 where i is the ith iteration.}
 \item{dL}{The vector of first derivatives of the likelihood with respect to the ith variance-covariance component.}
 \item{dL2}{The matrix of second derivatives of the likelihood with respect to the i.j th variance-covariance component.}
 \item{method}{The method for extimation of variance components specified by the user.}

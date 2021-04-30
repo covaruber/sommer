@@ -2,10 +2,10 @@
 \alias{build.HMM}
 
 \title{
-Build a hybrid marker matrix using parental genotypes
+Build a hybrid marker matrix using parental genotypes from inbred individuals
 }
 \description{
-Uses the 2 marker matrices from both sets of parents and creates all possible combinations unless the user specifies which hybrid genotypes to build (custom.hyb argument). It returns the marker matrix for hybrids coded as additive (-1,0,1; homo,het,homo) and dominance (0,1,0; homo,het,homo).
+Uses the 2 marker matrices from both sets of inbred or partially inbred parents and creates all possible combinations unless the user specifies which hybrid genotypes to build (custom.hyb argument). It returns the additive and dominance marker matrices (-1,0,1; homo,het,homo in additive and 0,1,0; homo,het,homo for dominance).
 }
 \usage{
 build.HMM(M1,M2, custom.hyb=NULL, return.combos.only=FALSE)
@@ -13,12 +13,12 @@ build.HMM(M1,M2, custom.hyb=NULL, return.combos.only=FALSE)
 
 \arguments{
   \item{M1}{
-Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} lines and \eqn{m} biallelic markers, 
+Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} inbreds and \eqn{m} biallelic markers, 
 coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are not allowed.
 }
 
   \item{M2}{
-Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} lines and \eqn{m} biallelic markers, 
+Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} inbreds and \eqn{m} biallelic markers, 
 coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are not allowed.
 }
 
@@ -32,7 +32,7 @@ A TRUE/FALSE statement inicating if the function should skip building the geotyp
 }
 \details{
 
-It returns the marker matrix for hybrids coded as additive (-1,0,1; homo,het,homo) and dominance (0,1,0; homo,het,homo).
+It returns the marker matrix for hybrids coded as additive (-1,0,1; homo,het,homo) and dominance (0,1,0; homo,het,homo). This function is deviced for building marker matrices for hybrids coming from inbreds. If the parents are close to inbred >F5 you can try deleting the heterozygote calls (0's) and imputing those cells with the most common genotype (1 or -1). The expectation is that for mostly inbred individuals this may not change drastically the result but will make the results more interpretable. For non-inbred parents (F1 to F3) the cross of an F1 x F1 has many possibilities and is not the intention of this function to build genotypes for heterzygote x heterozygote crosses.
 
 }
 \value{
