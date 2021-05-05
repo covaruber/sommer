@@ -46,7 +46,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #                       + Rowf + Colf,
 #               rcov=~units,
 #               data=DT)
-# summary(mix1)
+# summary(mix1)$varcomp
 # 
 # ####=========================================####
 # #### adding dominance and forcing the other VC's
@@ -57,13 +57,32 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # D <- D.mat(GT) # dominance relationship matrix
 # mm <- matrix(3,1,1);mm ## matrix to fix the var comp
 # mix2 <- mmer(Yield~1,
-#               random=~vs(id, Gu=A, Gt=mix1$sigma_scaled$id, Gtc=mm)
-#                       + vs(Rowf,Gt=mix1$sigma_scaled$Rowf, Gtc=mm)
-#                       + vs(Colf,Gt=mix1$sigma_scaled$Colf, Gtc=mm)
+#               random=~vs(id, Gu=A, Gti=mix1$sigma_scaled$`u:id`, Gtc=mm)
+#                       + vs(Rowf,Gti=mix1$sigma_scaled$Rowf, Gtc=mm)
+#                       + vs(Colf,Gti=mix1$sigma_scaled$Colf, Gtc=mm)
 #                       + vs(idd, Gu=D, Gtc=unsm(1)),
-#               rcov=~vs(units,Gt=mix1$sigma_scaled$units, Gtc=mm),
+#               rcov=~vs(units,Gti=mix1$sigma_scaled$units, Gtc=mm),
 #               data=DT)
-# summary(mix2)
+# summary(mix2)$varcomp
+# 
+# ####=========================================####
+# #### adding dominance and forcing the other VC's  
+# #### to customized values you may want to
+# ####=========================================####
+# 
+# DT$idd <- DT$id;
+# A <- A.mat(GT) # additive relationship matrix
+# D <- D.mat(GT) # dominance relationship matrix
+# mm <- matrix(3,1,1);mm ## matrix to fix the var comp
+# varY <- var(DT[,"Yield"], na.rm = TRUE)
+# mix3 <- mmer(Yield~1,
+#              random=~vs(id, Gu=A, Gti=matrix(400/varY), Gtc=mm)
+#              + vs(Rowf,Gti=matrix(500/varY), Gtc=mm)
+#              + vs(Colf,Gti=mix1$sigma_scaled$Colf, Gtc=mm)
+#              + vs(idd, Gu=D, Gtc=unsm(1)),
+#              rcov=~vs(units,Gti=mix1$sigma_scaled$units, Gtc=mm),
+#              data=DT)
+# summary(mix3)$varcomp
 # 
 # ####====================####
 # #### multivariate model ####

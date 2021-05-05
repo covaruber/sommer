@@ -1,4 +1,4 @@
-vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE){
+vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
   
   ## ... list of structures to define the random effect
   ## Gu the known covariance matrix of the vs
@@ -33,7 +33,11 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE){
     }else{ # is a single vector with numbers or characters, ...
       
       if(is.matrix(init[[i]])){ # a mtrix is provided already so no need to create it
-        mm=diag(ncol(init[[i]])); rownames(mm) <- colnames(mm) <- colnames(init[[i]])
+        if(buildGu){ # if user want Gu built
+          mm=diag(ncol(init[[i]])); rownames(mm) <- colnames(mm) <- colnames(init[[i]])
+        }else{ # if user don't want to build Gu most likely because is an rrBLUP model (millions of SNPs)
+          mm=diag(1); rownames(mm) <- colnames(mm) <- colnames("dummy")
+        }
         init2[[i]] <- list(x=init[[i]],mm)
       }else{ # is a vector
         dummy <- init[[i]]
@@ -107,7 +111,11 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE){
               }
             }
             
-            Gux <- diag(ncol(Z))
+            if(buildGu){ # if user want Gu built
+              Gux <- diag(ncol(Z))
+            }else{ # if user don't want to build Gu most likely because is an rrBLUP model (millions of SNPs)
+              Gux <- diag(1)
+            }
             
           }else{ # if Gu is provided
             
@@ -142,7 +150,12 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE){
           z2 <- as.matrix(apply(as.matrix(allzs[,namz2]),1,prod) * Z)
           
           if(is.null(Gu)){
-            Gux <- diag(ncol(Z))
+            
+            if(buildGu){ # if user want Gu built
+              Gux <- diag(ncol(Z))
+            }else{ # if user don't want to build Gu most likely because is an rrBLUP model (millions of SNPs)
+              Gux <- diag(1)
+            }
             Gu0 <- Gux*0
             Gu1 <- rbind(cbind(Gu0,Gux),cbind(Gux,Gu0)) # image(as(Gu1, Class="sparseMatrix"))
           }else{
@@ -178,7 +191,13 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE){
           zz <- cbind(z1,z2)
           if(is.residual){ ## if residual we need to make Z square because we provide Zunits as the R
             zz <- zz%*% Gu1 %*% t(zz)
-            Gu1 <- diag(ncol(zz))
+            
+            if(buildGu){ # if user want Gu built
+              Gu1 <- diag(ncol(zz))
+            }else{ # if user don't want to build Gu most likely because is an rrBLUP model (millions of SNPs)
+              Gu1 <- diag(1)
+            }
+            
           }
           Zup[[counter]] <- zz
           Kup[[counter]] <- Gu1

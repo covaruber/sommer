@@ -527,7 +527,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
           if(dcheck2 == true){ // if Z[i] is diagonal
             ZKZtR.slice(i) = Rcpp::as<arma::mat>(K[i]); 
           }else{ZKZtR.slice(i) = zp * zp.t(); }
-        }else{
+        }else{ // is a rectangular matrix
           ZKZtR.slice(i) = zp * zp.t();
         }
       }else{ // if K[i] is not diagonal
@@ -540,6 +540,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
           ZKZtR.slice(i) = zp * Rcpp::as<arma::mat>(K[i]) * zp.t(); 
         }
       }
+      
     }else{//if is an rcov term
       // bool dcheck3 = isIdentity_mat(W);
       double dcheck3 = accu(ws - 1);
@@ -994,12 +995,39 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       if(n_random > 0){
         for(i=0; i < n_random; i++){
           arma::mat Zprov = arma::mat(Rcpp::as<arma::sp_mat>(Z[i]));
-          arma::mat VarK = arma::kron(Rcpp::as<arma::mat>(K[i]),sigma.slice(i));
-          arma::mat ZKfv = VarK * arma::kron(Zprov.t(),dD);
-          U(i) = ZKfv * Vie; // Z' G Vi (Y - Xb)
+          
+          // arma::mat Zprov2 = Rcpp::as<arma::mat>(Z[i]);
+          arma::mat Ki = Rcpp::as<arma::mat>(K[i]);
+          // arma::mat Ki2 = (Zprov.t() * Zprov) * 0; //
+          // Ki2.diag() = arma::ones<arma::vec>(Ki2.n_cols);
+          // arma::mat Ki2 = arma::mat(arma::speye( Zprov.n_cols, Zprov.n_cols ));
+          arma::mat VarK;
+          arma::mat ZKfv;
+          // double VarKscalar = arma::as_scalar(sigma.slice(i));
+          
+          // IMPORTANT
+          // for rrBLUP models we had to allow a K matrix to be a 1 x 1 matrix so dimensions do not match with Z
+          if(Ki.n_cols == Zprov.n_cols){ // if a regular random effect
+            // Rcpp::Rcout << "regular" << arma::endl;
+            VarK = arma::kron(Rcpp::as<arma::mat>(K[i]),sigma.slice(i)); // Gu * var.u
+            ZKfv = VarK * arma::kron(Zprov.t(),dD); // G Z'
+          }else{ // if huge matrix from models like rrBLUP we need to create a diagonal to calculate VarK and BLUPs
+            // Rcpp::Rcout << "rrBLUP" << arma::endl;
+            // VarK = arma::kron(Ki2,sigma.slice(i)); // Gu * var.u
+            ZKfv = arma::kron(Zprov.t(),dD*sigma.slice(i)); // G Z'
+          }
+          
+          U(i) = ZKfv * Vie; // BLUP = Z' G Vi (Y - Xb)
           if(pev==true){
-            VarU(i) = ZKfv * (P * ZKfv.t()); // var(u) = Z' G [Vi - (VX*tXVXVX)] G Z'
-            PevU(i) = VarK - Rcpp::as<arma::mat>(VarU(i)); // PEV = G - var(u)
+            
+            if(Ki.n_cols == Zprov.n_cols){ // if a regular random effect
+              VarU(i) = ZKfv * (P * ZKfv.t()); // var(u) = Z' G [Vi - (VX*tXVXVX)] G Z'
+              PevU(i) = VarK - Rcpp::as<arma::mat>(VarU(i)); // PEV = G - var(u)
+            }else{
+              VarU(i) = ZKfv * (P * ZKfv.t()); // var(u) = Z' G [Vi - (VX*tXVXVX)] G Z'
+              PevU(i) = Rcpp::as<arma::mat>(VarU(i)); // PEV = G - var(u)
+            }
+            
           }
         }
       }

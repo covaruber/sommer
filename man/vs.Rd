@@ -5,7 +5,7 @@
   \code{vs} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmer}} solver. 
 }
 \usage{
-  vs(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE)
+  vs(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE)
 }
 
 \arguments{
@@ -27,9 +27,9 @@
   
   where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{ds}}, \code{\link{us}}, \code{\link{cs}}, \code{\link{at}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
 
-  \item{Gu}{matrix with the known variance-covariance values for the levels of the u.th random effect (i.e. relationship matrix among individuals or any other known covariance matrix). If NULL, then an identity matrix is assumed. The Gu matrix can have more levels than the ones present in the random effect linked to it but not the other way around. Otherwise, an error message of missing level in Gu will be returned.}
+  \item{Gu}{matrix with the known variance-covariance values for the levels of the u.th random effect (i.e. relationship matrix among individuals or any other known covariance matrix). If \code{NULL}, then an identity matrix is assumed. The Gu matrix can have more levels than the ones present in the random effect linked to it but not the other way around. Otherwise, an error message of missing level in Gu will be returned.}
 
-  \item{Gti}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument. If NULL the program will provide the initial values.}
+  \item{Gti}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument. If \code{NULL} the program will provide the initial values. The values need to be scaled, see Details section.}
 
   \item{Gtc}{matrix with dimensions t x t (t equal to number of traits) of constraints for the variance-covariance components for the random effect specified in the ... argument according to the following rules:
   
@@ -44,7 +44,18 @@
   In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense. Useful functions to specify constraints are; \code{\link{diag}}(), \code{\link{unsm}}(), \code{\link{uncm}}(), \code{\link{fixm}}().
   }
   
-  \item{reorderGu}{a TRUE/FALSE statement if the Gu matrix should be reordered based on the names of the design matrix of the random effect or passed with the custom order of the user. This may be important when fitting covariance components in a customized fashion. Only for advanced use.}
+  \item{reorderGu}{a \code{TRUE/FALSE} statement if the Gu matrix should be reordered based on the names of the design matrix of the random effect or passed with the custom order of the user. This may be important when fitting covariance components in a customized fashion. Only for advanced users.}
+  
+    \item{buildGu}{a \code{TRUE/FALSE} statement to indicate if the Gu matrix should be built in R when the value for the argument \code{Gu=NULL}. Repeat, only when when the value for the argument \code{Gu} is equal to \code{NULL}. In some cases when the incidence matrix is wide (e.g. rrBLUP models) the covariance structure is a huge p x p matrix that can be avoided when performing matrix operations. By setting this argument to \code{FALSE} it allows to skip forming this covariance matrix.}
+    
+}
+\details{
+ When providing initial values in the \code{Gti} argument the user has to provide scaled variance component values. The user can provide values from a previous model by accessing the \code{sigma_scaled} output from an \code{mmer} model or if an specific value is desired the user can obtain the scaled value as:
+ 
+ \code{m = x/var(y)}
+ 
+ where \code{x} is the desired initial value and \code{y} is the response variable. You can find an example in the \code{\link{DT_cpdata}} dataset.
+ 
 }
 \value{
   \describe{
