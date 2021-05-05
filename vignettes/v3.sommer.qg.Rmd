@@ -344,8 +344,8 @@ cor(ans$U$`u:id`$X1[vv,],DT[vv,"X1"], use="complete")
 
 ## rrBLUP
 ans2 <- mmer(X1~1,
-             random=~vs(list(GT)), 
-             rcov=~units,
+             random=~vs(list(GT), buildGu = FALSE), 
+             rcov=~units, getPEV = FALSE,
              data=y.trn, verbose = FALSE) # kinship based
 
 u <- GT %*% as.matrix(ans2$U$`u:GT`$X1) # BLUPs for individuals
@@ -354,6 +354,7 @@ cor(u[vv,],DT[vv,"X1"]) # same correlation
 # the same can be applied in multi-response models in GBLUP or rrBLUP
 ```
 
+Please notice that when specifying the marker matrix as a random effect we used the argument 'buildGu=FALSE' to inform the 'mmer' function that a covariance matrix for the levels of the random effect shouldn't be built. Imagine a model with 100,000 markers, that would imply a relationship matrix of 100,000 x 100,000. If that matrix is a diagonal it would only compromise the speed and memory of the function. By setting  'buildGu=FALSE' the mmer solver will avoid the matrix multiplications using that huge diagonal matrix. If you want to specify a relationship matrix for the marker matrix then you cannot use that 'buildGu' argument.
 
 ### 6) Indirect genetic effects
 
@@ -617,7 +618,7 @@ plot(x=(solve(t(U)))%*%modeld$U$`u:id`$X2[colnames(D)],
 
 ```
 
-As can be seen the two models are equivalent. Despite that sommer doesnt take a great advantage of this trick because it was built for dense matrices using the Armadillo library other software may be better using this trick.
+As can be seen the two models are equivalent. Despite that sommer doesn't take a great advantage of this trick because it was built for dense matrices using the Armadillo library other software may be better using this trick.
 
 ### 3) Mating designs
 

@@ -659,8 +659,8 @@ cor(ans$U$`u:id`$X1[vv,],DT[vv,"X1"], use="complete")
 
 ## rrBLUP
 ans2 <- mmer(X1~1,
-             random=~vs(list(GT)), 
-             rcov=~units,
+             random=~vs(list(GT), buildGu = FALSE), 
+             rcov=~units, getPEV = FALSE,
              data=y.trn,verbose = FALSE) # kinship based
 
 u <- GT %*% as.matrix(ans2$U$`u:GT`$X1) # BLUPs for individuals

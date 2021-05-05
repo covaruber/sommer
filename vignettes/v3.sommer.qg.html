@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2021-02-17" />
+<meta name="date" content="2021-05-05" />
 
 <title>Quantitative genetics using the sommer package</title>
 
@@ -315,7 +315,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Quantitative genetics using the sommer package</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2021-02-17</h4>
+<h4 class="date">2021-05-05</h4>
 
 
 
@@ -776,8 +776,8 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <pre><code>## [1] 0.5737594</code></pre>
 <div class="sourceCode" id="cb46"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1"></a><span class="co">## rrBLUP</span></span>
 <span id="cb46-2"><a href="#cb46-2"></a>ans2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(X1<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb46-3"><a href="#cb46-3"></a>             <span class="dt">random=</span><span class="op">~</span><span class="kw">vs</span>(<span class="kw">list</span>(GT)), </span>
-<span id="cb46-4"><a href="#cb46-4"></a>             <span class="dt">rcov=</span><span class="op">~</span>units,</span>
+<span id="cb46-3"><a href="#cb46-3"></a>             <span class="dt">random=</span><span class="op">~</span><span class="kw">vs</span>(<span class="kw">list</span>(GT), <span class="dt">buildGu =</span> <span class="ot">FALSE</span>), </span>
+<span id="cb46-4"><a href="#cb46-4"></a>             <span class="dt">rcov=</span><span class="op">~</span>units, <span class="dt">getPEV =</span> <span class="ot">FALSE</span>,</span>
 <span id="cb46-5"><a href="#cb46-5"></a>             <span class="dt">data=</span>y.trn, <span class="dt">verbose =</span> <span class="ot">FALSE</span>) <span class="co"># kinship based</span></span>
 <span id="cb46-6"><a href="#cb46-6"></a></span>
 <span id="cb46-7"><a href="#cb46-7"></a>u &lt;-<span class="st"> </span>GT <span class="op">%*%</span><span class="st"> </span><span class="kw">as.matrix</span>(ans2<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:GT</span><span class="st">`</span><span class="op">$</span>X1) <span class="co"># BLUPs for individuals</span></span>
@@ -785,6 +785,7 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <span id="cb46-9"><a href="#cb46-9"></a><span class="kw">cor</span>(u[vv,],DT[vv,<span class="st">&quot;X1&quot;</span>]) <span class="co"># same correlation</span></span></code></pre></div>
 <pre><code>## [1] 0.5737681</code></pre>
 <div class="sourceCode" id="cb48"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1"></a><span class="co"># the same can be applied in multi-response models in GBLUP or rrBLUP</span></span></code></pre></div>
+<p>Please notice that when specifying the marker matrix as a random effect we used the argument ‘buildGu=FALSE’ to inform the ‘mmer’ function that a covariance matrix for the levels of the random effect shouldn’t be built. Imagine a model with 100,000 markers, that would imply a relationship matrix of 100,000 x 100,000. If that matrix is a diagonal it would only compromise the speed and memory of the function. By setting ‘buildGu=FALSE’ the mmer solver will avoid the matrix multiplications using that huge diagonal matrix. If you want to specify a relationship matrix for the marker matrix then you cannot use that ‘buildGu’ argument.</p>
 </div>
 <div id="indirect-genetic-effects" class="section level3">
 <h3>6) Indirect genetic effects</h3>

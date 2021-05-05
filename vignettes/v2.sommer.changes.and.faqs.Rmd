@@ -271,7 +271,7 @@ DT <- DT_cpdata
 GT <- GT_cpdata
 MP <- MP_cpdata
 mix.rrblup <- mmer(fixed=color~1,
-                   random=~vs(GT,Gtc=unsm(1)) + vs(Rowf,Gtc=diag(1)),
+                   random=~vs(GT,Gtc=unsm(1), buildGu = FALSE) + vs(Rowf,Gtc=diag(1)),
                    rcov=~vs(units,Gtc=unsm(1)), getPEV = FALSE,
                    data=DT, verbose = FALSE)
 summary(mix.rrblup)
@@ -285,6 +285,8 @@ summary(mix.gblup)
 ## Equivalence
 plot(GT%*%mix.rrblup$U$`u:GT`$color, mix.gblup$U$`u:id`$color)
 ```
+
+Please notice that when specifying the marker matrix as a random effect we used the argument 'buildGu=FALSE' to inform the 'mmer' function that a covariance matrix for the levels of the random effect shouldn't be built. Imagine a model with 100,000 markers, that would imply a relationship matrix of 100,000 x 100,000. If that matrix is a diagonal it would only compromise the speed and memory of the function. By setting  'buildGu=FALSE' the mmer solver will avoid the matrix multiplications using that huge diagonal matrix. If you want to specify a relationship matrix for the marker matrix then you cannot use that 'buildGu' argument.
 
 ### 4) I am missing BLUPs for individuals even when I provided them in the relationship matrix
 
@@ -326,7 +328,8 @@ mix2 <- mmer(Yield~1,
 summary(mix2)
 length(mix2$U$`u:id`$Yield) # now 363 levels
 ```
-
+ Since 4.1.2 this shouldn't be a problem since internally the mmer solver adds the missing levels but we leave this for reference for people using older versions of sommer.
+ 
 ### 5) How can I use the AR1(), CS() and ARMA() functions
 
 Sommer doesn't support the estimation of additional correlation components like AR1 in the way asreml does. Still, if the user know the correlation value or can do an iterative approach to find the best value then these functions can be used to specify the variance covariance structure for a given random effect.
