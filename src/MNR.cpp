@@ -1025,6 +1025,8 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
               PevU(i) = VarK - Rcpp::as<arma::mat>(VarU(i)); // PEV = G - var(u)
             }else{
               VarU(i) = ZKfv * (P * ZKfv.t()); // var(u) = Z' G [Vi - (VX*tXVXVX)] G Z'
+              // TO BE FIXED
+              // not sure how to get the PEV without constructing VarK due to high-memory requirements in rrBLUP models with potentially millions of SNPs
               PevU(i) = Rcpp::as<arma::mat>(VarU(i)); // PEV = G - var(u)
             }
             
