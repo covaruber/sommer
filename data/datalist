@@ -8,6 +8,7 @@ DT_fulldiallel: DT_fulldiallel
 DT_gryphon: DT_gryphon A_gryphon P_gryphon
 DT_h2: DT_h2
 DT_halfdiallel: DT_halfdiallel
+DT_ige: DT_ige A_ige
 DT_legendre: DT_legendre
 DT_mohring: DT_mohring
 DT_polyploid: DT_polyploid GT_polyploid MP_polyploid

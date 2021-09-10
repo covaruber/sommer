@@ -6,10 +6,11 @@ mmer <- function(fixed, random, rcov, data, weights,
                  na.method.Y="exclude",
                  return.param=FALSE, 
                  date.warning=TRUE,
-                 verbose=TRUE,reshape.output=TRUE){
+                 verbose=TRUE,reshape.output=TRUE,
+                 stepweight=NULL, emupdate=NULL){
   
   my.year <- 2021
-  my.month <- 3 #month when the user will start to get notifications the 1st day of next month
+  my.month <- 10 #month when the user will start to get notifications the 1st day of next month
   ### if my month = 5, user will start to get notification in June 1st (next month)
   datee <- Sys.Date()
   year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
@@ -372,6 +373,13 @@ mmer <- function(fixed, random, rcov, data, weights,
     ws<- coco
   }else{ws <- rep(1,nrow(yvar))}
   
+  if(is.null(stepweight)){
+    stepweight <- rep(0.9,iters); stepweight[1:2] <- c(0.5,0.7)
+  }
+  
+  if(is.null(emupdate)){
+    emupdate <- rep(0, iters)
+  }
   #################
   ## subset data
   if(method == "NR"){
@@ -414,12 +422,13 @@ mmer <- function(fixed, random, rcov, data, weights,
     res <- list(yvar=yvar, X=X,Gx=Gx,Z=Z,K=K,R=R,GES=GES,GESI=GESI, ws=ws,
                 iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
                 selected=selected,getPEV=getPEV,verbose=verbose, retscaled=FALSE,
-                re_names=re_names,good=good,fixedtermss=fixedtermss,args=args
+                re_names=re_names,good=good,fixedtermss=fixedtermss,args=args, stepweight=stepweight,
+                emupdate=emupdate
     )
   }else{
     res <- .Call("_sommer_MNR",PACKAGE = "sommer",yvar, X,Gx,Z,K,R,GES,GESI, ws,
                  iters, tolpar, tolparinv,
-                 selected,getPEV,verbose, FALSE)
+                 selected,getPEV,verbose, FALSE, stepweight, emupdate)
     
     # res <- MNR(yvar, X,Gx,Z,K,R,GES,GESI, ws,
     #              iters, tolpar, tolparinv,

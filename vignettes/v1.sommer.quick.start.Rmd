@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused in problems of the type p > n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, and specify heterogeneous variances, and obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver. The package is focused on problems of the type p > n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
 
 The purpose of this quick start guide is to show the flexibility of the package under certain common scenarios:  
 
@@ -58,7 +58,7 @@ The purpose of this quick start guide is to show the flexibility of the package 
 
 ### 1) Background on mixed models
 
-The core of the package is the `mmer` function which solve the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information algorithms (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). From version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
+The core of the package is the `mmer` function which solves the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information algorithms (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). From version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
 
 <br>
 
@@ -136,7 +136,7 @@ $\theta^{k+1} = \theta^{k} + (H^{k})^{-1}*\frac{dL}{d\sigma^2_i}|\theta^k$
 <br>
 
 
-Where, $\theta$ is the vector of variance components for random effects and covariance components among traits, $H^{-1}$ is the inverse of the Hessian matrix of second derivatives for the kth cycle, $\frac{dL}{d\sigma^2_i}$ is the vector of first derivatives of the likelihood with respect to the variance-covariance components. The Eigen decomposition of the relationship matrix proposed by Lee and Van Der Werf (2016) was included in the Newton-Raphson algorithm to improve time efficiency. Additionally, the popular vpredict function to estimate standard errors for linear combinations of variance components (i.e. heritabilities and genetic correlations) was added to the package as well.
+Where $\theta$ is the vector of variance components for random effects and covariance components among traits, $H^{-1}$ is the inverse of the Hessian matrix of second derivatives for the kth cycle, $\frac{dL}{d\sigma^2_i}$ is the vector of first derivatives of the likelihood with respect to the variance-covariance components. The Eigen decomposition of the relationship matrix proposed by Lee and Van Der Werf (2016) was included in the Newton-Raphson algorithm to improve time efficiency. Additionally, the popular `vpredict()` function to estimate standard errors for linear combinations of variance components (i.e. heritabilities and genetic correlations) was added to the package as well.
 
 Please refer to the canonical papers listed in the Literature section to check how the algorithms work. We have tested widely the methods to make sure they provide the same solution when the likelihood behaves well but for complex problems they might lead to slightly different answers. If you have any concern please contact me at cova_ruber@live.com.mx.
 
@@ -222,7 +222,7 @@ among others. Sommer has the capabilities to fit some of these covariance struct
 
 ### 1) Univariate homogeneous variance models
 
-This type of models refer to single response models where a variable of interest (i.e. genotypes) needs to be analized as interacting with a 2nd random effect (i.e. environments), but you assume that across environments the genotypes have the same variance component. This is the so-called compound simmetry (CS) model.
+This type of model refers to single response models where a variable of interest (i.e. genotypes) needs to be analyzed as interacting with a 2nd random effect (i.e. environments), but you assume that across environments the genotypes have the same variance component. This is the so-called compound symmetry (CS) model.
 
 ```{r}
 library(sommer)
@@ -254,7 +254,7 @@ summary(ans2)
 
 ```
 
-As you can see the special function `at` or `diag` can be used to indicate that there's a different variance for the genotypes in each environment. Same was done for the residual. The difference between `at` and `diag` is that the `at` function can be used to specify the levels or specific environments where the variance is different.
+As you can see the special function `at` or `diag` can be used to indicate that there's a different variance for the genotypes in each environment. The same was done for the residual. The difference between `at` and `diag` is that the `at` function can be used to specify the levels or specific environments where the variance is different.
 
 ### 3) Unstructured variance models
 
@@ -293,7 +293,7 @@ summary(ans4)
 
 ```
 
-You may notice that we have added the `us(trait)` behind the random effects. This is to indicate the structure that should be assume in the multivariate model. The `diag(trait)` used behind a random effect (i.e. Name) indicates that for the traits modeled (Yield and Weight) there's no a covariance component and should not be estimated, whereas `us(trait)` assumes that for such random effect, there's a covariance component to be estimated (i.e. covariance between Yield and Weight for the random effect Name). Same applies for the residual part (rcov).
+You may notice that we have added the `us(trait)` behind the random effects. This is to indicate the structure that should be assumed in the multivariate model. The `diag(trait)` used behind a random effect (i.e. Name) indicates that for the traits modeled (Yield and Weight) there's no covariance component and should not be estimated, whereas `us(trait)` assumes that for such a random effect, there's a covariance component to be estimated (i.e. covariance between Yield and Weight for the random effect Name). The same applies for the residual part (rcov).
 
 ### 5) Multivariate heterogeneous variance models 
 
@@ -315,7 +315,7 @@ summary(ans5)
 
 ### 6) Multivariate unstructured variance models 
 
-This is just an extension of the univariate unstructured variance models but at the multivariate level. This would be a US multivariate model:
+This is just an extension of the univariate unstructured variance model but at the multivariate level. This would be a US multivariate model:
 
 ```{r}
 
@@ -335,9 +335,9 @@ Any number of random effects can be specified with different structures.
 
 ### 7) Details on special functions for variance models
 
-#### the major vs() function for special variance models and its auxiliars
+#### the major vs() function for special variance models and its auxiliaries
 
-The sommer function `vs()` allows to construct complex variance models that are passed to the `mmer()` function it constitutes one of the most important features of the sommer package. Its specification of the `vs()` function has the form:
+The sommer function `vs()` allows constructing complex variance models that are passed to the `mmer()` function which constitutes one of the most important features of the sommer package. The specification of the `vs()` function has the form:
 
 `random=~vs(..., Gu, Gti, Gtc)`
 
@@ -345,11 +345,11 @@ The idea is that the `vs()` function reflects  the special variance structure th
 
 $var(u) = T \bigotimes E \bigotimes ... \bigotimes A$
 
-where the ... argument in the `vs()` function is used to specify the kronecker products from all matrices that form the variance for the random effect , where the auxiliar function ds(), us(), cs(), at(), can be used to define such structure variance structure. The idea is that a variance model for a random effect x (i.e. individuals) might require a more flexible model than just:
+where the ... argument in the `vs()` function is used to specify the kronecker products from all matrices that form the variance for the random effect , where the auxiliary functions `ds()`, `us()`, `cs()`, `at()`, can be used to define such structured variance structures. The idea is that a variance model for a random effect x (i.e. individuals) might require a more flexible model than just:
 
 `random=~x`
 
-For example, if individuals are tested in different time-points and environment, we can assume a different variance and covariance components among the individuals in the different environment-timepoint combinations. An example of variance structure of the type:
+For example, if individuals are tested in different time-points and environments, we can assume a different variance and covariance components among the individuals in the different environment-timepoint combinations. An example of variance structure of the type:
 
 $var(u) = T \bigotimes E \bigotimes S \bigotimes A$
 
@@ -357,9 +357,9 @@ would be specified in the `vs()` function as:
 
 `random=~vs(us(e),us(s),x, Gu=A, Gtc=T)`
 
-where the `e` would be a column vector in a data frame for the environments, `s` a column vector in the dataframe for the time points, `x` is the vector in the datrame for the identifier of individuals, `A` is a known square variance covariance matrix among individuals (usually an identity matrix; default if not specified), and T is a square matrices with as many rows and columns as the number of traits that specifyies the trait covariance structure. 
+where the `e` would be a column vector in a data frame for the environments, `s` a column vector in the dataframe for the time points, `x` is the vector in the datrame for the identifier of individuals, `A` is a known square variance covariance matrix among individuals (usually an identity matrix; default if not specified), and T is a square matrices with as many rows and columns as the number of traits that specifies the trait covariance structure. 
 
-The auxiliar function to build the variance models for the random effect are:
+The auxiliary functions to build the variance models for the random effect are:
   + ds() diagonal covariance structure
   + us() unstructured covariance
   + at() specific levels heterogeneous variance structure
@@ -383,7 +383,7 @@ Considering an example for one random effect (g; indicating i.e. individuals) ev
 
 #### us() to specify an unstructured (US) covariance
 
-A unstructured covariance looks like this:
+An unstructured covariance looks like this:
 
 $$\mathbf{G} = \left[\begin{array}
 {rrr}
@@ -409,7 +409,7 @@ $$\mathbf{\Sigma} = \left[\begin{array}
 \end{array}\right]
 $$
 
-Considering same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments A,B,C) the model would look like:
+Considering the same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments A,B,C) the model would look like:
 
 `random=~vs(at(e,c("A","B")),g)`
 
@@ -431,20 +431,20 @@ Considering same example for one random effect (g; indicating i.e. individuals) 
 
 `random=~vs(cs(e,mm),g)`
 
-where mm indicates which variance and covariance components are estimated for g.
+where `mm` indicates which variance and covariance components are estimated for `g`.
 
 ### 8) The specification of constraints in the variance components (Gtc argument)
 
 One of the major strengths of sommer is its extreme flexibility to specify variance-covariance structures in the multi-trait framework. Since sommer 3.7 this is easily achieved by the use of the `vs()` function and it's argument `Gtc`. The `Gtc` argument expects a matrix of constraints for the variance-covariance components for the random effect filled with numbers according to the following rules:
 
-0: parameter not to be estimated
-1: estimated and constrained to be positive
-2: estimated and unconstrained
-3: not to be estimated but fixed value provided in Gti
++ 0: parameter not to be estimated
++ 1: estimated and constrained to be positive
++ 2: estimated and unconstrained
++ 3: not to be estimated but fixed value provided in `Gti`
 
-Some useful function to specify quickly the contraint matrices are `unsm()` for unstructured, `uncm` for unconstrained, `fixm()` for fixed constraint, and `fcm()` for fixed effect constrains. 
+Some useful functions to specify quickly the contraint matrices are `unsm()` for unstructured, `uncm` for unconstrained, `fixm()` for fixed constraint, and `fcm()` for fixed effect constraints. 
 
-Consider a multi-trait model with 4 traits (y1,...,y4) and 1 random effects (u) and 1 fixed effect (x)
+Consider a multi-trait model with 4 traits (y1,...,y4) and 1 random effect (u) and 1 fixed effect (x)
 
 `fixed=cbind(y1,y2,y3,y4)~x`
 
@@ -501,21 +501,21 @@ summary(mRR2)$varcomp
 
 ```
 
-Here, a numeric covariate X is used to explain the trajectory of the SUBJECT's and combined with an unstructured covariance matrix. The details can be found in the theory.
+Here, a numeric covariate X is used to explain the trajectory of the SUBJECTs and combined with an unstructured covariance matrix. The details can be found in the theory.
 
 #### GWAS models
 
-Although genome wide association studies can be conducted through a variety of approaches, the use of mixed models to find association between markers and phenotypes still one of the most popular approaches. Two of the most classical and popular approaches is to test marker by marker trough mixed modeling (1 model by marker) to obtain the marker effect and an statistic reflecting the level of association usually provided as the -log10 p-value. The second most popular approach is to assume that the genetic variance component is similar for all markers and therefore the variance components are only estimated once (1 model for all markers) and use the inverse of the phenotypic variance matrix (V.inverse) to test all markers in the generalized linear model b=(XV-X)-XV-y. This makes the GWAS much faster and efficient without major loses. Given the straight forward extension, sommer provides the `GWAS` function which can fit both type of approaches (be aware that these are 2 among many existant in the literature) in univariate and multivariate models, that way genetically correlated traits can be tested together to increase the power of detection. In summary the GWAS model implemented in sommer to obtain marker effect is a generalized linear model of the form:
+Although genome-wide association studies can be conducted through a variety of approaches, the use of mixed models to find associations between markers and phenotypes still one of the most popular approaches. One of the most classical and popular approaches is to test marker by marker trough mixed modeling (1 model by marker) to obtain the marker effect and a statistic reflecting the level of association usually provided as the -log10 p-value. The second most popular approach is to assume that the genetic variance component is similar for all markers and therefore the variance components are only estimated once (1 model for all markers) and use the inverse of the phenotypic variance matrix (V.inverse) to test all markers in the generalized linear model $b=(XV-X)-XV-y$. This makes the GWAS much faster and efficient without major loses. Given the straightforward extension, sommer provides the `GWAS` function which can fit both type of approaches (be aware that these are two methods among many existant in the literature) in univariate and multivariate models, that way genetically correlated traits can be tested together to increase the power of detection. In summary the GWAS model implemented in sommer to obtain marker effect is a generalized linear model of the form:
 
 b = (X'V-X)X'V-y
 
 with X = ZMi
 
 where:
-b is the marker effect (dimensions 1 x mt)
-y is the response variable (univariate or multivariate) (dimensions 1 x nt)
-V- is the inverse of the phenotypic variance matrix (dimensions nt x nt)
-Z is the incidence matrix for the random effect selected (gTerm argument) to perform the GWAS (dimensions nt x ut)
+- b is the marker effect (dimensions 1 x mt)
+- y is the response variable (univariate or multivariate) (dimensions 1 x nt)
+- V- is the inverse of the phenotypic variance matrix (dimensions nt x nt)
+- Z is the incidence matrix for the random effect selected (gTerm argument) to perform the GWAS (dimensions nt x ut)
 Mi is the ith column of the marker matrix (M argument) (dimensions u x m)
 
 for t traits, n observations, m markers and u levels of the random effect. Depending if P3D is TRUE or FALSE the V- matrix will be calculated once and used for all marker tests (P3D=TRUE) or estimated through REML for each marker (P3D=FALSE).
@@ -549,11 +549,11 @@ manhattan(MP2, pch=20,cex=.5, PVCN = "color")
 
 ```
 
-Be aware that the marker matrix M has to be imputed (no missing data allowed) and make sure that the number of rows in the M matrix is equivalent to the levels of the gTerm specified (i.e. if the gTerm is "id" and has 300 levels or in other words 300 individuals, then M has dimensions 300 x m, being m the number of markers).
+Be aware that the marker matrix `M` has to be imputed (no missing data allowed) and make sure that the number of rows in the M matrix is equivalent to the levels of the gTerm specified (i.e. if the gTerm is "id" and has 300 levels or in other words 300 individuals, then M has dimensions 300 x m, where m is the number of markers).
 
 #### Overlayed models [the overlay() function]
 
-Another very useful function is the `overlay` function, which allows to overlay matrices of different random effects and estimate a single variance component for the overlayed terms.
+Another very useful function is the `overlay` function, which allows for the overlay of matrices of different random effects and estimate a single variance component for the overlayed terms.
 
 ```{r}
 
@@ -571,13 +571,13 @@ modh <- mmer(sugar~1,
 
 ```
 
-here the femalef and malef random effects are overlayed becoming a single random effect that has the same variance component.
+here the `femalef` and `malef` random effects are overlayed becoming a single random effect that has the same variance component.
 
 #### Spatial models (using the 2-dimensional spline)
 
-We will use the CPdata to show the use of 2-dimensional splines for accomodating spatial effects in field experiments. In early generation variety trials the availability of seed is low, which makes the use of unreplicated design a neccesity more than anything else. Experimental designs such as augmented designs and partially-replicated (p-rep) designs become every day more common this days. 
+We will use the CPdata to show the use of 2-dimensional splines for accomodating spatial effects in field experiments. In early generation variety trials the availability of seed is low, which makes the use of an unreplicated design a neccesity more than anything else. Experimental designs such as augmented designs and partially-replicated (p-rep) designs have become more common these days. 
 
-In order to do a good job modeling the spatial trends happening in the field special covariance structures have been proposed to accomodate such spatial trends (i.e. autoregressive residuals; ar1). Unfortunately, some of these covariance structures make the modeling rather unstable. More recently other research groups have proposed the use of 2-dimensional splines to overcome such issues and have a more robust modeling of the spatial terms (Lee et al. 2013; Rodríguez-Álvarez et al. 2018).
+In order to do a good job modeling the spatial trends happening in the field, special covariance structures have been proposed to accomodate such spatial trends (i.e. autoregressive residuals; ar1). Unfortunately, some of these covariance structures make the modeling rather unstable. More recently other research groups have proposed the use of 2-dimensional splines to overcome such issues and have a more robust modeling of the spatial terms (Lee et al. 2013; Rodríguez-Álvarez et al. 2018).
 
 In this example we assume an unreplicated population where row and range information is available which allows us to fit a 2 dimensional spline model.
 
@@ -598,7 +598,7 @@ mix <- mmer(Yield~1,
 summary(mix)
 ```
 
-Notice that the job is done by the `spl2D()` function that takes the Row and Col information to fit a spatial kernel. 
+Notice that the job is done by the `spl2D()` function that takes the `Row` and `Col` information to fit a spatial kernel. 
 
 #### Customized random effects
 
@@ -630,7 +630,7 @@ $y = X\beta + Zu + \epsilon$
 
 <br>
 
-and takes advantage of the variance covariance matrix for the genotype effect known as the additive relationship matrix (A) and calculated using the `A.mat` function to establish connections among all individuals and predict the BLUPs for individuals that were not measured. In case the interest is to get BLUPs for markers the random effect is the actual marker matrix and the relationship among markers can be specified as well but in this example is assume a diagonal.
+and takes advantage of the variance covariance matrix for the genotype effect known as the additive relationship matrix (A) and calculated using the `A.mat` function to establish connections among all individuals and predict the BLUPs for individuals that were not measured. In case the interest is to get BLUPs for markers the random effect is the actual marker matrix and the relationship among markers can be specified as well but in this example is assumed to be diagonal.
 
 ```{r}
 data(DT_wheat)
@@ -659,8 +659,8 @@ cor(ans$U$`u:id`$X1[vv,],DT[vv,"X1"], use="complete")
 
 ## rrBLUP
 ans2 <- mmer(X1~1,
-             random=~vs(list(GT)), 
-             rcov=~units,
+             random=~vs(list(GT), buildGu = FALSE), 
+             rcov=~units, getPEV = FALSE,
              data=y.trn,verbose = FALSE) # kinship based
 
 u <- GT %*% as.matrix(ans2$U$`u:GT`$X1) # BLUPs for individuals
@@ -671,7 +671,7 @@ cor(u[vv,],DT[vv,"X1"]) # same correlation
 
 ### 11) Likelihood ratio tests
 
-The Likelihood ratio tests (LRT) is a good way to investigate the significance of random effects or specific variance-covariance components. 
+The Likelihood ratio test (LRT) is a good way to investigate the significance of random effects or specific variance-covariance components. 
 
 #### 11.1) Testing the significance of a variance component
 
@@ -735,18 +735,18 @@ modelCov <- mmer(cbind(Yield, Weight) ~ Env,
 lrt <- anova(modelBase, modelCov)
 ```
 
-As can be seen, in this case fitting the covariance among the genotypes improves the model fit considerably and the probablity fro the Chi-square distribution is < 0.05. Then you the model with the covariance is the preferred model.
+As can be seen, in this case fitting the covariance among the genotypes improves the model fit considerably and the probablity of the Chi-square distribution is < 0.05. Then you the model with the covariance is the preferred model.
 
 
 ## SECTION 3: The predict function
 
 ### 1) Background on prediction
 
-In a linear mixed model where y is nx1 vector of observations, the linear mixed model can be written as:
+In a linear mixed model where y is an nx1 vector of observations, the linear mixed model can be written as:
 
 $y = X\tau + Zu + e =  W \beta + e$
 
-where $\tau$ is a vector tx1 of fixed effects, X is an nxt design matrix which associates observations with the appropriate combinations of fixed effects, u is the qx1 vector of random effects, Z is the nxq matrix which associates observations with the appropriate random effects, and e is the nx1 vectors of residual errors. For shorthand W and $\beta$ represent the combined design matrix and vector of eefects, respectively. It is assumed:
+where $\tau$ is a vector tx1 of fixed effects, X is an nxt design matrix which associates observations with the appropriate combinations of fixed effects, u is the qx1 vector of random effects, Z is the nxq matrix which associates observations with the appropriate random effects, and e is the nx1 vector of residual errors. For shorthand W and $\beta$ represent the combined design matrix and vector of efects, respectively. It is assumed:
 
 $$ \left[\begin{array}
 {r}
@@ -799,11 +799,11 @@ $$
 
 These can also be written as $C \overline{\beta} = W^TR^{-1}y$. The $\overline{\tau}$ is the best linear unbiased estimator (BLUE) of $\tau$ and $\overline{u}$ is the best linear unbiased predictor (BLUP) of $u$, this with variance $var(\overline{\beta}-\beta)=C^{-1}$. Consideration of the values required to form the confidence intervals make it clear that is the prediction error variance (PEV or $var(\overline{\beta}-\beta)$), rather than the variance of the estimator $var(\overline{\beta})$ that is usually of interest. The prediction error variance for a linear combination $D\overline{\beta}$ is then $DC^{-1}D^T$. Since the variance parameters are unknown, we replace the unknown variance parameters by their REML estimates and use the empirical values. 
 
-The predict function of the sommer package then builts the $C^{-1}$ matrix from the mixed model equations and the $D$ matrix of linear combinations to obtain the PEV and SEs for the predictions. For the means it uses the $D$ matrix of linear combinations times the vector of required fixed and random effects $X\overline{\tau} + Z \overline{u}$ or $D\overline{\beta}$, where the matrix D is a linear combination of specific fixed and/or random effects from matrices $X$ and/or $Z$.
+The `predict()` function of the sommer package then builts the $C^{-1}$ matrix from the mixed model equations and the $D$ matrix of linear combinations to obtain the PEV and SEs for the predictions. For the means it uses the $D$ matrix of linear combinations times the vector of required fixed and random effects $X\overline{\tau} + Z \overline{u}$ or $D\overline{\beta}$, where the matrix D is a linear combination of specific fixed and/or random effects from matrices $X$ and/or $Z$.
 
 ### 2) Predicting means
 
-The sommer package is equiped with a predict() function that can be used to calculate means and standard errors for fixed and random effects specified in the models fitted with the mmer function. Using the yatesoats dataset we will will fit some fixed and random effects.
+The sommer package is equiped with a `predict()` function that can be used to calculate means and standard errors for fixed and random effects specified in the models fitted with the `mmer()` function. Using the yatesoats dataset we will will fit some fixed and random effects.
 
 ```{r}
 library(sommer)
@@ -816,7 +816,7 @@ m3 <- mmer(fixed=Y ~ V + N + V:N,
 summary(m3)$varcomp
 ```
 
-Now, the model can be used together with the classify argument to obtain means for the classify argument. For example, the model includes in the fixed formula the terms "V" for variety, "N" for nitrogen treatments, and "V:N" for the interaction between variety and nitrogen. The classify argument can be used to specify the term for which means are desired. In the following example the means for the nitrogen treatments are obtained as follows:
+Now, the model can be used together with the `classify` argument to obtain means for the `classify` argument. For example, the model includes in the fixed formula the terms "V" for variety, "N" for nitrogen treatments, and "V:N" for the interaction between variety and nitrogen. The `classify` argument can be used to specify the term for which the means are desired. In the following example the means for the nitrogen treatments are obtained as follows:
 
 ```{r}
 p0 <- predict.mmer(object=m3, classify = "N")
@@ -826,7 +826,7 @@ p0$pvals
 
 ### Final remarks
 
-Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
+Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused on problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiments with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software programs.
 
 ## Literature
 

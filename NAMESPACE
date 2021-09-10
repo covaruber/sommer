@@ -16,19 +16,19 @@ export(
 export(mmer, mmer2, GWAS, GWAS2)
 
 ## FUN_special
-export(at,cs,ds,us,vs,
+export(at,cs,ds,us,vs, gvs,
        unsm,uncm,fixm,fcm,
        list2usmat, transformConstraints,
-       overlay, spl2D,
-       bivariateRun)
+       overlay, add.diallel.vars, spl2D,
+       bivariateRun, vpredict)
 
 ## FUN_markers
 export(atcg1234,build.HMM,h2.fun)
 
 ## FUN_stats
 export(adiag1, imputev,
-       leg, wald.test,
-       vpredict)
+       leg, wald.test
+       )
 
 ## FUN_relationships
 export(A.mat, D.mat, E.mat, H.mat, AR1, CS, ARMA, simGECorMat)
@@ -38,33 +38,30 @@ export(EM, MEMMA)
 
 ## FUN_utils
 export(summary.mmer, residuals.mmer, fitted.mmer, plot.mmer, 
-       predict.mmer,
+       predict.mmer, vpredict.mmer,
        #variogram, variogram.mmer, plot.variogram.mmer,
        anova.mmer, coef.mmer, randef)
+# export(vpredict, mmer )
 
 # S3 METHODS
-S3method(summary, mmer)
-S3method(print, summary.mmer)
-#S3method(summary, mmergwas)
-#S3method(print, summary.mmergwas)
-S3method(print, wald.test)
-
-S3method(residuals, mmer)
-S3method(print, residuals.mmer)
-S3method(fitted, mmer)
-S3method(print, fitted.mmer)
-S3method(head, fitted.mmer)
-S3method(coef, mmer)
-S3method(print, coef.mmer)
 S3method(anova, mmer)
+S3method(coef, mmer)
+S3method(fitted, mmer)
+S3method(head, fitted.mmer)
+S3method(head, predict.mmer)
 S3method(plot, mmer)
 S3method(predict, mmer)
 S3method(print, predict.mmer)
-S3method(head, predict.mmer)
+S3method(print, residuals.mmer)
+S3method(print, fitted.mmer)
+S3method(print, coef.mmer)
+S3method(print, wald.test)
+S3method(print, summary.mmer)
+S3method(residuals, mmer)
+S3method(summary, mmer)
 S3method(tail, predict.mmer)
+S3method(vpredict, mmer)
 
-#S3method(variogram, mmer)
-#S3method(plot, variogram.mmer)
 ###########
 ## full imports
 ###########

@@ -2,7 +2,7 @@
 version 1.1 (2016-01-24)
 ########################
 
-  Initial release
+  Initial release, the sun shines and sommer has arrived!
   
 ########################  
 version 1.2 (2016-02-07)
@@ -384,11 +384,37 @@ version 4.1.2 (2021-02-01)
  + When providing and Gu argument in the vs() function, missing levels in the data vector are added
    to provide all BLUPs
  + The predict function now provides the correct standard errors
+ + GWAS C++ implementation
  + Progress bar for GWAS function added
+ 
+########################
+version 4.1.3 (2021-04-01)
+########################
 
+ + Addition of the gvs() function to fit indirect genetic effects and other competition models
+ + Addition of an example of indirect genetic effects to vignettes.
+ + Bug in predict() when missing data in covariates (x) exist was fixed.
+
+########################
+version 4.1.4 (2021-07-01)
+########################
+
+ + Addition of the stepweight argument to mmer() to control the magnitude of the update of the AI and NR
+   when the information matrix goes out of boundaries too quickly.
+ + Addition of emupdate argument to mmer() to control the use of expectation-maximization updates as
+   alternative to the use of second derivative methods (NR, and AI).
+ + Addition of the percChange output to the mmer() function to check the % change in the variance comp.
+ + Argument buildGu for the vs() function added to avoid rrBLUP models to become slow. This implied modifying
+   the MNR.cpp function to understand when the matrix multiplications with K (covariance matrix) should be
+   avoided.
+ 
 ######################
-## PENDINGS
-+ make GWAS C++ implementation (P3D to be enabled and progress bar)
+## PENDINGS AND PRIORITIES
++ Fix plot function and enable to plot likelihood and monitor of vcs
 + MME-based Average Information algorithm in progress (n > p problem. Hope to have it ready for v4.2.0)
-
++ Add correlation models
++ bring back the betas, and R2 for markers in GWAS. Need to use C++ cubes (sort of list) to store betas, scores and R so we extract them in a good order.
++ enable P3D argument
++ Enable GWAS for unimputed markers?
++ Generalized linear models
  

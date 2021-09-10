@@ -11,7 +11,7 @@
  \item{\dots}{Further arguments to be passed}
 }
 \value{
-  vector of residuals
+  vector of residuals of the form e = y - Xb - Zu, the so called conditional residuals.
  }
 \author{Giovanny Covarrubias \email{covarrubiasp@wisc.edu}}
 \seealso{\code{\link{residuals}}, \code{\link{mmer}}}

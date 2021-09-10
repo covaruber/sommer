@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused in problems of the type p > n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, and specify heterogeneous variances, and obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on problems of the type p > n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
 
 The purpose of this vignette is to show how to fit different genotype by environment (GxE) models using the sommer package:  
 
@@ -23,11 +23,11 @@ The purpose of this vignette is to show how to fit different genotype by environ
 8) Multienvironment model: Other covariance structures for GxE
 
 
-When the breeder decides to run a trial and apply selection in a single environment wheter because the amount of seed is a limitation or there's no availability for any location the breeder takes the risk of selecting material for a target population of environments (TPEs) and this environment tested not being representative of the larger TPE. Therefore, many breeding programs try to based their selection decision using multi-environment trial (MET) data. Although, models could be adjusted by adding additional information like spatial information, experimental design information, etc., in this tutorial we will focus mainly on the covariance structures for GxE and the incorporation of relationship matrices for the genotype effect.
+When the breeder decides to run a trial and apply selection in a single environment (whether because the amount of seed is a limitation or there's no availability for a location) the breeder takes the risk of selecting material for a target population of environments (TPEs) using an environment that is not representative of the larger TPE. Therefore, many breeding programs try to base their selection decision on multi-environment trial (MET) data. Models could be adjusted by adding additional information like spatial information, experimental design information, etc. In this tutorial we will focus mainly on the covariance structures for GxE and the incorporation of relationship matrices for the genotype effect.
 
 ## 1) Single environment model
 
-A single environment model is the one that is fitted when the breeding program can only afford one location leaving out the possible information available from other environments. This will be used to further expand to GxE models.
+A single-environment model is the one that is fitted when the breeding program can only afford one location, leaving out the possible information available from other environments. This will be used to further expand to GxE models.
 
 ```{r}
 library(sommer)
@@ -43,11 +43,11 @@ summary(ansSingle)
 
 ```
 
-In this model the only term to be estimated is the one for the germplasm (here called Name). For the sake of example we have added a relationship matrices among the levels of the random effect Name. This is just a diagonal matrix with as many rows and columns as levels present in the random effect Name, but any other non-diagonal relationship matrix could be used.
+In this model, the only term to be estimated is the one for the germplasm (here called `Name`). For the sake of example we have added a relationship matrix among the levels of the random effect `Name`. This is just a diagonal matrix with as many rows and columns as levels present in the random effect `Name`, but any other non-diagonal relationship matrix could be used.
 
 ## 2) MET: main effect model
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. The main effect model assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
+A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The main effect model assumes that GxE doesn't exist and that the main genotype effect plus the fixed effect for environment is enough to predict the genotype effect in all locations of interest.
 
 ```{r}
 
@@ -61,7 +61,7 @@ summary(ansMain)
 
 ## 3) MET: diagonal model (DG)
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. The diagonal model assumes that GxE exist and that the genotype variation is expressed differently at each location, therefore fitting a variance component for the genotype effect at each location. The main drawback is that assumes no covariance among locations, like if genotypes were independent (despite the fact that is the same genotypes). The fixed effect for environment plus the location-specific BLUP is used to predict the genotype effect in each locations of interest.
+A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The diagonal model assumes that GxE exists and that the genotype variation is expressed differently at each location, therefore fitting a variance component for the genotype effect at each location. The main drawback is that this model assumes no covariance among locations, as if genotypes were independent (despite the fact that is the same genotypes). The fixed effect for environment plus the location-specific BLUP is used to predict the genotype effect in each locations of interest.
 
 ```{r}
 
@@ -75,7 +75,7 @@ summary(ansDG)
 
 ## 4) MET: compund symmetry model (CS)
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. The compound symmetry model assumes that GxE exist and that a main genotype variance-covariance component is expressed across all location. In addition, it assumes that a main genotype by environment variance is expressed across all locations. The main drawback is that assumes same variance and covariance among locations. The fixed effect for environment plus the main effect BLUP plus genotype by environment effect is used to predict the genotype effect in each location of interest.
+A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The compound symmetry model assumes that GxE exists and that a main genotype variance-covariance component is expressed across all location. In addition, it assumes that a main genotype-by-environment variance is expressed across all locations. The main drawback is that the model assumes the same variance and covariance among locations. The fixed effect for environment plus the main effect for BLUP plus genotype-by-environment effect is used to predict the genotype effect in each location of interest.
 
 ```{r}
 E <- diag(length(unique(DT$Env)))
@@ -91,7 +91,7 @@ summary(ansCS)
 
 ## 5) MET: compund symmetry plus diagonal (CS+DIAG)
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. The compound symmetry plus diagonal model is very similar to the CS model assuming that GxE exist and that a main genotype variance-covariance component is expressed across all location. In addition, it assumes that a location-specific genotype by environment variance is expressed in each location. The main drawback is that assumes same covariance among locations. The fixed effect for environment plus the main effect BLUP plus environment-specific genotype by environment effect is used to predict the genotype effect in each location of interest.
+A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The compound symmetry plus diagonal model is very similar to the CS model assuming that GxE exist and that a main genotype variance-covariance component is expressed across all location. In addition, it assumes that a location-specific genotype-by-environment variance is expressed in each location. The main drawback is that the model assumes the same covariance among locations. The fixed effect for environment plus the main effect BLUP plus environment-specific genotype-by-environment effect is used to predict the genotype effect in each location of interest.
 
 ```{r}
 
@@ -105,7 +105,7 @@ summary(ansMain)
 
 ## 6) MET: unstructured model (US)
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. The unstructured model is the most flexible model assuming that GxE exist and that a environment-specific variance exist in addition to as many covariances for each environment to environment combinations. The main drawback is that is difficult to make this models converge given the big number of variance components, the fact that some of this variance or covariance components are zero and the difficult to have good starting values. The fixed effect for environment plus the environment specific BLUP (adjusted by covariances) is used to predict the genotype effect in each location of interest.
+A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The unstructured model is the most flexible model assuming that GxE exists and that an environment-specific variance exists in addition to as many covariances for each environment-to-environment combinations. The main drawback is that is difficult to make this models converge because of the large number of variance components, the fact that some of these variance or covariance components are zero, and the difficulty in choosing good starting values. The fixed effect for environment plus the environment specific BLUP (adjusted by covariances) is used to predict the genotype effect in each location of interest.
 
 ```{r}
 
@@ -120,7 +120,7 @@ summary(ansUS)
 
 ## 7) MET: random regression model
 
-A multi environment model is the one that is fitted when the breeding program can afford more than one location. The random regression model assumes that the environment can be seen as a continuous variable and therefore a variance component for the intercept and a variance component for the slope can be fitted. The number of variance components will depend on the order of the Legendre polynomial fitted.
+A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The random regression model assumes that the environment can be seen as a continuous variable and therefore a variance component for the intercept and a variance component for the slope can be fitted. The number of variance components will depend on the order of the Legendre polynomial fitted.
 
 ```{r}
 library(orthopolynom)
@@ -167,7 +167,7 @@ summary(ansCS)
 
 ## Final remarks
 
-Keep in mind that sommer uses the direct inversion (DI) algorithms which can be very slow for large datasets. The package is focused in problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small number of individuals and covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.
+Keep in mind that sommer uses the direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused on problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiments with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small number of individuals and covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you opt for those.
 
 ## Literature
 

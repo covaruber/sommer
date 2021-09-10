@@ -38,7 +38,7 @@ If return.imputed = FALSE, the \eqn{n \times n} additive relationship matrix is 
 If return.imputed = TRUE, the function returns a list containing
 \describe{
 \item{$A}{the A matrix}
-\item{$imputed}{the imputed marker matrix}
+\item{$X}{the imputed marker matrix}
 }
 }
 

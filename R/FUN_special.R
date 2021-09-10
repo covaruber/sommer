@@ -1,3 +1,78 @@
+add.diallel.vars <- function(df, par1="Par1", par2="Par2",sep.cross="-"){
+  # Dummy variables for selfs, crosses, combinations
+  df[,"is.cross"] <- ifelse(df[,par1] == df[,par2], 0, 1)
+  df[,"is.self"] <- ifelse(df[,par1] == df[,par2], 1, 0)
+  df[,"cross.type"] <- ifelse(as.character(df[,par1]) < as.character(df[,par2]), -1,
+                              ifelse(as.character(df[,par1]) == as.character(df[,par2]), 0, 1))
+  # Dummy variable for the combinations, ignoring the reciprocals
+  df[,"cross.id"]<-factor(ifelse(as.character(df[,par1]) <= as.character(df[,par2]),
+                                 paste(df[,par1], df[,par2], sep =sep.cross),
+                                 paste(df[,par2], df[,par1], sep =sep.cross)) )
+  return(df)
+}
+
+overlay<- function (..., rlist = NULL, prefix = NULL){
+  init <- list(...)
+  ## keep track of factor variables
+  myTypes <- unlist(lapply(init,class))
+  init0 <- init
+  ##
+  init <- lapply(init, as.character)
+  names <- as.character(substitute(list(...)))[-1L]
+  dat <- as.data.frame(do.call(cbind, init))
+  dat <- as.data.frame(dat)
+  ## bring back the levels
+  for(j in 1:length(myTypes)){
+    if(myTypes[j]=="factor"){
+      levels(dat[,j]) <- c(levels(dat[,j]),setdiff(levels(init0[[j]]),levels(dat[,j]) ))
+    }
+  }
+  ##
+  if (is.null(dim(dat))) {
+    stop("Please provide a data frame to the overlay function, not a vector.\\n", 
+         call. = FALSE)
+  }
+  if (is.null(rlist)) {
+    rlist <- as.list(rep(1, dim(dat)[2]))
+  }
+  ss1 <- colnames(dat)
+  dat2 <- as.data.frame(dat[, ss1])
+  head(dat2)
+  colnames(dat2) <- ss1
+  femlist <- list()
+  S1list <- list()
+  for (i in 1:length(ss1)) {
+    femlist[[i]] <- ss1[i]
+    dat2[, femlist[[i]]] <- as.factor(dat2[, femlist[[i]]])
+    S1 <- model.matrix(as.formula(paste("~", femlist[[i]], 
+                                        "-1")), dat2)
+    colnames(S1) <- gsub(femlist[[i]], "", colnames(S1))
+    S1list[[i]] <- S1
+  }
+  levo <- sort(unique(unlist(lapply(S1list, function(x) {
+    colnames(x)
+  }))))
+  S3 <- matrix(0, nrow = dim(dat2)[1], ncol = length(levo))
+  rownames(S3) <- rownames(dat2)
+  colnames(S3) <- levo
+  for (i in 1:length(S1list)) {
+    if (i == 1) {
+      S3[rownames(S1list[[i]]), colnames(S1list[[i]])] <- S1list[[i]] * 
+        rlist[[i]]
+    }
+    else {
+      S3[rownames(S1list[[i]]), colnames(S1list[[i]])] <- S3[rownames(S1list[[i]]), 
+                                                             colnames(S1list[[i]])] + (S1list[[i]][rownames(S1list[[i]]), 
+                                                                                                   colnames(S1list[[i]])] * rlist[[i]])
+    }
+  }
+  if (!is.null(prefix)) {
+    colnames(S3) <- paste(prefix, colnames(S3), sep = "")
+  }
+  attr(S3,"variables") <- names
+  return(S3)
+}
+
 list2usmat <- function(sigmaL){
   
   f <- function(n, x){
@@ -129,67 +204,7 @@ reshape_mmer <- function(object, namelist){
   return(object)
 }
 
-overlay<- function (..., rlist = NULL, prefix = NULL){
-  init <- list(...)
-  ## keep track of factor variables
-  myTypes <- unlist(lapply(init,class))
-  init0 <- init
-  ##
-  init <- lapply(init, as.character)
-  names <- as.character(substitute(list(...)))[-1L]
-  dat <- as.data.frame(do.call(cbind, init))
-  dat <- as.data.frame(dat)
-  ## bring back the levels
-  for(j in 1:length(myTypes)){
-    if(myTypes[j]=="factor"){
-      levels(dat[,j]) <- c(levels(dat[,j]),setdiff(levels(init0[[j]]),levels(dat[,j]) ))
-    }
-  }
-  ##
-  if (is.null(dim(dat))) {
-    stop("Please provide a data frame to the overlay function, not a vector.\\n", 
-         call. = FALSE)
-  }
-  if (is.null(rlist)) {
-    rlist <- as.list(rep(1, dim(dat)[2]))
-  }
-  ss1 <- colnames(dat)
-  dat2 <- as.data.frame(dat[, ss1])
-  head(dat2)
-  colnames(dat2) <- ss1
-  femlist <- list()
-  S1list <- list()
-  for (i in 1:length(ss1)) {
-    femlist[[i]] <- ss1[i]
-    dat2[, femlist[[i]]] <- as.factor(dat2[, femlist[[i]]])
-    S1 <- model.matrix(as.formula(paste("~", femlist[[i]], 
-                                        "-1")), dat2)
-    colnames(S1) <- gsub(femlist[[i]], "", colnames(S1))
-    S1list[[i]] <- S1
-  }
-  levo <- sort(unique(unlist(lapply(S1list, function(x) {
-    colnames(x)
-  }))))
-  S3 <- matrix(0, nrow = dim(dat2)[1], ncol = length(levo))
-  rownames(S3) <- rownames(dat2)
-  colnames(S3) <- levo
-  for (i in 1:length(S1list)) {
-    if (i == 1) {
-      S3[rownames(S1list[[i]]), colnames(S1list[[i]])] <- S1list[[i]] * 
-        rlist[[i]]
-    }
-    else {
-      S3[rownames(S1list[[i]]), colnames(S1list[[i]])] <- S3[rownames(S1list[[i]]), 
-                                                             colnames(S1list[[i]])] + (S1list[[i]][rownames(S1list[[i]]), 
-                                                                                                   colnames(S1list[[i]])] * rlist[[i]])
-    }
-  }
-  if (!is.null(prefix)) {
-    colnames(S3) <- paste(prefix, colnames(S3), sep = "")
-  }
-  attr(S3,"variables") <- names
-  return(S3)
-}
+
 
 ##############
 ## na.methods
@@ -447,245 +462,6 @@ fcm <- function(x, reps=NULL){
   if(!is.null(reps)){
     return(rep(list(mm),reps))
   }else{return(mm)}
-}
-
-vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL){
-  
-  ## ... list of structures to define the random effect
-  ## Gu the known covariance matrix of the vs
-  ## Gti the multitrait structure and constraints for it
-  ## Gtc the initial values for the var-cov components
-  
-  init <- list(...)
-  namess <- as.character(substitute(list(...)))[-1L]
-  expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
-  expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=T)}
-  
-  namess2 <- apply(data.frame(namess),1,function(x){
-    newx <- expi(x); if(length(newx)==0){newx<-""}
-    newx <- gsub(",.*","",newx)
-    return(newx)
-  })
-  namess2[which(namess2 == "")] <- namess[which(namess2 == "")]
-  ref_name <- namess2[length(namess2)]
-  # certain random effects coming from spl2D(), leg(), and others may need some help to find the terms
-  specialVariables <- unlist(lapply(init,function(x){(attributes(x)$variables)}))
-  # print(namess2)
-  if("units" %in% namess2){
-    is.residual =TRUE
-  }else{is.residual=FALSE}
-  ### get the data
-  init2 <- list()
-  for(i in 1:length(init)){
-    if(is.list(init[[i]])){ ## if it comes from a ds, us, cs function
-      
-      init2[[i]] <- init[[i]]
-      
-    }else{ # is a single vector with numbers or characters, ...
-      
-      if(is.matrix(init[[i]])){ # a mtrix is provided already so no need to create it
-        mm=diag(ncol(init[[i]])); rownames(mm) <- colnames(mm) <- colnames(init[[i]])
-        init2[[i]] <- list(x=init[[i]],mm)
-      }else{ # is a vector
-        dummy <- init[[i]]
-        if(!is.character(dummy) & !is.factor(dummy)){
-          dummy <- matrix(dummy,ncol=1)
-          colnames(dummy) <- namess2[i]
-          mm=diag(1); rownames(mm) <- colnames(mm) <- namess2[i]
-        }else{
-          levs <- na.omit(unique(dummy))
-          if(length(levs) > 1){
-            dummy  <- model.matrix(~dummy-1,na.action = na.pass)
-          }else{
-            vv <- which(!is.na(dummy)); 
-            dummy <- matrix(0,nrow=length(dummy))
-            dummy[vv,] <- 1; colnames(dummy) <- levs
-          }
-          colnames(dummy) <- gsub("dummy","",colnames(dummy))
-          mm=diag(ncol(dummy)); rownames(mm) <- colnames(mm) <- colnames(dummy)#namess2[i]
-        }
-        init2[[i]] <- list(dummy,mm)
-      }
-    }
-  }
-  # make a dataframe with the vectors and matrices provided by the user
-  
-  nre <- length(init2)
-  Z <- init2[[length(init2)]][[1]]
-  if(nre > 1){ # there's a structure
-    strlist <- lapply(init2[1:(nre-1)], function(x){x[[2]]})
-    if(length(strlist) >1){
-      vcs <- do.call(function(...){kronecker(...,make.dimnames = TRUE)},strlist)
-    }else{
-      vcs <- strlist[[1]]
-    }
-  }
-  if(nre==1){
-    allzs <- matrix(1,nrow=nrow(Z),ncol=1); colnames(allzs) <- "u"
-    vcs <- matrix(1,1,1); colnames(vcs) <- rownames(vcs) <- "u"
-  }else{
-    zs <- lapply(init2[1:(nre-1)], function(x){x[[1]]})
-    allzs <- do.call(cbind,zs)
-  }
-  
-  ## start creating the Z and K list
-  Zup <- list()
-  Kup <- list()
-  typevc <- numeric()
-  re_name <- character()
-  counter <- 1
-  for(i in 1:ncol(vcs)){ ## for each row
-    for(j in 1:i){ ## for each column
-      # print(paste(i,j))
-      if(vcs[i,j] > 0){ ## to be estimated
-        
-        if(i==j){## variance component
-          # commonlevs <- intersect(colnames(allzs),namz)
-          # if(length(commonlevs) == 0){stop(paste("You may not be using a special variance structure in",paste(namess2,collapse = ","),"combination"),call. = FALSE)}
-          namz <- strsplit(rownames(vcs)[i],":")[[1]]
-          # print(matrix(apply(allzs[,namz],1,prod)))
-          zz <- as.matrix(apply(as.matrix(allzs[,namz]),1,prod) * Z)
-          if(is.null(Gu)){
-            Gux <- diag(ncol(Z))
-          }else{
-            # colnames(zz) <- gsub(ref_name,"",colnames(zz)) ## why I wrote this?
-            checkg <- setdiff(colnames(zz),colnames(Gu))
-            if(length(checkg)>0){
-              stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
-            }
-            checkg2 <- setdiff(colnames(Gu),colnames(zz))
-            if(length(checkg2)>0){
-              if(i==1){cat(paste0("Adding additional levels of Gu in the model matrix of '",ref_name,"' \n"))}
-              added <- matrix(0, nrow = nrow(zz), ncol = length(checkg2)); colnames(added) <- checkg2
-              zz <- cbind(zz,added)
-            }
-            nameszz <- colnames(zz)
-            Gux <- Gu[nameszz,nameszz]
-          }
-          Zup[[counter]] <- zz
-          Kup[[counter]] <- Gux
-          typevc[counter] <- 1
-          re_name[counter] <- paste(rownames(vcs)[i],ref_name,sep=":")
-          counter <- counter + 1
-        }else{## covariance component
-          namz1 <- strsplit(rownames(vcs)[i],":")[[1]] # name of term1
-          namz2 <- strsplit(colnames(vcs)[j],":")[[1]] # name of term2
-          z1 <- as.matrix(apply(as.matrix(allzs[,namz1]),1,prod) * Z)
-          z2 <- as.matrix(apply(as.matrix(allzs[,namz2]),1,prod) * Z)
-          
-          if(is.null(Gu)){
-            Gux <- diag(ncol(Z))
-            Gu0 <- Gux*0
-            Gu1 <- rbind(cbind(Gu0,Gux),cbind(Gux,Gu0))
-          }else{
-            
-            checkg <- setdiff(colnames(z1),colnames(Gu))
-            if(length(checkg)>0){
-              stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
-            }
-            checkg2 <- setdiff(colnames(Gu),colnames(z1))
-            if(length(checkg2)>0){
-              if(i==1){cat(paste0("Adding additional levels of Gu in the model matrix of '",ref_name,"' \n"))}
-              added <- matrix(0, nrow = nrow(z1), ncol = length(checkg2)); colnames(added) <- checkg2
-              z1 <- cbind(z1,added)
-            }
-            
-            checkg <- setdiff(colnames(z2),colnames(Gu))
-            if(length(checkg)>0){
-              stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
-            }
-            checkg2 <- setdiff(colnames(Gu),colnames(z2))
-            if(length(checkg2)>0){
-              if(i==1){cat(paste0("Adding additional levels of Gu in the model matrix of '",ref_name,"' \n"))}
-              added <- matrix(0, nrow = nrow(z2), ncol = length(checkg2)); colnames(added) <- checkg2
-              z2 <- cbind(z2,added)
-            }
-            
-            nameszz <- colnames(z1)
-            Gu <- Gu[nameszz,nameszz]
-            Gu0 <- Gux*0
-            Gu1 <- rbind(cbind(Gu0,Gux),cbind(Gux,Gu0))
-          }
-          
-          zz <- cbind(z1,z2)
-          if(is.residual){ ## if residual we need to make Z square because we provide Zunits as the R
-            zz <- zz%*% Gu1 %*% t(zz)
-            Gu1 <- diag(ncol(zz))
-          }
-          Zup[[counter]] <- zz
-          Kup[[counter]] <- Gu1
-          typevc[counter] <- 2
-          re_name[counter] <- paste(rownames(vcs)[i],colnames(vcs)[j],ref_name,sep=":")
-          counter <- counter + 1
-        }
-      }
-    }
-  }
-  
-  if(is.null(Gtc)){
-    if(!is.null(Gti)){
-      if(is.list(Gti)){
-        Gtc <- lapply(Gti, function(x){
-          nt <- ncol(x)
-          mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
-          return(mm)
-        })
-      }else{
-        nt <- ncol(Gti)
-        mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
-        Gtc <- mm
-      }
-    }
-  }
-  
-  if(is.null(Gti)){ # user didn't provide Gti
-    # Gti[lower.tri(Gti)] <- 0
-    if(!is.null(Gtc)){ # user did provide Gtc so we need to complete them
-      
-      if(is.list(Gtc)){ ## if user provided a list
-        
-        if(is.residual){ftu <- 5}else{ftu <- 1}
-        Gti <- lapply(Gtc,function(x){
-          nt <- ncol(x)
-          bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
-          com <- (x/x); com[which(is.nan(com),arr.ind = TRUE)] <- 0
-          if((ncol(bnmm) == ncol(com)) & (nrow(bnmm) == nrow(com)) ){ # random
-            mm <- (bnmm*ftu)*com
-          }else{mm <- bnmm}#fixed
-        })
-        
-      }else{ # user provided a matrix
-        
-        nt <- ncol(Gtc)
-        if(is.residual){
-          # mm <- ( matrix(1,nt,nt) * 0 + 1) * 0.04977728 + diag(0.02488864, nt,nt)
-          bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
-          # print(Gtc)
-          com <- (Gtc/Gtc); com[which(is.nan(com),arr.ind = TRUE)] <- 0
-          if((ncol(bnmm) == ncol(com)) & (nrow(bnmm) == nrow(com)) ){ # random
-            mm <- (bnmm*5)*com
-          }else{mm <- bnmm}#fixed
-        }else{
-          bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
-          # print(Gtc)
-          com <- (Gtc/Gtc); com[which(is.nan(com),arr.ind = TRUE)] <- 0
-          if((ncol(bnmm) == ncol(com)) & (nrow(bnmm) == nrow(com)) ){ # random
-            mm <- bnmm*com
-          }else{mm <- bnmm}#fixed
-          
-          # mm <- (matrix(1,nt,nt) * 0 + 1) * 0.1 + diag(0.05, nt)
-        }
-        Gti <- mm
-        
-      }
-      
-    }
-  }
-  if(!is.null(specialVariables)){
-    namess2 <- specialVariables
-  }
-  S3 <- list(Z=Zup,K=Kup,Gti=Gti,Gtc=Gtc,typevc=typevc,re_name=re_name,vcs=vcs, terms=namess2)
-  return(S3)
 }
 
 bivariateRun <- function(model, n.core=1){

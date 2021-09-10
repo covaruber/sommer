@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="Giovanny Covarrubias-Pazaran" />
+
+<meta name="date" content="2021-02-05" />
+
+<title>Translating lme4 models to sommer</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+    color: #aaaaaa;
+  }
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } /* Alert */
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
+code span.at { color: #7d9029; } /* Attribute */
+code span.bn { color: #40a070; } /* BaseN */
+code span.bu { } /* BuiltIn */
+code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
+code span.ch { color: #4070a0; } /* Char */
+code span.cn { color: #880000; } /* Constant */
+code span.co { color: #60a0b0; font-style: italic; } /* Comment */
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
+code span.do { color: #ba2121; font-style: italic; } /* Documentation */
+code span.dt { color: #902000; } /* DataType */
+code span.dv { color: #40a070; } /* DecVal */
+code span.er { color: #ff0000; font-weight: bold; } /* Error */
+code span.ex { } /* Extension */
+code span.fl { color: #40a070; } /* Float */
+code span.fu { color: #06287e; } /* Function */
+code span.im { } /* Import */
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
+code span.kw { color: #007020; font-weight: bold; } /* Keyword */
+code span.op { color: #666666; } /* Operator */
+code span.ot { color: #007020; } /* Other */
+code span.pp { color: #bc7a00; } /* Preprocessor */
+code span.sc { color: #4070a0; } /* SpecialChar */
+code span.ss { color: #bb6688; } /* SpecialString */
+code span.st { color: #4070a0; } /* String */
+code span.va { color: #19177c; } /* Variable */
+code span.vs { color: #4070a0; } /* VerbatimString */
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
+
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    for (var j = 0; j < rules.length; j++) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") continue;
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') continue;
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Translating lme4 models to sommer</h1>
+<h4 class="author">Giovanny Covarrubias-Pazaran</h4>
+<h4 class="date">2021-02-05</h4>
+
+
+
+<p>The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused in problems of the type p &gt; n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, and specify heterogeneous variances, and obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc.</p>
+<p>The purpose of this vignette is to show how to translate the sintax formula from lme4 models to sommer models. Feel free to remove the silencing marks from the lme4 code so you can compare the results.</p>
+<ol style="list-style-type: decimal">
+<li>Random slopes with same intercept</li>
+<li>Random slopes and random intercepts (without correlation)</li>
+<li>Random slopes and random intercepts (with correlation)</li>
+<li>Random slopes with a different intercept</li>
+<li>Other models not available in lme4</li>
+</ol>
+<div id="random-slopes" class="section level2">
+<h2>1) Random slopes</h2>
+<p>This is the simplest model people use when a random effect is desired and the levels of the random effect are considered to have the same intercept.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1"></a><span class="co"># install.packages(&quot;lme4&quot;)</span></span>
+<span id="cb1-2"><a href="#cb1-2"></a><span class="co"># library(lme4)</span></span>
+<span id="cb1-3"><a href="#cb1-3"></a><span class="kw">library</span>(sommer)</span></code></pre></div>
+<pre><code>## Loading required package: Matrix</code></pre>
+<pre><code>## Loading required package: MASS</code></pre>
+<pre><code>## Loading required package: lattice</code></pre>
+<pre><code>## Loading required package: crayon</code></pre>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1"></a><span class="kw">data</span>(DT_sleepstudy)</span>
+<span id="cb6-2"><a href="#cb6-2"></a>DT &lt;-<span class="st"> </span>DT_sleepstudy</span>
+<span id="cb6-3"><a href="#cb6-3"></a><span class="co">###########</span></span>
+<span id="cb6-4"><a href="#cb6-4"></a><span class="co">## lme4</span></span>
+<span id="cb6-5"><a href="#cb6-5"></a><span class="co">###########</span></span>
+<span id="cb6-6"><a href="#cb6-6"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (1 | Subject), data=DT)</span></span>
+<span id="cb6-7"><a href="#cb6-7"></a><span class="co"># summary(fm1) # or vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
+<span id="cb6-8"><a href="#cb6-8"></a><span class="co"># Random effects:</span></span>
+<span id="cb6-9"><a href="#cb6-9"></a><span class="co">#  Groups   Name        Variance Std.Dev.</span></span>
+<span id="cb6-10"><a href="#cb6-10"></a><span class="co">#  Subject  (Intercept) 1378.2   37.12   </span></span>
+<span id="cb6-11"><a href="#cb6-11"></a><span class="co">#  Residual              960.5   30.99   </span></span>
+<span id="cb6-12"><a href="#cb6-12"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
+<span id="cb6-13"><a href="#cb6-13"></a><span class="co">###########</span></span>
+<span id="cb6-14"><a href="#cb6-14"></a><span class="co">## sommer</span></span>
+<span id="cb6-15"><a href="#cb6-15"></a><span class="co">###########</span></span>
+<span id="cb6-16"><a href="#cb6-16"></a>fm2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Reaction <span class="op">~</span><span class="st"> </span>Days,</span>
+<span id="cb6-17"><a href="#cb6-17"></a>            <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span>Subject, </span>
+<span id="cb6-18"><a href="#cb6-18"></a>            <span class="dt">data=</span>DT, <span class="dt">tolparinv =</span> <span class="fl">1e-6</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb6-19"><a href="#cb6-19"></a><span class="kw">summary</span>(fm2)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                             VarComp VarCompSE   Zratio Constraint
+## Subject.Reaction-Reaction 1377.9758  505.0776 2.728246   Positive
+## units.Reaction-Reaction    960.4705  107.0638 8.971013   Positive</code></pre>
+</div>
+<div id="random-slopes-and-random-intercepts-without-correlation" class="section level2">
+<h2>2) Random slopes and random intercepts (without correlation)</h2>
+<p>This is the a model where you assume that the random effect has different intercepts based on the levels of another variable. In addition the || in lme4 assumes that slopes and intercepts have no correlation.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a><span class="co">###########</span></span>
+<span id="cb8-2"><a href="#cb8-2"></a><span class="co">## lme4</span></span>
+<span id="cb8-3"><a href="#cb8-3"></a><span class="co">###########</span></span>
+<span id="cb8-4"><a href="#cb8-4"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (Days || Subject), data=DT)</span></span>
+<span id="cb8-5"><a href="#cb8-5"></a><span class="co"># summary(fm1) # or vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
+<span id="cb8-6"><a href="#cb8-6"></a><span class="co"># Random effects:</span></span>
+<span id="cb8-7"><a href="#cb8-7"></a><span class="co">#  Groups    Name        Variance Std.Dev.</span></span>
+<span id="cb8-8"><a href="#cb8-8"></a><span class="co">#  Subject   (Intercept) 627.57   25.051  </span></span>
+<span id="cb8-9"><a href="#cb8-9"></a><span class="co">#  Subject.1 Days         35.86    5.988  </span></span>
+<span id="cb8-10"><a href="#cb8-10"></a><span class="co">#  Residual              653.58   25.565  </span></span>
+<span id="cb8-11"><a href="#cb8-11"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
+<span id="cb8-12"><a href="#cb8-12"></a><span class="co">###########</span></span>
+<span id="cb8-13"><a href="#cb8-13"></a><span class="co">## sommer</span></span>
+<span id="cb8-14"><a href="#cb8-14"></a><span class="co">###########</span></span>
+<span id="cb8-15"><a href="#cb8-15"></a>fm2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Reaction <span class="op">~</span><span class="st"> </span>Days,</span>
+<span id="cb8-16"><a href="#cb8-16"></a>            <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span>Subject <span class="op">+</span><span class="st"> </span><span class="kw">vs</span>(Days, Subject), </span>
+<span id="cb8-17"><a href="#cb8-17"></a>            <span class="dt">data=</span>DT, <span class="dt">tolparinv =</span> <span class="fl">1e-6</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb8-18"><a href="#cb8-18"></a><span class="kw">summary</span>(fm2)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                                  VarComp VarCompSE   Zratio Constraint
+## Subject.Reaction-Reaction      627.54087 283.52939 2.213319   Positive
+## Days:Subject.Reaction-Reaction  35.86008  14.53187 2.467686   Positive
+## units.Reaction-Reaction        653.58305  76.72711 8.518281   Positive</code></pre>
+<p>Notice that Days is a numerical (not factor) variable.</p>
+</div>
+<div id="random-slopes-and-random-intercepts-with-correlation" class="section level2">
+<h2>3) Random slopes and random intercepts (with correlation)</h2>
+<p>This is the a model where you assume that the random effect has different intercepts based on the levels of another variable. In addition a single | in lme4 assumes that slopes and intercepts have a correlation to be estimated.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1"></a><span class="co">###########</span></span>
+<span id="cb10-2"><a href="#cb10-2"></a><span class="co">## lme4</span></span>
+<span id="cb10-3"><a href="#cb10-3"></a><span class="co">###########</span></span>
+<span id="cb10-4"><a href="#cb10-4"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (Days | Subject), data=DT)</span></span>
+<span id="cb10-5"><a href="#cb10-5"></a><span class="co"># summary(fm1) # or # vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
+<span id="cb10-6"><a href="#cb10-6"></a><span class="co"># Random effects:</span></span>
+<span id="cb10-7"><a href="#cb10-7"></a><span class="co">#  Groups   Name        Variance Std.Dev. Corr</span></span>
+<span id="cb10-8"><a href="#cb10-8"></a><span class="co">#  Subject  (Intercept) 612.10   24.741       </span></span>
+<span id="cb10-9"><a href="#cb10-9"></a><span class="co">#           Days         35.07    5.922   0.07</span></span>
+<span id="cb10-10"><a href="#cb10-10"></a><span class="co">#  Residual             654.94   25.592       </span></span>
+<span id="cb10-11"><a href="#cb10-11"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
+<span id="cb10-12"><a href="#cb10-12"></a><span class="co">###########</span></span>
+<span id="cb10-13"><a href="#cb10-13"></a><span class="co">## sommer</span></span>
+<span id="cb10-14"><a href="#cb10-14"></a><span class="co">###########</span></span>
+<span id="cb10-15"><a href="#cb10-15"></a><span class="co">## no equivalence in sommer to find the correlation between the 2 vc</span></span>
+<span id="cb10-16"><a href="#cb10-16"></a><span class="co">## this is the most similar which is equivalent to (intercept || slope)</span></span>
+<span id="cb10-17"><a href="#cb10-17"></a>fm2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Reaction <span class="op">~</span><span class="st"> </span>Days,</span>
+<span id="cb10-18"><a href="#cb10-18"></a>            <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span>Subject <span class="op">+</span><span class="st"> </span><span class="kw">vs</span>(Days, Subject), </span>
+<span id="cb10-19"><a href="#cb10-19"></a>            <span class="dt">data=</span>DT, <span class="dt">tolparinv =</span> <span class="fl">1e-6</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb10-20"><a href="#cb10-20"></a><span class="kw">summary</span>(fm2)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                                  VarComp VarCompSE   Zratio Constraint
+## Subject.Reaction-Reaction      627.54087 283.52939 2.213319   Positive
+## Days:Subject.Reaction-Reaction  35.86008  14.53187 2.467686   Positive
+## units.Reaction-Reaction        653.58305  76.72711 8.518281   Positive</code></pre>
+</div>
+<div id="random-slopes-with-a-different-intercept" class="section level2">
+<h2>4) Random slopes with a different intercept</h2>
+<p>This is the a model where you assume that the random effect has different intercepts based on the levels of another variable but there’s no a main effect. The 0 in the intercept in lme4 assumes that random slopes interact with an intercept but without main effect.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1"></a><span class="co">###########</span></span>
+<span id="cb12-2"><a href="#cb12-2"></a><span class="co">## lme4</span></span>
+<span id="cb12-3"><a href="#cb12-3"></a><span class="co">###########</span></span>
+<span id="cb12-4"><a href="#cb12-4"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (0 + Days | Subject), data=DT)</span></span>
+<span id="cb12-5"><a href="#cb12-5"></a><span class="co"># summary(fm1) # or vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
+<span id="cb12-6"><a href="#cb12-6"></a><span class="co"># Random effects:</span></span>
+<span id="cb12-7"><a href="#cb12-7"></a><span class="co">#  Groups   Name Variance Std.Dev.</span></span>
+<span id="cb12-8"><a href="#cb12-8"></a><span class="co">#  Subject  Days  52.71    7.26   </span></span>
+<span id="cb12-9"><a href="#cb12-9"></a><span class="co">#  Residual      842.03   29.02   </span></span>
+<span id="cb12-10"><a href="#cb12-10"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
+<span id="cb12-11"><a href="#cb12-11"></a><span class="co">###########</span></span>
+<span id="cb12-12"><a href="#cb12-12"></a><span class="co">## sommer</span></span>
+<span id="cb12-13"><a href="#cb12-13"></a><span class="co">###########</span></span>
+<span id="cb12-14"><a href="#cb12-14"></a>fm2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Reaction <span class="op">~</span><span class="st"> </span>Days,</span>
+<span id="cb12-15"><a href="#cb12-15"></a>            <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(Days, Subject), </span>
+<span id="cb12-16"><a href="#cb12-16"></a>            <span class="dt">data=</span>DT, <span class="dt">tolparinv =</span> <span class="fl">1e-6</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb12-17"><a href="#cb12-17"></a><span class="kw">summary</span>(fm2)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                                  VarComp VarCompSE   Zratio Constraint
+## Days:Subject.Reaction-Reaction  52.70946  19.09984 2.759681   Positive
+## units.Reaction-Reaction        842.02736  93.84640 8.972399   Positive</code></pre>
+</div>
+<div id="other-models-available-in-sommer-but-not-in-lme4" class="section level2">
+<h2>4) Other models available in sommer but not in lme4</h2>
+<p>One of the strengths of sommer is the availability of other variance covariance structures. In this section we show 4 models available in sommer that are not available in lme4 and might be useful.</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1"></a><span class="kw">library</span>(orthopolynom)</span></code></pre></div>
+<pre><code>## Loading required package: polynom</code></pre>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1"></a><span class="co">## diagonal model</span></span>
+<span id="cb16-2"><a href="#cb16-2"></a>fm2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Reaction <span class="op">~</span><span class="st"> </span>Days,</span>
+<span id="cb16-3"><a href="#cb16-3"></a>            <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">ds</span>(Daysf), Subject), </span>
+<span id="cb16-4"><a href="#cb16-4"></a>            <span class="dt">data=</span>DT, <span class="dt">tolparinv =</span> <span class="fl">1e-6</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb16-5"><a href="#cb16-5"></a><span class="kw">summary</span>(fm2)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                               VarComp VarCompSE    Zratio Constraint
+## 0:Subject.Reaction-Reaction  139.5473  399.5095 0.3492967   Positive
+## 1:Subject.Reaction-Reaction  196.8544  411.8262 0.4780037   Positive
+## 2:Subject.Reaction-Reaction    0.0000  365.3178 0.0000000   Positive
+## 3:Subject.Reaction-Reaction  556.0773  501.2665 1.1093445   Positive
+## 4:Subject.Reaction-Reaction  855.2104  581.8190 1.4698910   Positive
+## 5:Subject.Reaction-Reaction 1699.4269  820.4561 2.0713197   Positive
+## 6:Subject.Reaction-Reaction 2910.8975 1175.7872 2.4757011   Positive
+## 7:Subject.Reaction-Reaction 1539.6201  779.1437 1.9760413   Positive
+## 8:Subject.Reaction-Reaction 2597.5337 1089.4522 2.3842568   Positive
+## 9:Subject.Reaction-Reaction 3472.7108 1351.5702 2.5693899   Positive
+## units.Reaction-Reaction      879.6958  247.4680 3.5547862   Positive</code></pre>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1"></a><span class="co">## unstructured model</span></span>
+<span id="cb18-2"><a href="#cb18-2"></a>fm2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Reaction <span class="op">~</span><span class="st"> </span>Days,</span>
+<span id="cb18-3"><a href="#cb18-3"></a>            <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">us</span>(Daysf), Subject), </span>
+<span id="cb18-4"><a href="#cb18-4"></a>            <span class="dt">data=</span>DT, <span class="dt">tolparinv =</span> <span class="fl">1e-6</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb18-5"><a href="#cb18-5"></a><span class="kw">summary</span>(fm2)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                                 VarComp VarCompSE    Zratio Constraint
+## 0:Subject.Reaction-Reaction    402.6286  572.0867 0.7037894   Positive
+## 1:0:Subject.Reaction-Reaction 1022.5098  393.6922 2.5972314   Unconstr
+## 1:Subject.Reaction-Reaction    417.6460  521.3722 0.8010515   Positive
+## 2:0:Subject.Reaction-Reaction  540.3746  287.1704 1.8817210   Unconstr
+## 2:1:Subject.Reaction-Reaction  828.5156  325.7576 2.5433499   Unconstr
+## 2:Subject.Reaction-Reaction      0.0000  509.8962 0.0000000   Positive
+## 3:0:Subject.Reaction-Reaction  798.3750  397.0884 2.0105726   Unconstr
+## 3:1:Subject.Reaction-Reaction 1137.3863  443.9056 2.5622256   Unconstr
+## 3:2:Subject.Reaction-Reaction 1057.0708  385.9026 2.7392162   Unconstr
+## 3:Subject.Reaction-Reaction    760.2469  436.7463 1.7407060   Positive
+## 4:0:Subject.Reaction-Reaction  757.8909  411.2464 1.8429119   Unconstr
+## 4:1:Subject.Reaction-Reaction 1039.6832  447.5192 2.3232148   Unconstr
+## 4:2:Subject.Reaction-Reaction  911.1369  377.9651 2.4106377   Unconstr
+## 4:3:Subject.Reaction-Reaction 1590.6778  566.5376 2.8077180   Unconstr
+## 4:Subject.Reaction-Reaction    957.1797  364.0599 2.6291817   Positive
+## 5:0:Subject.Reaction-Reaction  932.5247  516.7169 1.8047110   Unconstr
+## 5:1:Subject.Reaction-Reaction 1179.5219  547.9498 2.1526095   Unconstr
+## 5:2:Subject.Reaction-Reaction  859.1635  440.5250 1.9503173   Unconstr
+## 5:3:Subject.Reaction-Reaction 1672.9989  664.0846 2.5192556   Unconstr
+## 5:4:Subject.Reaction-Reaction 2003.0167  738.6399 2.7117633   Unconstr
+## 5:Subject.Reaction-Reaction   2067.9299  553.3254 3.7372765   Positive
+## 6:0:Subject.Reaction-Reaction  666.1077  565.7589 1.1773702   Unconstr
+## 6:1:Subject.Reaction-Reaction  850.9395  583.6190 1.4580394   Unconstr
+## 6:2:Subject.Reaction-Reaction  916.2375  504.0273 1.8178333   Unconstr
+## 6:3:Subject.Reaction-Reaction 1785.8432  750.7274 2.3788171   Unconstr
+## 6:4:Subject.Reaction-Reaction 2077.5064  822.0777 2.5271412   Unconstr
+## 6:5:Subject.Reaction-Reaction 2603.2823 1035.1406 2.5149070   Unconstr
+## 6:Subject.Reaction-Reaction   3123.2005 1049.0352 2.9772123   Positive
+## 7:0:Subject.Reaction-Reaction  932.8190  490.4744 1.9018709   Unconstr
+## 7:1:Subject.Reaction-Reaction  927.3416  492.7764 1.8818709   Unconstr
+## 7:2:Subject.Reaction-Reaction  924.7079  426.2387 2.1694602   Unconstr
+## 7:3:Subject.Reaction-Reaction 1282.8637  583.3415 2.1991642   Unconstr
+## 7:4:Subject.Reaction-Reaction 1549.9053  643.7083 2.4077757   Unconstr
+## 7:5:Subject.Reaction-Reaction 1941.5523  811.3286 2.3930529   Unconstr
+## 7:6:Subject.Reaction-Reaction 2306.0261  951.5128 2.4235367   Unconstr
+## 7:Subject.Reaction-Reaction   1669.8274  612.0081 2.7284398   Positive
+## 8:0:Subject.Reaction-Reaction  920.3110  576.8500 1.5954079   Unconstr
+## 8:1:Subject.Reaction-Reaction 1044.9313  592.5243 1.7635247   Unconstr
+## 8:2:Subject.Reaction-Reaction  831.4993  486.9625 1.7075221   Unconstr
+## 8:3:Subject.Reaction-Reaction 1607.0156  717.6871 2.2391591   Unconstr
+## 8:4:Subject.Reaction-Reaction 2029.1022  805.6724 2.5185201   Unconstr
+## 8:5:Subject.Reaction-Reaction 3058.1945 1093.4722 2.7967739   Unconstr
+## 8:6:Subject.Reaction-Reaction 2927.6051 1177.5589 2.4861644   Unconstr
+## 8:7:Subject.Reaction-Reaction 2433.2427  957.7103 2.5406876   Unconstr
+## 8:Subject.Reaction-Reaction   2947.1635  844.8113 3.4885466   Positive
+## 9:0:Subject.Reaction-Reaction 1440.6886  690.1726 2.0874323   Unconstr
+## 9:1:Subject.Reaction-Reaction 1514.9679  703.4423 2.1536491   Unconstr
+## 9:2:Subject.Reaction-Reaction  967.8504  550.1628 1.7592073   Unconstr
+## 9:3:Subject.Reaction-Reaction 1742.6866  797.5934 2.1849310   Unconstr
+## 9:4:Subject.Reaction-Reaction 2198.3504  892.7701 2.4623924   Unconstr
+## 9:5:Subject.Reaction-Reaction 3236.8715 1196.2341 2.7058847   Unconstr
+## 9:6:Subject.Reaction-Reaction 2210.6321 1185.1233 1.8653182   Unconstr
+## 9:7:Subject.Reaction-Reaction 2399.5130 1027.8125 2.3345824   Unconstr
+## 9:8:Subject.Reaction-Reaction 3847.0132 1391.5584 2.7645359   Unconstr
+## 9:Subject.Reaction-Reaction   3946.2369 1228.6678 3.2118013   Positive
+## units.Reaction-Reaction        883.2477  577.9203 1.5283210   Positive</code></pre>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1"></a><span class="co">## random regression (legendre polynomials)</span></span>
+<span id="cb20-2"><a href="#cb20-2"></a>fm2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Reaction <span class="op">~</span><span class="st"> </span>Days,</span>
+<span id="cb20-3"><a href="#cb20-3"></a>            <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">leg</span>(Days,<span class="dv">1</span>), Subject), </span>
+<span id="cb20-4"><a href="#cb20-4"></a>            <span class="dt">data=</span>DT, <span class="dt">tolparinv =</span> <span class="fl">1e-6</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb20-5"><a href="#cb20-5"></a><span class="kw">summary</span>(fm2)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                                  VarComp  VarCompSE   Zratio Constraint
+## leg0:Subject.Reaction-Reaction 2817.4048 1011.23903 2.786092   Positive
+## leg1:Subject.Reaction-Reaction  473.4608  199.53635 2.372805   Positive
+## units.Reaction-Reaction         654.9433   77.18822 8.485016   Positive</code></pre>
+<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1"></a><span class="co">## unstructured random regression (legendre)</span></span>
+<span id="cb22-2"><a href="#cb22-2"></a>fm2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Reaction <span class="op">~</span><span class="st"> </span>Days,</span>
+<span id="cb22-3"><a href="#cb22-3"></a>            <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">us</span>(<span class="kw">leg</span>(Days,<span class="dv">1</span>)), Subject), </span>
+<span id="cb22-4"><a href="#cb22-4"></a>            <span class="dt">data=</span>DT, <span class="dt">tolparinv =</span> <span class="fl">1e-6</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb22-5"><a href="#cb22-5"></a><span class="kw">summary</span>(fm2)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                                       VarComp  VarCompSE   Zratio Constraint
+## leg0:Subject.Reaction-Reaction      2817.4056 1011.24156 2.786086   Positive
+## leg1:leg0:Subject.Reaction-Reaction  869.9590  381.02481 2.283208   Unconstr
+## leg1:Subject.Reaction-Reaction       473.4608  199.53612 2.372807   Positive
+## units.Reaction-Reaction              654.9428   77.18763 8.485075   Positive</code></pre>
+</div>
+<div id="final-remarks" class="section level2">
+<h2>Final remarks</h2>
+<p>Keep in mind that sommer uses the direct inversion (DI) algorithms which can be very slow for large datasets. The package is focused in problems of the type p &gt; n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small number of individuals and covariance structures or n &gt; p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.</p>
+</div>
+<div id="literature" class="section level2">
+<h2>Literature</h2>
+<p>Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6):1-15.</p>
+<p>Covarrubias-Pazaran G. 2018. Software update: Moving the R package sommer to multivariate mixed models for genome-assisted prediction. doi: <a href="https://doi.org/10.1101/354639" class="uri">https://doi.org/10.1101/354639</a></p>
+<p>Bernardo Rex. 2010. Breeding for quantitative traits in plants. Second edition. Stemma Press. 390 pp.</p>
+<p>Gilmour et al. 1995. Average Information REML: An efficient algorithm for variance parameter estimation in linear mixed models. Biometrics 51(4):1440-1450.</p>
+<p>Henderson C.R. 1975. Best Linear Unbiased Estimation and Prediction under a Selection Model. Biometrics vol. 31(2):423-447.</p>
+<p>Kang et al. 2008. Efficient control of population structure in model organism association mapping. Genetics 178:1709-1723.</p>
+<p>Lee, D.-J., Durban, M., and Eilers, P.H.C. (2013). Efficient two-dimensional smoothing with P-spline ANOVA mixed models and nested bases. Computational Statistics and Data Analysis, 61, 22 - 37.</p>
+<p>Lee et al. 2015. MTG2: An efficient algorithm for multivariate linear mixed model analysis based on genomic information. Cold Spring Harbor. doi: <a href="http://dx.doi.org/10.1101/027201" class="uri">http://dx.doi.org/10.1101/027201</a>.</p>
+<p>Maier et al. 2015. Joint analysis of psychiatric disorders increases accuracy of risk prediction for schizophrenia, bipolar disorder, and major depressive disorder. Am J Hum Genet; 96(2):283-294.</p>
+<p>Rodriguez-Alvarez, Maria Xose, et al. Correcting for spatial heterogeneity in plant breeding experiments with P-splines. Spatial Statistics 23 (2018): 52-71.</p>
+<p>Searle. 1993. Applying the EM algorithm to calculating ML and REML estimates of variance components. Paper invited for the 1993 American Statistical Association Meeting, San Francisco.</p>
+<p>Yu et al. 2006. A unified mixed-model method for association mapping that accounts for multiple levels of relatedness. Genetics 38:203-208.</p>
+<p>Tunnicliffe W. 1989. On the use of marginal likelihood in time series model estimation. JRSS 51(1):15-27.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

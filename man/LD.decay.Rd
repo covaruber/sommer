@@ -47,10 +47,10 @@ names(mapCP) <- c("Locus","Position","LG")
 #### with example purposes we only do 3 chromosomes
 mapCP <- mapCP[which(mapCP$LG <= 3),]
 #### run the function
-res <- LD.decay(CPgeno, mapCP)
-names(res)
+# res <- LD.decay(CPgeno, mapCP)
+# names(res)
 #### subset only markers with significant LD
-res$all.LG <- res$all.LG[which(res$all.LG$p < .001),]
+# res$all.LG <- res$all.LG[which(res$all.LG$p < .001),]
 #### plot the LD decay
 # with(res$all.LG, plot(r2~d,col=transp("cadetblue"),
 #                     xlim=c(0,55), ylim=c(0,1), 

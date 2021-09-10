@@ -11,7 +11,13 @@
 \arguments{
  \item{object}{a mixed model of class \code{"mmer"}}
  \item{classify}{a character vector with the variables that define the margins of the multiway table to be aggregated.}
- \item{hypertable}{an optional table to force the terms to be included and ignored with same format as the output hypertable of this function (see examples).}
+ \item{hypertable}{an optional table to force the terms to be included, ignored and averaged with same format as the output hypertable of this function (see examples).
+ 
+ An ignored term means that the model matrices for that fixed or random effect are not used in the BLUP and SE calculation.
+ 
+ An averaged term means that the model matrices for that fixed or random effect is filled purely with the value 1/#levels.
+ 
+ }
  \item{\dots}{Further arguments to be passed to the model fit (i.e. iters, etc.).}
 }
 \details{
@@ -40,7 +46,7 @@
 
   \item{pvals}{the table of predictions according to the specified arguments.}
   
-  \item{hypertable}{the summary table specifying the ignored and include sets.}
+  \item{hypertable}{the summary table specifying the ignored, include and average sets.}
   
   \item{model}{the mixed model used within predict.}
   
@@ -49,6 +55,10 @@
   \item{C12}{the inverse of the coefficient matrix corresponding to the covariance between fixed and random effects.}
   
   \item{C22}{the inverse of the coefficient matrix corresponding to the random effects.}
+  
+  \item{Xextended}{the model matrix for fixed effects used to compute BLUPs and SEs.}
+  
+  \item{Zextended}{the model matrix for random effects used to compute BLUPs and SEs.}
   
  }
  \references{
@@ -81,31 +91,36 @@ p0 <- predict.mmer(object=m3, classify = c("V","N"))
 p0$hypertable; p0$pvals
 
 ########################################
-## force the inclusion of specific terms
-## in the hypertable
+## Modify terms in the prediction
+## Ignore a term: it doesn't include the 
+## model matrix in the BLUP and its SE
 ########################################
 p0 <- predict.mmer(object=m3, classify = "N")
+
+# modify the prediction
 hypertable <- p0$hypertable; hypertable
-p0$pvals
-# force inclusion of 5th term
-hypertable[6,c("ignored","include")] <- c(FALSE,TRUE) 
+# ignore the B:MP random term
+hypertable[6,c("ignored","include","average")] <- c(TRUE,FALSE,FALSE) 
 hypertable
 
 p1 <- predict.mmer(object=m3, classify = "N", hypertable = hypertable)
-p1$hypertable;p1$pvals
+p1$pvals
 
 ########################################
-## force the exclusion of specific terms
-## in the hypertable
+## Modify terms in the prediction
+## Average a term: it fills the model matrix
+## for the term with 1/#levels affecting
+## the BLUP and its SE
 ########################################
 p0 <- predict.mmer(object=m3, classify = "N")
+
+# modify the prediction
 hypertable <- p0$hypertable; hypertable
-p0$pvals
-# force inclusion of 4th term
-hypertable[4,c("ignored","include")] <- c(TRUE,FALSE) 
+# average the V:N fixed term
+hypertable[4,c("ignored","include","average")] <- c(FALSE,TRUE,TRUE) 
 hypertable
 
 p1 <- predict.mmer(object=m3, classify = "N", hypertable = hypertable)
-p1$hypertable;p1$pvals
+p1$pvals
 
 }
