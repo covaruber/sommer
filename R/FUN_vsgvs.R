@@ -8,10 +8,11 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
   init <- list(...)
   namess <- as.character(substitute(list(...)))[-1L]
   expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
-  expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=T)}
+  expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=TRUE)}
   
   namess2 <- apply(data.frame(namess),1,function(x){
-    newx <- expi(x); if(length(newx)==0){newx<-""}
+    newx <- expi2(x); if(length(newx)==0){newx<-""} 
+    # an issue using predict() for a model of the form vs(us(leg(x)),y) led us to use expi2 in 09/14/2021. I am still not sure if there's consequences 
     newx <- gsub(",.*","",newx)
     return(newx)
   })
