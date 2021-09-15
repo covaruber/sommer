@@ -10,5 +10,12 @@ Depends: R (>= 2.10), Matrix (>= 1.1.1), methods, stats, MASS, lattice, crayon
 License: GPL (>= 2)
 Imports: Rcpp (>= 0.12.19)
 LinkingTo: Rcpp, RcppArmadillo, RcppProgress
-Suggests: rmarkdown, knitr, plyr, parallel, orthopolynom
+Suggests: 
+    rmarkdown,
+    knitr,
+    plyr,
+    parallel,
+    orthopolynom,
+    testthat (>= 3.0.0)
 VignetteBuilder: knitr
+Config/testthat/edition: 3

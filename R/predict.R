@@ -28,6 +28,7 @@
       }
     }
 
+    # This doesn't quite give identical results. Does it matter?
     include <- unique(c(attr(terms.formula(object$call$fixed), "term.labels"),attr(terms.formula(object$call$random), "term.labels"))) # paste to present as A:B:C
     include <- setdiff(include, c("1","-1"))
     ##################################################
@@ -40,18 +41,27 @@
     # reformulate turns a character vector into a formula object so that the terms can be pulled out
     allTermsUsed <- unique(attr(terms.formula(reformulate(allTermsUsed)), "term.labels")) # paste to present as A:B:C
 
-    # The regex:
-    # (?<=\\().*?(?=\\))
-    # (?<=   look behind for:
-    # \\()   \\()
-    # .*?
-    # (?=\\))
-
-
     toAgg <- unique(unlist(strsplit(include,":")))
     ignored <- setdiff(allTermsUsed,toAgg)
 
     levelsOfTerms <- lapply(as.list(toAgg),function(x){(unique(object$dataOriginal[,x]))})
+
+    include <- setdiff(unique(c(unlist(object$terms$fixed),unlist(object$terms$random))),c("1","-1"))
+    include <- unique(unlist(lapply(include,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
+    ##################################################
+    # step 0. find all variables used in the modeling
+    allTermsUsed <- unique(c(unlist(object$terms$fixed), unlist(object$terms$random)))
+    allTermsUsed<- allTermsUsed[which(allTermsUsed!= "1")]
+    allTermsUsed<- allTermsUsed[which(allTermsUsed!= "-1")]
+    allTermsUsed <- unique(unlist(strsplit(allTermsUsed,":")))
+    allTermsUsed <- unique(unlist(lapply(allTermsUsed,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
+    # print(allTermsUsed)
+    toAgg <- unique(unlist(strsplit(include,":")))
+    ignored <- setdiff(allTermsUsed,toAgg)
+    # print(toAgg)
+    levelsOfTerms <- lapply(as.list(toAgg),function(x){(unique(object$dataOriginal[,x]))})
+
+
 
     DTX <- expand.grid(levelsOfTerms);
 
