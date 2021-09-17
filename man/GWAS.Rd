@@ -38,6 +38,7 @@ GWAS(fixed, random, rcov, data, weights,
     getPEV=TRUE,na.method.X="exclude",
     na.method.Y="exclude",return.param=FALSE, 
     date.warning=TRUE,verbose=FALSE,
+    stepweight=NULL, emupdate=NULL,
     M=NULL, gTerm=NULL, n.PC = 0, min.MAF = 0.05, 
     P3D = TRUE)
 }

@@ -40,6 +40,7 @@ The vignettes aim to provide several examples in how to use the sommer package u
 2) UDU' decomposition
 3) Mating designs
 4) Dominance variance
+5) GWAS by GBLUP
 
 ## SECTION 1: Introduction 
 
@@ -131,9 +132,9 @@ In the following section we will go in detail over several examples on how to us
 
 ### 1) Marker and non-marker based heritability calculation 
 
-Heritability is one of the most popular parameters among the breeding and genetics communities because of the insight it provides in the inheritance of the trait. Heritability is usually estimated as narrow sense ($h^2$; only additive variance in the numerator $\sigma^2_A$), and broad sense ($H^2$; all genetic variance in the numerator $\sigma^2_G$).
+Heritability is one of the most popular parameters among the breeding and genetics communities because of the insight it provides in the inheritance of the trait and potential selection response. Heritability is usually estimated as narrow sense ($h^2$; only additive variance in the numerator $\sigma^2_A$), and broad sense ($H^2$; all genetic variance in the numerator $\sigma^2_G$).
 
-In a classical breeding experiment with no molecular markers, special designs are performed to estimate and dissect the additive ($\sigma^2_A$) and non-additive (i.e. dominance $\sigma^2_D$) variance along with environmental variability. Designs such as generation analysis, North Carolina designs are used to dissect $\sigma^2_A$ and $\sigma^2_D$ to estimate the narrow sense heritability ($h^2$). When no special design is available we can still disect the genetic variance ($\sigma^2_G$) and estimate the broad sense heritability. In this first example we will show the broad sense estimation which doesn't use covariance structures for the genotypic effect (i.e. genomic or additive relationship matrices). For big models with no covariance structures, sommer's direct inversion is a bad idea to use but we will still show how to do it, but keep in mind that for very sparse models we recommend using the `lmer()` function from the lme4 package or any other package using MME-based algorithms (i.e. asreml-R).
+In a classical breeding experiment with no molecular markers, special designs are performed to estimate and dissect the additive ($\sigma^2_A$) and non-additive (e.g., dominance $\sigma^2_D$, and epistatic $\sigma^2_E$) variance along with environmental variability. Designs such as generation analysis, North Carolina designs are used to dissect $\sigma^2_A$ and $\sigma^2_D$ to estimate the narrow sense heritability ($h^2$) using only $\sigma^2_A$ in the numerator. When no special design is available we can still disect the genetic variance ($\sigma^2_G$) and estimate the broad sense heritability. In this first example we will show the broad sense estimation which doesn't use covariance matrices for the genotypic effect (e.g., genomic-additive relationship matrices). For big models with no relationship matrices, sommer's direct inversion is a bad idea to use but we will still show how to do it, but keep in mind that for very sparse models with no relationship matrices or other special covariance structures we recommend using the `lmer()` function from the lme4 package or any other package using MME-based algorithms (e.g., asreml-R).
 
 The following dataset has 41 potato lines evaluated in 5 locations across 3 years in an RCBD design. We show how to fit the model and extract the variance components to calculate the $h^2$.
 
@@ -151,10 +152,11 @@ summary(ans1)$varcomp
 (n.env <- length(levels(DT$Env)))
 vpredict(ans1, h2 ~ V1 / ( V1 + (V3/n.env) + (V5/(2*n.env)) ) )
 ```
+That is an estimate of broad-sense heritability.
 
-Recently with markers becoming cheaper, thousand of markers can be run in the breeding materials. When markers are available, a special design is not neccesary to dissect the additive genetic variance. The availability of the additive, dominance and epistatic relationship matrices allow us to estimate $\sigma^2_A$, $\sigma^2_D$ and $\sigma^2_I$, although given that A, D and E are not orthogonal the interpretation of models that fit more than A and D become cumbersome.
+Recently with markers becoming cheaper, thousand of markers can be run in the breeding materials. When markers are available, a special design is not neccesary to dissect the additive genetic variance. The availability of the additive, dominance and epistatic relationship matrices allow us to estimate $\sigma^2_A$, $\sigma^2_D$ and $\sigma^2_I$, although given that A, D and E are not orthogonal the interpretation of models that fit more than the A matrix at the same time becomes cumbersome.
 
-Assume you have a population (even unreplicated) in the field but in addition we have genetic markers. Now we can fit the model and estimate the genomic heritability that explains a portion of the additive genetic variance (with high marker density $\sigma^2_A$ = $\sigma^2_g$)
+Assume you have a population (even unreplicated) in the field but in addition we have genetic markers. Now we can fit the model and estimate the genomic heritability that explains a portion of the additive genetic variance (with high marker density $\sigma^2_A$ = $\sigma^2_{markers}$)
 
 ```{r}
 data(DT_cpdata)
@@ -171,11 +173,11 @@ ans.ADE <- mmer(color~1,
                  rcov=~units,
                  data=DT,verbose = FALSE)
 (summary(ans.ADE)$varcomp)
-vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) )
-vpredict(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) )
+vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense
+vpredict(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) ) # broad-sense
 ```
 
-In the previous example we showed how to estimate the additive ($\sigma^2_A$), dominance ($\sigma^2_D$), and epistatic ($\sigma^2_I$) variance components based on markers and estimate broad ($H^2$) and narrow-sense heritability ($h^2$). Notice that we used the `vs()` function which indicates that the random effect inside the parenthesis (i.e. `id`, `idd` or `ide`) has a covariance matrix (A, D, or E), that will be specified in the `Gu` argument of the `vs()` function. Please DO NOT provide the inverse, but rather the original covariance matrix.
+In this example we showed how to estimate the additive ($\sigma^2_A$) and dominance ($\sigma^2_D$) variance components based on markers and estimate broad ($H^2$) and narrow-sense heritability ($h^2$). Notice that we used the `vs()` function which indicates that the random effect inside the parenthesis (i.e. `id`, `idd` or `ide`) has a covariance matrix (A, D, or E), that will be specified in the `Gu` argument of the `vs()` function. Please DO NOT provide the inverse, but rather the original covariance matrix.
 
 ### 2) Specifying heterogeneous variances in univariate models
 
@@ -772,6 +774,86 @@ mix2 <- mmer(Yield~1,
 # analyze variance components
 summary(mix1)$varcomp
 summary(mix2)$varcomp
+
+```
+
+### 5) GWAS by GBLUP
+
+Gualdron-Duarte et al. (2014) and Bernal-Rubio et al. (2016) proved that in (SingleStep)GBLUP or RRBLUP/SNP-BLUP, dividing the estimate of the marker effect by its standard error is mathematically equivalent to fixed regression EMMAX GWAS, even if markers are estimated as random effects in GBLUP and as fixed effects in EMMAX. That way fitting a GBLUP model is enough to perform GWAS for additive and on-additive effects.
+
+Let us use the DT_cpdata dataset to explore the GWAS by GBLUP method
+```{r}
+data(DT_cpdata)
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
+#### create the variance-covariance matrix
+A <- A.mat(GT) # additive relationship matrix
+n <- nrow(DT) # to be used for degrees of freedom
+k <- 1 # to be used for degrees of freedom (number of levels in fixed effects)
+```
+First we fit a regular GWAS/EMMAX using the GWAS function available in sommer that first calculates variance components and then fits a regression marker by marker as a fixed effect.
+
+```{r}
+###########################
+#### Regular GWAS/EMMAX approach
+###########################
+mix2 <- GWAS(color~1,
+             random=~vs(id, Gu=A) + Rowf + Colf,
+             rcov=~units, M=GT, gTerm = "u:id",
+             verbose = FALSE,
+             data=DT)
+```
+
+To compare EMMAX to the approach proposed by Gualdron-Duarte et al. (2014) and Bernal-Rubio et al. (2016) we will start fitting an RRBLUP/SNP-BLUP model to show that the estimate of the marker effect by its standard error is mathematically equivalent to fixed regression EMMAX GWAS.
+
+```{r}
+###########################
+#### GWAS by RRBLUP approach
+###########################
+Z <- GT[as.character(DT$id),]
+mixRRBLUP <- mmer(color~1,
+              random=~vs(Z) + Rowf + Colf,
+              rcov=~units,
+              verbose = FALSE,
+              data=DT)
+
+a <- mixRRBLUP$U$`u:Z`$color # marker effects
+se.a <- sqrt(diag(kronecker(diag(ncol(Z)),mixRRBLUP$sigma$`u:Z`) - mixRRBLUP$PevU$`u:Z`$color)) # SE of marker effects
+t.stat <- a/se.a # t-statistic
+pvalRRBLUP <- dt(t.stat,df=n-k-1) # -log10(pval)
+```
+Instead of fitting the RRBLUP/SNP-BLUP model we can fit a GBLUP model which is less computationally demanding and recover marker effects and their standard errors from the genotype effects.
+
+```{r}
+###########################
+#### GWAS by GBLUP approach
+###########################
+M<- GT
+MMT <-tcrossprod(M) ## MM' = additive relationship matrix
+MMTinv<-solve(MMT) ## inverse of MM'
+MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
+mixGBLUP <- mmer(color~1,
+             random=~vs(id, Gu=MMT) + Rowf + Colf,
+             rcov=~units,
+             verbose = FALSE,
+             data=DT)
+a.from.g <-MTMMTinv%*%matrix(mixGBLUP$U$`u:id`$color,ncol=1)
+var.g <- kronecker(MMT,mixGBLUP$sigma$`u:id`) - mixGBLUP$PevU$`u:id`$color
+var.a.from.g <- t(M)%*%MMTinv%*% (var.g) %*% t(MMTinv)%*%M
+se.a.from.g <- sqrt(diag(var.a.from.g))
+t.stat.from.g <- a.from.g/se.a.from.g # t-statistic
+pvalGBLUP <- dt(t.stat.from.g,df=n-k-1) # -log10(pval)
+```
+Now we can look at the p-values coming from the 3 approaches to indeed show that results are equivalent.
+
+```{r}
+###########################
+#### Compare results
+###########################
+plot(mix2$scores[,1], main="GWAS")
+plot(-log(pvalRRBLUP), main="GWAS by RRBLUP/SNP-BLUP") 
+plot(-log(pvalGBLUP), main="GWAS by GBLUP")
 
 ```
 
