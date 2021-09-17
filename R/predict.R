@@ -36,30 +36,30 @@
     allTermsUsed <- unique(c(unlist(object$terms$fixed), unlist(object$terms$random)))
     # Remove 1 and -1 terms
     allTermsUsed <- allTermsUsed[which(!allTermsUsed %in% c("1", "-1"))]
-    # Remove terms that include a : (i.e. interaction terms)
-    allTermsUsed <- allTermsUsed[!grepl(":", allTermsUsed)]
     # reformulate turns a character vector into a formula object so that the terms can be pulled out
     allTermsUsed <- unique(attr(terms.formula(reformulate(allTermsUsed)), "term.labels")) # paste to present as A:B:C
+    # Remove terms that include a : (i.e. interaction terms)
+    allTermsUsed <- allTermsUsed[!grepl(":", allTermsUsed)]
 
     toAgg <- unique(unlist(strsplit(include,":")))
     ignored <- setdiff(allTermsUsed,toAgg)
 
     levelsOfTerms <- lapply(as.list(toAgg),function(x){(unique(object$dataOriginal[,x]))})
 
-    include <- setdiff(unique(c(unlist(object$terms$fixed),unlist(object$terms$random))),c("1","-1"))
-    include <- unique(unlist(lapply(include,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
-    ##################################################
-    # step 0. find all variables used in the modeling
-    allTermsUsed <- unique(c(unlist(object$terms$fixed), unlist(object$terms$random)))
-    allTermsUsed<- allTermsUsed[which(allTermsUsed!= "1")]
-    allTermsUsed<- allTermsUsed[which(allTermsUsed!= "-1")]
-    allTermsUsed <- unique(unlist(strsplit(allTermsUsed,":")))
-    allTermsUsed <- unique(unlist(lapply(allTermsUsed,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
-    # print(allTermsUsed)
-    toAgg <- unique(unlist(strsplit(include,":")))
-    ignored <- setdiff(allTermsUsed,toAgg)
-    # print(toAgg)
-    levelsOfTerms <- lapply(as.list(toAgg),function(x){(unique(object$dataOriginal[,x]))})
+    # include <- setdiff(unique(c(unlist(object$terms$fixed),unlist(object$terms$random))),c("1","-1"))
+    # include <- unique(unlist(lapply(include,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
+    # ##################################################
+    # # step 0. find all variables used in the modeling
+    # allTermsUsed <- unique(c(unlist(object$terms$fixed), unlist(object$terms$random)))
+    # allTermsUsed<- allTermsUsed[which(allTermsUsed!= "1")]
+    # allTermsUsed<- allTermsUsed[which(allTermsUsed!= "-1")]
+    # allTermsUsed <- unique(unlist(strsplit(allTermsUsed,":")))
+    # allTermsUsed <- unique(unlist(lapply(allTermsUsed,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
+    # # print(allTermsUsed)
+    # toAgg <- unique(unlist(strsplit(include,":")))
+    # ignored <- setdiff(allTermsUsed,toAgg)
+    # # print(toAgg)
+    # levelsOfTerms <- lapply(as.list(toAgg),function(x){(unique(object$dataOriginal[,x]))})
 
 
 
@@ -129,6 +129,39 @@
     return(predictSummary)
   }
 
+  # Translate any fixed models with interactions to explicit interaction models
+  # if(any(grepl("\\*", object$call$fixed))) {
+  #   expanded <- paste(attr(terms.formula(object$call$fixed), "term.labels"), collapse=" + ")
+  #   new_formula <- as.formula(paste(resp, expanded, sep = " ~ "))
+  #   object$call$fixed <- new_formula
+  #
+  #   # Also need to deal with object$terms
+  #   # If terms contain a 1/-1
+  #   if(any(grepl("1", object$terms$fixed[[1]]))) {
+  #     # object$terms$fixed[[1]][!grepl("\\*", object$terms$fixed[[1]])] <- attr(terms.formula(reformulate(object$terms$fixed[[1]][grepl("\\*", object$terms$fixed[[1]])])), "term.labels")
+  #     # Expand this, but maintain any 1 values
+  #     new_terms <- reformulate(object$terms$fixed[[1]])
+  #     object$terms$fixed[[1]] <- c("1", attr(terms.formula(new_terms), "term.labels"))
+  #   }
+  #   else if(any(grepl("-1", object$terms$fixed[[1]]))) {
+  #     new_terms <- reformulate(object$terms$fixed[[1]])
+  #     object$terms$fixed[[1]] <- c("-1", attr(terms.formula(new_terms), "term.labels"))
+  #   }
+  #   else {
+  #     new_terms <- reformulate(object$terms$fixed[[1]])
+  #     object$terms$fixed[[1]] <- attr(terms.formula(new_terms), "term.labels")
+  #   }
+  # }
+  #
+  # if(any(grepl("\\*", object$call$random))) {
+  #   expanded <- paste(attr(terms.formula(object$call$random), "term.labels"), collapse=" + ")
+  #   new_formula <- as.formula(paste("~", expanded))
+  #   object$call$random <- new_formula
+  #
+  #   # Also need to deal with object$terms
+  #   object$terms$fixed[[1]] <- attr(terms.formula(new_terms), "term.labels")
+  # }
+
 
   if(is.null(hypertable)){
     # if user doesn't provide hypertable, we build one that :
@@ -178,6 +211,8 @@
     include <- setdiff(hypertable[which(hypertable$include),"termHL"],c("1","-1"))
     # print(include)
   }
+
+
   include <- unique(unlist(lapply(include,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
 
   ##################################################
