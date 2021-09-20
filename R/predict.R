@@ -129,40 +129,6 @@
     return(predictSummary)
   }
 
-  # Translate any fixed models with interactions to explicit interaction models
-  # if(any(grepl("\\*", object$call$fixed))) {
-  #   expanded <- paste(attr(terms.formula(object$call$fixed), "term.labels"), collapse=" + ")
-  #   new_formula <- as.formula(paste(resp, expanded, sep = " ~ "))
-  #   object$call$fixed <- new_formula
-  #
-  #   # Also need to deal with object$terms
-  #   # If terms contain a 1/-1
-  #   if(any(grepl("1", object$terms$fixed[[1]]))) {
-  #     # object$terms$fixed[[1]][!grepl("\\*", object$terms$fixed[[1]])] <- attr(terms.formula(reformulate(object$terms$fixed[[1]][grepl("\\*", object$terms$fixed[[1]])])), "term.labels")
-  #     # Expand this, but maintain any 1 values
-  #     new_terms <- reformulate(object$terms$fixed[[1]])
-  #     object$terms$fixed[[1]] <- c("1", attr(terms.formula(new_terms), "term.labels"))
-  #   }
-  #   else if(any(grepl("-1", object$terms$fixed[[1]]))) {
-  #     new_terms <- reformulate(object$terms$fixed[[1]])
-  #     object$terms$fixed[[1]] <- c("-1", attr(terms.formula(new_terms), "term.labels"))
-  #   }
-  #   else {
-  #     new_terms <- reformulate(object$terms$fixed[[1]])
-  #     object$terms$fixed[[1]] <- attr(terms.formula(new_terms), "term.labels")
-  #   }
-  # }
-  #
-  # if(any(grepl("\\*", object$call$random))) {
-  #   expanded <- paste(attr(terms.formula(object$call$random), "term.labels"), collapse=" + ")
-  #   new_formula <- as.formula(paste("~", expanded))
-  #   object$call$random <- new_formula
-  #
-  #   # Also need to deal with object$terms
-  #   object$terms$fixed[[1]] <- attr(terms.formula(new_terms), "term.labels")
-  # }
-
-
   if(is.null(hypertable)){
     # if user doesn't provide hypertable, we build one that :
     # 1) 'ignores' all random effects that don't match with classify
