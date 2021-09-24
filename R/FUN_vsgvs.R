@@ -1,22 +1,27 @@
 vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
   
-  ## ... list of structures to define the random effect
+  ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
   ## Gti the multitrait structure and constraints for it
   ## Gtc the initial values for the var-cov components
   
   init <- list(...)
   namess <- as.character(substitute(list(...)))[-1L]
-  expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
-  expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=TRUE)}
+  # expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
+  # expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=TRUE)}
   
   namess2 <- apply(data.frame(namess),1,function(x){
-    newx <- expi2(x); if(length(newx)==0){newx<-""} 
-    # an issue using predict() for a model of the form vs(us(leg(x)),y) led us to use expi2 in 09/14/2021. I am still not sure if there's consequences 
-    newx <- gsub(",.*","",newx)
-    return(newx)
+    return(paste(all.vars(as.formula(paste0("~",x))), collapse = ":"))
   })
+  namess2 <- unique(unlist(namess2))
+  # namess2 <- apply(data.frame(namess),1,function(x){
+  #   newx <- expi2(x); if(length(newx)==0){newx<-""} 
+  #   # an issue using predict() for a model of the form vs(us(leg(x)),y) led us to use expi2 in 09/14/2021. I am still not sure if there's consequences 
+  #   newx <- gsub(",.*","",newx)
+  #   return(newx)
+  # })
   namess2[which(namess2 == "")] <- namess[which(namess2 == "")]
+  # print(namess2)
   ref_name <- namess2[length(namess2)]
   # certain random effects coming from spl2D(), leg(), and others may need some help to find the terms
   specialVariables <- unlist(lapply(init,function(x){(attributes(x)$variables)}))
@@ -25,7 +30,7 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
     is.residual =TRUE
   }else{is.residual=FALSE}
   ### get the data
-  init2 <- list() # store the matrices for each random effect provided in ...
+  init2 <- list() # store the incidence matrices and relationship matrices for each random effect provided in the element "..."
   for(i in 1:length(init)){
     if(is.list(init[[i]])){ ## if it comes from a ds, us, cs function
       
@@ -64,43 +69,43 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
   }
   # make a dataframe with the vectors and matrices provided by the user
   
-  nre <- length(init2)
-  Z <- init2[[length(init2)]][[1]]
-  if(nre > 1){ # there's a structure
+  nre <- length(init2) # number of covariates involved
+  Z <- init2[[length(init2)]][[1]] # get incidence matrix from the main effect involved
+  if(nre > 1){ # there's a covariance structure
+    # we obtain vcs
     strlist <- lapply(init2[1:(nre-1)], function(x){x[[2]]})
-    if(length(strlist) >1){
+    if(length(strlist) >1){ # there's a complicated structure e.g., vs(ds(a),ds(b),...,x)
       vcs <- do.call(function(...){kronecker(...,make.dimnames = TRUE)},strlist)
-    }else{
+    }else{ # there's a simpler structure e.g., vs(ds(a),x)
       vcs <- strlist[[1]]
     }
-  }
-  if(nre==1){ # if the vs() has only one random effect
-    allzs <- matrix(1,nrow=nrow(Z),ncol=1); colnames(allzs) <- "u"
-    # if(!is.null(Gtc)){
-    #   vcs <- Gtc; colnames(vcs) <- rownames(vcs) <- "u"
-    # }else{
-    vcs <- matrix(1,1,1); colnames(vcs) <- rownames(vcs) <- "u"
-    # }
-  }else{
+    # we obtain z's of the covariates building the covariance structure e.g. in vs(ds(a),x) zs = model.matrix(~a)
     zs <- lapply(init2[1:(nre-1)], function(x){x[[1]]})
-    allzs <- do.call(cbind,zs)
+    allzs <- do.call(cbind,zs) # bind all the zs since we have multiple covariates building the covariance structure
+  }else{
+    # we obtain vcs
+    vcs <- matrix(1,1,1); colnames(vcs) <- rownames(vcs) <- "u"
+    # we obtain z's of the covariates building the covariance structure
+    allzs <- matrix(1,nrow=nrow(Z),ncol=1); colnames(allzs) <- "u"
   }
-  
+  ###################################
   ## start creating the Z and K list
-  Zup <- list()
-  Kup <- list()
-  typevc <- numeric()
-  re_name <- character()
+  Zup <- list() # store incidence matrices
+  Kup <- list() # store relationship matrices between levels in Z
+  typevc <- numeric() # store wheter is a variance (1) or covariance (2;allowed to be negative) component
+  re_name <- character() # store the name of the random effect
   counter <- 1
   # print(vcs)
   for(i in 1:ncol(vcs)){ ## for each row
     for(j in 1:i){ ## for each column
       # print(paste(i,j))
-      if(vcs[i,j] > 0){ ## to be estimated
+      if(vcs[i,j] > 0){ ## to be estimated so build the incidence matrix
         
         if(i==j){## variance component (diagonal term in vcs) and either positive or fixed
-          namz <- strsplit(rownames(vcs)[i],":")[[1]]
-          zz <- as.matrix(apply(as.matrix(allzs[,namz]),1,prod) * Z)
+          namz <- strsplit(rownames(vcs)[i],":")[[1]] # level name to assign together with main name
+          # print(dim(allzs));print(dim(Z))
+          zz <- as.matrix(apply(as.matrix(allzs[,namz]),1,prod) * Z) # take the column "namz" for the level and multiply by the provided main Z matrix 
+          # image(as(zz, Class="sparseMatrix"))
           if(is.null(Gu)){
             
             if(!is.null(Gtc)){ # warning for possible mistake
@@ -286,14 +291,18 @@ gvs <- function(..., Gu=NULL, Guc=NULL, Gti=NULL, Gtc=NULL, form=NULL){ # genera
   
   init <- list(...)
   namess <- as.character(substitute(list(...)))[-1L]
-  expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
-  expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=T)}
+  # expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
+  # expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=T)}
   
+  # namess2 <- apply(data.frame(namess),1,function(x){
+  #   newx <- expi(x); if(length(newx)==0){newx<-""}
+  #   newx <- gsub(",.*","",newx)
+  #   return(newx)
+  # })
   namess2 <- apply(data.frame(namess),1,function(x){
-    newx <- expi(x); if(length(newx)==0){newx<-""}
-    newx <- gsub(",.*","",newx)
-    return(newx)
+    return(all.vars(as.formula(paste0("~",x))))
   })
+  namess2 <- unique(unlist(namess2))
   namess2[which(namess2 == "")] <- namess[which(namess2 == "")]
   # ref_name <- namess2[length(namess2)]
   # certain random effects coming from spl2D(), leg(), and others may need some help to find the terms

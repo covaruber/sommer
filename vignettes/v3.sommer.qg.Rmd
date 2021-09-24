@@ -501,7 +501,7 @@ mix <- mmer(Yield~1,
 summary(mix)
 # make a plot to observe the spatial effects found by the spl2D()
 W <- with(DT,spl2D(Row,Col)) # 2D spline incidence matrix
-DT$spatial <- W%*%mix$U$`u:Row`$Yield # 2D spline BLUPs
+DT$spatial <- W%*%mix$U$`u:Row:Col`$Yield # 2D spline BLUPs
 lattice::levelplot(spatial~Row*Col, data=DT) # plot the spatial effect by row and column
 ```
 

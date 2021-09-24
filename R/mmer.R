@@ -43,7 +43,8 @@ mmer <- function(fixed, random, rcov, data, weights,
   provdat <- subdata(data, fixed=fixed, na.method.Y = na.method.Y,na.method.X=na.method.X)
   # print(str(provdat))
   data <- provdat$datar
-  nonMissing <- data$good
+  nonMissing <- provdat$good
+  # print(length(nonMissing))
   # randomization <- sample(1:nrow(data))
   # data <- data[randomization,]
   #################
@@ -89,7 +90,7 @@ mmer <- function(fixed, random, rcov, data, weights,
       if(length(checkvs)>0){ ## if this term is a variance structure
         # print(rtermss[u])
         # print(data)
-        ff <- eval(parse(text = rtermss[u]),data, parent.frame())# envir = data)
+        ff <- eval(parse(text = rtermss[u]),data,parent.frame())# envir = data)
         # print(nrow(ff$Z[[1]]))
         # print(length(provdat$good))
         # print((ff$Z[[1]]))

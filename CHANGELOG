@@ -407,6 +407,13 @@ version 4.1.4 (2021-07-01)
  + Argument buildGu for the vs() function added to avoid rrBLUP models to become slow. This implied modifying
    the MNR.cpp function to understand when the matrix multiplications with K (covariance matrix) should be
    avoided.
+   
+########################
+version 4.1.5 (2021-10-01)
+########################
+
+ + Addition of the spl2Dmatrices() function to fit all models capable to fit by the SpATS package.
+ + Fixes to a*b fixed model issues and predict improvements thanks to Sam Rogers and Julian Taylor.
  
 ######################
 ## PENDINGS AND PRIORITIES

@@ -563,18 +563,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 2.1 or later")
   assign(".sommer.home", file.path(library, pkg),
          pos=match("package:sommer", search()))
-  sommer.version = "4.1.4 (2021-08-01)" # usually 2 months before it expires
-  
-  ##%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-  ### check which version is more recent
-  #yyy <- 1.8
-  #chooseCRANmirror(ind=114)
-  #xxx <- available.packages(contriburl = contrib.url(repos="http://mirror.las.iastate.edu/CRAN/", type = getOption("pkgType")))
-  
-  #xxx <- available.packages()
-  #current <- as.numeric(xxx["sommer","Version"])
-  ### final check
-  ##%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+  sommer.version = "4.1.5 (2021-12-01)" # usually 2 months before it expires
   
   assign(".sommer.version", sommer.version, pos=match("package:sommer", search()))
   if(interactive())
