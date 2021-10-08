@@ -49,7 +49,7 @@ mmer2(fixed, random, rcov, data, weights,
   
   * \code{\link{overlay}(...,rlist,prefix)} can be used to specify overlay of design matrices of random effects
 
-  * \code{\link{spl2D}(...)}   can be used to fit a 2-dimensional spline (i.e. spatial modeling; see Special functions section below).
+  * \code{\link{spl2Da}(...)}, \code{\link{spl2Db}(...)}   can be used to fit a 2-dimensional spline (i.e. spatial modeling; see Special functions section below).
   
   * \code{\link{leg}(...)}   can be used to fit a random regression model.
   
@@ -98,11 +98,17 @@ mmer2(fixed, random, rcov, data, weights,
  
  can be used to specify overlay of design matrices between consecutive random effects specified, i.e. \emph{random=~vs(overlay(male,female))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vs().
   
-  \code{\link{vs}(\link{spl2D}(x.coord, y.coord, at, at.levels, type, 
-      nseg, pord, degree, 
-      nest.div))}
+  \code{\link{spl2Da}(x.coord, y.coord, at.var, at.levels, type, 
+      nsegments, penaltyord, degree, 
+      nestorder)}
       
-  can be used to fit a 2-dimensional spline (i.e. spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class). The 2D spline can be fitted at specific levels using the \code{at} and \code{at.levels} arguments. For example \emph{random=~vs(spl2D(x.coord=Row,y.coord=Range,at=FIELD))}.
+  can be used to fit a 2-dimensional spline (i.e. spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class). The 2D spline can be fitted at specific levels using the \code{at} and \code{at.levels} arguments. For example \emph{random=~spl2Da(x.coord=Row,y.coord=Range,at.var=FIELD)}.
+  
+  \code{\link{spl2Db}(x.coord, y.coord, at.var, at.levels, type, 
+      nsegments, penaltyord, degree, 
+      nestorder)}
+      
+  can be used to fit a 2-dimensional spline (i.e. spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class). The 2D spline can be fitted at specific levels using the \code{at} and \code{at.levels} arguments. For example \emph{random=~spl2Db(x.coord=Row,y.coord=Range,at.var=FIELD)}.
   
   \code{\link{vs}(\link{leg}(x,n),y)}
       
@@ -145,7 +151,7 @@ Other functions such as \code{\link{summary}}, \code{\link{fitted}}, \code{\link
 
 Additional functions for genetic analysis have been included such as heritability (\code{\link{h2.fun}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), creation of manhattan plots (\code{\link{manhattan}}). If you need to use pedigree you need to convert your pedigree into a relationship matrix (i.e. use the \code{getA} function from the pedigreemm package). 
 
-Useful functions for analyzing field trials are included such as the \code{spl2D}.
+Useful functions for analyzing field trials are included such as the \code{spl2Da} and \code{spl2Db}.
 
 \strong{Models Enabled}
 

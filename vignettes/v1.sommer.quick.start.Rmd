@@ -592,13 +592,13 @@ mix <- mmer(Yield~1,
             random=~vs(id, Gu=A) +
               vs(Rowf) +
               vs(Colf) +
-              vs(spl2D(Row,Col)),
+              spl2Da(Row,Col),
             rcov=~vs(units),
             data=DT,verbose = FALSE)
 summary(mix)
 ```
 
-Notice that the job is done by the `spl2D()` function that takes the `Row` and `Col` information to fit a spatial kernel. 
+Notice that the job is done by the `spl2Da()` function that takes the `Row` and `Col` information to fit a spatial kernel. 
 
 #### Customized random effects
 
@@ -700,7 +700,7 @@ mix2 <- mmer(Yield~1,
             random=~vs(id, Gu=A) +
               vs(Rowf) +
               vs(Colf) +
-              vs(spl2D(Row,Col)),
+              spl2Da(Row,Col),
             rcov=~vs(units),
             data=DT,verbose = FALSE)
 ```

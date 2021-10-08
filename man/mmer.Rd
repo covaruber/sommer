@@ -7,7 +7,7 @@
 }
 \description{
 
-Sommer is a structural multivariate-univariate linear mixed model solver for multiple random effects allowing the specification and/or estimation of variance covariance structures. REML estimates can be obtained using the Direct-Inversion Newton-Raphson, Average Information and Efficient Mixed Model Association algorithms coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic selection models. Sommer was designed for genomic prediction and genome wide association studies (GWAS), but also functional as a regular mixed model program. These algorithms are \strong{intended to be used for problems of the type p > n and/or dense matrices}. For problems with sparse covariance structures, or problems of the type n > p, the MME-based algorithms are faster and we recommend to shift to the use of such software (i.e. lme4, breedR, or asreml-R).
+Sommer is a structural multivariate-univariate linear mixed model solver for multiple random effects allowing the specification and/or estimation of variance covariance structures. REML estimates can be obtained using the Direct-Inversion Newton-Raphson, Average Information and Efficient Mixed Model Association algorithms coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic selection models. Sommer was designed for genomic prediction and genome wide association studies (GWAS), but also functional as a regular mixed model program. These algorithms are \strong{intended to be used for problems of the type p > n and/or dense matrices}. For problems with sparse covariance structures, or problems of the type n > p, the MME-based algorithms are faster and we recommend to shift to the use of such software (e.g., lme4, breedR, or asreml-R).
 
 \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
@@ -50,7 +50,7 @@ mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03,
   
   ** \code{\link{unsm}(x)}, \code{\link{uncm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can be used to build easily matrices to specify constraints in the Gtc argument of the \code{\link{vs}()} function.
   
-  ** \code{\link{overlay}()}, \code{\link{spl2D}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vs}()} function.
+  ** \code{\link{overlay}()}, \code{\link{spl2Da}()}, \code{\link{spl2Db}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vs}()} function.
   
     \code{\link{gvs}(...,Gu,Guc,Gti,Gtc)} is an alternative function to specify general variance structures between different random effects. An special case in the indirect genetic effect models. Is similar to the vs function but in the ... argument the different random effects are provided.
   
@@ -106,10 +106,6 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
  
  can be used to specify overlay of design matrices between consecutive random effects specified, i.e. \emph{random=~vs(overlay(male,female))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vs().
   
-  \code{\link{vs}(\link{spl2D}(x.coord, y.coord, at, at.levels))}
-      
-  can be used to fit a 2-dimensional spline (i.e. spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class). The 2D spline can be fitted at specific levels using the \code{at} and \code{at.levels} arguments. For example \emph{random=~vs(spl2D(x.coord=Row,y.coord=Range,at=FIELD))}.
-  
   \code{\link{vs}(\link{leg}(x,n),y)}
       
   can be used to fit a random regression model using a numerical variable \code{x} that marks the trayectory for the random effect \code{y}. The leg function can be combined with the special functions \code{ds}, \code{us} \code{at} and \code{cs}. For example \emph{random=~vs(leg(x,1),y)} or \emph{random=~vs(us(leg(x,1)),y)}.
@@ -121,6 +117,14 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
   \code{\link{gvs}(x,y)}  
   
   can be used to fit variance and covariance parameters between two or more random effects. For example, indirect genetic effect models.
+  
+  \code{\link{spl2Da}(x.coord, y.coord, at.var, at.levels))}
+      
+  can be used to fit a 2-dimensional spline (i.e. spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class) assuming a single variance component. The 2D spline can be fitted at specific levels using the \code{at} and \code{at.levels} arguments. For example \emph{random=~spl2Da(x.coord=Row,y.coord=Range,at.var=FIELD)}.
+  
+  \code{\link{spl2Db}(x.coord, y.coord, at.var, at.levels))}
+      
+  can be used to fit a 2-dimensional spline (i.e. spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class) assuming multiple variance components. The 2D spline can be fitted at specific levels using the \code{at} and \code{at.levels} arguments. For example \emph{random=~spl2Db(x.coord=Row,y.coord=Range,at.var=FIELD)}.
 
 \strong{S3 methods}{
 

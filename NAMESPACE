@@ -23,7 +23,7 @@ export(at,cs,ds,us,vs, gvs,
        bivariateRun, vpredict)
 
 ## FUN_spatial
-export( spl2D,bbasis,tpsmmbwrapper,spl2Dmatrices)
+export( spl2Da,spl2Db,spl2Dmats,bbasis,tpsmmbwrapper)
 
 ## FUN_markers
 export(atcg1234,build.HMM,h2.fun)

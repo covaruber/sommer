@@ -1,19 +1,19 @@
-\name{spl2Dmatrices}
-\alias{spl2Dmatrices}
+\name{spl2Dmats}
+\alias{spl2Dmats}
 \title{Get Tensor Product Spline Mixed Model Incidence Matrices}
 \usage{
-spl2Dmatrices(
+spl2Dmats(
   x.coord.name,
   y.coord.name,
   data,
   at.name,
   at.levels, 
-  nseg=NULL,
+  nsegments=NULL,
   minbound=NULL,
   maxbound=NULL,
   degree = c(3, 3),
-  difforder = c(2, 2),
-  nest.div = c(1, 1),
+  penaltyord = c(2,2), 
+  nestorder = c(1,1),
   method = "Lee"
 )
 }
@@ -30,7 +30,7 @@ holding row locations.}
 
 \item{at.levels}{a vector of names indicating which levels of the at.name variable should be used for fitting the 2D spline function.}
 
-\item{nseg}{A list of length 2. Number of segments to split column and
+\item{nsegments}{A list of length 2. Number of segments to split column and
 row ranges into, respectively (= number of internal knots + 1). If only
 one number is specified, that value is used in both dimensions. If not
 specified, (number of unique values - 1) is used in each dimension;
@@ -47,10 +47,10 @@ for each dimension.}
 \item{degree}{A list of length 2. The degree of polynomial spline to be used
 for column and row dimensions respectively; default=3.}
 
-\item{difforder}{A list of length 2. The order of differencing for column
+\item{penaltyord}{A list of length 2. The order of differencing for column
 and row dimensions, respectively; default=2.}
 
-\item{nest.div}{A list of length 2. The order of nesting for column and row
+\item{nestorder}{A list of length 2. The order of nesting for column and row
 dimensions, respectively; default=1 (no nesting). A value of 2 generates
 a spline with half the number of segments in that dimension, etc. The
 number of segments in each direction must be a multiple of the order
@@ -101,8 +101,8 @@ List of length 7 elements:
 
 }
 \description{
-\code{spl2Dmatrices} gets Tensor-Product P-Spline Mixed Model Incidence Matrices
-    for use with \code{sommer} and its main function \code{mmer}. We thank Sue Welham for making the TPSbits package available to the community. If you're using this function for your research please cite her TPSbits package :) 
+\code{spl2Dmats} gets Tensor-Product P-Spline Mixed Model Incidence Matrices
+    for use with \code{sommer} and its main function \code{mmer}. We thank Sue Welham for making the TPSbits package available to the community. If you're using this function for your research please cite her TPSbits package :) this is mostly a wrapper of her tpsmmb function to enable the use in sommer.
 }
 \examples{
 
@@ -113,7 +113,7 @@ MP <- MP_cpdata
 #### create the variance-covariance matrix
 A <- A.mat(GT) # additive relationship matrix
 
-M <- spl2Dmatrices(x.coord.name = "Col", y.coord.name = "Row", data=DT, nseg =c(14,21))
+M <- spl2Dmats(x.coord.name = "Col", y.coord.name = "Row", data=DT, nseg =c(14,21))
 head(M$data)
 m1g <- mmer(Yield~1+TP.CR.2+TP.CR.3+TP.CR.4,
                 random=~Rowf+Colf+vs(M$fC)+vs(M$fR)+vs(M$fC.R)+vs(M$C.fR)+vs(M$fC.fR)+vs(id,Gu=A),

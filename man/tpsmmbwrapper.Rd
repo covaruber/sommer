@@ -10,7 +10,7 @@ tpsmmbwrapper(
   minbound=NULL,
   maxbound=NULL,
   degree = c(3, 3),
-  difforder = c(2, 2),
+  penaltyord = c(2, 2),
   nestorder = c(1, 1),
   asreml = "mbf",
   eigenvalues = "include",
@@ -44,7 +44,7 @@ for each dimension.}
 \item{degree}{A list of length 2. The degree of polynomial spline to be used
 for column and row dimensions respectively; default=3.}
 
-\item{difforder}{A list of length 2. The order of differencing for column
+\item{penaltyord}{A list of length 2. The order of differencing for column
 and row dimensions, respectively; default=2.}
 
 \item{nestorder}{A list of length 2. The order of nesting for column and row

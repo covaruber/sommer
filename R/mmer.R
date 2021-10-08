@@ -86,7 +86,11 @@ mmer <- function(fixed, random, rcov, data, weights,
     # print(str(model.matrix(~id-1,data)))
     # print(str(as(model.matrix(~id-1,data), Class = "sparseMatrix")))
     for(u in 1:length(rtermss)){ # for each random effect
-      checkvs <- grep("vs\\(",rtermss[u])
+      # print(all.names(as.formula(paste0("~",rtermss[u]))))
+      # intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vs","spl2Davs","spl2Db"))
+      
+      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vs","gvs","spl2Da","spl2Db")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
+      # print(checkvs)
       if(length(checkvs)>0){ ## if this term is a variance structure
         # print(rtermss[u])
         # print(data)
@@ -175,7 +179,9 @@ mmer <- function(fixed, random, rcov, data, weights,
   termsEN <- numeric()
   bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
   for(u in 1:length(rcovtermss)){
-    checkvs <- grep("vs\\(",rcovtermss[u])
+    
+    checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vs","gvs"))
+    # checkvs <- grep("vs\\(",rcovtermss[u])
     if(length(checkvs)>0){ ## if this term is a variance structure
       ff <- eval(parse(text = rcovtermss[u]),data,parent.frame())# envir = data)
       rs[[u]] <- ff$Z

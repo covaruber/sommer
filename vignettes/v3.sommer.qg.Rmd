@@ -495,17 +495,17 @@ mix <- mmer(Yield~1,
             random=~vs(id, Gu=A) +
               vs(Rowf) +
               vs(Colf) +
-              vs(spl2D(Row,Col)),
+              spl2Da(Row,Col),
             rcov=~vs(units),
             data=DT, verbose = FALSE)
 summary(mix)
 # make a plot to observe the spatial effects found by the spl2D()
-W <- with(DT,spl2D(Row,Col)) # 2D spline incidence matrix
-DT$spatial <- W%*%mix$U$`u:Row:Col`$Yield # 2D spline BLUPs
+W <- with(DT,spl2Da(Row,Col)) # 2D spline incidence matrix
+DT$spatial <- W$Z$`A:all`%*%mix$U$`A:all`$Yield # 2D spline BLUPs
 lattice::levelplot(spatial~Row*Col, data=DT) # plot the spatial effect by row and column
 ```
 
-Notice that the job is done by the `spl2D()` function that takes the `Row` and `Col` information to fit a spatial kernel. 
+Notice that the job is done by the `spl2Da()` function that takes the `Row` and `Col` information to fit a spatial kernel. 
 
 
 ### 9) Multivariate genetic models and genetic correlations

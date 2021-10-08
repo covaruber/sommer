@@ -1,9 +1,129 @@
+spl2Db <-  function(x.coord,y.coord, at.var=NULL,at.levels=NULL, nsegments = c(10,10),
+                    degree = c(3,3), penaltyord = c(2,2),nestorder = c(1,1), 
+                    minbound=NULL, maxbound=NULL, method="Lee", what="bits" ) {
+  
+  if(length(degree) == 1){degree <- rep(degree,2) }
+  if(length(nsegments) == 1){nsegments <- rep(nsegments,2) }
+  if(length(penaltyord) == 1){penaltyord <- rep(penaltyord,2) }
+  if(length(nestorder) == 1){nestorder <- rep(nestorder,2) }
+  
+  x.coord.name <- as.character(substitute(list(x.coord)))[-1L]
+  y.coord.name <- as.character(substitute(list(y.coord)))[-1L]
+  
+  if(is.null(at.var)){
+    at.var <- rep("A",length(x.coord))
+    at.name <- "FIELDINST"
+    at.levels <- "A"
+  }else{
+    at.name <- as.character(substitute(list(at)))[-1L]
+    if(length(at.var) != length(x.coord)){stop("at.var has different length than x.coord and y.coord, please fix.", call. = FALSE)}
+    if(is.null(at.levels)){at.levels <- levels(as.factor(at.var))}
+  }
+  index <- 1:length(x.coord)
+  if(!is.numeric(x.coord)){stop("x.coord argument in spl2D() needs to be numeric.", call. = FALSE)}
+  if(!is.numeric(y.coord)){stop("y.coord argument in spl2D() needs to be numeric.", call. = FALSE)}
+  #######################
+  ## split data by the "at.name" argument
+  dat <- data.frame(x.coord, y.coord, at.var, index); colnames(dat) <- c(x.coord.name,y.coord.name,at.name,"index")
+  missby <- which(is.na(dat[,at.name]))
+  if(length(missby)>0){stop("We will split using the at.name argument and you have missing values in this column.\nPlease correct.", call. = FALSE)}
+  dat[,at.name] <- as.factor(dat[,at.name])
+  data0 <- split(dat, dat[,at.name])
+  names(data0) <- levels(dat[,at.name])
+  #######################################
+  # make sure there's no missing data in coordinate variables
+  nasx <- which(is.na(dat[,x.coord.name]))
+  nasy <- which(is.na(dat[,y.coord.name]))
+  if(length(nasx) > 0 | length(nasy) >0){
+    stop("x.coord and y.coord columns cannot have NA's", call. = FALSE)
+  }
+  ##########################################
+  #### now calculate TP design matrices for each by.level
+  multires <- lapply(data0, function(dxy){ # for each environment
+    # use function to extract incidence matrices
+    TPXZg <- tpsmmbwrapper(columncoordinates=x.coord.name, rowcoordinates=y.coord.name,
+                           maxbound=maxbound, minbound=minbound, penaltyord=penaltyord,
+                           data=dxy, nsegments=nsegments, nestorder=nestorder, asreml="grp", method=method)
+    
+    # extract the incidence matrices
+    fC <- TPXZg$data[,TPXZg$grp$TP.R.1_fcol]
+    fR <- TPXZg$data[,TPXZg$grp$TP.C.1_frow]
+    fC.R <- TPXZg$data[,TPXZg$grp$TP.R.2_fcol]
+    C.fR <- TPXZg$data[,TPXZg$grp$TP.C.2_frow]
+    fC.fR <- TPXZg$data[,TPXZg$grp$TP_fcol_frow]
+    rest <- TPXZg$data[,min(c(which(colnames(TPXZg$data)=="TP.col"),which(colnames(TPXZg$data)=="TP.row"))):(min(c(TPXZg$grp$TP.R.1_fcol,TPXZg$grp$TP.C.1_frow))-1)]
+    # all <- TPXZg$data[,TPXZg$grp$All]
+    # return output
+    return(list(fC,fR,fC.R,C.fR,fC.fR,rest))
+  })
+  names(multires) <- at.levels
+  # print(str(multires))
+  toFill <- lapply(data0,function(x){x$index})
+  #############################################
+  ## CAPTURE COLNAMES AND BUILD A MATRIX WITH THOSE NAMES
+  myNames <- list()
+  for(k in 1:6){
+    myNames[[k]] <- lapply(multires,function(x){colnames(x[[k]])})
+  };  names(myNames) <- c("fC","fR","fC.R", "C.fR","fC.fR","rest")
+  #################################
+  ## move matrices to the right size
+  Zup <- list() # store incidence matrices
+  Zup2 <- list() # store incidence matrices
+  Kup <- list() # store relationship matrices between levels in Z
+  typevc <- numeric() # store wheter is a variance (1) or covariance (2;allowed to be negative) component
+  re_name <- character() # store the name of the random effect
+  counter <- 1
+  counter2 <- 1
+  for(k in 1:6){ # for each tensor product
+    for(j in 1:length(multires)){ # for each environment or by.level
+      if(names(multires)[j] %in% at.levels){
+        Z <- matrix(0,nrow=nrow(dat),ncol=length(myNames[[k]][[j]]))
+        colnames(Z) <- myNames[[k]][[j]]
+        prov <- multires[[j]][[k]]
+        Z[toFill[[j]],colnames(prov)] <- as.matrix(prov) 
+        attr(Z,"variables") <- c(x.coord.name, y.coord.name)
+        if(k < 6){
+          Zup[[counter]] <- Z
+          names(Zup)[counter] <- paste0(names(multires)[j],":",names(myNames)[k])
+          Gu1 <- diag(ncol(Z)); colnames(Gu1) <- rownames(Gu1) <- colnames(Z)
+          Kup[[counter]] <- Gu1
+          typevc[counter] <- 1
+          re_name[counter] <- names(Zup)[counter]
+          counter <- counter + 1
+        }else{
+          Zup2[[counter2]] <- Z
+          names(Zup2)[counter2] <- paste0(names(multires)[j],":",names(myNames)[k])
+          counter2 <- counter2 + 1
+        }
+      } # else don't fill that portion of the matrix
+    }
+  }
+  Gti=NULL
+  Gtc=NULL
+  vcs <- diag(length(Zup)); rownames(vcs) <- colnames(vcs) <- names(Zup)
+  #################################
+  if(what=="bits"){
+    namess2 <- c(x.coord.name, y.coord.name)
+    S3 <- list(Z=Zup,K=Kup,Gti=Gti,Gtc=Gtc,typevc=typevc,re_name=re_name,vcs=vcs, terms=namess2)
+  }else if(what == "base"){
+    S3 <- do.call(cbind,Zup2)
+  }else{stop("method not recognized.",call. = FALSE)}
+  
+  return(S3)
+}
 
-spl2Dmatrices <-  function(x.coord.name,y.coord.name,data, 
-                           at.name,at.levels, nseg = NULL,
-                           minbound=NULL, maxbound=NULL, 
-                           degree = c(3,3), difforder = c(2,2), 
-                           nest.div = c(1,1), method="Lee" ) {
+spl2Dmats <-  function(x.coord.name,
+                       y.coord.name,
+                       data,                       
+                       at.name,
+                       at.levels,
+                       nsegments = NULL,
+                       minbound=NULL, 
+                       maxbound=NULL,
+                       degree = c(3,3), 
+                       penaltyord = c(2,2), 
+                       nestorder = c(1,1), 
+                       method="Lee" ) {
   
   # x.coord.name <- as.character(substitute(list(x.coord)))[-1L]
   # y.coord.name <- as.character(substitute(list(y.coord)))[-1L]
@@ -55,8 +175,8 @@ spl2Dmatrices <-  function(x.coord.name,y.coord.name,data,
     # use function to extract incidence matrices
     
     TPXZg <- tpsmmbwrapper(columncoordinates=x.coord.name, rowcoordinates=y.coord.name,
-                             maxbound=maxbound, minbound=minbound, difforder=difforder,
-                             data=dxy, nsegments=nseg, nestorder=nest.div, asreml="grp", method=method)
+                             maxbound=maxbound, minbound=minbound, penaltyord=penaltyord,
+                             data=dxy, nsegments=nsegments, nestorder=nestorder, asreml="grp", method=method)
 
     # extract the incidence matrices
     fC <- TPXZg$data[,TPXZg$grp$TP.R.1_fcol]
@@ -107,7 +227,7 @@ spl2Dmatrices <-  function(x.coord.name,y.coord.name,data,
 }
 
 tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NULL, 
-                           minbound=NULL, maxbound=NULL, degree = c(3, 3), difforder = c(2, 2), 
+                           minbound=NULL, maxbound=NULL, degree = c(3, 3), penaltyord = c(2, 2), 
                            nestorder = c(1, 1), asreml = "mbf", eigenvalues = "include", 
                            method = "Lee", stub = NULL) 
 {
@@ -195,7 +315,7 @@ tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NU
     nrn <- ncol(Brn)
   }
   else nrn <- nr
-  diff.c <- difforder[[1]]
+  diff.c <- penaltyord[[1]]
   Dc <- diff(diag(nc), diff = diff.c)
   svd.c <- svd(crossprod(Dc))
   nbc <- nc - diff.c
@@ -238,11 +358,11 @@ tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NU
     BcnU <- BcU
     L.cn <- L.c
   }
-  if (length(difforder) < 2) {
-    diff.r <- difforder[1]
+  if (length(penaltyord) < 2) {
+    diff.r <- penaltyord[1]
   }
   else {
-    diff.r <- difforder[2]
+    diff.r <- penaltyord[2]
   }
   Dr <- diff(diag(nr), diff = diff.r)
   svd.r <- svd(crossprod(Dr))
