@@ -85,9 +85,9 @@ m1.sommer <- mmer(Y~1+V+spl2Db(col,row, nsegments = c(14,21), degree = c(3,3), p
                   data=DT, tolpar = 1e-6, verbose = FALSE)
 summary(m1.sommer)$varcomp
 # get the fitted values for the spatial kernel and plot
-ff <- fitted.mmer(m1.sommer)
-DT$fit <- as.matrix(Reduce("+",ff$Zu[-c(1:2)])) 
-lattice::levelplot(fit~row*col,data=DT)
+# ff <- fitted.mmer(m1.sommer)
+# DT$fit <- as.matrix(Reduce("+",ff$Zu[-c(1:2)])) 
+# lattice::levelplot(fit~row*col,data=DT)
 
 ```
 
@@ -103,9 +103,9 @@ m2.sommer <- mmer(Y~1+V,
                   data=DT, tolpar = 1e-6, verbose = FALSE)
 summary(m1.sommer)$varcomp
 # get the fitted values for the spatial kernel and plot
-ff <- fitted.mmer(m2.sommer)
-DT$fit <- as.matrix(Reduce("+",ff$Zu[-c(1:2)])) 
-lattice::levelplot(fit~row*col,data=DT)
+# ff <- fitted.mmer(m2.sommer)
+# DT$fit <- as.matrix(Reduce("+",ff$Zu[-c(1:2)])) 
+# lattice::levelplot(fit~row*col,data=DT)
 
 ```
 
@@ -127,9 +127,9 @@ m3.sommer <- mmer(Y~1+V,
                   data=DT2, tolpar = 1e-6, verbose = FALSE)
 summary(m3.sommer)$varcomp
 # get the fitted values for the spatial kernel and plot
-ff <- fitted.mmer(m3.sommer)
-DT2$fit <- as.matrix(Reduce("+",ff$Zu[-c(1:4)])) 
-lattice::levelplot(fit~row*col|trial,data=DT2)
+# ff <- fitted.mmer(m3.sommer)
+# DT2$fit <- as.matrix(Reduce("+",ff$Zu[-c(1:4)])) 
+# lattice::levelplot(fit~row*col|trial,data=DT2)
 
 ```
 

@@ -538,7 +538,7 @@ mix1 <- GWAS(color~1,
              random=~vs(id,Gu=A)
              + Rowf + Colf,
              rcov=~units,
-             data=DT,
+             data=DT, iters=3,
              M=GT, gTerm = "u:id", 
              verbose = FALSE)
 
@@ -566,7 +566,7 @@ DT$genof <- as.factor(DT$geno)
 #### model using overlay
 modh <- mmer(sugar~1, 
              random=~vs(overlay(femalef,malef)) 
-             + genof,
+             + genof, iters=3,
              data=DT,verbose = FALSE)
 
 ```
@@ -593,7 +593,7 @@ mix <- mmer(Yield~1,
               vs(Rowf) +
               vs(Colf) +
               spl2Da(Row,Col),
-            rcov=~vs(units),
+            rcov=~vs(units), iters=3,
             data=DT,verbose = FALSE)
 summary(mix)
 ```
@@ -614,7 +614,7 @@ MP <- MP_cpdata
 #### look at the data and fit the model
 mix1 <- mmer(Yield~1,
               random=~vs(list(GT)),
-              rcov=~units,
+              rcov=~units, iters=3,
               data=DT,verbose = FALSE)
 
 ```
@@ -651,7 +651,7 @@ y.trn[vv,"X1"] <- NA
 ## GBLUP
 ans <- mmer(X1~1,
             random=~vs(id,Gu=K), 
-            rcov=~units, 
+            rcov=~units, iters=3,
             data=y.trn,verbose = FALSE) # kinship based
 ans$U$`u:id`$X1 <- as.data.frame(ans$U$`u:id`$X1)
 rownames(ans$U$`u:id`$X1) <- gsub("id","",rownames(ans$U$`u:id`$X1))
@@ -660,7 +660,7 @@ cor(ans$U$`u:id`$X1[vv,],DT[vv,"X1"], use="complete")
 ## rrBLUP
 ans2 <- mmer(X1~1,
              random=~vs(list(GT), buildGu = FALSE), 
-             rcov=~units, getPEV = FALSE,
+             rcov=~units, getPEV = FALSE, iters=3,
              data=y.trn,verbose = FALSE) # kinship based
 
 u <- GT %*% as.matrix(ans2$U$`u:GT`$X1) # BLUPs for individuals
@@ -689,7 +689,7 @@ mix1 <- mmer(Yield~1,
             random=~vs(id, Gu=A) +
               vs(Rowf) +
               vs(Colf),
-            rcov=~vs(units),
+            rcov=~vs(units), iters=3,
             data=DT, verbose = FALSE)
 ```
 
@@ -701,7 +701,7 @@ mix2 <- mmer(Yield~1,
               vs(Rowf) +
               vs(Colf) +
               spl2Da(Row,Col),
-            rcov=~vs(units),
+            rcov=~vs(units), iters=3,
             data=DT,verbose = FALSE)
 ```
 Then to test if the second model brings value let us fit the likelihood ratio test as follows:
@@ -724,12 +724,12 @@ DT <- DT_example
 DT$EnvName <- paste(DT$Env,DT$Name)
 modelBase <- mmer(cbind(Yield, Weight) ~ Env,
               random= ~ vs(Name, Gtc=diag(2)), # here is diag()
-              rcov= ~ vs(units, Gtc=unsm(2)),
+              rcov= ~ vs(units, Gtc=unsm(2)), iters=3,
               data=DT,verbose = FALSE)
 
 modelCov <- mmer(cbind(Yield, Weight) ~ Env,
               random= ~ vs(us(Env),Name, Gtc=unsm(2)), # here is unsm()
-              rcov= ~ vs(ds(Env),units, Gtc=unsm(2)),
+              rcov= ~ vs(ds(Env),units, Gtc=unsm(2)), iters=3,
               data=DT,verbose = FALSE)
 
 lrt <- anova(modelBase, modelCov)

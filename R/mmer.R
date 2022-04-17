@@ -9,8 +9,8 @@ mmer <- function(fixed, random, rcov, data, weights,
                  verbose=TRUE,reshape.output=TRUE,
                  stepweight=NULL, emupdate=NULL){
 
-  my.year <- 2021
-  my.month <- 11 #month when the user will start to get notifications the 1st day of next month
+  my.year <- 2022
+  my.month <- 6 #month when the user will start to get notifications the 1st day of next month
   ### if my month = 5, user will start to get notification in June 1st (next month)
   datee <- Sys.Date()
   year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
@@ -303,7 +303,8 @@ mmer <- function(fixed, random, rcov, data, weights,
   baseX <- matrix(baseX[, keepx],nrow(yvar),qr$rank)
   colnames(baseX) <- nameskeepx
   if(colsdropped > 0){
-    cat(blue(paste("fixed-effect model matrix is rank deficient so dropping",colsdropped,"columns / coefficients\n")))
+    warning(paste("fixed-effect model matrix is rank deficient so dropping",colsdropped,"columns / coefficients\n"),call. = FALSE)
+    # cat(blue(paste("fixed-effect model matrix is rank deficient so dropping",colsdropped,"columns / coefficients\n")))
   }
   # print(colnames(baseX))
   xs <- list()

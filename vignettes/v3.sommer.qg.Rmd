@@ -146,7 +146,7 @@ A <- A_example
 
 ans1 <- mmer(Yield~1,
              random= ~ Name + Env + Env:Name + Env:Block,
-             rcov= ~ units,
+             rcov= ~ units, iters=3,
              data=DT, verbose = FALSE)
 summary(ans1)$varcomp
 (n.env <- length(levels(DT$Env)))
@@ -170,7 +170,7 @@ D <- D.mat(GT) # dominance relationship matrix
 E <- E.mat(GT) # epistatic relationship matrix
 ans.ADE <- mmer(color~1, 
                  random=~vs(id,Gu=A) + vs(idd,Gu=D), 
-                 rcov=~units,
+                 rcov=~units, iters=3,
                  data=DT,verbose = FALSE)
 (summary(ans.ADE)$varcomp)
 vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense
@@ -193,7 +193,7 @@ GT <- GT_cornhybrids
 ### fit the model
 modFD <- mmer(Yield~1, 
                random=~ vs(at(Location,c("3","4")),GCA2), 
-               rcov= ~ vs(ds(Location),units),
+               rcov= ~ vs(ds(Location),units), iters=3,
                data=DT, verbose = FALSE)
 summary(modFD)
 ```
@@ -211,7 +211,7 @@ GT[1:4,1:4]
 ### fit the model
 modFD <- mmer(Yield~1, 
               random=~ vs(at(Location,c("3","4")),GCA2,Gu=GT), 
-              rcov= ~ vs(ds(Location),units),
+              rcov= ~ vs(ds(Location),units), iters=3,
               data=DT, verbose = FALSE)
 summary(modFD)
 ```
@@ -231,7 +231,7 @@ MP <- MP_cpdata
 A <- A.mat(GT) # additive relationship matrix
 ans <- mmer(color~1, 
                 random=~vs(id,Gu=A), 
-                rcov=~units,
+                rcov=~units, iters=3,
                 data=DT, verbose = FALSE)
 (summary(ans.ADE)$varcomp)
 vpredict(ans, h2 ~ (V1) / ( V1+V2) )
@@ -246,7 +246,7 @@ data(DT_btdata)
 DT <- DT_btdata
 mix3 <- mmer(cbind(tarsus, back) ~ sex,
                random = ~ vs(dam, Gtc=unsm(2)) + vs(fosternest,Gtc=diag(2)),
-               rcov=~vs(units,Gtc=unsm(2)),
+               rcov=~vs(units,Gtc=unsm(2)), iters=3,
                data = DT, verbose = FALSE)
 summary(mix3)
 #### calculate the genetic correlation
@@ -275,7 +275,7 @@ GT <- GT_cornhybrids
 
 modFD <- mmer(Yield~Location, 
                random=~GCA1+GCA2+SCA, 
-               rcov=~units,
+               rcov=~units, iters=3,
                data=DT, verbose = FALSE)
 (suma <- summary(modFD)$varcomp)
 Vgca <- sum(suma[1:2,1])
@@ -304,7 +304,7 @@ DT$genof <- as.factor(DT$geno)
 #### model using overlay
 modh <- mmer(sugar~1, 
              random=~vs(overlay(femalef,malef)) 
-             + genof,
+             + genof, iters=3,
              data=DT, verbose = FALSE)
 summary(modh)$varcomp
 ```
@@ -342,7 +342,7 @@ head(y.trn)
 ## GBLUP
 ans <- mmer(X1~1,
             random=~vs(id,Gu=K), 
-            rcov=~units, 
+            rcov=~units,iters=3,
             data=y.trn, verbose = FALSE) # kinship based
 ans$U$`u:id`$X1 <- as.data.frame(ans$U$`u:id`$X1)
 rownames(ans$U$`u:id`$X1) <- gsub("id","",rownames(ans$U$`u:id`$X1))
@@ -351,7 +351,7 @@ cor(ans$U$`u:id`$X1[vv,],DT[vv,"X1"], use="complete")
 ## rrBLUP
 ans2 <- mmer(X1~1,
              random=~vs(list(GT), buildGu = FALSE), 
-             rcov=~units, getPEV = FALSE,
+             rcov=~units, getPEV = FALSE, iters=3,
              data=y.trn, verbose = FALSE) # kinship based
 
 u <- GT %*% as.matrix(ans2$U$`u:GT`$X1) # BLUPs for individuals
@@ -376,7 +376,7 @@ An <- A_ige
 ## Direct genetic effects model
 modDGE <- mmer(trait ~ block,
                random = ~ focal,
-               rcov = ~ units,
+               rcov = ~ units, iters=3,
                data = DT, verbose=FALSE)
 summary(modDGE)$varcomp
 
@@ -392,7 +392,7 @@ A <- A_ige
 ## Indirect genetic effects model
 modDGE <- mmer(trait ~ block,
                random = ~ focal + neighbour,
-               rcov = ~ units,
+               rcov = ~ units, iters=3,
                data = DT, verbose=FALSE)
 summary(modDGE)$varcomp
 
@@ -405,7 +405,7 @@ We now fit the indirect genetic effects model with covariance between DGE and IG
 ### Indirect genetic effects model
 modIGE <- mmer(trait ~ block,
                random = ~ gvs(focal, neighbour),
-               rcov = ~ units, 
+               rcov = ~ units, iters=3,
                data = DT, verbose=FALSE)
 summary(modIGE)$varcomp
 
@@ -418,7 +418,7 @@ On top of that we can include a relationship matrix for the two random effects t
 ### Indirect genetic effects model
 modIGE <- mmer(trait ~ block,
                random = ~ gvs(focal, neighbour, Gu=list(Af,An)),
-               rcov = ~ units, 
+               rcov = ~ units, iters=3,
                data = DT, verbose=FALSE)
 summary(modIGE)$varcomp
 
@@ -451,10 +451,10 @@ And we can specify the K matrices. The main difference between this model and th
 ```{r}
 data(DT_technow)
 DT <- DT_technow
-Md <- Md_technow
-Mf <- Mf_technow
-Ad <- Ad_technow
-Af <- Af_technow
+Md <- (Md_technow*2) - 1
+Mf <- (Mf_technow*2) - 1
+Ad <- A.mat(Md)
+Af <- A.mat(Mf)
 # RUN THE PREDICTION MODEL
 y.trn <- DT
 vv1 <- which(!is.na(DT$GY))
@@ -462,7 +462,7 @@ vv2 <- sample(vv1, 100)
 y.trn[vv2,"GY"] <- NA
 anss2 <- mmer(GY~1, 
                random=~vs(dent,Gu=Ad) + vs(flint,Gu=Af), 
-               rcov=~units,
+               rcov=~units, iters=3,
                data=y.trn, verbose = FALSE) 
 summary(anss2)$varcomp
 
@@ -495,7 +495,7 @@ mix <- mmer(Yield~1,
             random=~vs(id, Gu=A) +
               vs(Rowf) +
               vs(Colf) +
-              spl2Da(Row,Col),
+              spl2Da(Row,Col), iters=3,
             rcov=~vs(units),
             data=DT, verbose = FALSE)
 summary(mix)
@@ -522,7 +522,7 @@ ans.m <- mmer(cbind(Yield,color)~1,
                random=~ vs(id, Gu=A, Gtc=unsm(2))
                + vs(Rowf,Gtc=diag(2))
                + vs(Colf,Gtc=diag(2)),
-               rcov=~ vs(units, Gtc=unsm(2)),
+               rcov=~ vs(units, Gtc=unsm(2)), iters=3,
                data=DT, verbose = FALSE)
 ```
 
@@ -549,7 +549,7 @@ M <- GT_cpdata
 ################
 mix.marker <- mmer(color~1,
                    random=~Rowf+vs(M),
-                   rcov=~units,data=DT,
+                   rcov=~units,data=DT, 
                    verbose = FALSE)
 
 
@@ -641,7 +641,7 @@ DT$setf <- as.factor(DT$set)
 DT$repf <- as.factor(DT$rep)
 DT$malef <- as.factor(DT$male)
 DT$femalef <- as.factor(DT$female)
-levelplot(yield~male*female|set, data=DT, main="NC design I")
+#levelplot(yield~male*female|set, data=DT, main="NC design I")
 ##############################
 ## Expected Mean Square method
 ##############################
@@ -663,7 +663,7 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 ## REML method
 ##############################
 mix2 <- mmer(yield~ setf + setf:repf,
-            random=~femalef:malef:setf + malef:setf, 
+            random=~femalef:malef:setf + malef:setf, iters=3,
             data=DT, verbose = FALSE)
 vc <- summary(mix2)$varcomp; vc
 Vfm <- vc[1,"VarComp"]
@@ -687,7 +687,7 @@ DT$setf <- as.factor(DT$set)
 DT$repf <- as.factor(DT$rep)
 DT$malef <- as.factor(DT$male)
 DT$femalef <- as.factor(DT$female)
-levelplot(yield~male*female|set, data=DT, main="NC desing II")
+#levelplot(yield~male*female|set, data=DT, main="NC desing II")
 head(DT)
 
 N=with(DT,table(female, male, set))
@@ -725,6 +725,7 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 
 mix2 <- mmer(yield~ setf + setf:repf ,
             random=~femalef:malef:setf + malef:setf + femalef:setf, 
+            iters=3,
             data=DT, verbose = FALSE)
 vc <- summary(mix2)$varcomp; vc
 Vfm <- vc[1,"VarComp"]
@@ -755,7 +756,7 @@ A <- A.mat(GT) # additive relationship matrix
 #### look at the data and fit the model
 mix1 <- mmer(Yield~1,
               random=~vs(id,Gu=A),
-              rcov=~units,
+              rcov=~units, iters=3,
               data=DT, verbose = FALSE)
 
 ####=========================================####
@@ -767,7 +768,7 @@ mm <- matrix(3,1,1) ## matrix to fix the var comp
 
 mix2 <- mmer(Yield~1,
               random=~vs(id, Gu=A, Gti=mix1$sigma_scaled$`u:id`, Gtc=mm)
-                      + vs(idd, Gu=D, Gtc=unsm(1)),
+                      + vs(idd, Gu=D, Gtc=unsm(1)), iters=3,
               rcov=~vs(units,Gti=mix1$sigma_scaled$units, Gtc=mm),
               data=DT, verbose = FALSE)
 
@@ -801,7 +802,7 @@ First we fit a regular GWAS/EMMAX using the GWAS function available in sommer th
 mix2 <- GWAS(color~1,
              random=~vs(id, Gu=A) + Rowf + Colf,
              rcov=~units, M=GT, gTerm = "u:id",
-             verbose = FALSE,
+             verbose = FALSE, iters=3,
              data=DT)
 ```
 
@@ -814,7 +815,7 @@ To compare EMMAX to the approach proposed by Gualdron-Duarte et al. (2014) and B
 Z <- GT[as.character(DT$id),]
 mixRRBLUP <- mmer(color~1,
               random=~vs(Z) + Rowf + Colf,
-              rcov=~units,
+              rcov=~units, iters=3,
               verbose = FALSE,
               data=DT)
 
@@ -835,7 +836,7 @@ MMTinv<-solve(MMT) ## inverse of MM'
 MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
 mixGBLUP <- mmer(color~1,
              random=~vs(id, Gu=MMT) + Rowf + Colf,
-             rcov=~units,
+             rcov=~units, iters=3,
              verbose = FALSE,
              data=DT)
 a.from.g <-MTMMTinv%*%matrix(mixGBLUP$U$`u:id`$color,ncol=1)
@@ -851,7 +852,7 @@ Now we can look at the p-values coming from the 3 approaches to indeed show that
 ###########################
 #### Compare results
 ###########################
-plot(mix2$scores[,1], main="GWAS")
+# plot(mix2$scores[,1], main="GWAS")
 plot(-log(pvalRRBLUP), main="GWAS by RRBLUP/SNP-BLUP") 
 plot(-log(pvalGBLUP), main="GWAS by GBLUP")
 

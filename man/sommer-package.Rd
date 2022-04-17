@@ -179,7 +179,7 @@ For extra details about the methods please read the canonical papers listed in t
 
 \section{Bug report and contact}{
 
-If you have any questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com and send me an email with the link at cova_ruber@live.com.mx
+If you have any questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com and send me an email with the link to \email{cova_ruber@live.com.mx}. 
 
 I'll be glad to help or answer any question. I have spent a valuable amount of time developing this package. Please cite this package in your publication. Type 'citation("sommer")' to know how to cite it.
 

@@ -88,6 +88,8 @@ List of length 7 elements:
 
 \references{
 
+Sue Welham (2021). TPSbits: Creates Structures to Enable Fitting and Examination of 2D Tensor-Product Splines using ASReml-R. R package version 1.0.0.
+  
 Rodriguez-Alvarez, M.X, Boer, M.P., van Eeuwijk, F.A., and Eilers, P.H.C. (2018). SpATS: Spatial Analysis of Field Trials with Splines. R package version 1.0-9. https://CRAN.R-project.org/package=SpATS.
 
 Rodriguez-Alvarez, M.X., et al. (2015) Fast smoothng parameter separaton n multdmensonal generalzed P-splnes: the SAP algorthm. Statistics and Computing 25.5: 941-957.

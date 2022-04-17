@@ -39,8 +39,10 @@ data(DT_technow)
 DT <- DT_technow
 Md <- Md_technow
 Mf <- Mf_technow
-Ad <- Ad_technow
-Af <- Af_technow
+# Md <- (Md*2) - 1
+# Mf <- (Mf*2) - 1
+# Ad <- A.mat(Md)
+# Af <- A.mat(Mf)
 ####=========================================####
 ####=========================================####
 # ans2 <- mmer(GY~1, 

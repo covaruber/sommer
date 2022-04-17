@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2021-02-05" />
+<meta name="date" content="2022-04-16" />
 
 <title>Translating lme4 models to sommer</title>
 
@@ -315,12 +315,12 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Translating lme4 models to sommer</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2021-02-05</h4>
+<h4 class="date">2022-04-16</h4>
 
 
 
-<p>The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused in problems of the type p &gt; n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, and specify heterogeneous variances, and obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc.</p>
-<p>The purpose of this vignette is to show how to translate the sintax formula from lme4 models to sommer models. Feel free to remove the silencing marks from the lme4 code so you can compare the results.</p>
+<p>The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on problems of the type p &gt; n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, and specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc.</p>
+<p>The purpose of this vignette is to show how to translate the syntax formula from <code>lme4</code> models to <code>sommer</code> models. Feel free to remove the comment marks from the lme4 code so you can compare the results.</p>
 <ol style="list-style-type: decimal">
 <li>Random slopes with same intercept</li>
 <li>Random slopes and random intercepts (without correlation)</li>
@@ -363,7 +363,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 </div>
 <div id="random-slopes-and-random-intercepts-without-correlation" class="section level2">
 <h2>2) Random slopes and random intercepts (without correlation)</h2>
-<p>This is the a model where you assume that the random effect has different intercepts based on the levels of another variable. In addition the || in lme4 assumes that slopes and intercepts have no correlation.</p>
+<p>This is the a model where you assume that the random effect has different intercepts based on the levels of another variable. In addition the <code>||</code> in <code>lme4</code> assumes that slopes and intercepts have no correlation.</p>
 <div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a><span class="co">###########</span></span>
 <span id="cb8-2"><a href="#cb8-2"></a><span class="co">## lme4</span></span>
 <span id="cb8-3"><a href="#cb8-3"></a><span class="co">###########</span></span>
@@ -390,7 +390,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 </div>
 <div id="random-slopes-and-random-intercepts-with-correlation" class="section level2">
 <h2>3) Random slopes and random intercepts (with correlation)</h2>
-<p>This is the a model where you assume that the random effect has different intercepts based on the levels of another variable. In addition a single | in lme4 assumes that slopes and intercepts have a correlation to be estimated.</p>
+<p>This is the a model where you assume that the random effect has different intercepts based on the levels of another variable. In addition a single <code>|</code> in <code>lme4</code> assumes that slopes and intercepts have a correlation to be estimated.</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1"></a><span class="co">###########</span></span>
 <span id="cb10-2"><a href="#cb10-2"></a><span class="co">## lme4</span></span>
 <span id="cb10-3"><a href="#cb10-3"></a><span class="co">###########</span></span>
@@ -418,7 +418,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 </div>
 <div id="random-slopes-with-a-different-intercept" class="section level2">
 <h2>4) Random slopes with a different intercept</h2>
-<p>This is the a model where you assume that the random effect has different intercepts based on the levels of another variable but there’s no a main effect. The 0 in the intercept in lme4 assumes that random slopes interact with an intercept but without main effect.</p>
+<p>This is the a model where you assume that the random effect has different intercepts based on the levels of another variable but there’s not a main effect. The 0 in the intercept in lme4 assumes that random slopes interact with an intercept but without a main effect.</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1"></a><span class="co">###########</span></span>
 <span id="cb12-2"><a href="#cb12-2"></a><span class="co">## lme4</span></span>
 <span id="cb12-3"><a href="#cb12-3"></a><span class="co">###########</span></span>
@@ -546,7 +546,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 </div>
 <div id="final-remarks" class="section level2">
 <h2>Final remarks</h2>
-<p>Keep in mind that sommer uses the direct inversion (DI) algorithms which can be very slow for large datasets. The package is focused in problems of the type p &gt; n (more random effect levels than observations) and models with dense covariance structures. For example, for experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small number of individuals and covariance structures or n &gt; p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.</p>
+<p>Keep in mind that <code>sommer</code> uses the direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused on problems of the type p &gt; n (more random effect levels than observations) and models with dense covariance structures. For example, for an experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000), <code>sommer</code> will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small number of individuals and covariance structures or n &gt; p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200), <code>asreml</code> or other MME-based algorithms will be much faster and we recommend you to opt for those software programs.</p>
 </div>
 <div id="literature" class="section level2">
 <h2>Literature</h2>

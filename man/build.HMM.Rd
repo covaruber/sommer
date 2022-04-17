@@ -61,21 +61,17 @@ Su G, Christensen OF, Ostersen T, Henryon M, Lund MS. 2012. Estimating Additive 
 ####=========================================####
 data(DT_technow)
 DT <- DT_technow
-Md <- Md_technow
-Mf <- Mf_technow
-Ad <- Ad_technow
-Af <- Af_technow
+Md <- (Md_technow * 2) - 1
+Mf <- (Mf_technow * 2) - 1
 
-M.flint <- Mf # Marker matrix Flint
-M.dent <- Md # Marker matrix Dent
 
 ## first get all possible hybrids
-res1 <- build.HMM(M.dent, M.flint, 
+res1 <- build.HMM(Md, Mf, 
                   return.combos.only = TRUE)
 head(res1$data.used)
 
 ## build the marker matrix for the first 50 hybrids
-res2 <- build.HMM(M.dent, M.flint,
+res2 <- build.HMM(Md, Mf,
                  custom.hyb = res1$data.used[1:50,]
                  )
 res2$HMM.add[1:5,1:5]

@@ -17,7 +17,7 @@
     oto <- oto2 <- object$terms
     oto2$fixed[[1]] <- setdiff(oto2$fixed[[1]],c("1","-1"))
     oto2$fixed <- lapply(oto2$fixed,function(x){paste(x,collapse = ":")})
-    oto2$random <- lapply(oto2$random,function(x){paste(x,collapse = ":")}) # paste to present as A:B:C
+    oto2$random <- lapply(oto2$random,function(x){paste(x,collapse = ":")}) # paste to present as the form A:B:C
 
     for(u in 3:length(object$terms)){ # change random terms to split by ":"
       prov <- object$terms[[u]]
@@ -29,7 +29,9 @@
     }
 
     # This doesn't quite give identical results. Does it matter?
-    include <- unique(c(attr(terms.formula(object$call$fixed), "term.labels"),attr(terms.formula(object$call$random), "term.labels"))) # paste to present as A:B:C
+    include <- unique(c(all.vars(object$call$fixed)[-1], # variables in the fixed formula (remove the response)
+                        all.vars(object$call$random))) # variables in the random formula
+    # include <- unique(c(attr(terms.formula(object$call$fixed), "term.labels"),attr(terms.formula(object$call$random), "term.labels"))) # paste to present as A:B:C
     include <- setdiff(include, c("1","-1"))
     ##################################################
     # step 0. find all variables used in the modeling
@@ -41,11 +43,15 @@
     # Remove terms that include a : (i.e. interaction terms)
     allTermsUsed <- allTermsUsed[!grepl(":", allTermsUsed)]
 
+    # all.vars(form)
     toAgg <- unique(unlist(strsplit(include,":")))
     ignored <- setdiff(allTermsUsed,toAgg)
 
+    # print(head(object$dataOriginal))
+    # print(toAgg)
     levelsOfTerms <- lapply(as.list(toAgg),function(x){(unique(object$dataOriginal[,x]))})
 
+    # print("allgood")
     # include <- setdiff(unique(c(unlist(object$terms$fixed),unlist(object$terms$random))),c("1","-1"))
     # include <- unique(unlist(lapply(include,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
     # ##################################################
@@ -158,9 +164,9 @@
   }
 
   oto <- oto2 <- object$terms
-  oto2$fixed[[1]] <- setdiff(oto2$fixed[[1]],c("1","-1"))
-  oto2$fixed <- lapply(oto2$fixed,function(x){paste(x,collapse = ":")})
-  oto2$random <- lapply(oto2$random,function(x){paste(x,collapse = ":")})
+  oto2$fixed[[1]] <- setdiff(oto2$fixed[[1]],c("1","-1")) # get fixed factors plus intercept
+  oto2$fixed <- lapply(oto2$fixed,function(x){paste(x,collapse = ":")}) # paste the fixed factors
+  oto2$random <- lapply(oto2$random,function(x){paste(x,collapse = ":")}) # paste the random terms
 
   for(u in 3:length(object$terms)){ # change random terms to split by ":"
     prov <- object$terms[[u]]
@@ -171,14 +177,14 @@
     }
   }
 
+  # initially assume that we will include all the factors in the prediction
   include <- setdiff(unique(c(unlist(object$terms$fixed),unlist(object$terms$random))),c("1","-1"))
 
+  # now use the input from the user
   if(!is.null(hypertable)){ # if user provides a hypertable, use the customization instead
     include <- setdiff(hypertable[which(hypertable$include),"termHL"],c("1","-1"))
-    # print(include)
   }
-
-
+  
   include <- unique(unlist(lapply(include,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
 
   ##################################################

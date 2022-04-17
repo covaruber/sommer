@@ -19,7 +19,7 @@ LD.decay(markers,map,silent=FALSE,unlinked=FALSE,gamma=0.95)
 
 \value{
 \describe{
-\item{$resp}{ a list with 2 elements; "by.LG" and "all.LG". The first element (by.LG) is a list with as many elements as chromosomes where each contains a matrix with 3 columns, the distance, the r2 value, and the p-value associated to the chi-square test for disequilibrium. The second element (all.LG) has a big matrix with distance, r2 values and p-values, for each point from all chromosomes in a single data.frame. 
+\item{$resp}{ a list with 3 elements; "by.LG", "all.LG", "LDM". The first element (by.LG) is a list with as many elements as chromosomes where each contains a matrix with 3 columns, the distance, the r2 value, and the p-value associated to the chi-square test for disequilibrium. The second element (all.LG) has a big matrix with distance, r2 values and p-values, for each point from all chromosomes in a single data.frame. The third element (LDM) is the matrix of linkage disequilibrium between pairs of markers.
 
 If unlinked is selected the program should return the gamma percentile interchromosomal LD (r2) for each chromosome and average.
 }
