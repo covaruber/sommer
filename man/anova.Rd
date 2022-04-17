@@ -15,7 +15,7 @@
 \value{
   vector of anova
  }
-\author{Giovanny Covarrubias \email{covarrubiasp@wisc.edu}}
+\author{Giovanny Covarrubias}
 \seealso{\code{\link{anova}}, \code{\link{mmer}}}
 \keyword{models}
 

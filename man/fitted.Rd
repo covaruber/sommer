@@ -13,7 +13,7 @@
 \value{
   vector of fitted values of the form y.hat = Xb + Zu including all terms of the model.
  }
-\author{Giovanny Covarrubias \email{cova_ruber@live.com.mx}}
+\author{Giovanny Covarrubias}
 \examples{
 # data(DT_cpdata)
 # DT <- DT_cpdata

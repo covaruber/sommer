@@ -120,7 +120,7 @@ For a short tutorial on how to use this special functions you can look at the vi
 
 \strong{Bug report and contact}{
 
-If you have any questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com and send me an email with the link to \email{cova_ruber@live.com.mx}. 
+If you have any questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com 
 
 }
 \strong{Example Datasets}

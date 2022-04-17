@@ -138,7 +138,7 @@ Additional functions for genetic analysis have been included such as relationshi
 
 \strong{Bug report and contact}{
 
-If you have any technical questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com and send me an email with the link to \email{cova_ruber@live.com.mx}. 
+If you have any technical questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com 
 
 If you have any bug report please go to https://github.com/covaruber/sommer or send me an email to address it asap, just make sure you have read the vignettes carefully before sending your question.
 

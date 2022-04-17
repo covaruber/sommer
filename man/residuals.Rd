@@ -13,7 +13,7 @@
 \value{
   vector of residuals of the form e = y - Xb - Zu, the so called conditional residuals.
  }
-\author{Giovanny Covarrubias \email{covarrubiasp@wisc.edu}}
+\author{Giovanny Covarrubias}
 \seealso{\code{\link{residuals}}, \code{\link{mmer}}}
 \keyword{models}
 

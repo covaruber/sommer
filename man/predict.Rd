@@ -64,7 +64,7 @@
  \references{
   Welham, S., Cullis, B., Gogel, B., Gilmour, A., and Thompson, R. (2004). Prediction in linear mixed models. Australian and New Zealand Journal of Statistics, 46, 325 - 347.
  }
-\author{Giovanny Covarrubias \email{cova_ruber@live.com.mx}}
+\author{Giovanny Covarrubias}
 \seealso{\code{\link{predict}}, \code{\link{mmer}}}
 \keyword{models}
 \examples{

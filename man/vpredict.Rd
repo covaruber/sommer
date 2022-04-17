@@ -54,7 +54,7 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
   Ver Hoef, J.M. 2012. Who invented the delta method? The American Statistician 66:124-127. DOI: 10.1080/00031305.2012.687494
   
  }
-\author{Giovanny Covarrubias \email{cova_ruber@live.com.mx}}
+\author{Giovanny Covarrubias}
 \seealso{\code{\link{vpredict}}, \code{\link{mmer}}}
 \keyword{models}
 \examples{
