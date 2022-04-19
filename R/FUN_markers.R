@@ -545,7 +545,7 @@ h2.fun <- function(object, data, gTerm=NULL, eTerm=NULL, md=NULL) {
     
     G[1:3,1:3]
     try(ginv <- solve(G), silent = TRUE)
-    if(class(ginv)=="try-error"){
+    if(is(ginv, "try-error") ){ # class(ginv)=="try-error"
       cat("Adding a small amount to the diagonal of A to make it positive-definite.\n")
       ginv <- solve(G+diag(1e-3,nrow(G)))
     }

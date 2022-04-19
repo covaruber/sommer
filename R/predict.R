@@ -45,29 +45,12 @@
 
     # all.vars(form)
     toAgg <- unique(unlist(strsplit(include,":")))
+    toAgg <- intersect(toAgg, colnames(object$dataOriginal))
     ignored <- setdiff(allTermsUsed,toAgg)
 
     # print(head(object$dataOriginal))
     # print(toAgg)
     levelsOfTerms <- lapply(as.list(toAgg),function(x){(unique(object$dataOriginal[,x]))})
-
-    # print("allgood")
-    # include <- setdiff(unique(c(unlist(object$terms$fixed),unlist(object$terms$random))),c("1","-1"))
-    # include <- unique(unlist(lapply(include,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
-    # ##################################################
-    # # step 0. find all variables used in the modeling
-    # allTermsUsed <- unique(c(unlist(object$terms$fixed), unlist(object$terms$random)))
-    # allTermsUsed<- allTermsUsed[which(allTermsUsed!= "1")]
-    # allTermsUsed<- allTermsUsed[which(allTermsUsed!= "-1")]
-    # allTermsUsed <- unique(unlist(strsplit(allTermsUsed,":")))
-    # allTermsUsed <- unique(unlist(lapply(allTermsUsed,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
-    # # print(allTermsUsed)
-    # toAgg <- unique(unlist(strsplit(include,":")))
-    # ignored <- setdiff(allTermsUsed,toAgg)
-    # # print(toAgg)
-    # levelsOfTerms <- lapply(as.list(toAgg),function(x){(unique(object$dataOriginal[,x]))})
-
-
 
     DTX <- expand.grid(levelsOfTerms);
 

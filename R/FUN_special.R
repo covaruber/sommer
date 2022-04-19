@@ -225,7 +225,7 @@ subdata <- function(data,fixed,na.method.Y=NULL,na.method.X=NULL){
   response <- strsplit(as.character(fixed[2]), split = "[+]")[[1]]
   responsef <- as.formula(paste(response,"~1"))
   mfna <- try(model.frame(responsef, data = data, na.action = na.pass), silent = TRUE)
-  if (class(mfna) == "try-error") {
+  if (is(mfna, "try-error") ) { # class(mfna) == "try-error"
     stop("Please provide the 'data' argument for your specified variables.\nYou may be specifying some variables in your model not present in your dataset.", call. = FALSE)
   }
   mfna <- eval(mfna, parent.frame())

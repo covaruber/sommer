@@ -166,9 +166,10 @@ EM <- function(y,X=NULL,ZETA=NULL,R=NULL,iters=30,draw=TRUE,silent=FALSE, constr
     M <- rbind(cbind(corner,top),cbind(left,CM))
     M[1:4,1:4]
     vb <- try(chol(as(M, Class="sparseMatrix"),pivot=FALSE), silent=TRUE)
-    if(class(vb)=="try-error"){
+    if(is(vb, "try-error") ){ # class(vb)=="try-error"
       vb <- try(chol(as(M+diag(tolparinv,dim(M)[1]), Class="sparseMatrix")), silent=TRUE)
-      if(class(vb)=="try-error"){
+      
+      if(is(vb, "try-error")){ # class(vb)=="try-error"
         ypy <- 1#(L[1,1]^2); ypy
         logdc <- 2#2* sum(log(diag(L)[-1])); logdc
       }else{
@@ -272,7 +273,7 @@ EM <- function(y,X=NULL,ZETA=NULL,R=NULL,iters=30,draw=TRUE,silent=FALSE, constr
   corner <- t(B)%*%Rsei%*%B # left corner of M
   M <- rbind(cbind(corner,top),cbind(left,CM))
   vb <- try(chol(as(M, Class="sparseMatrix")), silent = TRUE)
-  if(class(vb)=="try-error"){
+  if( is(vb, "try-error") ){ # class(vb)=="try-error"
     aii <- diag(nz+nr)
   }else{
     L <- t(vb); #L[1:4,1:4]
