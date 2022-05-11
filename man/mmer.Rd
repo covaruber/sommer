@@ -23,11 +23,11 @@ Sommer is a structural multivariate-univariate linear mixed model solver for mul
 
 \usage{
 
-mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03, 
+mmer(fixed, random, rcov, data, weights, W, iters=20, tolpar = 1e-03, 
      tolparinv = 1e-06, init=NULL, constraints=NULL,method="NR", getPEV=TRUE,
      na.method.X="exclude", na.method.Y="exclude",return.param=FALSE, 
      date.warning=TRUE,verbose=TRUE, reshape.output=TRUE, stepweight=NULL,
-     emupdate=NULL)
+     emweight=NULL)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -62,6 +62,7 @@ mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03,
   }
   \item{data}{A data frame containing the variables specified in the formulas for response, fixed, and random effects.}
   \item{weights}{Name of the covariate for weights. To be used for the product R = Wsi*R*Wsi, where * is the matrix product, Wsi is the square root of the inverse of W and R is the residual matrix.}
+  \item{W}{Alternatively, instead of providing a vector of weights the user can specify an entire W matrix (e.g., when covariances exist). To be used first to produce Wis = solve(chol(W)), and then calculate R = Wsi*R*Wsi.t(), where * is the matrix product, and R is the residual matrix. Only one of the arguments weights or W should be used. If both are indicated W will be given the preference.}
    \item{iters}{Maximum number of iterations allowed.}
   \item{tolpar}{Convergence criteria for the change in log-likelihood.}
   \item{tolparinv}{Tolerance parameter for matrix inverse used when singularities are encountered in the estimation procedure.}
@@ -76,13 +77,13 @@ mmer(fixed, random, rcov, data, weights, iters=20, tolpar = 1e-03,
   \item{verbose}{A TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
   \item{reshape.output}{A TRUE/FALSE value to indicate if the output should be reshaped to be easier to interpret for the user, some information is missing from the multivariate models for an easy interpretation.}
   \item{stepweight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which doesn't happen very often with the NR method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight to the initial 8-10 iterations.}
-  \item{emupdate}{A vector of values (of length equal to the number of iterations) indicating with 1's the iterations where the algorithm should calculate an EM update instead of an update based on first and second derivatives indicated with zeros (i.e. NR or AI methods).}
+  \item{emweight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emweight will be applied to the NR/AI information matrix to produce a joint information matrix.}
     
 }
 
 \details{
 
-The use of this function requires a good understanding of mixed models. Please review the 'sommer.quick.start' vignette and pay attention to details like format of your random and fixed variables (i.e. character and factor variables have different properties when returning BLUEs or BLUPs, please see the 'sommer.changes.and.faqs' vignette). 
+The use of this function requires a good understanding of mixed models. Please review the 'sommer.quick.start' vignette and pay attention to details like format of your random and fixed variables (e.g. character and factor variables have different properties when returning BLUEs or BLUPs, please see the 'sommer.changes.and.faqs' vignette). 
 
 \strong{Citation}
 

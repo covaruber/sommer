@@ -32,13 +32,13 @@ or visit \strong{https://covaruber.github.io}
 }
 \usage{
 
-GWAS(fixed, random, rcov, data, weights, 
+GWAS(fixed, random, rcov, data, weights, W,
     iters=20, tolpar = 1e-03, tolparinv = 1e-06, 
     init=NULL, constraints=NULL,method="NR", 
     getPEV=TRUE,na.method.X="exclude",
     na.method.Y="exclude",return.param=FALSE, 
     date.warning=TRUE,verbose=FALSE,
-    stepweight=NULL, emupdate=NULL,
+    stepweight=NULL, emweight=NULL,
     M=NULL, gTerm=NULL, n.PC = 0, min.MAF = 0.05, 
     P3D = TRUE)
 }
@@ -73,8 +73,8 @@ GWAS(fixed, random, rcov, data, weights,
   }
   \item{data}{a data frame containing the variables specified in the formulas for response, fixed, and random effects.}
   \item{weights}{name of the covariate for weights. To be used for the product R = Wsi*R*Wsi, where * is the matrix product, Wsi is the square root of the inverse of W and R is the residual matrix.}
-   \item{iters}{Maximum number of iterations allowed.  Default value is
-    15.}
+  \item{W}{Alternatively, instead of providing a vector of weights the user can specify an entire W matrix (e.g., when covariances exist). To be used first to produce Wis = solve(chol(W)), and then calculate R = Wsi*R*Wsi.t(), where * is the matrix product, and R is the residual matrix. Only one of the arguments weights or W should be used. If both are indicated W will be given the preference.}
+  \item{iters}{Maximum number of iterations allowed.  Default value is 15.}
   \item{tolpar}{Convergence criteria.}
   \item{tolparinv}{tolerance parameter for matrix inverse used when singularities are encountered.}
   \item{init}{initial values for the variance components. By default this is NULL and variance components are estimated by the method selected, but in case the user want to provide initial values for ALL var-cov components this argument is functional. It has to be provided as a list or an array, where each list element is one variance component and if multitrait model is pursued each element of the list is a matrix of variance covariance components among traits. Initial values can also be provided in the Gt argument of the \link{vs} function.Is highly encouraged to use the Gt and Gtc arguments of the \link{vs} function instead of this argument}
@@ -87,7 +87,7 @@ GWAS(fixed, random, rcov, data, weights,
    \item{date.warning}{a TRUE/FALSE value to indicate if the program should warn you when is time to update the sommer package.}
   \item{verbose}{a TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
     \item{stepweight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which doesn't happen very often with the NR method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight to the initial 8-10 iterations.}
-  \item{emupdate}{A vector of values (of length equal to the number of iterations) indicating with 1's the iterations where the algorithm should calculate an EM update instead of an update based on first and second derivatives indicated with zeros (i.e. NR or AI methods).}
+  \item{emweight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emweight will be applied to the NR/AI information matrix to produce a joint information matrix. If NULL weights for EM information matrix are zero and 1 for the NR/AI information matrix.}
   \item{M}{The marker matrix containing the marker scores for each level of the random effect selected in the gTerm argument, coded as {-1,0,1} = {aa,Aa,AA}, levels (i.e. individuals) in rows and markers in columns. No additional columns should be provided, is a purely numerical matrix.}
   \item{gTerm}{a character vector indicating the random effect linked to the marker matrix M (i.e. the genetic term) in the model. The random effect selected should have the same number of levels than the number of rows of M. When fitting only one random effect you will need to add the letters 'u:' to the name of the random effect given the behavior of the naming rules of the solver when having a single random effect. }
   \item{n.PC}{Number of principal components to include as fixed effects. Default is 0 (equals K model).}

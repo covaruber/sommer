@@ -6,11 +6,6 @@
 
 using namespace Rcpp;
 
-#ifdef RCPP_USE_GLOBAL_ROSTREAM
-Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
-Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
-#endif
-
 // currentDateTime
 const std::string currentDateTime();
 RcppExport SEXP _sommer_currentDateTime() {
@@ -223,8 +218,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // MNR
-Rcpp::List MNR(const arma::mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::vec& ws, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled, const arma::vec& stepweight, const arma::vec& emupdate);
-RcppExport SEXP _sommer_MNR(SEXP YSEXP, SEXP XSEXP, SEXP GxSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP RSEXP, SEXP GeSEXP, SEXP GeISEXP, SEXP wsSEXP, SEXP itersSEXP, SEXP tolparSEXP, SEXP tolparinvSEXP, SEXP aiSEXP, SEXP pevSEXP, SEXP verboseSEXP, SEXP retscaledSEXP, SEXP stepweightSEXP, SEXP emupdateSEXP) {
+Rcpp::List MNR(const arma::mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::mat& W, const bool& isInvW, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled, const arma::vec& stepweight, const arma::vec& emweight);
+RcppExport SEXP _sommer_MNR(SEXP YSEXP, SEXP XSEXP, SEXP GxSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP RSEXP, SEXP GeSEXP, SEXP GeISEXP, SEXP WSEXP, SEXP isInvWSEXP, SEXP itersSEXP, SEXP tolparSEXP, SEXP tolparinvSEXP, SEXP aiSEXP, SEXP pevSEXP, SEXP verboseSEXP, SEXP retscaledSEXP, SEXP stepweightSEXP, SEXP emweightSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -236,7 +231,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::List& >::type R(RSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type Ge(GeSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type GeI(GeISEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type ws(wsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type isInvW(isInvWSEXP);
     Rcpp::traits::input_parameter< int >::type iters(itersSEXP);
     Rcpp::traits::input_parameter< double >::type tolpar(tolparSEXP);
     Rcpp::traits::input_parameter< double >::type tolparinv(tolparinvSEXP);
@@ -245,8 +241,8 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
     Rcpp::traits::input_parameter< const bool& >::type retscaled(retscaledSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type stepweight(stepweightSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type emupdate(emupdateSEXP);
-    rcpp_result_gen = Rcpp::wrap(MNR(Y, X, Gx, Z, K, R, Ge, GeI, ws, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emupdate));
+    Rcpp::traits::input_parameter< const arma::vec& >::type emweight(emweightSEXP);
+    rcpp_result_gen = Rcpp::wrap(MNR(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -269,7 +265,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_hmat", (DL_FUNC) &_sommer_hmat, 6},
     {"_sommer_scorecalc", (DL_FUNC) &_sommer_scorecalc, 7},
     {"_sommer_gwasForLoop", (DL_FUNC) &_sommer_gwasForLoop, 7},
-    {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 18},
+    {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 19},
     {NULL, NULL, 0}
 };
 

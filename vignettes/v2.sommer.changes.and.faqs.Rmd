@@ -33,6 +33,7 @@ The purpose of this vignette is to first show the changes in syntax for `sommer`
 6) Can I run GWAS in MET experiments with replicates? 
 7) How can I constrain the value of specific random effects? 
 8) How can I constrain two variance components to be equal?
+9) I get an error when installing directly from github
 
 ## SECTION 1: The new syntax of sommer
 
@@ -602,6 +603,16 @@ sig <- sig1+sig2
 mix3 <- mmer(y~X-1, rcov = ~vs(sig)+vs(gam), data=df2, iters=30, verbose = FALSE)
 mix3$sigmaVector
 ```
+
+### 9) I get an error when installing directly from github
+
+Some people experience issues when trying to install the newest version of sommer from GitHub in their mac computer using the following command line:
+
+devtools::install_github('covaruber/sommer')
+
+one of the error messages that have been identified by users is related to the installation of the gfortran compiler. If you have that issue, the information of the following website may solve your instalation problem:
+
+https://www.cynkra.com/blog/2021-03-16-gfortran-macos/
 
 
 ## Literature

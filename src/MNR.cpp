@@ -491,12 +491,12 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
                const Rcpp::List & Gx,
                const Rcpp::List & Z, const Rcpp::List & K,
                const Rcpp::List & R, const Rcpp::List & Ge,
-               const Rcpp::List & GeI, const arma::vec & ws,
+               const Rcpp::List & GeI, const arma::mat & W, const bool & isInvW,
                int iters, double tolpar, double tolparinv, 
                const bool & ai, const bool & pev, 
                const bool & verbose,const bool & retscaled,
-               const arma::vec & stepweight,
-               const arma::vec & emupdate) {
+               const arma::vec & stepweight, // const arma::vec & emupdate,
+               const arma::vec & emweight) {
   
   time_t before = time(0);
   localtime(&before);
@@ -543,14 +543,18 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       
     }else{//if is an rcov term
       // bool dcheck3 = isIdentity_mat(W);
-      double dcheck3 = accu(ws - 1);
+      double dcheck3 = accu(W) - W.n_cols;
       if(dcheck3 == 0){ // if W is diagonal no need to multiply
         ZKZtR.slice(i) = Rcpp::as<arma::sp_mat>(R[irw]);
       }else{ // if W (weights) is not diagonal then multiply Wis R Wis 
         // arma::vec ws = W.diag();// 1 / sqrt(diagvec(W));
-        arma::vec ws2 = 1/sqrt(ws);
-        arma::mat Wis = diagmat(ws2); // W inverse squared
-        ZKZtR.slice(i) = Wis * Rcpp::as<arma::sp_mat>(R[irw]) * Wis;
+        if(isInvW == true){ // user has provided a squared and inverted W already
+          ZKZtR.slice(i) = W * Rcpp::as<arma::sp_mat>(R[irw]) * W;
+        }else{ // user has provided only W
+          arma::mat Wis = inv(chol(W));
+          ZKZtR.slice(i) = Wis * Rcpp::as<arma::sp_mat>(R[irw]) * Wis.t();
+        }
+        // arma::vec ws2 = 1/sqrt(ws);// arma::mat Wis = diagmat(ws2); // W inverse squared  // ZKZtR.slice(i) = Wis * Rcpp::as<arma::sp_mat>(R[irw]) * Wis;
       }
       n_levels(i) = ZKZtR.slice(i).n_cols; // store the number of columns or levels for this random effect
     }
@@ -585,28 +589,33 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   
   arma::field<arma::vec> sigma_ut(n_re); // undefined LIST to store the VC in a vector-form with length n_re (#of random effects)
   arma::field<arma::vec> constraintsL(n_re); // undefined LIST to store the constraints in a vector-form with length n_re (#of random effects)
+  arma::field<arma::vec> n_levels_multi_traitL(n_re); // undefined LIST to store the n_levels in a vector form
   int no_vc = 0; // to add and find out how many VC exist in total
   for (int i = 0; i < n_re; ++i) { // for each random effect fill the cube
     sigma.slice(i) = Rcpp::as<arma::mat>(Ge[i]); // take Ge for a random effect (initial VC values) and save them in a slice
     arma::vec oo = mat_to_vecCpp(sigma.slice(i),GeI[i]) ; // extract upper triangular from that slice in a vector form, pass the constraints as 2nd argument
     sigma_ut[i] = oo; // oo is sigma2 in vector form and stored in the list sigma_ut
     constraintsL[i] = mat_to_vecCpp(GeI[i],GeI[i]) ; // who are diagonal and non-diagonal VCs, pass constraints in list form
+    n_levels_multi_traitL[i] = constraintsL[i] ;
     no_vc = no_vc + oo.n_elem; // keep adding the #of VC
   }
   // sigma_ut_un will have all VC for all random effects in a single vector
   arma::vec sigma_ut_un; // vector to unlist the LIST of VC for all random effects
   arma::vec constraints; // vector to unlist constraints
+  arma::vec n_levels_multi_trait; // vector to unlist constraints
   for(int i=0; i < n_re ; i++){ // for each random effect unlist
     sigma_ut_un = join_cols(sigma_ut_un,sigma_ut[i]); // column bind vectors so we end up with a very long vector with all VC
     constraints = join_cols(constraints,constraintsL[i]); // column bind vectors so we end up with a very long vector with all constraints
+    arma::vec provX = n_levels_multi_traitL[i];
+    arma::vec hpos = provX;
+    for(int h=0; h < provX.n_cols ; h++){ // for each random effect unlist
+      hpos(h) = n_levels(i);
+    }
+    n_levels_multi_trait = join_cols(n_levels_multi_trait,(provX/provX) % hpos);
   }
   arma::vec sigmaF_ut_un = sigma_ut_un; // make a copy for fixed-value vc's when we use constraints
   arma::vec coef_ut_un = sigma_ut_un; // make a 2nd copy of the same vector for stabilization
   arma::vec coef_ut_un_explode = sigma_ut_un; // make a 3rd copy of the same vector for checking issues with vc going too early outside the parameter space
-  
-  // arma::vec stepweight(iters);  stepweight.fill(0.9); // create the weight vector for VC
-  // stepweight(0) = 0.5;
-  // stepweight(1) = 0.7;
   
   int  kk = sigma_ut_un.n_elem; // how many VCs are in the model?
   arma::vec llstore(iters); // container for LL
@@ -645,7 +654,6 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   // ##### iterative algorithm starts
   // ****************************************************
   // ****************************************************
-  // Rcpp::List var_comp_ret(iters);
   // Rcpp::List PdViList(kk); // list to store the multivariate derivatives * P or PVi=P*dZKZ'/ds
   
   arma::vec v(nom, arma::fill::ones); // generate enough ones for an identity matrix of dimensions nt x nt
@@ -657,6 +665,13 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   arma::vec popo = arma::vec(rankX, arma::fill::zeros);
   for(int i=0; i < rankX; i++){popo(i) = 1;}
   arma::mat Inf(kk,kk,arma::fill::zeros); // to store second derivatives (information matrix)
+  arma::mat InfEM(kk,kk,arma::fill::zeros); // to store second derivatives (information matrix)
+  arma::mat InfJoin(kk,kk,arma::fill::zeros); // to store second derivatives (information matrix)
+  arma::mat InfJoin_inv(kk,kk,arma::fill::zeros); // to store second derivatives (information matrix)
+  
+  arma::mat Infw(kk,kk,arma::fill::zeros); // weights for AI information matrix
+  arma::mat InfEMw(kk,kk,arma::fill::zeros); // weights for EM information matrix
+  
   arma::vec score(kk); // vector to store first derivatives, the product Y'PViPY - tr(PVi) = dL/ds 
   arma::mat Inf_inv; // to store the inverse of the information matrix
   arma::vec eigval2; // will be used for the decomposition of P, within the algorithm
@@ -677,7 +692,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   
   bool convergence = false;
   bool last_iteration = false;
-  int cycle, cycle2;
+  int cycle, cycle2, ikk;
   double ldet, llik, llik0, delta_llik, checkP, seconds; // to store likelihoods and determinants
   // ###############
   // LOOP for cycles
@@ -728,7 +743,6 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     }
     // if last iteration let's make Xm in the opposite direction
     if(last_iteration == true){
-      // Xm = arma::kron(X,Gx);
       for (int i = 0; i < n_fixed; ++i) {
         if(i==0){
           Xm = kron(Rcpp::as<arma::mat>(X[i]), Rcpp::as<arma::mat>(Gx[i]) );
@@ -846,11 +860,24 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       // vector to store the update = F- * sigma(k) * dL/ds
       arma::vec delta(kk);
       
-      if(emupdate(cycle) == 1){ // if user wants an EM update (1st derivatives)
-        delta = (coef_ut_un % score % coef_ut_un)/n_levels;  
-      }else{ // if user wants an information*score update
-        delta = Inf_inv * score; //update for variance components where: delta = Information.inv * dL/ds
+      // if(emupdate(cycle) == 1){ // if user wants an EM update (1st derivatives)
+      InfEM.diag() = (coef_ut_un % coef_ut_un) / n_levels_multi_trait;  // I.em inverse
+      InfEM = arma::pinv( InfEM ,  1.490116e-08 ); // I.em
+      arma::vec emw(kk); // vectors for weights
+      arma::vec aiw(kk);
+      for(ikk=0; ikk < kk; ikk++){
+        emw(ikk)= emweight(cycle);
+        aiw(ikk)= 1 - emweight(cycle);
       }
+      Infw.diag() = aiw;  // put weights in diagonal fill::value is still not available in this version
+      InfEMw.diag() = emw; // 
+      InfJoin = (Inf*Infw)+(InfEM*InfEMw); // joint information matrix
+      InfJoin_inv = arma::pinv(InfJoin, 1.490116e-08); // inverse the joint information matrix
+      delta = InfJoin_inv * score; //update for variance components where: delta = Information.inv * dL/ds
+      // delta = (coef_ut_un % score % coef_ut_un)/n_levels; // previous way I was calculating the deltas
+      // }else{ // if user wants an information*score update
+      //   delta = Inf_inv * score; //update for variance components where: delta = Information.inv * dL/ds
+      // }
       
       // ^^^^^^^^^^^^^^^^^^
       // ^^^^^^^^^^^^^^^^^^
@@ -877,11 +904,21 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         arma::vec scorenorestrain = score(no_restrain); // subset of scores (1st derivatives)
         arma::vec coef_ut_un_norestrain = coef_ut_un(no_restrain); // subset of vc
         arma::vec deltanorestrain; //  define the delta for no restrained
-        if(emupdate(cycle) == 1){ // if user wants an EM update (1st derivatives)
-          deltanorestrain = (coef_ut_un_norestrain % scorenorestrain % coef_ut_un_norestrain)/n_levels;
-        }else{ // if user wants an information*score update
-          deltanorestrain = Inf_norestrain_inv * scorenorestrain; //update variance components
-        }
+        
+        //
+        arma::mat InfEM_norestrain = InfEM.submat(no_restrain,no_restrain); // subset of Information matrix
+        arma::mat Infw_norestrain = Infw.submat(no_restrain,no_restrain); // subset of Information matrix
+        arma::mat InfEMw_norestrain = InfEMw.submat(no_restrain,no_restrain); // subset of Information matrix
+        arma::mat InfJoin_norestrain = InfJoin.submat(no_restrain,no_restrain); // subset of Information matrix
+        arma::mat InfJoin_inv_norestrain = InfJoin_inv.submat(no_restrain,no_restrain); // subset of Information matrix
+        // if(emupdate(cycle) == 1){ // if user wants an EM update (1st derivatives)
+        InfJoin_norestrain = (Inf_norestrain*Infw_norestrain)+(InfEM_norestrain*InfEMw_norestrain); // joint information matrix
+        InfJoin_inv_norestrain = arma::pinv(InfJoin_norestrain, 1.490116e-08); // inverse the joint information matrix
+        deltanorestrain = InfJoin_inv_norestrain * scorenorestrain; //update for variance components where: delta = Information.inv * dL/ds
+        // deltanorestrain = (coef_ut_un_norestrain % scorenorestrain % coef_ut_un_norestrain)/n_levels;
+        // }else{ // if user wants an information*score update
+        //   deltanorestrain = Inf_norestrain_inv * scorenorestrain; //update variance components
+        // }
         delta(no_restrain) = deltanorestrain;
         delta(restrain) = delta(restrain)*0;
         
@@ -889,25 +926,8 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       // end of parameter restrain
       // ^^^^^^^^^^^^^^^^^^
       // ^^^^^^^^^^^^^^^^^^
-      
-      // update
-      // sigma + f[s*F-*dL/ds] ..... = coef + stepweight[x]
-      
-      // coef_ut_un_explode = coef_ut_un + (stepweight(cycle) * delta);
-      // // apply the stepweight 0.1 if variance components are above x hundred %
-      // if(cycle > 0){ // if cycle is > 1 calculate the % change
-      //   sigma_perc_change.col(cycle) = ((coef_ut_un_explode/sigma_store.col(cycle-1))-1) * 100; // percent change
-      //   arma::uvec explode = arma::find(abs(sigma_perc_change.col(cycle)) > 100); // which variance components went beyond x00 %
-      //   if(explode.n_elem > 0){ // if there's components exploding
-      //     coef_ut_un = coef_ut_un + (0.1 * delta);
-      //   }else{ // if there was no vc exploding we do a regular update using the predefined stepweights
-      //     coef_ut_un = coef_ut_un + (stepweight(cycle) * delta);
-      //   }
-      // }else{ // if is the 1st cycle do a regular update
       coef_ut_un = coef_ut_un + (stepweight(cycle) * delta); 
-      // }
-      
-      
+      // 
       // constraint the parameters that should be positive and are going negative
       if(cc.n_elem > 0){
         coef_ut_un(restrain) = coef_ut_un(restrain)*0; // the ones that still go below zero and shouldn't let's fix them

@@ -1,4 +1,4 @@
-GWAS <- function(fixed, random, rcov, data, weights, 
+GWAS <- function(fixed, random, rcov, data, weights, W,
                  iters=20, tolpar = 1e-03, tolparinv = 1e-06, 
                  init=NULL, constraints=NULL, method="NR", 
                  getPEV=TRUE,
@@ -7,7 +7,7 @@ GWAS <- function(fixed, random, rcov, data, weights,
                  return.param=FALSE, 
                  date.warning=TRUE,
                  verbose=FALSE,
-                 stepweight=NULL, emupdate=NULL,
+                 stepweight=NULL, emweight=NULL,
                  M=NULL, gTerm=NULL, n.PC = 0, min.MAF = 0.05, 
                  P3D = TRUE){
   
@@ -26,7 +26,7 @@ GWAS <- function(fixed, random, rcov, data, weights,
   
   
   ## return all parameters for a mixed model
-  res <- mmer(fixed=fixed, random=random, rcov=rcov, data=data, weights=weights, 
+  res <- mmer(fixed=fixed, random=random, rcov=rcov, data=data, weights=weights, W=W, 
               iters=iters, tolpar=tolpar, tolparinv=tolparinv, 
               init=init, constraints=constraints, method=method, 
               getPEV=getPEV,
@@ -34,7 +34,9 @@ GWAS <- function(fixed, random, rcov, data, weights,
               na.method.Y=na.method.Y,
               return.param=TRUE, 
               date.warning=date.warning,
-              verbose=verbose)
+              verbose=verbose,
+              stepweight=NULL, emweight=NULL
+              )
   # print(str(res))
   
   if(return.param){
@@ -43,15 +45,15 @@ GWAS <- function(fixed, random, rcov, data, weights,
     ## fit initial models if P3D
     if(P3D){
       lastmodel <- .Call("_sommer_MNR",PACKAGE = "sommer",res$yvar, res$X,res$Gx,
-                         res$Z,res$K,res$R,res$GES,res$GESI,res$ws,
+                         res$Z,res$K,res$R,res$GES,res$GESI,res$W, res$isInvW,
                          res$iters,res$tolpar,res$tolparinv, res$selected,res$getPEV,res$verbose,
-                         TRUE, res$stepweight, res$emupdate)
+                         TRUE, res$stepweight, res$emweight)
       Vinv <- lastmodel$Vi
     }else{
       lastmodel <- .Call("_sommer_MNR",PACKAGE = "sommer",res$yvar, res$X,res$Gx,
-                         res$Z,res$K,res$R,res$GES,res$GESI,res$ws,
+                         res$Z,res$K,res$R,res$GES,res$GESI,res$W, res$isInvW,
                          res$iters,res$tolpar,res$tolparinv, res$selected,res$getPEV,FALSE,
-                         TRUE, res$stepweight, res$emupdate)
+                         TRUE, res$stepweight, res$emweight)
       Vinv <- lastmodel$Vi
     }
     ## get names of random effects

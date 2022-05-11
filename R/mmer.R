@@ -1,4 +1,4 @@
-mmer <- function(fixed, random, rcov, data, weights,
+mmer <- function(fixed, random, rcov, data, weights, W,
                  iters=20, tolpar = 1e-03, tolparinv = 1e-06,
                  init=NULL, constraints=NULL, method="NR",
                  getPEV=TRUE,
@@ -7,7 +7,7 @@ mmer <- function(fixed, random, rcov, data, weights,
                  return.param=FALSE,
                  date.warning=TRUE,
                  verbose=TRUE,reshape.output=TRUE,
-                 stepweight=NULL, emupdate=NULL){
+                 stepweight=NULL, emweight=NULL){
 
   my.year <- 2022
   my.month <- 6 #month when the user will start to get notifications the 1st day of next month
@@ -386,16 +386,31 @@ mmer <- function(fixed, random, rcov, data, weights,
   if(!missing(weights)){
     col1 <- deparse(substitute(weights))
     coco <- data[[col1]]
-    ws<- coco
-  }else{ws <- rep(1,nrow(yvar))}
+    # ws<- coco
+    isInvW=TRUE
+    WW <- diag(1/sqrt(coco)) # W is already squared and inverted
+  }else{
+    isInvW=TRUE
+    ws <- rep(1,nrow(yvar))
+    WW <- diag(ws) # W is already squared and inverted
+  }
+  if(!missing(W)){
+    isInvW=FALSE
+    WW <- W # user has provided W and needs to be squared and inverted
+  }
 
   if(is.null(stepweight)){
     stepweight <- rep(0.9,iters); stepweight[1:2] <- c(0.5,0.7)
   }
 
-  if(is.null(emupdate)){
-    emupdate <- rep(0, iters)
-  }
+  # if(is.null(emupdate)){
+  #   emupdate <- rep(0, iters)
+  #   emweight <- rep(0, iters)
+  # }else{
+    if(is.null(emweight)){
+      emweight <- rep(0, iters)
+    }
+  # }
   #################
   ## subset data
   if(method == "NR"){
@@ -435,18 +450,19 @@ mmer <- function(fixed, random, rcov, data, weights,
                    verbose=verbose,reshape.output=reshape.output)
     }
 
-    res <- list(yvar=yvar, X=X,Gx=Gx,Z=Z,K=K,R=R,GES=GES,GESI=GESI, ws=ws,
+    res <- list(yvar=yvar, X=X,Gx=Gx,Z=Z,K=K,R=R,GES=GES,GESI=GESI, W=WW, isInvW=isInvW,
                 iters=iters, tolpar=tolpar, tolparinv=tolparinv,
                 selected=selected,getPEV=getPEV,verbose=verbose, retscaled=FALSE,
                 re_names=re_names,good=good,fixedtermss=fixedtermss,args=args, stepweight=stepweight,
-                emupdate=emupdate
+                emweights=emweight # emupdate=emupdate, 
     )
   }else{
-    res <- .Call("_sommer_MNR",PACKAGE = "sommer",yvar, X,Gx,Z,K,R,GES,GESI, ws,
+    
+    res <- .Call("_sommer_MNR",PACKAGE = "sommer",yvar, X,Gx,Z,K,R,GES,GESI, WW, isInvW,
                  iters, tolpar, tolparinv,
-                 selected,getPEV,verbose, FALSE, stepweight, emupdate)
+                 selected,getPEV,verbose, FALSE, stepweight, emweight) # emupdate, 
 
-    # res <- MNR(yvar, X,Gx,Z,K,R,GES,GESI, ws,
+    # res <- MNR(yvar, X,Gx,Z,K,R,GES,GESI, W,isInvW,
     #              iters, tolpar, tolparinv,
     #              selected,getPEV,verbose, FALSE)
 

@@ -417,10 +417,16 @@ version 4.1.5 (2021-11-01)
  + Fixes to a*b fixed model issues and predict improvements thanks to Sam Rogers and Julian Taylor.
  + GWAS by GBLUP examples added to the QG vignette. In addition new vignette for spatial modeling.
  
+########################
+version 4.1.7 (2022-07-01)
+########################
+
+ + Addition of the W argument to allows users to input a weights matrix instead of only a vector.
+ 
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot function and enable to plot likelihood and monitor of vcs
-+ MME-based Average Information algorithm in progress (n > p problem. Hope to have it ready for v4.2.0)
++ MME-based Average Information algorithm in progress (n > p problem. Hope to have it ready for v4.2.0) 80% done. We're just writting in Rcpp
 + Add correlation models
 + bring back the betas, and R2 for markers in GWAS. Need to use C++ cubes (sort of list) to store betas, scores and R so we extract them in a good order.
 + enable P3D argument
