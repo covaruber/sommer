@@ -1,4 +1,4 @@
-
+# R implementation of EM, mmer and mmec have a c++ implementation
 EM <- function(y,X=NULL,ZETA=NULL,R=NULL,iters=30,draw=TRUE,silent=FALSE, constraint=TRUE, init=NULL, forced=NULL, tolpar = 1e-04, tolparinv = 1e-06){
   convergence <- FALSE
   #### %%%%%%%%%%%%%%%%%%%%%%%%
@@ -379,6 +379,7 @@ EM <- function(y,X=NULL,ZETA=NULL,R=NULL,iters=30,draw=TRUE,silent=FALSE, constr
   return(res)
 }
 
+# R implementation of EMMA, mmer and mmec have a c++ implementation
 MEMMA <- function (Y, X=NULL, ZETA=NULL, tolpar = 1e-06, tolparinv = 1e-06, check.model=TRUE, silent=TRUE) {
   
   Y <- as.matrix(Y)
@@ -566,3 +567,643 @@ MEMMA <- function (Y, X=NULL, ZETA=NULL, tolpar = 1e-06, tolparinv = 1e-06, chec
   }
 }
 
+# R implementation of AI, mmer and mmec have a c++ implementation
+# TO DO
+# implement AR1 and FA models
+## PARAMETER DETAILS
+## X is the design matrix
+## Z is a list of lists each element contains the Z matrices required for the covariance structure specified for a random effect
+## Ai is a list with the inverses of the relationship matrix for each random effect
+## y is the response variable
+## S is the list of residual matrices
+## H is the matrix of weights. This will be squared via the cholesky decomposition and apply to the residual matrices
+## nIters number of REML iterations 
+## tolParConvLL rule for stoping the optimization problem, difference in log-likelihood between the current and past iteration
+## tolParConvNorm rule for stoping the optimization problem, difference in norms
+## tolParInv value to add to the diagonals of a matrix that cannot be inverted because is not positive-definite
+## theta is the initial values for the vc (matrices should be symmetric).
+## thetaC is the constraints for vc: 1 positive, 2 unconstrained, 3 fixed
+## thetaF is the dataframe indicating the fixed constraints as x times another vc, rows indicate the variance components, columns the scale parameters (other VC plus additional ones preferred)
+## addScaleParam any additional scale parameter to be included when applying constraints in thetaF
+## weightInfEMv is the vector to be put in a diagonal matrix (a list with as many matrices as iterations) representing the weight assigned to the EM information matrix
+## weightInfMat is a vector of weights to the information matrix for the operation delta = I- * dLu/dLx # unstructured models may require less weight to the information matrix
+
+AI <- function(X=NULL,Z=NULL, Zind=NULL, Ai=NULL,y=NULL,S=NULL, H=NULL,
+                    nIters=80, tolParConvLL=1e-4, tolParConvNorm=.05, tolParInv=1e-6,
+                    theta=NULL, thetaC=NULL, thetaF=NULL,addScaleParam=NULL,
+                    weightInfEMv=NULL,weightInfMat=NULL){
+  
+  
+  thetaCs <- lapply(thetaC, function(x){x[lower.tri(x)] <- t(x)[lower.tri(x)];return(x)})
+  y <- as.matrix(y) # ensure y is a matrix IGNORE IN RCPP
+  logDetA <- lapply(Ai, function(x){-determinant(x,logarithm = TRUE)$modulus}) # times minus one because we use the inverse
+  thetaList <- list() # store thetas (variance components)
+  llik <- numeric() # store log likellihood values
+  
+  # for each random effect identify how many levels exist and assign an identifier for #of effect
+  last=ncol(X)
+  partitions <- list()
+  zsAva <- unique(Zind)
+  
+  if(!is.null(Z)){ # if random effects exist assign an identifier for the random effects
+    for(j in 1:length(zsAva)){ # for each random effect
+      use <- which(Zind == j)
+      Nus = unlist(lapply(Z[use], function(x){ncol(x)})) # ncol(X) and ncol(y's)
+      end <- Nus # dummy
+      for(i in 1:length(Nus)){end[i]<- sum(Nus[1:i])} # real end (#of effect)
+      start <- end-Nus+1 # start id for each random effect
+      start=start+last; end=end+last
+      partitions[[j]] <- cbind(start,end,j) # matrix telling us where each random effect starts and where it ends
+      last=end[length(end)] # new last for the j'th random effect
+    }; partitions
+  }
+  
+  # total number of variance components per random effect (e.g., 1, 2, 3, ...)
+  Nvc2 <- unlist(lapply(thetaC,function(x){ # for each thetaC matrix 
+    s1 <- x[upper.tri(x, diag = TRUE)] # extract upper triangular and diagonal
+    return(length(which(s1 > 0))) # how many values are different than zero
+  }))
+  
+  # assign a start and an end to each covariance structure using the #of VC 
+  endvc2 <- Nvc2
+  for(i in 1:length(Nvc2)){endvc2[i]<- sum(Nvc2[1:i])}
+  startvc2 <- endvc2-Nvc2+1
+  
+  # create a VECTOR with the contraints
+  thetaCUnlisted= unlist(lapply(as.list(1:length(thetaC)), function(x){
+    return(thetaC[[x]][which(thetaC[[x]]>0)])
+  }))
+  
+  Nb = ncol(X) # number of fixed effects
+  Nr = nrow(y) # number of records or observations
+  Nu=Nus=0
+  if(!is.null(Z)){ # only if random effects exist calculate the number of effects to estimate in the random part
+    Nus = unlist(lapply(partitions, function(x){sum(x[1,2]-x[1,1]+1)})) # should we only consider the ncols from the first matrix in the case when covariance components exist?
+    Nu = sum(Nus) # total number of random effects to be estimated
+  }
+  
+  weightInfEMl <- list()
+  for(s in 1:nIters){
+    weightInfEMl[[s]] <- diag( sum(Nvc2) ) * weightInfEMv[s] # rep( list( diag( sum(Nvc2) ) * weightInfEMv[s] ), nIters) # a 0 weights for EM in general
+  }
+  
+  # objects for storing
+  finalThetaList <- list() # list to store the variance components for each iteration
+  normChange1 <- normChange3 <- numeric() # vector to store the change 
+  
+  percChangeMat <- matrix(NA,nrow=length(thetaCUnlisted),ncol=nIters)
+  changeNorm <- matrix(NA,3,nIters)
+  toBoundary <- matrix(0,nIters,length(thetaCUnlisted))
+  sumToBoundary <- numeric(length(thetaCUnlisted))
+  ###########################
+  # START ITERATIVE ALGORITHM
+  ###########################
+  for(iIter in 1:nIters){ # iIter=1
+    print(paste("iteration",iIter,"-", strsplit(as.character(Sys.time())," ")[[1]][2])) # print iteration
+    thetaList[[iIter]] <- do.call(adiag1,theta) # storo VC for the ith iteration
+    
+    ep = length(theta) # position of the error VC
+    if(iIter==1){ # unlist theta (all VCs) to calculate at the end the % change of vc
+      finalTheta <- unlistThetaWithThetaC(theta,thetaC)
+    }
+    ###########################
+    # 1) absorption of m onto y
+    # PAPER FORMULA from Jensen and Madsen 1997, Gilmour et al., 1995
+    # expand coefficient matrix (C) to have the response variable
+    # M = W' Ri W # with W = [X Z y] 
+    #
+    #     [X'RiX  X'RiZ     X'Riy ]
+    # M = [Z'RiX  Z'RiZ+Gi  Z'Riy ]
+    #     [y'RiX  y'RiZ     y'Riy ]
+    #
+    # where Gi = Ai*(s2e/s2u) = (A*s2u)*s2e = kronecker(Ai,solve(s2u))
+    #
+    # lambda = solve(theta) # inverse of var-covar matrices
+    # MChol = chol(M)
+    # yPy = MChol[n,n] # where n is the last element of the matrix
+    # logDetC = 2 * E log(diag(MChol))
+    ###########################
+    if(!isDiagonal(H)){
+      Hs <- chol(H)
+    }
+    Rij <- Rij.inv <- list()
+    usedResidual <- which(thetaC[[length(thetaC)]] > 0)
+    for(i in 1:length(S)){
+      uri <- usedResidual[i]
+      Rij[[i]] <- S[[i]]*(theta[[length(theta)]][uri]) 
+      Rij.inv[[i]] <- S[[i]]*(1/theta[[length(theta)]][uri]) # do differently if inverting a complex S
+    }  # R = Reduce("+",Rij)
+    Ri = Reduce("+",Rij.inv)
+    if(!isDiagonal(H)){
+      Ri <- Hs %*% Ri %*% t(Hs)
+    }
+    
+    M0 <- mmeFormation(X=X,Z=Z,Ri=Ri,y=y) # make a control to function if Ri is not provided
+    M <- M0$M # all MMEs
+    W <- M0$W # W = [X Z y] 
+    
+    lambda <- list() # store inverses of thetas (VCs matrices)
+    GI <- list() # store inverses of covariance matrices for random effects
+    
+    if(!is.null(Z)){ # if random effects exist calculate inverses of VC matrices and Gi to add to MME
+      for(iR in 1:length(zsAva)){ # for each random effect
+        lambda[[iR]] = (solve(theta[[iR]]))
+      }
+      for(iR in 1:length(zsAva)){  # for each random effect
+        # build Gi
+        GI[[iR]] = kronecker(lambda[[iR]],Ai[[iR]]) # Ai ** lambda
+        # add it to the MMEs 
+        partitionsP=partitions[[iR]];
+        iRpartition=partitionsP[1,1]:partitionsP[nrow(partitionsP),2]
+        M[iRpartition,iRpartition] <- M[iRpartition,iRpartition] + GI[[iR]]
+      }
+    }
+    
+    MChol=try(chol(M,pivot=F), silent = TRUE) # Cholesky decomposition of C expanded by Y
+    if(is(MChol, "try-error")){
+      MChol=try(chol(M+diag(tolParInv,nrow(M)),pivot=F), silent = FALSE)
+    }
+    
+    yPy = ((MChol[nrow(MChol),ncol(MChol)])^2) # last element of Cii = yPy
+    logDetC = (2 * sum(log(diag(MChol)[-ncol(MChol)])) ) # sum(log(diag(Cii)))
+    ###########################
+    # 1.1) calculate the log-likelihood 
+    # PAPER FORMULA (Lee and Van der Werf, 2006)    #
+    # LL = -0.5 [((Nr-Nb-Nu-...)*ln(s2e)) - ln|C| + ln|Au| + ... + (Nu*ln(s2u)) + ... + y'Py ]
+    # PAPER FORMULA (Jensen and Madsen, 1997)
+    # LL = -0.5 [ln|C| + ln|R| + (ln|A.u| +ln|theta.u|) + ... + y'Py ]
+    # where | | is the determinant of a matrix
+    #       A.u is the pure relationship matrix for the uth random effect
+    #       theta.u is the vc matrix for the uth random effect
+    ###########################
+    llikp <- 0
+    if(!is.null(Z)){ # if random effects exist calculate ln|A.u| + ln|theta.u|
+      for(iR in 1:length(zsAva)){ # for each random effect
+        llikp = llikp + ((Nus[[iR]])*determinant(theta[[iR]],logarithm = TRUE)$modulus) + logDetA[[iR]]
+      }
+    }
+    logDetR <- Nr * determinant(theta[[ep]],logarithm = TRUE)$modulus
+    llik[iIter] = -.5 * ( llikp + logDetC + logDetR + yPy )
+    
+    ###########################
+    # 2) backsubstitute to get b and u (CORRECT)
+    # use the results from the absorption to obtain BLUE & BLUPs
+    # b = backsolve(MChol[,rest],MChol[,last])
+    ###########################
+    bu=backsolve(MChol[,-ncol(MChol)],MChol[,ncol(MChol)])
+    b=bu[1:Nb]
+    u=NULL
+    if(!is.null(Z)){ # if random effects exist extract u
+      u=bu[(Nb+1):length(bu)]
+    }
+    ###########################
+    # 3) calculate Wu (working variates)
+    # PAPER FORMULA (Notes on Estimation of Genetic Parameters from Van der Werf)
+    # wu = Zu/s2u; we = e/s2e
+    # PAPER FORMULA (Jensen and Madsen, 1997)
+    # U = [u1 | u2 | ... | ui]
+    # US = U * lambda
+    # Wu.ii = Zui*USi # for variance component
+    # Wu.ij = Zui*USj + Zuj*USi # for covariance component
+    # Wr.j = Rj * Rinv * e  # for residual variance component
+    ###########################
+    
+    
+    Zu <- Wu <- uu <- list()
+    uAllList <- list()
+    U.SinvList <- list()
+    if(!is.null(Z)){ # if random effects exist
+      for(iR in 1:length(zsAva)){ # for each random effect
+        partitionsP = partitions[[iR]]
+        uList <- list()
+        for(irow in 1:nrow(partitionsP)){
+          usedPartition = partitionsP[irow,1]:partitionsP[irow,2]
+          uList[[irow]] = bu[usedPartition]#*4.762357 # u
+        }
+        U <- do.call(cbind,lapply(uList,as.matrix))
+        uAllList[[iR]] <- U
+        # [a || m] [s2a || sam] = [s2a a + sam m  || sam a + s2m m]
+        #          [sam || s2m]
+        U.Sinv <- U %*% lambda[[iR]]
+        U.SinvList[[iR]] <- U.Sinv
+        
+        useZind <- which(Zind == iR)
+        WuiR <- ZuiR <- list();counter=1
+        # vcs2 <- numeric()
+        for(irow in 1:nrow(lambda[[iR]])){
+          for(icol in irow:ncol(lambda[[iR]])){
+            # print(paste("irow",irow, "icol", icol))
+            if(thetaC[[iR]][irow,icol] > 0){# if vc has to be estimated
+              if(irow == icol){ # var comp
+                ## Wu
+                WuiR[[counter]] <- Z[[useZind[irow]]] %*% as.matrix(U.Sinv[,irow])
+                ## Zu
+                ZuiR[[counter]] <- Z[[useZind[irow]]] %*% as.matrix(U[,irow])
+              }else{ # cov comp
+                ## Wu
+                WuiR[[counter]] <- ( Z[[useZind[icol]]] %*% U.Sinv[,irow] - Z[[useZind[irow]]] %*% U.Sinv[,icol] ) #* 2
+                # WuiR[[counter]] <- ( Z[[useZind[icol]]] %*% U.Sinv[,irow] + Z[[useZind[irow]]] %*% U.Sinv[,icol] ) / 2
+                ## Zu
+                # ZuiR[[counter]] <- ( Z[[iR]][[icol]] %*% U[,irow] + Z[[iR]][[irow]] %*% U[,icol] )
+              }
+              counter=counter+1
+            } # if vc has to be estimated
+            
+          }# for icol in 1row:nolc()
+        }# for irow in 1:nrow()
+        Wu[[iR]] = do.call(cbind, WuiR)
+        Zu[[iR]] = do.call(cbind, ZuiR)
+      }
+    }
+    
+    Xb = X%*%b
+    if(is.null(Z)){ 
+      e = y - Xb # e = y - (Xb+Zu1+Zu2)
+      iR=0
+    }else{
+      e = y - (Xb + Reduce("+",lapply(Zu,function(x){matrix(apply(as.matrix(x),1,sum))}))) # e = y - (Xb+Zu1+Zu2)
+    }
+    
+    # useRes <- which(thetaC[[ep]] > 0)
+    for(iS in 1:length(S)){ # for each residual effects
+      Wu[[iR+iS]] = (S[[iS]]%*%Ri%*%e) # Wu.r = S * Rinv * e
+    }
+    ###########################
+    # 4) absorption of m onto W (2 VAR, 1 COV)
+    # we had to change the avInf to avInf/sigmas
+    # PAPER FORMULA (Smith, 1995) Differentiation of the Cholesky Algorithm
+    # avInf.ij = ((chol(M))[n,n])^2 # the square of the last diagonal element of the cholesky factorization
+    # where:
+    #        [X'RiX  X'RiZ     X'Riwj ]
+    # M.Wu = [Z'RiX  Z'RiZ+Gi  Z'Riwj ]
+    #        [wk'RiX wk'RiZ    wk'Riwj]
+    # where:
+    # wi: working variate i
+    # wk: working variate k
+    # Ri: is R inverse
+    # and the the part corresponding to X and Z is the coefficient matrix C
+    # AI = (M.Wu.chol)^2
+    ###########################
+    
+    Wx = as.matrix(do.call(cbind,Wu))# [w1 w2 w3 ... wi]
+    avInf = matrix(NA, nrow=ncol(Wx), ncol=ncol(Wx)) # AI
+    
+    C=M[-nrow(M),-ncol(M)] # remove y portion from M to get the coefficient matrix C # C11 upper left 
+    XWj.ZWj = t(W)%*%Ri%*%Wx # [X'Riwj Z'Riwj]' # C12 upper right 
+    WiX.WiZ = t(Wx)%*%Ri%*% W # [wk'RiX wk'RiZ] # C21 lower left
+    WiWj= t(Wx)%*%Ri%*%Wx # wk'Riwj # C22 lower right
+    MWu=rbind( cbind(C,(XWj.ZWj)) , cbind((WiX.WiZ),WiWj) ) # rbind( cbind(C11 C12), cbind(C21 C22) )
+    
+    MWuChol=try(chol(as.matrix(MWu),pivot=F), silent = TRUE) # Cholesky decomposition of C expanded by Wu
+    if(is(MWuChol, "try-error")){
+      MWuChol=try(chol(MWu+diag(tolParInv,nrow(MWu)),pivot=F), silent = FALSE)
+    }
+    
+    nTheta = endvc2[length(endvc2)] # total number of variance components
+    last=nrow(MWuChol); take = (last-nTheta+1):last
+    avInf = MWuChol[take,take]
+    avInf = t(avInf) %*% avInf
+    # avInf = as.matrix(MWuChol[take,take]^2)
+    # avInf[lower.tri(avInf)] <- t(avInf)[lower.tri(avInf)] # lower and upper are not equal (upper seems to be the right one to use)
+    avInfInv <- try(solve(avInf), silent = TRUE)
+    if(is(avInfInv, "try-error")){
+      avInfInv <- try(solve(avInf + diag(tolParInv,ncol(avInf))), silent = TRUE)
+    }
+    ##########################
+    # 5) get 1st derivatives from MME-version (correct)
+    # PAPER FORMULA (Lee and Van der Werf, 2006)
+    # dL/ds2u = -0.5 [(Nu/s2u) - (tr(AiCuu)/s4u) -  (e/s2e)'(Zu/s2u)]
+    # dL/ds2e = -0.5 [((Nr-Nb)/s2e) - [(Nu - (tr(AiCuu)/s2u))*(1/s2e)] - ... - (e/s2e)'(e/s2e)]
+    # 
+    # PAPER FORMULA (Jensen and Madsen, 1997)
+    # dL/ds2u = (q.i * lambda) - (lambda * (T + S) * lambda)  Eq. 18
+    # dL/ds2e = tr(Rij*Ri) - tr(Ci*W'*Ri*Rij*Ri*W) - (e'*Ri*Rij*Ri*e)
+    ###########################
+    
+    # invert the coefficient matrix
+    Ci=solve(MChol[-ncol(MChol),-ncol(MChol)]) # this is the cholesky decomposition of C
+    Ci = (Ci)%*%t(Ci) # multiply by its transpose since the decomposition is only one of the triangular parts
+    Ci <- as.matrix(Ci)
+    
+    emInfInvList <- emInfList <- list() # store EM information matrices and its inverses
+    # calculate first derivatives and take advantage to get emInf and emInfInv
+    dLu = list() # store first derivatives
+    
+    if(is.null(Z)){ # if random effects exist
+      iR=0
+    }else{
+      for(iR in 1:length(zsAva)){ # iR=1 # for each random effect
+        SigmaInv = lambda[[iR]] # get the inverse of the variance-cov components for this random effect
+        omega<-omega2<-traces <- matrix(0,nrow = nrow(SigmaInv),ncol=ncol(SigmaInv))
+        # calculate T or tr(AiCii) Eq. 18.1 of Jensen
+        for(k in 1:nrow(SigmaInv)){
+          for(l in 1:nrow(SigmaInv)){
+            if(thetaC[[iR]][k,l]>0){
+              usedPartitionK = partitions[[iR]][k,1]:partitions[[iR]][k,2]
+              usedPartitionL = partitions[[iR]][l,1]:partitions[[iR]][l,2]
+              trAiCuu = sum(diag((Ai[[iR]])%*%Ci[usedPartitionK,usedPartitionL]))
+              traces[k,l] = trAiCuu
+            }else{
+              traces[k,l] = 0
+            }
+          }
+        }
+        traces[lower.tri(traces)] <- t(traces)[lower.tri(traces)]
+        ## first derivatives = dL/ds2u = (q.i * lambda) - (lambda * (T + S) * lambda)    where S=UAiU and we use U.lambda
+        dLuProv = ((Nus[iR])*SigmaInv) -  (t(U.SinvList[[iR]])%*%Ai[[iR]]%*%U.SinvList[[iR]]) - (SigmaInv%*%traces%*%SigmaInv)
+        ## althernative EM update
+        # current(theta)   -   update(delta)  but we need to decompose the update(delta) = Iem * vech(dLu/ds2u) , Iem is then of dimensions equal to vech(dLu/ds2u)
+        # theta[[iR]] - (theta[[iR]]%*%dLuProv%*%theta[[iR]])/Nus[iR]    Eq.34 
+        thetaUnlisted <- theta[[iR]][which(thetaC[[iR]] > 0)]
+        thetaUnlistedMat = diag(thetaUnlisted,length(thetaUnlisted),length(thetaUnlisted))
+        # emInfInvProvExt <- ( thetaUnlisted %*% t(thetaUnlisted) )/Nus[iR]
+        emInfInvProvExt <- thetaUnlistedMat %*% t(thetaUnlistedMat)/Nus[iR]
+        emInfInvList[[iR]] <- emInfInvProvExt
+        emInfList[[iR]] <- solve(emInfInvList[[iR]] ) 
+        dLu[[iR]] = dLuProv[which(thetaC[[iR]]>0)] # vech(dLu/ds2u) or half-vectoization
+      }
+    }
+    
+    dLe <- numeric() # first derivatives for error variance components Eq. 19 of Jensen
+    for(iS in 1:length(S)){ # Rij <- S[[iS]]%*%Ri
+      dLe[iS] = (
+        (sum(diag(S[[iS]]%*%Ri)) - sum(diag(Ci%*%t(W)%*%Ri%*%S[[iS]]%*%Ri%*%W)) ) - 
+          ( t(e)%*%Ri%*%S[[iS]]%*%Ri%*%e )
+      )
+    }
+    dLu[[iR+1]] <- dLe
+    dLeM <- vectorToList(thetaC[[ep]],dLe)
+    
+    thetaRUnlisted <- theta[[iR+1]][which(thetaC[[iR+1]] > 0)]
+    thetaRUnlistedMat = diag(thetaRUnlisted,length(thetaRUnlisted),length(thetaRUnlisted))
+    emInfInvProvResExt <- thetaRUnlistedMat %*% t(thetaRUnlistedMat)/Nr
+    emInfInvList[[iR+1]] <-emInfInvProvResExt
+    emInfList[[iR+1]] <- solve(emInfInvList[[iR+1]])
+    
+    dLu = unlist(dLu); # first derivatives as vector
+    emInf = do.call(adiag1,emInfList) # big EM information matrix
+    # cons = do.call(adiag1,thetaC) # big constraint matrix
+    ###########################
+    # 6) update the variance paramters (CORRECT)
+    # PAPER FORMULA (Lee and Van der Werf, 2006)
+    # theta.n+1 = theta.n + (AInfi * dL/ds2) 
+    ###########################
+    
+    # unlist parameters and constraints
+    thetaUnlisted <- unlistThetaWithThetaC(theta,thetaC)
+    thetaCUnlisted <- unlistThetaWithThetaC(thetaC,thetaC)
+    
+    weightInfMatCurrentIter=weightInfMat[iIter] #[iIter+stepsEM]
+    # Joint information matrix and update
+    #                   AVERAGE INFORMATION                       +     EXPECTATION MAXIMIZATION
+    InfMat = ((diag(ncol(avInf))-weightInfEMl[[iIter]]) %*% avInf ) + (weightInfEMl[[iIter]] %*% emInf) # combined information matrix EM + avInf
+    InfMatInv <- solve(InfMat) # inverse of the information matrix
+    change = (InfMatInv*weightInfMatCurrentIter)%*%as.matrix(dLu) # delta = I- * dLu/dLx
+    # print(length(which(thetaCUnlisted == 3)))
+    expectedNewTheta = thetaUnlisted - change
+    
+    ####################
+    ## 1) apply constraints
+    
+    for(ivc in 1:length(thetaCUnlisted)){
+      if(thetaCUnlisted[ivc] == 1){
+        if(expectedNewTheta[ivc] < 1e-10){
+          cat("constraining to small value")
+          expectedNewTheta[ivc]=1e-10
+          toBoundary[iIter,ivc]=1 # keep track of those VC that are going to the boundaries
+          ## change to fixed
+          sumToBoundary <- apply(toBoundary,2,sum)
+          toForce <- which(sumToBoundary >= 3)
+          if(length(toForce) > 0){
+            thetaCUnlisted[toForce]=3
+          }
+        }}
+      if(thetaCUnlisted[ivc] == 3){
+        thetaUnlistedPlusAddScaleParam <- c(expectedNewTheta,addScaleParam)
+        # theta.i            = scaleParameter.selected      *  Theta
+        expectedNewTheta[ivc]=thetaF[ivc,] %*%  thetaUnlistedPlusAddScaleParam
+      }
+    }
+    
+    ####################
+    ## 2) if there's fixed vc use a different update
+    if(length(which(thetaCUnlisted == 3)) > 0){
+      cat("updates using constraints")
+      InfMat.uu = InfMat[which(thetaCUnlisted != 3),which(thetaCUnlisted != 3)]
+      InfMat.ff = InfMat[which(thetaCUnlisted == 3),which(thetaCUnlisted == 3)]
+      dLu.uu =  dLu[which(thetaCUnlisted != 3)]
+      dLu.ff =  dLu[which(thetaCUnlisted == 3)]
+      InfMat.uf = InfMat[which(thetaCUnlisted != 3),which(thetaCUnlisted == 3)]
+      InfMatInv.uu <- ginv(InfMat.uu) # inverse of the information matrix
+      InfMatInv.ff <- ginv(InfMat.ff) # inverse of the information matrix
+      change.ff = InfMatInv.ff %*% dLu.ff
+      change.uu = InfMatInv.uu %*% dLu.uu #(dLu.uu - (InfMat.uf%*%change.ff) )
+      change[which(thetaCUnlisted != 3)]= change.uu
+      change[which(thetaCUnlisted == 3)]= 0#change.ff
+      ### new values for variance components theta.i+1 = theta.i + delta
+      expectedNewTheta = thetaUnlisted - change
+    }
+    
+    ####################
+    # 3) quantify change and norm of delta ||D||
+    if(iIter > 1){
+      percChangeMat[,iIter] <- (change/change0)*100
+      changeCheck <- which(abs(percChangeMat[,iIter]) > 15000)
+      changeCheck <- setdiff(changeCheck,which(toBoundary[iIter,] > 0))
+      # if(length(changeCheck) > 0){ # if there's vc that changed drastically decrease the update for that VC
+      #   cat(red("Reducing Updates by 0.1"))
+      #   change[changeCheck] <- change[changeCheck] * .1
+      #   expectedNewTheta = thetaUnlisted - change
+      # }
+      change0 <- change
+    }else{
+      change0 <- change
+      percChangeMat[,iIter] <- 0
+    }
+    # cat(green(paste("change",paste(round(percChangeMat[,iIter],0), collapse = "%, "))),"\n")
+    #########################################################
+    ### 4) if not positive definite change to full EM update or add a value to the diagonal
+    pdCheck <- vectorToList(thetaC, expectedNewTheta)
+    pdCheck <- do.call(adiag1,pdCheck)
+    pdCheck <- eigen(pdCheck)$values
+    pdCheck <- which(pdCheck < 0)
+    if(length(pdCheck) > 0){ # if new matrix is not positive definite use the EM update
+      # cat(red("Updated VC matrix is not positive definite, adding a small value to diagonal"))
+      # InfMatInv <- solve(InfMat + diag(1e-5, ncol(InfMat), ncol(InfMat) )) # add a value to the diagonal
+      cat(red("Updated VC matrix is not positive definite, changing to an EM step"))
+      InfMat = (0.5 * avInf ) + (0.5 * emInf) # combined information matrix EM + avInf # change to EM update
+      
+      if(length(which(thetaCUnlisted == 3)) > 0){
+        cat("updates using constraints in an EM step")
+        InfMat.uu = InfMat[which(thetaCUnlisted != 3),which(thetaCUnlisted != 3)]
+        InfMat.ff = InfMat[which(thetaCUnlisted == 3),which(thetaCUnlisted == 3)]
+        dLu.uu =  dLu[which(thetaCUnlisted != 3)]
+        dLu.ff =  dLu[which(thetaCUnlisted == 3)]
+        InfMat.uf = InfMat[which(thetaCUnlisted != 3),which(thetaCUnlisted == 3)]
+        InfMatInv.uu <- ginv(InfMat.uu) # inverse of the information matrix
+        InfMatInv.ff <- ginv(InfMat.ff) # inverse of the information matrix
+        change.ff = InfMatInv.ff %*% dLu.ff
+        change.uu = InfMatInv.uu %*% dLu.uu #(dLu.uu - (InfMat.uf%*%change.ff) )
+        change[which(thetaCUnlisted != 3)]= change.uu
+        change[which(thetaCUnlisted == 3)]= 0#change.ff
+        ### new values for variance components theta.i+1 = theta.i + delta
+        expectedNewTheta = thetaUnlisted - change
+      }else{
+        InfMatInv = ginv(InfMat)
+        expectedNewTheta = thetaUnlisted - ( InfMatInv%*% as.matrix(dLu) )
+      }
+    }
+    
+    ## stoping criterias
+    changeNorm[1,iIter]=norm(as.matrix(change[which(thetaCUnlisted != 3)])) # stopping criteria 1
+    changeNorm[2,iIter]=norm(as.matrix(dLu[which(thetaCUnlisted != 3)])) # stopping criteria 2
+    changeNorm[3,iIter]= norm(as.matrix( (diag(InfMatInv[which(thetaCUnlisted != 3),which(thetaCUnlisted != 3)]))/sqrt(length(dLu[which(thetaCUnlisted != 3)])) * dLu[which(thetaCUnlisted != 3)] )) # stopping criteria 3
+    
+    ####################
+    # bring VC from vector to matrices
+    expectedNewThetaList = vectorToList(thetaC, expectedNewTheta)
+    for(i in 1:length(expectedNewThetaList)){
+      expectedNewThetaList[[i]] <- as.matrix(nearPD(expectedNewThetaList[[i]])$mat)
+    }
+    # print(expectedNewThetaList)
+    # update covariance parameters and save for monitoring
+    theta <- expectedNewThetaList
+    finalThetaList[[iIter]] <- expectedNewTheta
+    
+    ####################
+    # stopping criteria
+    if(iIter > 1){
+      delta_llik = llik[iIter] - llik[iIter-1]
+      ## stopping criteria 0
+      # if( (  (delta_llik < tolParConvNorm)) | (iIter == nIters)  ){ 
+      #   break 
+      # }
+      # # stopping criteria 1
+      # if( (  (changeNorm[1,iIter] < 0.05)) | (iIter == nIters)  ){
+      #   break
+      # }
+      # stopping criteria 3
+      if( (  ( (changeNorm[3,iIter] < tolParConvNorm)) & (changeNorm[1,iIter] < tolParConvNorm) ) | (iIter == nIters) | (delta_llik < tolParConvLL) ){
+        break
+      }
+      
+    }
+  } # end of AI
+  monitor <- do.call(cbind,finalThetaList)
+  # plot(llik)
+  rownames(monitor) <- c(paste0("vc",1:(nrow(monitor))))
+  return(list(sigma=theta, sigmavector=expectedNewTheta, yPy=yPy, llik=llik, b=b, u=u, Wu=Wu,  
+              avInf=avInf, emInf=emInf, Ci=Ci, dLu=dLu, 
+              M=M, C=C, monitor=monitor, normChange3=normChange3,
+              logDetA=logDetA, Nus=Nus, logDetC=logDetC, yPy=yPy, Wu=Wu, change=change,
+              expectedNewTheta=expectedNewTheta, expectedNewThetaList=expectedNewThetaList,
+              percChange=percChangeMat, changeNorm=changeNorm,thetaCUnlisted=thetaCUnlisted,
+              sumToBoundary=sumToBoundary))
+}
+
+unlistThetaWithThetaC <- function(x, xc){
+  thetaUnlisted= unlist(lapply(as.list(1:length(x)), function(v){
+    return(x[[v]][which(xc[[v]]>0)])
+  }))
+  return(thetaUnlisted)
+}
+
+
+plotMonitor <- function(x,...){
+  mmin <- min(x)
+  mmax <- max(x)
+  plot(x[1,], type="l", ylim=c(mmin,mmax))
+  if(nrow(x) > 1){
+    for(i in 2:nrow(x)){
+      par(new=TRUE)
+      plot(x[i,], col=i, ylim=c(mmin,mmax), ylab="",xlab="", type="l",...)
+    }
+  }
+  legend("topright",legend = rownames(x), col=1:(nrow(x)), bty="n", lty=1)
+}
+
+vectorToList <- function(constraint, parameters){
+  parametersList <- constraint
+  start <- 1
+  for(o in 1:length(constraint)){
+    last <- start+length(which(constraint[[o]]>0))-1
+    provParam <- parametersList[[o]] # provisional covariance matrix
+    provParam[which(constraint[[o]]>0)] <- parameters[start:last] # fill covariance matrix with new parameters
+    provParam[lower.tri(provParam)] <- t(provParam)[lower.tri(provParam)] # fill lower triangular
+    parametersList[[o]] <- provParam # return new covariance matrix to original object
+    start <- last+1 # update start
+  }
+  return(parametersList)
+}
+
+mmeFormation <- function(X,Z=NULL,Ri=NULL,y){
+  # X is a matrix
+  # Z is a list of lists
+  # y is a vector
+  # Zlist <- unlist(Z) # put Z in a list of one level
+  if(is.null(Z)){
+    XZlist <- c(list(X))
+    XZylist <- c(list(X),list(matrix(y))) 
+  }else{
+    # Zlist <- lapply(rapply(Z, enquote, how="unlist"), eval)
+    XZlist <- c(list(X),Z)
+    XZylist <- c(list(X),Z,list(matrix(y))) 
+  }
+  
+  W <- as.matrix(do.call(cbind, XZlist))
+  
+  # Zlist <- NULL # delete to avoid memory consumption
+  ncolM <- unlist(lapply(XZylist, ncol))
+  end <- numeric()
+  for(u in 1:length(ncolM)){end[u] <- sum(ncolM[1:u])}
+  start <- end-ncolM+1
+  ncolMsum <- sum(ncolM)
+  M <- matrix(NA,ncolMsum,ncolMsum)
+  #--->
+  # -->
+  #  ->
+  for(i in 1:length(XZylist)){ # for each row of the MME
+    useRow <- start[i]:end[i]
+    for(j in i:length(XZylist)){ # for each col of the MME
+      useCol <- start[j]:end[j]
+      if(is.null(Ri)){
+        M[useRow,useCol] <- as.matrix(t(XZylist[[i]])%*%XZylist[[j]])
+        M[useCol,useRow] <- t(M[useRow,useCol])
+      }else{
+        M[useRow,useCol] <- as.matrix(t(XZylist[[i]])%*%Ri%*%XZylist[[j]])
+        M[useCol,useRow] <- t(M[useRow,useCol])
+      }
+    }
+  }
+  return(list(M=M, W=W, start=start, end=end))
+}
+
+image2 <- function(x){
+  print(image(as(x, Class = "sparseMatrix")))
+}
+
+# emInfInvProv <- (((theta[[iR]]%*%dLuProv%*%theta[[iR]]))%*%solve(dLuProv))/Nus[iR] # real em information matrix
+# print(dim(emInfInvProvExt))
+# emInfInvProv <- (((theta[[iR]]%*%t(theta[[iR]]))))/Nus[iR] # real em information matrix
+# 
+# indicator <- as.data.frame(which(thetaC[[iR]] > 0, arr.ind = TRUE));  # indicator df to tranform emInfInvProv into same dimensions of the AI matrix
+# emInfInvProvExt <- matrix(0, Nvc2[iR], Nvc2[iR]) # extended EM inf matrix
+# for(ii in 1:nrow(indicator)){ # for each variance-covariance component
+#   SeconDer <- indicator[ii,1] # which rows of the emInfInvProv (information matrix) to take and put into the ii'th row of emInfInvProvExt
+#   firstDer <- indicator[ii,2] # which columns of first derivatives will be multiplied by
+#   pickCol <- sort(unique(c(which(indicator[,1]==firstDer),which(indicator[,2]==firstDer)))) # vc-cov components that should be multiplied
+#   pickColInemInfInvProv <- which(thetaCs[[iR]][SeconDer,] > 0) # only take elements in the information matrix that match elements in theta to be estimated
+#   emInfInvProvExt[ii,pickCol] = emInfInvProv[SeconDer,pickColInemInfInvProv] # add elements ofemInfInvProv into emInfInvProvExt
+# }
+
+# emInfInvProvResExt <- (((theta[[iR+1]]%*%dLeM%*%theta[[iR+1]]))%*%solve(dLeM))/Nr # real em.r information matrix
+# 
+# indicatorR <- as.data.frame(which(thetaC[[ep]] > 0, arr.ind = TRUE)); # indicator df to tranform emInfInvProv into same dimensions of the AI matrix
+# emInfInvProvResExt <- matrix(0, Nvc2[ep], Nvc2[ep]) # extended EM.r inf matrix
+# for(ii in 1:nrow(indicatorR)){ # # for each residual variance-covariance component
+#   SeconDer <- indicatorR[ii,1] # which rows of the emInfInvProv (information matrix) to take and put into the ii'th row of emInfInvProvExt
+#   firstDer <- indicatorR[ii,2] # which columns of first derivatives will be multiplied by
+#   pickCol <- sort(unique(c(which(indicatorR[,1]==firstDer),which(indicatorR[,2]==firstDer))))  # vc-cov components that should be multiplied
+#   pickColInemInfInvProvRes <- which(thetaCs[[ep]][SeconDer,] > 0) # only take elements in the information matrix that match elements in theta to be estimated
+#   emInfInvProvResExt[ii,pickCol] = emInfInvProvRes[SeconDer,pickColInemInfInvProvRes] # add elements ofemInfInvProv into emInfInvProvExt
+# }

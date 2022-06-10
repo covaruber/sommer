@@ -71,6 +71,31 @@ arma::vec mat_to_vecCpp(const arma::mat & x,
 }
 
 // [[Rcpp::export]]
+arma::mat vec_to_matCpp(const arma::vec & x, 
+                        const arma::mat & x2){
+  // x is the vector to be passed to a matrix form in the output (out)
+  // x2 is a matrix of constraints to indicate wheter the value to be passed should be pass intefer (>0) or not passed (=0)
+  int ncol = x2.n_cols;
+  arma::uvec nent2 = find(x2 > 0); 
+  arma::mat out(ncol,ncol);
+  //
+  int counter = 0;
+  int i, j; 
+  for (j = 0; j < ncol; j++){ 
+    for (i = 0; i < ncol; i++){ 
+      if (i > j){}else{
+        // only extract the variance component if it was planned to be estimated
+        if(x2(i,j) > 0){ 
+          out(i,j) = x(counter);
+          counter++;
+        }
+      }
+    }
+  } 
+  return out;
+}
+
+// [[Rcpp::export]]
 arma::cube vec_to_cubeCpp(const arma::vec & x, 
                           const Rcpp::List & g){
   
@@ -188,7 +213,6 @@ bool isIdentity_spmat(const arma::sp_mat x){
   } 
   return true; 
 } 
-
 
 // [[Rcpp::export]]
 bool isDiagonal_mat(const arma::mat x){
@@ -1064,7 +1088,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     dd = join_cols(dd,mat_to_vecCpp(base_var,Rcpp::as<arma::mat>(GeI[i]))) ; // extract upper triangular in a vector form
     ee = join_cols(ee,mat_to_vecCpp(sc_var,Rcpp::as<arma::mat>(GeI[i]))) ; // extract upper triangular in a vector form
   }
-  arma::mat FISH = (sigma_cov % (dd*dd.t())) / (ee*ee.t());
+  arma::mat FISH = (sigma_cov % (dd*dd.t())) / (ee*ee.t()); // bring back to original scale
   // recalculate V and P with original sigma values
   double AIC = (-2 * llik) + (2 * Xm.n_cols);
   double ny = Ym.n_elem;
@@ -1109,3 +1133,845 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     Rcpp::Named("dL2") = Inf
   );
 }
+
+
+// [[Rcpp::export]]
+arma::sp_mat convertSparse(Rcpp::S4 mat) {
+  // https://gallery.rcpp.org/articles/armadillo-sparse-matrix/
+  // mat is an S4 (R) sparse matrix to be converted to an Armadillo sp_mat
+  // obtain dim, i, p. x from S4 object
+  Rcpp::IntegerVector dims = mat.slot("Dim");
+  arma::urowvec i = Rcpp::as<arma::urowvec>(mat.slot("i"));
+  arma::urowvec p = Rcpp::as<arma::urowvec>(mat.slot("p"));
+  arma::vec x     = Rcpp::as<arma::vec>(mat.slot("x"));
+  
+  int nrow = dims[0], ncol = dims[1];
+  
+  // use Armadillo sparse matrix constructor
+  arma::sp_mat res(i, p, x, nrow, ncol);
+  return(res);
+}
+
+// [[Rcpp::export]]
+arma::vec mat_to_vecCpp2(const arma::mat & x, 
+                         const arma::mat & x2){
+  // x is the matrix to be passed to a vector form in the output (out)
+  // x2 is a mtrix of constraints to indicate wheter the value to be passed should be pass intefer (>0) or not passed (=0)
+  int ncol = x.n_cols;
+  arma::uvec nent2 = find(x2 > 0); int nent3 = nent2.n_elem;
+  Rcpp::NumericVector out(nent3);
+  // std::vector<bool> out2(nent3, true); // create position vector
+  int counter = 0;
+  int i, j; 
+  for (j = 0; j < ncol; j++){ 
+    for (i = 0; i < ncol; i++){ 
+      if (i > j){}else{
+        // only extract the variance component if it was planned to be estimated
+        if(x2(i,j) > 0){ 
+          out[counter] = x(i,j);
+          counter++;
+        }
+      }
+    }
+  } 
+  return out;
+}
+
+// [[Rcpp::export]]
+arma::mat nearPDcpp(const arma::mat X0, // Rcpp::List
+                    const int & maxit,
+                    const double & eig_tol, 
+                    const double & conv_tol){
+  // X=X, maxit=100, eig_tol = 1e-06, conv_tol = 1e-07
+  int iter = 0;
+  bool converged = false;
+  double conv = 2e31 - 1;
+  arma::mat X = X0;
+  int nX = X.n_cols;
+  arma::mat D_S(nX,nX,arma::fill::zeros);
+  arma::mat Y(nX,nX), R(nX,nX);
+  while (iter < maxit && !converged) {
+    Y = X;
+    R = Y - D_S;
+    arma::vec d; // values
+    arma::mat Q; // vectors
+    arma::eig_sym(d, Q, R);
+    
+    arma::uvec p = arma::find(d > (eig_tol * d(0)) );
+    if(p.n_elem == 0){ // if there was a negative value
+      Rcpp::Rcout << "Matrix seems negative semi-definite." << arma::endl; 
+      break;
+    }
+    Q = Q.cols(p);
+    arma::mat dummy(Q.n_rows,1,arma::fill::ones);
+    arma::vec dp = d(p);
+    X = ( Q % (dummy*dp.t()) ) * Q.t();
+    D_S = X - R;
+    conv = arma::norm(Y - X, "inf")/arma::norm(Y, "inf");
+    iter = iter + 1;
+    if(conv <= conv_tol){
+      converged = true;
+    }
+  }
+  // return Rcpp::List::create(
+  //   Rcpp::Named("X") = X
+  // );
+  return X;
+}
+
+// [[Rcpp::export]]
+Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma::vec & Zind, 
+                     const Rcpp::List & AiI, const arma::sp_mat & y, 
+                     const Rcpp::List & SI, const Rcpp::List & partitionsS,
+                     const arma::sp_mat & H, const bool & useH,
+                     int nIters, double tolParConvLL, double tolParConvNorm, 
+                     double tolParInv, const Rcpp::List & thetaI,
+                     const Rcpp::List & thetaC, const arma::mat & thetaF, 
+                     const arma::vec & addScaleParam, const arma::vec & weightEmInf, 
+                     const arma::vec & weightInf, const bool & verbose 
+){
+  
+  time_t before = time(0);
+  localtime(&before);
+  // define element sizes
+  int nSs = SI.size(); // number of residual matrices
+  int nZs = ZI.size(); // number of random effects
+  int nRe; 
+  if(nZs > 0){
+    nRe = Zind.max(); // number of actual random effects specified in random
+  }
+  int nZsFake = 1; // a fake value in case there's no random effects we avoid a bad allocation error
+  int nReFake = 1; // a fake value in case there's no random effects we avoid a bad allocation error
+  int nRRe = thetaI.size(); // number of random + residual effects
+  int nX = X.n_cols;// number of fixed effects
+  int nR = y.n_rows; // number of records
+  // create a list to store the symmetric version of thetaC
+  arma::field<arma::mat> theta(nRRe);
+  for (int i = 0; i < nRRe; ++i) { // create a copy of thetaC filling lower triangular
+    theta[i]=Rcpp::as<arma::mat>(thetaI[i]) ; // copy upper in lower triangular
+  }
+  // move Z to sparse arma objects
+  int nZsAl; // integer to define the allocation of Z 
+  if(nZs > 0){
+    nZsAl = nZs; // if there's random effects the nZs to allocate is equal to Z.size
+  }else{
+    nZsAl = nZsFake; // otherwise at least we allocate 1 element to avoid the program to crash
+  }
+  arma::field<arma::sp_mat> Z(nZsAl); // allocate size of Z
+  if(nZs > 0){ // if there's random effects
+    for (int i = 0; i < nZs; ++i) { // for each Z
+      Z(i)=convertSparse(ZI(i)); // convert the matrix to sparse and store in the field
+    }
+  }
+  // delete ZI;
+  // move S to sparse arma objects
+  arma::field<arma::sp_mat> S(nSs); // allocate size of S
+  for (int i = 0; i < nSs; ++i) {
+    S(i)=convertSparse(SI(i)); // convert the matrix to sparse and store in the field
+  }
+  // move Ai to sparse arma objects
+  int nReAl;
+  if(nZs > 0){
+    nReAl = nRe;
+  }else{
+    nReAl = nReFake;
+  }
+  arma::field<arma::sp_mat> Ai(nReAl); // allocate size of Ai field
+  if(nZs > 0){
+    for (int i = 0; i < nRe; ++i) {
+      Ai(i)=convertSparse(AiI(i)); // convert the matrix to sparse and store in the field
+    }
+  }
+  // delete AiI;
+  // calculate log determinants of Ai's
+  arma::rowvec logDetA(nReAl);
+  if(nZs > 0){ // of there's random effects
+    for (int i = 0; i < nRe; ++i) { // for each random effect
+      double val;
+      double sign;
+      bool ok = log_det(val, sign, arma::mat(Ai[i])); // calculate the logDet of the covariance matrix
+      logDetA(i) =val*sign*(-1);
+    }
+  }
+  
+  // define partitions (only used if random effects exist)
+  int last = X.n_cols;
+  arma::field<arma::mat> partitions(nReAl); // store thetas (variance components)
+  arma::vec zsAva;
+  int Nu = 0;
+  if(nZs > 0){ //if there's random effects (Z matrices) check where each starts and ends
+    zsAva = unique(Zind); 
+    for (int i = 0; i < nRe; ++i) { // for each effect
+      arma::uvec indexZind = find(Zind == (i+1) ); // which Z matrices to use , +1 because of the way indeces are used in C++
+      int nIndexZind = indexZind.size(); //  number of Z matrices to use
+      arma::vec Nus(nIndexZind); // vector to store number of columns in each Z matrix
+      // for each matrix in this random effect
+      for (int j = 0; j < nIndexZind; ++j) {
+        int jj = indexZind(j); // thake the jj matrix
+        arma::sp_mat Zprov = Z(jj); // put it in a provisional object
+        Nus(j)=Zprov.n_cols; // calculate the number of columns
+      }
+      arma::vec end = Nus; // define ends and starts
+      for (int k = 0; k < nIndexZind; ++k) { // for each effect
+        arma::uvec toSum = arma::regspace<arma::uvec>(0,  1,  k); // equivalent to seq()
+        end(k)=arma::accu(Nus(toSum));
+      }
+      arma::vec ones(nIndexZind, arma::fill::ones);
+      arma::vec lastM(nIndexZind, arma::fill::value(last));
+      arma::vec start = end - Nus + ones;
+      start = start + lastM;// adjust start by adding # of fixed effects
+      end = end + lastM;//adjust end by adding # of fixed effects
+      partitions(i) = arma::join_rows(start,end);
+      last = end.max();
+      Nu = Nu + accu(Nus);
+    }
+  }// end of if statement when random effects exist
+  
+  // define the number of variance components to estimate per random effect structure
+  arma::vec nVc(nRRe);
+  for (int i = 0; i < nRRe; ++i) {
+    arma::mat thetaCprov = Rcpp::as<arma::mat>(thetaC[i]);
+    arma::uvec nVcProv = find(thetaCprov > 0);
+    nVc(i) = nVcProv.size();
+  }
+  int nVcTotal = accu(nVc); // total number of variance components
+  // assign a start and an end index to each covariance structure using the #of VC 
+  arma::vec nVcEnd = nVc;
+  for (int i = 0; i < nRRe; ++i) {
+    arma::uvec toSum = arma::regspace<arma::uvec>(0,  1,  i); // equivalent to seq()
+    nVcEnd(i)=arma::accu(nVc(toSum));
+  }
+  arma::vec nVcStart = nVcEnd - nVc + 1;
+  // move constraints to vector form binding the columns
+  arma::vec thetaCUnlisted;
+  for (int i = 0; i < nRRe; ++i) {
+    thetaCUnlisted = join_cols(thetaCUnlisted,mat_to_vecCpp2(Rcpp::as<arma::mat>(thetaC[i]),Rcpp::as<arma::mat>(thetaC[i])));
+  }
+  // removing complex structures how many effects are really there
+  arma::vec nUsTotal(nReAl);
+  if(nZs > 0){ //
+    for (int i = 0; i < nRe; ++i) {
+      arma::mat partitionsProv = partitions(i);
+      nUsTotal(i) = partitionsProv(0,1) - partitionsProv(0,0) + 1;
+    }
+  }
+  // define objects to store theta and llik across iterations
+  arma::mat monitor(nVcTotal,nIters); // matrix to store variance components
+  arma::mat percChange(nVcTotal,nIters); // matrix to store variance components
+  arma::rowvec llik(nIters); // store log likellihood values
+  
+  int nEffects = Nu+nX;
+  int nEffectsPlusY = nEffects + 1;
+  arma::mat Mchol(nEffectsPlusY,nEffectsPlusY);
+  arma::sp_mat M0(nEffectsPlusY,nEffectsPlusY), M(nEffectsPlusY,nEffectsPlusY), W(nR,nEffects), Wy(nR,nEffectsPlusY), C(nEffects,nEffects), Ci(nEffects,nEffects);
+  arma::vec u(Nu), b(nX), bu(nEffects);
+  arma::mat buWu(nEffects,nVcTotal);
+  arma::mat avInf(nVcTotal,nVcTotal); 
+  arma::mat emInf(nVcTotal,nVcTotal);
+  arma::mat InfMat(nVcTotal,nVcTotal);
+  bool convergence = false;
+  double seconds;
+  arma::sp_mat XWjxZWj(nEffects,nVcTotal), WiXxWiZ(nVcTotal,nEffects), WiWj(nVcTotal,nVcTotal);
+  arma::sp_mat XWjxZWj0(nEffects,nVcTotal), WiXxWiZ0(nVcTotal,nEffects), WiWj0(nVcTotal,nVcTotal);
+  arma::sp_mat A;//, Wu2;
+  arma::sp_mat I = arma::speye<arma::sp_mat>(nEffectsPlusY,nEffectsPlusY);
+  arma::vec delta(nVcTotal), delta_minus1(nVcTotal);
+  // objects for constraints
+  arma::mat percDelta(nVcTotal,nIters,arma::fill::zeros); // store % change of the delta with respect to the previous iteration
+  arma::mat normMonitor(3,nIters); // store in each iteration the 3 stopping criteria of Madsen and Jensen
+  arma::mat toBoundary(nIters,nVcTotal, arma::fill::zeros ); // store which values have been set to the boundary value
+  arma::vec sumToBoundary(nVcTotal, arma::fill::zeros ); // to apply sum across iterations and if a VC goes to the boundary 3 times it is fixed to the boundary
+  ////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////
+  // START ITERATIVE ALGORITHM
+  ////////////////////////////////////////////////////////////////////
+  ////////////////////////////////////////////////////////////////////
+  
+  for (int iIter = 0; iIter < nIters; ++iIter) {
+    
+    // ###########################
+    // # 1) absorption of m onto y
+    // # PAPER FORMULA from Jensen and Madsen 1997, Gilmour et al., 1995
+    // # expand coefficient matrix (C) to have the response variable
+    // # M = W' Ri W # with W = [X Z y] 
+    // #
+    // #     [X'RiX  X'RiZ     X'Riy ]
+    // # M = [Z'RiX  Z'RiZ+Gi  Z'Riy ]
+    // #     [y'RiX  y'RiZ     y'Riy ]
+    // #
+    // # where Gi = Ai*(s2e/s2u) = (A*s2u)*s2e = kronecker(Ai,solve(s2u))
+    // #
+    // # lambda = solve(theta) # inverse of var-covar matrices
+    // # MChol = chol(M)
+    // # yPy = MChol[n,n] # where n is the last element of the matrix
+    // # logDetC = 2 * E log(diag(MChol))
+    // ###########################
+    arma::sp_mat Hs(H.n_cols,H.n_cols);
+    // do cholesky decomposition of H if user wants to use weights
+    if(useH == true){
+      if(iIter == 0){
+        Rcpp::Rcout << "Using the weights matrix " << arma::endl;
+      }
+      Hs = arma::sp_mat(chol(arma::mat(H)));
+    }
+    
+    arma::sp_mat Ri(nR,nR); // matrix to store R inverse
+    arma::field<arma::sp_mat> Rij(nSs); // field to store sub R matrices
+    arma::field<arma::sp_mat> RijInv(nSs); // field to store sub R inverse matrices
+    arma::vec thetaResidualsVec = mat_to_vecCpp2(theta(nRRe-1),Rcpp::as<arma::mat>(thetaC[(nRRe-1)]));
+    for (int i = 0; i < nSs; ++i) { // for each residual structure
+      
+      arma::mat pSi = Rcpp::as<arma::mat>(partitionsS[i]);
+      int s1 = pSi(0,0)-1;
+      int s2 = pSi(0,1)-1;
+      Rij(i) =  S(i) * arma::as_scalar(thetaResidualsVec(i)) ; // sub R = Si * theta.i
+      if(S(i).is_diagmat()==true){ // sub R
+        RijInv(i) =  S(i) * (1/arma::as_scalar(thetaResidualsVec(i))) ;
+      }else{
+        if(iIter == 0){
+          Rcpp::Rcout << "R matrices are not diagonal, using actual inversion " << arma::endl;
+        }
+        RijInv(i) = arma::sp_mat( arma::inv(arma::mat(Rij(i))) );
+      }
+      Ri.submat(s1,s1,s2,s2) = Ri.submat(s1,s1,s2,s2) + RijInv(i);
+      
+    }
+    // adjust R inverse if user provides weights
+    if(useH == true){ 
+      Ri = Hs *  Ri * Hs.t();
+    } 
+    Ri = arma::sp_mat(Ri);
+    // Rcpp::Rcout << ltm->tm_hour << ":" << ltm->tm_min << ":" << ltm->tm_sec << "      " << seconds << "           " << arma::endl;
+    /////////////////////////////////
+    // form the mixed model equations
+    if(iIter == 0){ // only form W and Wy once
+      W = X;
+      // if random effects exist
+      if(nZs > 0){
+        for (int i = 0; i < nZs; ++i) {
+          W = arma::join_rows( W, Z(i) );
+        }
+      }
+      Wy = arma::join_rows(W,y);
+    }
+    
+    if(nSs > 1){ // if there is more than one residual structure we have to calculate M in every iteration
+      M = Wy.t() * Ri * Wy;
+    }else{ // if there's only one residual structure
+      if(iIter == 0){ // only form M0 in the first iteration
+        M0 =  Wy.t() * Wy ; // base M matrix without G
+      }
+      // then every iteration we just multiply M0 by 1/Ve
+      M = M0 * (1/arma::as_scalar(thetaResidualsVec(0))) ; // always multiply by the current 1/sigma2.e
+    }
+    
+    arma::field<arma::sp_mat> lambda(nReAl);
+    arma::field<arma::sp_mat> GI(nReAl);
+    if(nZs > 0){
+      for (int i = 0; i < nRe; ++i) {
+        lambda(i) = arma::sp_mat( inv(theta(i)) );
+        GI(i) = kron(lambda(i), Ai(i) );
+        arma::mat partitionsP = partitions(i);
+        int ff = partitionsP(0,0) - 1;
+        int ll = partitionsP(partitionsP.n_rows-1,1) - 1;
+        M.submat( ff, ff, ll, ll ) = M.submat( ff, ff, ll, ll ) + GI(i);
+      }
+    }
+    
+    bool okChol = arma::chol(Mchol, arma::mat(M));
+    if(okChol == false){
+      if(verbose == true){
+        Rcpp::Rcout << "Adding a small value to the diagonal of M " << arma::endl;
+      }
+      M = M + (I*(tolParInv));
+      Mchol = arma::chol(arma::mat(M)) ;
+      if(verbose == true){
+        Rcpp::Rcout << "Cholesky of M succeeded " << arma::endl;
+      }
+    }
+    arma::vec yPy =arma::square(Mchol.submat( Mchol.n_rows-1, Mchol.n_cols-1, Mchol.n_rows-1,  Mchol.n_cols-1 ));
+    arma::mat Mpp = Mchol.submat( 0,0, Mchol.n_rows-2,  Mchol.n_cols-2 );
+    double logDetC = 2 * accu(log(Mpp.diag()));
+    
+    // ###########################
+    // # 1.1) calculate the log-likelihood 
+    // # PAPER FORMULA (Lee and Van der Werf, 2006)    #
+    // # LL = -0.5 [((Nr-Nb-Nu-...)*ln(s2e)) - ln|C| + ln|Au| + ... + (Nu*ln(s2u)) + ... + y'Py ]
+    // # PAPER FORMULA (Jensen and Madsen, 1997)
+    // # LL = -0.5 [ln|C| + ln|R| + (ln|A.u| +ln|theta.u|) + ... + y'Py ]
+    // # where | | is the determinant of a matrix
+    // #       A.u is the pure relationship matrix for the uth random effect
+    // #       theta.u is the vc matrix for the uth random effect
+    // ###########################
+    
+    double llikp=0;
+    if(nZs > 0){ 
+      for (int i = 0; i < nRe; ++i) {
+        double val;
+        double sign;
+        bool ok = log_det(val, sign, theta(i));  // form 2
+        llikp = llikp + (nUsTotal(i)*val*sign) + logDetA(i);
+      }
+    }
+    double val;
+    double sign;
+    bool ok = log_det(val, sign, theta(nRRe-1));  // form 2
+    double logDetR = nR * val * sign;
+    llik(iIter) = (- 0.5) * ( llikp + logDetC + logDetR + arma::as_scalar(yPy) );
+    
+    // ###########################
+    // # 2) backsubstitute to get b and u (CORRECT)
+    // # use the results from the absorption to obtain BLUE & BLUPs
+    // # b = backsolve(MChol[,rest],MChol[,last])
+    // ###########################
+    
+    A = arma::sp_mat(Mchol.submat( 0,0, Mchol.n_rows-2,  Mchol.n_cols-2 )); // chol of C
+    arma::vec B = Mchol.submat( 0,Mchol.n_rows-1, Mchol.n_cols-2,  Mchol.n_cols-1 );
+    // arma::mat A = Mchol.submat( 0,0, Mchol.n_rows-2,  Mchol.n_cols-2 );
+    // bu = arma::solve(trimatu(A), B);  // indicate that A is triangular
+    arma::spsolve(bu, A, B, "lapack" );  // use LAPACK  solver
+    
+    arma::uvec bInd = arma::regspace<arma::uvec>(0,  1,  (nX-1)); // equivalent to seq()
+    b = bu(bInd);
+    if(nZs > 0){
+      arma::uvec uInd = arma::regspace<arma::uvec>((nX),  1,  (nX+Nu-1)); // equivalent to seq()
+      u = bu(uInd);
+    }
+    
+    // ###########################
+    // # 3) calculate Wu (working variates)
+    // # PAPER FORMULA (Notes on Estimation of Genetic Parameters from Van der Werf)
+    // # wu = Zu/s2u; we = e/s2e
+    // # PAPER FORMULA (Jensen and Madsen, 1997)
+    // # U = [u1 | u2 | ... | ui]
+    // # US = U * lambda
+    // # Wu.ii = Zui*USi # for variance component
+    // # Wu.ij = Zui*USj + Zuj*USi # for covariance component
+    // # Wr.j = Rj * Rinv * e  # for residual variance component
+    // ###########################
+    
+    arma::sp_mat Wu;
+    arma::field<arma::sp_mat> uSinv(nReAl);
+    
+    if(nZs > 0){ // if random effects exist
+      for(int iR = 0; iR < nRe; ++iR){ // for each random effect u
+        arma::mat partitionsP = partitions(iR); // access the partition
+        arma::sp_mat U(partitionsP(0,1) - partitionsP(0,0) + 1, partitionsP.n_rows);
+        for(int iRow = 0; iRow < partitionsP.n_rows; ++iRow){ // for each partition row
+          arma::uvec usedPartition = arma::regspace<arma::uvec>((partitionsP(iRow,0)-1),  1, (partitionsP(iRow,1)-1)  ); // equivalent to seq()
+          U.col(iRow) = bu(usedPartition);
+        }
+        // # [a || m] [s2a || sam] = [s2a a + sam m  || sam a + s2m m]
+        // #          [sam || s2m]
+        arma::sp_mat lambdaProv = arma::sp_mat( lambda(iR) );
+        arma::sp_mat uSinvProv = U * lambdaProv;
+        uSinv(iR) = uSinvProv;
+        arma::mat thetaCprov = Rcpp::as<arma::mat>(thetaC[iR]);
+        // // for the ij var comp we calculate the Wu
+        arma::uvec useZind = find(Zind == iR+1); // which Z matrices we should use for this random effect
+        arma::vec nVcForIr = mat_to_vecCpp2(Rcpp::as<arma::mat>(thetaC[iR]),Rcpp::as<arma::mat>(thetaC[iR]));
+        arma::sp_mat WuiR(nR, nVcForIr.size()); // store Wu for random effect iR (we need to all, vc and cov)
+        arma::sp_mat ZuiR(nR, useZind.size()); // store Wu for random effect iR (we need only for vc)
+        int counterWu = 0;
+        int counterZu = 0;
+        //
+        for(int iRow = 0; iRow < lambdaProv.n_rows; ++iRow){
+          for(int iCol = 0; iCol < lambdaProv.n_cols; ++iCol){
+            if(thetaCprov(iRow,iCol) > 0){ // if vc has to be estimated
+              if(iRow == iCol){ // variance component
+                // Wu
+                WuiR.col(counterWu) = Z(useZind(iRow)) * uSinvProv.col(iRow);
+                counterWu ++;
+                // Zu
+                ZuiR.col(counterZu) = Z(useZind(iRow)) * U.col(iRow) ;
+                counterZu ++;
+              }else{ // covariance component
+                // Wu
+                WuiR.col(counterWu) = ( Z(useZind(iCol)) * uSinvProv.col(iRow) )  -  ( Z(useZind(iRow)) * uSinvProv.col(iCol) )  ;
+                counterWu ++;
+              }
+            } // end of thetaCprov(iRow,iCol) > 0
+          } // end of icol loop
+        } // end of irow loop
+        Wu = arma::join_rows(Wu,WuiR);
+      } // end of loop for each random effect
+    } // end of condition when random effects exist
+    // calculate residuals
+    // Wu2=Wu;
+    
+    arma::vec e = y - (arma::sp_mat(W.submat(0,0,W.n_rows-1,W.n_cols-1)) * bu);
+    // Working variates for residual VCs
+    for(int iS = 0; iS < S.size(); ++iS){
+      arma::sp_mat Sprov(nR,nR);
+      arma::mat pSi = Rcpp::as<arma::mat>(partitionsS[iS]);
+      int s1 = pSi(0,0)-1;
+      int s2 = pSi(0,1)-1;
+      Sprov.submat(s1,s1,s2,s2)= S(iS);
+      Sprov = arma::sp_mat(Sprov);
+      if(nSs > 1){ // if R is complex do the whole product  (1/arma::as_scalar(thetaResidualsVec(0)))
+        Wu = arma::join_rows(Wu , Sprov * Ri * arma::sp_mat(e) );
+      }else{ // if R is not complex just use the factor
+        Wu = arma::join_rows(Wu , Sprov * (1/arma::as_scalar(thetaResidualsVec(0))) * arma::sp_mat(e) );
+      }
+      
+    }
+    
+    // ###########################
+    // # 4) absorption of m onto W (2 VAR, 1 COV)
+    // # we had to change the avInf to avInf/sigmas
+    // # PAPER FORMULA (Smith, 1995) Differentiation of the Cholesky Algorithm
+    // # avInf.ij = ((chol(M))[n,n])^2 # the square of the last diagonal element of the cholesky factorization
+    // # where:
+    // #        [X'RiX  X'RiZ     X'Riwj ]
+    // # M.Wu = [Z'RiX  Z'RiZ+Gi  Z'Riwj ]
+    // #        [wk'RiX wk'RiZ    wk'Riwj]
+    // # where:
+    // # wi: working variate i
+    // # wk: working variate k
+    // # Ri: is R inverse
+    // # and the the part corresponding to X and Z is the coefficient matrix C
+    // # AI = (M.Wu.chol)^2
+    // ###########################
+    
+    if(nSs > 1){ // if R is complex do the whole matrix product  in every iteration
+      XWjxZWj = W.t() * Ri * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
+      WiWj = Wu.t() * Ri * Wu ;//  wk'Riwj # C22 lower right
+    }else{ // if R is simple multiply only obatin this matrices once and in every iteration multiply by a factor
+      if(iIter == 0){
+        XWjxZWj0 = W.t() * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
+        WiWj0 = Wu.t() * Wu ;//  wk'Riwj # C22 lower right
+      }
+      XWjxZWj = XWjxZWj0 * (1/arma::as_scalar(thetaResidualsVec(0))); // [X'Riwj Z'Riwj]' # C12 upper right
+      WiWj = WiWj0 * (1/arma::as_scalar(thetaResidualsVec(0)));//  wk'Riwj # C22 lower right
+    }
+    arma::sp_mat A2 = M.submat( 0,0, M.n_rows-2,  M.n_cols-2 );
+    arma::spsolve(buWu, A2, arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
+    avInf = WiWj - (buWu.t()*XWjxZWj);
+    
+    // C =  M.submat( 0,0, M.n_rows-2,  M.n_cols-2 ); // already define before the algorithm
+    // if(nSs > 1){ // if R is complex do the whole matrix product  in every iteration
+    //   XWjxZWj = W.t() * Ri * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
+    //   WiXxWiZ = Wu.t() * Ri * W ;// [wk'RiX wk'RiZ] # C21 lower left
+    //   WiWj = Wu.t() * Ri * Wu ;//  wk'Riwj # C22 lower right
+    // }else{ // if R is simple multiply only obatin this matrices once and in every iteration multiply by a factor
+    //   if(iIter == 0){
+    //     XWjxZWj0 = W.t() * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
+    //     WiXxWiZ0 = Wu.t() * W ;// [wk'RiX wk'RiZ] # C21 lower left
+    //     WiWj0 = Wu.t() * Wu ;//  wk'Riwj # C22 lower right
+    //   }
+    //   XWjxZWj = XWjxZWj0 * (1/arma::as_scalar(thetaResidualsVec(0))); // [X'Riwj Z'Riwj]' # C12 upper right
+    //   WiXxWiZ = WiXxWiZ0 * (1/arma::as_scalar(thetaResidualsVec(0)));// [wk'RiX wk'RiZ] # C21 lower left
+    //   WiWj = WiWj0 * (1/arma::as_scalar(thetaResidualsVec(0)));//  wk'Riwj # C22 lower right
+    // }
+    // arma::sp_mat MWu = arma::join_cols( arma::join_rows(C,XWjxZWj) , arma::join_rows(WiXxWiZ,WiWj) );
+    // arma::mat MWuChol = chol(arma::mat(MWu)); // Cholesky decomposition of C expanded by Wu
+    // // Average information
+    // avInf = MWuChol.submat(MWuChol.n_rows - Wu.n_cols, MWuChol.n_cols - Wu.n_cols,MWuChol.n_rows -1,MWuChol.n_cols - 1);
+    // avInf = avInf.t() * avInf  ;
+    
+    // ##########################
+    // # 5) get 1st derivatives from MME-version (correct)
+    // # PAPER FORMULA (Lee and Van der Werf, 2006)
+    // # dL/ds2u = -0.5 [(Nu/s2u) - (tr(AiCuu)/s4u) -  (e/s2e)'(Zu/s2u)]
+    // # dL/ds2e = -0.5 [((Nr-Nb)/s2e) - [(Nu - (tr(AiCuu)/s2u))*(1/s2e)] - ... - (e/s2e)'(e/s2e)]
+    // # 
+    // # PAPER FORMULA (Jensen and Madsen, 1997)
+    // # dL/ds2u = (q.i * lambda) - (lambda * (T + S) * lambda)  Eq. 18
+    // # dL/ds2e = tr(Rij*Ri) - tr(Ci*W'*Ri*Rij*Ri*W) - (e'*Ri*Rij*Ri*e)
+    // ###########################
+    
+    // get the inverse of the coefficient matrix
+    arma::vec v(Mchol.n_cols-1, arma::fill::ones);//option 1
+    arma::mat D = diagmat(v); // option 1
+    arma::mat Cichol = arma::solve( trimatu(Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2) ), D);  // indicate that A is triangular; option 1
+    // arma::mat D = arma::eye<arma::mat>(Mchol.n_cols-1,Mchol.n_cols-1); // option 2
+    // arma::sp_mat pp = arma::sp_mat(Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2)); //option 2
+    // arma::mat Cichol = arma::spsolve( pp , D, "superlu");  // option 2
+    // arma::mat Cichol = inv( trimatu(Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2)) ); // option 3
+    // arma::mat Cichol = inv_sympd( Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2) ); //option 4
+    // multiply by it's transpose
+    arma::sp_mat Cip = arma::sp_mat(Cichol);
+    Ci = Cip * Cip.t() ;
+    // arma::mat pp = arma::mat(M.submat(0,0,M.n_rows-2,M.n_cols-2)); // option 5
+    // arma::sp_mat Ci = arma::sp_mat(inv_sympd( pp )); //option 5
+    
+    arma::field<arma::mat> emInfList(nRRe);
+    arma::vec dLu;//(nVcTotal); // we will join cols
+    if(nZs > 0){ // if random effects exist
+      for(int iR = 0; iR < nRe; ++iR){ // for each random effect u
+        arma::sp_mat lambdaProv = arma::sp_mat( lambda(iR) );
+        arma::mat thetaCprov = Rcpp::as<arma::mat>(thetaC[iR]);
+        arma::sp_mat traces(lambdaProv.n_rows,lambdaProv.n_cols);
+        arma::sp_mat AiProv = Ai(iR);
+        for(int iRow = 0; iRow < lambdaProv.n_rows; ++iRow){
+          for(int iCol = 0; iCol < lambdaProv.n_cols; ++iCol){
+            if(thetaCprov(iRow,iCol) > 0){ // if vc has to be estimated
+              arma::mat partitionsP = partitions(iR);
+              // X.submat( first_row, first_col, last_row, last_col )
+              double trAiCuu = arma::trace(  AiProv * Ci.submat(partitionsP(iRow,0)-1, partitionsP(iCol,0)-1, partitionsP(iRow,1)-1, partitionsP(iCol,1)-1 )  );
+              traces(iRow,iCol) = trAiCuu;
+            }else{
+              traces(iRow,iCol) = 0;
+            }
+          }// end of loop for iCol
+        }// end of loop for iRow
+        traces = arma::symmatu(traces); // copy upper in lower triangular
+        //  first derivatives = dL/ds2u = (q.i * lambda) - (lambda * (T + S) * lambda)    where S=UAiU and we use U.lambda
+        arma::sp_mat dLuProv = (arma::as_scalar(nUsTotal(iR)) * lambdaProv) - ( uSinv(iR).t() * AiProv * uSinv(iR) ) - ( lambdaProv * traces * lambdaProv );
+        // althernative EM update
+        // current(theta)   -   update(delta)  but we need to decompose the update(delta) = Iem * vech(dLu/ds2u) , Iem is then of dimensions equal to vech(dLu/ds2u)
+        // theta[[iR]] - (theta[[iR]]%*%dLuProv%*%theta[[iR]])/Nus[iR]    Eq.34 
+        arma::vec thetaUnlisted = mat_to_vecCpp2( theta(iR),thetaCprov);
+        arma::mat thetaUnlistedMat = diagmat(thetaUnlisted);
+        arma::mat emInfInvProvExt = ( thetaUnlistedMat * thetaUnlistedMat.t() ) / arma::as_scalar(nUsTotal(iR));
+        emInfList(iR) = arma::pinv(emInfInvProvExt, tolParInv);
+        dLu = join_cols( dLu, mat_to_vecCpp2(arma::mat(dLuProv),thetaCprov) );
+      }// end of loop for each random effect
+    }// end of condition if random effects exist
+    arma::vec dLe(S.size());
+    arma::sp_mat eProv = arma::sp_mat(e);
+    for(int iS = 0; iS < S.size(); ++iS){ // Rij <- S[[iS]]%*%Ri 
+      
+      arma::sp_mat Sprov(nR,nR);
+      arma::mat pSi = Rcpp::as<arma::mat>(partitionsS[iS]);
+      int s1 = pSi(0,0)-1;
+      int s2 = pSi(0,1)-1;
+      Sprov.submat(s1,s1,s2,s2)= S(iS);
+      Sprov = arma::sp_mat(Sprov);
+      if(nSs > 1){ // if R is complex do the whole matrix product  in every iteration
+        dLe(iS) = ( arma::trace( Sprov *Ri) - arma::trace( Ci * W.t() * Ri * Sprov * Ri * W ) ) - arma::as_scalar( eProv.t() * Ri * Sprov * Ri * eProv );
+      }else{ // if R is simple only multiply by a factor instead of the whole Ri product
+        dLe(iS) = ( arma::trace( Sprov * (1/arma::as_scalar(thetaResidualsVec(0)))) - arma::trace( Ci * W.t() * (1/arma::as_scalar(thetaResidualsVec(0))) * Sprov * (1/arma::as_scalar(thetaResidualsVec(0))) * W ) ) - arma::as_scalar( eProv.t() * (1/arma::as_scalar(thetaResidualsVec(0))) * Sprov * (1/arma::as_scalar(thetaResidualsVec(0))) * eProv );
+      }
+    }
+    arma::vec thetaRUnlisted = mat_to_vecCpp2(theta(nRRe-1),Rcpp::as<arma::mat>(thetaC[nRRe-1]));
+    arma::mat thetaRUnlistedMat = diagmat(thetaRUnlisted);
+    arma::mat emInfInvRProvExt = ( thetaRUnlistedMat * thetaRUnlistedMat.t() ) / arma::as_scalar(nR);
+    emInfList(nRRe-1) = arma::pinv(emInfInvRProvExt, tolParInv); // we invert because this is equivalen to the inverse of the information and we need the information
+    
+    dLu = join_cols( dLu, dLe );// join the random and residual first derivatives in a single vector
+    
+    for(int i = 0; i < nRRe; ++i){
+      emInf.submat(nVcStart(i)-1, nVcStart(i)-1, nVcEnd(i)-1, nVcEnd(i)-1 ) = emInfList(i);
+    }
+    
+    // ###########################
+    // # 6) update the variance paramters (CORRECT)
+    // # PAPER FORMULA (Lee and Van der Werf, 2006)
+    // # theta.n+1 = theta.n + (AInfi * dL/ds2) 
+    // ###########################
+    
+    arma::vec thetaUnlisted, thetaCUnlisted;
+    for(int i = 0; i < nRRe; ++i){
+      thetaUnlisted = arma::join_cols(thetaUnlisted, mat_to_vecCpp2( theta(i),Rcpp::as<arma::mat>(thetaC[i])) );
+      thetaCUnlisted = arma::join_cols(thetaCUnlisted, mat_to_vecCpp2(Rcpp::as<arma::mat>(thetaC[i]),Rcpp::as<arma::mat>(thetaC[i])) );
+    }
+    // 
+    // create the 'weight' EM information matrix (TO BE USED LATER WITHIN THE OPTIMIZATION)
+    arma::vec v2(nVcTotal, arma::fill::ones) ;
+    arma::mat weightEmInfMat = diagmat(v2) * arma::as_scalar(weightEmInf(iIter));
+    arma::mat weightAiInfMat = diagmat(v2) * (1 - arma::as_scalar(weightEmInf(iIter)));
+    // Joint information matrix and update
+    //                  AVERAGE INFORMATION                         +       EXPECTATION MAXIMIZATION
+    InfMat = (weightAiInfMat * avInf) + (weightEmInfMat * emInf);
+    arma::mat InfMatInv = arma::pinv(InfMat, tolParInv); // inverse of the information matrix
+    delta = (InfMatInv * arma::as_scalar(weightInf(iIter))) * dLu; // delta = I- * dLu/dLx
+    // new values for variance components theta.i+1 = theta.i + delta
+    arma::vec  expectedNewTheta = thetaUnlisted - delta;
+    
+    // #######################
+    // # 7) APPLY CONSTRAINTS to VC
+    // # suggestions from Madsen and Jensen (1997) and Gilmour (2019)
+    // #######################
+    // A) apply constraints for fixed and positive
+    for(int i = 0; i < thetaCUnlisted.size() ; ++i){
+      if(thetaCUnlisted(i) == 1){
+        if(expectedNewTheta(i) < 1e-10){
+          Rcpp::Rcout << "Constraining to small value" << arma::endl;
+          expectedNewTheta(i)=1e-10;
+          toBoundary(iIter,i)=1; // toBoundary(nIters,nVcTotal)
+          // change to fixed the ones that constantly (3 times) go to the boundaries
+          for(int j = 0; j < toBoundary.n_cols ; ++j){
+            sumToBoundary(j) =arma::accu(toBoundary.col(j)) ;
+          }
+          // to force
+          arma::uvec toBeForced = arma::find(sumToBoundary >= 3);
+          if(toBeForced.n_elem > 0){
+            thetaCUnlisted(toBeForced) = thetaCUnlisted(toBeForced) - thetaCUnlisted(toBeForced) + 3;
+          }
+        }// end of if(expectedNewTheta(i) < 1e-10)
+      }// end of positive constraints
+      if(thetaCUnlisted(i) == 3){
+        arma::vec thetaUnlistedPlusAddScaleParam = arma::join_cols(expectedNewTheta,addScaleParam);
+        // theta.i            = scaleParameter.selected      *  Theta 
+        expectedNewTheta(i) = arma::as_scalar(thetaF.row(i) *  thetaUnlistedPlusAddScaleParam);
+      }
+    }
+    // B)  if there's constrained VC we need to partition InfMat and make a different update
+    arma::uvec constrained = arma::find(thetaCUnlisted == 3);
+    arma::uvec unconstrained = arma::find(thetaCUnlisted != 3);
+    arma::mat InfMat_uu, InfMat_ff, InfMatInv_uu;
+    arma::vec dLu_uu, dLu_ff, delta_uu;
+    if(constrained.n_elem > 0){
+      Rcpp::Rcout << "Update using constraints" << arma::endl;
+      InfMat_uu = InfMat(unconstrained,unconstrained);
+      InfMat_ff = InfMat(constrained,constrained);
+      dLu_uu = dLu(unconstrained);
+      dLu_ff = dLu(constrained);
+      InfMatInv_uu = pinv(InfMat_uu,tolParInv);
+      delta_uu = InfMatInv_uu * dLu_uu;
+      delta(unconstrained) = delta_uu;
+      delta(constrained) = delta(constrained) * 0;
+      expectedNewTheta = thetaUnlisted - delta;
+    }
+    // C) quantify delta changes
+    if(iIter == 0){
+      delta_minus1 = delta;
+    }else{
+      percDelta.col(iIter) =delta/delta_minus1; // percDelta(nVcTotal,nIters)
+      // arma::uvec check1 = arma::find(arma::abs(percDelta.col(iIter)) > 50); // which VC update > 15x
+      // arma::uvec check2 = arma::find(toBoundary.row(iIter) == 0); // which are not in the boundary
+      // arma::uvec deltaCheck = arma::intersect(check1,check2);
+      // if(deltaCheck.n_elem > 0){
+      //   Rcpp::Rcout << "Reducing updates" << arma::endl;
+      //   delta(deltaCheck) = delta(deltaCheck) * 0.3;
+      //   expectedNewTheta = thetaUnlisted - delta;
+      // }
+      delta_minus1 = delta;
+    }
+    // D) if not positive-definite change to EM update
+    arma::vec pdCheck;
+    for(int i = 0; i < nRRe; ++i){ // caculate eigen values
+      arma::uvec toFill = arma::regspace<arma::uvec>(nVcStart(i)-1,  1,  nVcEnd(i)-1); // equivalent to seq()
+      arma::mat thetaProvNew = vec_to_matCpp(expectedNewTheta(toFill), Rcpp::as<arma::mat>(thetaC[i]) );
+      arma::mat thetaProvNewS = arma::symmatu(thetaProvNew);
+      arma::vec eigval;
+      arma::mat eigvec;
+      arma::eig_sym(eigval, eigvec, thetaProvNewS);  // find 5 eigenvalues/eigenvectors
+      pdCheck = arma::join_cols(pdCheck,eigval);
+    }
+    arma::uvec eigenFind = find(pdCheck < 0);
+    if(eigenFind.n_elem > 0){
+      Rcpp::Rcout << "Updated VC is not positive definite, changing to EM step" << arma::endl;
+      InfMat = (0.5 * avInf) + (0.5 * emInf);
+      // arma::sp_mat Ix = arma::speye<arma::sp_mat>(nVcTotal,nVcTotal);
+      // InfMat = InfMat + (Ix*tolParInv);
+      if(constrained.n_elem > 0){
+        Rcpp::Rcout << "Update using constraints" << arma::endl;
+        InfMat_uu = InfMat(unconstrained,unconstrained);
+        InfMat_ff = InfMat(constrained,constrained);
+        dLu_uu = dLu(unconstrained);
+        dLu_ff = dLu(constrained);
+        InfMatInv_uu = pinv(InfMat_uu,tolParInv);
+        delta_uu = InfMatInv_uu * dLu_uu;
+        delta(unconstrained) = delta_uu;
+        delta(constrained) = delta(constrained) * 0;
+        expectedNewTheta = thetaUnlisted - delta;
+      }else{
+        InfMatInv = arma::pinv(InfMat, tolParInv); // inverse of the information matrix
+        expectedNewTheta = thetaUnlisted - (InfMatInv * dLu);
+      }
+    }
+    // #######################
+    // # 8) Bring back theta in vector form to matrix form and save for monitor
+    // #######################
+    monitor.col(iIter) = expectedNewTheta;
+    for(int i = 0; i < nRRe; ++i){
+      arma::uvec toFill = arma::regspace<arma::uvec>(nVcStart(i)-1,  1,  nVcEnd(i)-1); // equivalent to seq()
+      arma::mat thetaProvNew = vec_to_matCpp(expectedNewTheta(toFill), Rcpp::as<arma::mat>(thetaC[i]) );
+      arma::mat thetaProvNewPD = nearPDcpp(arma::symmatu(thetaProvNew), 100, 1e-06, 1e-07); // maxit=100, eig_tol = 1e-06, conv_tol = 1e-07
+      theta(i) = thetaProvNewPD; // arma::symmatu(thetaProvNew);
+    }
+   
+   // #######################
+   // # 9) Stopping criteria
+   // #######################
+    // get current time
+    time_t now = time(0);
+    tm *ltm = localtime(&now);
+    // keep track of time difference between iterations
+    seconds = difftime(now,before);
+    // update before time to be the now to be used in the next iteration
+    time_t before = time(0);
+    localtime(&before);
+    
+    // E) stopping criteria (norms)
+    normMonitor(0,iIter) = arma::norm(delta(unconstrained), 1) ; // stopping criteria 1
+    normMonitor(1,iIter) = arma::norm(dLu(unconstrained),1) ; // stopping criteria 1
+    arma::vec nVcTotalv(1);
+    nVcTotalv(0) = nVcTotal;
+    arma::vec stopCriteria3 = (InfMatInv.diag()/arma::as_scalar(arma::sqrt(nVcTotalv)) ) % dLu;
+    normMonitor(2,iIter) = arma::norm(stopCriteria3(unconstrained),1) ; // stopping criteria 1
+    
+    if(verbose == true){ //  
+      if(iIter == 0){Rcpp::Rcout << "iteration   " << " LogLik   " << "  wall    " << "cpu(sec)   " << "restrained" << arma::endl;}
+      Rcpp::Rcout << "    " << iIter+1 << "      " <<  llik(iIter) << "   " << ltm->tm_hour << ":" << ltm->tm_min << ":" << ltm->tm_sec << "      " << seconds << "           " <<  constrained.n_elem << arma::endl;
+    }
+    if(iIter > 0){
+      double delta_llik = llik(iIter) - llik(iIter-1);
+      // if( (  (delta_llik < tolParConv)) || (iIter == nIters)  ){ // || changePer < .001
+      if( (normMonitor(2,iIter) <  tolParConvNorm) || (delta_llik < tolParConvLL)  || (iIter == nIters) ) {
+        // if(delta_llik < tolParConv){
+        if( (normMonitor(2,iIter) < tolParConvNorm) || (delta_llik < tolParConvLL) ){
+          convergence = true;
+        }
+        monitor = monitor.cols(0,iIter);
+        normMonitor = normMonitor.cols(0,iIter);
+        percDelta = percDelta.cols(0,iIter);
+        llik = llik.cols(0,iIter);
+        break; // 
+      }
+    }
+    
+  }// end of iterative optimization
+  
+  double AIC = (-2 * llik((llik.n_cols-1))) + (2 * nX);
+  double BIC = (-2 * llik((llik.n_cols-1))) + (log(nR) * nX);
+  
+  // return results in a list form
+  return Rcpp::List::create(
+    Rcpp::Named("llik") = llik,
+    Rcpp::Named("M") = M,
+    Rcpp::Named("W") = W,
+    Rcpp::Named("b") = b,
+    Rcpp::Named("u") = u,
+    Rcpp::Named("bu") = bu,
+    Rcpp::Named("Ci") = Ci,
+    Rcpp::Named("avInf") = InfMat,
+    Rcpp::Named("monitor") = monitor,
+    Rcpp::Named("constraints") = thetaCUnlisted, 
+    Rcpp::Named("AIC") = AIC,
+    Rcpp::Named("BIC") = BIC,
+    Rcpp::Named("convergence") = convergence,
+    Rcpp::Named("partitions") = partitions,
+    Rcpp::Named("percDelta") = percDelta,
+    Rcpp::Named("normMonitor") = normMonitor,
+    Rcpp::Named("toBoundary") = toBoundary,
+    Rcpp::Named("Cchol") = A,
+    Rcpp::Named("theta") = theta
+  );
+  
+}
+
+// arma::uvec P_vec(nEffectsPlusY);
+// arma::uvec P_vec_ori2(nEffectsPlusY);
+// arma::vec P_vec2(nEffectsPlusY);
+// arma::vec P_vec_ori(nEffectsPlusY); // permutation vector of Cholesky factorization
+
+// only in first iteration obtain permutation matrix
+// if(iIter == 0){
+//   arma::chol(Mchol, P_vec, arma::mat(M), "upper", "vector");
+//   // solution 2 for building P_vec_ori
+//   arma::vec P_vec2 = arma::conv_to<arma::vec>::from(P_vec);
+//   for (int i = 0; i < M.n_rows; ++i) {
+//     P_vec_ori(i)=arma::as_scalar(arma::find(P_vec2 == i));
+//   }
+//   P_vec_ori2 = arma::conv_to<arma::uvec>::from(P_vec_ori);
+//   Mchol = Mchol.submat(P_vec_ori2,P_vec_ori2);// reorder Mchol to the original view
+// }else{// after first iteration do regular factorization
+//   arma::mat Mprov = arma::mat(M); // since submat doesn't work in sparse matrices we pass to arma::mat first
+//   Mchol = arma::chol(Mprov.submat(P_vec,P_vec)) ; // do the decomposition using the order of the permutation matrix
+//   Mchol = Mchol.submat(P_vec_ori2,P_vec_ori2);// reorder Mchol to the original view
+// }
+
+

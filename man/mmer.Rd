@@ -2,12 +2,12 @@
 \alias{mmer}
 \title{
 
-\strong{m}ixed \strong{m}odel \strong{e}quations in \strong{R}
+\strong{m}ixed \strong{m}odel \strong{e}quations for \strong{r} records
 
 }
 \description{
 
-Sommer is a structural multivariate-univariate linear mixed model solver for multiple random effects allowing the specification and/or estimation of variance covariance structures. REML estimates can be obtained using the Direct-Inversion Newton-Raphson, Average Information and Efficient Mixed Model Association algorithms coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic selection models. Sommer was designed for genomic prediction and genome wide association studies (GWAS), but also functional as a regular mixed model program. These algorithms are \strong{intended to be used for problems of the type p > n and/or dense matrices}. For problems with sparse covariance structures, or problems of the type n > p, the MME-based algorithms are faster and we recommend to shift to the use of such software (e.g., lme4, breedR, or asreml-R).
+Sommer is a structural multivariate-univariate linear mixed model solver for multiple random effects allowing the specification and/or estimation of variance covariance structures. The mmer function uses the Direct-Inversion Newton-Raphson or Average Information coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic selection models. These algorithms are \strong{intended to be used for problems of the type c > r and/or dense matrices (r records and c coefficients)}. For problems with sparse covariance structures, or problems of the type r > c, the MME-based algorithm \code{\link{mmec}} is faster and we recommend to shift to use that algorithm in the function.
 
 \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
@@ -23,11 +23,11 @@ Sommer is a structural multivariate-univariate linear mixed model solver for mul
 
 \usage{
 
-mmer(fixed, random, rcov, data, weights, W, iters=20, tolpar = 1e-03, 
-     tolparinv = 1e-06, init=NULL, constraints=NULL,method="NR", getPEV=TRUE,
-     na.method.X="exclude", na.method.Y="exclude",return.param=FALSE, 
-     date.warning=TRUE,verbose=TRUE, reshape.output=TRUE, stepweight=NULL,
-     emweight=NULL)
+mmer(fixed, random, rcov, data, weights, W, nIters=20, tolParConvLL = 1e-03, 
+     tolParInv = 1e-06, init=NULL, constraints=NULL,method="NR", getPEV=TRUE,
+     naMethodX="exclude", naMethodY="exclude",returnParam=FALSE, 
+     dateWarning=TRUE,verbose=TRUE, reshapeOutput=TRUE, stepWeight=NULL,
+     emWeight=NULL)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -44,40 +44,40 @@ mmer(fixed, random, rcov, data, weights, W, iters=20, tolpar = 1e-03,
   
   Useful functions can be used to fit heterogeneous variances and other special models (\emph{see 'Special Functions' in the Details section for more information}):
   
-  \code{\link{vs}(...,Gu,Gti,Gtc)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (i.e. us,ds,at,cs) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance matrices among the levels of the random effect, Gti initial values and Gtc for constraints. Auxiliar functions for building the variance models are:
+  \code{\link{vsr}(...,Gu,Gti,Gtc)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (i.e. usr,dsr,atr,csr) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance matrices among the levels of the random effect, Gti initial values and Gtc for constraints. Auxiliar functions for building the variance models are:
   
-  ** \code{\link{ds}(x)}, \code{\link{us}(x)}, \code{\link{cs}(x)} and \code{\link{at}(x,levs)} can be used to specify unknown diagonal, unstructured and customized unstructured and diagonal covariance structures to be estimated by REML.
+  ** \code{\link{dsr}(x)}, \code{\link{usr}(x)}, \code{\link{csr}(x)} and \code{\link{atr}(x,levs)} can be used to specify unknown diagonal, unstructured and customized unstructured and diagonal covariance structures to be estimated by REML.
   
-  ** \code{\link{unsm}(x)}, \code{\link{uncm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can be used to build easily matrices to specify constraints in the Gtc argument of the \code{\link{vs}()} function.
+  ** \code{\link{unsm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can be used to build easily matrices to specify constraints in the Gtc argument of the \code{\link{vsr}()} function.
   
-  ** \code{\link{overlay}()}, \code{\link{spl2Da}()}, \code{\link{spl2Db}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vs}()} function.
+  ** \code{\link{overlay}()}, \code{\link{spl2Da}()}, \code{\link{spl2Db}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vsr}()} function.
   
-    \code{\link{gvs}(...,Gu,Guc,Gti,Gtc)} is an alternative function to specify general variance structures between different random effects. An special case in the indirect genetic effect models. Is similar to the vs function but in the ... argument the different random effects are provided.
+    \code{\link{gvsr}(...,Gu,Guc,Gti,Gtc)} is an alternative function to specify general variance structures between different random effects. An special case in the indirect genetic effect models. Is similar to the vsr function but in the ... argument the different random effects are provided.
   
   }
   \item{rcov}{A formula specifying the name of the \strong{error term}, i.e. \emph{rcov= ~ units}.
   
-  Special heterogeneous and special variance models and constraints for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, i.e. \emph{rcov=~vs(ds(covariate),units)}
+  Special heterogeneous and special variance models and constraints for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, i.e. \emph{rcov=~vsr(dsr(covariate),units)}
   
   }
   \item{data}{A data frame containing the variables specified in the formulas for response, fixed, and random effects.}
   \item{weights}{Name of the covariate for weights. To be used for the product R = Wsi*R*Wsi, where * is the matrix product, Wsi is the square root of the inverse of W and R is the residual matrix.}
   \item{W}{Alternatively, instead of providing a vector of weights the user can specify an entire W matrix (e.g., when covariances exist). To be used first to produce Wis = solve(chol(W)), and then calculate R = Wsi*R*Wsi.t(), where * is the matrix product, and R is the residual matrix. Only one of the arguments weights or W should be used. If both are indicated W will be given the preference.}
-   \item{iters}{Maximum number of iterations allowed.}
-  \item{tolpar}{Convergence criteria for the change in log-likelihood.}
-  \item{tolparinv}{Tolerance parameter for matrix inverse used when singularities are encountered in the estimation procedure.}
-  \item{init}{Initial values for the variance components. By default this is NULL and initial values for the variance components are provided by the algorithm, but in case the user want to provide initial values for ALL var-cov components this argument is functional. It has to be provided as a list, where each list element corresponds to one random effect (1x1 matrix) and if multitrait model is pursued each element of the list is a matrix of variance covariance components among traits for such random effect. Initial values can also be provided in the Gti argument of the \link{vs} function. Is highly encouraged to use the Gti and Gtc arguments of the \link{vs} function instead of this argument, but these argument can be used to provide all initial values at once}
-  \item{constraints}{When initial values are provided these have to be accompanied by their constraints. See the \link{vs} function for more details on the constraints. Is highly encouraged to use the Gti and Gtc arguments of the \link{vs} function instead of this argument but these argument can be used to provide all constraints at once.}
+   \item{nIters}{Maximum number of iterations allowed.}
+  \item{tolParConvLL}{Convergence criteria for the change in log-likelihood.}
+  \item{tolParInv}{Tolerance parameter for matrix inverse used when singularities are encountered in the estimation procedure.}
+  \item{init}{Initial values for the variance components. By default this is NULL and initial values for the variance components are provided by the algorithm, but in case the user want to provide initial values for ALL var-cov components this argument is functional. It has to be provided as a list, where each list element corresponds to one random effect (1x1 matrix) and if multitrait model is pursued each element of the list is a matrix of variance covariance components among traits for such random effect. Initial values can also be provided in the Gti argument of the \link{vsr} function. Is highly encouraged to use the Gti and Gtc arguments of the \link{vsr} function instead of this argument, but these argument can be used to provide all initial values at once}
+  \item{constraints}{When initial values are provided these have to be accompanied by their constraints. See the \link{vsr} function for more details on the constraints. Is highly encouraged to use the Gti and Gtc arguments of the \link{vsr} function instead of this argument but these argument can be used to provide all constraints at once.}
   \item{method}{This refers to the method or algorithm to be used for estimating variance components. Direct-inversion Newton-Raphson \strong{NR} and Average Information \strong{AI} (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2015).}
   \item{getPEV}{A TRUE/FALSE value indicating if the program should return the predicted error variance and variance for random effects. This option is provided since this can take a long time for certain models where p is > n by a big extent.}
-   \item{na.method.X}{One of the two possible values; "include" or "exclude". If "include" is selected then the function will impute the X matrices for fixed effects with the median value. If "exclude" is selected it will get rid of all rows with missing values for the X (fixed) covariates. The default is "exclude". The "include" option should be used carefully.}
-   \item{na.method.Y}{One of the three possible values; "include", "include2" or "exclude" (default) to treat the observations in response variable to be used in the estimation of variance components. The first option "include" will impute the response variables for all rows with the median value, whereas "include2" imputes the responses only for rows where there is observation(s) for at least one of the responses (only available in the multi-response models). If "exclude" is selected (default) it will get rid of rows in response(s) where missing values are present for at least one of the responses.}
-   \item{return.param}{A TRUE/FALSE value to indicate if the program should return the parameters to be used for fitting the model instead of fitting the model.}
-   \item{date.warning}{A TRUE/FALSE value to indicate if the program should warn you when is time to update the sommer package.}
+   \item{naMethodX}{One of the two possible values; "include" or "exclude". If "include" is selected then the function will impute the X matrices for fixed effects with the median value. If "exclude" is selected it will get rid of all rows with missing values for the X (fixed) covariates. The default is "exclude". The "include" option should be used carefully.}
+   \item{naMethodY}{One of the three possible values; "include", "include2" or "exclude" (default) to treat the observations in response variable to be used in the estimation of variance components. The first option "include" will impute the response variables for all rows with the median value, whereas "include2" imputes the responses only for rows where there is observation(s) for at least one of the responses (only available in the multi-response models). If "exclude" is selected (default) it will get rid of rows in response(s) where missing values are present for at least one of the responses.}
+   \item{returnParam}{A TRUE/FALSE value to indicate if the program should return the parameters to be used for fitting the model instead of fitting the model.}
+   \item{dateWarning}{A TRUE/FALSE value to indicate if the program should warn you when is time to update the sommer package.}
   \item{verbose}{A TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
-  \item{reshape.output}{A TRUE/FALSE value to indicate if the output should be reshaped to be easier to interpret for the user, some information is missing from the multivariate models for an easy interpretation.}
-  \item{stepweight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which doesn't happen very often with the NR method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight to the initial 8-10 iterations.}
-  \item{emweight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emweight will be applied to the NR/AI information matrix to produce a joint information matrix.}
+  \item{reshapeOutput}{A TRUE/FALSE value to indicate if the output should be reshaped to be easier to interpret for the user, some information is missing from the multivariate models for an easy interpretation.}
+  \item{stepWeight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which doesn't happen very often with the NR method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight to the initial 8-10 iterations.}
+  \item{emWeight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emWeight will be applied to the NR/AI information matrix to produce a joint information matrix.}
     
 }
 
@@ -91,31 +91,31 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
 \strong{Special variance structures}
 
- \code{\link{vs}(\link{at}(x,levels),y)}   
+ \code{\link{vsr}(\link{atr}(x,levels),y)}   
  
- can be used to specify heterogeneous variance for the "y" covariate at specific levels of the covariate "x", i.e. \emph{random=~vs(at(Location,c("A","B")),ID)} fits a variance component for ID at levels A and B of the covariate Location.
+ can be used to specify heterogeneous variance for the "y" covariate at specific levels of the covariate "x", i.e. \emph{random=~vsr(at(Location,c("A","B")),ID)} fits a variance component for ID at levels A and B of the covariate Location.
   
- \code{\link{vs}(\link{ds}(x),y)}   
+ \code{\link{vsr}(\link{dsr}(x),y)}   
  
- can be used to specify a diagonal covariance structure for the "y" covariate for all levels of the covariate "x", i.e. \emph{random=~vs(ds(Location),ID)}  fits a variance component for ID at all levels of the covariate Location.
+ can be used to specify a diagonal covariance structure for the "y" covariate for all levels of the covariate "x", i.e. \emph{random=~vsr(dsr(Location),ID)}  fits a variance component for ID at all levels of the covariate Location.
   
- \code{\link{vs}(\link{us}(x),y)}   
+ \code{\link{vsr}(\link{usr}(x),y)}   
  
- can be used to specify an unstructured covariance structure for the "y" covariate for all levels of the  covariate "x", i.e. \emph{random=~vs(us(Location),ID)}  fits variance and covariance components for ID at all levels of the covariate Location.
+ can be used to specify an unstructured covariance structure for the "y" covariate for all levels of the  covariate "x", i.e. \emph{random=~vsr(usr(Location),ID)}  fits variance and covariance components for ID at all levels of the covariate Location.
  
-  \code{\link{vs}(\link{overlay}(...,rlist=NULL,prefix=NULL))}   
+  \code{\link{vsr}(\link{overlay}(...,rlist=NULL,prefix=NULL))}   
  
- can be used to specify overlay of design matrices between consecutive random effects specified, i.e. \emph{random=~vs(overlay(male,female))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vs().
+ can be used to specify overlay of design matrices between consecutive random effects specified, i.e. \emph{random=~vsr(overlay(male,female))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vsr().
   
-  \code{\link{vs}(\link{leg}(x,n),y)}
+  \code{\link{vsr}(\link{leg}(x,n),y)}
       
-  can be used to fit a random regression model using a numerical variable \code{x} that marks the trayectory for the random effect \code{y}. The leg function can be combined with the special functions \code{ds}, \code{us} \code{at} and \code{cs}. For example \emph{random=~vs(leg(x,1),y)} or \emph{random=~vs(us(leg(x,1)),y)}.
+  can be used to fit a random regression model using a numerical variable \code{x} that marks the trayectory for the random effect \code{y}. The leg function can be combined with the special functions \code{dsr}, \code{usr} \code{at} and \code{csr}. For example \emph{random=~vsr(leg(x,1),y)} or \emph{random=~vsr(usr(leg(x,1)),y)}.
   
-  \code{\link{vs}(x,Gtc=\link{fcm}(v))}
+  \code{\link{vsr}(x,Gtc=\link{fcm}(v))}
       
-  can be used to constrain fixed effects in the multi-response mixed models. This is a vector that specifies if the fixed effect is to be estimated for such trait. For example \emph{fixed=cbind(response.i, response.j)~vs(Rowf, Gtc=fcm(c(1,0)))} means that the fixed effect Rowf should only be estimated for the first response and the second should only have the intercept.
+  can be used to constrain fixed effects in the multi-response mixed models. This is a vector that specifies if the fixed effect is to be estimated for such trait. For example \emph{fixed=cbind(response.i, response.j)~vsr(Rowf, Gtc=fcm(c(1,0)))} means that the fixed effect Rowf should only be estimated for the first response and the second should only have the intercept.
   
-  \code{\link{gvs}(x,y)}  
+  \code{\link{gvsr}(x,y)}  
   
   can be used to fit variance and covariance parameters between two or more random effects. For example, indirect genetic effect models.
   
@@ -135,7 +135,7 @@ S3 methods are available for some parameter extraction such as \code{\link{fitte
 
 \strong{Additional Functions}
 
-Additional functions for genetic analysis have been included such as relationship matrix building (\code{\link{A.mat}}, \code{\link{D.mat}}, \code{\link{E.mat}}, \code{\link{H.mat}}),  heritability (\code{\link{h2.fun}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), and manhattan plots (\code{\link{manhattan}}). If you need to build a pedigree-based relationship matrix use the \code{getA} function from the pedigreemm package. 
+Additional functions for genetic analysis have been included such as relationship matrix building (\code{\link{A.mat}}, \code{\link{D.mat}}, \code{\link{E.mat}}, \code{\link{H.mat}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), and manhattan plots (\code{\link{manhattan}}). If you need to build a pedigree-based relationship matrix use the \code{getA} function from the pedigreemm package. 
 
 \strong{Bug report and contact}{
 
@@ -207,7 +207,7 @@ If all parameters are correctly indicated the program will return a list with th
 \item{terms}{The name of terms for responses, fixed, random and residual effects in the model.}
 \item{termsN}{The number of effects associated to fixed, random and residual effects in the model.}
 \item{sigmaVector}{a vectorized version of the sigma element (variance-covariance components) to match easily the standard errors of the var-cov components stored in the element sigmaSE.}
-\item{reshape.output}{The value provided to the mmer function for the argument with the same name.}
+\item{reshapeOutput}{The value provided to the mmer function for the argument with the same name.}
 
 }
 \references{
@@ -276,8 +276,8 @@ summary(ans1)
 
 ## Compound simmetry (CS) + Diagonal (DIAG) model
 ans2 <- mmer(Yield~Env,
-             random= ~Name + vs(ds(Env),Name),
-             rcov= ~ vs(ds(Env),units),
+             random= ~Name + vsr(dsr(Env),Name),
+             rcov= ~ vsr(dsr(Env),units),
              data=DT)
 summary(ans2)
 
@@ -286,8 +286,8 @@ summary(ans2)
 ####===========================================####
 
 ans3 <- mmer(Yield~Env,
-             random=~ vs(us(Env),Name),
-             rcov=~vs(ds(Env),units), 
+             random=~ vsr(usr(Env),Name),
+             rcov=~vsr(dsr(Env),units), 
              data=DT)
 summary(ans3)
 
@@ -298,8 +298,8 @@ summary(ans3)
 # ## Multivariate Compound simmetry (CS) model
 # DT$EnvName <- paste(DT$Env,DT$Name)
 # ans4 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(Name, Gtc = unsm(2)) + vs(EnvName,Gtc = unsm(2)),
-#               rcov= ~ vs(units, Gtc = unsm(2)),
+#               random= ~ vsr(Name, Gtc = unsm(2)) + vsr(EnvName,Gtc = unsm(2)),
+#               rcov= ~ vsr(units, Gtc = unsm(2)),
 #               data=DT)
 # summary(ans4)
 # 
@@ -309,8 +309,8 @@ summary(ans3)
 # 
 # ## Multivariate Compound simmetry (CS) + Diagonal (DIAG) model
 # ans5 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(Name, Gtc = unsm(2)) + vs(ds(Env),Name, Gtc = unsm(2)),
-#               rcov= ~ vs(ds(Env),units, Gtc = unsm(2)),
+#               random= ~ vsr(Name, Gtc = unsm(2)) + vsr(dsr(Env),Name, Gtc = unsm(2)),
+#               rcov= ~ vsr(dsr(Env),units, Gtc = unsm(2)),
 #               data=DT)
 # summary(ans5)
 # 
@@ -319,8 +319,8 @@ summary(ans3)
 # ####===========================================####
 # 
 # ans6 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(us(Env),Name, Gtc = unsm(2)),
-#               rcov= ~ vs(ds(Env),units, Gtc = unsm(2)),
+#               random= ~ vsr(usr(Env),Name, Gtc = unsm(2)),
+#               rcov= ~ vsr(dsr(Env),units, Gtc = unsm(2)),
 #               data=DT)
 # summary(ans6)
 # 
@@ -342,7 +342,7 @@ summary(ans3)
 # A <- A.mat(GT)
 # #### look at the data and fit the model
 # mix1 <- mmer(Yield~1,
-#              random=~vs(id, Gu=A) + Rowf,
+#              random=~vsr(id, Gu=A) + Rowf,
 #              rcov=~units,
 #              data=DT)
 # summary(mix1)$varcomp
@@ -350,10 +350,10 @@ summary(ans3)
 # vpredict(mix1, h1 ~ V1/(V1+V3) )
 # #### multi trait example
 # mix2 <- mmer(cbind(Yield,color)~1,
-#               random = ~ vs(id, Gu=A, Gtc = unsm(2)) + # unstructured at trait level
-#                             vs(Rowf, Gtc=diag(2)) + # diagonal structure at trait level
-#                                 vs(Colf, Gtc=diag(2)), # diagonal structure at trait level
-#               rcov = ~ vs(units, Gtc = unsm(2)), # unstructured at trait level
+#               random = ~ vsr(id, Gu=A, Gtc = unsm(2)) + # unstructured at trait level
+#                             vsr(Rowf, Gtc=diag(2)) + # diagonal structure at trait level
+#                                 vsr(Colf, Gtc=diag(2)), # diagonal structure at trait level
+#               rcov = ~ vsr(units, Gtc = unsm(2)), # unstructured at trait level
 #               data=DT)
 # summary(mix2)
 # 
@@ -390,9 +390,9 @@ summary(ans3)
 # ### a more complex model specifying which locations
 # head(DT)
 # out2 <- mmer(Yield ~ Location,
-#               random = ~ vs(at(Location,c("3","4")),GCA2) +
-#                          vs(at(Location,c("3","4")),SCA),
-#               rcov = ~ vs(ds(Location),units),
+#               random = ~ vsr(atr(Location,c("3","4")),GCA2) +
+#                          vsr(atr(Location,c("3","4")),SCA),
+#               rcov = ~ vsr(dsr(Location),units),
 #               data=DT)
 # summary(out2)
 

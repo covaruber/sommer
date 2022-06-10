@@ -1,17 +1,17 @@
-\name{gvs}
-\alias{gvs}
+\name{gvsr}
+\alias{gvsr}
 \title{general variance structure specification}
 \description{
-  \code{gvs} function to build general variance-covariance structures for combination of random effects to be fitted in the \code{\link{mmer}} solver. 
+  \code{gvsr} function to build general variance-covariance structures for combination of random effects to be fitted in the \code{\link{mmer}} solver. 
 }
 \usage{
-  gvs(..., Gu=NULL, Guc=NULL, Gti=NULL, Gtc=NULL, form=NULL)
+  gvsr(..., Gu=NULL, Guc=NULL, Gti=NULL, Gtc=NULL, form=NULL)
 }
 
 \arguments{
   \item{...}{names of the random effects (variables in the dataset) to be used to create a general variance structure. For example, for 2 random effects (variables); mom and progeny, a model specified as:
   
-  \code{gvs(mom, progeny)}
+  \code{gvsr(mom, progeny)}
   
   will create a variance structure of the form:
   
@@ -25,7 +25,7 @@
 
   \item{Gu}{list of matrices with the known variance-covariance values for the levels of the different random effects provided in the "..." argument (i.e. relationship matrix among individuals or any other known covariance matrix). If NULL, then an identity matrix is assumed. For example, a model with 2 random effects with covariance structure should be provided as:
   
-  \code{gvs(mom, progeny, Gu=list(Am,Ap))}
+  \code{gvsr(mom, progeny, Gu=list(Am,Ap))}
   
   where \code{Am} and \code{Ap} are the relationship matrices for the random effects for mom and progeny respectively.
   
@@ -59,7 +59,7 @@ but the user can constrain which parameters should be estimated. Providing:
   
   \code{3: not to be estimated but fixed (value has to be provided in the Gti argument)}
   
-  In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense. Useful functions to specify constraints are; \code{\link{diag}}(), \code{\link{unsm}}(), \code{\link{uncm}}(), \code{\link{fixm}}().
+  In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense. Useful functions to specify constraints are; \code{\link{diag}}(), \code{\link{unsm}}(), \code{\link{fixm}}().
   }
   
   \item{form}{an additional structure to specify a kronecker product on top of the general covariance structure defined in the ... argument.}
@@ -102,14 +102,14 @@ An <- A_ige
 # 
 ### Indirect genetic effects model with covariance between DGE and IGE
 # modIGE <- mmer(trait ~ block,
-#               random = ~ gvs(focal, neighbour),
+#               random = ~ gvsr(focal, neighbour),
 #               rcov = ~ units, iters=4, 
 #               data = DT)
 # summary(modIGE)$varcomp
 #
 ### Indirect genetic effects model with covariance between DGE and IGE using relatioship matrices
 # modIGEb <- mmer(trait ~ block,
-#                random = ~ gvs(focal, neighbour, Gu=list(Af,An)),
+#                random = ~ gvsr(focal, neighbour, Gu=list(Af,An)),
 #                rcov = ~ units, 
 #                data = DT)
 # summary(modIGEb)$varcomp

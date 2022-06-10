@@ -87,18 +87,18 @@
       originalModelForMatricesSE <- mmer(fixed=object$call$fixed,
                                          # random=object$call$random,
                                          rcov=object$call$rcov,
-                                         data=object$dataOriginal, return.param = TRUE,#reshape.output =FALSE,
+                                         data=object$dataOriginal, returnParam = TRUE,#reshapeOutput =FALSE,
                                          init = object$sigma_scaled, constraints = object$constraints,
-                                         na.method.Y = object$call$na.method.Y,
-                                         na.method.X = object$call$na.method.X,...)
+                                         naMethodY = object$call$naMethodY,
+                                         naMethodX = object$call$naMethodX,...)
     }else{
       originalModelForMatricesSE <- mmer(fixed=object$call$fixed,
                                          random=object$call$random,
                                          rcov=object$call$rcov,
-                                         data=object$dataOriginal, return.param = TRUE,#reshape.output =FALSE,
+                                         data=object$dataOriginal, returnParam = TRUE,#reshapeOutput =FALSE,
                                          init = object$sigma_scaled, constraints = object$constraints,
-                                         na.method.Y = object$call$na.method.Y,
-                                         na.method.X = object$call$na.method.X,...)
+                                         naMethodY = object$call$naMethodY,
+                                         naMethodX = object$call$naMethodX,...)
     }
     # ##################################################
     ## hypertable summary
@@ -233,44 +233,44 @@
     modelForMatrices <- mmer(fixed=object$call$fixed,
                              # random=object$call$random,
                              rcov=object$call$rcov,
-                             data=DTX, return.param = TRUE,#reshape.results=TRUE,
-                             na.method.Y = object$call$na.method.Y,
-                             na.method.X = object$call$na.method.X,...)
+                             data=DTX, returnParam = TRUE,#reshape.results=TRUE,
+                             naMethodY = object$call$naMethodY,
+                             naMethodX = object$call$naMethodX,...)
     originalModel <- mmer(fixed=object$call$fixed,
                           # random=object$call$random,
                           rcov=object$call$rcov,
-                          data=object$dataOriginal, return.param = FALSE,reshape.output =FALSE,
+                          data=object$dataOriginal, returnParam = FALSE,reshapeOutput =FALSE,
                           init = object$sigma_scaled, constraints = object$constraints,
-                          na.method.Y = object$call$na.method.Y,
-                          na.method.X = object$call$na.method.X,...)
+                          naMethodY = object$call$naMethodY,
+                          naMethodX = object$call$naMethodX,...)
     originalModelForMatricesSE <- mmer(fixed=object$call$fixed,
                                        # random=object$call$random,
                                        rcov=object$call$rcov,
-                                       data=object$dataOriginal, return.param = TRUE,#reshape.output =FALSE,
+                                       data=object$dataOriginal, returnParam = TRUE,#reshapeOutput =FALSE,
                                        init = object$sigma_scaled, constraints = object$constraints,
-                                       na.method.Y = object$call$na.method.Y,
-                                       na.method.X = object$call$na.method.X,...)
+                                       naMethodY = object$call$naMethodY,
+                                       naMethodX = object$call$naMethodX,...)
   }else{
     modelForMatrices <- mmer(fixed=object$call$fixed,
                              random=object$call$random,
                              rcov=object$call$rcov,
-                             data=DTX, return.param = TRUE,#reshape.results=TRUE,
-                             na.method.Y = object$call$na.method.Y,
-                             na.method.X = object$call$na.method.X, ...)
+                             data=DTX, returnParam = TRUE,#reshape.results=TRUE,
+                             naMethodY = object$call$naMethodY,
+                             naMethodX = object$call$naMethodX, ...)
     originalModel <- mmer(fixed=object$call$fixed,
                           random=object$call$random,
                           rcov=object$call$rcov,
-                          data=object$dataOriginal, return.param = FALSE,reshape.output =FALSE,
+                          data=object$dataOriginal, returnParam = FALSE,reshapeOutput =FALSE,
                           init = object$sigma_scaled, constraints = object$constraints,
-                          na.method.Y = object$call$na.method.Y,
-                          na.method.X = object$call$na.method.X,...)
+                          naMethodY = object$call$naMethodY,
+                          naMethodX = object$call$naMethodX,...)
     originalModelForMatricesSE <- mmer(fixed=object$call$fixed,
                                        random=object$call$random,
                                        rcov=object$call$rcov,
-                                       data=object$dataOriginal, return.param = TRUE,#reshape.output =FALSE,
+                                       data=object$dataOriginal, returnParam = TRUE,#reshapeOutput =FALSE,
                                        init = object$sigma_scaled, constraints = object$constraints,
-                                       na.method.Y = object$call$na.method.Y,
-                                       na.method.X = object$call$na.method.X)
+                                       naMethodY = object$call$naMethodY,
+                                       naMethodX = object$call$naMethodX)
   }
   modelForMatrices$U <- originalModel$U
   modelForMatrices$PevU <- originalModel$PevU
@@ -555,31 +555,4 @@
   cat(blue(paste("\n Head of predictions:\n")
   ))
   head(x$pvals,...)
-}
-
-"head.predict.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
-  cat(blue(paste("
-    The predictions are obtained by averaging/aggregating across
-    the hypertable calculated from model terms constructed solely
-    from factors in the include sets. You can customize the model
-    terms used with the 'hypertable' argument. Current model terms used:\n")
-  ))
-  print(x$hypertable)
-  cat(blue(paste("\n Head of predictions:\n")
-  ))
-  head(x$pvals,...)
-}
-
-
-"tail.predict.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
-  cat(blue(paste("
-    The predictions are obtained by averaging/aggregating across
-    the hypertable calculated from model terms constructed solely
-    from factors in the include sets. You can customize the model
-    terms used with the 'hypertable' argument. Current model terms used:\n")
-  ))
-  print(x$hypertable)
-  cat(blue(paste("\n Tail of predictions:\n")
-  ))
-  tail(x$pvals,...)
 }

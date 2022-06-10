@@ -29,31 +29,29 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #### remove them and run the examples
 ####=========================================####
 
-data(DT_halfdiallel)
+data("DT_halfdiallel")
 DT <- DT_halfdiallel
 head(DT)
-
-####=========================================####
-####=========================================####
 DT$femalef <- as.factor(DT$female)
 DT$malef <- as.factor(DT$male)
 DT$genof <- as.factor(DT$geno)
+
+A <- diag(7); colnames(A) <- rownames(A) <- 1:7;A # if you want to provide a covariance matrix
 #### model using overlay
 modh <- mmer(sugar~1, 
-              random=~vs(overlay(femalef,malef)) + genof,
-              rcov=~units,
-              data=DT)
-summary(modh)
-#### model using overlay and covariance structures
+             random=~vsr(overlay(femalef,malef, sparse = FALSE), Gu=A) 
+             + genof,
+             data=DT)
+summary(modh)$varcomp
 
-A <- diag(7); A[1,2] <- 0.5; A[2,1] <- 0.5 # fake covariance structure
-colnames(A) <- as.character(1:7); rownames(A) <- colnames(A);A
+Ai <- as(solve(A + diag(1e-4,ncol(A),ncol(A))), Class="sparseMatrix")
+modhb <- mmec(sugar~1, 
+             random=~vsc(isc(overlay(femalef,malef, sparse = TRUE)), Gu=Ai) 
+             + genof,
+             data=DT)
+summary(modhb)$varcomp
 
-modh2 <- mmer(sugar~1, 
-              random=~ vs(overlay(female,male),Gu=A) + geno,
-              data=DT)
-summary(modh2)
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mmer}} and \code{\link{mmec}} }

@@ -2,7 +2,7 @@
 \alias{fixm}
 \title{fixed indication matrix}
 \description{
-  \code{fixm} creates a square matrix with 3's in the diagnals and off-diagonals to quickly specify a fixed constraint in the Gtc argument of the \code{\link{vs}} function.
+  \code{fixm} creates a square matrix with 3's in the diagnals and off-diagonals to quickly specify a fixed constraint in the Gtc argument of the \code{\link{vsr}} function.
 }
 \usage{
   fixm(x, reps=NULL)
@@ -15,7 +15,7 @@
 \value{
   \describe{
     
-    \item{$res}{ a matrix or a list of matrices with the constraints to be provided in the Gtc argument of the \code{\link{vs}} function.}
+    \item{$res}{ a matrix or a list of matrices with the constraints to be provided in the Gtc argument of the \code{\link{vsr}} function.}
   }
 }
 \references{
@@ -29,4 +29,4 @@
 fixm(4)
 fixm(4,2)
 }
-\seealso{The function \code{\link{vs}} to know how to use \code{fixm} in the \code{\link{mmer}} solver.}
+\seealso{The function \code{\link{vsr}} to know how to use \code{fixm} in the \code{\link{mmer}} solver.}

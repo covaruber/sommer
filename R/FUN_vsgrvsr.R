@@ -1,4 +1,4 @@
-vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
+vsr <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
   
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
@@ -282,7 +282,7 @@ vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
   return(S3)
 }
 
-gvs <- function(..., Gu=NULL, Guc=NULL, Gti=NULL, Gtc=NULL, form=NULL){ # general variance structures
+gvsr <- function(..., Gu=NULL, Guc=NULL, Gti=NULL, Gtc=NULL, form=NULL){ # general variance structures
   
   ## ... list of structures to define the random effect
   ## Gu the known covariance matrix of the vs

@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2022-05-10" />
+<meta name="date" content="2022-06-10" />
 
 <title>Quick start for the sommer package</title>
 
@@ -29,9 +29,42 @@ document.addEventListener('DOMContentLoaded', function(e) {
   }
 });
 </script>
+<script>// Hide empty <a> tag within highlighted CodeBlock for screen reader accessibility (see https://github.com/jgm/pandoc/issues/6352#issuecomment-626106786) -->
+// v0.0.1
+// Written by JooYoung Seo (jooyoung@psu.edu) and Atsushi Yasumoto on June 1st, 2020.
+
+document.addEventListener('DOMContentLoaded', function() {
+  const codeList = document.getElementsByClassName("sourceCode");
+  for (var i = 0; i < codeList.length; i++) {
+    var linkList = codeList[i].getElementsByTagName('a');
+    for (var j = 0; j < linkList.length; j++) {
+      if (linkList[j].innerHTML === "") {
+        linkList[j].setAttribute('aria-hidden', 'true');
+      }
+    }
+  }
+});
+</script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
 
 
-<style type="text/css">code{white-space: pre;}</style>
+
+<style type="text/css">
+  code {
+    white-space: pre;
+  }
+  .sourceCode {
+    overflow: visible;
+  }
+</style>
 <style type="text/css" data-origin="pandoc">
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
@@ -118,6 +151,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
   }
 })();
 </script>
+
 
 
 
@@ -315,7 +349,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Quick start for the sommer package</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2022-05-10</h4>
+<h4 class="date">2022-06-10</h4>
 
 
 
@@ -332,20 +366,18 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <li>Univariate heterogeneous variance models</li>
 <li>Univariate unstructured variance models</li>
 <li>Multivariate homogeneous variance models</li>
-<li>Multivariate heterogeneous variance models</li>
-<li>Multivariate unstructured variance models</li>
 <li>Details on special functions for variance models
 <ul>
-<li>the major vs() function for special variance models and its auxiliars:</li>
-<li>at() specific levels heterogeneous variance structure</li>
-<li>ds() diagonal covariance structure</li>
-<li>us() unstructured covariance</li>
-<li>cs() customized covariance structure</li>
+<li>the major vsr() and vsc() functions for special variance models and its auxiliars:</li>
+<li>atr() and atc() specific levels heterogeneous variance structure</li>
+<li>dsr() and dsc() diagonal covariance structure</li>
+<li>usr() and usc() unstructured covariance</li>
+<li>csr() and csc() customized covariance structure</li>
+<li>isc() function for main effects</li>
 </ul></li>
-<li>The specification of constraints in the variance components (Gtc argument)
+<li>The specification of constraints in the variance-covariance structures
 <ul>
 <li>unsm() unstructured constraint</li>
-<li>uncm() unconstrained</li>
 <li>fixm() fixed constraint</li>
 <li>fcm() constraints on fixed effects</li>
 </ul></li>
@@ -495,331 +527,159 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <pre><code>## Loading required package: crayon</code></pre>
 <div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1"></a><span class="kw">data</span>(DT_example)</span>
 <span id="cb6-2"><a href="#cb6-2"></a>DT &lt;-<span class="st"> </span>DT_example</span>
-<span id="cb6-3"><a href="#cb6-3"></a></span>
-<span id="cb6-4"><a href="#cb6-4"></a>ans1 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span>Env,</span>
+<span id="cb6-3"><a href="#cb6-3"></a><span class="co">## solving for r records</span></span>
+<span id="cb6-4"><a href="#cb6-4"></a>ans1r &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span>Env,</span>
 <span id="cb6-5"><a href="#cb6-5"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span>Name <span class="op">+</span><span class="st"> </span>Env<span class="op">:</span>Name,</span>
 <span id="cb6-6"><a href="#cb6-6"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
 <span id="cb6-7"><a href="#cb6-7"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb6-8"><a href="#cb6-8"></a><span class="kw">summary</span>(ans1)</span></code></pre></div>
-<pre><code>## ============================================================
-##          Multivariate Linear Mixed Model fit by REML         
-## **********************  sommer 4.1  ********************** 
-## ============================================================
-##          logLik      AIC      BIC Method Converge
-## Value -20.14538 46.29075 55.95182     NR     TRUE
-## ============================================================
-## Variance-Covariance components:
-##                      VarComp VarCompSE Zratio Constraint
-## Name.Yield-Yield       3.682     1.691  2.177   Positive
-## Env:Name.Yield-Yield   5.173     1.495  3.460   Positive
-## units.Yield-Yield      4.366     0.647  6.748   Positive
-## ============================================================
-## Fixed effects:
-##   Trait      Effect Estimate Std.Error t.value
-## 1 Yield (Intercept)   16.496    0.6855  24.065
-## 2 Yield  EnvCA.2012   -5.777    0.7558  -7.643
-## 3 Yield  EnvCA.2013   -6.380    0.7960  -8.015
-## ============================================================
-## Groups and observations:
-##          Yield
-## Name        41
-## Env:Name   123
-## ============================================================
-## Use the &#39;$&#39; sign to access results and parameters</code></pre>
+<span id="cb6-8"><a href="#cb6-8"></a><span class="kw">summary</span>(ans1r)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                       VarComp VarCompSE   Zratio Constraint
+## Name.Yield-Yield     3.681877 1.6909561 2.177394   Positive
+## Env:Name.Yield-Yield 5.173062 1.4952313 3.459707   Positive
+## units.Yield-Yield    4.366285 0.6470458 6.748031   Positive</code></pre>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a><span class="co">## solving for c coefficients</span></span>
+<span id="cb8-2"><a href="#cb8-2"></a>ans1c &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
+<span id="cb8-3"><a href="#cb8-3"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span>Name <span class="op">+</span><span class="st"> </span>Env<span class="op">:</span>Name,</span>
+<span id="cb8-4"><a href="#cb8-4"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
+<span id="cb8-5"><a href="#cb8-5"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb8-6"><a href="#cb8-6"></a><span class="kw">summary</span>(ans1c)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                   VarComp VarCompSE   Zratio Constraint
+## Name:isc:isc     3.702831  1.698858 2.179600   Positive
+## Env:Name:isc:isc 5.132119  1.875676 2.736143   Positive
+## units:isc:isc    4.465685  1.611163 2.771715   Positive</code></pre>
 </div>
 <div id="univariate-heterogeneous-variance-models" class="section level3">
 <h3>2) Univariate heterogeneous variance models</h3>
 <p>Very often in multi-environment trials, the assumption that the genetic variance or the residual variance is the same across locations may be too naive. Because of that, specifying a general genetic component and a location specific genetic variance is the way to go. This requires a CS+DIAG model (also called heterogeneous CS model).</p>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a><span class="kw">data</span>(DT_example)</span>
-<span id="cb8-2"><a href="#cb8-2"></a>DT &lt;-<span class="st"> </span>DT_example</span>
-<span id="cb8-3"><a href="#cb8-3"></a></span>
-<span id="cb8-4"><a href="#cb8-4"></a>ans2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span>Env,</span>
-<span id="cb8-5"><a href="#cb8-5"></a>              <span class="dt">random=</span> <span class="op">~</span>Name <span class="op">+</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">ds</span>(Env),Name),</span>
-<span id="cb8-6"><a href="#cb8-6"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">ds</span>(Env),units),</span>
-<span id="cb8-7"><a href="#cb8-7"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb8-8"><a href="#cb8-8"></a><span class="kw">summary</span>(ans2)</span></code></pre></div>
-<pre><code>## ============================================================
-##          Multivariate Linear Mixed Model fit by REML         
-## **********************  sommer 4.1  ********************** 
-## ============================================================
-##          logLik      AIC      BIC Method Converge
-## Value -15.42983 36.85965 46.52072     NR     TRUE
-## ============================================================
-## Variance-Covariance components:
-##                           VarComp VarCompSE Zratio Constraint
-## Name.Yield-Yield            2.963     1.496  1.980   Positive
-## CA.2011:Name.Yield-Yield   10.146     4.507  2.251   Positive
-## CA.2012:Name.Yield-Yield    1.878     1.870  1.004   Positive
-## CA.2013:Name.Yield-Yield    6.629     2.503  2.649   Positive
-## CA.2011:units.Yield-Yield   4.942     1.525  3.242   Positive
-## CA.2012:units.Yield-Yield   5.725     1.312  4.363   Positive
-## CA.2013:units.Yield-Yield   2.560     0.640  4.000   Positive
-## ============================================================
-## Fixed effects:
-##   Trait      Effect Estimate Std.Error t.value
-## 1 Yield (Intercept)   16.508    0.8268  19.965
-## 2 Yield  EnvCA.2012   -5.817    0.8575  -6.783
-## 3 Yield  EnvCA.2013   -6.412    0.9356  -6.854
-## ============================================================
-## Groups and observations:
-##              Yield
-## Name            41
-## CA.2011:Name    41
-## CA.2012:Name    41
-## CA.2013:Name    41
-## ============================================================
-## Use the &#39;$&#39; sign to access results and parameters</code></pre>
-<p>As you can see the special function <code>at</code> or <code>diag</code> can be used to indicate that there’s a different variance for the genotypes in each environment. The same was done for the residual. The difference between <code>at</code> and <code>diag</code> is that the <code>at</code> function can be used to specify the levels or specific environments where the variance is different.</p>
-</div>
-<div id="unstructured-variance-models" class="section level3">
-<h3>3) Unstructured variance models</h3>
-<p>A more relaxed asumption than the CS+DIAG model is the unstructured model (US) which assumes that among the levels of certain factor (i.e. Environments) there’s a covariance struture of a second random effect (i.e. Genotypes). This can be done in sommer using the <code>us(.)</code> function:</p>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1"></a><span class="kw">data</span>(DT_example)</span>
 <span id="cb10-2"><a href="#cb10-2"></a>DT &lt;-<span class="st"> </span>DT_example</span>
 <span id="cb10-3"><a href="#cb10-3"></a></span>
-<span id="cb10-4"><a href="#cb10-4"></a>ans3 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span>Env,</span>
-<span id="cb10-5"><a href="#cb10-5"></a>             <span class="dt">random=</span><span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">us</span>(Env),Name),</span>
-<span id="cb10-6"><a href="#cb10-6"></a>             <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vs</span>(<span class="kw">us</span>(Env),units), </span>
-<span id="cb10-7"><a href="#cb10-7"></a>             <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb10-8"><a href="#cb10-8"></a><span class="kw">summary</span>(ans3)</span></code></pre></div>
-<pre><code>## ===================================================================
-##              Multivariate Linear Mixed Model fit by REML             
-## **************************  sommer 4.1  ************************** 
-## ===================================================================
-##          logLik      AIC      BIC Method Converge
-## Value -11.49971 28.99943 38.66049     NR     TRUE
-## ===================================================================
-## Variance-Covariance components:
-##                                   VarComp VarCompSE    Zratio Constraint
-## CA.2011:Name.Yield-Yield           15.665 5.421e+00 2.890e+00   Positive
-## CA.2012:CA.2011:Name.Yield-Yield    6.110 2.485e+00 2.459e+00   Unconstr
-## CA.2012:Name.Yield-Yield            4.530 1.821e+00 2.488e+00   Positive
-## CA.2013:CA.2011:Name.Yield-Yield    6.384 3.066e+00 2.082e+00   Unconstr
-## CA.2013:CA.2012:Name.Yield-Yield    0.393 1.523e+00 2.580e-01   Unconstr
-## CA.2013:Name.Yield-Yield            8.597 2.484e+00 3.461e+00   Positive
-## CA.2011:units.Yield-Yield           4.970 1.532e+00 3.243e+00   Positive
-## CA.2012:CA.2011:units.Yield-Yield   4.087 3.360e-16 1.217e+16   Unconstr
-## CA.2012:units.Yield-Yield           5.673 1.301e+00 4.361e+00   Positive
-## CA.2013:CA.2011:units.Yield-Yield   4.087 0.000e+00       Inf   Unconstr
-## CA.2013:CA.2012:units.Yield-Yield   4.087 0.000e+00       Inf   Unconstr
-## CA.2013:units.Yield-Yield           2.557 6.393e-01 4.000e+00   Positive
-## ===================================================================
-## Fixed effects:
-##   Trait      Effect Estimate Std.Error t.value
-## 1 Yield (Intercept)   16.331    0.8137  20.070
-## 2 Yield  EnvCA.2012   -5.696    0.7404  -7.693
-## 3 Yield  EnvCA.2013   -6.271    0.8191  -7.656
-## ===================================================================
-## Groups and observations:
-##                      Yield
-## CA.2011:Name            41
-## CA.2012:CA.2011:Name    82
-## CA.2012:Name            41
-## CA.2013:CA.2011:Name    82
-## CA.2013:CA.2012:Name    82
-## CA.2013:Name            41
-## ===================================================================
-## Use the &#39;$&#39; sign to access results and parameters</code></pre>
-<p>As can be seen the <code>us(Env)</code> indicates that the genotypes (Name) can have a covariance structure among environments (Env).</p>
+<span id="cb10-4"><a href="#cb10-4"></a>ans2r &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span>Env,</span>
+<span id="cb10-5"><a href="#cb10-5"></a>              <span class="dt">random=</span> <span class="op">~</span>Name <span class="op">+</span><span class="st"> </span><span class="kw">vsr</span>(<span class="kw">dsr</span>(Env),Name),</span>
+<span id="cb10-6"><a href="#cb10-6"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(<span class="kw">dsr</span>(Env),units),</span>
+<span id="cb10-7"><a href="#cb10-7"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb10-8"><a href="#cb10-8"></a><span class="kw">summary</span>(ans2r)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                             VarComp VarCompSE   Zratio Constraint
+## Name.Yield-Yield           2.962851 1.4962000 1.980251   Positive
+## CA.2011:Name.Yield-Yield  10.146369 4.5073271 2.251083   Positive
+## CA.2012:Name.Yield-Yield   1.877530 1.8697568 1.004158   Positive
+## CA.2013:Name.Yield-Yield   6.629152 2.5028114 2.648682   Positive
+## CA.2011:units.Yield-Yield  4.942450 1.5245057 3.242001   Positive
+## CA.2012:units.Yield-Yield  5.724963 1.3123015 4.362536   Positive
+## CA.2013:units.Yield-Yield  2.559880 0.6399685 4.000010   Positive</code></pre>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1"></a>DT=DT[<span class="kw">with</span>(DT, <span class="kw">order</span>(Env)), ]</span>
+<span id="cb12-2"><a href="#cb12-2"></a>ans2c &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
+<span id="cb12-3"><a href="#cb12-3"></a>              <span class="dt">random=</span> <span class="op">~</span>Name <span class="op">+</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">dsc</span>(Env),<span class="kw">isc</span>(Name)),</span>
+<span id="cb12-4"><a href="#cb12-4"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">dsc</span>(Env),<span class="kw">isc</span>(units)),</span>
+<span id="cb12-5"><a href="#cb12-5"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb12-6"><a href="#cb12-6"></a><span class="kw">summary</span>(ans2c)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                             VarComp VarCompSE   Zratio Constraint
+## Name:isc:isc               2.969457 1.3199316 2.249705   Positive
+## Env:Name:CA.2011:CA.2011  10.113270 4.2317594 2.389850   Positive
+## Env:Name:CA.2012:CA.2012   1.874589 1.3918727 1.346810   Positive
+## Env:Name:CA.2013:CA.2013   6.625506 2.3850257 2.777960   Positive
+## Env:units:CA.2011:CA.2011  4.953675 1.3389505 3.699670   Positive
+## Env:units:CA.2012:CA.2012  5.725455 1.2010534 4.767027   Positive
+## Env:units:CA.2013:CA.2013  2.561167 0.5872852 4.361029   Positive</code></pre>
+<p>As you can see the special function <code>atr</code> or <code>diag</code> can be used to indicate that there’s a different variance for the genotypes in each environment. The same was done for the residual. The difference between <code>atr</code> and <code>diag</code> is that the <code>atr</code> function can be used to specify the levels or specific environments where the variance is different.</p>
+</div>
+<div id="unstructured-variance-models" class="section level3">
+<h3>3) Unstructured variance models</h3>
+<p>A more relaxed asumption than the CS+DIAG model is the unstructured model (US) which assumes that among the levels of certain factor (i.e. Environments) there’s a covariance struture of a second random effect (i.e. Genotypes). This can be done in sommer using the <code>usr(.)</code> function:</p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1"></a><span class="kw">data</span>(DT_example)</span>
+<span id="cb14-2"><a href="#cb14-2"></a>DT &lt;-<span class="st"> </span>DT_example</span>
+<span id="cb14-3"><a href="#cb14-3"></a></span>
+<span id="cb14-4"><a href="#cb14-4"></a>ans3r &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span>Env,</span>
+<span id="cb14-5"><a href="#cb14-5"></a>             <span class="dt">random=</span><span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(<span class="kw">usr</span>(Env),Name),</span>
+<span id="cb14-6"><a href="#cb14-6"></a>             <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vsr</span>(<span class="kw">dsr</span>(Env),units), </span>
+<span id="cb14-7"><a href="#cb14-7"></a>             <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb14-8"><a href="#cb14-8"></a><span class="kw">summary</span>(ans3r)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                                     VarComp VarCompSE    Zratio Constraint
+## CA.2011:Name.Yield-Yield         15.6650010 5.4206906 2.8898534   Positive
+## CA.2012:CA.2011:Name.Yield-Yield  6.1101600 2.4850649 2.4587527   Unconstr
+## CA.2012:Name.Yield-Yield          4.5296090 1.8208107 2.4876881   Positive
+## CA.2013:CA.2011:Name.Yield-Yield  6.3844808 3.0658977 2.0824181   Unconstr
+## CA.2013:CA.2012:Name.Yield-Yield  0.3929997 1.5233985 0.2579757   Unconstr
+## CA.2013:Name.Yield-Yield          8.5972750 2.4837814 3.4613654   Positive
+## CA.2011:units.Yield-Yield         4.9698460 1.5322540 3.2434870   Positive
+## CA.2012:units.Yield-Yield         5.6729333 1.3007862 4.3611574   Positive
+## CA.2013:units.Yield-Yield         2.5570940 0.6392821 3.9999462   Positive</code></pre>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1"></a>DT=DT[<span class="kw">with</span>(DT, <span class="kw">order</span>(Env)), ]</span>
+<span id="cb16-2"><a href="#cb16-2"></a>ans3c &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
+<span id="cb16-3"><a href="#cb16-3"></a>             <span class="dt">random=</span><span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">usc</span>(Env),<span class="kw">isc</span>(Name)),</span>
+<span id="cb16-4"><a href="#cb16-4"></a>             <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vsc</span>(<span class="kw">dsc</span>(Env),<span class="kw">isc</span>(units)), </span>
+<span id="cb16-5"><a href="#cb16-5"></a>             <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb16-6"><a href="#cb16-6"></a><span class="kw">summary</span>(ans3c)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                              VarComp VarCompSE    Zratio Constraint
+## Env:Name:CA.2011:CA.2011  14.1130508 3.3683933 4.1898465   Positive
+## Env:Name:CA.2011:CA.2012   5.5944492 1.8671243 2.9962918   Unconstr
+## Env:Name:CA.2012:CA.2012   4.5127684 2.1142814 2.1344218   Positive
+## Env:Name:CA.2011:CA.2013   5.3289701 1.5511329 3.4355342   Unconstr
+## Env:Name:CA.2012:CA.2013   0.4846585 0.5041710 0.9612979   Unconstr
+## Env:Name:CA.2013:CA.2013   8.0187930 2.0507668 3.9101439   Positive
+## Env:units:CA.2011:CA.2011  4.9579597 1.3321121 3.7218788   Positive
+## Env:units:CA.2012:CA.2012  5.6456207 1.2075559 4.6752459   Positive
+## Env:units:CA.2013:CA.2013  2.5572308 0.5849091 4.3720144   Positive</code></pre>
+<p>As can be seen the <code>usr(Env)</code> indicates that the genotypes (Name) can have a covariance structure among environments (Env).</p>
 </div>
 <div id="multivariate-homogeneous-variance-models" class="section level3">
 <h3>4) Multivariate homogeneous variance models</h3>
-<p>Currently there’s a great push for multi-response models. This is motivated by the correlation that certain variables hide and that could benefit in the prediction perspective. In sommer to specify multivariate models the response requires the use of the <code>cbind()</code> function in the response, and the <code>us(trait)</code>, <code>diag(trait)</code>, or <code>at(trait)</code> functions in the random part of the model.</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1"></a><span class="kw">data</span>(DT_example)</span>
-<span id="cb12-2"><a href="#cb12-2"></a>DT &lt;-<span class="st"> </span>DT_example</span>
-<span id="cb12-3"><a href="#cb12-3"></a>DT<span class="op">$</span>EnvName &lt;-<span class="st"> </span><span class="kw">paste</span>(DT<span class="op">$</span>Env,DT<span class="op">$</span>Name)</span>
-<span id="cb12-4"><a href="#cb12-4"></a></span>
-<span id="cb12-5"><a href="#cb12-5"></a>ans4 &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(Yield, Weight) <span class="op">~</span><span class="st"> </span>Env,</span>
-<span id="cb12-6"><a href="#cb12-6"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(Name, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)) <span class="op">+</span><span class="st"> </span><span class="kw">vs</span>(EnvName, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)),</span>
-<span id="cb12-7"><a href="#cb12-7"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(units, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)),</span>
-<span id="cb12-8"><a href="#cb12-8"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb12-9"><a href="#cb12-9"></a><span class="kw">summary</span>(ans4)</span></code></pre></div>
-<pre><code>## ============================================================
-##          Multivariate Linear Mixed Model fit by REML         
-## **********************  sommer 4.1  ********************** 
-## ============================================================
-##         logLik       AIC       BIC Method Converge
-## Value 167.0252 -322.0505 -298.5695     NR     TRUE
-## ============================================================
-## Variance-Covariance components:
-##                         VarComp VarCompSE Zratio Constraint
-## u:Name.Yield-Yield       3.7089   1.68117  2.206   Positive
-## u:Name.Yield-Weight      0.9071   0.37944  2.391   Unconstr
-## u:Name.Weight-Weight     0.2243   0.08775  2.557   Positive
-## u:EnvName.Yield-Yield    5.0921   1.47879  3.443   Positive
-## u:EnvName.Yield-Weight   1.0269   0.30767  3.338   Unconstr
-## u:EnvName.Weight-Weight  0.2101   0.06661  3.154   Positive
-## u:units.Yield-Yield      4.3837   0.64941  6.750   Positive
-## u:units.Yield-Weight     0.9077   0.14145  6.417   Unconstr
-## u:units.Weight-Weight    0.2280   0.03377  6.751   Positive
-## ============================================================
-## Fixed effects:
-##    Trait      Effect Estimate Std.Error t.value
-## 1  Yield (Intercept)  16.4093    0.6783  24.191
-## 2 Weight (Intercept)   0.9806    0.1497   6.550
-## 3  Yield  EnvCA.2012  -5.6844    0.7474  -7.606
-## 4 Weight  EnvCA.2012  -1.1846    0.1593  -7.439
-## 5  Yield  EnvCA.2013  -6.2952    0.7850  -8.019
-## 6 Weight  EnvCA.2013  -1.3559    0.1681  -8.065
-## ============================================================
-## Groups and observations:
-##           Yield Weight
-## u:Name       41     41
-## u:EnvName    94     94
-## ============================================================
-## Use the &#39;$&#39; sign to access results and parameters</code></pre>
-<p>You may notice that we have added the <code>us(trait)</code> behind the random effects. This is to indicate the structure that should be assumed in the multivariate model. The <code>diag(trait)</code> used behind a random effect (i.e. Name) indicates that for the traits modeled (Yield and Weight) there’s no covariance component and should not be estimated, whereas <code>us(trait)</code> assumes that for such a random effect, there’s a covariance component to be estimated (i.e. covariance between Yield and Weight for the random effect Name). The same applies for the residual part (rcov).</p>
-</div>
-<div id="multivariate-heterogeneous-variance-models" class="section level3">
-<h3>5) Multivariate heterogeneous variance models</h3>
-<p>This is just an extension of the univariate heterogeneous variance models but at the multivariate level. This would be a CS+DIAG multivariate model:</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1"></a><span class="kw">data</span>(DT_example)</span>
-<span id="cb14-2"><a href="#cb14-2"></a>DT &lt;-<span class="st"> </span>DT_example</span>
-<span id="cb14-3"><a href="#cb14-3"></a>DT<span class="op">$</span>EnvName &lt;-<span class="st"> </span><span class="kw">paste</span>(DT<span class="op">$</span>Env,DT<span class="op">$</span>Name)</span>
-<span id="cb14-4"><a href="#cb14-4"></a></span>
-<span id="cb14-5"><a href="#cb14-5"></a>ans5 &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(Yield, Weight) <span class="op">~</span><span class="st"> </span>Env,</span>
-<span id="cb14-6"><a href="#cb14-6"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(Name, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)) <span class="op">+</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">ds</span>(Env),Name, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)),</span>
-<span id="cb14-7"><a href="#cb14-7"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">ds</span>(Env),units, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)),</span>
-<span id="cb14-8"><a href="#cb14-8"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb14-9"><a href="#cb14-9"></a><span class="kw">summary</span>(ans5)</span></code></pre></div>
-<pre><code>## =============================================================
-##           Multivariate Linear Mixed Model fit by REML          
-## **********************  sommer 4.1  ********************** 
-## =============================================================
-##         logLik       AIC       BIC Method Converge
-## Value 177.8154 -343.6308 -320.1497     NR     TRUE
-## =============================================================
-## Variance-Covariance components:
-##                             VarComp VarCompSE Zratio Constraint
-## u:Name.Yield-Yield          3.31936   1.45269 2.2850   Positive
-## u:Name.Yield-Weight         0.79393   0.32621 2.4338   Unconstr
-## u:Name.Weight-Weight        0.19085   0.07503 2.5438   Positive
-## CA.2011:Name.Yield-Yield    8.70657   4.01470 2.1687   Positive
-## CA.2011:Name.Yield-Weight   1.77892   0.83926 2.1196   Unconstr
-## CA.2011:Name.Weight-Weight  0.35966   0.17903 2.0089   Positive
-## CA.2012:Name.Yield-Yield    2.57109   1.94951 1.3188   Positive
-## CA.2012:Name.Yield-Weight   0.33245   0.39840 0.8345   Unconstr
-## CA.2012:Name.Weight-Weight  0.03842   0.08595 0.4470   Positive
-## CA.2013:Name.Yield-Yield    5.46908   2.16307 2.5284   Positive
-## CA.2013:Name.Yield-Weight   1.34713   0.50479 2.6687   Unconstr
-## CA.2013:Name.Weight-Weight  0.32902   0.12208 2.6952   Positive
-## CA.2011:units.Yield-Yield   4.93852   1.52318 3.2422   Positive
-## CA.2011:units.Yield-Weight  0.99447   0.32150 3.0932   Unconstr
-## CA.2011:units.Weight-Weight 0.23982   0.07394 3.2433   Positive
-## CA.2012:units.Yield-Yield   5.73887   1.31533 4.3631   Positive
-## CA.2012:units.Yield-Weight  1.28009   0.30157 4.2448   Unconstr
-## CA.2012:units.Weight-Weight 0.31806   0.07286 4.3652   Positive
-## CA.2013:units.Yield-Yield   2.56127   0.63993 4.0024   Positive
-## CA.2013:units.Yield-Weight  0.44569   0.12645 3.5246   Unconstr
-## CA.2013:units.Weight-Weight 0.12232   0.03057 4.0009   Positive
-## =============================================================
-## Fixed effects:
-##    Trait      Effect Estimate Std.Error t.value
-## 1  Yield (Intercept)  16.4243    0.7891  20.815
-## 2 Weight (Intercept)   0.9866    0.1683   5.863
-## 3  Yield  EnvCA.2012  -5.7339    0.8266  -6.937
-## 4 Weight  EnvCA.2012  -1.1998    0.1698  -7.066
-## 5  Yield  EnvCA.2013  -6.3128    0.8757  -7.209
-## 6 Weight  EnvCA.2013  -1.3621    0.1915  -7.114
-## =============================================================
-## Groups and observations:
-##              Yield Weight
-## u:Name          41     41
-## CA.2011:Name    41     41
-## CA.2012:Name    41     41
-## CA.2013:Name    41     41
-## =============================================================
-## Use the &#39;$&#39; sign to access results and parameters</code></pre>
-</div>
-<div id="multivariate-unstructured-variance-models" class="section level3">
-<h3>6) Multivariate unstructured variance models</h3>
-<p>This is just an extension of the univariate unstructured variance model but at the multivariate level. This would be a US multivariate model:</p>
-<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1"></a><span class="kw">data</span>(DT_example)</span>
-<span id="cb16-2"><a href="#cb16-2"></a>DT &lt;-<span class="st"> </span>DT_example</span>
-<span id="cb16-3"><a href="#cb16-3"></a>DT<span class="op">$</span>EnvName &lt;-<span class="st"> </span><span class="kw">paste</span>(DT<span class="op">$</span>Env,DT<span class="op">$</span>Name)</span>
-<span id="cb16-4"><a href="#cb16-4"></a></span>
-<span id="cb16-5"><a href="#cb16-5"></a>ans6 &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(Yield, Weight) <span class="op">~</span><span class="st"> </span>Env,</span>
-<span id="cb16-6"><a href="#cb16-6"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">us</span>(Env),Name, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)),</span>
-<span id="cb16-7"><a href="#cb16-7"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">ds</span>(Env),units, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)),</span>
-<span id="cb16-8"><a href="#cb16-8"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb16-9"><a href="#cb16-9"></a><span class="kw">summary</span>(ans6)</span></code></pre></div>
-<pre><code>## ====================================================================
-##              Multivariate Linear Mixed Model fit by REML             
-## **************************  sommer 4.1  ************************** 
-## ====================================================================
-##         logLik       AIC       BIC Method Converge
-## Value 181.7945 -351.5889 -328.1079     NR     TRUE
-## ====================================================================
-## Variance-Covariance components:
-##                                    VarComp VarCompSE Zratio Constraint
-## CA.2011:Name.Yield-Yield           15.6451   5.35692  2.921   Positive
-## CA.2011:Name.Yield-Weight           3.3586   1.14633  2.930   Unconstr
-## CA.2011:Name.Weight-Weight          0.7182   0.24871  2.888   Positive
-## CA.2012:CA.2011:Name.Yield-Yield    6.5289   2.48615  2.626   Positive
-## CA.2012:CA.2011:Name.Yield-Weight   1.3505   0.52388  2.578   Unconstr
-## CA.2012:CA.2011:Name.Weight-Weight  0.2842   0.11259  2.524   Positive
-## CA.2012:Name.Yield-Yield            4.7893   1.86183  2.572   Positive
-## CA.2012:Name.Yield-Weight           0.8640   0.38377  2.251   Unconstr
-## CA.2012:Name.Weight-Weight          0.1693   0.08354  2.027   Positive
-## CA.2013:CA.2011:Name.Yield-Yield    5.9934   2.93830  2.040   Positive
-## CA.2013:CA.2011:Name.Yield-Weight   1.4232   0.64973  2.190   Unconstr
-## CA.2013:CA.2011:Name.Weight-Weight  0.3379   0.14680  2.302   Positive
-## CA.2013:CA.2012:Name.Yield-Yield    2.0987   1.44034  1.457   Positive
-## CA.2013:CA.2012:Name.Yield-Weight   0.5240   0.32356  1.619   Unconstr
-## CA.2013:CA.2012:Name.Weight-Weight  0.1342   0.07572  1.772   Positive
-## CA.2013:Name.Yield-Yield            8.6257   2.47811  3.481   Positive
-## CA.2013:Name.Yield-Weight           2.1048   0.58748  3.583   Unconstr
-## CA.2013:Name.Weight-Weight          0.5125   0.14285  3.588   Positive
-## CA.2011:units.Yield-Yield           4.9516   1.52694  3.243   Positive
-## CA.2011:units.Yield-Weight          0.9993   0.32286  3.095   Unconstr
-## CA.2011:units.Weight-Weight         0.2411   0.07432  3.244   Positive
-## CA.2012:units.Yield-Yield           5.7790   1.32423  4.364   Positive
-## CA.2012:units.Yield-Weight          1.2914   0.30408  4.247   Unconstr
-## CA.2012:units.Weight-Weight         0.3212   0.07356  4.366   Positive
-## CA.2013:units.Yield-Yield           2.5567   0.63883  4.002   Positive
-## CA.2013:units.Yield-Weight          0.4452   0.12631  3.524   Unconstr
-## CA.2013:units.Weight-Weight         0.1223   0.03056  4.001   Positive
-## ====================================================================
-## Fixed effects:
-##    Trait      Effect Estimate Std.Error t.value
-## 1  Yield (Intercept)  16.3342    0.8254  19.790
-## 2 Weight (Intercept)   0.9677    0.1770   5.466
-## 3  Yield  EnvCA.2012  -5.6637    0.7449  -7.604
-## 4 Weight  EnvCA.2012  -1.1855    0.1604  -7.390
-## 5  Yield  EnvCA.2013  -6.2153    0.8340  -7.453
-## 6 Weight  EnvCA.2013  -1.3406    0.1806  -7.425
-## ====================================================================
-## Groups and observations:
-##                      Yield Weight
-## CA.2011:Name            41     41
-## CA.2012:CA.2011:Name    82     82
-## CA.2012:Name            41     41
-## CA.2013:CA.2011:Name    82     82
-## CA.2013:CA.2012:Name    82     82
-## CA.2013:Name            41     41
-## ====================================================================
-## Use the &#39;$&#39; sign to access results and parameters</code></pre>
+<p>Currently there’s a great push for multi-response models. This is motivated by the correlation that certain variables hide and that could benefit in the prediction perspective. In sommer to specify multivariate models the response requires the use of the <code>cbind()</code> function in the response, and the <code>usr(trait)</code>, <code>diag(trait)</code>, or <code>atr(trait)</code> functions in the random part of the model.</p>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1"></a><span class="kw">data</span>(DT_example)</span>
+<span id="cb18-2"><a href="#cb18-2"></a>DT &lt;-<span class="st"> </span>DT_example</span>
+<span id="cb18-3"><a href="#cb18-3"></a>DT<span class="op">$</span>EnvName &lt;-<span class="st"> </span><span class="kw">paste</span>(DT<span class="op">$</span>Env,DT<span class="op">$</span>Name)</span>
+<span id="cb18-4"><a href="#cb18-4"></a></span>
+<span id="cb18-5"><a href="#cb18-5"></a>DT<span class="op">$</span>Yield &lt;-<span class="st"> </span><span class="kw">as.vector</span>(<span class="kw">scale</span>(DT<span class="op">$</span>Yield))</span>
+<span id="cb18-6"><a href="#cb18-6"></a>DT<span class="op">$</span>Weight &lt;-<span class="st"> </span><span class="kw">as.vector</span>(<span class="kw">scale</span>(DT<span class="op">$</span>Weight))</span>
+<span id="cb18-7"><a href="#cb18-7"></a></span>
+<span id="cb18-8"><a href="#cb18-8"></a>ans4r &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(Yield, Weight) <span class="op">~</span><span class="st"> </span>Env,</span>
+<span id="cb18-9"><a href="#cb18-9"></a>             <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(Name, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)),</span>
+<span id="cb18-10"><a href="#cb18-10"></a>             <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(units, <span class="dt">Gtc=</span><span class="kw">diag</span>(<span class="dv">2</span>)),</span>
+<span id="cb18-11"><a href="#cb18-11"></a>             <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb18-12"><a href="#cb18-12"></a><span class="kw">summary</span>(ans4r)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                         VarComp  VarCompSE   Zratio Constraint
+## u:Name.Yield-Yield    0.2448029 0.07278135 3.363540   Positive
+## u:Name.Yield-Weight   0.3177637 0.07457957 4.260733   Unconstr
+## u:Name.Weight-Weight  0.2813217 0.08054357 3.492789   Positive
+## u:units.Yield-Yield   0.3725767 0.04331247 8.602066   Positive
+## u:units.Weight-Weight 0.3586951 0.04189443 8.561882   Positive</code></pre>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1"></a>DT2 &lt;-<span class="st"> </span><span class="kw">reshape</span>(DT, <span class="dt">idvar =</span> <span class="kw">c</span>(<span class="st">&quot;Name&quot;</span>,<span class="st">&quot;Env&quot;</span>,<span class="st">&quot;Block&quot;</span>), <span class="dt">varying =</span> <span class="kw">list</span>(<span class="dv">6</span><span class="op">:</span><span class="dv">7</span>),</span>
+<span id="cb20-2"><a href="#cb20-2"></a>        <span class="dt">v.names =</span> <span class="st">&quot;y&quot;</span>, <span class="dt">direction =</span> <span class="st">&quot;long&quot;</span>, <span class="dt">timevar =</span> <span class="st">&quot;trait&quot;</span>, <span class="dt">times =</span> <span class="kw">colnames</span>(DT)[<span class="dv">6</span><span class="op">:</span><span class="dv">7</span>])</span>
+<span id="cb20-3"><a href="#cb20-3"></a>DT2<span class="op">$</span>trait &lt;-<span class="st"> </span><span class="kw">as.factor</span>(DT2<span class="op">$</span>trait)</span>
+<span id="cb20-4"><a href="#cb20-4"></a></span>
+<span id="cb20-5"><a href="#cb20-5"></a><span class="co"># ans4c &lt;- mmec(y ~ Env:trait,</span></span>
+<span id="cb20-6"><a href="#cb20-6"></a><span class="co">#              random= ~ vsc(usc(trait),isc(Name)),</span></span>
+<span id="cb20-7"><a href="#cb20-7"></a><span class="co">#              rcov= ~ vsc(dsc(trait),isc(units)), returnParam = T, </span></span>
+<span id="cb20-8"><a href="#cb20-8"></a><span class="co">#              data=DT2, verbose = T)</span></span>
+<span id="cb20-9"><a href="#cb20-9"></a><span class="co"># summary(ans4c)$varcomp</span></span></code></pre></div>
+<p>You may notice that we have added the <code>usr(trait)</code> behind the random effects. This is to indicate the structure that should be assumed in the multivariate model. The <code>diag(trait)</code> used behind a random effect (i.e. Name) indicates that for the traits modeled (Yield and Weight) there’s no covariance component and should not be estimated, whereas <code>usr(trait)</code> assumes that for such a random effect, there’s a covariance component to be estimated (i.e. covariance between Yield and Weight for the random effect Name). The same applies for the residual part (rcov).</p>
 <p>Any number of random effects can be specified with different structures.</p>
 </div>
 <div id="details-on-special-functions-for-variance-models" class="section level3">
-<h3>7) Details on special functions for variance models</h3>
-<div id="the-major-vs-function-for-special-variance-models-and-its-auxiliaries" class="section level4">
-<h4>the major vs() function for special variance models and its auxiliaries</h4>
-<p>The sommer function <code>vs()</code> allows constructing complex variance models that are passed to the <code>mmer()</code> function which constitutes one of the most important features of the sommer package. The specification of the <code>vs()</code> function has the form:</p>
-<p><code>random=~vs(..., Gu, Gti, Gtc)</code></p>
-<p>The idea is that the <code>vs()</code> function reflects the special variance structure that each random effect could have in the matrix notation:</p>
+<h3>5) Details on special functions for variance models</h3>
+<div id="the-vsr-function-for-special-variance-models-and-its-auxiliaries" class="section level4">
+<h4>the vsr() function for special variance models and its auxiliaries</h4>
+<p>The sommer function <code>vsr()</code> allows constructing complex variance models that are passed to the <code>mmer()</code> function which constitutes one of the most important features of the sommer package. The specification of the <code>vsr()</code> function has the form:</p>
+<p><code>random=~vsr(..., Gu, Gti, Gtc)</code></p>
+<p>The idea is that the <code>vsr()</code> function reflects the special variance structure that each random effect could have in the matrix notation:</p>
 <p><span class="math inline">\(var(u) = T \bigotimes E \bigotimes ... \bigotimes A\)</span></p>
-<p>where the … argument in the <code>vs()</code> function is used to specify the kronecker products from all matrices that form the variance for the random effect , where the auxiliary functions <code>ds()</code>, <code>us()</code>, <code>cs()</code>, <code>at()</code>, can be used to define such structured variance structures. The idea is that a variance model for a random effect x (i.e. individuals) might require a more flexible model than just:</p>
+<p>where the … argument in the <code>vsr()</code> function is used to specify the kronecker products from all matrices that form the variance for the random effect , where the auxiliary functions <code>dsr()</code>, <code>usr()</code>, <code>csr()</code>, <code>atr()</code>, can be used to define such structured variance structures. The idea is that a variance model for a random effect x (i.e. individuals) might require a more flexible model than just:</p>
 <p><code>random=~x</code></p>
 <p>For example, if individuals are tested in different time-points and environments, we can assume a different variance and covariance components among the individuals in the different environment-timepoint combinations. An example of variance structure of the type:</p>
 <p><span class="math inline">\(var(u) = T \bigotimes E \bigotimes S \bigotimes A\)</span></p>
-<p>would be specified in the <code>vs()</code> function as:</p>
-<p><code>random=~vs(us(e),us(s),x, Gu=A, Gtc=T)</code></p>
+<p>would be specified in the <code>vsr()</code> function as:</p>
+<p><code>random=~vsr(usr(e),usr(s),x, Gu=A, Gtc=T)</code></p>
 <p>where the <code>e</code> would be a column vector in a data frame for the environments, <code>s</code> a column vector in the dataframe for the time points, <code>x</code> is the vector in the datrame for the identifier of individuals, <code>A</code> is a known square variance covariance matrix among individuals (usually an identity matrix; default if not specified), and T is a square matrices with as many rows and columns as the number of traits that specifies the trait covariance structure.</p>
-<p>The auxiliary functions to build the variance models for the random effect are: + ds() diagonal covariance structure + us() unstructured covariance + at() specific levels heterogeneous variance structure + cs() customized covariance structure</p>
+<p>The auxiliary functions to build the variance models for the random effect are: + dsr() diagonal covariance structure + usr() unstructured covariance + atr() specific levels heterogeneous variance structure + csr() customized covariance structure</p>
 </div>
-<div id="ds-to-specify-a-diagonal-diag-covariance-structures" class="section level4">
-<h4>ds() to specify a diagonal (DIAG) covariance structures</h4>
+<div id="the-vsc-function-for-special-variance-models-and-its-auxiliaries" class="section level4">
+<h4>the vsc() function for special variance models and its auxiliaries</h4>
+<p>The sommer function <code>vsc()</code> allows constructing complex variance models that are passed to the <code>mmec()</code> function which constitutes one of the most important features of the sommer package. The specification of the <code>vsc()</code> function has the form:</p>
+<p><code>random=~vsc(..., Gu)</code></p>
+<p>where the different variance structures are input as before but the constraints are specified within the auxiliar function with the argument theta and thetaC. Please notice that all functions for c coefficients end in the letter c instead or r.</p>
+</div>
+<div id="dsr-and-dsc-to-specify-a-diagonal-diag-covariance-structures" class="section level4">
+<h4>dsr() and dsc() to specify a diagonal (DIAG) covariance structures</h4>
 <p>A diagonal covariance structure looks like this:</p>
 <p><span class="math display">\[\mathbf{\Sigma} = \left[\begin{array}
 {rrr}
@@ -828,10 +688,10 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 0 &amp; 0 &amp; {\sigma^2_{g_{_{ei,ei}}}} \\
 \end{array}\right]
 \]</span> Considering an example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments) the model would look like:</p>
-<p><code>random=~vs(ds(e),g)</code></p>
+<p><code>random=~vsr(dsr(e),g)</code> for r records <code>random=~vsc(dsc(e),isc(g))</code> for c coefficients</p>
 </div>
-<div id="us-to-specify-an-unstructured-us-covariance" class="section level4">
-<h4>us() to specify an unstructured (US) covariance</h4>
+<div id="usr-and-usc-to-specify-an-unstructured-us-covariance" class="section level4">
+<h4>usr() and usc() to specify an unstructured (US) covariance</h4>
 <p>An unstructured covariance looks like this:</p>
 <p><span class="math display">\[\mathbf{G} = \left[\begin{array}
 {rrr}
@@ -841,10 +701,10 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 \end{array}\right]
 \]</span></p>
 <p>Considering same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments) the model would look like:</p>
-<p><code>random=~vs(us(e),g)</code></p>
+<p><code>random=~vsr(usr(e),g)</code> for r records <code>random=~vsc(usc(e),isc(g))</code> for c coefficients</p>
 </div>
-<div id="at-to-specify-a-level-specific-heterogeneous-variance" class="section level4">
-<h4>at() to specify a level-specific heterogeneous variance</h4>
+<div id="atr-and-atc-to-specify-a-level-specific-heterogeneous-variance" class="section level4">
+<h4>atr() and atc() to specify a level-specific heterogeneous variance</h4>
 <p>A diagonal covariance structure for specific levels of the second random effect looks like this:</p>
 <p><span class="math display">\[\mathbf{\Sigma} = \left[\begin{array}
 {rrr}
@@ -854,11 +714,11 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 \end{array}\right]
 \]</span></p>
 <p>Considering the same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments A,B,C) the model would look like:</p>
-<p><code>random=~vs(at(e,c(&quot;A&quot;,&quot;B&quot;)),g)</code></p>
+<p><code>random=~vsr(atr(e,c(&quot;A&quot;,&quot;B&quot;)),g)</code> <code>random=~vsc(atc(e,c(&quot;A&quot;,&quot;B&quot;)),isc(g))</code></p>
 <p>where the variance component for g is only fitted at levels A and B.</p>
 </div>
-<div id="cs-to-specify-a-level-specific-variance-covariance-structure" class="section level4">
-<h4>cs() to specify a level-specific variance-covariance structure</h4>
+<div id="csr-and-csc-to-specify-a-level-specific-variance-covariance-structure" class="section level4">
+<h4>csr() and csc() to specify a level-specific variance-covariance structure</h4>
 <p>A customized covariance structure for specific levels of the second random effect (variance and covariances) looks i.e. like this:</p>
 <p><span class="math display">\[\mathbf{\Sigma} = \left[\begin{array}
 {rrr}
@@ -868,46 +728,37 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 \end{array}\right]
 \]</span></p>
 <p>Considering same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments A,B,C) the model would look like:</p>
-<p><code>random=~vs(cs(e,mm),g)</code></p>
+<p><code>random=~vsr(csr(e,c(&quot;A&quot;,&quot;B&quot;)),g)</code> <code>random=~vsc(csc(e,c(&quot;A&quot;,&quot;B&quot;)),isc(g))</code></p>
 <p>where <code>mm</code> indicates which variance and covariance components are estimated for <code>g</code>.</p>
 </div>
 </div>
-<div id="the-specification-of-constraints-in-the-variance-components-gtc-argument" class="section level3">
-<h3>8) The specification of constraints in the variance components (Gtc argument)</h3>
-<p>One of the major strengths of sommer is its extreme flexibility to specify variance-covariance structures in the multi-trait framework. Since sommer 3.7 this is easily achieved by the use of the <code>vs()</code> function and it’s argument <code>Gtc</code>. The <code>Gtc</code> argument expects a matrix of constraints for the variance-covariance components for the random effect filled with numbers according to the following rules:</p>
+<div id="the-specification-of-multi-trait-constraints-in-the-variance-components-for-the-vsr-function-gtc-argument" class="section level3">
+<h3>6) The specification of multi-trait constraints in the variance components for the vsr function (Gtc argument)</h3>
+<p>One of the major strengths of sommer is its extreme flexibility to specify variance-covariance structures in the multi-trait framework. Since sommer 3.7 this is easily achieved by the use of the <code>vsr()</code> function and it’s argument <code>Gtc</code>. The <code>Gtc</code> argument expects a matrix of constraints for the variance-covariance components for the random effect filled with numbers according to the following rules:</p>
 <ul>
 <li>0: parameter not to be estimated</li>
 <li>1: estimated and constrained to be positive</li>
 <li>2: estimated and unconstrained</li>
 <li>3: not to be estimated but fixed value provided in <code>Gti</code></li>
 </ul>
-<p>Some useful functions to specify quickly the contraint matrices are <code>unsm()</code> for unstructured, <code>uncm</code> for unconstrained, <code>fixm()</code> for fixed constraint, and <code>fcm()</code> for fixed effect constraints.</p>
+<p>Some useful functions to specify quickly the contraint matrices are <code>unsm()</code> for unstructured, <code>fixm()</code> for fixed constraint, and <code>fcm()</code> for fixed effect constraints.</p>
 <p>Consider a multi-trait model with 4 traits (y1,…,y4) and 1 random effect (u) and 1 fixed effect (x)</p>
 <p><code>fixed=cbind(y1,y2,y3,y4)~x</code></p>
-<p><code>random= ~vs(u, Gtc=?)</code></p>
+<p><code>random= ~vsr(u, Gtc=?)</code></p>
 <p>The constraint for the 4 x 4 matrix of variance covariance components to be estimated can be an:</p>
 <ol style="list-style-type: lower-alpha">
-<li>unstructured (variance components have to be positive and covariances either positive or negative) <code>random= ~vs(u, Gtc=unsm(4))</code></li>
+<li>unstructured (variance components have to be positive and covariances either positive or negative) <code>random= ~vsr(u, Gtc=unsm(4))</code> and <code>random= ~vsr(dsc(x,thetaC=unsm(4)),isc(u))</code></li>
 </ol>
-<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1"></a><span class="kw">unsm</span>(<span class="dv">4</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1"></a><span class="kw">unsm</span>(<span class="dv">4</span>)</span></code></pre></div>
 <pre><code>##      [,1] [,2] [,3] [,4]
 ## [1,]    1    2    2    2
 ## [2,]    2    1    2    2
 ## [3,]    2    2    1    2
 ## [4,]    2    2    2    1</code></pre>
-<ol start="2" style="list-style-type: lower-alpha">
-<li>unconstrained (any component variance or covariance can be positive or negative) <code>random= ~vs(u, Gtc=uncm(4))</code></li>
-</ol>
-<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1"></a><span class="kw">uncm</span>(<span class="dv">4</span>)</span></code></pre></div>
-<pre><code>##      [,1] [,2] [,3] [,4]
-## [1,]    2    2    2    2
-## [2,]    2    2    2    2
-## [3,]    2    2    2    2
-## [4,]    2    2    2    2</code></pre>
 <ol start="3" style="list-style-type: lower-alpha">
-<li>fixed (variance or covariance components indicated with a 3 are considered fixed and values are provided in the Gti argument) <code>random= ~vs(u, Gtc=fixm(4), Gti=mm)</code></li>
+<li>fixed (variance or covariance components indicated with a 3 are considered fixed and values are provided in the Gti argument) <code>random= ~vsr(u, Gtc=fixm(4), Gti=mm)</code> and <code>random= ~vsr(dsc(x,thetaC=fixm(4)),isc(u))</code></li>
 </ol>
-<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1"></a><span class="kw">fixm</span>(<span class="dv">4</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1"></a><span class="kw">fixm</span>(<span class="dv">4</span>)</span></code></pre></div>
 <pre><code>##      [,1] [,2] [,3] [,4]
 ## [1,]    3    3    3    3
 ## [2,]    3    3    3    3
@@ -915,9 +766,9 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 ## [4,]    3    3    3    3</code></pre>
 <p>where mm is a 4 x 4 matrix with initial values for the variance components.</p>
 <ol start="4" style="list-style-type: lower-alpha">
-<li>constraints for fixed effects <code>fixed= cbind(y1,y2,y3,y4)~vs(x, Gtc=fcm(c(1,0,1,0)))</code></li>
+<li>constraints for fixed effects <code>fixed= cbind(y1,y2,y3,y4)~vsr(x, Gtc=fcm(c(1,0,1,0)))</code></li>
 </ol>
-<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1"></a><span class="kw">fcm</span>(<span class="kw">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">0</span>))</span></code></pre></div>
+<div class="sourceCode" id="cb25"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1"></a><span class="kw">fcm</span>(<span class="kw">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">0</span>))</span></code></pre></div>
 <pre><code>##      [,1] [,2]
 ## [1,]    1    0
 ## [2,]    0    0
@@ -926,25 +777,34 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <p>where 1’s and 0’s indicate the traits where the fixed effect will be estimated (1’s) and where it won’t (0’s).</p>
 </div>
 <div id="special-functions-for-special-models" class="section level3">
-<h3>9) Special functions for special models</h3>
+<h3>7) Special functions for special models</h3>
 <div id="random-regression-models" class="section level4">
 <h4>Random regression models</h4>
-<p>In order to fit random regression models the user can use the <code>leg()</code> function to fit Legendre polynomials. This can be combined with other special covariance structures such as <code>ds()</code>, <code>us()</code>, etc.</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1"></a><span class="kw">library</span>(orthopolynom)</span></code></pre></div>
-<pre><code>## Loading required package: polynom</code></pre>
-<div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1"></a><span class="kw">data</span>(DT_legendre)</span>
-<span id="cb28-2"><a href="#cb28-2"></a>DT &lt;-<span class="st"> </span>DT_legendre</span>
-<span id="cb28-3"><a href="#cb28-3"></a></span>
-<span id="cb28-4"><a href="#cb28-4"></a>mRR2&lt;-<span class="kw">mmer</span>(Y<span class="op">~</span><span class="st"> </span><span class="dv">1</span> <span class="op">+</span><span class="st"> </span>Xf</span>
-<span id="cb28-5"><a href="#cb28-5"></a>           , <span class="dt">random=</span><span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">us</span>(<span class="kw">leg</span>(X,<span class="dv">1</span>)),SUBJECT)</span>
-<span id="cb28-6"><a href="#cb28-6"></a>           , <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vs</span>(units)</span>
-<span id="cb28-7"><a href="#cb28-7"></a>           , <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb28-8"><a href="#cb28-8"></a><span class="kw">summary</span>(mRR2)<span class="op">$</span>varcomp</span></code></pre></div>
+<p>In order to fit random regression models the user can use the <code>leg()</code> function to fit Legendre polynomials. This can be combined with other special covariance structures such as <code>dsr() / dsc()</code>, <code>usr() / usc()</code>, etc.</p>
+<div class="sourceCode" id="cb27"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1"></a><span class="kw">library</span>(orthopolynom)</span>
+<span id="cb27-2"><a href="#cb27-2"></a><span class="kw">data</span>(DT_legendre)</span>
+<span id="cb27-3"><a href="#cb27-3"></a>DT &lt;-<span class="st"> </span>DT_legendre</span>
+<span id="cb27-4"><a href="#cb27-4"></a></span>
+<span id="cb27-5"><a href="#cb27-5"></a>mRR2r&lt;-<span class="kw">mmer</span>(Y<span class="op">~</span><span class="st"> </span><span class="dv">1</span> <span class="op">+</span><span class="st"> </span>Xf</span>
+<span id="cb27-6"><a href="#cb27-6"></a>           , <span class="dt">random=</span><span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(<span class="kw">usr</span>(<span class="kw">leg</span>(X,<span class="dv">1</span>)),SUBJECT)</span>
+<span id="cb27-7"><a href="#cb27-7"></a>           , <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vsr</span>(units)</span>
+<span id="cb27-8"><a href="#cb27-8"></a>           , <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb27-9"><a href="#cb27-9"></a><span class="kw">summary</span>(mRR2r)<span class="op">$</span>varcomp</span></code></pre></div>
 <pre><code>##                         VarComp VarCompSE   Zratio Constraint
 ## leg0:SUBJECT.Y-Y      2.5782969 0.6717242 3.838326   Positive
 ## leg1:leg0:SUBJECT.Y-Y 0.4765431 0.2394975 1.989763   Unconstr
 ## leg1:SUBJECT.Y-Y      0.3497299 0.2183229 1.601893   Positive
 ## u:units.Y-Y           2.6912226 0.3825197 7.035513   Positive</code></pre>
+<div class="sourceCode" id="cb29"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb29-1"><a href="#cb29-1"></a>mRR2c&lt;-<span class="kw">mmec</span>(Y<span class="op">~</span><span class="st"> </span><span class="dv">1</span> <span class="op">+</span><span class="st"> </span>Xf</span>
+<span id="cb29-2"><a href="#cb29-2"></a>           , <span class="dt">random=</span><span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">usc</span>(<span class="kw">leg</span>(X,<span class="dv">1</span>)),<span class="kw">isc</span>(SUBJECT))</span>
+<span id="cb29-3"><a href="#cb29-3"></a>           , <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vsc</span>(<span class="kw">isc</span>(units))</span>
+<span id="cb29-4"><a href="#cb29-4"></a>           , <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb29-5"><a href="#cb29-5"></a><span class="kw">summary</span>(mRR2c)<span class="op">$</span>varcomp</span></code></pre></div>
+<pre><code>##                       VarComp VarCompSE   Zratio Constraint
+## X:SUBJECT:leg0:leg0 2.4958729 0.4560914 5.472309   Positive
+## X:SUBJECT:leg0:leg1 0.4495909 0.1647736 2.728537   Unconstr
+## X:SUBJECT:leg1:leg1 0.3427729 0.1829503 1.873585   Positive
+## units:isc:isc       2.6940149 0.3945064 6.828825   Positive</code></pre>
 <p>Here, a numeric covariate X is used to explain the trajectory of the SUBJECTs and combined with an unstructured covariance matrix. The details can be found in the theory.</p>
 </div>
 <div id="gwas-models" class="section level4">
@@ -955,49 +815,49 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <p>where: - b is the marker effect (dimensions 1 x mt) - y is the response variable (univariate or multivariate) (dimensions 1 x nt) - V- is the inverse of the phenotypic variance matrix (dimensions nt x nt) - Z is the incidence matrix for the random effect selected (gTerm argument) to perform the GWAS (dimensions nt x ut) Mi is the ith column of the marker matrix (M argument) (dimensions u x m)</p>
 <p>for t traits, n observations, m markers and u levels of the random effect. Depending if P3D is TRUE or FALSE the V- matrix will be calculated once and used for all marker tests (P3D=TRUE) or estimated through REML for each marker (P3D=FALSE).</p>
 <p>Here we show a simple GWAS model for an univariate example.</p>
-<div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb30-2"><a href="#cb30-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb30-3"><a href="#cb30-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
-<span id="cb30-4"><a href="#cb30-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
-<span id="cb30-5"><a href="#cb30-5"></a><span class="co">#### create the variance-covariance matrix</span></span>
-<span id="cb30-6"><a href="#cb30-6"></a>A &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
-<span id="cb30-7"><a href="#cb30-7"></a><span class="co">#### look at the data and fit the model</span></span>
-<span id="cb30-8"><a href="#cb30-8"></a><span class="kw">head</span>(DT,<span class="dv">3</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb31"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb31-1"><a href="#cb31-1"></a><span class="kw">data</span>(DT_cpdata)</span>
+<span id="cb31-2"><a href="#cb31-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
+<span id="cb31-3"><a href="#cb31-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
+<span id="cb31-4"><a href="#cb31-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
+<span id="cb31-5"><a href="#cb31-5"></a><span class="co">#### create the variance-covariance matrix</span></span>
+<span id="cb31-6"><a href="#cb31-6"></a>A &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
+<span id="cb31-7"><a href="#cb31-7"></a><span class="co">#### look at the data and fit the model</span></span>
+<span id="cb31-8"><a href="#cb31-8"></a><span class="kw">head</span>(DT,<span class="dv">3</span>)</span></code></pre></div>
 <pre><code>##        id Row Col Year      color  Yield FruitAver Firmness Rowf Colf
 ## P003 P003   3   1 2014 0.10075269 154.67     41.93  588.917    3    1
 ## P004 P004   4   1 2014 0.13891940 186.77     58.79  640.031    4    1
 ## P005 P005   5   1 2014 0.08681502  80.21     48.16  671.523    5    1</code></pre>
-<div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1"></a><span class="kw">head</span>(MP,<span class="dv">3</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb33"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb33-1"><a href="#cb33-1"></a><span class="kw">head</span>(MP,<span class="dv">3</span>)</span></code></pre></div>
 <pre><code>##                 Locus Position Chrom
 ## 1  scaffold_77830_839        0     1
 ## 2  scaffold_39187_895        0     1
 ## 3 scaffold_50439_2379        0     1</code></pre>
-<div class="sourceCode" id="cb34"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1"></a>GT[<span class="dv">1</span><span class="op">:</span><span class="dv">3</span>,<span class="dv">1</span><span class="op">:</span><span class="dv">4</span>]</span></code></pre></div>
+<div class="sourceCode" id="cb35"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb35-1"><a href="#cb35-1"></a>GT[<span class="dv">1</span><span class="op">:</span><span class="dv">3</span>,<span class="dv">1</span><span class="op">:</span><span class="dv">4</span>]</span></code></pre></div>
 <pre><code>##      scaffold_50439_2381 scaffold_39344_153 uneak_3436043 uneak_2632033
 ## P003                   0                  0             0             1
 ## P004                   0                  0             0             1
 ## P005                   0                 -1             0             1</code></pre>
-<div class="sourceCode" id="cb36"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1"></a>mix1 &lt;-<span class="st"> </span><span class="kw">GWAS</span>(color<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb36-2"><a href="#cb36-2"></a>             <span class="dt">random=</span><span class="op">~</span><span class="kw">vs</span>(id,<span class="dt">Gu=</span>A)</span>
-<span id="cb36-3"><a href="#cb36-3"></a>             <span class="op">+</span><span class="st"> </span>Rowf <span class="op">+</span><span class="st"> </span>Colf,</span>
-<span id="cb36-4"><a href="#cb36-4"></a>             <span class="dt">rcov=</span><span class="op">~</span>units,</span>
-<span id="cb36-5"><a href="#cb36-5"></a>             <span class="dt">data=</span>DT, <span class="dt">iters=</span><span class="dv">3</span>,</span>
-<span id="cb36-6"><a href="#cb36-6"></a>             <span class="dt">M=</span>GT, <span class="dt">gTerm =</span> <span class="st">&quot;u:id&quot;</span>, </span>
-<span id="cb36-7"><a href="#cb36-7"></a>             <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb37"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb37-1"><a href="#cb37-1"></a>mix1 &lt;-<span class="st"> </span><span class="kw">GWAS</span>(color<span class="op">~</span><span class="dv">1</span>,</span>
+<span id="cb37-2"><a href="#cb37-2"></a>             <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(id,<span class="dt">Gu=</span>A)</span>
+<span id="cb37-3"><a href="#cb37-3"></a>             <span class="op">+</span><span class="st"> </span>Rowf <span class="op">+</span><span class="st"> </span>Colf,</span>
+<span id="cb37-4"><a href="#cb37-4"></a>             <span class="dt">rcov=</span><span class="op">~</span>units,</span>
+<span id="cb37-5"><a href="#cb37-5"></a>             <span class="dt">data=</span>DT, <span class="dt">nIters=</span><span class="dv">3</span>,</span>
+<span id="cb37-6"><a href="#cb37-6"></a>             <span class="dt">M=</span>GT, <span class="dt">gTerm =</span> <span class="st">&quot;u:id&quot;</span>,</span>
+<span id="cb37-7"><a href="#cb37-7"></a>             <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
 <pre><code>## Performing GWAS evaluation</code></pre>
-<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1"></a>ms &lt;-<span class="st"> </span><span class="kw">as.data.frame</span>(mix1<span class="op">$</span>scores)</span>
-<span id="cb38-2"><a href="#cb38-2"></a>ms<span class="op">$</span>Locus &lt;-<span class="st"> </span><span class="kw">rownames</span>(ms)</span>
-<span id="cb38-3"><a href="#cb38-3"></a>MP2 &lt;-<span class="st"> </span><span class="kw">merge</span>(MP,ms,<span class="dt">by=</span><span class="st">&quot;Locus&quot;</span>,<span class="dt">all.x =</span> <span class="ot">TRUE</span>);</span>
-<span id="cb38-4"><a href="#cb38-4"></a><span class="kw">manhattan</span>(MP2, <span class="dt">pch=</span><span class="dv">20</span>,<span class="dt">cex=</span>.<span class="dv">5</span>, <span class="dt">PVCN =</span> <span class="st">&quot;color&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb39"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1"></a>ms &lt;-<span class="st"> </span><span class="kw">as.data.frame</span>(mix1<span class="op">$</span>scores)</span>
+<span id="cb39-2"><a href="#cb39-2"></a>ms<span class="op">$</span>Locus &lt;-<span class="st"> </span><span class="kw">rownames</span>(ms)</span>
+<span id="cb39-3"><a href="#cb39-3"></a>MP2 &lt;-<span class="st"> </span><span class="kw">merge</span>(MP,ms,<span class="dt">by=</span><span class="st">&quot;Locus&quot;</span>,<span class="dt">all.x =</span> <span class="ot">TRUE</span>);</span>
+<span id="cb39-4"><a href="#cb39-4"></a><span class="kw">manhattan</span>(MP2, <span class="dt">pch=</span><span class="dv">20</span>,<span class="dt">cex=</span>.<span class="dv">5</span>, <span class="dt">PVCN =</span> <span class="st">&quot;color&quot;</span>)</span></code></pre></div>
 <p><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAASAAAAEgCAYAAAAUg66AAAAEGWlDQ1BrQ0dDb2xvclNwYWNlR2VuZXJpY1JHQgAAOI2NVV1oHFUUPrtzZyMkzlNsNIV0qD8NJQ2TVjShtLp/3d02bpZJNtoi6GT27s6Yyc44M7v9oU9FUHwx6psUxL+3gCAo9Q/bPrQvlQol2tQgKD60+INQ6Ium65k7M5lpurHeZe58853vnnvuuWfvBei5qliWkRQBFpquLRcy4nOHj4g9K5CEh6AXBqFXUR0rXalMAjZPC3e1W99Dwntf2dXd/p+tt0YdFSBxH2Kz5qgLiI8B8KdVy3YBevqRHz/qWh72Yui3MUDEL3q44WPXw3M+fo1pZuQs4tOIBVVTaoiXEI/MxfhGDPsxsNZfoE1q66ro5aJim3XdoLFw72H+n23BaIXzbcOnz5mfPoTvYVz7KzUl5+FRxEuqkp9G/Ajia219thzg25abkRE/BpDc3pqvphHvRFys2weqvp+krbWKIX7nhDbzLOItiM8358pTwdirqpPFnMF2xLc1WvLyOwTAibpbmvHHcvttU57y5+XqNZrLe3lE/Pq8eUj2fXKfOe3pfOjzhJYtB/yll5SDFcSDiH+hRkH25+L+sdxKEAMZahrlSX8ukqMOWy/jXW2m6M9LDBc31B9LFuv6gVKg/0Szi3KAr1kGq1GMjU/aLbnq6/lRxc4XfJ98hTargX++DbMJBSiYMIe9Ck1YAxFkKEAG3xbYaKmDDgYyFK0UGYpfoWYXG+fAPPI6tJnNwb7ClP7IyF+D+bjOtCpkhz6CFrIa/I6sFtNl8auFXGMTP34sNwI/JhkgEtmDz14ySfaRcTIBInmKPE32kxyyE2Tv+thKbEVePDfW/byMM1Kmm0XdObS7oGD/MypMXFPXrCwOtoYjyyn7BV29/MZfsVzpLDdRtuIZnbpXzvlf+ev8MvYr/Gqk4H/kV/G3csdazLuyTMPsbFhzd1UabQbjFvDRmcWJxR3zcfHkVw9GfpbJmeev9F08WW8uDkaslwX6avlWGU6NRKz0g/SHtCy9J30o/ca9zX3Kfc19zn3BXQKRO8ud477hLnAfc1/G9mrzGlrfexZ5GLdn6ZZrrEohI2wVHhZywjbhUWEy8icMCGNCUdiBlq3r+xafL549HQ5jH+an+1y+LlYBifuxAvRN/lVVVOlwlCkdVm9NOL5BE4wkQ2SMlDZU97hX86EilU/lUmkQUztTE6mx1EEPh7OmdqBtAvv8HdWpbrJS6tJj3n0CWdM6busNzRV3S9KTYhqvNiqWmuroiKgYhshMjmhTh9ptWhsF7970j/SbMrsPE1suR5z7DMC+P/Hs+y7ijrQAlhyAgccjbhjPygfeBTjzhNqy28EdkUh8C+DU9+z2v/oyeH791OncxHOs5y2AtTc7nb/f73TWPkD/qwBnjX8BoJ98VQNcC+8AAEAASURBVHgB7V0HmBTF1r2zu+QMIhIkGchJkgoiovhIKk9RFBUz6q+IYlZUVBDFCCo+Awr69CEqSSSIIooSJInkjIKI5Bx22a3/nFq6mZ2d2Z1ZYHtm9l6+YWe6qyuc7jp969atWz4DERVFQBFQBDxAIMGDMrVIRUARUAQsAkpA+iAoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCSkD6DCgCioBnCCgBeQa9FqwIKAJKQPoMKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCScEgSE5OltmzZ8uSJUvsZ/Xq1VKyZEk5/fTTpW3btnLhhRdK/vz5g12qxxQBRUARCBsBn4E4qfn1888/lyeeeELWrVsnpUuXtqRz6qmnyp9//ilr1qyRI0eOSJkyZaRv375y1113SVJSUA5zstS/UYZAalqaJCao4htltyXPVscloJ9++kkefvhhKVq0qFx77bXSuXNnKVu2bAZgUlJSLAn9/PPP8uqrr4rP55PXXntN2rVrlyGd/ohOBKYtWy6LNmyQmhUqSNu6daKzklqrPIWAS0AXX3yxvPjii9K0adOwAKC2NHbsWHvNtGnTpGDBgmFdd6ISpaamCj+hhoKsHwlSJR2BrXv2yrDp06ViqVKycedOuallCylXooTCowh4ioCri3///fdhkw9rzM5NLWnWrFm5Tj5pGEZcdtll0qNHj0zgLViwQK6//nophY5WvXp1ef755zOlyYsHShYpLMULFZI/tm2X4gULSRlouiqKgNcIuAQUqiJbtmyRhQsX2tOHDx8OlSzXjrMOtD1NnDgxU5kHDhyQLl262OPUyp555hmroSkJieRLTJRbL2wlVzRuJDe3ailJ+K2iCHiOAIYqQeXbb781NWvWpIHaVKlSxaapX7++GTlyZND0uXFw7ty5platWgYzcgaGcXPTTTdlKPbpp582xYsXNwcPHnSPP/fcc+aUU04xhw4dco/pF0VAEYgOBIJqQL/99pt06tRJ6tSpIw8++KBLkueee65cc8018t1337nHcvPLBx98IBUrVpT58+fb4VVg2SBNaxD3t0ddfvnlsm3bNpkzZ05gcv19EhHYv3+/LFu2LNNn1apVttSNGze651auXGnvEbpEhhrt3bvXTcO8li9fLrt3786QxvlBzXjGjBnOT/uX2nuo9BkS4gdnfTnD6y+0MeJlluHDOrJtv/76q3/SsL7zWpZDE0JWQjcY/3Lx8syQnOX//fffGY7F7I9gPHjzzTcb2FHsqUmTJrkaEA/ccccd5r777gt22Uk/tnnzZrcMkGEmDYiaTu/evd00/LJ161arxX3xxRcZjuuPk4sAhsgGdkKrffK+OJ+6devagq+88kpTqFAhe5waLTqQqV27tpkyZYpbsS+//NLAzcOcffbZ9nPmmWeaxMREU61aNQNbn5uOXwYOHGj++9//2mP79u0zbdq0MZUqVbJl9OrVy6DTZ0jv/MDsr82PeVJ7Zr0d6devn60X6+Z8Fi1aZE/DH878888/TtJs/7JuLKNevXoGs8sGNteQ1zRo0MAtj+VyJOLIbbfdZuCPZ6pWrWpatGhhn2/nXCz+DerEwzfSDTfcgLZnFs6Svfvuu5lP5MKRcuXKZVnKnj17rO+SfyI6UFL4NgxH/vrrL8FDlm1SvpGvuuoqqVy5crZp82oCTgTgBRCy+XiRWRsdE/CtTlsdbXi///67i2v58uVlxYoVbh67du0SvATl3nvvFbqDUHbs2CFjxoxxfz/11FNy2mmnyYQJE2TTpk3WefbSSy+VDh06uPnwCzWLW2+9VQYMGCBdu3YVEJ597qmdUYvmSIBuJrQ5OuJo14888og8++yz8vbbbzunQv6lFgYSFGro55xzjnz66afSvXt3YTmBQu1n6dKlsn79eqH/HcWZzR01apTMnDlT6BicL18+AYlL//795fXXXw/MJmZ+ByUgzh6NHj1a7r777kwNGTFihMAmlOl4NBygUyTekBmqwpvHT7gGdN78QYMGZcgj2A8+COwcSkDB0In8WJEiRSwZcRj18ssvy5tvvhk0E75QSFLQdN3z0FSkY8eObkf96quvrENtgQIFBFqHnRXlcxtIQJxc4XNB8qEwX9gRBVqYnWXljCrL4XPFDu8v0LAE2oglFmhoMmTIECF5BApnaqGZCMsn+VBoRtgJVwimD3Qj4eoDEg/7GP3u/MulSeR///ufe00F+HNBCwssMqZ+ByUgAnvJJZcIjLwCo68ds9LuM3z4cJk6dap8/fXXUdlIvvV4Y/2Fb0w+AFCv/Q+H/M6lJvxkJ+edd55ADc4uWa6d/+g/U2XEJzNsW08pW0zeGd5DSpQs7JZ/vOfdjCL4wg5EB1d/adiwYZb3grhyGZAjtMvQC5/C72vXrpUXXnjBOss6afg8YnLE/mSZ1Cz87w0783T4QAUKtYzAlylfKLye9ieWRd84XsuXGDW0//u//7PZJMCbnCQEE4WQgEgcwV5yrA9Jk/2JWt77778v7733ntWeAsmHGVPrYt4XXHCBtTNh+CUfffSRJa8aNWrYsmkL47Hx48cLtaJYlqAE1Lp1azvMomf0xx9/bNvHTlm4cGH7dqKBOhqFGkngG8H5zTdhPMvmv3fLrp37bROTk4+gM6RkaO7xns+QWZg/6BbhP3zhZRx+NGrUKGQOsPNk6FS8fyQtkg9JgZ2dWgonQyg01pIoHMLhUJtGXv8XTrFixTK9mHgtDbklApwxeR1fYiyX/YB9APZDoVZF/zJqIVwLSeEzReKhhDMU43CUQ3cSEfMPpgHxZQnbjquFc1nUv//9b6FZhBodZfHixULypLZPcm7cuLE9HpP/ZWW4gvZgoPEYsK2hMRqgZZU8V88FM0L36dPHQAsymL1w6/LKK68YqPeGbTmRwvIxDDuRWR53Xrt27jM7d+yDy0Fy0LyO93zQTEMcpDEXawlDnDWGRuhHH30003nYbww6vj1OIzQNro5MnjzZ5gkycA4ZGoVhl3F/0wUDHdH4T1hg9tRg+OWmcb7g5WqgaTg/7d9//etf9nnPcPDoj5YtW2aoM7QZAzKyZ+kSgqFcpg/ILFNWICAD4jPQYDKdCzwAbcxAIzJ0QQkUmElsPiCywFMx8zuoBkS1k6plKOGboW/fvqFOe3acb1vWHQ+2dULkm4L2BBoLA990nlXyJBZcomSRLHM/3vNZZn4CTlJz4XAqlIZNQzINxjfeeKNwOEJthPYUDn1o6OU9ppGYaxg53e1MWvC7oyH5V5PDLWoS/sK01Gw4zKGR+/bbb/c/ncH9g1oMI0RQ2CcCp/F5nFoL7Yo0XdBwTuFIArOB1thO25W/cHkTjfetWrWyhzn0o6bDulITw2yiXHTRRfZcs2bNbLv/+OMPoeYYkxKMKmFQM1iQ6n7I7GR6vtE4JYgV88Euy9VjwTQgVgA30GC1vp0CZn1hBDR4ME543aJRAzrhjTyODMPRgHr27GmnkTEUsm94un/QwdTRtAM1IKc6nAIn/o6mi0kTA7uRc9rAd81g2GJASgad305Z//jjj/Y8/JAMlg/Z73wuQDYGs7p2mh42TsO8MHQ08B0zWJhtQEI27Q8//GBgEM4w7Y2ZYoMZKLfcUF8wS2en+J1yOfVPdwLnN2xMBkRoL6dWxj6GGV0DYjUPPPCAgf3InoMB2roqYChqqPWwnayvg0Oo8qP5OI2WYQvG1wZvHcMHI5qFPh+wCxgYAE9aNZWAsoY2HALCG9sOl/CWN9BWDNwaDDQPN+NQBISwMNa/Z/DgwTYtZq/M0KFD3etIHnxh8kXEfGE8ds/RWx6Gbvc3iYWkx3T0sic5OEIyoPc/tCcDrcR89tlnzin7F7asDOkznAz4wWuZFwmP/kYcvjnCcjHdb3+SFGHoNjCO23qxDJImhURD0mZ9WF/6VGEmz56L1f8iIiA2kg5fUJFjtb0nrN5KQCcMyuPOCDO0GUjFyZBOqOG8hPjC8rcZOdc7f6mRMY2/0CZDp8JItWv4JYV1DevN+gcTaj9Z1TfYNdF6LCHScSMaLtu3b4/0Mk2vCJw0BBhKhr4zgVP+tJeEEzCPdhZoFCHrx7yZxl9eeukl6wAY6HfmnybYd87UhnMN6836BxP6BmVV32DXROuxoEZoOmJxutBfaOjjOp4PP/zQRkz0P6ffFQGvEcBspzVgO8bbk1kfugOcccYZQuJTOT4E3IBk/tnQERFrV/wPWecoOlRxcSfG3q5PQoZEeegHHeboAo+hWB5qtTZVETixCATVgGDQE35UFAFFQBE4mQhEbAM6mZU5kXnDaHgis9O8FAFF4CQg4GpAXEtDA3M4ctZZZ0n79u3DSZrrabjimCuV6SLPIWO3bt3s2iEudlRRBBSB6ELAJSDadcIN2sUwFNFIQDSc00bFunFtDsNq0Cuaa28YzExFEVAEogsBl4Cc2CrRVb3IasOYMBSSDfcu46I+akIfYeUwVyBzlbGKIqAIRA8COeqRgSEvoqU5JB2GP+AqbEfgKGb3Ogv043DO619FQBHwDgFXA/KvAg249KtgDCAOX+BFaT/szIw+x+X/TvwV/+u8/s6terhYkQsIGUaBQzCGf6BNSAnI67uj5SsCmREISkAMuUrbCWLT2pXG7Lxc9Ttv3jy7kvf+++/PnFMUHKGXKbeW5tCLxmgKVxs/+eSTYdeObeSq4+yEcVi4GlpFEVAEco5A0CEYPaGvuOIKG53toYcesl6fiMViAyFx62YGUopGGTdunA1VwMBRDO3JsJ4MycFQnFjIF1aVGaWO4RCy+9CdXm1KYUGqiRSB0AgEW6TGhZbovPYUwxwwrIWzGA/xkg2i0QW7zPNjDCbFFcf+whXVaP0JDx6mi1H9UdbvikDOEAiqATEgkxOoiTFpafdhgCYK4y4zBGY0CmfyuF20vzC4FRfvBS5U9E+TV74nw4Y3GkPMcfMXCNZ255VmazujGIGgBMTIc5zKpi8NY+QyMD0jC9Ko+5///MfaWKKxTYyOx9i5/sIN5DgzRvtQXpfPZsyUVX9vlgWIoDd7zZq8Doe2PwoQCEpAiEwn1113nbsejDNLn3zyiWB4I9yqhDaWaBRuI0QjNLdI4YplRMGTxx57zIbt5AxZXpeS8AZPwQwnQttIypHwbGJ5HTNt/0lGIKuRG4NnO8JIddwXnrtORqswYhz3gueOm5i5s7afJk2anJSocbFoA0oBPv/9ZYb5ecVK16YXrfdS65U3EAgajoMb83Erk6uvvtr+PckceMKz54zXOgQXh/E8006pJ6owDcdxopDUfPIyAkGHYNxricMZ2k04HONQBnwcMzhxipy7BJCAVBQBRSB6EQhKQLSbcNM2ekMzCiK3HGGH5s6Q3AJERRFQBBSBE4FAUAJixtQeuM/WL7/8IqtXr7bbNNPAy33jSVAqioAioAgcLwJBl2IEZnro0CHr/cw1YlyWEWxP68Br9Hf0IbDv0GH5bOZMScA9vKHF+VIQ/lEqioCXCIQkIGwfItgIzcaG/u2334QOibfccovdlVJ9ary8ZTkv+0v4RB3EMhrMhsmkhb9L5yYxvKd4zmHQK6MIgaAE9Mwzz0i/fv2EUQSxK6r1q+GsT6wJDee6Cv7YXatRobxMWbREEhEXqVIZNdAfQ0a/eYVAUALifkTDhg0TRj7kPtaxJAwri50l7cwdF85i3Zpw9T69pPO6nIeJhKLYq7wAhl5nY0mNiiLgNQJBCQjbv4asFz2MuWkanP1CpvHqBG1VzZo1kwoVKggWoQq2khZsxWtn9AK3GfKqjl6XWw9hVVQUgWhBICgBZVW5ypUrS9u2baMyIBmXi8BT25JPpUqVbDPoUMnZPMbuiZfdJLO6P1mdS8UkwkzMaBbAC6QpZjNVFAGvEYiYgKgdcVeMaJSPP/7YDrkc8mEdGQuIwcNUREbO/lVWg4i5Ep6xjBpXraqwKAKeIhDSDyhUrbDWys6EhTrv5XESTb169awGxDAc3LX0hRdeCDsYmZd1z42yEVhXCiPgGqfhNyLEiooi4DUC2WpA27dvt/F/atSoYUNzeF3hUOVzxosG6LFjx8r06dOtJsTg+QzHylhG1I7CkfHjx1uP7+zScreNNQhpQZKLFbmySRNhSI4aWGLToUH9WKm21jOOEQi6GJXt5fqvW2+91Q0+xuns2rVr29kxrDCPOki4fo0zdqwn9wcjYVKeeuop61Iwf/58adSoUbb13rZtm9vmrBLfdtttwr3ULrrooqyS6TlFQBHIAoGgGtC0adOsofniiy8W2nyaN28u7JifffaZXHjhhfL9999H3Zufs3I0ODNmkUM+bDd3RqVPEzddDIeA6ILAT3bCKf5onAnMrt56XhGIJgSCEtCIESMs0UyaNClDXRnUiztOcKO/aBx6cPqda9X8hQZpGlzDDUrvf61+VwQUgZOLQFAjNMOadu/ePWjJjJTIpRnRKFy1z90wuH+ZIyRRrmGjFqeiCCgC0YVAUAJq06aNHW4F0xqGDh0qrVq1iq5WHK1N7969bTB9ekJv3bpVOJTs37+/JR8OzVQUAUUguhAIOgQjATH4PJcvYKsbOxyjB/RXX31l91rnzhMDBw60LeF2yDTIRoOcffbZdkNCLpplUH0GJrvgggus0yS9t1UUAUUguhAIOgtGz2GuhA9H6JQ4d+7ccJLmapqNGzdatwHu6nEyREOyngxUNc+8hkBQAsprIOSkvUpAOUFNr1EEMiIQ1AaUMYn+iiUEliOU7qrNumd9LN2zvFxXl4Bo0+Fq8kiEXtJ9+/aN2r3iI2lLPKSdtmy5fDF7jl3z9dsff8ZDk7QNcY6AS0B79uyxTnwMRJ/d4k2eZ4wdBqrftWuXDc8R5zjFRPM27tgpxQsVRLyfJPl9w4aYqLNWMm8j4E4N0VuYxuc+ffrYoPMNGza0HsWnI37MqaeeakmJa6r4IQG1b99eZiK+MEO1qkQHAp0bN5L3fphmA45d07xZdFRKa6EIZIGAS0BMQ69hRkJ84IEH7NQ1F1xy6n3t2rV2RolkdOWVV9pIifSIVokuBFZiMW4ynDAZ94er3c8sVy66Kqi1UQQCEMhAQM65Bg0aCD+OxGps5fvuu8/uFc9gZHlBaPcpgQW5h1JSZM7adUEJaAOIacaq1fKvenWlZIyF280L9zCvtTEoAQWCcPjwYduR6e/DMKfcM6wqgllde+21UqVKlcDkUfGbXtBvvfWWlC1bNirqkxuV6NCwgbw4brwt6tYLM3ur7zpwQEbO+lWSEhMEe8TLHa0vtMO13KiblqEIBEPANUIHO8ljB/DQtmzZUr777jupW7euHX5xISrDX7Rr106mTp0a6lLPjjMsK0OJMHxIXpL/zZwluw8ekB3798s3CzKv1zvM4ZlJs/uBcX1cWuzstp2XbmOeamu2GtBPP/1ktRzGWw4ULv4cMmSIcOlGNMkjjzxiyYcB6t9+++1oqtpJrcveg4cQDykB2+4YoT0oUMrBK7wjtKTZq9fIFeecI4Xy68aEgRjp79xFIFsC4gwYp+iDCYdjKbA3RJMwVhHjFi1evFg+/PDDiKvGBbgccmYnTEctIprknksulv7jxkkRbL3T89K2GapG7WcVSOksGKb5ScI6ORVFwGsEsiWgc/CmZJydxo0b26EY7T8cfq1fv15mzZolo0aN8roNbvlcMMuFsS+99JKd0XNPRPCF5EV3hOyETpt0STj//POzS5pr58sUKyoDr7tWOGmQz49gGIR++E/T7dAsCbGR8mFhbuH8BaT7BS3sDhm5VkEtSBEIQCBbAmL64cOH2wWnixYtsj5AjBhIQmJgsmiKCvjggw9KtWrVpEePHgHNDP/njTfeGFbQfa4Fi0obE8gmcDfYPbDj7YNWdzpeHvSWLgwNqVD+/PIL4j61yWN2svCfBE2ZGwiERUCsCONAR2MsaAckGsMZgoPB52fPnm0Pc0U8h4jU1DhbF+972u8HyXzy8wwYl9Ok2/nnudPsJbHF9nmMWoCpeWo/e2Co3g1SIgmpKAJeIpAtAXGpBTtyKClRooTQQdFroYsAhx7UYAKF2grXuj388MOBp3L8G0XJ3j2HZdfO/VKyVJFM+Rw8kIyhajLCwfpy7fyYefPlQPJhO7U+8pfZ0uWcpm755515hvDzxqTJ1gidkpwqB/ckR1X9/UH0Ar94K5/9oXCRAv7Nirrv2Ybj+Pnnn+WSSy6xvj/BdhblLqlOcDIvW8eFsYEOh++8846Na8SZPNadwdNOlJzbtIOY/enOmtfd1FLuf7Sjm/Wf67fJ9Z0HYZFuemjY3Dq/fNMmGTVnnuzasl9+eWuxHElJtXXyL7/3p5/Jn+u3ysYR/4hJTZ+H9z/PC7yqvwOgln9inp/zW9WQlwbf4MAalX+z1YDoAzR58mS5++67bbzlaLL5+CNKcgkkGDohMiriybHVpErRYvklf4H8Ur5CSf+q4K2TXyqeXtpqFz5oQLl1nl7QKZidS8qfIKdWKCEH9x6WwPLPgQPpP//slnwlkiQxxSeFoqj+Doi5hd/OHfvkcOoR2Xh4l12+kggDPSW3yqf2HHh/TmT5xUsUsu2J5v+y1YCcynOxKpdncGeMWBHu4ko/oEDN6ETUP9oCku2E8+HAbybIpp277AwYp+Jf6XZthtkwtnsdYmX/vGKllIVPEJdjBBqsTwQ2sZLH+z/8iGUryXDePCgX16mNIeqZsVL1uKlntp7QTku5Sj6WyIf1fvrpp08K+TiYRNPfpX9tkkL58tkOtROe4AzJMQ0bNPrL90uWygh4S2/bu08aVqmcp8mHuJQrUVx27j8gPvzTdXH+T0rufQ+bgHKvSlpSThCoXbGCbEA8oJTUNLsPGjtW5QCb12osyj0Vkwb/wLH020WLc1JMXF1Dr/BmZ1SXK5s2llrwdVPJfQSC2oC4nzr3WA8m3OSPO5DS34Z2IQ3LEQyl3D82b916OaVoEdmL4QTtQAzJkYBlGf7SHkPowbDn7ToAR9Kt22zQsvpRMIPpX8fc/E6bT7v69XKzSC0rAIGMT+jRk7RvcJnFihUr7DbFHHpxXRWn4znbxO1vGCuIM2Bc+qDiPQL1Tq8E35508skPw3v5kiVkUUBUxMplSkstbLVUB5+kpERZselv7yuuNcjTCAQlIEY8pA/BZqwdYliLAQMG2HVVv//+u+xAPBnumjpv3jy54YYbhCFcVbxHgH5JFUqVkgaVT5cj0H7+2b3HGlcDa3btuc2lKMK2VscMYecmjQNP629FIFcRCEpAY8aMEe4uGjitXblyZRuOg1ESORQjAdHLmGQVbRJtC0WPBx+DGa60vs+L6TdAsAI2aFZlixeT/DA82x0xfCJnlMMiYgzHDiQnZ0jP2THGASIR+a8Xy5BIfygCuYRAUALiCnhqO4FCouG+8I4v0H50jJIlS0bVbAo3VGTcogLoaKWgEXTt2jVLT+7ANkbjb/PMcyKrVomZNVvMl8EX/9KeUR/DsDNOLQtbUDHZuH2HnItp5cK63CIab6nW6SgCQQmINh8aoZ966in59ddfhaEn/sZ+U0888YQsw9Quz6/HaniuOufWzdEiX3/9tXTr1s3aq7g2jMNDDhU7dOgQ21sHwVBsMKQy0H5ModDOZa1r1ZLteCnsP3xIDP6VLBw6bbTcMy/rQUP9D3iedQsj7+5C0Fkwag00Qvfu3VvogMjhFoc0RYsWtY59rVq1Egb9YjiKQYMGeVf7gJLpdMjZOScOEPeF54wd28OhIusdi+K7B+FBsKjWV7eO+NpdGrIJczETtvfQYTsVn3wkVUbNnSc9MVFQtGABe80IaFA/LV8h/8LMzxXnNAqZT1458QnC0v61cyeIPT18SZ1KFfNK06OmnUEJiLXr2bOnXHPNNTYMx0qEbeCOGRdddJGdFeN5hr4gOeWPIhX/jjvusCTJ+jlCQqLs3r3bORRzf31Ywe576IFs670AWim11YOw+xzh38PJbtTDxZjBHI0Fu0kJiYgLPdsO16rloXjZwcCjSaEohuoMYbsZz0dOCMhgATDW+4gPPkUqkSMQkoCYFYOPsQMXxhqjWlDvGQfIkWALU51zXv296qqrMhX96aef2o0TGb8o3mXJxr+s0ZlTAhVLlZRimO3iDhk0PKfCQZGfFGhGXH5Br2mKeX2QpK1YJb67e0hCg/r2WF75rysM8YyjXaN8ebmodq2Im23GjpO0jz4WACoJ99wtvkvaRJxHXr8gJAFxJuyee+6RTVhh7Qjj6XB4w2D0sSAcdr377rvSq1cvG9UxnDrT1ymYAT7w2p1Q3RmB8XiEnsm/rFwlnRo1lDIY3mYp0ELTvp4gvltvEh+M68EkH3x7SiOf7ajXHgzFOKAg+VA4K8aIiXvgK1QYQzJ6Spdb+LukTZ4iAu9o88abYt55U3wFC9r0Of2P0RdJeo7x26CNPkxUYFYg4ix3YEkJh/8na5kE63hbkN1Dwq2o1X7YNixoTfvue0lUAgoXOjddUAKi4fbqq68W2lAeffRRazvZtm2bDfbVuXNnuxNGNIUidVvj94Vt6NSpkzCk7PPPP+93JuuvtGuFE8ieC1zpExWJcKHoeMwiMiZzffjrjJk7XwoiMDzfwlltkWNgj0t77gXBymFJW71aEl5/JShRPNihvbw+cbIUxyxmElbhMw40t2imtzOjIDY74ww7TV8EHY9b8/gqVRSzdp349u0XUxbaLfJ3hGXKlq3W7uQcy+4vjbrDfppu/Y+aI/bQ+ZtR73ffBwsWkYQXnhNfwNKQrPJbi/JHAx8oF3J182Y2mmNW6b04l/BAL0l7qq8YakCPP+JFFWK+zKAExP206O1ML2f/1dKMC8RZMMZNjmYCYgyjjh07Sr169eSbb75x3QbCuVtsIz/ZCb3FA/dEo01hNGwCmxHEjVqN/1osagVfzZljYzHPBImUwGwWZ6qIL6/zxzlT2cgPkfLFVCiPKGjQupCXBNFUqmKIPPC6rvIRSOAw0hxMTpHl8HYmASWgnHqw4y0EIW1DHl/OmStXgajOqFVTBEM1H/foAakKwnVQa0l77EkYzvaIr8uVkoBV9eHIog0bsR5th/XIZrnVpv0op5U/TeAHITIZmlaY+bCsn7Bin7t2UKP6EWFkb2gRPbG3XSygiSa8Ncj9qV8iRyDoNDyNzjfdBFUfD22g3HzzzW7I08Bz0fB7xowZdt96EsS3336L0UWJXKsWOzdXoK/c/I9wxslfSAjLMJxd8McfCASfT6rDX+fyxudIMRDJdeedK/lhaA4lPrwMEm7B/cBwxIc3rQ8ze4FC7WMihlR9vxoti/7cINPRgeetWyclCh6bip+9Zo3whpPwUqAdzYCx2tf1asFUoSUaH8jHys+/iEArkrPOFMPvYUqVU8qAUkV2Itwrh3uzYVMywMQURsTIS7Mndf9i2mOmjmvaSECRrNcyaFfa8E8k7fMvPHGQZbiTP7FciYt9GSIlxwIiT3vvA4tfjvOIgQuDPvXcBYM+NZxqDxQer4i1RNEoXLtG+xQ1mJEjR0q+o4bW3KrrPthduDcXbTF0BGQHcryNnxsz1mok9ExuWeNsYZxm7lRKw3BiEKIPrLOvQzvhJ5RwGEdy+8uuiD8iKdRo0Hnf//FHqVmxvFSBdrRlz17ZDmLhDFmRAgWlM6biEzC8MfUQF8jfCNvuXyLTfoJGtEUS7uoRqshMx0uhTT3bXiIfQPOhY2S5Ky63dhFT5hTx+U1gZLowyIFyeHH0wKwrGhFZ7Go6baLzGxC+j3a1ju2D5H7sEKNITl26TKpBGyTpHY98v3SpzFy5ykYlqIQJnOXwnaPmRrxPRfylsAXPSOoTT4sPUQvSfpkpiS8PsFqvgQ2WL6F4kqAERC2H9hMG9OI2N6eddpr1C2LAd0ZHZOeORrn//vvlCN6AHH598cUXGarI3VyrV6+e4diJ/kEv5DPwIO85dDB97y2/h4XaJLUcPozJqOMOEMGL4ydIMjoK7TQPgVzKw6BJo2tOhMZmGms3Y9h0EHmSfCgkQQbc2gry4dIMLlKlBtaufl0pBk3pSNfrxYf6yMUXScIrL4kP+fhAJImDXhODDmANyBFU6BRoU7RF7cLbvwxiFKW+PthOUyf0fUp8WMpDoVZEcvNlsxYtRxsnAgOBA6ZvTwrsW2slsw5/rDEM4v/pjJnwnToka2Hvqo0XL7W4nMoatKlUkaKyDvZS3mMOgT+e/rMk4x7UAnlcFq7vFV5MgmfInFbODl9T+78kZsJESUAeMgUTETkw6Oe0TSf7uqBPOzswvYhfeOEF6/9DTYJaEQN88UMDdbQJPbUnTZpk9yyjP9D111+f4fPDDz+c9Cqz8+2DF/IWkEDdShUzDGHv/9el9k3eqGoVuR47Vqz6Z7O109hZK8z2DMOD+j40Bw7VgomZ/auY3xbaU2bxEkn7cFi6Leho4k7wQ6Gdh52WRmZHqIGR+AZN/tYODVb8vVnWwMZTkR7Vz7+QblsiASFYme+vv5zLBEwYMfk4F7NMRlw0Qz8SOGZhmhqP2X//l34aC53T8HZPQ9lpHw13Ljlhf329e6HjoqPWh0tBj9uzzJcERHsYjfXc0tpgNxFH/ti2XUYCc5JTuNKpYUO7IwknGSrADaJB5UryN+x3izdslE+hob415fvwhoV8EcHA7QNxCWx6JB8fJgkMTCPmi1HhVicm0gUlINacjoZrYDPgkow33nhDvvzySyxHWiXPPvtsVDaMLgK0bYT6UJM72UIjM2e6iqNzfzpjli2ODzlndOgAyLpxiMSHugn8qxhEjE6D1HxoQKbNgGp7oKR+NkLS7ntA0m68VVL7oeM+8KCY5/pL2lVd3aTDYatZAgLZBk2HZTpCx8Tx8xdY47CjDdAg/ur3U8UHo7Z9yGGzEsxaQUV0LrN/aYwWvM1DCe0zjENEu0cwSeiOgOi7dlui9F2b/tIys+dAO9ktPhChGfZxpg7JujFftoVDVH+hy0K/MePk2dFjoNEF363XgGwlBQtwl68Q89CjgjU4NgviTG2HH2eh8lpoLPQYL4gXbK3yFWw0ASamY+IXWIJEL+lPgCu1yHCEpHMtNO3TcD9TMQQuW6y4jUpAzZNCR9HVKNMRtvMX9KmZq1Y7h9y/PtjPEqCFJlx+Ge5TBZG160RA6r42F6Y/499MlLS3hmBjgfDq5mYcZV/cIRiHVQy/EUr+wgPBD+Us7DHVvn3WY+tQ+cTz8bPLlZcpiUsswdAGwDcrNZsde/fJGpAQ7T8kof5jvpYnrugk5wPHHhe1lvmw3fy6Zq0lrppUswPlf5+L+XMjrLs7RV5+jWYRkWpVhJqQD24DaTBSc8PBI7AnMX+oXu4QjN+5X3zrmjXhArAAU/kYoUCFP0Ct5757RfBmTmjWVAw7CafeMYSkGGhEaQMGIi+MoJ58TATXM4jZNJTXEYHNuPp+BPys5q/7w9b7uvOay1kYqvuLDzaVhNeQB4eVjtd1pw6S1g82DWgcvgLlRH6YJtLmInvZFGynTWfKrdBKCuXLL0Xgr9QNkwkMnUpN5fslSywpHE45Im9Ao3uq8xWWPPzLFA7v0KENbDsG+aXdfgscLBtYVwcS2gF4h/+C86WLFLZ5WI9xENaDsHs5EwF8EdA2xwkCDqUsYUGry04YAuV5vLC3434XABHuQJ0r4zngC4cESMM/21gV2gy1xNFYKjMXEwUcquHGyXlnn5WpCB80KN9dt4t55XWRGjVAqCDo6260QzNORhhou75sNL1MmUbRAZeABg8eLHPwBg9H6HGsBJQZqXNACnfBlrIUU9C1oF2MwQO2AcZoOgHSzsM3Hm1BW/bsklfwBqPaT9tM42pVpTNmxCrDWLsNwzFqUHz4DR5gGlIT2rSW1KnT0odc9KXhtPzqtSLwJTLo9OuhpXB3BXYWGn/zJyXaNzBtD9R6KsDucx2GfQ2rVhbuHcbtme/DkNAH0jF46A06Gyz21l8Hya0YaF0wqNljaYPflt333SNfrV0Hv6X88h5Ig1oDA56xI1Fj4BQ8CYiG+JV4kXEIajs02pvW/0XxcSlMp46ScNW/JQEkRIJjp4OPhC1vO9o9dckyG8uIDojcvYNExJk7hk6ljYuzi+zMHGom7EoA+a2Tc0nOk76VhOf7whP5YqGGZYgVZgWldCkxb70j8v5/5DQYtRmyFk4P1gucQyzilYo6HAEpfYeyb27VUmahvNmr1yCVsVrrlbXOkvyYUZS6ddKBCfifC4QFQ2ffGdVlHPAhtnzRkHC4MLgE7FF8KeD22L8Ml/I9XhztoOGwDitAlKnQwma/+LLUb3GeFLn15vQXCDXBr78RA23Pao1cA8hn6EacR30MY1lfeAGegzUBNYqtny4B0XdG5fgR4NBqIYy7Q/FQMkJhAhz+/sKUKjvsPnQedsrDeOBWYKhlVXt0Jr6RZ+FB4izS2ejEDCh/I46XHPaJNajK7bdaXx2BfQlhCQRrSwTrYqyx2Idh0iR0/t18INnZ8bDXg98P1zZtRIejYfq7pUvtlH8j7A7LjvzDUrgKQJttApJLgM0k7bE+knD3nfZtmoaOIKPGwLs3FTaHVdaALM2byuF+L0oyPH0TYBjlkDIRPYpDPe60SkKgVsX2vDZxkmzGEKsa6tcLJJfYF3GMsFurHcqthGaCqIy+p54Q38BXRS5oIb7zzrWg74R2tX3bVknDnvUk0ZS0VAxfdoMw59khXk0QukOovICzSonQCtI++AgYFZbUu3tK0tTJYl56Jd3rGlgLhsNmFmxn+LRr1sTWj0bmhsCBQyGSj9UYkd90zKDWxmzhdAzdOI3Oe9QF21aX7tZdUtHxfWzLu2/buvr/Z57th7HVb5JWtIjUwn2ahheKo4Vu2rXT3ndOLBAb2pj+wMviZ+BKW+DfOH8EQ7XOmHFsBFJJnTBJUuF8mThksKQ+/JgYEJAUKmzdLgyXfAATwSwrMrJapcHQN+HZp/2rE3PfXQKKuZpHYYXpi/MNDMUM70BCOEiN5Ej67JejDXBYhsfHTr3zLzUUPrD0puUbvxQeZL6t0558WgyIguJDB6JTIEnBXoG3Izu0ASH9ihwWYdqZDyXz45CrRY2zZSy0L5IRNSrK01+OksevuEzGo7OURodNe+gxOwwrCKMw3MWt74zAvmKHRFDzDYfb0G7ofZ0KO87Ypk1kI8iOHYmdfwtsMCUwjNkPjYeB7n8H6XJpyUJG00R53JljC7So036cLj4QgSVNNpY2Jbz1uXRBoLn4+jwmPmgtBdDpq2NYdxh1K4uyzsWw8icMKynssKVwnDOGzJtDovXr10uDocPQbmgg+9FG4kFcbrpRBJ2XGhCnrA1Ikt7YU4sWxvBuo90R5BCGcPQEp/vDkaO4HUA6vgSWQXulzYakUeKqa8UshOEf6QywSbv3bkmoV5dVEjPyC0n7arTVEKn9+PASqQO7Foem+5AX72kyymFenBhIPgBtEkLS4zFuk+3Y6pJALNVRt4J8sXw/1RqdEWrCznZZwzOeGdbBanXpd9n+9uFl5zuqQdrMY/A/JaATeNPofDYPHYNDK06Fs7OQMthp/SMTsh/yOIcvJC2nU+EQhmzb5VR0+JIcYtE2gLPpRMRUlKN/cR3Pl7vvfjkMXxMud3DklCJFpWLpMrIWWoUjq6G18O1O28SmRYukBUggH0jCrFqT/nDDLcCHoRodEA2NxOyYR9LbsBRTwtM5w4eOlIhrmlWrijc7Hh1U5W9oKcU5zMC/9Vu22iEUybA4yLTopyPEhzYKtBFTq4YkwlZhlsE4/H+YqTqw377NDd0AmjSW8ujAV2KI9j2GgxVwzXyQODsrsfKhrQdIivjuaCwl9u6XBNYRKTis8mEI66MRnTYlS9Q4h469H9rL0KREmYU9wEhcR9LWQeNcCXeJclZr45COeZKI9oI4qKVSSu5D/ZcuwTeUinOydYuYAS/DFjNAfAsXSepdPQWhIAQ+KiJNG9vV8CXh1FkeW19zSp9CTY7hcVlDf+HQbDFsXXTFoBTByyoNdjrMO4pAa057b6iYGZjEAFHZYTATGeZBBI4KSfHm7s6vmP0bFgExlAWn4rkqPlaED1UwT+6TWX8Od+iAyAWfzqNiH27bITKWbB9J1NFNd/Q0DaxmzXoxsCGwY4UU5gkyKDttuhRq1Ch9uvtofpxqp1F4FpZ80M5BYT2oSexGxy/650YptXylJOB6+szIYthjoM0InBJlB7QV3O9jJftAOvtlLwiHeaSh3Mmw37SClkUD7inQhn7b8KecASMzt/thu/LDplIG9o3CIDwDDcnORK1eY7UsH8mKdUKns0LCw7CDS002L1smSzq2lynIn7N3rAM/CfjMW7/Olm+vwX83jPtadqPOJdGZfbVqS8KUiZboBETj31FHXXyRrIItyLo3sNOiDYdAZtSGOOPG33xOaCCet3ad1RpZZto+OImiZFjG0gXpzP9GSCpsMnhr4K2SnD483Q28YFTegBmwFai3/4wWyYcaL/3CuEMv20ThXxqfOaSkrKtUEeadjVIDL4xEGucxJBMQLGphz6f/x1r5kRCv7fucpHIY1uVKOxz3SxwzX3lvs5W77rpLPvjgg2zTRUOCBQsWWP8fhmOl42EkC1GPt/58oDhU4KPiL0F/86HHA8oO4C/NsJyiC8LK+pLRcV3JmCb9MI8ZKYAHfDfKpMZC4SM6adHvMNCulySU4S/0/6E3dGcMiwpBQ7F+L+jAVrUnaY78Ugxm5OxaM/dClEHbg59wKPQdOtsSDFdotOXU/7z1f6CjHZIknLsZ5NAT9qs0HLdvcbTTEs7838TAHcFHsvMXEiHkH9yzHdQagKN/i/mbs2CO1AJRNFm0RErxOhIDtInU8lUktf1l6eU5CfF3E2xRWzATZYcw+E1EOETaD4InQVAssSIf/uawlb9Tgd1+aHz+9bDEBjKRFN4bnMEqeGp3WzDcHQkiGDluvL3WZnr0v93ANxHaDYnbEWrHdiiOck6Bne5yEE7Frduxvg9OoMCADqAZyefolXa4dfSesp4gbnPbnZJap6E1VDv5x9LfsAgoVhp0ANOsXbp0sdWdNm2aPPPMM/Liiy/mGglx5odvuozdPjh6ji9K4NlzFyyUSv9gFXrgiRC/9xXANCztIBR0GnYYkszQH3+S5KMdzJ7Df87bvtbiJZIfKY+Vwc6EDsIOxbws4ThdzyffYRrbX3iGedEXZzcw5zCSGgaPnQ0iaob8S+BcotPpcJx2GoPZO8NOCg/pdLE5MTerUbSG/eMwCCiY0K/GkUtm/ipJR7UD2wYMGQWOnQaG/2Op0lMXBwEUPDqsYv14ntfwe1ayH5197emVMuUX7Jpt0H4O4L7vh10pMFdbHl8E+FDTsnXwK/vhj/8rxVDHosAnaS8w4sLdUMIhmVsCcua94j3DSyO15/2hrorq48HvdlRXOXTlGKOaYUOGDh0qDRs2tAtqH3vsMaGLwWG89U62lIYdhobFwIcwknKT0GkzP8ahcyiKh7Lo0Q7mpOJDzjc5NQd/Yb14riSuOUY+TorgtT4IgltXqUK6loSk/sPaYJ24DEimMIZV+dA50umQ+Tt52xqkdxz3WHr5aeic/e64TVL8Omf6mcz/by5bBnlnboFNyQ7pJ6fCpra3aNGMhENCyEYSQcKHYeOhbcapfahLamI4dQDaywG6MgQR2rIowfBaUr2alNq9F/YsaMOc5cTw9Rhe9jK//7Koye+L/NLFzte4IiCufudi1IKYXnbk8ssvt6QUro+Tc11O/v6AWRuGo8ipJGE41Qh2kOy7x7ESDmL6+xTYW/B0p3+OnQr57SCNp2FKAQxV9nI1OwVlBOtE6SfT//8DyxCY+7E2ZNFp/C78FtEJ12OqPRyZB4N2RmoNfhXb+RkX1gYQTnZtYG40cNeEZpFkiTR4/s5REtWfaLcJpb3hRRCqzLlYBIwBWph4HUPVKdv9G0P2WbfO+BJXBLR69Wq7ds2/gc7K/ay8vP3TH893+paEetDCybfeqlVSKGDYlN11iSCt9RwqsJMFdLRg154OA3WhCLRBdsTD0IJCda7AMnbBazk8ysl4ZQnYc/KB7MKRKsD5mHYV+ooCGBba6f/QSUKeabBylRTjkChkimMnFsHWuJ8EEAb+x65K/1Yds3ThdULcX0twoUgILwe6OMSYhDULFitt2gO7A+NY+wv3LaNwl49wZC4Ct3/++efZJv0Db8dAUvvzOB+AFNgRIpUd8MEpBOe0vTR+h9EBqmL6PftBxbFaHEGdDiB0h52WD5K/Y9dwruCQ8DCuKRgwFHLOh/rbHHajrlO+k0+xkt7genZ8drVgBPBPqdJhddrddE2gZhik3qHq4RwvAfJJxrAqEcZ5zP85h4P+nVOvTo7KYGaXYxYzLEEbfHXrirH79QVBhuQEA3asSXjkGyOtSoKPC43A/sIOwk+4NiAO3xhwP7tP69atpWrVqv5FydVYU+W8n1ims6TCqQP/ZiWr4aG7F2ugjkmQ9JxFckuBGwqGfLVg+C2B6W7uCV+CM2L0+4c45R7LT2QOhjppZ57pf4gpA34f+0niqb12Tfqi1aOHnXbkw0PfqmYNu/zAuWIjsJuFNWDpZnHkm+Vb27kqfcjzb8wGXTN1mo0nTW9wtsUJnn8spciyM6vLNth1XCnG72wDPrz/sNvwU4ruADthoCYJ+YlTfx7iTKH/byfZxJbnC+0zGxDRMQWEl56/czbj3zZz5mLWEtqbXzlOnvS7yg/bENvB5TV0fuQ55/zyM6pnGIAdy5l3+eh9YXs6IB7UdxNEatUUadSQO0a4dfLxBdHt2nSfq2MZxMQ3PF9+qIWoMrUCahYnO55OiOLDPnwGYh5zFozGaEe2wwjJ3TzoRnBbLqyIZ+gFBuS6Bj41p2PZAYNd1alUCSu7sS4I0Qlnr10HB7s0SxZc9FgESw/WYwkC14FZl0TMKvV85wNJhIble3sQ1jlNFhn7dfo09j132Sls89vv8Pi9QaRXb3gzwlB6683yHdYxMbRHM3Qa1oGhJDo2agCHwfxwetuIad8U+LqkyWU4xj3kzQhoeT/8JL5e94qB9665uht8gRBHpzgC1NM3CDGDbLREzDAdePo5GYkOWRZexqvhp1K7QiW5oMZZ6JNYggH7B2fDvob7w1ZoDZwNK4ZjF2PNWR36AOG7oG4+rlvrfpsItYUJaBPiEQltPljyYBfBwjVAqiB07M/TZDm0KC4Z4VKWQ/C3+QP3kP5VF9XCziwgGzrw/Q7Db5vej8ipdWpJ4kcfYEIIU+jQQBPQya3XOIaCjPSYiuHmW99+J7twnt7NbevUluVYq8YlEXUQWI9LIkjpm9EGRpTkGq6iyOMIjND0F+qAdWjcMYPOoObNt8XQ0Ayjsfw6G/nDcXPuHEsGvyP42rS2bWQbCLAh4h7R+fR09BnGxqaXeAp8h84uX07y4QWSiNkyLrqdtXoVgsI1lkq9HhCzBcMnel3Dn8r39WjreS3zFqTfE6yqT+jX1y45oQ8VyY7aLhciCzBOg98W18Fx+6ZYk7AIKFYa1bJlSzkTb/dhw4a5VV6KdVB16tSx8a3btGnjHtcvioAi4D0CsUeZWWDGjROp6dDHxoksOHHiRKxSKCLRsi/YlClTbIwl7rMWqfyGHTWqVasWdpxr7tyxC9PiNRjGIQw5hOl8bknUrBk8osMQevTOnDlTSPzhCicK6FHPAHfhCH27+BJp0qRJtskPQnNajHAXTZs2zTatk4C7oNBpNZJ97rhdef369TPMtjr5hfo7ffp0adGihftchkoX7DhHIH369BFq+PEmcUVA9Nim4yG3EqITIh/Gl19+2QZRy83g9Fk9JLNnz7bB8rNKE+ocd/hgaNlwOy87F/c5C+X0GFgOjfjcD47bWYcjKRhuMVBdmQi22/nxxx/tcJ47loQj3PqIkS75EslOSLbjx4/PtDtuVtfxhVAZQ6ZwSZp5jR6NIRIsF8WxDCVcYYhgEl2gjTKc68eNGyc33HBDXBIQgYwrQQRHgw6BIbLPwG5levTogWEzlhpGiWCnVtOtW7cc1QaahsGbNOxrhw8fbrp37x52+nXr1pmqVauGnX7fvn0GxBB2eia8++67zZAhQ8K+BtqPgbYYVnpE7DQYgoeV1kmEjm0++eQT52dYf6GFItz02rDSOomwlhLL+5KdnxH9BVlj8uv3iK6JlcRxpQHxbULHw61Yl7Meq9JPR1wczoypKAKKQHQiEJe9k1OctJWoKAKKQHQjAAcDFUVAEVAEvEFACcgb3LVURUARAAJKQPoYKAKKgGcIKAF5Br0WrAgoAkpA+gwoAoqAZwgoAXkGvRasCCgCcbUWLBZuJ7119yK+MX2UIhVulc0tqMPdHCDSsujZzDJqYhfUcATObrJkyRKpWxcLS8MU7q5bCOFOA8OmhLqcUQwY+uRsbNOTncDRT+BMGZFX8wbE46HntxO2JbsyeJ4e5lwWwY0awpVFixZJuN7fgXlyS3Q+L/6B9gLTxOpvJaBYvXNab0UgDhDQIVgc3ERtgiIQqwgoAcXqndN6KwJxgIASUBzcRG2CIhCrCCgBxeqd03orAnGAgBJQHNxEbYIiEKsIKAHF6p3TeisCcYCAElAc3ERtgiIQqwgoAcXqndN6KwJxgIASUBzcRG2CIhCrCCgBxeqd03orAnGAgBJQHNxEbYIiEKsIKAHF6p3TeisCcYCAElAc3ERtgiIQqwgoAcXqndN6KwJxgIASUBzcRG2CIhCrCCgBxeqd03orAnGAgBJQHNxEbYIiEKsIKAGdhDuHPdOlV69e0rVrV3nyySeFoULnz58vY8aMybK0QYMGCfYczzJN4MmclDV48GC544475Ntvvw3MLtNvhl194YUXbFt69uwpmzZtsiFlX3755UxpnQMTJkyQbt262c/48eOdwyH/RlrG6tWr5brrrnM/2eEasuCAE5HWw7mc9XnrrbfsT+bRt29fufnmm2Xx4sVOEv0bAgEloBDAHM/5LaIEAAALw0lEQVTh22+/Xbp06SKff/65VK1aVYYMGSLbt2+XP//8M2S27NDPPvuskFAikUjLWrhwoSWRd999V/r165dtUQMHDrQxk9mWm266SR577DFh7OisOte4ceOE1w0bNkzat29/wstgPObhw4fbD2NGRxKTOqvK5KStjIl95ZVX2jjRzHvUqFFStGhR6d+/vzzyyCNZFafniAAYW+UEIoCA86ZDhw5ujqmpqWb9+vUG2oY9jg5srr76anv+sssuM3h4DTqz+eqrr8zjjz9uQBDutdl9yUlZCI5u0GnNDz/8YDp16pRdEaZ169YmLS3NTYeg9QZkahBg3Tz//POmXbt2ZuvWreb1118311xzjXnttddM27ZtzauvvmpAQObgwYPutaG+hFvGnXfeaa6//nozduxYm9U333xjoG2Eyjbi4zmpx/Tp083s2bPNPffcY8u7//77zZw5c+z3888/PwN2EVcoD1ygGtAJfg9t2bJFypQp4+aakJAgVapUsb+bN28uAwYMkAIFCgg6rWzbtk1APFKnTh37FvX5fO514XzJSVnUFlgOd2ng7hoHDhzIsigOH/3rVb16dZu+WrVq0qdPHwEBydy5c20+3bt3lwceeMBqf9SWqClxuJedhFsG2/vKK6/I5ZdfbrPksIdD3RMlOalHy5YtpVy5cm4VqOlS66XwODU0ldAIKAGFxiZHZ9gxacdxhlLLli1zVXFn65ciRYpYu5A/UeWksJyUxaETh2G057CDZGdzYhpu1UNhm2h7oThtIYmx41LYHry0LbHxOzQKu02OPZnFf5GWwaxod+FWNU49ssg+7FM5qUdg5nzZOEPtI0eOxOVWOoFtPp7fScdzsV6bGQFqC7QlYKhgO+Tu3bsFwxNZsWJF5sTHeSQnZbGD0ADN/cWSkpKytZ+8+eabguGFbcuOHTsEQ4wsa806cR8vpmMHDEdDibQMVoBG/aZNm2ZZl0hP5qQegWX06NHDaoY83rlz58DT+jsAAd0XLACQE/nz0KFDufYGjLQsDg04FAxXIs2fWlH+/PnDzd6mi7SMiDKPIPGJqEdO2h9BFeMmqRJQ3NxKbYgiEHsIqA0o9u6Z1lgRiBsElIDi5lZqQxSB2ENACSj27pnWWBGIGwSUgOLmVmpDFIHYQ0AJKPbumdZYEYgbBJSA4uZWakMUgdhDQAko9u6Z1lgRiBsElIDi5lZqQxSB2ENACSj27pnWWBGIGwSUgOLmVmpDFIHYQ0AJKPbumdZYEYgbBJSA4uZWakMUgdhDQAko9u6Z1lgRiBsElIDi5lZqQxSB2ENACSj27pnWWBGIGwSUgOLmVmpDFIHYQ0AJKPbumdZYEYgbBJSA4uZWakMUgdhDQAko9u6Z1lgRiBsElIDi5lZqQxSB2ENACSj27pnWWBGIGwSUgOLmVmpDFIHYQ0AJKPbumdZYEYgbBJSA4uZWakMUgdhDQAko9u5ZRDXmLp/cKpnbJKsoAtGGgBJQtN2RE1Sf1157TS644AIpWbKkVK1aVYoUKSK333677Nq1yy1h8uTJwr3c169f7x7TL4pAbiKgBJSbaOdSWY8//rg8+eSTUr9+ffnqq6/k119/FR778ssv5f7778+lWmgxikD2CCRln0RTxBIC7733nrz44osyePBg6dmzp1v1pk2byqmnnir33HOPXHvttdKuXTv3nH5RBLxCQDUgr5A/SeWOHj1amjdvLvfee2+mEu666y7h0Oy0007LcG7lypXStm1bO1w799xz5euvv3bP9+3bV55++ml59NFHLYHxL+Wff/6RW265RSpWrChly5aVK664QtauXeteN2vWLGFeS5cutXmXLl1aLr30Ulm3bp3Mnz9fWrdubetBkvzrr7/c61JTU+WNN96Q2rVrS7FixaRZs2bCNvnLnDlz5MILL7Tnq1WrZuuxc+dON0l2eeS0bizgww8/lHPOOcetmz9WbgX0S/gIGJW4QuCUU04xvXr1CqtNkyZNMnhSDOxDpnfv3uadd94xjRo1MgUKFDCrV6+2edx0000GJGMqVapkunXrZl566SWTnJxs6tataypXrmyGDh1qRowYYRo3bmxgbzKbNm2y1zHvhIQEe90TTzxhrwNRmYYNGxrYpAyGgmbQoEGmaNGiBsNDt759+vQxSUlJhn/Hjh1r7rjjDlvHYcOG2TT79u0zbCM0OFsuND0DQjXt27cPO4+c1u2VV14xiYmJpmvXrgZDW3PfffcZ2NDMqFGj3LL1S2QISGTJNXU0IwBjsu2sb7/9dljVdAjo2WefddNDO7F5fP755/YYCYgktWzZMjfNW2+9Zcll+fLl7rE9e/aYMmXKmDvvvNMec/J+7rnn3DSPPPKIzWvAgAHuMRIfbFX294YNG0y+fPlM//793fP8QuIjyZD4Zs+ebfNYsGCBm+aLL76wZJCWlmbCySMndYPx3pQoUcIQD3+5+uqrzVlnneV/SL9HgIAOwcJXFqM+ZaFChWwd9+/fH1FdL774Yjc9NBSBVpJhZoxDtpo1a7ppaNSmTalGjRruMQ6XOnfuLDNmzHCP8UurVq3c3/Xq1bPfO3To4B7jEG7VqlX292+//SYpKSly4403uuf5pXv37rJ582ZZs2aNHZoVLlxY0PEFGolw+NilSxeBNmVn9MLJw8k80rrt3r3btnvevHnifDhUZP23bdvmZKt/I0BACSgCsKI9KY3MJAtoJiGrunXr1kznKlSo4B7jtHz+/Pkz+A2dfvrp7nl+oa0HQ7IMx/iDZLJx48YMx3nMEQxf7Fe6BTjiHONv2odYvn99eNwpi7YikiPdBzBMlIcfftiSIImNxyjh5GET4r9I6ua4KtC21qRJE/cD7dFm55x38ta/4SGgBBQeTjGTqkGDBvbtDC04U50PHDggsN1kmgFjp89K/EmC6TDUEn+jr3Ptjh07pHr16s5P+xf2nAy/s/rBfFlvf18lpt++fbu9zMm7ZcuWsnjxYsGwUAYOHCgYmknHjh2tw2W4eTDDSOpWqlQpW4fp06cLNczADw3TKpEjoAQUOWZRfQWdDRcuXGg7ZmBFYbuRLVu2iP8QKDBNOL857OBMFuw+bnISx48//ijOMMs9EcEX5kuZNm2a/ev8x9/UfKg5cQarU6dOlgA5LKQW9NlnnwlnvmAXskM0XpdVHk6+kfytVauWTT5u3DjhEND5jBw5Uji7yKGjSuQIKAFFjllUX0F7CJ0NMYskDz30kEydOtV+SEwcLpx33nkCQ/FxtQGzP3aIduutt8rff/8ttI1wep62EE7N51Rof6J/EutNojl8+LCww7/66qu2k1NTI8FxGp5pOOxh+ZghE2ppbFs4eeSkfjA0W7sTp+GHDBliCXDKlClCLDhE5JBQJQcIRGCw1qQxggBni5566imDDmlnlfBYGNh1DN7UBsZStxXObBDsJu4xfoHPjjsTxVkf+PNkOM8fP//8s4EGYmekON1ep04dM2HCBDddsLyhqdj0ICw3HXx+DIzn7m/YqAxI1M6ygXAM7FoG5Oae5xf4BZkWLVrY6Xq2jS4CEydOdNNkl0dO64Zhp4FB3C23fPny1k0AQ1u3bP0SGQI+Js8Bb+klMYIAbRXUEjh8icTmEW7zHKM2nRFPpBw8eNDOfNHRMJRwCMj2gQiCJgknj6AXZnOQNicaxIlpdvazbLLK86eVgPL8I6AAKALeIaA2IO+w15IVgTyPgBJQnn8EFABFwDsElIC8w15LVgTyPAJKQHn+EVAAFAHvEFAC8g57LVkRyPMIKAHl+UdAAVAEvENACcg77LVkRSDPI6AElOcfAQVAEfAOASUg77DXkhWBPI+AElCefwQUAEXAOwSUgLzDXktWBPI8AkpAef4RUAAUAe8QUALyDnstWRHI8wgoAeX5R0ABUAS8Q0AJyDvstWRFIM8joASU5x8BBUAR8A4BJSDvsNeSFYE8j4ASUJ5/BBQARcA7BJSAvMNeS1YE8jwCSkB5/hFQABQB7xBQAvIOey1ZEcjzCCgB5flHQAFQBLxD4P8BhtRc5Y1M1xUAAAAASUVORK5CYII=" /><!-- --></p>
 <p>Be aware that the marker matrix <code>M</code> has to be imputed (no missing data allowed) and make sure that the number of rows in the M matrix is equivalent to the levels of the gTerm specified (i.e. if the gTerm is “id” and has 300 levels or in other words 300 individuals, then M has dimensions 300 x m, where m is the number of markers).</p>
 </div>
 <div id="overlayed-models-the-overlay-function" class="section level4">
 <h4>Overlayed models [the overlay() function]</h4>
 <p>Another very useful function is the <code>overlay</code> function, which allows for the overlay of matrices of different random effects and estimate a single variance component for the overlayed terms.</p>
-<div class="sourceCode" id="cb39"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb39-1"><a href="#cb39-1"></a><span class="kw">data</span>(<span class="st">&quot;DT_halfdiallel&quot;</span>)</span>
-<span id="cb39-2"><a href="#cb39-2"></a>DT &lt;-<span class="st"> </span>DT_halfdiallel</span>
-<span id="cb39-3"><a href="#cb39-3"></a><span class="kw">head</span>(DT)</span></code></pre></div>
+<div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1"></a><span class="kw">data</span>(<span class="st">&quot;DT_halfdiallel&quot;</span>)</span>
+<span id="cb40-2"><a href="#cb40-2"></a>DT &lt;-<span class="st"> </span>DT_halfdiallel</span>
+<span id="cb40-3"><a href="#cb40-3"></a><span class="kw">head</span>(DT)</span></code></pre></div>
 <pre><code>##   rep geno male female     sugar
 ## 1   1   12    1      2 13.950509
 ## 2   2   12    1      2  9.756918
@@ -1005,35 +865,38 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 ## 4   2   13    1      3  9.119455
 ## 5   1   14    1      4  5.174483
 ## 6   2   14    1      4  8.452221</code></pre>
-<div class="sourceCode" id="cb41"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb41-1"><a href="#cb41-1"></a>DT<span class="op">$</span>femalef &lt;-<span class="st"> </span><span class="kw">as.factor</span>(DT<span class="op">$</span>female)</span>
-<span id="cb41-2"><a href="#cb41-2"></a>DT<span class="op">$</span>malef &lt;-<span class="st"> </span><span class="kw">as.factor</span>(DT<span class="op">$</span>male)</span>
-<span id="cb41-3"><a href="#cb41-3"></a>DT<span class="op">$</span>genof &lt;-<span class="st"> </span><span class="kw">as.factor</span>(DT<span class="op">$</span>geno)</span>
-<span id="cb41-4"><a href="#cb41-4"></a><span class="co">#### model using overlay</span></span>
-<span id="cb41-5"><a href="#cb41-5"></a>modh &lt;-<span class="st"> </span><span class="kw">mmer</span>(sugar<span class="op">~</span><span class="dv">1</span>, </span>
-<span id="cb41-6"><a href="#cb41-6"></a>             <span class="dt">random=</span><span class="op">~</span><span class="kw">vs</span>(<span class="kw">overlay</span>(femalef,malef)) </span>
-<span id="cb41-7"><a href="#cb41-7"></a>             <span class="op">+</span><span class="st"> </span>genof, <span class="dt">iters=</span><span class="dv">3</span>,</span>
-<span id="cb41-8"><a href="#cb41-8"></a>             <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb42"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1"></a>DT<span class="op">$</span>femalef &lt;-<span class="st"> </span><span class="kw">as.factor</span>(DT<span class="op">$</span>female)</span>
+<span id="cb42-2"><a href="#cb42-2"></a>DT<span class="op">$</span>malef &lt;-<span class="st"> </span><span class="kw">as.factor</span>(DT<span class="op">$</span>male)</span>
+<span id="cb42-3"><a href="#cb42-3"></a>DT<span class="op">$</span>genof &lt;-<span class="st"> </span><span class="kw">as.factor</span>(DT<span class="op">$</span>geno)</span>
+<span id="cb42-4"><a href="#cb42-4"></a><span class="co">#### model using overlay</span></span>
+<span id="cb42-5"><a href="#cb42-5"></a>modhr &lt;-<span class="st"> </span><span class="kw">mmer</span>(sugar<span class="op">~</span><span class="dv">1</span>, </span>
+<span id="cb42-6"><a href="#cb42-6"></a>             <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(<span class="kw">overlay</span>(femalef,malef)) </span>
+<span id="cb42-7"><a href="#cb42-7"></a>             <span class="op">+</span><span class="st"> </span>genof, <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb42-8"><a href="#cb42-8"></a></span>
+<span id="cb42-9"><a href="#cb42-9"></a>modhc &lt;-<span class="st"> </span><span class="kw">mmec</span>(sugar<span class="op">~</span><span class="dv">1</span>, </span>
+<span id="cb42-10"><a href="#cb42-10"></a>             <span class="dt">random=</span><span class="op">~</span><span class="kw">vsc</span>(<span class="kw">isc</span>(<span class="kw">overlay</span>(femalef,malef, <span class="dt">sparse =</span> <span class="ot">TRUE</span>))) </span>
+<span id="cb42-11"><a href="#cb42-11"></a>             <span class="op">+</span><span class="st"> </span>genof,<span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
 <p>here the <code>femalef</code> and <code>malef</code> random effects are overlayed becoming a single random effect that has the same variance component.</p>
 </div>
 <div id="spatial-models-using-the-2-dimensional-spline" class="section level4">
 <h4>Spatial models (using the 2-dimensional spline)</h4>
 <p>We will use the CPdata to show the use of 2-dimensional splines for accomodating spatial effects in field experiments. In early generation variety trials the availability of seed is low, which makes the use of an unreplicated design a neccesity more than anything else. Experimental designs such as augmented designs and partially-replicated (p-rep) designs have become more common these days.</p>
 <p>In order to do a good job modeling the spatial trends happening in the field, special covariance structures have been proposed to accomodate such spatial trends (i.e. autoregressive residuals; ar1). Unfortunately, some of these covariance structures make the modeling rather unstable. More recently other research groups have proposed the use of 2-dimensional splines to overcome such issues and have a more robust modeling of the spatial terms (Lee et al. 2013; Rodríguez-Álvarez et al. 2018).</p>
-<p>In this example we assume an unreplicated population where row and range information is available which allows us to fit a 2 dimensional spline model.</p>
-<div class="sourceCode" id="cb42"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb42-2"><a href="#cb42-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb42-3"><a href="#cb42-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
-<span id="cb42-4"><a href="#cb42-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
-<span id="cb42-5"><a href="#cb42-5"></a><span class="co">### mimic two fields</span></span>
-<span id="cb42-6"><a href="#cb42-6"></a>A &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT)</span>
-<span id="cb42-7"><a href="#cb42-7"></a>mix &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb42-8"><a href="#cb42-8"></a>            <span class="dt">random=</span><span class="op">~</span><span class="kw">vs</span>(id, <span class="dt">Gu=</span>A) <span class="op">+</span></span>
-<span id="cb42-9"><a href="#cb42-9"></a><span class="st">              </span><span class="kw">vs</span>(Rowf) <span class="op">+</span></span>
-<span id="cb42-10"><a href="#cb42-10"></a><span class="st">              </span><span class="kw">vs</span>(Colf) <span class="op">+</span></span>
-<span id="cb42-11"><a href="#cb42-11"></a><span class="st">              </span><span class="kw">spl2Da</span>(Row,Col),</span>
-<span id="cb42-12"><a href="#cb42-12"></a>            <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vs</span>(units), <span class="dt">iters=</span><span class="dv">3</span>,</span>
-<span id="cb42-13"><a href="#cb42-13"></a>            <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb42-14"><a href="#cb42-14"></a><span class="kw">summary</span>(mix)</span></code></pre></div>
+<p>In this example we assume an unreplicated population where row and range information is available which allows usr to fit a 2 dimensional spline model.</p>
+<div class="sourceCode" id="cb43"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb43-1"><a href="#cb43-1"></a><span class="kw">data</span>(DT_cpdata)</span>
+<span id="cb43-2"><a href="#cb43-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
+<span id="cb43-3"><a href="#cb43-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
+<span id="cb43-4"><a href="#cb43-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
+<span id="cb43-5"><a href="#cb43-5"></a><span class="co">### mimic two fields</span></span>
+<span id="cb43-6"><a href="#cb43-6"></a>A &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT)</span>
+<span id="cb43-7"><a href="#cb43-7"></a>mix &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
+<span id="cb43-8"><a href="#cb43-8"></a>            <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(id, <span class="dt">Gu=</span>A) <span class="op">+</span></span>
+<span id="cb43-9"><a href="#cb43-9"></a><span class="st">              </span><span class="kw">vsr</span>(Rowf) <span class="op">+</span></span>
+<span id="cb43-10"><a href="#cb43-10"></a><span class="st">              </span><span class="kw">vsr</span>(Colf) <span class="op">+</span></span>
+<span id="cb43-11"><a href="#cb43-11"></a><span class="st">              </span><span class="kw">spl2Da</span>(Row,Col),</span>
+<span id="cb43-12"><a href="#cb43-12"></a>            <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vsr</span>(units), <span class="dt">nIters=</span><span class="dv">3</span>,</span>
+<span id="cb43-13"><a href="#cb43-13"></a>            <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb43-14"><a href="#cb43-14"></a><span class="kw">summary</span>(mix)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
 ## **********************  sommer 4.1  ********************** 
@@ -1066,17 +929,17 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <div id="customized-random-effects" class="section level4">
 <h4>Customized random effects</h4>
 <p>One of the most powerful features of sommer is the ability to provide any customized matrix and estimate any random effect. For example:</p>
-<div class="sourceCode" id="cb44"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb44-2"><a href="#cb44-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb44-3"><a href="#cb44-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
-<span id="cb44-4"><a href="#cb44-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
-<span id="cb44-5"><a href="#cb44-5"></a></span>
-<span id="cb44-6"><a href="#cb44-6"></a><span class="co">#### look at the data and fit the model</span></span>
-<span id="cb44-7"><a href="#cb44-7"></a>mix1 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb44-8"><a href="#cb44-8"></a>              <span class="dt">random=</span><span class="op">~</span><span class="kw">vs</span>(<span class="kw">list</span>(GT)),</span>
-<span id="cb44-9"><a href="#cb44-9"></a>              <span class="dt">rcov=</span><span class="op">~</span>units, <span class="dt">iters=</span><span class="dv">3</span>,</span>
-<span id="cb44-10"><a href="#cb44-10"></a>              <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
-<p>the matrix GT is provided as a random effect by encapsulating the matrix in a list and provided in the <code>vs()</code> function.</p>
+<div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1"></a><span class="kw">data</span>(DT_cpdata)</span>
+<span id="cb45-2"><a href="#cb45-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
+<span id="cb45-3"><a href="#cb45-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
+<span id="cb45-4"><a href="#cb45-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
+<span id="cb45-5"><a href="#cb45-5"></a></span>
+<span id="cb45-6"><a href="#cb45-6"></a><span class="co">#### look at the data and fit the model</span></span>
+<span id="cb45-7"><a href="#cb45-7"></a>mix1 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
+<span id="cb45-8"><a href="#cb45-8"></a>              <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(<span class="kw">list</span>(GT)),</span>
+<span id="cb45-9"><a href="#cb45-9"></a>              <span class="dt">rcov=</span><span class="op">~</span>units, <span class="dt">nIters=</span><span class="dv">3</span>,</span>
+<span id="cb45-10"><a href="#cb45-10"></a>              <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
+<p>the matrix GT is provided as a random effect by encapsulating the matrix in a list and provided in the <code>vsr()</code> function.</p>
 </div>
 </div>
 <div id="genomic-selection" class="section level3">
@@ -1086,41 +949,42 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <p><span class="math inline">\(y = X\beta + Zu + \epsilon\)</span></p>
 <p><br></p>
 <p>and takes advantage of the variance covariance matrix for the genotype effect known as the additive relationship matrix (A) and calculated using the <code>A.mat</code> function to establish connections among all individuals and predict the BLUPs for individuals that were not measured. In case the interest is to get BLUPs for markers the random effect is the actual marker matrix and the relationship among markers can be specified as well but in this example is assumed to be diagonal.</p>
-<div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1"></a><span class="kw">data</span>(DT_wheat)</span>
-<span id="cb45-2"><a href="#cb45-2"></a>DT &lt;-<span class="st"> </span>DT_wheat</span>
-<span id="cb45-3"><a href="#cb45-3"></a>GT &lt;-<span class="st"> </span>GT_wheat</span>
-<span id="cb45-4"><a href="#cb45-4"></a><span class="kw">colnames</span>(DT) &lt;-<span class="st"> </span><span class="kw">paste0</span>(<span class="st">&quot;X&quot;</span>,<span class="dv">1</span><span class="op">:</span><span class="kw">ncol</span>(DT))</span>
-<span id="cb45-5"><a href="#cb45-5"></a>DT &lt;-<span class="st"> </span><span class="kw">as.data.frame</span>(DT);DT<span class="op">$</span>id &lt;-<span class="st"> </span><span class="kw">as.factor</span>(<span class="kw">rownames</span>(DT))</span>
-<span id="cb45-6"><a href="#cb45-6"></a><span class="co"># select environment 1</span></span>
-<span id="cb45-7"><a href="#cb45-7"></a><span class="kw">rownames</span>(GT) &lt;-<span class="st"> </span><span class="kw">rownames</span>(DT)</span>
-<span id="cb45-8"><a href="#cb45-8"></a>K &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
-<span id="cb45-9"><a href="#cb45-9"></a><span class="kw">colnames</span>(K) &lt;-<span class="st"> </span><span class="kw">rownames</span>(K) &lt;-<span class="st"> </span><span class="kw">rownames</span>(DT)</span>
-<span id="cb45-10"><a href="#cb45-10"></a><span class="co"># GBLUP pedigree-based approach</span></span>
-<span id="cb45-11"><a href="#cb45-11"></a><span class="kw">set.seed</span>(<span class="dv">12345</span>)</span>
-<span id="cb45-12"><a href="#cb45-12"></a>y.trn &lt;-<span class="st"> </span>DT</span>
-<span id="cb45-13"><a href="#cb45-13"></a>vv &lt;-<span class="st"> </span><span class="kw">sample</span>(<span class="kw">rownames</span>(DT),<span class="kw">round</span>(<span class="kw">nrow</span>(DT)<span class="op">/</span><span class="dv">5</span>))</span>
-<span id="cb45-14"><a href="#cb45-14"></a>y.trn[vv,<span class="st">&quot;X1&quot;</span>] &lt;-<span class="st"> </span><span class="ot">NA</span></span>
-<span id="cb45-15"><a href="#cb45-15"></a></span>
-<span id="cb45-16"><a href="#cb45-16"></a><span class="co">## GBLUP</span></span>
-<span id="cb45-17"><a href="#cb45-17"></a>ans &lt;-<span class="st"> </span><span class="kw">mmer</span>(X1<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb45-18"><a href="#cb45-18"></a>            <span class="dt">random=</span><span class="op">~</span><span class="kw">vs</span>(id,<span class="dt">Gu=</span>K), </span>
-<span id="cb45-19"><a href="#cb45-19"></a>            <span class="dt">rcov=</span><span class="op">~</span>units, <span class="dt">iters=</span><span class="dv">3</span>,</span>
-<span id="cb45-20"><a href="#cb45-20"></a>            <span class="dt">data=</span>y.trn,<span class="dt">verbose =</span> <span class="ot">FALSE</span>) <span class="co"># kinship based</span></span>
-<span id="cb45-21"><a href="#cb45-21"></a>ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1 &lt;-<span class="st"> </span><span class="kw">as.data.frame</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1)</span>
-<span id="cb45-22"><a href="#cb45-22"></a><span class="kw">rownames</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1) &lt;-<span class="st"> </span><span class="kw">gsub</span>(<span class="st">&quot;id&quot;</span>,<span class="st">&quot;&quot;</span>,<span class="kw">rownames</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1))</span>
-<span id="cb45-23"><a href="#cb45-23"></a><span class="kw">cor</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1[vv,],DT[vv,<span class="st">&quot;X1&quot;</span>], <span class="dt">use=</span><span class="st">&quot;complete&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb46"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1"></a><span class="kw">data</span>(DT_wheat)</span>
+<span id="cb46-2"><a href="#cb46-2"></a>DT &lt;-<span class="st"> </span>DT_wheat</span>
+<span id="cb46-3"><a href="#cb46-3"></a>GT &lt;-<span class="st"> </span>GT_wheat</span>
+<span id="cb46-4"><a href="#cb46-4"></a><span class="kw">colnames</span>(DT) &lt;-<span class="st"> </span><span class="kw">paste0</span>(<span class="st">&quot;X&quot;</span>,<span class="dv">1</span><span class="op">:</span><span class="kw">ncol</span>(DT))</span>
+<span id="cb46-5"><a href="#cb46-5"></a>DT &lt;-<span class="st"> </span><span class="kw">as.data.frame</span>(DT);DT<span class="op">$</span>id &lt;-<span class="st"> </span><span class="kw">as.factor</span>(<span class="kw">rownames</span>(DT))</span>
+<span id="cb46-6"><a href="#cb46-6"></a><span class="co"># select environment 1</span></span>
+<span id="cb46-7"><a href="#cb46-7"></a><span class="kw">rownames</span>(GT) &lt;-<span class="st"> </span><span class="kw">rownames</span>(DT)</span>
+<span id="cb46-8"><a href="#cb46-8"></a>K &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
+<span id="cb46-9"><a href="#cb46-9"></a><span class="kw">colnames</span>(K) &lt;-<span class="st"> </span><span class="kw">rownames</span>(K) &lt;-<span class="st"> </span><span class="kw">rownames</span>(DT)</span>
+<span id="cb46-10"><a href="#cb46-10"></a><span class="co"># GBLUP pedigree-based approach</span></span>
+<span id="cb46-11"><a href="#cb46-11"></a><span class="kw">set.seed</span>(<span class="dv">12345</span>)</span>
+<span id="cb46-12"><a href="#cb46-12"></a>y.trn &lt;-<span class="st"> </span>DT</span>
+<span id="cb46-13"><a href="#cb46-13"></a>vv &lt;-<span class="st"> </span><span class="kw">sample</span>(<span class="kw">rownames</span>(DT),<span class="kw">round</span>(<span class="kw">nrow</span>(DT)<span class="op">/</span><span class="dv">5</span>))</span>
+<span id="cb46-14"><a href="#cb46-14"></a>y.trn[vv,<span class="st">&quot;X1&quot;</span>] &lt;-<span class="st"> </span><span class="ot">NA</span></span>
+<span id="cb46-15"><a href="#cb46-15"></a></span>
+<span id="cb46-16"><a href="#cb46-16"></a><span class="co">## GBLUP</span></span>
+<span id="cb46-17"><a href="#cb46-17"></a>ans &lt;-<span class="st"> </span><span class="kw">mmer</span>(X1<span class="op">~</span><span class="dv">1</span>,</span>
+<span id="cb46-18"><a href="#cb46-18"></a>            <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(id,<span class="dt">Gu=</span>K), </span>
+<span id="cb46-19"><a href="#cb46-19"></a>            <span class="dt">rcov=</span><span class="op">~</span>units, <span class="dt">nIters=</span><span class="dv">3</span>,</span>
+<span id="cb46-20"><a href="#cb46-20"></a>            <span class="dt">data=</span>y.trn,<span class="dt">verbose =</span> <span class="ot">FALSE</span>) <span class="co"># kinship based</span></span>
+<span id="cb46-21"><a href="#cb46-21"></a>ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1 &lt;-<span class="st"> </span><span class="kw">as.data.frame</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1)</span>
+<span id="cb46-22"><a href="#cb46-22"></a><span class="kw">rownames</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1) &lt;-<span class="st"> </span><span class="kw">gsub</span>(<span class="st">&quot;id&quot;</span>,<span class="st">&quot;&quot;</span>,<span class="kw">rownames</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1))</span>
+<span id="cb46-23"><a href="#cb46-23"></a><span class="kw">cor</span>(ans<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>X1[vv,],DT[vv,<span class="st">&quot;X1&quot;</span>], <span class="dt">use=</span><span class="st">&quot;complete&quot;</span>)</span></code></pre></div>
 <pre><code>## [1] 0.5733721</code></pre>
-<div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1"></a><span class="co">## rrBLUP</span></span>
-<span id="cb47-2"><a href="#cb47-2"></a>ans2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(X1<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb47-3"><a href="#cb47-3"></a>             <span class="dt">random=</span><span class="op">~</span><span class="kw">vs</span>(<span class="kw">list</span>(GT), <span class="dt">buildGu =</span> <span class="ot">FALSE</span>), </span>
-<span id="cb47-4"><a href="#cb47-4"></a>             <span class="dt">rcov=</span><span class="op">~</span>units, <span class="dt">getPEV =</span> <span class="ot">FALSE</span>, <span class="dt">iters=</span><span class="dv">3</span>,</span>
-<span id="cb47-5"><a href="#cb47-5"></a>             <span class="dt">data=</span>y.trn,<span class="dt">verbose =</span> <span class="ot">FALSE</span>) <span class="co"># kinship based</span></span>
-<span id="cb47-6"><a href="#cb47-6"></a></span>
-<span id="cb47-7"><a href="#cb47-7"></a>u &lt;-<span class="st"> </span>GT <span class="op">%*%</span><span class="st"> </span><span class="kw">as.matrix</span>(ans2<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:GT</span><span class="st">`</span><span class="op">$</span>X1) <span class="co"># BLUPs for individuals</span></span>
-<span id="cb47-8"><a href="#cb47-8"></a><span class="kw">rownames</span>(u) &lt;-<span class="st"> </span><span class="kw">rownames</span>(GT)</span>
-<span id="cb47-9"><a href="#cb47-9"></a><span class="kw">cor</span>(u[vv,],DT[vv,<span class="st">&quot;X1&quot;</span>]) <span class="co"># same correlation</span></span></code></pre></div>
+<div class="sourceCode" id="cb48"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1"></a><span class="co">## rrBLUP</span></span>
+<span id="cb48-2"><a href="#cb48-2"></a>ans2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(X1<span class="op">~</span><span class="dv">1</span>,</span>
+<span id="cb48-3"><a href="#cb48-3"></a>             <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(<span class="kw">list</span>(GT), <span class="dt">buildGu =</span> <span class="ot">FALSE</span>), </span>
+<span id="cb48-4"><a href="#cb48-4"></a>             <span class="dt">rcov=</span><span class="op">~</span>units, <span class="dt">getPEV =</span> <span class="ot">FALSE</span>, <span class="dt">nIters=</span><span class="dv">3</span>,</span>
+<span id="cb48-5"><a href="#cb48-5"></a>             <span class="dt">data=</span>y.trn,<span class="dt">verbose =</span> <span class="ot">FALSE</span>) <span class="co"># kinship based</span></span>
+<span id="cb48-6"><a href="#cb48-6"></a></span>
+<span id="cb48-7"><a href="#cb48-7"></a>u &lt;-<span class="st"> </span>GT <span class="op">%*%</span><span class="st"> </span><span class="kw">as.matrix</span>(ans2<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:GT</span><span class="st">`</span><span class="op">$</span>X1) <span class="co"># BLUPs for individuals</span></span>
+<span id="cb48-8"><a href="#cb48-8"></a><span class="kw">rownames</span>(u) &lt;-<span class="st"> </span><span class="kw">rownames</span>(GT)</span>
+<span id="cb48-9"><a href="#cb48-9"></a><span class="kw">cor</span>(u[vv,],DT[vv,<span class="st">&quot;X1&quot;</span>]) <span class="co"># same correlation</span></span></code></pre></div>
 <pre><code>## [1] 0.5771181</code></pre>
-<div class="sourceCode" id="cb49"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1"></a><span class="co"># the same can be applied in multi-response models in GBLUP or rrBLUP</span></span></code></pre></div>
+<div class="sourceCode" id="cb50"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1"></a><span class="co"># the same can be applied in multi-response models in GBLUP or rrBLUP</span></span>
+<span id="cb50-2"><a href="#cb50-2"></a><span class="co"># same can be achieved with the mmec function (see ?DT_wheat)</span></span></code></pre></div>
 </div>
 <div id="likelihood-ratio-tests" class="section level3">
 <h3>11) Likelihood ratio tests</h3>
@@ -1128,29 +992,29 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <div id="testing-the-significance-of-a-variance-component" class="section level4">
 <h4>11.1) Testing the significance of a variance component</h4>
 <p>For example, imagine that a researcher would like to know if his model improves when adding the effect of a spatial kernel to capture the spatial trend in the field, his base model may look like this:</p>
-<div class="sourceCode" id="cb50"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb50-2"><a href="#cb50-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb50-3"><a href="#cb50-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
-<span id="cb50-4"><a href="#cb50-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
-<span id="cb50-5"><a href="#cb50-5"></a><span class="co">### mimic two fields</span></span>
-<span id="cb50-6"><a href="#cb50-6"></a>A &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT)</span>
-<span id="cb50-7"><a href="#cb50-7"></a></span>
-<span id="cb50-8"><a href="#cb50-8"></a>mix1 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb50-9"><a href="#cb50-9"></a>            <span class="dt">random=</span><span class="op">~</span><span class="kw">vs</span>(id, <span class="dt">Gu=</span>A) <span class="op">+</span></span>
-<span id="cb50-10"><a href="#cb50-10"></a><span class="st">              </span><span class="kw">vs</span>(Rowf) <span class="op">+</span></span>
-<span id="cb50-11"><a href="#cb50-11"></a><span class="st">              </span><span class="kw">vs</span>(Colf),</span>
-<span id="cb50-12"><a href="#cb50-12"></a>            <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vs</span>(units), <span class="dt">iters=</span><span class="dv">3</span>,</span>
-<span id="cb50-13"><a href="#cb50-13"></a>            <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb51"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1"></a><span class="kw">data</span>(DT_cpdata)</span>
+<span id="cb51-2"><a href="#cb51-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
+<span id="cb51-3"><a href="#cb51-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
+<span id="cb51-4"><a href="#cb51-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
+<span id="cb51-5"><a href="#cb51-5"></a><span class="co">### mimic two fields</span></span>
+<span id="cb51-6"><a href="#cb51-6"></a>A &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT)</span>
+<span id="cb51-7"><a href="#cb51-7"></a></span>
+<span id="cb51-8"><a href="#cb51-8"></a>mix1 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
+<span id="cb51-9"><a href="#cb51-9"></a>            <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(id, <span class="dt">Gu=</span>A) <span class="op">+</span></span>
+<span id="cb51-10"><a href="#cb51-10"></a><span class="st">              </span><span class="kw">vsr</span>(Rowf) <span class="op">+</span></span>
+<span id="cb51-11"><a href="#cb51-11"></a><span class="st">              </span><span class="kw">vsr</span>(Colf),</span>
+<span id="cb51-12"><a href="#cb51-12"></a>            <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vsr</span>(units), <span class="dt">nIters=</span><span class="dv">3</span>,</span>
+<span id="cb51-13"><a href="#cb51-13"></a>            <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
 <p>And the model with the spatial kernel is the following:</p>
-<div class="sourceCode" id="cb51"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1"></a>mix2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb51-2"><a href="#cb51-2"></a>            <span class="dt">random=</span><span class="op">~</span><span class="kw">vs</span>(id, <span class="dt">Gu=</span>A) <span class="op">+</span></span>
-<span id="cb51-3"><a href="#cb51-3"></a><span class="st">              </span><span class="kw">vs</span>(Rowf) <span class="op">+</span></span>
-<span id="cb51-4"><a href="#cb51-4"></a><span class="st">              </span><span class="kw">vs</span>(Colf) <span class="op">+</span></span>
-<span id="cb51-5"><a href="#cb51-5"></a><span class="st">              </span><span class="kw">spl2Da</span>(Row,Col),</span>
-<span id="cb51-6"><a href="#cb51-6"></a>            <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vs</span>(units), <span class="dt">iters=</span><span class="dv">3</span>,</span>
-<span id="cb51-7"><a href="#cb51-7"></a>            <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
-<p>Then to test if the second model brings value let us fit the likelihood ratio test as follows:</p>
-<div class="sourceCode" id="cb52"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1"></a>lrt &lt;-<span class="st"> </span><span class="kw">anova</span>(mix1, mix2)</span></code></pre></div>
+<div class="sourceCode" id="cb52"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1"></a>mix2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
+<span id="cb52-2"><a href="#cb52-2"></a>            <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(id, <span class="dt">Gu=</span>A) <span class="op">+</span></span>
+<span id="cb52-3"><a href="#cb52-3"></a><span class="st">              </span><span class="kw">vsr</span>(Rowf) <span class="op">+</span></span>
+<span id="cb52-4"><a href="#cb52-4"></a><span class="st">              </span><span class="kw">vsr</span>(Colf) <span class="op">+</span></span>
+<span id="cb52-5"><a href="#cb52-5"></a><span class="st">              </span><span class="kw">spl2Da</span>(Row,Col),</span>
+<span id="cb52-6"><a href="#cb52-6"></a>            <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vsr</span>(units), <span class="dt">nIters=</span><span class="dv">3</span>,</span>
+<span id="cb52-7"><a href="#cb52-7"></a>            <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
+<p>Then to test if the second model brings value let usr fit the likelihood ratio test as follows:</p>
+<div class="sourceCode" id="cb53"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1"></a>lrt &lt;-<span class="st"> </span><span class="kw">anova</span>(mix1, mix2)</span></code></pre></div>
 <pre><code>## Likelihood ratio test for mixed models
 ## ==============================================================
 ##      Df      AIC      BIC     loLik   Chisq ChiDf  PrChisq
@@ -1163,26 +1027,26 @@ Z_1 K{\sigma_{g_{1,t}}} Z_t&#39; + H{\sigma_{\epsilon_{1,t}}} &amp; ... &amp; Z_
 <div id="testing-the-significance-of-a-covariance-component" class="section level4">
 <h4>11.2) Testing the significance of a covariance component</h4>
 <p>Sometimes the researcher is more interested in knowing if a covariance structure is relevant or not. Assume we have two multi-trait models, 1) fitting no-covariance (independent) among traits, and 2) one fitting the genetic covariance among yield and color in the following population:</p>
-<div class="sourceCode" id="cb54"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1"></a><span class="kw">data</span>(DT_example)</span>
-<span id="cb54-2"><a href="#cb54-2"></a>DT &lt;-<span class="st"> </span>DT_example</span>
-<span id="cb54-3"><a href="#cb54-3"></a></span>
-<span id="cb54-4"><a href="#cb54-4"></a>DT<span class="op">$</span>EnvName &lt;-<span class="st"> </span><span class="kw">paste</span>(DT<span class="op">$</span>Env,DT<span class="op">$</span>Name)</span>
-<span id="cb54-5"><a href="#cb54-5"></a>modelBase &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(Yield, Weight) <span class="op">~</span><span class="st"> </span>Env,</span>
-<span id="cb54-6"><a href="#cb54-6"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(Name, <span class="dt">Gtc=</span><span class="kw">diag</span>(<span class="dv">2</span>)), <span class="co"># here is diag()</span></span>
-<span id="cb54-7"><a href="#cb54-7"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(units, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)), <span class="dt">iters=</span><span class="dv">3</span>,</span>
-<span id="cb54-8"><a href="#cb54-8"></a>              <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb54-9"><a href="#cb54-9"></a></span>
-<span id="cb54-10"><a href="#cb54-10"></a>modelCov &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(Yield, Weight) <span class="op">~</span><span class="st"> </span>Env,</span>
-<span id="cb54-11"><a href="#cb54-11"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">us</span>(Env),Name, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)), <span class="co"># here is unsm()</span></span>
-<span id="cb54-12"><a href="#cb54-12"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vs</span>(<span class="kw">ds</span>(Env),units, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)), <span class="dt">iters=</span><span class="dv">3</span>,</span>
-<span id="cb54-13"><a href="#cb54-13"></a>              <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb54-14"><a href="#cb54-14"></a></span>
-<span id="cb54-15"><a href="#cb54-15"></a>lrt &lt;-<span class="st"> </span><span class="kw">anova</span>(modelBase, modelCov)</span></code></pre></div>
+<div class="sourceCode" id="cb55"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb55-1"><a href="#cb55-1"></a><span class="kw">data</span>(DT_example)</span>
+<span id="cb55-2"><a href="#cb55-2"></a>DT &lt;-<span class="st"> </span>DT_example</span>
+<span id="cb55-3"><a href="#cb55-3"></a></span>
+<span id="cb55-4"><a href="#cb55-4"></a>DT<span class="op">$</span>EnvName &lt;-<span class="st"> </span><span class="kw">paste</span>(DT<span class="op">$</span>Env,DT<span class="op">$</span>Name)</span>
+<span id="cb55-5"><a href="#cb55-5"></a>modelBase &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(Yield, Weight) <span class="op">~</span><span class="st"> </span>Env,</span>
+<span id="cb55-6"><a href="#cb55-6"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(Name, <span class="dt">Gtc=</span><span class="kw">diag</span>(<span class="dv">2</span>)), <span class="co"># here is diag()</span></span>
+<span id="cb55-7"><a href="#cb55-7"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(units, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)), <span class="dt">nIters=</span><span class="dv">3</span>,</span>
+<span id="cb55-8"><a href="#cb55-8"></a>              <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb55-9"><a href="#cb55-9"></a></span>
+<span id="cb55-10"><a href="#cb55-10"></a>modelCov &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(Yield, Weight) <span class="op">~</span><span class="st"> </span>Env,</span>
+<span id="cb55-11"><a href="#cb55-11"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(<span class="kw">usr</span>(Env),Name, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)), <span class="co"># here is unsm()</span></span>
+<span id="cb55-12"><a href="#cb55-12"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(<span class="kw">dsr</span>(Env),units, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)), <span class="dt">nIters=</span><span class="dv">3</span>,</span>
+<span id="cb55-13"><a href="#cb55-13"></a>              <span class="dt">data=</span>DT,<span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
+<span id="cb55-14"><a href="#cb55-14"></a></span>
+<span id="cb55-15"><a href="#cb55-15"></a>lrt &lt;-<span class="st"> </span><span class="kw">anova</span>(modelBase, modelCov)</span></code></pre></div>
 <pre><code>## Likelihood ratio test for mixed models
 ## ==============================================================
 ##      Df       AIC       BIC    loLik     Chisq ChiDf                  PrChisq
 ## mod2 45 -340.4760 -316.9949 176.2380                                         
-## mod1 23 -205.0695 -181.5885 108.5347 135.40646    22 2.57838297805053e-18 ***
+## mod1 23 -205.0695 -181.5885 108.5347 135.40646    22 2.57838297802045e-18 ***
 ## ==============================================================
 ## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
 <p>As can be seen, in this case fitting the covariance among the genotypes improves the model fit considerably and the probablity of the Chi-square distribution is &lt; 0.05. Then you the model with the covariance is the preferred model.</p>
@@ -1242,36 +1106,32 @@ Z^TR^{-1}X \\
 </div>
 <div id="predicting-means" class="section level3">
 <h3>2) Predicting means</h3>
-<p>The sommer package is equiped with a <code>predict()</code> function that can be used to calculate means and standard errors for fixed and random effects specified in the models fitted with the <code>mmer()</code> function. Using the yatesoats dataset we will will fit some fixed and random effects.</p>
-<div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1"></a><span class="kw">library</span>(sommer)</span>
-<span id="cb56-2"><a href="#cb56-2"></a><span class="kw">data</span>(DT_yatesoats)</span>
-<span id="cb56-3"><a href="#cb56-3"></a>DT &lt;-<span class="st"> </span>DT_yatesoats</span>
-<span id="cb56-4"><a href="#cb56-4"></a>m3 &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="dt">fixed=</span>Y <span class="op">~</span><span class="st"> </span>V <span class="op">+</span><span class="st"> </span>N <span class="op">+</span><span class="st"> </span>V<span class="op">:</span>N,</span>
-<span id="cb56-5"><a href="#cb56-5"></a>           <span class="dt">random =</span> <span class="op">~</span><span class="st"> </span>B <span class="op">+</span><span class="st"> </span>B<span class="op">:</span>MP,</span>
-<span id="cb56-6"><a href="#cb56-6"></a>           <span class="dt">rcov=</span><span class="op">~</span>units,</span>
-<span id="cb56-7"><a href="#cb56-7"></a>           <span class="dt">data =</span> DT, <span class="dt">verbose=</span><span class="ot">FALSE</span>)</span>
-<span id="cb56-8"><a href="#cb56-8"></a><span class="kw">summary</span>(m3)<span class="op">$</span>varcomp</span></code></pre></div>
+<p>The sommer package is equiped with a <code>predict()</code> function that can be used to calculate means and standard errors for fixed and random effects specified in the models fitted with the <code>mmer()</code> and <code>mmec</code> functions. Using the yatesoats dataset we will will fit some fixed and random effects.</p>
+<div class="sourceCode" id="cb57"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb57-1"><a href="#cb57-1"></a><span class="kw">library</span>(sommer)</span>
+<span id="cb57-2"><a href="#cb57-2"></a><span class="kw">data</span>(DT_yatesoats)</span>
+<span id="cb57-3"><a href="#cb57-3"></a>DT &lt;-<span class="st"> </span>DT_yatesoats</span>
+<span id="cb57-4"><a href="#cb57-4"></a>m3 &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="dt">fixed=</span>Y <span class="op">~</span><span class="st"> </span>V <span class="op">+</span><span class="st"> </span>N <span class="op">+</span><span class="st"> </span>V<span class="op">:</span>N,</span>
+<span id="cb57-5"><a href="#cb57-5"></a>           <span class="dt">random =</span> <span class="op">~</span><span class="st"> </span>B <span class="op">+</span><span class="st"> </span>B<span class="op">:</span>MP,</span>
+<span id="cb57-6"><a href="#cb57-6"></a>           <span class="dt">rcov=</span><span class="op">~</span>units,</span>
+<span id="cb57-7"><a href="#cb57-7"></a>           <span class="dt">data =</span> DT, <span class="dt">verbose=</span><span class="ot">FALSE</span>)</span>
+<span id="cb57-8"><a href="#cb57-8"></a><span class="kw">summary</span>(m3)<span class="op">$</span>varcomp</span></code></pre></div>
 <pre><code>##            VarComp VarCompSE   Zratio Constraint
 ## B.Y-Y     214.4477 168.62790 1.271722   Positive
 ## B:MP.Y-Y  106.0508  67.83280 1.563415   Positive
 ## units.Y-Y 177.0883  37.34293 4.742217   Positive</code></pre>
 <p>Now, the model can be used together with the <code>classify</code> argument to obtain means for the <code>classify</code> argument. For example, the model includes in the fixed formula the terms “V” for variety, “N” for nitrogen treatments, and “V:N” for the interaction between variety and nitrogen. The <code>classify</code> argument can be used to specify the term for which the means are desired. In the following example the means for the nitrogen treatments are obtained as follows:</p>
-<div class="sourceCode" id="cb58"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1"></a>p0 &lt;-<span class="st"> </span><span class="kw">predict.mmer</span>(<span class="dt">object=</span>m3, <span class="dt">classify =</span> <span class="st">&quot;N&quot;</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb59"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1"></a>p0 &lt;-<span class="st"> </span><span class="kw">predict.mmer</span>(<span class="dt">object=</span>m3, <span class="dt">classify =</span> <span class="st">&quot;N&quot;</span>)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -0.745921   17:48:33      0           0
-##     2      -0.745921   17:48:33      0           0
-##     3      -0.745921   17:48:33      0           0
-##     4      -0.745921   17:48:33      0           0</code></pre>
-<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1"></a>p0<span class="op">$</span>pvals</span></code></pre></div>
+##     1      -0.745921   15:4:22      0           0
+##     2      -0.745921   15:4:22      0           0
+##     3      -0.745921   15:4:22      0           0
+##     4      -0.745921   15:4:22      0           0</code></pre>
+<div class="sourceCode" id="cb61"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb61-1"><a href="#cb61-1"></a>p0<span class="op">$</span>pvals</span></code></pre></div>
 <pre><code>##   trait   N predicted.value standard.error
 ## 1     Y   0        79.38889       7.174710
 ## 2     Y 0.2        98.88889       9.530389
 ## 3     Y 0.4       114.22222       9.530389
 ## 4     Y 0.6       123.38889       9.530389</code></pre>
-</div>
-<div id="final-remarks" class="section level3">
-<h3>Final remarks</h3>
-<p>Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused on problems of the type p &gt; n (more random effect levels than observations) and models with dense covariance structures. For example, for experiments with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n &gt; p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software programs.</p>
 </div>
 </div>
 <div id="literature" class="section level2">

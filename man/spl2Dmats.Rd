@@ -116,7 +116,9 @@ A <- A.mat(GT) # additive relationship matrix
 M <- spl2Dmats(x.coord.name = "Col", y.coord.name = "Row", data=DT, nseg =c(14,21))
 head(M$data)
 # m1g <- mmer(Yield~1+TP.CR.2+TP.CR.3+TP.CR.4,
-#             random=~Rowf+Colf+vs(M$fC)+vs(M$fR)+vs(M$fC.R)+vs(M$C.fR)+vs(M$fC.fR)+vs(id,Gu=A),
+#             random=~Rowf+Colf+vsr(M$fC)+vsr(M$fR)+
+#               vsr(M$fC.R)+vsr(M$C.fR)+vsr(M$fC.fR)+
+#               vsr(id,Gu=A),
 #             data=M$data, tolpar = 1e-6,
 #             iters=30)
 # 

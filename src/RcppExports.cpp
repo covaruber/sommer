@@ -6,6 +6,11 @@
 
 using namespace Rcpp;
 
+#ifdef RCPP_USE_GLOBAL_ROSTREAM
+Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
+Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
+#endif
+
 // currentDateTime
 const std::string currentDateTime();
 RcppExport SEXP _sommer_currentDateTime() {
@@ -37,6 +42,18 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::mat& >::type x(xSEXP);
     Rcpp::traits::input_parameter< const arma::mat& >::type x2(x2SEXP);
     rcpp_result_gen = Rcpp::wrap(mat_to_vecCpp(x, x2));
+    return rcpp_result_gen;
+END_RCPP
+}
+// vec_to_matCpp
+arma::mat vec_to_matCpp(const arma::vec& x, const arma::mat& x2);
+RcppExport SEXP _sommer_vec_to_matCpp(SEXP xSEXP, SEXP x2SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type x2(x2SEXP);
+    rcpp_result_gen = Rcpp::wrap(vec_to_matCpp(x, x2));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -246,11 +263,79 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// convertSparse
+arma::sp_mat convertSparse(Rcpp::S4 mat);
+RcppExport SEXP _sommer_convertSparse(SEXP matSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::S4 >::type mat(matSEXP);
+    rcpp_result_gen = Rcpp::wrap(convertSparse(mat));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mat_to_vecCpp2
+arma::vec mat_to_vecCpp2(const arma::mat& x, const arma::mat& x2);
+RcppExport SEXP _sommer_mat_to_vecCpp2(SEXP xSEXP, SEXP x2SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type x2(x2SEXP);
+    rcpp_result_gen = Rcpp::wrap(mat_to_vecCpp2(x, x2));
+    return rcpp_result_gen;
+END_RCPP
+}
+// nearPDcpp
+arma::mat nearPDcpp(const arma::mat X0, const int& maxit, const double& eig_tol, const double& conv_tol);
+RcppExport SEXP _sommer_nearPDcpp(SEXP X0SEXP, SEXP maxitSEXP, SEXP eig_tolSEXP, SEXP conv_tolSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat >::type X0(X0SEXP);
+    Rcpp::traits::input_parameter< const int& >::type maxit(maxitSEXP);
+    Rcpp::traits::input_parameter< const double& >::type eig_tol(eig_tolSEXP);
+    Rcpp::traits::input_parameter< const double& >::type conv_tol(conv_tolSEXP);
+    rcpp_result_gen = Rcpp::wrap(nearPDcpp(X0, maxit, eig_tol, conv_tol));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ai_mme_sp
+Rcpp::List ai_mme_sp(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y, const Rcpp::List& SI, const Rcpp::List& partitionsS, const arma::sp_mat& H, const bool& useH, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& thetaI, const Rcpp::List& thetaC, const arma::mat& thetaF, const arma::vec& addScaleParam, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose);
+RcppExport SEXP _sommer_ai_mme_sp(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP ySEXP, SEXP SISEXP, SEXP partitionsSSEXP, SEXP HSEXP, SEXP useHSEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP thetaISEXP, SEXP thetaCSEXP, SEXP thetaFSEXP, SEXP addScaleParamSEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type ZI(ZISEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type Zind(ZindSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type SI(SISEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type partitionsS(partitionsSSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type H(HSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type useH(useHSEXP);
+    Rcpp::traits::input_parameter< int >::type nIters(nItersSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParConvLL(tolParConvLLSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParConvNorm(tolParConvNormSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParInv(tolParInvSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaI(thetaISEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaC(thetaCSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type thetaF(thetaFSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type addScaleParam(addScaleParamSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weightEmInf(weightEmInfSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weightInf(weightInfSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(ai_mme_sp(X, ZI, Zind, AiI, y, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaC, thetaF, addScaleParam, weightEmInf, weightInf, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_sommer_currentDateTime", (DL_FUNC) &_sommer_currentDateTime, 0},
     {"_sommer_seqCpp", (DL_FUNC) &_sommer_seqCpp, 2},
     {"_sommer_mat_to_vecCpp", (DL_FUNC) &_sommer_mat_to_vecCpp, 2},
+    {"_sommer_vec_to_matCpp", (DL_FUNC) &_sommer_vec_to_matCpp, 2},
     {"_sommer_vec_to_cubeCpp", (DL_FUNC) &_sommer_vec_to_cubeCpp, 2},
     {"_sommer_varCols", (DL_FUNC) &_sommer_varCols, 1},
     {"_sommer_scaleCpp", (DL_FUNC) &_sommer_scaleCpp, 1},
@@ -266,6 +351,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_scorecalc", (DL_FUNC) &_sommer_scorecalc, 7},
     {"_sommer_gwasForLoop", (DL_FUNC) &_sommer_gwasForLoop, 7},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 19},
+    {"_sommer_convertSparse", (DL_FUNC) &_sommer_convertSparse, 1},
+    {"_sommer_mat_to_vecCpp2", (DL_FUNC) &_sommer_mat_to_vecCpp2, 2},
+    {"_sommer_nearPDcpp", (DL_FUNC) &_sommer_nearPDcpp, 4},
+    {"_sommer_ai_mme_sp", (DL_FUNC) &_sommer_ai_mme_sp, 20},
     {NULL, NULL, 0}
 };
 

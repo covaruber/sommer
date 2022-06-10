@@ -17,3 +17,14 @@ devtools::install_github('covaruber/sommer')
  - [Quantitative genetics using the sommer package](https://cran.r-project.org/package=sommer/vignettes/v3.sommer.qg.pdf)
  - [GxE models in sommer](https://cran.r-project.org/package=sommer/vignettes/v4.sommer.gxe.pdf)
  - [lme4 vs sommer](https://cran.r-project.org/package=sommer/vignettes/v5.sommer.vs.lme4.pdf)
+ 
+## Development
+
+The sommer package is under active development. If you are an expert in mixed models, statistics or programming and you know how to implement of the following:
+
++ the minimum degree ordering algorithm 
++ the symbolic cholesky factorization
++ factor analytic structure
++ generalized linear models
+
+please help us to take sommer to the next level. Drop me an email or push some changes through github :)  

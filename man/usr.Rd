@@ -1,11 +1,11 @@
-\name{us}
-\alias{us}
+\name{usr}
+\alias{usr}
 \title{unstructured covariance structure}
 \description{
-  \code{us} creates an unstructured covariance structure for specific levels of the random effect.
+  \code{usr} creates an unstructured covariance structure for specific levels of the random effect to be used with the \code{\link{mmer}} solver.
 }
 \usage{
-  us(x)
+  usr(x)
 }
 
 \arguments{
@@ -26,6 +26,6 @@
 
 \examples{
 x <- as.factor(c(1:5,1:5,1:5));x
-us(x)
+usr(x)
 }
-\seealso{The function \code{\link{vs}} to know how to use \code{us} in the \code{\link{mmer}} solver.}
+\seealso{The function \code{\link{vsr}} to know how to use \code{usr} in the \code{\link{mmer}} solver.}

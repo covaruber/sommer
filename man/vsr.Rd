@@ -1,11 +1,11 @@
-\name{vs}
-\alias{vs}
+\name{vsr}
+\alias{vsr}
 \title{variance structure specification}
 \description{
-  \code{vs} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmer}} solver. 
+  \code{vsr} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmer}} solver. 
 }
 \usage{
-  vs(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE)
+  vsr(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE)
 }
 
 \arguments{
@@ -15,7 +15,7 @@
   
   being \code{G.e}  a matrix containing the variance covariance components for g (genotypes) in each level of e (environments), \code{I.g} is the covariance among levels of g (genotypes; i.e. relationship matrix), and @ is the kronecker product. This would be specified in the mmer solver as:
   
-  \code{random=~vs(ds(e),g)}
+  \code{random=~vsr(dsr(e),g)}
   
   One strength of sommer is the ability to specify very complex structures with as many kronecker products as desired. For example:
   
@@ -23,9 +23,9 @@
   
   is equivalent to
   
-  \code{random=~vs(e,f,h,g)}
+  \code{random=~vsr(e,f,h,g)}
   
-  where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{ds}}, \code{\link{us}}, \code{\link{cs}}, \code{\link{at}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
+  where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{dsr}}, \code{\link{usr}}, \code{\link{csr}}, \code{\link{atr}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
 
   \item{Gu}{matrix with the known variance-covariance values for the levels of the u.th random effect (i.e. relationship matrix among individuals or any other known covariance matrix). If \code{NULL}, then an identity matrix is assumed. The Gu matrix can have more levels than the ones present in the random effect linked to it but not the other way around. Otherwise, an error message of missing level in Gu will be returned.}
 
@@ -41,7 +41,7 @@
   
   \code{3: not to be estimated but fixed (value has to be provided in the Gti argument)}
   
-  In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense. Useful functions to specify constraints are; \code{\link{diag}}(), \code{\link{unsm}}(), \code{\link{uncm}}(), \code{\link{fixm}}().
+  In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense. Useful functions to specify constraints are; \code{\link{diag}}(), \code{\link{unsm}}(), \code{\link{fixm}}().
   }
   
   \item{reorderGu}{a \code{TRUE/FALSE} statement if the Gu matrix should be reordered based on the names of the design matrix of the random effect or passed with the custom order of the user. This may be important when fitting covariance components in a customized fashion. Only for advanced users.}
@@ -82,10 +82,10 @@ A <- A_example
 ## ============================ ##
 ## example to without structure
 ## ============================ ##
-ds(DT$Year)
+dsr(DT$Year)
 mix <- mmer(Yield~Env, 
-            random= ~ vs(Name),
-            rcov=~ vs(units),
+            random= ~ vsr(Name),
+            rcov=~ vsr(units),
             data=DT)
             
 ## ============================ ##
@@ -93,51 +93,51 @@ mix <- mmer(Yield~Env,
 ## using covariance among levels in the
 ## random effect Name
 ## ============================ ##
-ds(DT$Year)
+dsr(DT$Year)
 mix <- mmer(Yield~Env, 
-            random= ~ vs(Name, Gu=A),
-            rcov=~ vs(units),
+            random= ~ vsr(Name, Gu=A),
+            rcov=~ vsr(units),
             data=DT)
             
 ## ============================ ##
-## example to use ds() structure (DIAGONAL)
+## example to use dsr() structure (DIAGONAL)
 ## ============================ ##
-ds(DT$Year)
+dsr(DT$Year)
 mix <- mmer(Yield~Env, 
-            random= ~ vs(ds(Year),Name),
-            rcov=~ vs(ds(Year),units),
+            random= ~ vsr(dsr(Year),Name),
+            rcov=~ vsr(dsr(Year),units),
             data=DT)
 
 ## ============================ ##
-## example to use at() structure (level-specific)
+## example to use atr() structure (level-specific)
 ## ============================ ##
 unique(DT$Year)
 mix <- mmer(Yield~Env, 
-            random= ~ vs(at(Year,c("2011","2012")),Name),
-            rcov=~ vs(ds(Year),units),
+            random= ~ vsr(atr(Year,c("2011","2012")),Name),
+            rcov=~ vsr(dsr(Year),units),
             data=DT)
 
 ## ============================ ##
-## example to use us() structure (UNSTRUCTURED)
+## example to use usr() structure (UNSTRUCTURED)
 ## ============================ ##
-us(DT$Year)
+usr(DT$Year)
 mix <- mmer(Yield~Env, 
-            random= ~ vs(us(Year),Name),
-            rcov=~ vs(ds(Year),units),
+            random= ~ vsr(usr(Year),Name),
+            rcov=~ vsr(dsr(Year),units),
             data=DT)
 
 ## ============================ ##
-## example to use cs() structure (CUSTOMIZED)
+## example to use csr() structure (CUSTOMIZED)
 ## ============================ ##
 unique(DT$Year)
 mm <- matrix(1,3,3); mm[1,3] <- mm[3,1] <- 0;mm #don't estimate cov 2011-2013
 mix <- mmer(Yield~Env, 
-            random= ~ vs(cs(Year,mm),Name),
-            rcov=~ vs(ds(Year),units),
+            random= ~ vsr(csr(Year,mm),Name),
+            rcov=~ vsr(dsr(Year),units),
             data=DT)
 
 ## ============================ ##
-## example to use overlay() + vs() structure
+## example to use overlay() + vsr() structure
 ## ============================ ##
 data("DT_halfdiallel")
 DT <- DT_halfdiallel
@@ -148,12 +148,12 @@ DT$genof <- as.factor(DT$geno)
 A <- diag(7); colnames(A) <- rownames(A) <- 1:7;A # if you want to provide a covariance matrix
 #### model using overlay
 modh <- mmer(sugar~1, 
-             random=~vs(overlay(femalef,malef), Gu=A) 
+             random=~vsr(overlay(femalef,malef,sparse=FALSE), Gu=A) 
                      + genof,
               data=DT)
 
 ## ============================ ##
-## example to use vs() + ds() + spl2D() structure
+## example to use vsr() + dsr() + spl2D() structure
 ## ============================ ##            
 # ### mimic two fields
 # data(DT_cpdata)
@@ -168,11 +168,11 @@ modh <- mmer(sugar~1,
 # head(DT2)
 # 
 # mix <- mmer(Yield~1,
-#             random=~vs(ds(FIELD),id, Gu=A) + 
-#               vs(ds(FIELD),Rowf) +
-#               vs(ds(FIELD),Colf) +
-#                 vs(ds(FIELD),spl2D(Row,Col)),
-#             rcov=~vs(ds(FIELD),units),
+#             random=~vsr(dsr(FIELD),id, Gu=A) + 
+#               vsr(dsr(FIELD),Rowf) +
+#               vsr(dsr(FIELD),Colf) +
+#                 vsr(dsr(FIELD),spl2D(Row,Col)),
+#             rcov=~vsr(dsr(FIELD),units),
 #             data=DT2)
 
 }

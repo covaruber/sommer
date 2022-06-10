@@ -11,14 +11,14 @@ add.diallel.vars <- function(df, par1="Par1", par2="Par2",sep.cross="-"){
   return(df)
 }
 
-overlay<- function (..., rlist = NULL, prefix = NULL){
-  init <- list(...)
+overlay<- function (..., rlist = NULL, prefix = NULL, sparse=TRUE){
+  init <- list(...) # init <- list(DT$femalef,DT$malef)
   ## keep track of factor variables
   myTypes <- unlist(lapply(init,class))
   init0 <- init
   ##
   init <- lapply(init, as.character)
-  names <- as.character(substitute(list(...)))[-1L]
+  namesInit <- as.character(substitute(list(...)))[-1L] # names <- c("femalef","malef")
   dat <- as.data.frame(do.call(cbind, init))
   dat <- as.data.frame(dat)
   ## bring back the levels
@@ -44,15 +44,25 @@ overlay<- function (..., rlist = NULL, prefix = NULL){
   for (i in 1:length(ss1)) {
     femlist[[i]] <- ss1[i]
     dat2[, femlist[[i]]] <- as.factor(dat2[, femlist[[i]]])
-    S1 <- model.matrix(as.formula(paste("~", femlist[[i]], 
-                                        "-1")), dat2)
+    if(sparse){
+      S1 <- Matrix::sparse.model.matrix(as.formula(paste("~", femlist[[i]], 
+                                                         "-1")), dat2)
+    }else{
+      S1 <- model.matrix(as.formula(paste("~", femlist[[i]], 
+                                                         "-1")), dat2)
+    }
     colnames(S1) <- gsub(femlist[[i]], "", colnames(S1))
     S1list[[i]] <- S1
   }
   levo <- sort(unique(unlist(lapply(S1list, function(x) {
     colnames(x)
   }))))
-  S3 <- matrix(0, nrow = dim(dat2)[1], ncol = length(levo))
+  if(sparse){
+    S3 <- Matrix(0, nrow = dim(dat2)[1], ncol = length(levo))
+  }else{
+    S3 <- matrix(0, nrow = dim(dat2)[1], ncol = length(levo))
+  }
+  
   rownames(S3) <- rownames(dat2)
   colnames(S3) <- levo
   for (i in 1:length(S1list)) {
@@ -69,7 +79,7 @@ overlay<- function (..., rlist = NULL, prefix = NULL){
   if (!is.null(prefix)) {
     colnames(S3) <- paste(prefix, colnames(S3), sep = "")
   }
-  attr(S3,"variables") <- names
+  attr(S3,"variables") <- namesInit
   return(S3)
 }
 
@@ -204,8 +214,6 @@ reshape_mmer <- function(object, namelist){
   return(object)
 }
 
-
-
 ##############
 ## na.methods
 
@@ -322,10 +330,9 @@ subdata <- function(data,fixed,na.method.Y=NULL,na.method.X=NULL){
   
 }
 
-
 ############## 
 ## VS structure
-at <- function(x, levs){
+atr <- function(x, levs){
   if(is.matrix(x)){
     dummy <- x
     m0 <- rep(0,ncol(dummy))
@@ -358,7 +365,7 @@ at <- function(x, levs){
   }
   return(list(dummy,mm))
 }
-cs <- function(x,mm){
+csr <- function(x,mm){
   if(is.matrix(x)){
     mm <- mm
   }else{
@@ -383,7 +390,7 @@ cs <- function(x,mm){
   colnames(mm) <- rownames(mm) <- colnames(dummy)
   return(list(dummy,mm))
 }
-ds <- function(x){
+dsr <- function(x){
   if(is.matrix(x)){
     dummy <- x
     mm <- diag(1,ncol(x))
@@ -409,7 +416,7 @@ ds <- function(x){
   colnames(mm) <- rownames(mm) <- colnames(dummy)
   return(list(dummy,mm))
 }
-us <- function(x){
+usr <- function(x){
   # namx <- as.character(substitute(list(x)))[-1L]
   if(is.matrix(x)){
     dummy <- x
@@ -435,6 +442,206 @@ us <- function(x){
   colnames(mm) <- rownames(mm) <- colnames(dummy) 
   return(list(dummy,mm))
 }
+
+###############
+## VS structure for mmec
+atc <- function(x, levs, thetaC=NULL, theta=NULL){
+  if(is.matrix(x)){
+    dummy <- x
+    dummy <- dummy[,levs]
+    m0 <- rep(0,ncol(dummy))
+    names(m0) <- levels(as.factor(colnames(dummy)))#as.character(unique(x))
+    if(missing(levs)){levs <- names(m0)}
+    m0[levs] <- 1
+    mm <- Diagonal(m0)
+    colnames(mm) <- rownames(mm) <- colnames(dummy)
+  }else{
+    if(!is.character(x) & !is.factor(x)){
+      namess <- as.character(substitute(list(x)))[-1L]
+      dummy <- Matrix(x,ncol=1); colnames(dummy) <- namess
+      dummy <- dummy[,levs]
+      m0 <- rep(0,ncol(dummy))
+      names(m0) <- levels(as.factor(colnames(dummy)))#as.character(unique(x))
+      if(missing(levs)){levs <- names(m0)}
+      m0[levs] <- 1
+      mm <- Diagonal(m0)
+      colnames(mm) <- rownames(mm) <- colnames(dummy)
+    }else{
+      dummy <- x
+      dummy <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass)
+      colnames(dummy) <- gsub("dummy","",colnames(dummy))
+      dummy <- dummy[,levs]
+      m0 <- rep(0,ncol(dummy))
+      names(m0) <- levels(as.factor(colnames(dummy)))#as.character(unique(x))
+      if(missing(levs)){levs <- names(m0)}
+      m0[levs] <- 1
+      mm <- diag(m0)
+      colnames(mm) <- rownames(mm) <- colnames(dummy)
+    }
+  }
+  bnmm <- mm*0.15
+  if(nrow(bnmm) > 1){
+    bnmm[upper.tri(bnmm)]=bnmm[upper.tri(bnmm)]/2
+  }
+  if(!is.null(thetaC)){
+    mm <- thetaC
+  }
+  if(!is.null(theta)){
+    bnmm <- theta
+  }
+  mm[lower.tri(mm)]=0
+  return(list(Z=dummy,thetaC=mm, theta=bnmm))
+}
+csc <- function(x,mm, thetaC=NULL, theta=NULL){
+  if(is.matrix(x)){
+    mm <- mm
+  }else{
+    if(!is.character(x) & !is.factor(x)){
+      namess <- as.character(substitute(list(x)))[-1L]
+      dummy <- Matrix(x,ncol=1); colnames(dummy) <- namess
+    }else{
+      dummy <- x
+      levs <- na.omit(unique(dummy))
+      if(length(levs) > 1){
+        dummy  <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass)
+        colnames(dummy) <- gsub("dummy","",colnames(dummy))
+      }else{
+        vv <- which(!is.na(dummy)); 
+        dummy <- matrix(0,nrow=length(dummy))
+        dummy[vv,] <- 1; colnames(dummy) <- levs
+      }
+    }
+    mm <- mm
+  }
+  # mm[lower.tri(mm)] <- 0
+  colnames(mm) <- rownames(mm) <- colnames(dummy)
+  bnmm <- mm*0.15
+  if(nrow(bnmm) > 1){
+    bnmm[upper.tri(bnmm)]=bnmm[upper.tri(bnmm)]/2
+  }
+  if(!is.null(thetaC)){
+    mm <- thetaC
+  }
+  if(!is.null(theta)){
+    bnmm <- theta
+  }
+  mm[lower.tri(mm)]=0
+  return(list(Z=dummy,thetaC=mm,theta=bnmm))
+}
+dsc <- function(x, thetaC=NULL, theta=NULL){
+  if(is.matrix(x)){
+    dummy <- x
+    mm <- diag(1,ncol(x))
+  }else{
+    if(!is.character(x) & !is.factor(x)){
+      namess <- as.character(substitute(list(x)))[-1L]
+      dummy <- as(Matrix(x,ncol=1), Class = "sparseMatrix"); colnames(dummy) <- namess
+      mm <- diag(ncol(dummy)); 
+    }else{
+      dummy <- x
+      levs <- na.omit(unique(dummy))
+      if(length(levs) > 1){
+        dummy  <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass)
+        colnames(dummy) <- gsub("dummy","",colnames(dummy))
+      }else{
+        vv <- which(!is.na(dummy)); 
+        dummy <- matrix(0,nrow=length(dummy))
+        dummy[vv,] <- 1; colnames(dummy) <- levs
+      }
+      mm <- diag(1,ncol(dummy))
+    }
+  }
+  colnames(mm) <- rownames(mm) <- colnames(dummy)
+  bnmm <- mm*0.15
+  if(nrow(bnmm) > 1){
+    bnmm[upper.tri(bnmm)]=bnmm[upper.tri(bnmm)]/2
+  }
+  if(!is.null(thetaC)){
+    mm <- thetaC
+  }
+  if(!is.null(theta)){
+    bnmm <- theta
+  }
+  mm[lower.tri(mm)]=0
+  return(list(Z=dummy,thetaC=mm, theta=bnmm))
+}
+usc <- function(x, thetaC=NULL, theta=NULL){
+  # namx <- as.character(substitute(list(x)))[-1L]
+  if(is.matrix(x)){
+    dummy <- x
+    mm <- unsm(ncol(dummy))
+  }else{
+    if(!is.character(x) & !is.factor(x)){
+      namess <- as.character(substitute(list(x)))[-1L]
+      dummy <- Matrix(x,ncol=1); colnames(dummy) <- namess
+    }else{
+      dummy <- x
+      levs <- na.omit(unique(dummy))
+      if(length(levs) > 1){
+        dummy  <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass)
+        colnames(dummy) <- gsub("dummy","",colnames(dummy))
+      }else{
+        vv <- which(!is.na(dummy)); 
+        dummy <- Matrix(0,nrow=length(dummy))
+        dummy[vv,] <- 1; colnames(dummy) <- levs
+      }
+    }
+    mm <- unsm(ncol(dummy))
+  }
+  colnames(mm) <- rownames(mm) <- colnames(dummy) 
+  bnmm <- diag(ncol(mm))*.05 + matrix(.1,ncol(mm),ncol(mm))
+  # if(nrow(bnmm) > 1){
+  #   bnmm[upper.tri(bnmm)]=bnmm[upper.tri(bnmm)]/3
+  #   bnmm[lower.tri(bnmm)]=bnmm[lower.tri(bnmm)]/3
+  # }
+  if(!is.null(thetaC)){
+    mm <- thetaC
+  }
+  if(!is.null(theta)){
+    bnmm <- theta
+  }
+  mm[lower.tri(mm)]=0
+  return(list(Z=dummy,thetaC=mm,theta=bnmm))
+}
+isc <- function(x, thetaC=NULL, theta=NULL){
+  if(class(x)[1] %in% c("dgCMatrix","matrix") ){
+    dummy <- as(x, Class="sparseMatrix")
+    mm <- diag(1)#,ncol(x))
+  }else{ # if user provides a vector
+    if(!is.character(x) & !is.factor(x)){
+      namess <- as.character(substitute(list(x)))[-1L]
+      dummy <- Matrix(x,ncol=1); colnames(dummy) <- namess
+      mm <- diag(1); 
+    }else{
+      dummy <- x
+      levs <- na.omit(unique(dummy))
+      if(length(levs) > 1){
+        dummy  <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass)
+        colnames(dummy) <- gsub("dummy","",colnames(dummy))
+      }else{
+        vv <- which(!is.na(dummy)); 
+        dummy <- Matrix(0,nrow=length(dummy))
+        dummy[vv,] <- 1; colnames(dummy) <- levs
+      }
+      mm <- diag(1)
+    }
+  }
+  colnames(mm) <- rownames(mm) <- "isc"# colnames(dummy)
+  bnmm <- mm*.15
+  if(nrow(bnmm) > 1){
+    bnmm[upper.tri(bnmm)]=bnmm[upper.tri(bnmm)]/2
+  }
+  if(!is.null(thetaC)){
+    mm <- thetaC
+  }
+  if(!is.null(theta)){
+    bnmm <- theta
+  }
+  mm[lower.tri(mm)]=0
+  return(list(Z=dummy,thetaC=mm, theta=bnmm))
+}
+###############
+## small matrix constructors
 unsm <- function(x, reps=NULL){
   mm <- matrix(1,x,x)
   mm[upper.tri(mm)] <- 2
@@ -443,12 +650,7 @@ unsm <- function(x, reps=NULL){
     return(rep(list(mm),reps))
   }else{return(mm)}
 }
-uncm <- function(x, reps=NULL){
-  mm <- matrix(2,x,x)
-  if(!is.null(reps)){
-    return(rep(list(mm),reps))
-  }else{return(mm)}
-}
+
 fixm <- function(x, reps=NULL){
   mm <- matrix(3,x,x)
   if(!is.null(reps)){

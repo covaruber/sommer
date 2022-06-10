@@ -28,4 +28,4 @@
 list2usmat(as.list(1:3))
 list2usmat(as.list(1:10))
 }
-\seealso{The function \code{\link{vs}} to know how to use \code{list2usmat} in the \code{\link{mmer}} solver.}
+\seealso{The function \code{\link{vsr}} to know how to use \code{list2usmat} in the \code{\link{mmer}} solver.}

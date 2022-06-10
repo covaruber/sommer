@@ -30,15 +30,21 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 data(DT_h2)
 DT <- DT_h2
 head(DT)
-# ####=========================================####
-# #### fit the mixed model (very heavy model)
-# ####=========================================####
+####=========================================####
+#### fit the mixed model (very heavy model)
+####=========================================####
 # ans1 <- mmer(y~Env,
-#               random=~vs(ds(Env),Name) + vs(ds(Env),Block),
-#               rcov=~vs(ds(Env),units),
+#               random=~vsr(dsr(Env),Name) + vsr(dsr(Env),Block),
+#               rcov=~vsr(dsr(Env),units),
 #               data=DT)
-# summary(ans1)
+# summary(ans1)$varcomp
+# 
+# ans1b <- mmec(y~Env,
+#              random=~vsc(dsc(Env),isc(Name)) + vsc(dsc(Env),isc(Block)),
+#              rcov=~vsc(dsc(Env),isc(units)),
+#              data=DT)
+# summary(ans1b)$varcomp
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mmer}} and \code{\link{mmec}} }

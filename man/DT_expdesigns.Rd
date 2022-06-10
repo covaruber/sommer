@@ -47,31 +47,17 @@
 # ## blocking factor: "block"
 # ## treatments, personal names for replicated and non-replicated: "trt"
 # ## check no check indicator: "new"
-# mix1 <- mmer(yield~entryc, 
-#              random=~block+trt, 
-#              rcov=~units,
+# mix1 <- mmer(yield~entryc,
+#              random=~block+trt,
+#              rcov=~units, tolpar = 1e-6,
 #              data=data1)
-# summary(mix1)
+# summary(mix1)$varcomp
 # 
-# #### =================================== ####
-# #### ==== North Carolina Design III ==== ####
-# #### =================================== ####
-# 
-# data.car3 <- DT$car3
-# data.car3$setrep <- paste(data.car3$set,data.car3$rep,sep=":")
-# head(data.car3)
-# ## response variable: "yield"
-# ## male indicator: "male"
-# ## female indicator: "female"
-# ## replication: "rep"
-# ## set of males: "set"
-# mix.car3 <- mmer(yield ~ set, 
-#                  random=~ male
-#                          + female ,
-#                  rcov=~units,
-#                  data=data.car3)
-# (suma <- summary(mix.car3))
-
+# mix1b <- mmec(yield~entryc,
+#              random=~block+trt,
+#              rcov=~units, tolParConv = 1e-6,
+#              data=data1)
+# summary(mix1b)$varcomp
 
 }
 

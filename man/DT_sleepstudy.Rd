@@ -41,7 +41,7 @@ head(DT)
 ## sommer
 fm2 <- mmer(Reaction ~ Days,
             random= ~ Subject, 
-            data=DT, tolparinv = 1e-6, verbose = FALSE)
+            data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 
 ##################################
@@ -50,8 +50,8 @@ summary(fm2)$varcomp
 # vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
 ## sommer
 fm2 <- mmer(Reaction ~ Days,
-            random= ~ Subject + vs(Days, Subject), 
-            data=DT, tolparinv = 1e-6, verbose = FALSE)
+            random= ~ Subject + vsr(Days, Subject), 
+            data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 
 ##################################
@@ -62,8 +62,8 @@ summary(fm2)$varcomp
 ## no equivalence in sommer to find the correlation between the 2 vc
 ## this is the most similar which is equivalent to (intercept || slope)
 fm2 <- mmer(Reaction ~ Days,
-            random= ~ Subject + vs(Days, Subject), 
-            data=DT, tolparinv = 1e-6, verbose = FALSE)
+            random= ~ Subject + vsr(Days, Subject), 
+            data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 
 ##################################
@@ -72,8 +72,8 @@ summary(fm2)$varcomp
 # vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
 ## sommer
 fm2 <- mmer(Reaction ~ Days,
-            random= ~ vs(Days, Subject), 
-            data=DT, tolparinv = 1e-6, verbose = FALSE)
+            random= ~ vsr(Days, Subject), 
+            data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 
 }

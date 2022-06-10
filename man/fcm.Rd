@@ -2,20 +2,20 @@
 \alias{fcm}
 \title{fixed effect constraint indication matrix}
 \description{
-  \code{fcm} creates a matrix with the correct number of columns to specify a constraint in the fixed effects using the Gtc argument of the \code{\link{vs}} function.
+  \code{fcm} creates a matrix with the correct number of columns to specify a constraint in the fixed effects using the Gtc argument of the \code{\link{vsr}} function.
 }
 \usage{
   fcm(x, reps=NULL)
 }
 
 \arguments{
-  \item{x}{vector of 1's and 0's corresponding to the traits for which this fixed effect should be fitted. For example, for a trivariate model if the fixed effect "x" wants to be fitted only for trait 1 and 2 but not for the 3rd trait then you would use fcm(c(1,1,0)) in the Gtc argument of the vs() function.}
+  \item{x}{vector of 1's and 0's corresponding to the traits for which this fixed effect should be fitted. For example, for a trivariate model if the fixed effect "x" wants to be fitted only for trait 1 and 2 but not for the 3rd trait then you would use fcm(c(1,1,0)) in the Gtc argument of the vsr() function.}
   \item{reps}{integer specifying the number of times the matrix should be repeated in a list format to provide easily the constraints in complex models that use the ds(), us() or cs() structures.}
 }
 \value{
   \describe{
     
-    \item{$res}{ a matrix or a list of matrices with the constraints to be provided in the Gtc argument of the \code{\link{vs}} function.}
+    \item{$res}{ a matrix or a list of matrices with the constraints to be provided in the Gtc argument of the \code{\link{vsr}} function.}
   }
 }
 \references{
@@ -37,16 +37,16 @@ fcm(c(1,1,1),2)
 # DT <- DT_example
 # A <- A_example
 # ans4 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(Name) + vs(Env:Name),
-#               rcov= ~ vs(units),
+#               random= ~ vsr(Name) + vsr(Env:Name),
+#               rcov= ~ vsr(units),
 #               data=DT)
 # summary(ans4)$betas
 # ## model with Env only estimated for Yield
-# ans4b <- mmer(cbind(Yield, Weight) ~ vs(Env, Gtc=fcm(c(1,0))),
-#              random= ~ vs(Name) + vs(Env:Name),
-#              rcov= ~ vs(units),
+# ans4b <- mmer(cbind(Yield, Weight) ~ vsr(Env, Gtc=fcm(c(1,0))),
+#              random= ~ vsr(Name) + vsr(Env:Name),
+#              rcov= ~ vsr(units),
 #              data=DT)
 # summary(ans4b)$betas
 
 }
-\seealso{The function \code{\link{vs}} to know how to use \code{fcm} in the \code{\link{mmer}} solver.}
+\seealso{The function \code{\link{vsr}} to know how to use \code{fcm} in the \code{\link{mmer}} solver.}

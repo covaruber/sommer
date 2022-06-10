@@ -57,25 +57,33 @@ A platform for meta-analysis of rice crop data. \emph{Plant Physiology} \bold{13
 #### remove them and run the examples using
 #### command + shift + C |OR| control + shift + C
 ####=========================================####
-
 # data(DT_wheat)
 # DT <- DT_wheat
 # GT <- GT_wheat
-# DT <- as.data.frame(DT);colnames(DT) <- paste0("x",1:4);DT$line <- rownames(DT); 
+# DT <- as.data.frame(DT);colnames(DT) <- paste0("x",1:4);DT$line <- rownames(DT);
 # rownames(GT) <- DT$line
 # K <- A.mat(GT) # additive relationship matrix
 # K[1:4,1:4]
-####=========================================####
-####=========================================####
-#### using formula based 'mmer2'
-####=========================================####
-####=========================================####
+# ###=========================================####
+# ###=========================================####
+# ### using formula based 'mmer'
+# ###=========================================####
+# ###=========================================####
 # head(DT)
 # #### univariate
 # mix0 <- mmer(x1~1,
-#              random = ~vs(line,Gu=K),
-#              rcov=~vs(units), 
+#              random = ~vsr(line,Gu=K),
+#              rcov=~units,
 #              data=DT)
+# summary(mix0)$varcomp
+# 
+# Ki <- as(solve(K + diag(1e-4,ncol(K),ncol(K))), Class="sparseMatrix")
+# mix0b <- mmec(x1~1,
+#              random = ~vsc(isc(line),Gu=Ki),
+#              rcov=~units,
+#              data=DT)
+# summary(mix0b)$varcomp
+
 
 }
 \keyword{datasets}

@@ -43,40 +43,33 @@ Mf <- Mf_technow
 # Mf <- (Mf*2) - 1
 # Ad <- A.mat(Md)
 # Af <- A.mat(Mf)
-####=========================================####
-####=========================================####
-# ans2 <- mmer(GY~1, 
-#              random=~vs(dent,Gu=Ad) + vs(flint,Gu=Af),
+# ###=========================================####
+# ###=========================================####
+# ans2 <- mmer(GY~1,
+#              random=~vsr(dent,Gu=Ad) + vsr(flint,Gu=Af),
 #              rcov=~units,
 #              data=DT)
-# summary(ans2)
-
-####=========================================####
-#### multivariate overlayed model
-####=========================================####
+# summary(ans2)$varcomp
+# 
+# Adi <- as(solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad))), Class="sparseMatrix")
+# Afi <- as(solve(Af + diag(1e-4,ncol(Af),ncol(Af))), Class="sparseMatrix")
+# ans2b <- mmec(GY~1,
+#              random=~vsc(isc(dent),Gu=Adi) + vsc(isc(flint),Gu=Afi),
+#              rcov=~units,
+#              data=DT)
+# summary(ans2b)$varcomp
+# ####=========================================####
+# #### multivariate overlayed model
+# ####=========================================####
 # M <- rbind(Md,Mf)
 # A <- A.mat(M)
-# ans3 <- mmer(cbind(GY,GM)~1, 
-#              random=~vs(overlay(dent,flint),Gu=A),
-#              rcov=~vs(units,Gtc=diag(2)),
+# ans3 <- mmer(cbind(GY,GM)~1,
+#              random=~vsr(overlay(dent,flint),Gu=A),
+#              rcov=~vsr(units,Gtc=diag(2)),
 #              data=DT)
 # summary(ans2)
 # cov2cor(ans3$sigma[[1]])
-# ####=========================================####
-# #### Hybrid GWAS
-# ####=========================================####
-# M <- (rbind(Md,Mf) *2 )-1
-# inds <- colnames(overlay(DT$dent,DT$flint)[[1]])
-# Minds <- M[inds,]
-# 
-# A <- A.mat(Minds)
-# A[1:4,1:4]
-# ans3 <- GWAS(GM~1, iters = 20,
-#              random=~vs(overlay(dent,flint),Gu=A),
-#              rcov=~vs(units),na.method.Y = "include",
-#              M=Minds, gTerm="dent",
-#              data=DT)
-# plot(ans3$scores[1,])
+
 }
 \keyword{datasets}
 \seealso{The core functions of the package \code{\link{mmer}} }

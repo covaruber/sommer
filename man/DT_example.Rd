@@ -23,6 +23,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 }
 \examples{
+
 ####=========================================####
 #### For CRAN time limitations most lines in the 
 #### examples are silenced with one '#' mark, 
@@ -44,32 +45,35 @@ head(DT)
 
 ## Compound simmetry (CS) model
 ans1 <- mmer(Yield~Env,
-              random= ~ Name + Env:Name,
-              rcov= ~ units,
-              data=DT)
-summary(ans1)
-
-####===========================================####
-#### Univariate heterogeneous variance models  ####
-####===========================================####
-
-## Compound simmetry (CS) + Diagonal (DIAG) model
-ans2 <- mmer(Yield~Env,
-              random= ~Name + vs(ds(Env),Name),
-              rcov= ~ vs(ds(Env),units),
-              data=DT)
-summary(ans2)
-
-####===========================================####
-####  Univariate unstructured variance models  ####
-####===========================================####
-
-ans3 <- mmer(Yield~Env,
-             random=~ vs(us(Env),Name),
-             rcov=~vs(us(Env),units), 
+             random= ~ Name + Env:Name,
+             rcov= ~ units,
              data=DT)
-summary(ans3)
+summary(ans1)$varcomp
 
+ans1b <- mmec(Yield~Env,
+             random= ~ Name + Env:Name,
+             rcov= ~ units,
+             data=DT)
+summary(ans1b)$varcomp
+
+# ####===========================================####
+# #### Univariate heterogeneous variance models  ####
+# ####===========================================####
+# 
+# ## Compound simmetry (CS) + Diagonal (DIAG) model
+# ans2 <- mmer(Yield~Env,
+#              random= ~Name + vsr(dsr(Env),Name),
+#              rcov= ~ vsr(dsr(Env),units),
+#              data=DT)
+# summary(ans2)
+# 
+# DT=DT[with(DT, order(Env)), ]
+# ans2b <- mmec(Yield~Env,
+#              random= ~Name + vsc(dsc(Env),isc(Name)),
+#              rcov= ~ vsc(dsc(Env),isc(units)),
+#              data=DT)
+# summary(ans2b)
+# 
 # ####==========================================####
 # #### Multivariate homogeneous variance models ####
 # ####==========================================####
@@ -77,32 +81,11 @@ summary(ans3)
 # ## Multivariate Compound simmetry (CS) model
 # DT$EnvName <- paste(DT$Env,DT$Name)
 # ans4 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(Name) + vs(EnvName),
-#               rcov= ~ vs(units),
+#               random= ~ vsr(Name) + vsr(EnvName),
+#               rcov= ~ vsr(units),
 #               data=DT)
 # summary(ans4)
-# 
-# ####=============================================####
-# #### Multivariate heterogeneous variance models  ####
-# ####=============================================####
-# 
-# ## Multivariate Compound simmetry (CS) + Diagonal (DIAG) model
-# ans5 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(Name) + vs(ds(Env),Name),
-#               rcov= ~ vs(ds(Env),units),
-#               data=DT)
-# summary(ans5)
-# 
-# ####===========================================####
-# #### Multivariate unstructured variance models ####
-# ####===========================================####
-# 
-# ans6 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vs(us(Env),Name),
-#               rcov= ~ vs(ds(Env),units),
-#               data=DT)
-# summary(ans6)
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mmer}} and \code{\link{mmec}} }

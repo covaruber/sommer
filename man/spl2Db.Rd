@@ -112,9 +112,9 @@ data(DT_cpdata)
 # MP <- MP_cpdata
 # A <- A.mat(GT)
 # mix <- mmer(Yield~1,
-#             random=~vs(id, Gu=A) +
-#               vs(Rowf) +
-#               vs(Colf) +
+#             random=~vsr(id, Gu=A) +
+#               vsr(Rowf) +
+#               vsr(Colf) +
 #               spl2Db(Row,Col),
 #             rcov=~units,
 #             data=DT)
@@ -130,10 +130,10 @@ data(DT_cpdata)
 # head(DT2)
 # A <- A.mat(GT)
 # mix <- mmer(Yield~1,
-#             random=~vs(ds(FIELD),id, Gu=A) +
-#               vs(ds(FIELD),Rowf) +
-#               vs(ds(FIELD),Colf) +
+#             random=~vsr(dsr(FIELD),id, Gu=A) +
+#               vsr(dsr(FIELD),Rowf) +
+#               vsr(dsr(FIELD),Colf) +
 #                 spl2Db(Row,Col,at.var=FIELD),
-#             rcov=~vs(ds(FIELD),units),
+#             rcov=~vsr(dsr(FIELD),units),
 #             data=DT2)
 }

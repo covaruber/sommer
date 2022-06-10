@@ -21,12 +21,11 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 }
 \examples{
 
-####=========================================####
-#### For CRAN time limitations most lines in the 
-#### examples are silenced with one '#' mark, 
-#### remove them and run the examples
-####=========================================####
-
+# ####=========================================####
+# #### For CRAN time limitations most lines in the 
+# #### examples are silenced with one '#' mark, 
+# #### remove them and run the examples
+# ####=========================================####
 # ####=========================================####
 # ####=========================================####
 # #### EXAMPLE 1
@@ -36,11 +35,17 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # data(DT_btdata)
 # DT <- DT_btdata
 # head(DT)
-# mix4 <- mmer(tarsus ~ sex, 
+# mix4 <- mmer(tarsus ~ sex,
 #              random = ~ dam + fosternest,
 #              rcov=~units,
 #              data = DT)
-# summary(mix4)
+# summary(mix4)$varcomp
+# 
+# mix5 <- mmec(tarsus ~ sex,
+#              random = ~ dam + fosternest,
+#              rcov=~units,
+#              data = DT)
+# summary(mix5)$varcomp
 # 
 # ####=========================================####
 # ####=========================================####
@@ -52,8 +57,8 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # data(DT_btdata)
 # DT <- DT_btdata
 # mix3 <- mmer(cbind(tarsus, back) ~ sex,
-#                 random = ~ vs(dam) + vs(fosternest),
-#                 rcov= ~ vs(units, Gtc=diag(2)),
+#                 random = ~ vsr(dam) + vsr(fosternest),
+#                 rcov= ~ vsr(units, Gtc=diag(2)),
 #                 data = DT)
 # summary(mix3)
 # #### calculate the genetic correlation
@@ -62,4 +67,4 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}}}
+\seealso{The core functions of the package \code{\link{mmer}}, \code{\link{mmec}}}

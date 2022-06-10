@@ -4,17 +4,6 @@ vpredict <- function(object, transform) {
 
 vpredict.mmer <- function (object, transform){
   
-  # UseMethod("vpredict.mmer")
-  
-  # if(object$method %in% c("EMMA","EM")){
-  #   stop("The pin function only works for 'NR' and 'AI' methods.",call. = FALSE)
-  # }
-  # 
-  # if(object$method %in% c("MNR","MAI","MEMMA")){
-  #   pframe <- as.list(object$sigma)#as.list(summary(object)[[3]][,1])
-  # }else{
-  #   pframe <- as.list(object$var.comp[,1])
-  # }
   pframe <- as.list(summary(object)$varcomp[,1])
   names(pframe) <- paste("V", seq(1, length(pframe)), sep = "")
   ## deriv creates a derivative for a simple expression

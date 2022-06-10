@@ -422,11 +422,11 @@ version 4.1.7 (2022-07-01)
 ########################
 
  + Addition of the W argument to allows users to input a weights matrix instead of only a vector.
+ + Henderson mixed model equation version of the AI algorithm based on Jensen, Madsen and Thompson (1997) finally availble with the mmec function. Please try it.
  
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot function and enable to plot likelihood and monitor of vcs
-+ MME-based Average Information algorithm in progress (n > p problem. Hope to have it ready for v4.2.0) 80% done. We're just writting in Rcpp
 + Add correlation models
 + bring back the betas, and R2 for markers in GWAS. Need to use C++ cubes (sort of list) to store betas, scores and R so we extract them in a good order.
 + enable P3D argument

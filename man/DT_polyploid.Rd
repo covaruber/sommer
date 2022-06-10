@@ -27,6 +27,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 }
 \examples{
+
 ####=========================================####
 #### For CRAN time limitations most lines in the 
 #### examples are silenced with one '#' mark, 
@@ -41,8 +42,8 @@ data(DT_polyploid)
 # ####=========================================####
 # ####### convert markers to numeric format
 # ####=========================================####
-# numo <- atcg1234(data=GT, ploidy=4); 
-# numo$M[1:5,1:5]; 
+# numo <- atcg1234(data=GT, ploidy=4);
+# numo$M[1:5,1:5];
 # numo$ref.allele[,1:5]
 # 
 # ###=========================================####
@@ -61,27 +62,23 @@ data(DT_polyploid)
 # ###=========================================####
 # ###### Additive relationship matrix, specify ploidy
 # ###=========================================####
-# A <- A.mat(marks, ploidy=4)
-# D <- D.mat(marks, ploidy=4)
+# A <- A.mat(marks)
+# D <- D.mat(marks)
 # ###=========================================####
 # ### run as mixed model
 # ###=========================================####
-# ans <- mmer(tuber_shape~1, 
-#             random=~vs(Name, Gu=A),
+# ans <- mmer(tuber_shape~1,
+#             random=~vsr(Name, Gu=A),
 #             data=DT2)
-# summary(ans)
+# summary(ans)$varcomp
 # 
-# ###=========================================####
-# ### run it as GWAS model
-# ###=========================================####
-# ans2 <- GWAS(tuber_shape~1, 
-#              random=~vs(Name,Gu=A),
-#              rcov=~units,
-#              gTerm = "Name",
-#              M=marks, data=DT2)
-# summary(ans2)
-# plot(ans2$scores[1,])
-# plot(ans2$r2m[1,])
+# Ai <- as(solve(A + diag(1e-4,ncol(A),ncol(A))), Class="sparseMatrix")
+# ansb <- mmec(tuber_shape~1,
+#             random=~vsc(isc(Name), Gu=Ai),
+#             data=DT2)
+# summary(ansb)$varcomp
+# 
+
 }
 \keyword{datasets}
 \seealso{The core functions of the package \code{\link{mmer}} }

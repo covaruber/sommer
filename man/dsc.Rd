@@ -1,15 +1,17 @@
-\name{ds}
-\alias{ds}
+\name{dsc}
+\alias{dsc}
 \title{diagonal covariance structure}
 \description{
-  \code{ds} creates a diagonal covariance structure for the levels of the random effect.
+  \code{dsc} creates a diagonal covariance structure for the levels of the random effect  to be used with the \code{\link{mmec}} solver.
 }
 \usage{
-  ds(x)
+  dsc(x, thetaC=NULL, theta=NULL)
 }
 
 \arguments{
   \item{x}{vector of observations for the random effect.}
+  \item{thetaC}{an optional matrix for constraints in the variance components.}
+  \item{theta}{an optional matrix for initial values of the variance components.}
 }
 \value{
   \describe{
@@ -25,6 +27,6 @@
 
 \examples{
 x <- as.factor(c(1:5,1:5,1:5));x
-ds(x)
+dsc(x)
 }
-\seealso{The function \code{\link{vs}} to know how to use \code{ds} in the \code{\link{mmer}} solver.}
+\seealso{See the function \code{\link{vsc}} to know how to use \code{dsc} in the \code{\link{mmec}} solver.}

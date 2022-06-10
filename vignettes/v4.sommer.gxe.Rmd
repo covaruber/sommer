@@ -17,10 +17,9 @@ The purpose of this vignette is to show how to fit different genotype by environ
 2) Multienvironment model: Main effect model
 3) Multienvironment model: Diagonal model (DG)
 4) Multienvironment model: Compund symmetry model (CS)
-5) Multienvironment model: Compund symmetry + diagonal model (CS+DG)
-6) Multienvironment model: Unstructured model (US)
-7) Multienvironment model: Random regression model (RR)
-8) Multienvironment model: Other covariance structures for GxE
+5) Multienvironment model: Unstructured model (US)
+6) Multienvironment model: Random regression model (RR)
+7) Multienvironment model: Other covariance structures for GxE
 
 
 When the breeder decides to run a trial and apply selection in a single environment (whether because the amount of seed is a limitation or there's no availability for a location) the breeder takes the risk of selecting material for a target population of environments (TPEs) using an environment that is not representative of the larger TPE. Therefore, many breeding programs try to base their selection decision on multi-environment trial (MET) data. Models could be adjusted by adding additional information like spatial information, experimental design information, etc. In this tutorial we will focus mainly on the covariance structures for GxE and the incorporation of relationship matrices for the genotype effect.
@@ -36,7 +35,15 @@ DT <- DT_example
 A <- A_example
 
 ansSingle <- mmer(Yield~1,
-              random= ~ vs(Name, Gu=A),
+              random= ~ vsr(Name, Gu=A),
+              rcov= ~ units,
+              data=DT, verbose = FALSE)
+summary(ansSingle)
+
+# or
+Ai <- as(solve(A), Class="sparseMatrix")
+ansSingle <- mmec(Yield~1,
+              random= ~ vsc(isc(Name), Gu=Ai),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansSingle)
@@ -52,7 +59,16 @@ A multi-environment model is the one that is fitted when the breeding program ca
 ```{r}
 
 ansMain <- mmer(Yield~Env,
-              random= ~ vs(Name, Gu=A),
+              random= ~ vsr(Name, Gu=A),
+              rcov= ~ units,
+              data=DT, verbose = FALSE)
+summary(ansMain)
+
+# or 
+
+Ai <- as(solve(A), Class="sparseMatrix")
+ansMain <- mmec(Yield~Env,
+              random= ~ vsc(isc(Name), Gu=Ai),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansMain)
@@ -66,7 +82,15 @@ A multi-environment model is the one that is fitted when the breeding program ca
 ```{r}
 
 ansDG <- mmer(Yield~Env,
-              random= ~ vs(ds(Env),Name, Gu=A),
+              random= ~ vsr(dsr(Env),Name, Gu=A),
+              rcov= ~ units,
+              data=DT, verbose = FALSE)
+summary(ansDG)
+
+# or
+Ai <- as(solve(A), Class="sparseMatrix")
+ansDG <- mmec(Yield~Env,
+              random= ~ vsc(dsc(Env),isc(Name), Gu=Ai),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansDG)
@@ -82,43 +106,53 @@ E <- diag(length(unique(DT$Env)))
 rownames(E) <- colnames(E) <- unique(DT$Env)
 EA <- kronecker(E,A, make.dimnames = TRUE)
 ansCS <- mmer(Yield~Env,
-              random= ~ vs(Name, Gu=A) + vs(Env:Name, Gu=EA),
+              random= ~ vsr(Name, Gu=A) + vsr(Env:Name, Gu=EA),
               rcov= ~ units,
+              data=DT, verbose = FALSE)
+summary(ansCS)
+
+## or
+E <- diag(length(unique(DT$Env)));rownames(E) <- colnames(E) <- unique(DT$Env)
+Ei <- solve(E)
+Ai <- solve(A)
+EAi <- kronecker(Ei,Ai, make.dimnames = TRUE)
+Ei <- as(Ei, Class="sparseMatrix")
+Ai <- as(Ai, Class="sparseMatrix")
+EAi <- as(EAi, Class="sparseMatrix")
+ansCS <- mmec(Yield~Env,
+              random= ~ vsc(isc(Name), Gu=Ai) + vsc(isc(Env:Name), Gu=EAi),
+              rcov= ~ units, 
               data=DT, verbose = FALSE)
 summary(ansCS)
 
 ```
 
-## 5) MET: compund symmetry plus diagonal (CS+DIAG)
-
-A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The compound symmetry plus diagonal model is very similar to the CS model assuming that GxE exist and that a main genotype variance-covariance component is expressed across all location. In addition, it assumes that a location-specific genotype-by-environment variance is expressed in each location. The main drawback is that the model assumes the same covariance among locations. The fixed effect for environment plus the main effect BLUP plus environment-specific genotype-by-environment effect is used to predict the genotype effect in each location of interest.
-
-```{r}
-
-ansMain <- mmer(Yield~Env,
-              random= ~ vs(Name, Gu=A) + vs(ds(Env),Name, Gu=A),
-              rcov= ~ units,
-              data=DT, verbose = FALSE)
-summary(ansMain)
-
-```
-
-## 6) MET: unstructured model (US)
+## 5) MET: unstructured model (US)
 
 A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The unstructured model is the most flexible model assuming that GxE exists and that an environment-specific variance exists in addition to as many covariances for each environment-to-environment combinations. The main drawback is that is difficult to make this models converge because of the large number of variance components, the fact that some of these variance or covariance components are zero, and the difficulty in choosing good starting values. The fixed effect for environment plus the environment specific BLUP (adjusted by covariances) is used to predict the genotype effect in each location of interest.
 
 ```{r}
 
 ansUS <- mmer(Yield~Env,
-              random= ~ vs(us(Env),Name, Gu=A),
+              random= ~ vsr(usr(Env),Name, Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansUS)
 # adjust variance BLUPs by adding covariances
 # ansUS$U[1:6] <- unsBLUP(ansUS$U[1:6])
+
+# or
+Ai <- solve(A)
+Ai <- as(Ai, Class="sparseMatrix")
+ansUS <- mmec(Yield~Env,
+              random= ~ vsc(usc(Env),isc(Name), Gu=Ai),
+              rcov= ~ units,
+              data=DT, verbose = FALSE)
+summary(ansUS)
+
 ```
 
-## 7) MET: random regression model
+## 6) MET: random regression model
 
 A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The random regression model assumes that the environment can be seen as a continuous variable and therefore a variance component for the intercept and a variance component for the slope can be fitted. The number of variance components will depend on the order of the Legendre polynomial fitted.
 
@@ -126,7 +160,15 @@ A multi-environment model is the one that is fitted when the breeding program ca
 library(orthopolynom)
 DT$EnvN <- as.numeric(as.factor(DT$Env))
 ansRR <- mmer(Yield~Env,
-              random= ~ vs(leg(EnvN,1),Name),
+              random= ~ vsr(leg(EnvN,1),Name),
+              rcov= ~ units,
+              data=DT, verbose = FALSE)
+summary(ansRR)
+
+# or
+
+ansRR <- mmec(Yield~Env,
+              random= ~ vsc(dsc(leg(EnvN,1)),isc(Name)),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansRR)
@@ -139,7 +181,15 @@ In addition, an unstructured, diagonal or other variance-covariance structure ca
 library(orthopolynom)
 DT$EnvN <- as.numeric(as.factor(DT$Env))
 ansRR <- mmer(Yield~Env,
-              random= ~ vs(us(leg(EnvN,1)),Name),
+              random= ~ vsr(usr(leg(EnvN,1)),Name),
+              rcov= ~ units,
+              data=DT, verbose = FALSE)
+summary(ansRR)
+
+# or
+
+ansRR <- mmec(Yield~Env,
+              random= ~ vsc(usc(leg(EnvN,1)),isc(Name)),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansRR)
@@ -147,7 +197,7 @@ summary(ansRR)
 ```
 
 
-## 8) Other GxE covariance structures
+## 7) Other GxE covariance structures
 
 Although not very commonly used in GxE models, the autoregressive of order 1 (AR1) and other covariance structures could be used in the GxE modeling. Here we show how to do it (not recommending it).
 
@@ -157,17 +207,12 @@ E <- AR1(DT$Env) # can be AR1() or CS(), etc.
 rownames(E) <- colnames(E) <- unique(DT$Env)
 EA <- kronecker(E,A, make.dimnames = TRUE)
 ansCS <- mmer(Yield~Env,
-              random= ~ vs(Name, Gu=A) + vs(Env:Name, Gu=EA),
+              random= ~ vsr(Name, Gu=A) + vsr(Env:Name, Gu=EA),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansCS)
 
 ```
-
-
-## Final remarks
-
-Keep in mind that sommer uses the direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused on problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for experiments with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small number of individuals and covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you opt for those.
 
 ## Literature
 

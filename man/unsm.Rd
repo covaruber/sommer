@@ -2,7 +2,7 @@
 \alias{unsm}
 \title{unstructured indication matrix}
 \description{
-  \code{unsm} creates a square matrix with ones in the diagonals and 2's in the off-diagonals to quickly specify an unstructured constraint in the Gtc argument of the \code{\link{vs}} function.
+  \code{unsm} creates a square matrix with ones in the diagonals and 2's in the off-diagonals to quickly specify an unstructured constraint in the Gtc argument of the \code{\link{vsr}} function.
 }
 \usage{
   unsm(x, reps=NULL)
@@ -15,7 +15,7 @@
 \value{
   \describe{
     
-    \item{$res}{ a matrix or a list of matrices with the constraints to be provided in the Gtc argument of the \code{\link{vs}} function.}
+    \item{$res}{ a matrix or a list of matrices with the constraints to be provided in the Gtc argument of the \code{\link{vsr}} function.}
   }
 }
 \references{
@@ -29,4 +29,4 @@
 unsm(3)
 unsm(3,2)
 }
-\seealso{The function \code{\link{vs}} to know how to use \code{unsm} in the \code{\link{mmer}} solver.}
+\seealso{The function \code{\link{vsr}} to know how to use \code{unsm} in the \code{\link{mmer}} solver.}

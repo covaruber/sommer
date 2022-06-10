@@ -13,6 +13,10 @@ mat_to_vecCpp <- function(x, x2) {
     .Call(`_sommer_mat_to_vecCpp`, x, x2)
 }
 
+vec_to_matCpp <- function(x, x2) {
+    .Call(`_sommer_vec_to_matCpp`, x, x2)
+}
+
 vec_to_cubeCpp <- function(x, g) {
     .Call(`_sommer_vec_to_cubeCpp`, x, g)
 }
@@ -71,5 +75,21 @@ gwasForLoop <- function(M, Y, Z, X, Vinv, minMAF, display_progress = TRUE) {
 
 MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight) {
     .Call(`_sommer_MNR`, Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight)
+}
+
+convertSparse <- function(mat) {
+    .Call(`_sommer_convertSparse`, mat)
+}
+
+mat_to_vecCpp2 <- function(x, x2) {
+    .Call(`_sommer_mat_to_vecCpp2`, x, x2)
+}
+
+nearPDcpp <- function(X0, maxit, eig_tol, conv_tol) {
+    .Call(`_sommer_nearPDcpp`, X0, maxit, eig_tol, conv_tol)
+}
+
+ai_mme_sp <- function(X, ZI, Zind, AiI, y, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaC, thetaF, addScaleParam, weightEmInf, weightInf, verbose) {
+    .Call(`_sommer_ai_mme_sp`, X, ZI, Zind, AiI, y, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaC, thetaF, addScaleParam, weightEmInf, weightInf, verbose)
 }
 

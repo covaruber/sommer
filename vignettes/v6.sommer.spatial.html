@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2022-04-16" />
+<meta name="date" content="2022-06-01" />
 
 <title>Spatial modeling using the sommer package</title>
 
@@ -29,9 +29,42 @@ document.addEventListener('DOMContentLoaded', function(e) {
   }
 });
 </script>
+<script>// Hide empty <a> tag within highlighted CodeBlock for screen reader accessibility (see https://github.com/jgm/pandoc/issues/6352#issuecomment-626106786) -->
+// v0.0.1
+// Written by JooYoung Seo (jooyoung@psu.edu) and Atsushi Yasumoto on June 1st, 2020.
+
+document.addEventListener('DOMContentLoaded', function() {
+  const codeList = document.getElementsByClassName("sourceCode");
+  for (var i = 0; i < codeList.length; i++) {
+    var linkList = codeList[i].getElementsByTagName('a');
+    for (var j = 0; j < linkList.length; j++) {
+      if (linkList[j].innerHTML === "") {
+        linkList[j].setAttribute('aria-hidden', 'true');
+      }
+    }
+  }
+});
+</script>
+
+<style type="text/css">
+  code{white-space: pre-wrap;}
+  span.smallcaps{font-variant: small-caps;}
+  span.underline{text-decoration: underline;}
+  div.column{display: inline-block; vertical-align: top; width: 50%;}
+  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+  ul.task-list{list-style: none;}
+    </style>
 
 
-<style type="text/css">code{white-space: pre;}</style>
+
+<style type="text/css">
+  code {
+    white-space: pre;
+  }
+  .sourceCode {
+    overflow: visible;
+  }
+</style>
 <style type="text/css" data-origin="pandoc">
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
@@ -118,6 +151,7 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
   }
 })();
 </script>
+
 
 
 
@@ -315,7 +349,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Spatial modeling using the sommer package</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2022-04-16</h4>
+<h4 class="date">2022-06-01</h4>
 
 
 
@@ -440,28 +474,28 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <span id="cb14-3"><a href="#cb14-3"></a>DT2<span class="op">$</span>trial &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="kw">rep</span>(<span class="st">&quot;A&quot;</span>,<span class="kw">nrow</span>(DT)),<span class="kw">rep</span>(<span class="st">&quot;B&quot;</span>,<span class="kw">nrow</span>(DT)))</span>
 <span id="cb14-4"><a href="#cb14-4"></a><span class="kw">head</span>(DT2)</span></code></pre></div>
 <pre><code>##   row col         Y   N          V  B         MP R C trial
-## 1   1   1  90.65125 0.2    Victory B2    Victory 1 1     A
-## 2   2   1  61.57691   0    Victory B2    Victory 2 1     A
-## 3   3   1 120.51987 0.4 Marvellous B2 Marvellous 3 1     A
-## 4   4   1 145.83500 0.6 Marvellous B2 Marvellous 4 1     A
-## 5   5   1 147.47033 0.6 GoldenRain B2 GoldenRain 5 1     A
-## 6   6   1 107.80985 0.2 GoldenRain B2 GoldenRain 6 1     A</code></pre>
+## 1   1   1  92.99337 0.2    Victory B2    Victory 1 1     A
+## 2   2   1  60.90794   0    Victory B2    Victory 2 1     A
+## 3   3   1 120.45525 0.4 Marvellous B2 Marvellous 3 1     A
+## 4   4   1 143.22766 0.6 Marvellous B2 Marvellous 4 1     A
+## 5   5   1 148.62215 0.6 GoldenRain B2 GoldenRain 5 1     A
+## 6   6   1 109.84683 0.2 GoldenRain B2 GoldenRain 6 1     A</code></pre>
 <div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1"></a><span class="co"># SOMMER MODEL</span></span>
 <span id="cb16-2"><a href="#cb16-2"></a>m3.sommer &lt;-<span class="st"> </span><span class="kw">mmer</span>(Y<span class="op">~</span><span class="dv">1</span><span class="op">+</span>V, </span>
-<span id="cb16-3"><a href="#cb16-3"></a>                  <span class="dt">random =</span> <span class="op">~</span><span class="kw">vs</span>(<span class="kw">ds</span>(trial),R)<span class="op">+</span><span class="kw">vs</span>(<span class="kw">ds</span>(trial),C)<span class="op">+</span></span>
+<span id="cb16-3"><a href="#cb16-3"></a>                  <span class="dt">random =</span> <span class="op">~</span><span class="kw">vsr</span>(<span class="kw">dsr</span>(trial),R)<span class="op">+</span><span class="kw">vsr</span>(<span class="kw">dsr</span>(trial),C)<span class="op">+</span></span>
 <span id="cb16-4"><a href="#cb16-4"></a><span class="st">                    </span><span class="kw">spl2Da</span>(col,row, <span class="dt">nsegments =</span> <span class="kw">c</span>(<span class="dv">14</span>,<span class="dv">21</span>), <span class="dt">degree =</span> <span class="kw">c</span>(<span class="dv">3</span>,<span class="dv">3</span>), <span class="dt">penaltyord =</span> <span class="kw">c</span>(<span class="dv">2</span>,<span class="dv">2</span>), <span class="dt">at.var =</span> trial),</span>
-<span id="cb16-5"><a href="#cb16-5"></a>                  <span class="dt">rcov =</span> <span class="op">~</span><span class="kw">vs</span>(<span class="kw">ds</span>(trial),units),</span>
+<span id="cb16-5"><a href="#cb16-5"></a>                  <span class="dt">rcov =</span> <span class="op">~</span><span class="kw">vsr</span>(<span class="kw">dsr</span>(trial),units),</span>
 <span id="cb16-6"><a href="#cb16-6"></a>                  <span class="dt">data=</span>DT2, <span class="dt">tolpar =</span> <span class="fl">1e-6</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
 <span id="cb16-7"><a href="#cb16-7"></a><span class="kw">summary</span>(m3.sommer)<span class="op">$</span>varcomp</span></code></pre></div>
 <pre><code>##              VarComp VarCompSE    Zratio Constraint
-## A:R.Y-Y     102.6128  82.57634 1.2426418   Positive
-## B:R.Y-Y     104.6833  81.61664 1.2826223   Positive
-## A:C.Y-Y     145.1327 139.86532 1.0376602   Positive
-## B:C.Y-Y     146.6031 140.40676 1.0441311   Positive
-## A:all.Y-Y   389.4739 913.74909 0.4262373   Positive
-## B:all.Y-Y   412.5473 885.83474 0.4657159   Positive
-## A:units.Y-Y 409.6415 212.25686 1.9299330   Positive
-## B:units.Y-Y 387.9514 204.29584 1.8989687   Positive</code></pre>
+## A:R.Y-Y     103.2576  80.40535 1.2842125   Positive
+## B:R.Y-Y     108.6171  83.12014 1.3067485   Positive
+## A:C.Y-Y     149.3403 142.00605 1.0516473   Positive
+## B:C.Y-Y     143.9571 138.49872 1.0394112   Positive
+## A:all.Y-Y   394.3879 871.51025 0.4525338   Positive
+## B:all.Y-Y   402.2604 890.70017 0.4516227   Positive
+## A:units.Y-Y 384.2268 201.41676 1.9076209   Positive
+## B:units.Y-Y 392.4035 205.83027 1.9064422   Positive</code></pre>
 <div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1"></a><span class="co"># get the fitted values for the spatial kernel and plot</span></span>
 <span id="cb18-2"><a href="#cb18-2"></a><span class="co"># ff &lt;- fitted.mmer(m3.sommer)</span></span>
 <span id="cb18-3"><a href="#cb18-3"></a><span class="co"># DT2$fit &lt;- as.matrix(Reduce(&quot;+&quot;,ff$Zu[-c(1:4)])) </span></span>

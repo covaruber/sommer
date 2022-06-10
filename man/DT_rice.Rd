@@ -46,9 +46,17 @@ data(DT_rice)
 # M <- atcg1234(GT)
 # A <- A.mat(M$M)
 # mix <- mmer(Protein.content~1,
-#             random = ~vs(geno, Gu=A) + geno,
+#             random = ~vsr(geno, Gu=A) + geno,
 #             rcov=~units,
 #             data=DT)
+# summary(mix)$varcomp
+# 
+# Ai <- as(solve(A + diag(1e-6,ncol(A),ncol(A))), Class="sparseMatrix")
+# mixb <- mmec(Protein.content~1,
+#             random = ~vsc(isc(geno), Gu=Ai) + geno,
+#             rcov=~units,
+#             data=DT)
+# summary(mixb)$varcomp
 }
 \keyword{datasets}
 \seealso{The core functions of the package \code{\link{mmer}} }

@@ -13,7 +13,7 @@
 \value{
   vector of coef
  }
-\author{Giovanny Covarrubias \email{covarrubiasp@wisc.edu}}
+\author{Giovanny Covarrubias}
 \seealso{\code{\link{coef}}, \code{\link{mmer}} }
 \keyword{models}
 

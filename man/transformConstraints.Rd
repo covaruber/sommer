@@ -9,7 +9,7 @@
 }
 
 \arguments{
-  \item{list0}{a list of matrices with constraints according to the rules specified in the vs function (0: not to be estimated, 1: positive, 2:unconstrained, 3:fixed).}
+  \item{list0}{a list of matrices with constraints according to the rules specified in the vsr function (0: not to be estimated, 1: positive, 2:unconstrained, 3:fixed).}
   \item{value}{value to be used to replace all the non-zero values in the constraint matrices.}
 }
 \value{
@@ -29,4 +29,4 @@
 (a <- list(unsm(4), diag(4)))
 transformConstraints(a, value=3)
 }
-\seealso{The function \code{\link{vs}} to know how to use \code{transformConstraints} in the \code{\link{mmer}} solver. }
+\seealso{The function \code{\link{vsr}} to know how to use \code{transformConstraints} in the \code{\link{mmer}} solver. }

@@ -1,11 +1,11 @@
-\name{cs}
-\alias{cs}
+\name{csr}
+\alias{csr}
 \title{customized covariance structure}
 \description{
-  \code{cs} creates a customized covariance structure for specific levels of the random effect.
+  \code{csr} creates a customized covariance structure for specific levels of the random effect to be used with the \code{\link{mmer}} solver.
 }
 \usage{
-  cs(x, mm)
+  csr(x, mm)
 }
 
 \arguments{
@@ -27,6 +27,6 @@
 
 \examples{
 x <- as.factor(c(1:5,1:5,1:5));x
-cs(x,matrix(1,5,5))
+csr(x,matrix(1,5,5))
 }
-\seealso{The function \code{\link{vs}} to know how to use \code{cs} in the \code{\link{mmer}} solver.}
+\seealso{The function \code{\link{vsr}} to know how to use \code{csr} in the \code{\link{mmer}} solver.}
