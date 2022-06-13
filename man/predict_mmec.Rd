@@ -71,39 +71,66 @@
 
 data(DT_yatesoats)
 DT <- DT_yatesoats
-DT$N <- as.character(DT$N)
-DT$N[which(DT$N == 0)] = "0.0"
-m3 <- mmec(fixed=Y ~ V + N + V:N,
+m3 <- mmec(fixed=Y ~ V + N + V:N ,
            random = ~ B + B:MP,
            rcov=~units,
            data = DT)
-summary(m3)$varcomp
 
-## main effect N
+#############################
+## predict means for nitrogen
+#############################
 Dt <- m3$Dtable; Dt
+# prediction matrix D based on (equivalent to classify in asreml)
 Dt[2,"D"] = TRUE
-Dt[2,"include"] = TRUE
+# first fixed effect just average
 Dt[1,"average"] = TRUE
-Dt
-pp=predict(object=m3, Dtable=Dt)
-pp$pvals
-
-## main effect V
-Dt <- m3$Dtable; Dt
-Dt[1,"D"] = TRUE
-Dt[1,"include"] = TRUE
-Dt[2,"average"] = TRUE
-Dt
-pp=predict(object=m3, Dtable=Dt)
-pp$pvals
-
-# interaction V:N
-Dt <- m3$Dtable; Dt
-Dt[3,"D"] = TRUE
-Dt[1:2,"include"] = TRUE
+# second fixed effect include
+Dt[2,"include"] = TRUE
+# third fixed effect include and average
+Dt[3,"include"] = TRUE
 Dt[3,"average"] = TRUE
 Dt
-pp=predict(object=m3, Dtable=Dt)
+
+pp=predict.mmec(object=m3, Dtable=Dt)
+pp$pvals
+
+#############################
+## predict means for variety
+#############################
+
+Dt <- m3$Dtable; Dt
+# prediction matrix D based on (equivalent to classify in asreml)
+Dt[1,"D"] = TRUE
+# first fixed effect include
+Dt[1,"include"] = TRUE
+# second fixed effect just average
+Dt[2,"average"] = TRUE
+# third fixed effect include and average
+Dt[3,"include"] = TRUE
+Dt[3,"average"] = TRUE
+Dt
+
+pp=predict.mmec(object=m3, Dtable=Dt)
+pp$pvals
+
+#############################
+## predict means for nitrogen:variety
+#############################
+# prediction matrix D based on (equivalent to classify in asreml)
+Dt <- m3$Dtable; Dt
+Dt[3,"D"] = TRUE
+# first fixed effect include and average
+Dt[1,"include"] = TRUE
+Dt[1,"average"] = TRUE
+# second fixed effect include and average
+Dt[2,"include"] = TRUE
+Dt[2,"average"] = TRUE
+# third fixed effect include and average
+Dt[3,"include"] = TRUE
+Dt[3,"average"] = TRUE
+Dt
+
+pp=predict.mmec(object=m3, Dtable=Dt)
 pp$pvals
 
 }

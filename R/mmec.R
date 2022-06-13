@@ -131,18 +131,14 @@ mmec <- function(fixed, random, rcov, data, W,
   #################
   #################
   ## get Xs
-  
-  # Expand the fixed terms to handle interactions
-  # fixedtermss <- attr(terms(fixed),"term.labels")
-  # if(length(fixedtermss) == 0){fixedtermss="1"}
-  # newfixed <- as.formula(paste("~",paste(fixedtermss,collapse = "+")))
   newfixed=fixed
-  # fixedTerms <- all.vars(newfixed)[-1]
   fixedTerms <- strsplit(as.character(fixed[3]), split = "[+]")[[1]]
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
   mf <- eval(mf, parent.frame())
+  # print(newfixed)
   X <-  Matrix::sparse.model.matrix(newfixed, mf)
   
+
   partitionsX <- list()#as.data.frame(matrix(NA,length(fixedTerms),2))
   for(ix in 1:length(fixedTerms)){
     effs <- colnames(Matrix::sparse.model.matrix(as.formula(paste("~",fixedTerms[ix],"-1")), mf))
@@ -150,6 +146,21 @@ mmec <- function(fixed, random, rcov, data, W,
     partitionsX[[ix]] <- matrix(which(colnames(X) %in% c(effs,effs2)),nrow=1)
   }
   names(partitionsX) <- fixedTerms
+  for(ix in 1:length(fixedTerms)){
+    colnamesBase <- colnames(X)[partitionsX[[ix]]]
+    colnamesBaseList <- strsplit(colnamesBase,":")
+    toRemoveList <- strsplit(fixedTerms[ix],":")[[1]] # words to remove
+    for(j in 1:length(toRemoveList)){
+      nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE))
+      colnamesBaseList <- lapply(colnamesBaseList, function(h){h[j] <- substr(h[j],1+nc,nchar(h[j])); return(h)})
+    }
+    colnames(X)[partitionsX[[ix]]] <- unlist(lapply(lapply(colnamesBaseList,na.omit), function(x){paste(x, collapse=":")}))
+  }
+  step1 <- gsub(" ", "", strsplit(as.character(fixed[3]), split = "[-]")[[1]])
+  step2 <- unlist(apply(data.frame(step1),1,function(x){strsplit(as.character(x), split = "[+]")[[1]]}))
+  intercCheck <- ifelse(length(intersect(c("1","-1"),step2)) == 0, TRUE, FALSE) # if length is zero it means that we have an intercept
+  if(intercCheck){colnames(X)[1] <- "Intercept"}
+  
   #################
   #################
   ## weight matrix
@@ -252,13 +263,18 @@ mmec <- function(fixed, random, rcov, data, W,
     res$sigma <- res$monitor[,which(res$llik[1,] == max(res$llik[1,]))] # we return the ones with max llik
     res$data <- data
     res$y <- yvar
+    names(res$partitions) <- rtermss
     res$partitionsX <- partitionsX
-    names(res$partitions) <- unlist(rTermsNames)[1:(length(rTermsNames)-1)]
-    if(!missing(random)){
-      res$partitions <- lapply(res$partitions, function(x){vv= matrix(x[1,1]:x[nrow(x),ncol(x)], nrow = 1); return(vv)})
-    }
-    res$partitionsAll <- c(res$partitionsX,res$partitions)
-    res$Dtable <- data.frame(term=names(res$partitionsAll),include=FALSE,average=FALSE,D=FALSE)
+    uList <- uPevList <- vector(mode="list",length = length(res$partitions))
+    for(i in 1:length(res$partitions)){
+      blupTable <- apply(res$partitions[[i]],1,function(x2){return(res$bu[x2[1]:x2[2]])})
+      pevTable <- apply(res$partitions[[i]],1,function(x2){return(diag(res$Ci)[x2[1]:x2[2]])})
+      colnames(blupTable) <- colnames(pevTable) <- colnames(theta[[i]])
+      rownames(blupTable) <- rownames(pevTable) <- colnames(Z[[which(Zind == i)[1]]])
+      uList[[i]] <- blupTable; uPevList[[i]] <- pevTable
+    }; blupTable=NULL; pevTable=NULL; names(uList) <- names(uPevList) <- rtermss
+    res$uList <- uList; res$uPevList <- uPevList
+    res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX)),rep("random",length(res$partitions))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE,D=FALSE)
     class(res)<-c("mmec")
   }
   return(res)

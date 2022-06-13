@@ -603,7 +603,7 @@ usc <- function(x, thetaC=NULL, theta=NULL){
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm,theta=bnmm))
 }
-isc <- function(x, thetaC=NULL, theta=NULL){
+isc <- function(x, thetaC=NULL, theta=NULL, intercept=FALSE){
   if(class(x)[1] %in% c("dgCMatrix","matrix") ){
     dummy <- as(x, Class="sparseMatrix")
     mm <- diag(1)#,ncol(x))
@@ -616,7 +616,11 @@ isc <- function(x, thetaC=NULL, theta=NULL){
       dummy <- x
       levs <- na.omit(unique(dummy))
       if(length(levs) > 1){
-        dummy  <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass)
+        if(intercept){
+          dummy  <- Matrix::sparse.model.matrix(~dummy,na.action = na.pass)
+        }else{
+          dummy  <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass) 
+        }
         colnames(dummy) <- gsub("dummy","",colnames(dummy))
       }else{
         vv <- which(!is.na(dummy)); 
