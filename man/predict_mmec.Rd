@@ -91,7 +91,7 @@ Dt[3,"include"] = TRUE
 Dt[3,"average"] = TRUE
 Dt
 
-pp=predict.mmec(object=m3, Dtable=Dt)
+pp=predict(object=m3, Dtable=Dt)
 pp$pvals
 
 #############################
@@ -110,7 +110,7 @@ Dt[3,"include"] = TRUE
 Dt[3,"average"] = TRUE
 Dt
 
-pp=predict.mmec(object=m3, Dtable=Dt)
+pp=predict(object=m3, Dtable=Dt)
 pp$pvals
 
 #############################
@@ -130,7 +130,7 @@ Dt[3,"include"] = TRUE
 Dt[3,"average"] = TRUE
 Dt
 
-pp=predict.mmec(object=m3, Dtable=Dt)
+pp=predict(object=m3, Dtable=Dt)
 pp$pvals
 
 }

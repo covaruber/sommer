@@ -49,7 +49,7 @@ overlay<- function (..., rlist = NULL, prefix = NULL, sparse=TRUE){
                                                          "-1")), dat2)
     }else{
       S1 <- model.matrix(as.formula(paste("~", femlist[[i]], 
-                                                         "-1")), dat2)
+                                          "-1")), dat2)
     }
     colnames(S1) <- gsub(femlist[[i]], "", colnames(S1))
     S1list[[i]] <- S1
@@ -603,7 +603,7 @@ usc <- function(x, thetaC=NULL, theta=NULL){
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm,theta=bnmm))
 }
-isc <- function(x, thetaC=NULL, theta=NULL, intercept=FALSE){
+isc <- function(x, thetaC=NULL, theta=NULL){
   if(class(x)[1] %in% c("dgCMatrix","matrix") ){
     dummy <- as(x, Class="sparseMatrix")
     mm <- diag(1)#,ncol(x))
@@ -616,10 +616,9 @@ isc <- function(x, thetaC=NULL, theta=NULL, intercept=FALSE){
       dummy <- x
       levs <- na.omit(unique(dummy))
       if(length(levs) > 1){
-        if(intercept){
-          dummy  <- Matrix::sparse.model.matrix(~dummy,na.action = na.pass)
-        }else{
-          dummy  <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass) 
+        dummy  <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass) 
+        if(class(dummy) != "dgCMatrix"){
+          dummy <- as(dummy, Class="dgCMatrix") 
         }
         colnames(dummy) <- gsub("dummy","",colnames(dummy))
       }else{

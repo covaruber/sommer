@@ -1,15 +1,15 @@
 mmec <- function(fixed, random, rcov, data, W,
-                  nIters=20, tolParConvLL = 1e-03, 
-                  tolParConvNorm = 0.05, tolParInv = 1e-06,
-                  naMethodX="exclude",
-                  naMethodY="exclude",
-                  returnParam=FALSE,
-                  dateWarning=TRUE,
-                  verbose=TRUE, addScaleParam=NULL,
-                  stepWeight=NULL, emWeight=NULL){
+                 nIters=20, tolParConvLL = 1e-03, 
+                 tolParConvNorm = 0.05, tolParInv = 1e-06,
+                 naMethodX="exclude",
+                 naMethodY="exclude",
+                 returnParam=FALSE,
+                 dateWarning=TRUE,
+                 verbose=TRUE, addScaleParam=NULL,
+                 stepWeight=NULL, emWeight=NULL){
   
   my.year <- 2022
-  my.month <- 6 #month when the user will start to get notifications the 1st day of next month
+  my.month <- 9 #month when the user will start to get notifications the 1st day of next month
   ### if my month = 5, user will start to get notification in June 1st (next month)
   datee <- Sys.Date()
   year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
@@ -138,7 +138,7 @@ mmec <- function(fixed, random, rcov, data, W,
   # print(newfixed)
   X <-  Matrix::sparse.model.matrix(newfixed, mf)
   
-
+  
   partitionsX <- list()#as.data.frame(matrix(NA,length(fixedTerms),2))
   for(ix in 1:length(fixedTerms)){
     effs <- colnames(Matrix::sparse.model.matrix(as.formula(paste("~",fixedTerms[ix],"-1")), mf))
@@ -197,7 +197,7 @@ mmec <- function(fixed, random, rcov, data, W,
   #################
   ## information weights
   theta <- lapply(theta, function(x){return(x*Vy)})
-
+  
   if(returnParam){
     
     # args <- list(fixed=fixed, random=random, rcov=rcov, data=data, W=W,
@@ -263,16 +263,18 @@ mmec <- function(fixed, random, rcov, data, W,
     res$sigma <- res$monitor[,which(res$llik[1,] == max(res$llik[1,]))] # we return the ones with max llik
     res$data <- data
     res$y <- yvar
-    names(res$partitions) <- rtermss
     res$partitionsX <- partitionsX
     uList <- uPevList <- vector(mode="list",length = length(res$partitions))
-    for(i in 1:length(res$partitions)){
-      blupTable <- apply(res$partitions[[i]],1,function(x2){return(res$bu[x2[1]:x2[2]])})
-      pevTable <- apply(res$partitions[[i]],1,function(x2){return(diag(res$Ci)[x2[1]:x2[2]])})
-      colnames(blupTable) <- colnames(pevTable) <- colnames(theta[[i]])
-      rownames(blupTable) <- rownames(pevTable) <- colnames(Z[[which(Zind == i)[1]]])
-      uList[[i]] <- blupTable; uPevList[[i]] <- pevTable
-    }; blupTable=NULL; pevTable=NULL; names(uList) <- names(uPevList) <- rtermss
+    if(!missing(random)){
+      names(res$partitions) <- rtermss
+      for(i in 1:length(res$partitions)){
+        blupTable <- apply(res$partitions[[i]],1,function(x2){return(res$bu[x2[1]:x2[2]])})
+        pevTable <- apply(res$partitions[[i]],1,function(x2){return(diag(res$Ci)[x2[1]:x2[2]])})
+        colnames(blupTable) <- colnames(pevTable) <- colnames(theta[[i]])
+        rownames(blupTable) <- rownames(pevTable) <- colnames(Z[[which(Zind == i)[1]]])
+        uList[[i]] <- blupTable; uPevList[[i]] <- pevTable
+      }; blupTable=NULL; pevTable=NULL; names(uList) <- names(uPevList) <- rtermss
+    }
     res$uList <- uList; res$uPevList <- uPevList
     res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX)),rep("random",length(res$partitions))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE,D=FALSE)
     class(res)<-c("mmec")

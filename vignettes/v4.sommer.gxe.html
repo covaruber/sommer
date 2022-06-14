@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2022-06-07" />
+<meta name="date" content="2022-06-13" />
 
 <title>Fitting genotype by environment models in sommer</title>
 
@@ -349,7 +349,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Fitting genotype by environment models in sommer</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2022-06-07</h4>
+<h4 class="date">2022-06-13</h4>
 
 
 
@@ -406,7 +406,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a><span class="co"># or</span></span>
 <span id="cb8-2"><a href="#cb8-2"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(<span class="kw">solve</span>(A), <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
 <span id="cb8-3"><a href="#cb8-3"></a>ansSingle &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb8-4"><a href="#cb8-4"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">ids</span>(Name), <span class="dt">Gu=</span>Ai),</span>
+<span id="cb8-4"><a href="#cb8-4"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">isc</span>(Name), <span class="dt">Gu=</span>Ai),</span>
 <span id="cb8-5"><a href="#cb8-5"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
 <span id="cb8-6"><a href="#cb8-6"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
 <span id="cb8-7"><a href="#cb8-7"></a><span class="kw">summary</span>(ansSingle)</span></code></pre></div>
@@ -415,16 +415,16 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ## **********************  sommer 4.1  ********************** 
 ## ============================================================
 ##          logLik      AIC      BIC Method Converge
-## Value -359.0027 720.0055 723.2259     AI     TRUE
+## Value -359.0037 720.0074 723.2278     AI     TRUE
 ## ============================================================
 ## Variance-Covariance components:
 ##                 VarComp VarCompSE Zratio Constraint
-## Name:Ai:ids:ids   6.527     1.049  6.225   Positive
-## units:ids:ids    13.868     1.272 10.905   Positive
+## Name:Ai:isc:isc   6.474     1.471  4.401   Positive
+## units:isc:isc    13.868     1.776  7.807   Positive
 ## ============================================================
 ## Fixed effects:
-##             Estimate Std.Error t.value
-## (Intercept)    11.74    0.4874   24.08
+##            Estimate Std.Error t.value
+## Intercept)    11.74    0.4852   24.19
 ## ============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
 <p>In this model, the only term to be estimated is the one for the germplasm (here called <code>Name</code>). For the sake of example we have added a relationship matrix among the levels of the random effect <code>Name</code>. This is just a diagonal matrix with as many rows and columns as levels present in the random effect <code>Name</code>, but any other non-diagonal relationship matrix could be used.</p>
@@ -464,7 +464,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <span id="cb12-2"><a href="#cb12-2"></a></span>
 <span id="cb12-3"><a href="#cb12-3"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(<span class="kw">solve</span>(A), <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
 <span id="cb12-4"><a href="#cb12-4"></a>ansMain &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
-<span id="cb12-5"><a href="#cb12-5"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">ids</span>(Name), <span class="dt">Gu=</span>Ai),</span>
+<span id="cb12-5"><a href="#cb12-5"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">isc</span>(Name), <span class="dt">Gu=</span>Ai),</span>
 <span id="cb12-6"><a href="#cb12-6"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
 <span id="cb12-7"><a href="#cb12-7"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
 <span id="cb12-8"><a href="#cb12-8"></a><span class="kw">summary</span>(ansMain)</span></code></pre></div>
@@ -472,19 +472,19 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ##          Multivariate Linear Mixed Model fit by REML         
 ## **********************  sommer 4.1  ********************** 
 ## ============================================================
-##          logLik     AIC      BIC Method Converge
-## Value -313.3005 632.601 642.2621     AI     TRUE
+##          logLik      AIC      BIC Method Converge
+## Value -313.3008 632.6015 642.2626     AI     TRUE
 ## ============================================================
 ## Variance-Covariance components:
 ##                 VarComp VarCompSE Zratio Constraint
-## Name:Ai:ids:ids   4.856     1.025  4.738   Positive
-## units:ids:ids     8.110     1.278  6.346   Positive
+## Name:Ai:isc:isc   4.849     1.377  3.522   Positive
+## units:isc:isc     8.108     1.545  5.249   Positive
 ## ============================================================
 ## Fixed effects:
-##             Estimate Std.Error t.value
-## (Intercept)   16.385    0.5849  28.014
-## EnvCA.2012    -5.688    0.5740  -9.909
-## EnvCA.2013    -6.218    0.6107 -10.183
+##           Estimate Std.Error t.value
+## Intercept   16.386    0.5842  28.048
+## CA.2012     -5.689    0.5740  -9.911
+## CA.2013     -6.219    0.6106 -10.186
 ## ============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
 </div>
@@ -526,7 +526,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1"></a><span class="co"># or</span></span>
 <span id="cb16-2"><a href="#cb16-2"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(<span class="kw">solve</span>(A), <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
 <span id="cb16-3"><a href="#cb16-3"></a>ansDG &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
-<span id="cb16-4"><a href="#cb16-4"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">dsc</span>(Env),<span class="kw">ids</span>(Name), <span class="dt">Gu=</span>Ai),</span>
+<span id="cb16-4"><a href="#cb16-4"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">dsc</span>(Env),<span class="kw">isc</span>(Name), <span class="dt">Gu=</span>Ai),</span>
 <span id="cb16-5"><a href="#cb16-5"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
 <span id="cb16-6"><a href="#cb16-6"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
 <span id="cb16-7"><a href="#cb16-7"></a><span class="kw">summary</span>(ansDG)</span></code></pre></div>
@@ -534,21 +534,21 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ##           Multivariate Linear Mixed Model fit by REML          
 ## **********************  sommer 4.1  ********************** 
 ## =============================================================
-##          logLik      AIC      BIC Method Converge
-## Value -302.5969 611.1939 620.8549     AI     TRUE
+##          logLik      AIC     BIC Method Converge
+## Value -301.9224 609.8449 619.506     AI     TRUE
 ## =============================================================
 ## Variance-Covariance components:
 ##                             VarComp VarCompSE Zratio Constraint
-## Env:Name:Ai:CA.2011:CA.2011  14.472     2.357  6.141   Positive
-## Env:Name:Ai:CA.2012:CA.2012   3.915     1.952  2.005   Positive
-## Env:Name:Ai:CA.2013:CA.2013   6.247     2.037  3.067   Positive
-## units:ids:ids                 8.001     1.466  5.456   Positive
+## Env:Name:Ai:CA.2011:CA.2011  15.792     3.307  4.775   Positive
+## Env:Name:Ai:CA.2012:CA.2012   5.192     2.490  2.085   Positive
+## Env:Name:Ai:CA.2013:CA.2013   7.717     2.732  2.825   Positive
+## units:isc:isc                 4.744     1.697  2.796   Positive
 ## =============================================================
 ## Fixed effects:
-##             Estimate Std.Error t.value
-## (Intercept)   16.620    0.9031  18.404
-## EnvCA.2012    -5.952    1.0037  -5.931
-## EnvCA.2013    -6.660    1.0583  -6.293
+##           Estimate Std.Error t.value
+## Intercept   16.622     0.911  18.245
+## CA.2012     -5.962     1.012  -5.888
+## CA.2013     -6.664     1.067  -6.249
 ## =============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
 </div>
@@ -597,7 +597,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <span id="cb20-7"><a href="#cb20-7"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(Ai, <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
 <span id="cb20-8"><a href="#cb20-8"></a>EAi &lt;-<span class="st"> </span><span class="kw">as</span>(EAi, <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
 <span id="cb20-9"><a href="#cb20-9"></a>ansCS &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
-<span id="cb20-10"><a href="#cb20-10"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">ids</span>(Name), <span class="dt">Gu=</span>Ai) <span class="op">+</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">ids</span>(Env<span class="op">:</span>Name), <span class="dt">Gu=</span>EAi),</span>
+<span id="cb20-10"><a href="#cb20-10"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">isc</span>(Name), <span class="dt">Gu=</span>Ai) <span class="op">+</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">isc</span>(Env<span class="op">:</span>Name), <span class="dt">Gu=</span>EAi),</span>
 <span id="cb20-11"><a href="#cb20-11"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units, </span>
 <span id="cb20-12"><a href="#cb20-12"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
 <span id="cb20-13"><a href="#cb20-13"></a><span class="kw">summary</span>(ansCS)</span></code></pre></div>
@@ -606,19 +606,19 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ## **********************  sommer 4.1  ********************** 
 ## ============================================================
 ##          logLik      AIC      BIC Method Converge
-## Value -300.8891 607.7782 617.4393     AI     TRUE
+## Value -300.8632 607.7264 617.3875     AI     TRUE
 ## ============================================================
 ## Variance-Covariance components:
 ##                      VarComp VarCompSE Zratio Constraint
-## Name:Ai:ids:ids        3.632     1.329  2.733   Positive
-## Env:Name:EAi:ids:ids   4.937     1.700  2.904   Positive
-## units:ids:ids          5.144     1.573  3.270   Positive
+## Name:Ai:isc:isc        3.703     1.699  2.180   Positive
+## Env:Name:EAi:isc:isc   5.132     1.876  2.736   Positive
+## units:isc:isc          4.466     1.611  2.772   Positive
 ## ============================================================
 ## Fixed effects:
-##             Estimate Std.Error t.value
-## (Intercept)   16.496    0.6843  24.105
-## EnvCA.2012    -5.775    0.7539  -7.660
-## EnvCA.2013    -6.379    0.7941  -8.033
+##           Estimate Std.Error t.value
+## Intercept   16.496    0.6863  24.035
+## CA.2012     -5.777    0.7564  -7.637
+## CA.2013     -6.380    0.7967  -8.008
 ## ============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
 </div>
@@ -670,7 +670,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <span id="cb24-5"><a href="#cb24-5"></a>Ai &lt;-<span class="st"> </span><span class="kw">solve</span>(A)</span>
 <span id="cb24-6"><a href="#cb24-6"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(Ai, <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
 <span id="cb24-7"><a href="#cb24-7"></a>ansUS &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
-<span id="cb24-8"><a href="#cb24-8"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">usc</span>(Env),<span class="kw">ids</span>(Name), <span class="dt">Gu=</span>Ai),</span>
+<span id="cb24-8"><a href="#cb24-8"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">usc</span>(Env),<span class="kw">isc</span>(Name), <span class="dt">Gu=</span>Ai),</span>
 <span id="cb24-9"><a href="#cb24-9"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
 <span id="cb24-10"><a href="#cb24-10"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
 <span id="cb24-11"><a href="#cb24-11"></a><span class="kw">summary</span>(ansUS)</span></code></pre></div>
@@ -679,23 +679,23 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ## **********************  sommer 4.1  ********************** 
 ## =============================================================
 ##          logLik      AIC      BIC Method Converge
-## Value -299.1328 604.2655 613.9266     AI     TRUE
+## Value -302.6944 611.3888 621.0499     AI     TRUE
 ## =============================================================
 ## Variance-Covariance components:
-##                               VarComp VarCompSE    Zratio Constraint
-## Env:Name:Ai:CA.2011:CA.2011 1.639e+01     2.499 6.557e+00   Positive
-## Env:Name:Ai:CA.2011:CA.2012 5.129e+00     1.508 3.401e+00   Unconstr
-## Env:Name:Ai:CA.2012:CA.2012 3.235e+00     1.601 2.021e+00   Positive
-## Env:Name:Ai:CA.2011:CA.2013 8.882e+00     2.238 3.968e+00   Unconstr
-## Env:Name:Ai:CA.2012:CA.2013 5.612e-01     1.481 3.789e-01   Unconstr
-## Env:Name:Ai:CA.2013:CA.2013 1.085e+01     2.133 5.086e+00   Positive
-## units:ids:ids               1.000e-10     1.947 5.137e-11   Positive
+##                             VarComp VarCompSE Zratio Constraint
+## Env:Name:Ai:CA.2011:CA.2011  14.002    3.1067 4.5071   Positive
+## Env:Name:Ai:CA.2011:CA.2012   4.951    1.7036 2.9059   Unconstr
+## Env:Name:Ai:CA.2012:CA.2012   4.394    2.0089 2.1874   Positive
+## Env:Name:Ai:CA.2011:CA.2013   6.145    2.1317 2.8828   Unconstr
+## Env:Name:Ai:CA.2012:CA.2013   0.604    0.6245 0.9672   Unconstr
+## Env:Name:Ai:CA.2013:CA.2013   7.946    2.5227 3.1497   Positive
+## units:isc:isc                 2.663    1.0926 2.4371   Positive
 ## =============================================================
 ## Fixed effects:
-##             Estimate Std.Error t.value
-## (Intercept)   16.422    0.8021  20.475
-## EnvCA.2012    -5.770    0.7933  -7.274
-## EnvCA.2013    -6.378    0.8607  -7.410
+##           Estimate Std.Error t.value
+## Intercept   16.341    0.7432  21.987
+## CA.2012     -5.685    0.6740  -8.435
+## CA.2013     -6.265    0.7418  -8.446
 ## =============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
 </div>
@@ -737,7 +737,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1"></a><span class="co"># or</span></span>
 <span id="cb28-2"><a href="#cb28-2"></a></span>
 <span id="cb28-3"><a href="#cb28-3"></a>ansRR &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
-<span id="cb28-4"><a href="#cb28-4"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">dsc</span>(<span class="kw">leg</span>(EnvN,<span class="dv">1</span>)),<span class="kw">ids</span>(Name)),</span>
+<span id="cb28-4"><a href="#cb28-4"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">dsc</span>(<span class="kw">leg</span>(EnvN,<span class="dv">1</span>)),<span class="kw">isc</span>(Name)),</span>
 <span id="cb28-5"><a href="#cb28-5"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
 <span id="cb28-6"><a href="#cb28-6"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
 <span id="cb28-7"><a href="#cb28-7"></a><span class="kw">summary</span>(ansRR)</span></code></pre></div>
@@ -746,19 +746,19 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ## **********************  sommer 4.1  ********************** 
 ## ============================================================
 ##          logLik      AIC      BIC Method Converge
-## Value -308.4127 622.8254 632.4865     AI     TRUE
+## Value -308.4122 622.8243 632.4854     AI     TRUE
 ## ============================================================
 ## Variance-Covariance components:
 ##                     VarComp VarCompSE Zratio Constraint
-## EnvN:Name:leg0:leg0  10.285     1.638  6.278   Positive
-## EnvN:Name:leg1:leg1   2.090     1.241  1.684   Positive
-## units:ids:ids         6.467     1.411  4.582   Positive
+## EnvN:Name:leg0:leg0  10.276     2.278  4.511   Positive
+## EnvN:Name:leg1:leg1   2.086     1.403  1.487   Positive
+## units:isc:isc         6.430     1.709  3.762   Positive
 ## ============================================================
 ## Fixed effects:
-##             Estimate Std.Error t.value
-## (Intercept)   16.541    0.6748  24.512
-## EnvCA.2012    -5.832    0.6401  -9.111
-## EnvCA.2013    -6.472    0.8215  -7.878
+##           Estimate Std.Error t.value
+## Intercept   16.542    0.6745  24.523
+## CA.2012     -5.833    0.6405  -9.107
+## CA.2013     -6.473    0.8217  -7.877
 ## ============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
 <p>In addition, an unstructured, diagonal or other variance-covariance structure can be put on top of the polynomial model:</p>
@@ -799,7 +799,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1"></a><span class="co"># or</span></span>
 <span id="cb32-2"><a href="#cb32-2"></a></span>
 <span id="cb32-3"><a href="#cb32-3"></a>ansRR &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
-<span id="cb32-4"><a href="#cb32-4"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">usc</span>(<span class="kw">leg</span>(EnvN,<span class="dv">1</span>)),<span class="kw">ids</span>(Name)),</span>
+<span id="cb32-4"><a href="#cb32-4"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">usc</span>(<span class="kw">leg</span>(EnvN,<span class="dv">1</span>)),<span class="kw">isc</span>(Name)),</span>
 <span id="cb32-5"><a href="#cb32-5"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
 <span id="cb32-6"><a href="#cb32-6"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
 <span id="cb32-7"><a href="#cb32-7"></a><span class="kw">summary</span>(ansRR)</span></code></pre></div>
@@ -807,21 +807,21 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ##          Multivariate Linear Mixed Model fit by REML         
 ## **********************  sommer 4.1  ********************** 
 ## ============================================================
-##          logLik      AIC      BIC Method Converge
-## Value -308.9269 623.8539 633.5149     AI     TRUE
+##          logLik     AIC      BIC Method Converge
+## Value -309.2045 624.409 634.0701     AI     TRUE
 ## ============================================================
 ## Variance-Covariance components:
 ##                     VarComp VarCompSE Zratio Constraint
-## EnvN:Name:leg0:leg0 10.2541     1.575 6.5101   Positive
-## EnvN:Name:leg0:leg1  0.1371     1.003 0.1367   Unconstr
-## EnvN:Name:leg1:leg1  2.0482     1.328 1.5427   Positive
-## units:ids:ids        7.8665     1.349 5.8298   Positive
+## EnvN:Name:leg0:leg0 10.5273    2.0637 5.1012   Positive
+## EnvN:Name:leg0:leg1  0.1493    0.1636 0.9126   Unconstr
+## EnvN:Name:leg1:leg1  2.0889    1.1742 1.7789   Positive
+## units:isc:isc        7.2282    1.8573 3.8917   Positive
 ## ============================================================
 ## Fixed effects:
-##             Estimate Std.Error t.value
-## (Intercept)   16.545    0.6711  24.652
-## EnvCA.2012    -5.831    0.6284  -9.279
-## EnvCA.2013    -6.468    0.8182  -7.904
+##           Estimate Std.Error t.value
+## Intercept   16.541    0.6916  23.916
+## CA.2012     -5.836    0.6707  -8.703
+## CA.2013     -6.471    0.8498  -7.614
 ## ============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
 </div>

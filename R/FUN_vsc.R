@@ -85,7 +85,12 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL){
         # Z[[counter]] <- Z1prov %*% Diagonal(x=Z0[,j])
       }else{
         provZ0iCol <- Matrix(Z0[,j]) %*% Matrix(1,1,ncol(Z1prov))
-        Z[[counter]] <- Z1prov * provZ0iCol
+        Z1provZ0iCol <- Z1prov * provZ0iCol
+        if(class(Z1provZ0iCol) != "dgCMatrix"){
+          Z[[counter]] <- as(Z1prov * provZ0iCol, Class = "sparseMatrix")
+        }else{
+          Z[[counter]] <- Z1provZ0iCol
+        }
       }
       counter <- counter+1
       if(meN <= 1){ # if there's only one main effect 
