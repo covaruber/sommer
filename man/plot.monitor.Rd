@@ -7,7 +7,7 @@
 pmonitor(object, \dots)
 }
 \arguments{
- \item{x}{an object of class \code{"mmec"}}
+ \item{object}{model object of class \code{"mmec"}}
  \item{\dots}{Further arguments to be passed to the plot function.}
 }
 \value{

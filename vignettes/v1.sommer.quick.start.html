@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2022-06-13" />
+<meta name="date" content="2022-06-15" />
 
 <title>Quick start for the sommer package</title>
 
@@ -349,7 +349,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Quick start for the sommer package</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2022-06-13</h4>
+<h4 class="date">2022-06-15</h4>
 
 
 
@@ -1122,10 +1122,10 @@ Z^TR^{-1}X \\
 <p>Now, the model can be used together with the <code>classify</code> argument to obtain means for the <code>classify</code> argument. For example, the model includes in the fixed formula the terms “V” for variety, “N” for nitrogen treatments, and “V:N” for the interaction between variety and nitrogen. The <code>classify</code> argument can be used to specify the term for which the means are desired. In the following example the means for the nitrogen treatments are obtained as follows:</p>
 <div class="sourceCode" id="cb59"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb59-1"><a href="#cb59-1"></a>p0 &lt;-<span class="st"> </span><span class="kw">predict.mmer</span>(<span class="dt">object=</span>m3, <span class="dt">classify =</span> <span class="st">&quot;N&quot;</span>)</span></code></pre></div>
 <pre><code>## iteration    LogLik     wall    cpu(sec)   restrained
-##     1      -0.745921   13:0:50      0           0
-##     2      -0.745921   13:0:50      0           0
-##     3      -0.745921   13:0:50      0           0
-##     4      -0.745921   13:0:50      0           0</code></pre>
+##     1      -0.745921   14:18:6      0           0
+##     2      -0.745921   14:18:6      0           0
+##     3      -0.745921   14:18:6      0           0
+##     4      -0.745921   14:18:6      0           0</code></pre>
 <div class="sourceCode" id="cb61"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb61-1"><a href="#cb61-1"></a>p0<span class="op">$</span>pvals</span></code></pre></div>
 <pre><code>##   trait   N predicted.value standard.error
 ## 1     Y   0        79.38889       7.174710
