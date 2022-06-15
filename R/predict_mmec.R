@@ -105,7 +105,10 @@
       }
     }
     
-  }else{ Dformed <- D}
+  }else{ 
+    dataPredict <- data.frame(id=1:nrow(D))
+    Dformed <- D
+  }
   
   Ci <- object$Ci
   
