@@ -35,7 +35,7 @@ export(adiag1, imputev,
 export(A.mat, D.mat, E.mat, H.mat, AR1, CS, ARMA, simGECorMat)
 
 ## FUN_algorithms
-export(EM, MEMMA)
+export(EM, MEMMA, AI)
 
 ## FUN_utils
 export( # mmer
