@@ -11,7 +11,7 @@ add.diallel.vars <- function(df, par1="Par1", par2="Par2",sep.cross="-"){
   return(df)
 }
 
-overlay<- function (..., rlist = NULL, prefix = NULL, sparse=TRUE){
+overlay<- function (..., rlist = NULL, prefix = NULL, sparse=FALSE){
   init <- list(...) # init <- list(DT$femalef,DT$malef)
   ## keep track of factor variables
   myTypes <- unlist(lapply(init,class))

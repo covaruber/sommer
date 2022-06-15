@@ -87,7 +87,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     # print(str(as(model.matrix(~id-1,data), Class = "sparseMatrix")))
     for(u in 1:length(rtermss)){ # for each random effect
       
-      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsr","gvsr","spl2Da","spl2Db")) #
+      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vs","vsr","gvsr","spl2Da","spl2Db")) #
       # print(checkvs)
       if(length(checkvs)>0){ ## if this term is a variance structure
         # print(rtermss[u])
@@ -178,7 +178,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
   for(u in 1:length(rcovtermss)){
     
-    checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vsr","gvsr"))
+    checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vs","vsr","gvsr"))
     
     if(length(checkvs)>0){ ## if this term is a variance structure
       ff <- eval(parse(text = rcovtermss[u]),data,parent.frame())# envir = data)
@@ -260,7 +260,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     fixedtermss <- c(-1, fixedtermss)
   }
   # print(useinter)
-  vsterms <- grep("vsr\\(",fixedtermss)
+  vsterms <- sort(unique(c(grep("vsr\\(",fixedtermss),grep("vs\\(",fixedtermss))), decreasing = FALSE)
   if(length(vsterms)>0){
     fixedvsterms <- fixedtermss[c(vsterms)]
     fixedtermss <- fixedtermss[-c(vsterms)]
@@ -310,7 +310,8 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   gesIf <- list()
   allfixedterms <- c(fixedtermss, fixedvsterms)
   for(u in 1:length(allfixedterms)){
-    checkvs <- grep("vsr\\(",allfixedterms[u])
+    checkvs <- sort(unique(c(grep("vsr\\(",allfixedterms[u]),grep("vs\\(",allfixedterms[u]))), decreasing = FALSE)
+    # checkvs <- grep("vsr\\(",allfixedterms[u])
     if(length(checkvs)>0){ ## if this term is a variance structure
       ffx <- eval(parse(text = allfixedterms[u]),data,parent.frame())# envir = data)
       findlevs <- colnames(ffx$Z[[1]])

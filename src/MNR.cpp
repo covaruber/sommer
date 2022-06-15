@@ -1226,7 +1226,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
                      const arma::sp_mat & H, const bool & useH,
                      int nIters, double tolParConvLL, double tolParConvNorm, 
                      double tolParInv, const Rcpp::List & thetaI,
-                     const Rcpp::List & thetaC, const arma::mat & thetaF, 
+                     const Rcpp::List & thetaCI, const arma::mat & thetaF, 
                      const arma::vec & addScaleParam, const arma::vec & weightEmInf, 
                      const arma::vec & weightInf, const bool & verbose 
 ){
@@ -1246,9 +1246,10 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   int nX = X.n_cols;// number of fixed effects
   int nR = y.n_rows; // number of records
   // create a list to store the symmetric version of thetaC
-  arma::field<arma::mat> theta(nRRe);
-  for (int i = 0; i < nRRe; ++i) { // create a copy of thetaC filling lower triangular
-    theta[i]=Rcpp::as<arma::mat>(thetaI[i]) ; // copy upper in lower triangular
+  arma::field<arma::mat> theta(nRRe), thetaC(nRRe);
+  for (int i = 0; i < nRRe; ++i) { // create a copy of thetas
+    theta[i]=Rcpp::as<arma::mat>(thetaI[i]) ; // 
+    thetaC[i]=Rcpp::as<arma::mat>(thetaCI[i]) ; // 
   }
   // move Z to sparse arma objects
   int nZsAl; // integer to define the allocation of Z 
@@ -1330,7 +1331,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   // define the number of variance components to estimate per random effect structure
   arma::vec nVc(nRRe);
   for (int i = 0; i < nRRe; ++i) {
-    arma::mat thetaCprov = Rcpp::as<arma::mat>(thetaC[i]);
+    arma::mat thetaCprov = thetaC[i];
     arma::uvec nVcProv = find(thetaCprov > 0);
     nVc(i) = nVcProv.size();
   }
@@ -1345,7 +1346,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   // move constraints to vector form binding the columns
   arma::vec thetaCUnlisted;
   for (int i = 0; i < nRRe; ++i) {
-    thetaCUnlisted = join_cols(thetaCUnlisted,mat_to_vecCpp2(Rcpp::as<arma::mat>(thetaC[i]),Rcpp::as<arma::mat>(thetaC[i])));
+    thetaCUnlisted = join_cols(thetaCUnlisted,mat_to_vecCpp2(thetaC[i],thetaC[i]));
   }
   // removing complex structures how many effects are really there
   arma::vec nUsTotal(nReAl);
@@ -1418,7 +1419,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::sp_mat Ri(nR,nR); // matrix to store R inverse
     arma::field<arma::sp_mat> Rij(nSs); // field to store sub R matrices
     arma::field<arma::sp_mat> RijInv(nSs); // field to store sub R inverse matrices
-    arma::vec thetaResidualsVec = mat_to_vecCpp2(theta(nRRe-1),Rcpp::as<arma::mat>(thetaC[(nRRe-1)]));
+    arma::vec thetaResidualsVec = mat_to_vecCpp2(theta(nRRe-1),thetaC[(nRRe-1)]);
     for (int i = 0; i < nSs; ++i) { // for each residual structure
       
       arma::mat pSi = Rcpp::as<arma::mat>(partitionsS[i]);
@@ -1566,10 +1567,10 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         arma::sp_mat lambdaProv = arma::sp_mat( lambda(iR) );
         arma::sp_mat uSinvProv = U * lambdaProv;
         uSinv(iR) = uSinvProv;
-        arma::mat thetaCprov = Rcpp::as<arma::mat>(thetaC[iR]);
+        arma::mat thetaCprov = thetaC[iR];
         // // for the ij var comp we calculate the Wu
         arma::uvec useZind = find(Zind == iR+1); // which Z matrices we should use for this random effect
-        arma::vec nVcForIr = mat_to_vecCpp2(Rcpp::as<arma::mat>(thetaC[iR]),Rcpp::as<arma::mat>(thetaC[iR]));
+        arma::vec nVcForIr = mat_to_vecCpp2(thetaC[iR],thetaC[iR]);
         arma::sp_mat WuiR(nR, nVcForIr.size()); // store Wu for random effect iR (we need to all, vc and cov)
         arma::sp_mat ZuiR(nR, useZind.size()); // store Wu for random effect iR (we need only for vc)
         int counterWu = 0;
@@ -1700,7 +1701,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     if(nZs > 0){ // if random effects exist
       for(int iR = 0; iR < nRe; ++iR){ // for each random effect u
         arma::sp_mat lambdaProv = arma::sp_mat( lambda(iR) );
-        arma::mat thetaCprov = Rcpp::as<arma::mat>(thetaC[iR]);
+        arma::mat thetaCprov = thetaC[iR];
         arma::sp_mat traces(lambdaProv.n_rows,lambdaProv.n_cols);
         arma::sp_mat AiProv = Ai(iR);
         for(int iRow = 0; iRow < lambdaProv.n_rows; ++iRow){
@@ -1744,7 +1745,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         dLe(iS) = ( arma::trace( Sprov * (1/arma::as_scalar(thetaResidualsVec(0)))) - arma::trace( Ci * W.t() * (1/arma::as_scalar(thetaResidualsVec(0))) * Sprov * (1/arma::as_scalar(thetaResidualsVec(0))) * W ) ) - arma::as_scalar( eProv.t() * (1/arma::as_scalar(thetaResidualsVec(0))) * Sprov * (1/arma::as_scalar(thetaResidualsVec(0))) * eProv );
       }
     }
-    arma::vec thetaRUnlisted = mat_to_vecCpp2(theta(nRRe-1),Rcpp::as<arma::mat>(thetaC[nRRe-1]));
+    arma::vec thetaRUnlisted = mat_to_vecCpp2(theta(nRRe-1),thetaC[nRRe-1]);
     arma::mat thetaRUnlistedMat = diagmat(thetaRUnlisted);
     arma::mat emInfInvRProvExt = ( thetaRUnlistedMat * thetaRUnlistedMat.t() ) / arma::as_scalar(nR);
     emInfList(nRRe-1) = arma::pinv(emInfInvRProvExt, tolParInv); // we invert because this is equivalen to the inverse of the information and we need the information
@@ -1763,10 +1764,10 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     
     arma::vec thetaUnlisted, thetaCUnlisted;
     for(int i = 0; i < nRRe; ++i){
-      thetaUnlisted = arma::join_cols(thetaUnlisted, mat_to_vecCpp2( theta(i),Rcpp::as<arma::mat>(thetaC[i])) );
-      thetaCUnlisted = arma::join_cols(thetaCUnlisted, mat_to_vecCpp2(Rcpp::as<arma::mat>(thetaC[i]),Rcpp::as<arma::mat>(thetaC[i])) );
+      thetaUnlisted = arma::join_cols(thetaUnlisted, mat_to_vecCpp2( theta(i),thetaC(i)) );
+      thetaCUnlisted = arma::join_cols(thetaCUnlisted, mat_to_vecCpp2(thetaC(i),thetaC(i)) );
     }
-    // 
+    // Rcpp::Rcout << "thetaCUnlisted" << thetaCUnlisted << arma::endl;
     // create the 'weight' EM information matrix (TO BE USED LATER WITHIN THE OPTIMIZATION)
     arma::vec v2(nVcTotal, arma::fill::ones) ;
     arma::mat weightEmInfMat = diagmat(v2) * arma::as_scalar(weightEmInf(iIter));
@@ -1787,7 +1788,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     for(int i = 0; i < thetaCUnlisted.size() ; ++i){
       if(thetaCUnlisted(i) == 1){
         if(expectedNewTheta(i) < 1e-10){
-          Rcpp::Rcout << "Constraining to small value" << arma::endl;
+          // Rcpp::Rcout << "Restraining to small value" << arma::endl;
           expectedNewTheta(i)=1e-10;
           toBoundary(iIter,i)=1; // toBoundary(nIters,nVcTotal)
           // change to fixed the ones that constantly (3 times) go to the boundaries
@@ -1795,25 +1796,31 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
             sumToBoundary(j) =arma::accu(toBoundary.col(j)) ;
           }
           // to force
-          arma::uvec toBeForced = arma::find(sumToBoundary >= 3);
+          arma::uvec toBeForced = arma::find(sumToBoundary >= 2);
           if(toBeForced.n_elem > 0){
             thetaCUnlisted(toBeForced) = thetaCUnlisted(toBeForced) - thetaCUnlisted(toBeForced) + 3;
           }
         }// end of if(expectedNewTheta(i) < 1e-10)
       }// end of positive constraints
       if(thetaCUnlisted(i) == 3){
-        arma::vec thetaUnlistedPlusAddScaleParam = arma::join_cols(expectedNewTheta,addScaleParam);
+        arma::vec thetaUnlistedPlusAddScaleParam;
+        if(iIter == 0){
+          thetaUnlistedPlusAddScaleParam = arma::join_cols(expectedNewTheta,addScaleParam);
+        }else{
+          thetaUnlistedPlusAddScaleParam = arma::join_cols(monitor.col((iIter-1)),addScaleParam);
+        }
         // theta.i            = scaleParameter.selected      *  Theta 
         expectedNewTheta(i) = arma::as_scalar(thetaF.row(i) *  thetaUnlistedPlusAddScaleParam);
       }
     }
-    // B)  if there's constrained VC we need to partition InfMat and make a different update
-    arma::uvec constrained = arma::find(thetaCUnlisted == 3);
-    arma::uvec unconstrained = arma::find(thetaCUnlisted != 3);
+    // B)  if there's constrained or to boundary VC we need to partition InfMat and make a different update
+    arma::vec thetaCUnlisted0 = thetaCUnlisted;
+    thetaCUnlisted0(arma::find(thetaCUnlisted0 < 3)) = thetaCUnlisted0(arma::find(thetaCUnlisted0 < 3)) * 0; // we make everything zero except fully constrained
+    arma::uvec constrained = arma::find((thetaCUnlisted0+sumToBoundary) > 0);
+    arma::uvec unconstrained = arma::find((thetaCUnlisted0+sumToBoundary) <= 0);//arma::find(thetaCUnlisted != 3);
     arma::mat InfMat_uu, InfMat_ff, InfMatInv_uu;
     arma::vec dLu_uu, dLu_ff, delta_uu;
     if(constrained.n_elem > 0){
-      Rcpp::Rcout << "Update using constraints" << arma::endl;
       InfMat_uu = InfMat(unconstrained,unconstrained);
       InfMat_ff = InfMat(constrained,constrained);
       dLu_uu = dLu(unconstrained);
@@ -1821,29 +1828,30 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       InfMatInv_uu = pinv(InfMat_uu,tolParInv);
       delta_uu = InfMatInv_uu * dLu_uu;
       delta(unconstrained) = delta_uu;
-      delta(constrained) = delta(constrained) * 0;
-      expectedNewTheta = thetaUnlisted - delta;
+      // delta(constrained) = delta(constrained) * 0;
+      expectedNewTheta(unconstrained) = thetaUnlisted(unconstrained) - delta(unconstrained);
     }
     // C) quantify delta changes
     if(iIter == 0){
       delta_minus1 = delta;
     }else{
       percDelta.col(iIter) =delta/delta_minus1; // percDelta(nVcTotal,nIters)
-      // arma::uvec check1 = arma::find(arma::abs(percDelta.col(iIter)) > 50); // which VC update > 15x
+      // arma::vec dCheck = percDelta.col(iIter)/percDelta.col((iIter-1));
+      // arma::uvec check1 = arma::find(arma::abs(dCheck) > 4); // which VC update > 15x
       // arma::uvec check2 = arma::find(toBoundary.row(iIter) == 0); // which are not in the boundary
-      // arma::uvec deltaCheck = arma::intersect(check1,check2);
+      // arma::uvec deltaCheck = check1;//arma::intersect(check1,check2);
       // if(deltaCheck.n_elem > 0){
       //   Rcpp::Rcout << "Reducing updates" << arma::endl;
-      //   delta(deltaCheck) = delta(deltaCheck) * 0.3;
-      //   expectedNewTheta = thetaUnlisted - delta;
+      //   delta(deltaCheck) = delta(deltaCheck) * 0.1; //% (1/dCheck(deltaCheck));
+      //   expectedNewTheta(deltaCheck) = thetaUnlisted(deltaCheck) - delta(deltaCheck);
       // }
-      delta_minus1 = delta;
+      // delta_minus1 = delta;
     }
     // D) if not positive-definite change to EM update
     arma::vec pdCheck;
     for(int i = 0; i < nRRe; ++i){ // caculate eigen values
       arma::uvec toFill = arma::regspace<arma::uvec>(nVcStart(i)-1,  1,  nVcEnd(i)-1); // equivalent to seq()
-      arma::mat thetaProvNew = vec_to_matCpp(expectedNewTheta(toFill), Rcpp::as<arma::mat>(thetaC[i]) );
+      arma::mat thetaProvNew = vec_to_matCpp(expectedNewTheta(toFill), thetaC[i] );
       arma::mat thetaProvNewS = arma::symmatu(thetaProvNew);
       arma::vec eigval;
       arma::mat eigvec;
@@ -1865,8 +1873,8 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         InfMatInv_uu = pinv(InfMat_uu,tolParInv);
         delta_uu = InfMatInv_uu * dLu_uu;
         delta(unconstrained) = delta_uu;
-        delta(constrained) = delta(constrained) * 0;
-        expectedNewTheta = thetaUnlisted - delta;
+        // delta(constrained) = delta(constrained) * 0;
+        expectedNewTheta(unconstrained) = thetaUnlisted(unconstrained) - delta(unconstrained);
       }else{
         InfMatInv = arma::pinv(InfMat, tolParInv); // inverse of the information matrix
         expectedNewTheta = thetaUnlisted - (InfMatInv * dLu);
@@ -1878,11 +1886,13 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     monitor.col(iIter) = expectedNewTheta;
     for(int i = 0; i < nRRe; ++i){
       arma::uvec toFill = arma::regspace<arma::uvec>(nVcStart(i)-1,  1,  nVcEnd(i)-1); // equivalent to seq()
-      arma::mat thetaProvNew = vec_to_matCpp(expectedNewTheta(toFill), Rcpp::as<arma::mat>(thetaC[i]) );
+      arma::mat thetaProvNew = vec_to_matCpp(expectedNewTheta(toFill), thetaC[i] );
       arma::mat thetaProvNewPD = nearPDcpp(arma::symmatu(thetaProvNew), 100, 1e-06, 1e-07); // maxit=100, eig_tol = 1e-06, conv_tol = 1e-07
       theta(i) = thetaProvNewPD; // arma::symmatu(thetaProvNew);
+      //
+      arma::mat thetaCProvNew = vec_to_matCpp(thetaCUnlisted(toFill), thetaC[i] );
+      thetaC(i) = thetaCProvNew;
     }
-   
    // #######################
    // # 9) Stopping criteria
    // #######################
@@ -1903,9 +1913,10 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::vec stopCriteria3 = (InfMatInv.diag()/arma::as_scalar(arma::sqrt(nVcTotalv)) ) % dLu;
     normMonitor(2,iIter) = arma::norm(stopCriteria3(unconstrained),1) ; // stopping criteria 1
     
+    arma::uvec restrained = arma::find(toBoundary.row(iIter) > 0);
     if(verbose == true){ //  
       if(iIter == 0){Rcpp::Rcout << "iteration   " << " LogLik   " << "  wall    " << "cpu(sec)   " << "restrained" << arma::endl;}
-      Rcpp::Rcout << "    " << iIter+1 << "      " <<  llik(iIter) << "   " << ltm->tm_hour << ":" << ltm->tm_min << ":" << ltm->tm_sec << "      " << seconds << "           " <<  constrained.n_elem << arma::endl;
+      Rcpp::Rcout << "    " << iIter+1 << "      " <<  llik(iIter) << "   " << ltm->tm_hour << ":" << ltm->tm_min << ":" << ltm->tm_sec << "      " << seconds << "           " <<  restrained.n_elem << arma::endl;
     }
     if(iIter > 0){
       double delta_llik = llik(iIter) - llik(iIter-1);
@@ -1928,6 +1939,12 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   double AIC = (-2 * llik((llik.n_cols-1))) + (2 * nX);
   double BIC = (-2 * llik((llik.n_cols-1))) + (log(nR) * nX);
   
+  // move constraints to vector form binding the columns
+  arma::vec thetaCUnlistedFinal;
+  for (int i = 0; i < nRRe; ++i) {
+    thetaCUnlistedFinal = join_cols(thetaCUnlistedFinal,mat_to_vecCpp2(thetaC[i],thetaC[i]));
+  }
+  
   // return results in a list form
   return Rcpp::List::create(
     Rcpp::Named("llik") = llik,
@@ -1939,7 +1956,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     Rcpp::Named("Ci") = Ci,
     Rcpp::Named("avInf") = InfMat,
     Rcpp::Named("monitor") = monitor,
-    Rcpp::Named("constraints") = thetaCUnlisted, 
+    Rcpp::Named("constraints") = thetaCUnlistedFinal, 
     Rcpp::Named("AIC") = AIC,
     Rcpp::Named("BIC") = BIC,
     Rcpp::Named("convergence") = convergence,

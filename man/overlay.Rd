@@ -5,7 +5,7 @@
   `overlay` adds r times the design matrix for model term t to the existing design matrix. Specifically, if the model up to this point has p effects and t has a effects, the a columns of the design matrix for t are multiplied by the scalar r (default value 1.0). This can be used to force a correlation of 1 between two terms as in a diallel analysis.
 }
 \usage{
-  overlay(..., rlist=NULL, prefix=NULL, sparse=TRUE)
+  overlay(..., rlist=NULL, prefix=NULL, sparse=FALSE)
 }
 
 \arguments{

@@ -52,7 +52,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #                # SCA effects (includes cross and selfs)
 #                + cross.id 
 #                # SCAR reciprocal effects (if zero there's no reciprocal effects)
-#                + cross.id:cross.type) 
+#                + vsc(dsc(cross.type), isc(cross.id)) ) 
 # summary(mod1hb)$varcomp
 # 
 # ##                                    VarComp VarCompSE   Zratio 
@@ -65,7 +65,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # # GRIFFING MODEL 2, no reciprocal effects ##############################
 # mod1h <- mmer(Ftime ~ Block + is.cross, data=DT2,
 #               random = ~ 
-#                 # GCA for all (female and male)
+#                # GCA for all (female and male)
 #                 overlay(Par1, Par2)  
 #               # GCA (only for hybrids)
 #               + overlay(Par1, Par2):is.cross  

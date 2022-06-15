@@ -13,7 +13,7 @@ export(
 export(mmer, GWAS, mmec)
 
 ## FUN_special and FUN_vsc and FUN_vsrgvsr
-export(atr,csr,dsr,usr,vsr, gvsr, ## mmer
+export(atr,csr,dsr,usr,vsr, gvsr, vs, ## mmer
        atc,csc,dsc,usc,vsc, isc, ## mmec
        unsm,fixm,fcm,
        list2usmat, transformConstraints,
@@ -43,7 +43,7 @@ export( # mmer
        anova.mmer, plot.mmer, predict.mmer, vpredict.mmer, 
         # mmec
        summary.mmec, residuals.mmec, fitted.mmec, coef.mmec, 
-       anova.mmec, plot.mmec,
+       anova.mmec, plot.mmec, pmonitor,
         # others
        randef)
 

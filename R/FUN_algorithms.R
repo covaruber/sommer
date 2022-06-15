@@ -1109,7 +1109,8 @@ unlistThetaWithThetaC <- function(x, xc){
 }
 
 
-plotMonitor <- function(x,...){
+pmonitor <- function(object,...){
+  x <- object$monitor
   mmin <- min(x)
   mmax <- max(x)
   plot(x[1,], type="l", ylim=c(mmin,mmax))
