@@ -26,7 +26,7 @@ Sommer is a structural multivariate-univariate linear mixed model solver for mul
 mmer(fixed, random, rcov, data, weights, W, nIters=20, tolParConvLL = 1e-03, 
      tolParInv = 1e-06, init=NULL, constraints=NULL,method="NR", getPEV=TRUE,
      naMethodX="exclude", naMethodY="exclude",returnParam=FALSE, 
-     dateWarning=TRUE,verbose=TRUE, reshapeOutput=TRUE, stepWeight=NULL,
+     dateWarning=TRUE,date.warning=TRUE,verbose=TRUE, reshapeOutput=TRUE, stepWeight=NULL,
      emWeight=NULL)
 }
 \arguments{
@@ -74,6 +74,7 @@ mmer(fixed, random, rcov, data, weights, W, nIters=20, tolParConvLL = 1e-03,
    \item{naMethodY}{One of the three possible values; "include", "include2" or "exclude" (default) to treat the observations in response variable to be used in the estimation of variance components. The first option "include" will impute the response variables for all rows with the median value, whereas "include2" imputes the responses only for rows where there is observation(s) for at least one of the responses (only available in the multi-response models). If "exclude" is selected (default) it will get rid of rows in response(s) where missing values are present for at least one of the responses.}
    \item{returnParam}{A TRUE/FALSE value to indicate if the program should return the parameters to be used for fitting the model instead of fitting the model.}
    \item{dateWarning}{A TRUE/FALSE value to indicate if the program should warn you when is time to update the sommer package.}
+   \item{date.warning}{A TRUE/FALSE value to indicate if the program should warn you when is time to update the sommer package. This argument will be removed soon, just left for backcompatibility.}
   \item{verbose}{A TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
   \item{reshapeOutput}{A TRUE/FALSE value to indicate if the output should be reshaped to be easier to interpret for the user, some information is missing from the multivariate models for an easy interpretation.}
   \item{stepWeight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which doesn't happen very often with the NR method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight to the initial 8-10 iterations.}

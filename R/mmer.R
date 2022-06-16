@@ -5,7 +5,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
                  naMethodX="exclude",
                  naMethodY="exclude",
                  returnParam=FALSE,
-                 dateWarning=TRUE,
+                 dateWarning=TRUE, date.warning=TRUE,
                  verbose=TRUE,reshapeOutput=TRUE,
                  stepWeight=NULL, emWeight=NULL){
   

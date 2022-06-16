@@ -617,7 +617,7 @@ isc <- function(x, thetaC=NULL, theta=NULL){
       levs <- na.omit(unique(dummy))
       if(length(levs) > 1){
         dummy  <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass) 
-        if(class(dummy) != "dgCMatrix"){
+        if(!is(class(dummy), "dgCMatrix")){
           dummy <- as(dummy, Class="dgCMatrix") 
         }
         colnames(dummy) <- gsub("dummy","",colnames(dummy))

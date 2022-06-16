@@ -5,8 +5,8 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
                  naMethodX="exclude",
                  naMethodY="exclude",
                  returnParam=FALSE, 
-                 dateWarning=TRUE,
-                 verbose=FALSE,
+                 dateWarning=TRUE,date.warning=TRUE,
+                 verbose=FALSE, 
                  stepWeight=NULL, emWeight=NULL,
                  M=NULL, gTerm=NULL, n.PC = 0, min.MAF = 0.05, 
                  P3D = TRUE){
@@ -24,7 +24,9 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
     return(as.matrix(svd.X$u[, 1:r]))
   }
   
-  
+  dwToUse <- c(dateWarning,date.warning)
+  v<-which(!dwToUse)
+  if(length(v) == 0){v<-1}
   ## return all parameters for a mixed model
   res <- mmer(fixed=fixed, random=random, rcov=rcov, data=data, weights=weights, W=W, 
               nIters=nIters, tolParConvLL=tolParConvLL, tolParInv=tolParInv, 
@@ -33,7 +35,7 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
               naMethodX=naMethodX,
               naMethodY=naMethodY,
               returnParam=TRUE, 
-              dateWarning=dateWarning,
+              dateWarning=dwToUse[v],
               verbose=verbose,
               stepWeight=stepWeight, emWeight=emWeight
               )
