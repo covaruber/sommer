@@ -75,25 +75,32 @@
     termNamesR <- termNames[which(Dtable[,"type"] == "random")]
     for(i in 1:nrow(dataPredict)){ # for each row in the D table or the DataPredict dataset
       
-      dp0 <- dataPredict[i,]
+      dp0 <- as.data.frame(dataPredict[i,]); colnames(dp0) <- colnames(dataPredict)
       for(j in 1:length(object$partitions)){
         
         if(DtableR[j,"include"]){
-          dp <- as.data.frame(dp0[,termNamesR[[j]]]); colnames(dp) <-termNamesR[[j]] 
+          # print(dp0)
+          
+          dp <- as.data.frame(dp0[,intersect(colnames(dp0),termNamesR[[j]])]); colnames(dp) <-intersect(colnames(dp0),termNamesR[[j]])
+          # print(dp)
           part <- object$partitions[[j]]
           partv <- part[1:1]:part[nrow(part),2]
           
           if(ncol(object$uList[[j]]) == 1){
             nam2 <- rownames(object$uList[[j]])
+            nam3 <- unlist(lapply(as.list(rownames(object$uList[[j]])),function(x){x2<-strsplit(x,split = ":")[[1]];x2<-x2[length(x2)];return(x2)}))
           }else{
             nam2 <- vector(mode="character")
             for(l in 1:ncol(object$uList[[j]])){
               nam2 <- c(nam2,paste(colnames(object$uList[[j]])[l],rownames(object$uList[[j]]), sep=":"))
             }
+            nam3 <- vector(mode="character")
           }
           
           namp <- apply( dp , 1 , paste , collapse = ":" )
-          v <- which(nam2 == namp)
+          v1 <- which(nam2 %in% namp)
+          v2 <- which(nam3 %in% namp)
+          v <- sort(unique(c(v1,v2)), decreasing = FALSE)
           if(length(v) > 0){
             if(DtableR[j,"include"] & !DtableR[j,"average"] ){ # if we want purely include
               Dformed[i,partv[v]]=1  # Dformed[k,namesPartition[v]]=1 
