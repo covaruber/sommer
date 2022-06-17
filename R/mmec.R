@@ -61,7 +61,7 @@ mmec <- function(fixed, random, rcov, data, W,
   #################
   ## get Zs and Ks
   
-  Z <- Ai <- theta <- thetaC <- thetaF <- list()
+  Z <- Ai <- theta <- thetaC <- thetaF <- sp <- list()
   Zind <- numeric()
   rTermsNames <- list()
   counter <- 1
@@ -84,6 +84,7 @@ mmec <- function(fixed, random, rcov, data, W,
       theta[[u]] <- ff$theta
       thetaC[[u]] <- ff$thetaC
       thetaF[[u]] <- ff$thetaF
+      sp[[u]] <- ff$sp # rep(ff$sp,length(which(ff$thetaC > 0)))
       Zind <- c(Zind, rep(u,length(ff$Z)))
       checkvs <- numeric() # restart the check
       ## names for monitor
@@ -116,9 +117,15 @@ mmec <- function(fixed, random, rcov, data, W,
     ff <- eval(parse(text = rcovtermss[u]),data,parent.frame()) # evalaute the variance structure
     S <- c(S, ff$Z)
     Spartitions <- c(Spartitions, ff$partitionsR)
-    theta[[counter]] <- ff$theta*5
+    ## constraint
+    residualsNonFixed <- which(ff$thetaC != 3, arr.ind = TRUE)
+    if(nrow(residualsNonFixed) > 0){
+      ff$theta[residualsNonFixed] <- ff$theta[residualsNonFixed] * 5
+    }
+    theta[[counter]] <- ff$theta
     thetaC[[counter]] <- ff$thetaC
     thetaF[[counter]] <- ff$thetaF
+    sp[[counter]] <- ff$sp#rep(ff$sp,length(ff$Z))
     
     baseNames <- which( ff$thetaC > 0, arr.ind = TRUE)
     s1 <- paste(rownames(ff$thetaC)[baseNames[,"row"]], colnames(ff$thetaC)[baseNames[,"col"]],sep = ":")
@@ -212,7 +219,8 @@ mmec <- function(fixed, random, rcov, data, W,
     
     thetaFinput <- do.call(adiag1,thetaF)
     if(is.null(addScaleParam)){addScaleParam=0}
-    thetaFinput <- cbind(thetaFinput,matrix(0,nrow(thetaFinput),length(addScaleParam)))
+    thetaFinputSP <- unlist(sp)
+    thetaFinput <- cbind(thetaFinput,thetaFinputSP)
     thetaFinput
     
     res <- list(yvar=yvar, X=X,Z=Z,Zind=Zind,Ai=Ai,S=S,Spartitions=Spartitions, W=W, useH=useH,
@@ -226,7 +234,9 @@ mmec <- function(fixed, random, rcov, data, W,
     
     thetaFinput <- do.call(adiag1,thetaF)
     if(is.null(addScaleParam)){addScaleParam=0}
-    thetaFinput <- cbind(thetaFinput,matrix(0,nrow(thetaFinput),length(addScaleParam)))
+    thetaFinputSP <- unlist(sp)
+   
+    thetaFinput <- cbind(thetaFinput,thetaFinputSP)
     thetaFinput
     
     res <- .Call("_sommer_ai_mme_sp",PACKAGE = "sommer",

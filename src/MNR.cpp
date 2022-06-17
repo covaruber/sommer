@@ -1818,17 +1818,19 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     thetaCUnlisted0(arma::find(thetaCUnlisted0 < 3)) = thetaCUnlisted0(arma::find(thetaCUnlisted0 < 3)) * 0; // we make everything zero except fully constrained
     arma::uvec constrained = arma::find((thetaCUnlisted0+sumToBoundary) > 0);
     arma::uvec unconstrained = arma::find((thetaCUnlisted0+sumToBoundary) <= 0);//arma::find(thetaCUnlisted != 3);
-    arma::mat InfMat_uu, InfMat_ff, InfMatInv_uu;
-    arma::vec dLu_uu, dLu_ff, delta_uu;
-    if(constrained.n_elem > 0){
+    arma::mat InfMat_uu, InfMat_ff, InfMat_uf, InfMatInv_uu, InfMatInv_ff;
+    arma::vec dLu_uu, dLu_ff, delta_uu, delta_ff;
+    if(constrained.n_elem > 0){   // Rcpp::Rcout << "Updates using constrained Information matrix" << arma::endl;
       InfMat_uu = InfMat(unconstrained,unconstrained);
       InfMat_ff = InfMat(constrained,constrained);
+      InfMat_uf = InfMat(unconstrained,constrained);
       dLu_uu = dLu(unconstrained);
       dLu_ff = dLu(constrained);
+      InfMatInv_ff = pinv(InfMat_ff,tolParInv);
       InfMatInv_uu = pinv(InfMat_uu,tolParInv);
-      delta_uu = InfMatInv_uu * dLu_uu;
+      delta_ff = InfMatInv_ff * dLu_ff;
+      delta_uu = InfMatInv_uu * (dLu_uu - ( InfMat_uf * (InfMatInv_ff*delta_ff) ) );
       delta(unconstrained) = delta_uu;
-      // delta(constrained) = delta(constrained) * 0;
       expectedNewTheta(unconstrained) = thetaUnlisted(unconstrained) - delta(unconstrained);
     }
     // C) quantify delta changes

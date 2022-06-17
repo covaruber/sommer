@@ -1,4 +1,4 @@
-vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL){
+vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE){
   
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
@@ -135,10 +135,14 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL){
   #########################################
   ## thetaF
   nn <- length(which(thetaC > 0))#unlist(lapply(thetaC, function(x){length(which(x > 0))}))
-  nn2 <- sum(nn[1:max(Zind)])
-  thetaF <- diag(nn2)
+  # nn2 <- sum(nn[1:max(Zind)])
+  thetaF <- diag(nn)
+  # print(nrow(thetaF))
+  sp0 <- ifelse(sp,1,0)
+  sp0 <- rep(sp0,nrow(thetaF))
+  if(sp){thetaF <- thetaF*0}
   
-  output <- list(Z=Z, Gu=Gu, theta=theta, thetaC=thetaC, thetaF=thetaF,partitionsR=partitionsR)
+  output <- list(Z=Z, Gu=Gu, theta=theta, thetaC=thetaC, thetaF=thetaF,partitionsR=partitionsR, sp=sp0)
   return(output)
 }
 

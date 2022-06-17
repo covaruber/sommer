@@ -5,7 +5,7 @@
   \code{vsc} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmec}} solver. 
 }
 \usage{
-  vsc(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL)
+  vsc(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE)
 }
 
 \arguments{
@@ -36,6 +36,8 @@
    \item{meTheta}{variance covariance matrix between the main effects desired.}
    
    \item{meThetaC}{constraints for the variance covariance matrix between the main effects desired.}
+   
+   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmer function through the addScaleParam argument.}
     
 }
 \details{
