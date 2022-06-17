@@ -7,9 +7,9 @@
 }
 \description{
 
-Sommer is a structural multivariate-univariate linear mixed model solver for multiple random effects allowing the specification and/or estimation of variance covariance structures. The \code{mmec} function uses the MME-based Average Information algorithm coded in C++ using the Armadillo library to optimize matrix operations common in problems with sparse covariance structures such as genotype by environment models. These algorithm are \strong{intended to be used for problems of the type r > c (r records and c coefficients)}. For problems with of the type p > n, the direct inversion algorithms are faster and we recommend to shift to the use of the \code{\link{mmer}} function.
+The \code{mmec} function uses the Henderson mixed model equations and the Average Information algorithm coded in C++ using the Armadillo library to optimize matrix operations common in problems with sparse data (e.g., genotype by environment models). This algorithm is \strong{intended to be used for problems of the type r > c (more records in the data than coefficients to estimate)}. For problems with of the type c > r (more coefficients to estimate than records available), the direct inversion algorithms are faster and we recommend to shift to the use of the \code{\link{mmer}} function.
 
-\strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
+\strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal one of the following:
 
 \strong{vignette("v1.sommer.quick.start")} 
 
@@ -51,6 +51,8 @@ mmec(fixed, random, rcov, data, W, nIters=20, tolParConvLL = 1e-03, tolParConvNo
   \item{rcov}{A formula specifying the name of the \strong{error term}, i.e. \emph{rcov= ~ units}.
   
   Special heterogeneous and special variance models and constraints for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, i.e. \emph{rcov=~vsc(dsc(covariate),isc(units))}
+  
+  When fitting structures at the level of residuals please make sure that your data is sorted based on the factors defining the structure. For example, for \emph{rcov= ~ vsc(dsc(xx), isc(units))} sort the datatset by the variable xx.
   
   }
   \item{data}{A data frame containing the variables specified in the formulas for response, fixed, and random effects.}

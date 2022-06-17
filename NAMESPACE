@@ -43,7 +43,7 @@ export( # mmer
        anova.mmer, plot.mmer, predict.mmer, vpredict.mmer, 
         # mmec
        summary.mmec, residuals.mmec, fitted.mmec, coef.mmec, 
-       anova.mmec, plot.mmec, pmonitor,
+       anova.mmec, plot.mmec, predict.mmec, pmonitor,
         # others
        randef)
 

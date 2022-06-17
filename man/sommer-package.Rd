@@ -22,7 +22,7 @@ Henderson's mixed model equations (Average Information) >> \code{\link{mmec}} fu
 
 The algorithms are coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic models. Sommer was designed to include complex covariance structures, e.g., additive, dominance and epistatic relationship structures or other covariance structures.  
 
-The \code{\link{mmer}} function can deal well with small and medium-size data sets (< 10,000 observations/records for average computers given the computational burden carried by the direct-inversion algorithms) since it works in the c > r problem and inverts an r x r matrix (r records). On the other hand, the \code{\link{mmec}} function can deal with greater number of records as long as the number of coefficients to estimate is < 20,000 coefficients since it works in the r > c problem and inverts a c x c matrix. The \code{\link{predict.mmer}} and \code{\link{predict.mmec}} functions can be used to obtain adjusted means. This package returns variance-covariance components, BLUPs, BLUEs, residuals, fitted values, variances-covariances for fixed and random effects, etc.
+The \code{\link{mmer}} function can deal well with small and medium-size data sets (< 10,000 observations/records for average computers given the computational burden carried by the direct-inversion algorithms) since it works in the c > r problem and inverts an r x r matrix (being r the number of records). On the other hand, the \code{\link{mmec}} function can deal with greater number of records as long as the number of coefficients to estimate is < 20,000 coefficients since it works in the r > c problem and inverts a c x c matrix (being c the #of coefficients). The \code{\link{predict.mmer}} and \code{\link{predict.mmec}} functions can be used to obtain adjusted means. This package returns variance-covariance components, BLUPs, BLUEs, residuals, fitted values, variances-covariances for fixed and random effects, etc.
 
 }
 
@@ -36,7 +36,21 @@ A good converter from letter code to numeric format is implemented in the functi
 
 \section{Functions for statistical analysis and S3 methods}{
 
-The \code{\link{vpredict}} function can be used to estimate standard errors for linear combinations of variance components (e.g. ratios like h2). S3 methods are available for some parameter extraction such as \code{\link{fitted.mmer}}, \code{\link{fitted.mmec}}, \code{\link{residuals.mmer}},  \code{\link{residuals.mmec}}, \code{\link{summary.mmer}},  \code{\link{summary.mmec}}, \code{\link{randef}}, \code{\link{coef.mmer}}, \code{\link{coef.mmec}}, \code{\link{anova.mmer}}, \code{\link{anova.mmec}}, \code{\link{plot.mmer}}, \code{\link{plot.mmec}}.
+The \code{\link{vpredict}} function can be used to estimate standard errors for linear combinations of variance components (e.g. ratios like h2). S3 methods are available for some parameter extraction such as:
+
++ \code{\link{predict.mmer}}, \code{\link{predict.mmec}},
+
++ \code{\link{fitted.mmer}}, \code{\link{fitted.mmec}}, 
+
++ \code{\link{residuals.mmer}},  \code{\link{residuals.mmec}}, 
+
++ \code{\link{summary.mmer}},  \code{\link{summary.mmec}}, 
+
++ \code{\link{coef.mmer}}, \code{\link{coef.mmec}}, 
+
++ \code{\link{anova.mmer}}, \code{\link{anova.mmec}}, 
+
++ \code{\link{plot.mmer}}, \code{\link{plot.mmec}}.
 
 }
 

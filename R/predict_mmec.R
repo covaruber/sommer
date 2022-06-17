@@ -5,18 +5,19 @@
 # averaged is used to be included in the prediction
 # ignored is not used included in the prediction
 
-"predict.mmec" <- function(object, Dtable=NULL, D=NULL,...){
+"predict.mmec" <- function(object, Dtable=NULL, D){
   
   
-  if(is.null(D)){ ## if user don't provide a D but a Dtable
+  if(is(D,"character")){ ## if user don't provide a D but a Dtable
     ## get the names of terms used for each effect from the Dtable
     termNames <- apply(data.frame(Dtable[,"term"]),1,function(x){
       y<-paste(all.vars(as.formula(paste("~",x))),collapse = ":")
       z<-intersect(strsplit(y, split=":")[[1]], colnames(object$data))
+      # z <- z[1] # just the last term to avoid that in interactions more terms are used
       return(z)
     })
     ## get from the Dtable which term will be used for the hypertable classification
-    forD <- Dtable[which(Dtable$D),"term"]
+    forD <- D#Dtable[which(Dtable$D),"term"]
     forD <- paste(all.vars(as.formula(paste("~",forD))),collapse = ":")
     classify <- intersect(strsplit(forD, split=":")[[1]], colnames(object$data))
     classifyL <- as.list(classify)
@@ -27,7 +28,7 @@
     dataPredict <- do.call(expand.grid, levelsClassifyL )
     colnames(dataPredict) <- classify
     ## D matrix
-    Dformed <- Matrix(0, nrow(dataPredict), length(object$b)+length(object$u))
+    Dformed <- Matrix(0, nrow(dataPredict), nrow(object$bu))
     colnames(Dformed) <- c(rownames(object$b),rownames(object$u))
     
     #######################
@@ -71,41 +72,47 @@
     ## Fill the random part of D
     #######################
     DtableR <- Dtable[which(Dtable[,"type"] == "random"),]
-    for(i in 1:length(object$partitions)){ 
+    termNamesR <- termNames[which(Dtable[,"type"] == "random")]
+    for(i in 1:nrow(dataPredict)){ # for each row in the D table or the DataPredict dataset
       
-      partProv <- object$partitions[[i]]
-      w <- partProv[1,1]:partProv[1,2]
-      
-      if(DtableR[i,"include"]){
-        for(j in 1:ncol(dataPredict)){
-          for(k in 1:nrow(dataPredict)){
-            
-            namesPartition <- rownames(object$uList[[i]])
-            namesPartitionList <- strsplit(namesPartition,split = ":")
-            v <- which( unlist( lapply(namesPartitionList,function(h){
-              res <- ifelse(length(which(h == as.character(dataPredict[k,j]))) > 0,TRUE,FALSE)
-              return(res)
-            })  ))
-            
-            if(length(v) > 0){
-              if(DtableR[i,"include"] & !DtableR[i,"average"] ){ # if we want purely include
-                Dformed[k,namesPartition[v]]=1 
-              }
-              if(DtableR[i,"include"] & DtableR[i,"average"]){ # if we want to include and average
-                Dformed[k,namesPartition[v]]=1/length(v)
-              }
+      dp0 <- dataPredict[i,]
+      for(j in 1:length(object$partitions)){
+        
+        if(DtableR[j,"include"]){
+          dp <- as.data.frame(dp0[,termNamesR[[j]]]); colnames(dp) <-termNamesR[[j]] 
+          part <- object$partitions[[j]]
+          partv <- part[1:1]:part[nrow(part),2]
+          
+          if(ncol(object$uList[[j]]) == 1){
+            nam2 <- rownames(object$uList[[j]])
+          }else{
+            nam2 <- vector(mode="character")
+            for(l in 1:ncol(object$uList[[j]])){
+              nam2 <- c(nam2,paste(colnames(object$uList[[j]])[l],rownames(object$uList[[j]]), sep=":"))
             }
-            
+          }
+          
+          namp <- apply( dp , 1 , paste , collapse = ":" )
+          v <- which(nam2 == namp)
+          if(length(v) > 0){
+            if(DtableR[j,"include"] & !DtableR[j,"average"] ){ # if we want purely include
+              Dformed[i,partv[v]]=1  # Dformed[k,namesPartition[v]]=1 
+            }
+            if(DtableR[j,"include"] & DtableR[j,"average"]){ # if we want to include and average
+              Dformed[i,partv[v]]=1/(length(v)*nrow(part)) #Dformed[k,namesPartition[v]]=1/length(v)
+            }
+          }
+        }else{
+          if(DtableR[j,"average"]){ # but we want to average
+            Dformed[,partv]=1/length(partv)
           }
         }
-      }else{ # if we don't want to include
-        if(DtableR[i,"average"]){ # but we want to average
-          Dformed[,w]=1/length(w)
-        }
+        
+        
       }
     }
     
-  }else{ 
+  }else if(is(D,"dgCMatrix")){ 
     dataPredict <- data.frame(id=1:nrow(D))
     Dformed <- D
   }

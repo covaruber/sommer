@@ -39,6 +39,7 @@ head(DT)
 #               data=DT)
 # summary(ans1)$varcomp
 # 
+# DT=DT[with(DT, order(Env)), ]
 # ans1b <- mmec(y~Env,
 #              random=~vsc(dsc(Env),isc(Name)) + vsc(dsc(Env),isc(Block)),
 #              rcov=~vsc(dsc(Env),isc(units)),

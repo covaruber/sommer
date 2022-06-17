@@ -132,7 +132,7 @@ mmec <- function(fixed, random, rcov, data, W,
   #################
   ## get Xs
   newfixed=fixed
-  fixedTerms <- strsplit(as.character(fixed[3]), split = "[+]")[[1]]
+  fixedTerms <- gsub(" ", "", strsplit(as.character(fixed[3]), split = "[+-]")[[1]])
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
   mf <- eval(mf, parent.frame())
   # print(newfixed)
@@ -276,7 +276,7 @@ mmec <- function(fixed, random, rcov, data, W,
       }; blupTable=NULL; pevTable=NULL; names(uList) <- names(uPevList) <- rtermss
     }
     res$uList <- uList; res$uPevList <- uPevList
-    res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX)),rep("random",length(res$partitions))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE,D=FALSE)
+    res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX)),rep("random",length(res$partitions))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE)
     class(res)<-c("mmec")
   }
   return(res)
