@@ -192,7 +192,7 @@ Gilmour et al. 1995. Average Information REML: An efficient algorithm for varian
 
 }
 \author{
-Giovanny Covarrubias-Pazaran
+Giovanny Covarrubias-Pazaran with contributions of Christelle Fernandez Camacho
 }
 \examples{
 
