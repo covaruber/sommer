@@ -153,13 +153,16 @@ mmec <- function(fixed, random, rcov, data, W,
     partitionsX[[ix]] <- matrix(which(colnames(X) %in% c(effs,effs2)),nrow=1)
   }
   names(partitionsX) <- fixedTerms
+  classColumns <- lapply(data,class)
   for(ix in 1:length(fixedTerms)){
     colnamesBase <- colnames(X)[partitionsX[[ix]]]
     colnamesBaseList <- strsplit(colnamesBase,":")
     toRemoveList <- strsplit(fixedTerms[ix],":")[[1]] # words to remove
     for(j in 1:length(toRemoveList)){
-      nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE))
-      colnamesBaseList <- lapply(colnamesBaseList, function(h){h[j] <- substr(h[j],1+nc,nchar(h[j])); return(h)})
+      if( classColumns[[toRemoveList[[j]]]] != "numeric"){
+        nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE))
+        colnamesBaseList <- lapply(colnamesBaseList, function(h){h[j] <- substr(h[j],1+nc,nchar(h[j])); return(h)})
+      }
     }
     colnames(X)[partitionsX[[ix]]] <- unlist(lapply(lapply(colnamesBaseList,na.omit), function(x){paste(x, collapse=":")}))
   }
