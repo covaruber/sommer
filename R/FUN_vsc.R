@@ -122,7 +122,7 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     Gu <- sparse.model.matrix(~d-1, x)
     colnames(Gu) <- rownames(Gu) <- colnames(Z[[1]])
   }else{
-    if(class(Gu) %!in% c("dgCMatrix")){
+    if (!inherits(Gu, "dgCMatrix")){
       stop("Gu matrix is not of class dgCMatrix. Please correct \n", call. = TRUE )
     }
     cn <- colnames(Z[[1]])
