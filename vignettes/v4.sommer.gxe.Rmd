@@ -20,7 +20,7 @@ The purpose of this vignette is to show how to fit different genotype by environ
 5) Multienvironment model: Unstructured model (US)
 6) Multienvironment model: Random regression model (RR)
 7) Multienvironment model: Other covariance structures for GxE
-
+8) Two stage analysis
 
 When the breeder decides to run a trial and apply selection in a single environment (whether because the amount of seed is a limitation or there's no availability for a location) the breeder takes the risk of selecting material for a target population of environments (TPEs) using an environment that is not representative of the larger TPE. Therefore, many breeding programs try to base their selection decision on multi-environment trial (MET) data. Models could be adjusted by adding additional information like spatial information, experimental design information, etc. In this tutorial we will focus mainly on the covariance structures for GxE and the incorporation of relationship matrices for the genotype effect.
 
@@ -211,6 +211,54 @@ ansCS <- mmer(Yield~Env,
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansCS)
+
+```
+
+## 8) Two stage analysis
+
+It is common then to fit a first model that accounts for the variation of random design elements, e.g., locations, years, blocks, and fixed genotype effects to obtain the estimated marginal means (EMMs) or best linear unbiased estimators (BLUEs) as adjusted entry means. These adjusted entry means are then used as the phenotype or response variable in GWAS and genomic prediction studies.
+
+```{r}
+
+##########
+## stage 1
+## use mmer for dense field trials
+##########
+data(DT_h2)
+DT <- DT_h2
+head(DT)
+envs <- unique(DT$Env)
+BLUEL <- list()
+XtXL <- list()
+for(i in 1:length(envs)){
+  ans1 <- mmer(y~Name-1,
+                random=~Block,
+                verbose=FALSE,
+                data=droplevels(DT[which(DT$Env == envs[i]),]
+               )
+  )
+  ans1$Beta$Env <- envs[i]
+  
+  BLUEL[[i]] <- ans1$Beta
+  XtXL[[i]] <- ans1$VarBeta
+}
+
+DT2 <- do.call(rbind, BLUEL)
+OM <- do.call(adiag1,XtXL)
+
+##########
+## stage 2
+## use mmec for sparse equation
+##########
+m <- matrix(1/var(DT2$Estimate, na.rm = TRUE))
+ans2 <- mmec(Estimate~Env,
+             random=~Effect + Env:Effect, 
+             rcov=~vsc(isc(units,thetaC = matrix(3), theta = m)),
+             W=OM, tolParConvNorm = .001, 
+             verbose=FALSE,
+             data=DT2
+             )
+summary(ans2)$varcomp
 
 ```
 

@@ -143,7 +143,6 @@ mmec <- function(fixed, random, rcov, data, W,
   fixedTerms <- gsub(" ", "", strsplit(as.character(fixed[3]), split = "[+-]")[[1]])
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
   mf <- eval(mf, parent.frame())
-  # print(newfixed)
   X <-  Matrix::sparse.model.matrix(newfixed, mf)
   
   
@@ -162,8 +161,6 @@ mmec <- function(fixed, random, rcov, data, W,
     toRemoveList <- strsplit(fixedTerms[ix],":")[[1]] # words to remove
     toRemoveList
     for(j in 1:length(toRemoveList)){
-      # print(toRemoveList[[j]])
-      # print(classColumns[[toRemoveList[[j]]]])
       if( classColumns[[toRemoveList[[j]]]] != "numeric"){ # only remove the name from the level if is structure between factors, not for random regressions
         nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE))
         colnamesBaseList <- lapply(colnamesBaseList, function(h){h[j] <- substr(h[j],1+nc,nchar(h[j])); return(h)})
