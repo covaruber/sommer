@@ -1,6 +1,6 @@
 mmec <- function(fixed, random, rcov, data, W,
                  nIters=20, tolParConvLL = 1e-03, 
-                 tolParConvNorm = 0.05, tolParInv = 1e-06,
+                 tolParConvNorm = 0.005, tolParInv = 1e-06,
                  naMethodX="exclude",
                  naMethodY="exclude",
                  returnParam=FALSE,
@@ -159,7 +159,7 @@ mmec <- function(fixed, random, rcov, data, W,
     colnamesBaseList <- strsplit(colnamesBase,":")
     toRemoveList <- strsplit(fixedTerms[ix],":")[[1]] # words to remove
     for(j in 1:length(toRemoveList)){
-      if( classColumns[[toRemoveList[[j]]]] != "numeric"){
+      if( classColumns[[toRemoveList[[j]]]] != "numeric"){ # only remove the name from the level if is structure between factors, not for random regressions
         nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE))
         colnamesBaseList <- lapply(colnamesBaseList, function(h){h[j] <- substr(h[j],1+nc,nchar(h[j])); return(h)})
       }
