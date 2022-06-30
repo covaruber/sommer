@@ -138,6 +138,7 @@ mmec <- function(fixed, random, rcov, data, W,
   #################
   #################
   ## get Xs
+  data$`1` <-1
   newfixed=fixed
   fixedTerms <- gsub(" ", "", strsplit(as.character(fixed[3]), split = "[+-]")[[1]])
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
@@ -154,11 +155,15 @@ mmec <- function(fixed, random, rcov, data, W,
   }
   names(partitionsX) <- fixedTerms
   classColumns <- lapply(data,class)
+  
   for(ix in 1:length(fixedTerms)){
     colnamesBase <- colnames(X)[partitionsX[[ix]]]
     colnamesBaseList <- strsplit(colnamesBase,":")
     toRemoveList <- strsplit(fixedTerms[ix],":")[[1]] # words to remove
+    toRemoveList
     for(j in 1:length(toRemoveList)){
+      # print(toRemoveList[[j]])
+      # print(classColumns[[toRemoveList[[j]]]])
       if( classColumns[[toRemoveList[[j]]]] != "numeric"){ # only remove the name from the level if is structure between factors, not for random regressions
         nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE))
         colnamesBaseList <- lapply(colnamesBaseList, function(h){h[j] <- substr(h[j],1+nc,nchar(h[j])); return(h)})
