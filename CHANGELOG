@@ -426,7 +426,8 @@ version 4.1.7 (2022-07-01)
  
 ######################
 ## PENDINGS AND PRIORITIES
-+ Fix plot function and enable to plot likelihood and monitor of vcs
++ arma::inv, arma::solve, arma::chol are much slower than Eigen, we need to find how to use both libraries
+  in the same function
 + Add correlation models
 + bring back the betas, and R2 for markers in GWAS. Need to use C++ cubes (sort of list) to store betas, scores and R so we extract them in a good order.
 + enable P3D argument

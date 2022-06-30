@@ -1956,7 +1956,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     Rcpp::Named("u") = u,
     Rcpp::Named("bu") = bu,
     Rcpp::Named("Ci") = Ci,
-    Rcpp::Named("avInf") = InfMat,
+    Rcpp::Named("avInf") = avInf, //InfMat,
     Rcpp::Named("monitor") = monitor,
     Rcpp::Named("constraints") = thetaCUnlistedFinal, 
     Rcpp::Named("AIC") = AIC,
