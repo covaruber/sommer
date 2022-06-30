@@ -1805,7 +1805,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       if(thetaCUnlisted(i) == 3){
         arma::vec thetaUnlistedPlusAddScaleParam;
         if(iIter == 0){
-          thetaUnlistedPlusAddScaleParam = arma::join_cols(expectedNewTheta,addScaleParam);
+          thetaUnlistedPlusAddScaleParam = arma::join_cols(thetaUnlisted,addScaleParam); // expectedNewTheta
         }else{
           thetaUnlistedPlusAddScaleParam = arma::join_cols(monitor.col((iIter-1)),addScaleParam);
         }
