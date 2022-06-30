@@ -183,7 +183,7 @@ vcsExtract <- function(object){
   coef$t.value <- coef$Estimate/coef$Std.Error
   
   mys2 <- object$monitor[,which(object$llik[1,] == max(object$llik[1,]))] 
-  varcomp <- as.data.frame(cbind(mys2,sqrt(diag(solve(object$avInf/2)))))
+  varcomp <- as.data.frame(cbind(mys2,sqrt(diag(ginv(object$avInf/2)))))
   varcomp[,3] <- varcomp[,1]/varcomp[,2]
   colnames(varcomp) <- c("VarComp","VarCompSE","Zratio")
   
