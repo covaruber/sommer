@@ -23,10 +23,10 @@ The \code{mmec} function uses the Henderson mixed model equations and the Averag
 
 \usage{
 
-mmec(fixed, random, rcov, data, W, nIters=20, tolParConvLL = 1e-03, tolParConvNorm = 0.005,
-     tolParInv = 1e-06, naMethodX="exclude", naMethodY="exclude",
-     returnParam=FALSE, dateWarning=TRUE,verbose=TRUE, 
-     addScaleParam=NULL, stepWeight=NULL, emWeight=NULL)
+mmec(fixed, random, rcov, data, W, nIters=20, tolParConvLL = 1e-03, 
+     tolParConvNorm = 1e-04, tolParInv = 1e-06, naMethodX="exclude", 
+     naMethodY="exclude", returnParam=FALSE, dateWarning=TRUE,
+     verbose=TRUE,addScaleParam=NULL, stepWeight=NULL, emWeight=NULL)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:

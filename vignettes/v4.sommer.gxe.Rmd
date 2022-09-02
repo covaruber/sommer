@@ -20,7 +20,8 @@ The purpose of this vignette is to show how to fit different genotype by environ
 5) Multienvironment model: Unstructured model (US)
 6) Multienvironment model: Random regression model (RR)
 7) Multienvironment model: Other covariance structures for GxE
-8) Two stage analysis
+8) Finlay-Wilkinson regression
+9) Two stage analysis
 
 When the breeder decides to run a trial and apply selection in a single environment (whether because the amount of seed is a limitation or there's no availability for a location) the breeder takes the risk of selecting material for a target population of environments (TPEs) using an environment that is not representative of the larger TPE. Therefore, many breeding programs try to base their selection decision on multi-environment trial (MET) data. Models could be adjusted by adding additional information like spatial information, experimental design information, etc. In this tutorial we will focus mainly on the covariance structures for GxE and the incorporation of relationship matrices for the genotype effect.
 
@@ -214,7 +215,55 @@ summary(ansCS)
 
 ```
 
-## 8) Two stage analysis
+## 8) Finlay-Wilkinson regression
+
+```{r}
+
+data(DT_h2)
+DT <- DT_h2
+
+## build the environmental index
+ei <- aggregate(y~Env, data=DT,FUN=mean)
+colnames(ei)[2] <- "envIndex"
+ei <- ei[with(ei, order(envIndex)), ]
+
+## add the environmental index to the original dataset
+DT2 <- merge(DT,ei, by="Env")
+
+# numeric by factor variables like envIndex:Name can't be used in the random part like this
+# they need to come with the vsc() structure
+DT2 <- DT2[with(DT2, order(Name)), ]
+mix2 <- mmec(y~ envIndex,
+             random=~ Name + vsc(dsc(envIndex),isc(Name)), data=DT2,
+             rcov=~vsc(dsc(Name),isc(units)),
+             tolParConvNorm = .0001,
+             nIters = 50, verbose = FALSE
+)
+# summary(mix2)$varcomp
+
+b=mix2$uList$`vsc(dsc(envIndex), isc(Name))` # adaptability (b) or genotype slopes
+mu=mix2$uList$`vsc( isc( Name ) )` # general adaptation (mu) or main effect
+e=sqrt(summary(mix2)$varcomp[-c(1:2),1]) # error variance for each individual
+
+## general adaptation (main effect) vs adaptability (response to better environments)
+plot(mu[,1]~b[,1], ylab="general adaptation", xlab="adaptability")
+text(y=mu[,1],x=b[,1], labels = rownames(mu), cex=0.5, pos = 1)
+
+## prediction across environments
+Dt <- mix2$Dtable
+Dt[1,"average"]=TRUE
+Dt[2,"include"]=TRUE
+Dt[3,"include"]=TRUE
+pp <- predict(mix2,Dtable = Dt, D="Name")
+preds <- pp$pvals
+# preds[with(preds, order(-predicted.value)), ]
+## performance vs stability (deviation from regression line)
+plot(preds[,2]~e, ylab="performance", xlab="stability")
+text(y=preds[,2],x=e, labels = rownames(mu), cex=0.5, pos = 1)
+
+```
+
+## 9) Two stage analysis
 
 It is common then to fit a first model that accounts for the variation of random design elements, e.g., locations, years, blocks, and fixed genotype effects to obtain the estimated marginal means (EMMs) or best linear unbiased estimators (BLUEs) as adjusted entry means. These adjusted entry means are then used as the phenotype or response variable in GWAS and genomic prediction studies.
 
@@ -254,7 +303,7 @@ m <- matrix(1/var(DT2$Estimate, na.rm = TRUE))
 ans2 <- mmec(Estimate~Env,
              random=~Effect + Env:Effect, 
              rcov=~vsc(isc(units,thetaC = matrix(3), theta = m)),
-             W=OM, tolParConvNorm = .001, 
+             W=OM, 
              verbose=FALSE,
              data=DT2
              )

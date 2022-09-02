@@ -1459,11 +1459,15 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     if(nSs > 1){ // if there is more than one residual structure we have to calculate M in every iteration
       M = Wy.t() * Ri * Wy;
     }else{ // if there's only one residual structure
-      if(iIter == 0){ // only form M0 in the first iteration
-        M0 =  Wy.t() * Wy ; // base M matrix without G
+      if(useH == true){ 
+        M = Wy.t() * Ri * Wy;
+      }else{
+        if(iIter == 0){ // only form M0 in the first iteration
+          M0 =  Wy.t() * Wy ; // base M matrix without G
+        }
+        // then every iteration we just multiply M0 by 1/Ve
+        M = M0 * (1/arma::as_scalar(thetaResidualsVec(0))) ; // always multiply by the current 1/sigma2.e
       }
-      // then every iteration we just multiply M0 by 1/Ve
-      M = M0 * (1/arma::as_scalar(thetaResidualsVec(0))) ; // always multiply by the current 1/sigma2.e
     }
     
     arma::field<arma::sp_mat> lambda(nReAl);
@@ -1895,9 +1899,9 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       arma::mat thetaCProvNew = vec_to_matCpp(thetaCUnlisted(toFill), thetaC[i] );
       thetaC(i) = thetaCProvNew;
     }
-   // #######################
-   // # 9) Stopping criteria
-   // #######################
+    // #######################
+    // # 9) Stopping criteria
+    // #######################
     // get current time
     time_t now = time(0);
     tm *ltm = localtime(&now);

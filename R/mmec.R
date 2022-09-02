@@ -1,6 +1,6 @@
 mmec <- function(fixed, random, rcov, data, W,
                  nIters=20, tolParConvLL = 1e-03, 
-                 tolParConvNorm = 0.005, tolParInv = 1e-06,
+                 tolParConvNorm = 1e-04, tolParInv = 1e-06,
                  naMethodX="exclude",
                  naMethodY="exclude",
                  returnParam=FALSE,
@@ -9,7 +9,7 @@ mmec <- function(fixed, random, rcov, data, W,
                  stepWeight=NULL, emWeight=NULL){
   
   my.year <- 2022
-  my.month <- 9 #month when the user will start to get notifications the 1st day of next month
+  my.month <- 12 #month when the user will start to get notifications the 1st day of next month
   ### if my month = 5, user will start to get notification in June 1st (next month)
   datee <- Sys.Date()
   year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
@@ -182,7 +182,7 @@ mmec <- function(fixed, random, rcov, data, W,
     W <- sparse.model.matrix(~d-1, x)
     useH=FALSE
   }else{
-    W <- as(W, Class = "sparseMatrix")
+    W <- as(W, Class = "dgCMatrix")
     useH=TRUE
   }
   

@@ -138,7 +138,7 @@ EM <- function(y,X=NULL,ZETA=NULL,R=NULL,iters=30,draw=TRUE,silent=FALSE, constr
     }, Ko=Ki, v=varoz) ## K*v(u)
     
     Zbind <- do.call(cbind,lapply(ZETA, function(x){x$Z}))
-    XZbind <- as(cbind(X,Zbind), Class="sparseMatrix")
+    XZbind <- as(cbind(X,Zbind), Class="dgCMatrix")
     CM <- t(XZbind) %*% Rsei %*% XZbind
     
     ## add Gi's to the C matrix
@@ -165,9 +165,9 @@ EM <- function(y,X=NULL,ZETA=NULL,R=NULL,iters=30,draw=TRUE,silent=FALSE, constr
     
     M <- rbind(cbind(corner,top),cbind(left,CM))
     M[1:4,1:4]
-    vb <- try(chol(as(M, Class="sparseMatrix"),pivot=FALSE), silent=TRUE)
+    vb <- try(chol(as(M, Class="dgCMatrix"),pivot=FALSE), silent=TRUE)
     if(is(vb, "try-error") ){ # class(vb)=="try-error"
-      vb <- try(chol(as(M+diag(tolparinv,dim(M)[1]), Class="sparseMatrix")), silent=TRUE)
+      vb <- try(chol(as(M+diag(tolparinv,dim(M)[1]), Class="dgCMatrix")), silent=TRUE)
       
       if(is(vb, "try-error")){ # class(vb)=="try-error"
         ypy <- 1#(L[1,1]^2); ypy
@@ -272,7 +272,7 @@ EM <- function(y,X=NULL,ZETA=NULL,R=NULL,iters=30,draw=TRUE,silent=FALSE, constr
   top <- t(left) # top of M
   corner <- t(B)%*%Rsei%*%B # left corner of M
   M <- rbind(cbind(corner,top),cbind(left,CM))
-  vb <- try(chol(as(M, Class="sparseMatrix")), silent = TRUE)
+  vb <- try(chol(as(M, Class="dgCMatrix")), silent = TRUE)
   if( is(vb, "try-error") ){ # class(vb)=="try-error"
     aii <- diag(nz+nr)
   }else{
@@ -1180,7 +1180,7 @@ mmeFormation <- function(X,Z=NULL,Ri=NULL,y){
 }
 
 image2 <- function(x){
-  print(image(as(x, Class = "sparseMatrix")))
+  print(image(as(x, Class = "dgCMatrix")))
 }
 
 # emInfInvProv <- (((theta[[iR]]%*%dLuProv%*%theta[[iR]]))%*%solve(dLuProv))/Nus[iR] # real em information matrix

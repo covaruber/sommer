@@ -535,7 +535,7 @@ dsc <- function(x, thetaC=NULL, theta=NULL){
   }else{
     if(!is.character(x) & !is.factor(x)){
       namess <- as.character(substitute(list(x)))[-1L]
-      dummy <- as(Matrix(x,ncol=1), Class = "sparseMatrix"); colnames(dummy) <- namess
+      dummy <- as(Matrix(x,ncol=1), Class = "dgCMatrix"); colnames(dummy) <- namess
       mm <- diag(ncol(dummy)); 
     }else{
       dummy <- x
@@ -605,7 +605,7 @@ usc <- function(x, thetaC=NULL, theta=NULL){
 }
 isc <- function(x, thetaC=NULL, theta=NULL){
   if(class(x)[1] %in% c("dgCMatrix","matrix") ){
-    dummy <- as(x, Class="sparseMatrix")
+    dummy <- as(x, Class="dgCMatrix")
     mm <- diag(1)#,ncol(x))
   }else{ # if user provides a vector
     if(!is.character(x) & !is.factor(x)){

@@ -301,8 +301,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // ai_mme_sp
-Rcpp::List ai_mme_sp(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y, const Rcpp::List& SI, const Rcpp::List& partitionsS, const arma::sp_mat& H, const bool& useH, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& thetaI, const Rcpp::List& thetaC, const arma::mat& thetaF, const arma::vec& addScaleParam, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose);
-RcppExport SEXP _sommer_ai_mme_sp(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP ySEXP, SEXP SISEXP, SEXP partitionsSSEXP, SEXP HSEXP, SEXP useHSEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP thetaISEXP, SEXP thetaCSEXP, SEXP thetaFSEXP, SEXP addScaleParamSEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP) {
+Rcpp::List ai_mme_sp(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y, const Rcpp::List& SI, const Rcpp::List& partitionsS, const arma::sp_mat& H, const bool& useH, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& thetaI, const Rcpp::List& thetaCI, const arma::mat& thetaF, const arma::vec& addScaleParam, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose);
+RcppExport SEXP _sommer_ai_mme_sp(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP ySEXP, SEXP SISEXP, SEXP partitionsSSEXP, SEXP HSEXP, SEXP useHSEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP thetaISEXP, SEXP thetaCISEXP, SEXP thetaFSEXP, SEXP addScaleParamSEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -320,13 +320,13 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< double >::type tolParConvNorm(tolParConvNormSEXP);
     Rcpp::traits::input_parameter< double >::type tolParInv(tolParInvSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaI(thetaISEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaC(thetaCSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaCI(thetaCISEXP);
     Rcpp::traits::input_parameter< const arma::mat& >::type thetaF(thetaFSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type addScaleParam(addScaleParamSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type weightEmInf(weightEmInfSEXP);
     Rcpp::traits::input_parameter< const arma::vec& >::type weightInf(weightInfSEXP);
     Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(ai_mme_sp(X, ZI, Zind, AiI, y, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaC, thetaF, addScaleParam, weightEmInf, weightInf, verbose));
+    rcpp_result_gen = Rcpp::wrap(ai_mme_sp(X, ZI, Zind, AiI, y, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose));
     return rcpp_result_gen;
 END_RCPP
 }

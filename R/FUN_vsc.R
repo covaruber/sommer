@@ -87,7 +87,7 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
         provZ0iCol <- Matrix(Z0[,j]) %*% Matrix(1,1,ncol(Z1prov))
         Z1provZ0iCol <- Z1prov * provZ0iCol
         if(!is(class(Z1provZ0iCol), "dgCMatrix")){
-          Z[[counter]] <- as(Z1prov * provZ0iCol, Class = "sparseMatrix")
+          Z[[counter]] <- as(Z1prov * provZ0iCol, Class = "dgCMatrix")
         }else{
           Z[[counter]] <- Z1provZ0iCol
         }

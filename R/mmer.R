@@ -10,7 +10,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
                  stepWeight=NULL, emWeight=NULL){
   
   my.year <- 2022
-  my.month <- 9 #month when the user will start to get notifications the 1st day of next month
+  my.month <- 12 #month when the user will start to get notifications the 1st day of next month
   ### if my month = 5, user will start to get notification in June 1st (next month)
   datee <- Sys.Date()
   year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
@@ -414,9 +414,9 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   #################
   ## provide arguments to MNR
   if(!missing(random)){
-    Z <- lapply(Z,function(x){as(x, Class = "sparseMatrix")})
+    Z <- lapply(Z,function(x){as(x, Class = "dgCMatrix")})
   }else{Z <- list();K <- list();random=NULL}
-  R <- lapply(R,function(x){as(x, Class = "sparseMatrix")})
+  R <- lapply(R,function(x){as(x, Class = "dgCMatrix")})
   if(!is.null(init)){GES <- init}
   if(!is.null(constraints)){GESI <- constraints}
   re_names <- c(re_namel1,re_namel2)

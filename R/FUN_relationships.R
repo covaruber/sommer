@@ -148,7 +148,7 @@ dfToMatrix <- function(x, row="Row",column="Column",value="Ainverse", returnInve
   
   rownames(K) <- colnames(K) <- attr(x, "rowNames")
   
-  Ks <- as(K, Class = "sparseMatrix")
+  Ks <- as(K, Class = "dgCMatrix")
   if(returnInverse){
     Ksi <- solve(Ks + diag(bend, nrow(Ks)))
     rownames(Ksi) <- colnames(Ksi) <- attr(x, "rowNames")

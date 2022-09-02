@@ -724,7 +724,7 @@ plot.mmec <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 2.1 or later")
   assign(".sommer.home", file.path(library, pkg),
          pos=match("package:sommer", search()))
-  sommer.version = "4.1.7 (2022-07-01)" # usually 2 months before it expires
+  sommer.version = "4.1.8 (2022-09-01)" # usually 2 months before it expires
   
   assign(".sommer.version", sommer.version, pos=match("package:sommer", search()))
   if(interactive())
