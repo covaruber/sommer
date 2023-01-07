@@ -9,16 +9,6 @@
 
 The mmer function uses the Direct-Inversion Newton-Raphson or Average Information coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic selection models. These algorithms are \strong{intended to be used for problems of the type c > r (more coefficients to estimate than records in the dataset) and/or dense matrices}. For problems with sparse data, or problems of the type r > c (more records in the dataset than coefficients to estimate), the MME-based algorithm in the \code{\link{mmec}} function is faster and we recommend to shift to use that function.
 
-\strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
-
-\strong{vignette("v1.sommer.quick.start")} 
-
-\strong{vignette("v2.sommer.changes.and.faqs")}
-
-\strong{vignette("v3.sommer.qg")}
-
-\strong{vignette("v4.sommer.gxe")}
-
 }
 
 \usage{
@@ -85,6 +75,17 @@ mmer(fixed, random, rcov, data, weights, W, nIters=20, tolParConvLL = 1e-03,
 \details{
 
 The use of this function requires a good understanding of mixed models. Please review the 'sommer.quick.start' vignette and pay attention to details like format of your random and fixed variables (e.g. character and factor variables have different properties when returning BLUEs or BLUPs, please see the 'sommer.changes.and.faqs' vignette). 
+
+\strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
+
+vignette("v1.sommer.quick.start")
+
+vignette("v2.sommer.changes.and.faqs")
+
+vignette("v3.sommer.qg")
+
+vignette("v4.sommer.gxe")
+
 
 \strong{Citation}
 

@@ -72,7 +72,7 @@ data(DT_polyploid)
 #             data=DT2)
 # summary(ans)$varcomp
 # 
-# Ai <- as(solve(A + diag(1e-4,ncol(A),ncol(A))), Class="sparseMatrix")
+# Ai <- as(solve(A + diag(1e-4,ncol(A),ncol(A))), Class="dgCMatrix")
 # ansb <- mmec(tuber_shape~1,
 #             random=~vsc(isc(Name), Gu=Ai),
 #             data=DT2)

@@ -23,9 +23,9 @@
 # A <- A.mat(GT) # additive relationship matrix
 # #### look at the data and fit the model
 # head(DT)
-# mix1 <- mmec(Yield~1,
-#               random=~vs(id,Gu=A)
-#                       + Rowf + Colf + vs(spl2D(Row,Col)),
+# mix1 <- mmer(Yield~1,
+#               random=~vsr(id,Gu=A)
+#                       + Rowf + Colf + spl2Da(Row,Col),
 #               rcov=~units,
 #               data=DT)
 # 

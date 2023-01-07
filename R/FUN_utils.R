@@ -17,7 +17,7 @@ vcsExtract <- function(object){
 ## SUMMARY FUNCTION mmer #
 #### =========== ####
 "summary.mmer" <- function(object, ...) {
-  
+
   replace.values <- function(Values,Search,Replace){
     dd0 <- data.frame(Values)
     vv <- which(Values%in%Search)
@@ -26,31 +26,31 @@ vcsExtract <- function(object){
     dd0[vv,"Values"] <- as.character(dd[Values[vv],"Replace"])
     return(dd0[,1])
   }
-  
+
   if(!object$reshapeOutput){stop("summary function only works for reshaped output.", call. = FALSE)}
   #dim(object$u.hat)
   digits = max(3, getOption("digits") - 3)
   #forget <- length(object)
-  
+
   groupss.nn <- lapply(object$U,function(x){
     unlist(lapply(x,length))
   })
   groupss.nn <- do.call(rbind,groupss.nn)
-  
+
   lll <- object$monitor[1,]
   lll <- lll[which(lll > 1e-300 | lll < 0)]
   lll2 <- lll[length(lll)]
-  
+
   LLAIC <- data.frame(as.numeric(lll2), as.numeric(object$AIC),
                       as.numeric(object$BIC), object$method, object$convergence)
   colnames(LLAIC) = c("logLik","AIC","BIC","Method","Converge")
   rownames(LLAIC) <- "Value"
-  
+
   method=object$method
   #extract fixed effects
   coef <- as.data.frame((object$Beta))#, Std.Error=(matrix(sqrt(diag(object$Var.beta.hat)),ncol=1)), t.value=(matrix((object$beta.hat-0)/sqrt(diag(object$Var.beta.hat)), ncol=1)))
   # if(dim(coef)[1] == 1){rownames(coef) <- "Intercept"}
-  
+
   ## se and t values for fixed effects
   ts <- ncol(object$sigma[[1]])
   s2.beta <- diag(as.matrix(object$VarBeta))
@@ -69,7 +69,7 @@ vcsExtract <- function(object){
   #   seti[[u]] <- prox
   # }
   # names(seti) <- colnames(object$sigma[[1]])
-  
+
   vcsl <- list()
   consl <- list()
   for(k in 1:length(object$sigma)){
@@ -95,30 +95,30 @@ vcsExtract <- function(object){
   }
   mys2 <- do.call(rbind,vcsl)
   mycons <- do.call(rbind,consl)
-  
+
   rrr <- lapply(vcsl,rownames)
   rrr <- rrr[which(unlist(lapply(rrr, length)) > 0)]
   for(o in 1:length(rrr)){rrr[[o]] <- paste(names(rrr)[o],rrr[[o]],sep=".")}
   rownames(mys2) <- as.vector(unlist(rrr))
-  
+
   varcomp <- as.data.frame(cbind(mys2,sqrt(abs(diag(object$sigmaSE)))))
   varcomp[,3] <- varcomp[,1]/varcomp[,2]
   colnames(varcomp) <- c("VarComp","VarCompSE","Zratio")
   varcomp$Constraint <- replace.values(mycons$cons, 1:3, c("Positive","Unconstr","Fixed"))
-  
+
   output <- list(groups=groupss.nn, varcomp=varcomp, betas=coef, method=method,logo=LLAIC)
   attr(output, "class")<-c("summary.mmer", "list")
   return(output)
 }
 
 "print.summary.mmer"<-function (x, digits = max(3, getOption("digits") - 3),  ...){
-  
+
   nmaxchar0 <- max(as.vector(unlist(apply(data.frame(rownames(x$varcomp)),1,nchar))),na.rm = TRUE)
-  
+
   if(nmaxchar0 < 26){
     nmaxchar0 <- 26
   } # + 26 spaces we have nmaxchar0+26  spaces to put the title
-  
+
   nmaxchar <- nmaxchar0+34 ## add spaces from the 3 columns
   nmaxchar2 <- nmaxchar0+18
   nmaxchar3 <- nmaxchar0+34-46 #round(nmaxchar0/2)
@@ -153,7 +153,7 @@ vcsExtract <- function(object){
 }
 
 "summary.mmec" <- function(object, ...) {
-  
+
   replace.values <- function(Values,Search,Replace){
     dd0 <- data.frame(Values)
     vv <- which(Values%in%Search)
@@ -162,46 +162,46 @@ vcsExtract <- function(object){
     dd0[vv,"Values"] <- as.character(dd[Values[vv],"Replace"])
     return(dd0[,1])
   }
-  
+
   digits = max(3, getOption("digits") - 3)
-  
+
   lll <- object$llik
   lll2 <- lll[length(lll)]
-  
+
   LLAIC <- data.frame(as.numeric(lll2), as.numeric(object$AIC),
                       as.numeric(object$BIC), "AI", object$convergence)
   colnames(LLAIC) = c("logLik","AIC","BIC","Method","Converge")
   rownames(LLAIC) <- "Value"
   method="AI"
   coef <- data.frame(Estimate=object$b)
-  
+
   ## se and t values for fixed effects
   nX <- length(object$b)
   VarBeta <- object$Ci[1:nX,1:nX]
   s2.beta <- diag(as.matrix(VarBeta))
   coef$Std.Error <- sqrt(abs(s2.beta))
   coef$t.value <- coef$Estimate/coef$Std.Error
-  
-  mys2 <- object$monitor[,which(object$llik[1,] == max(object$llik[1,]))] 
+
+  mys2 <- object$monitor[,which(object$llik[1,] == max(object$llik[1,]))]
   varcomp <- as.data.frame(cbind(mys2,sqrt(diag(ginv(object$avInf/2)))))
   varcomp[,3] <- varcomp[,1]/varcomp[,2]
   colnames(varcomp) <- c("VarComp","VarCompSE","Zratio")
-  
+
   varcomp$Constraint <- replace.values(object$constraints, 1:3, c("Positive","Unconstr","Fixed"))
-  
+
   output <- list(varcomp=varcomp, betas=coef, method=method,logo=LLAIC)
   attr(output, "class")<-c("summary.mmec", "list")
   return(output)
 }
 
 "print.summary.mmec"<-function (x, digits = max(3, getOption("digits") - 3),  ...){
-  
+
   nmaxchar0 <- max(as.vector(unlist(apply(data.frame(rownames(x$varcomp)),1,nchar))),na.rm = TRUE)
-  
+
   if(nmaxchar0 < 26){
     nmaxchar0 <- 26
   } # + 26 spaces we have nmaxchar0+26  spaces to put the title
-  
+
   nmaxchar <- nmaxchar0+34 ## add spaces from the 3 columns
   nmaxchar2 <- nmaxchar0+18
   nmaxchar3 <- nmaxchar0+34-46 #round(nmaxchar0/2)
@@ -237,7 +237,7 @@ vcsExtract <- function(object){
 #### =========== ####
 
 "fitted.mmer" <- function(object,...){
-  
+
   if(is.null(object$call$random)){
     originalModelForMatrices <- mmer(fixed=object$call$fixed,
                                      # random=object$call$random,
@@ -246,7 +246,7 @@ vcsExtract <- function(object){
                                      init = object$sigma_scaled, constraints = object$constraints,
                                      naMethodY = object$call$naMethodY,
                                      naMethodX = object$call$naMethodX,...)
-    
+
     originalModelForParameters <- mmer(fixed=object$call$fixed,
                                        # random=object$call$random,
                                        rcov=object$call$rcov, nIters=1, verbose=FALSE,
@@ -262,7 +262,7 @@ vcsExtract <- function(object){
                                      init = object$sigma_scaled, constraints = object$constraints,
                                      naMethodY = object$call$naMethodY,
                                      naMethodX = object$call$naMethodX,...)
-    
+
     originalModelForParameters <- mmer(fixed=object$call$fixed,
                                        random=object$call$random,
                                        rcov=object$call$rcov, nIters=1, verbose=FALSE,
@@ -274,12 +274,12 @@ vcsExtract <- function(object){
   ys <- object$terms$response[[1]]
   nt <- length(ys) # number of traits
   TT <- diag(nt) # diagonal matrix
-  
+
   Xo <- do.call(cbind,originalModelForMatrices$X)
   X.mv.original <- kronecker(Xo,TT)
-  
+
   Xb=X.mv.original%*%originalModelForParameters$Beta
-  
+
   Zu=NULL
   if(!is.null(object$call$random)){
     nz <- length(originalModelForMatrices$Z)
@@ -290,13 +290,13 @@ vcsExtract <- function(object){
     }
   }
   names(Zu) <- names(object$U)
-  
+
   if(!is.null(object$call$random)){
     y.hat <- Xb + Reduce("+",Zu) # y.hat = Xb + Zu.1 + ... + Zu.n
   }else{
     y.hat <- Xb # y.hat = Xb
   }
-  
+
   Zudf <- as.matrix(do.call(cbind,Zu)); colnames(Zudf) <- paste0(names(Zu),".fitted")
   Xbdf <- as.matrix(Xb); colnames(Xbdf) <- "Xb.fitted"
   y.hat.df <- matrix(y.hat[,1],byrow = TRUE, ncol=nt)
@@ -310,7 +310,7 @@ vcsExtract <- function(object){
   used <- rep(TRUE,length(id))
   fittedSummary <- data.frame(namesLevels,formLevels,nLevels,id,used)
   colnames(fittedSummary) <- c("term","type","nLevels","id","used")
-  
+
   return(list(dataWithFitted=dataWithFitted,Xb=Xb, Zu=Zu,fittedSummary=fittedSummary))
 }
 
@@ -325,9 +325,9 @@ vcsExtract <- function(object){
 }
 
 "fitted.mmec" <- function(object,...){
-  
+
   ff <- object$W %*% object$bu
-  
+
   return(ff)
 }
 
@@ -345,14 +345,14 @@ vcsExtract <- function(object){
 #### =========== ######
 "residuals.mmer" <- function(object, ...) {
   digits = max(3, getOption("digits") - 3)
-  
+
   pp <- fitted.mmer(object)
   responses <- object$terms$response[[1]]
   dat <- pp$dataWithFitted
   for(ir in 1:length(responses)){
     dat[,paste0(responses[ir],".residuals")] = dat[,responses[ir]] - dat[,paste0(responses[ir],".fitted")]
   }
-  
+
   return(dat)
 }
 
@@ -389,7 +389,7 @@ vcsExtract <- function(object){
 
 "print.coef.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
   print((x))
-} 
+}
 
 "coef.mmec" <- function(object, ...){
   object$b
@@ -397,14 +397,14 @@ vcsExtract <- function(object){
 
 "print.coef.mmec"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
   print((x))
-} 
+}
 
 #### =========== ####
 ## ANOVA FUNCTION ###
 #### =========== ####
 anova.mmer <- function(object, object2=NULL, type=1, ...) {
   sequential.fit <- function(object, type=1){
-    
+
     fixed <- object$call$fixed
     yuyuf <- strsplit(as.character(fixed[3]), split = "[+-]")[[1]]
     fixedtermss <- apply(data.frame(yuyuf),1,function(x){
@@ -425,10 +425,10 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
     # }else{
     until <- length(fixedtermss)
     # }
-    
+
     namesl <- character(length = length(fixedtermss)+1)
     for(i in (until+1):1){
-      
+
       if(i == (length(fixedtermss)+1)){ # first the full model
         myf <- paste(response,"~",paste(fixedtermss,collapse = " + "))
         fixedi <- as.formula(myf)
@@ -462,13 +462,13 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
                       data=object$data, returnParam = FALSE,reshapeOutput=FALSE,
                       verbose = FALSE,
                       init = object$sigma_scaled, constraints = object$constraints,
-                      naMethodY = object$call$naMethodY, 
+                      naMethodY = object$call$naMethodY,
                       naMethodX = object$call$naMethodX)
         prov <- mmer(fixed=fixedi,
                      # random = object$call$random,
                      rcov=object$call$rcov,
                      data=object$data, returnParam = TRUE,
-                     naMethodY = object$call$naMethodY, 
+                     naMethodY = object$call$naMethodY,
                      naMethodX = object$call$naMethodX)
       }else{
         prov0 <- mmer(fixed=fixedi,
@@ -477,19 +477,19 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
                       data=object$data, returnParam = FALSE,reshapeOutput=FALSE,
                       verbose = FALSE,
                       init = object$sigma_scaled, constraints = object$constraints,
-                      naMethodY = object$call$naMethodY, 
+                      naMethodY = object$call$naMethodY,
                       naMethodX = object$call$naMethodX)
         prov <- mmer(fixed=fixedi,
                      random = object$call$random,
                      rcov=object$call$rcov,
                      data=object$data, returnParam = TRUE,
-                     naMethodY = object$call$naMethodY, 
+                     naMethodY = object$call$naMethodY,
                      naMethodX = object$call$naMethodX)
       }
       Y <- prov[[1]]
       n= nrow(Y)
       J = matrix(1, nrow=n, ncol=n)
-      # Total sum of Square 
+      # Total sum of Square
       SSTO = t(Y) %*% Y - (1/n)*t(Y)%*%J%*%Y
       Xlist <- list()
       # ncolsx <- numeric()
@@ -504,7 +504,7 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
       xdf <- ncolsx[length(ncolsx)]
       #X <- as.matrix(X[,1:2])
       b = as.matrix(prov0$Beta)
-      # regression sum of square 
+      # regression sum of square
       ss <- (SSR = t(b)%*%t(X)%*%Y - (1/n)%*%t(Y)%*%J%*%Y)
       if(i == (length(fixedtermss)+1)){
         SSM[i] = as.numeric(ss)
@@ -513,25 +513,25 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
       }
       df[i] <- xdf#ncol(X)
     }
-    
+
     myanova <- data.frame(Df=rev(df), Sum.Sq=rev(SSM))
-    
+
     # print(myanova)
     # print(c("Full",rev(namesl[-c(length(namesl))])))
     # rownames(myanova) <- c("Full",rev(namesl[-c(length(namesl))]))
-    
+
     #else{
     #   rownames(myanova) <- c("Full", "None", rev(fixedtermss[-c(1)]))
     # }
     myanova$Mean.Sq <- myanova$Sum.Sq/myanova$Df
-    
+
     vc <- object$sigma
     vare <- as.numeric(vc[[length(vc)]])
     dfe <- nrow(Y)-sum(myanova$Df)
     myanova2 <- data.frame(Df=dfe, Sum.Sq=NA,Mean.Sq=vare)
     rownames(myanova2) <- "Residuals"
     myanovaf <- rbind(myanova,myanova2)
-    
+
     myanovaf$F.value <- myanovaf$Mean.Sq/vare
     # print(c(myanovaf,dfe))
     myanovaf$`Pr(>F)` <- round(apply(myanovaf,1,function(x){1-pf(x[4],x[1],dfe)}),4)
@@ -588,9 +588,9 @@ anova.mmer <- function(object, object2=NULL, type=1, ...) {
       ### construct the table
       cat("Likelihood ratio test for mixed models\n")
       cat("==============================================================\n")
-      result=data.frame(Df=c(dis[vv],dis[vv2]), AIC=c(aics[vv],aics[vv2]), 
-                        BIC=c(bics[vv],bics[vv2]), loLik=c(lls[vv],lls[vv2]), 
-                        Chisq=c("",as.character(round(r.stat,5))), 
+      result=data.frame(Df=c(dis[vv],dis[vv2]), AIC=c(aics[vv],aics[vv2]),
+                        BIC=c(bics[vv],bics[vv2]), loLik=c(lls[vv],lls[vv2]),
+                        Chisq=c("",as.character(round(r.stat,5))),
                         ChiDf=c("",as.character(df)), PrChisq=c("",chichi2 ))
       rownames(result) <- c(mods[vv],mods[vv2])
       print(result)
@@ -639,15 +639,15 @@ anova.mmec <- function(object, object2=NULL, ...) {
     ### construct the table
     cat("Likelihood ratio test for mixed models\n")
     cat("==============================================================\n")
-    result=data.frame(Df=c(dis[vv],dis[vv2]), AIC=c(aics[vv],aics[vv2]), 
-                      BIC=c(bics[vv],bics[vv2]), loLik=c(lls[vv],lls[vv2]), 
-                      Chisq=c("",as.character(round(r.stat,5))), 
+    result=data.frame(Df=c(dis[vv],dis[vv2]), AIC=c(aics[vv],aics[vv2]),
+                      BIC=c(bics[vv],bics[vv2]), loLik=c(lls[vv],lls[vv2]),
+                      Chisq=c("",as.character(round(r.stat,5))),
                       ChiDf=c("",as.character(df)), PrChisq=c("",chichi2 ))
     rownames(result) <- c(mods[vv],mods[vv2])
     print(result)
     cat("==============================================================\n")
     cat("Signif. codes:  0 '***' 0.001 '**' 0.01 '*' 0.05 '.' 0.1 ' ' 1\n")
-    
+
     #}
   }
   return(result)
@@ -666,7 +666,7 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
                #random=x$call$random,
                rcov=x$call$rcov,
                data=x$data, returnParam = TRUE,#reshape.results=TRUE,
-               naMethodY = x$call$naMethodY, 
+               naMethodY = x$call$naMethodY,
                naMethodX = x$call$naMethodX)
   Xlist <- list()
   for(o in 1:length(prov[[3]])){
@@ -676,12 +676,12 @@ plot.mmer <- function(x, stnd=TRUE, ...) {
   # std vs residuals, QQplot (std vs teor quantiles), sqrt(std residuals) vs fitted, std res vs leverage = cook's distance
   traits <- ncol(x$fitted)
   layout(matrix(1:4,2,2))
-  
+
   resp <- x$terms$response[[1]]
   # ff <- fitted(x)
   rr <- residuals.mmer(x)
   for(i in 1:traits){
-    
+
     plot(rr[,paste0(resp[i],".fitted")],scale(rr[,paste0(resp[i],".residuals")]),pch=20, col=transp("cadetblue"), ylab="Std Residuals", xlab="Fitted values", main="Residual vs Fitted", bty="n", ...); grid()
     plot(rr[,paste0(resp[i],".fitted")],sqrt(abs(scale(rr[,paste0(resp[i],".residuals")]))),pch=20, col=transp("thistle4"), ylab="Sqrt Abs Std Residuals", xlab="Fitted values", main="Scale-Location", bty="n", ...); grid()
     qqnorm(scale(rr[,paste0(resp[i],".residuals")]), pch=20, col=transp("tomato1"), ylab="Std Residuals", bty="n",...); grid()
@@ -702,10 +702,10 @@ plot.mmec <- function(x, stnd=TRUE, ...) {
   # ff <- fitted(x)
   rr <- residuals.mmec(x)
   # for(i in 1:traits){
-    
+
     plot(rr,scale(rr),pch=20, col=transp("cadetblue"), ylab="Std Residuals", xlab="Fitted values", main="Residual vs Fitted", bty="n", ...); grid()
     plot(rr,sqrt(abs(scale(rr))),pch=20, col=transp("thistle4"), ylab="Sqrt Abs Std Residuals", xlab="Fitted values", main="Scale-Location", bty="n", ...); grid()
-    
+
     qqnorm(scale(rr), pch=20, col=transp("tomato1"), ylab="Std Residuals", bty="n",...); grid()
     # hat <- Xm%*%solve(t(Xm)%*%x$Vi%*%Xm)%*%t(Xm)%*%x$Vi # leverage including variance from random effects H= X(X'V-X)X'V-
     hat = x$W %*% x$Ci %*% t(x$W)
@@ -724,8 +724,8 @@ plot.mmec <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 2.1 or later")
   assign(".sommer.home", file.path(library, pkg),
          pos=match("package:sommer", search()))
-  sommer.version = "4.1.8 (2022-09-01)" # usually 2 months before it expires
-  
+  sommer.version = "4.1.8 (2023-01-01)" # usually 2 months before it expires
+
   assign(".sommer.version", sommer.version, pos=match("package:sommer", search()))
   if(interactive())
   {
@@ -741,7 +741,7 @@ plot.mmec <- function(x, stnd=TRUE, ...) {
     packageStartupMessage(blue("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
     packageStartupMessage(blue("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
     packageStartupMessage(blue("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
-    
+
   }
   invisible()
 }

@@ -44,7 +44,7 @@ modh <- mmer(sugar~1,
              data=DT)
 summary(modh)$varcomp
 
-Ai <- as(solve(A + diag(1e-4,ncol(A),ncol(A))), Class="sparseMatrix")
+Ai <- as(solve(A + diag(1e-4,ncol(A),ncol(A))), Class="dgCMatrix")
 modhb <- mmec(sugar~1, 
              random=~vsc(isc(overlay(femalef,malef, sparse = TRUE)), Gu=Ai) 
              + genof,

@@ -3,7 +3,7 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
   
-  init <- list(...) #  e.g. init <- list(us(data$Env),isc(data$Name)) | init <- list(dsc(data$YEAR),isc(data$units))
+  init <- list(...) #  e.g. init <- list(usc(data$Env),isc(data$Name)) | init <- list(dsc(data$YEAR),isc(data$units))
   
   namess <- as.character(substitute(list(...)))[-1L] # namess <- c("Env","Name") | namess <- c("YEAR","units")
   namess2 <- apply(data.frame(namess),1,function(x){ 

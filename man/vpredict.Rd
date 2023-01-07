@@ -74,7 +74,7 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
 # #### look at the data and fit the model
 # head(DT)
 # mix1 <- mmer(Yield~1,
-#               random=~vs(id,Gu=A), 
+#               random=~vsr(id,Gu=A), 
 #               data=DT)
 # summary(mix1)$varcomp
 # #### run the vpredict function
@@ -95,8 +95,8 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
 # #### look at the data and fit the model
 # head(DT)
 # mix2 <- mmer(cbind(Yield,color)~1,
-#                random=~vs(id,Gu=A, Gt=unsm(2)), 
-#                rcov=~vs(units, Gt=unsm(2)),
+#                random=~vsr(id,Gu=A, Gt=unsm(2)), 
+#                rcov=~vsr(units, Gt=unsm(2)),
 #               data=DT)
 # summary(mix2)$varcomp
 # ## genetic correlation
@@ -111,8 +111,8 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
 # data(DT_btdata)
 # DT <- DT_btdata
 # mix3 <- mmer(cbind(tarsus, back) ~ sex,
-#                random = ~ vs(dam, Gtc=unsm(2)) + vs(fosternest,Gtc=diag(2)),
-#                rcov=~vs(units,Gtc=unsm(2)),
+#                random = ~ vsr(dam, Gtc=unsm(2)) + vsr(fosternest,Gtc=diag(2)),
+#                rcov=~vsr(units,Gtc=unsm(2)),
 #                data = DT)
 # summary(mix3)$varcomp
 # #### calculate the genetic correlation

@@ -5,7 +5,7 @@
 # averaged is used to be included in the prediction
 # ignored is not used included in the prediction
 
-"predict.mmec" <- function(object, Dtable=NULL, D){
+"predict.mmec" <- function(object, Dtable=NULL, D, ...){
   
   
   if(is(D,"character")){ ## if user don't provide a D but a Dtable

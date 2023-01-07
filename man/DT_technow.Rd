@@ -51,8 +51,8 @@ Mf <- Mf_technow
 #              data=DT)
 # summary(ans2)$varcomp
 # 
-# Adi <- as(solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad))), Class="sparseMatrix")
-# Afi <- as(solve(Af + diag(1e-4,ncol(Af),ncol(Af))), Class="sparseMatrix")
+# Adi <- as(solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad))), Class="dgCMatrix")
+# Afi <- as(solve(Af + diag(1e-4,ncol(Af),ncol(Af))), Class="dgCMatrix")
 # ans2b <- mmec(GY~1,
 #              random=~vsc(isc(dent),Gu=Adi) + vsc(isc(flint),Gu=Afi),
 #              rcov=~units,

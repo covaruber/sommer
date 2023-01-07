@@ -1,5 +1,5 @@
 mmec <- function(fixed, random, rcov, data, W,
-                 nIters=20, tolParConvLL = 1e-03, 
+                 nIters=20, tolParConvLL = 1e-03,
                  tolParConvNorm = 1e-04, tolParInv = 1e-06,
                  naMethodX="exclude",
                  naMethodY="exclude",
@@ -7,22 +7,16 @@ mmec <- function(fixed, random, rcov, data, W,
                  dateWarning=TRUE,
                  verbose=TRUE, addScaleParam=NULL,
                  stepWeight=NULL, emWeight=NULL){
-  
-  my.year <- 2022
-  my.month <- 12 #month when the user will start to get notifications the 1st day of next month
-  ### if my month = 5, user will start to get notification in June 1st (next month)
-  datee <- Sys.Date()
-  year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
-  your.year <- year.mo.day[1]
-  your.month <- year.mo.day[2]
+
+  my.date <- "2023-04-01"
+  your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
   if(dateWarning){
-    if(your.month > my.month & your.year >= my.year){
-      # error if your month is greater and your year is smaller
+    if (your.date > my.date) {
       cat("Version out of date. Please update sommer to the newest version using:\ninstall.packages('sommer') in a new session\n Use the 'dateWarning' argument to disable the warning message.")
     }
   }
-  
+
   if(missing(data)){
     data <- environment(fixed)
     if(!missing(random)){
@@ -31,11 +25,11 @@ mmec <- function(fixed, random, rcov, data, W,
     nodata <-TRUE
     cat("data argument not provided \n")
   }else{nodata=FALSE}
-  
+
   if(missing(rcov)){
     rcov = as.formula("~units")
   }
-  
+
   #################
   ## do the needed for naMethodY and naMethodX
   dataor <- data
@@ -60,21 +54,21 @@ mmec <- function(fixed, random, rcov, data, W,
   # yvar <- scale(yvar)
   #################
   ## get Zs and Ks
-  
+
   Z <- Ai <- theta <- thetaC <- thetaF <- sp <- list()
   Zind <- numeric()
   rTermsNames <- list()
   counter <- 1
   if(!missing(random)){ # if there's random effects
-    
+
     yuyu <- strsplit(as.character(random[2]), split = "[+]")[[1]] # random parts
     rtermss <- apply(data.frame(yuyu),1,function(x){ # split random terms
       strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
     })
-    
+
     for(u in 1:length(rtermss)){ # for each random effect
       checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsc","spl2Dc1")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
-      
+
       if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
         rtermss[u] <- paste("vsc( isc(",rtermss[u],") )")
       }
@@ -92,28 +86,28 @@ mmec <- function(fixed, random, rcov, data, W,
       s1 <- paste(rownames(ff$thetaC)[baseNames[,"row"]], colnames(ff$thetaC)[baseNames[,"col"]],sep = ":")
       s2 <- paste(all.vars(as.formula(paste("~",rtermss[u]))),collapse=":")
       rTermsNames[[u]] <- paste(s2,s1,sep=":")
-      
+
       counter <- counter + 1
     }
   }
-  
+
   #################
   ## get Rs
-  
+
   yuyur <- strsplit(as.character(rcov[2]), split = "[+]")[[1]]
   rcovtermss <- apply(data.frame(yuyur),1,function(x){
     strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
   })
-  
+
   S <- list()
   Spartitions <- list()
   for(u in 1:length(rcovtermss)){ # for each random effect
     checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vsc","gvs","spl2Da","spl2Db")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
-    
+
     if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
       rcovtermss[u] <- paste("vsc( isc(",rcovtermss[u],") )")
     }
-    
+
     ff <- eval(parse(text = rcovtermss[u]),data,parent.frame()) # evalaute the variance structure
     S <- c(S, ff$Z)
     Spartitions <- c(Spartitions, ff$partitionsR)
@@ -126,12 +120,12 @@ mmec <- function(fixed, random, rcov, data, W,
     thetaC[[counter]] <- ff$thetaC
     thetaF[[counter]] <- ff$thetaF
     sp[[counter]] <- ff$sp#rep(ff$sp,length(ff$Z))
-    
+
     baseNames <- which( ff$thetaC > 0, arr.ind = TRUE)
     s1 <- paste(rownames(ff$thetaC)[baseNames[,"row"]], colnames(ff$thetaC)[baseNames[,"col"]],sep = ":")
     s2 <- paste(all.vars(as.formula(paste("~",rcovtermss[u]))),collapse=":")
     rTermsNames[[counter]] <- paste(s2,s1,sep=":")
-    
+
     checkvs <- numeric() # restart the check
     counter <- counter + 1
   }
@@ -144,8 +138,8 @@ mmec <- function(fixed, random, rcov, data, W,
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
   mf <- eval(mf, parent.frame())
   X <-  Matrix::sparse.model.matrix(newfixed, mf)
-  
-  
+
+
   partitionsX <- list()#as.data.frame(matrix(NA,length(fixedTerms),2))
   for(ix in 1:length(fixedTerms)){
     effs <- colnames(Matrix::sparse.model.matrix(as.formula(paste("~",fixedTerms[ix],"-1")), mf))
@@ -154,7 +148,7 @@ mmec <- function(fixed, random, rcov, data, W,
   }
   names(partitionsX) <- fixedTerms
   classColumns <- lapply(data,class)
-  
+
   for(ix in 1:length(fixedTerms)){
     colnamesBase <- colnames(X)[partitionsX[[ix]]]
     colnamesBaseList <- strsplit(colnamesBase,":")
@@ -172,11 +166,11 @@ mmec <- function(fixed, random, rcov, data, W,
   step2 <- unlist(apply(data.frame(step1),1,function(x){strsplit(as.character(x), split = "[+]")[[1]]}))
   intercCheck <- ifelse(length(intersect(c("1","-1"),step2)) == 0, TRUE, FALSE) # if length is zero it means that we have an intercept
   if(intercCheck){colnames(X)[1] <- "Intercept"}
-  
+
   #################
   #################
   ## weight matrix
-  
+
   if(missing(W)){
     x <- data.frame(d=as.factor(1:length(yvar)))
     W <- sparse.model.matrix(~d-1, x)
@@ -185,33 +179,33 @@ mmec <- function(fixed, random, rcov, data, W,
     W <- as(W, Class = "dgCMatrix")
     useH=TRUE
   }
-  
+
   #################
   #################
   ## information weights
-  
+
   if(is.null(emWeight)){
     emWeight <- c(seq(1,.1,-.15),rep(0.04,nIters))
   }
   if(is.null(stepWeight)){
     w <- which(emWeight <= .04) # where AI starts
     if(length(w) > 0){
-      stepWeight <- rep(.9,nIters); 
+      stepWeight <- rep(.9,nIters);
       if(nIters > 1){stepWeight[w[1:2]] <- c(0.5,0.7)} # .5, .7
     }else{
-      stepWeight <- rep(.9,nIters); 
+      stepWeight <- rep(.9,nIters);
       if(nIters > 1){stepWeight[1:2] <- c(0.5,0.7)} # .5, .7
     }
     # stepWeight[1:3]=3
   }
-  
+
   #################
   #################
   ## information weights
   theta <- lapply(theta, function(x){return(x*Vy)})
-  
+
   if(returnParam){
-    
+
     # args <- list(fixed=fixed, random=random, rcov=rcov, data=data, W=W,
     #              nIters=nIters, tolParConv=tolParConv, tolParInv=tolParInv,
     #              naMethodX=naMethodX,
@@ -219,31 +213,31 @@ mmec <- function(fixed, random, rcov, data, W,
     #              returnParam=returnParam,
     #              dateWarning=dateWarning,
     #              verbose=verbose)
-    # 
+    #
     # good <- provdat$good
-    
+
     thetaFinput <- do.call(adiag1,thetaF)
     if(is.null(addScaleParam)){addScaleParam=0}
     thetaFinputSP <- unlist(sp)
     thetaFinput <- cbind(thetaFinput,thetaFinputSP)
     thetaFinput
-    
+
     res <- list(yvar=yvar, X=X,Z=Z,Zind=Zind,Ai=Ai,S=S,Spartitions=Spartitions, W=W, useH=useH,
-                nIters=nIters, tolParConvLL=tolParConvLL, tolParConvNorm=tolParConvNorm, 
+                nIters=nIters, tolParConvLL=tolParConvLL, tolParConvNorm=tolParConvNorm,
                 tolParInv=tolParInv,
                 verbose=verbose, addScaleParam=addScaleParam,
                 theta=theta,thetaC=thetaC, thetaF=thetaFinput,
-                stepWeight=stepWeight,emWeight=emWeight 
+                stepWeight=stepWeight,emWeight=emWeight
     )
   }else{
-    
+
     thetaFinput <- do.call(adiag1,thetaF)
     if(is.null(addScaleParam)){addScaleParam=0}
     thetaFinputSP <- unlist(sp)
-   
+
     thetaFinput <- cbind(thetaFinput,thetaFinputSP)
     thetaFinput
-    
+
     res <- .Call("_sommer_ai_mme_sp",PACKAGE = "sommer",
                  X,Z, Zind,
                  Ai,yvar,
@@ -255,7 +249,7 @@ mmec <- function(fixed, random, rcov, data, W,
                  emWeight,
                  stepWeight,
                  verbose)
-    
+
     # res <-ai_mme_sp(X=X,ZI=Z, Zind=Zind,
     #                 AiI=Ai,y=yvar,
     #                 SI=S, Spartitions,
@@ -269,7 +263,7 @@ mmec <- function(fixed, random, rcov, data, W,
     #                 weightInf=stepWeight,
     #                 verbose=verbose
     # )
-    
+
     rownames(res$b) <- colnames(X)
     if(!missing(random)){
       rownames(res$u) <- unlist(lapply(Z, colnames))

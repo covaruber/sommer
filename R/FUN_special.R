@@ -363,7 +363,7 @@ atr <- function(x, levs){
       colnames(mm) <- rownames(mm) <- colnames(dummy)
     }
   }
-  return(list(dummy,mm))
+  return(list(Z=dummy,thetaC=mm))
 }
 csr <- function(x,mm){
   if(is.matrix(x)){
@@ -388,7 +388,7 @@ csr <- function(x,mm){
   }
   # mm[lower.tri(mm)] <- 0
   colnames(mm) <- rownames(mm) <- colnames(dummy)
-  return(list(dummy,mm))
+  return(list(Z=dummy,thetaC=mm))
 }
 dsr <- function(x){
   if(is.matrix(x)){
@@ -414,7 +414,7 @@ dsr <- function(x){
     }
   }
   colnames(mm) <- rownames(mm) <- colnames(dummy)
-  return(list(dummy,mm))
+  return(list(Z=dummy,thetaC=mm))
 }
 usr <- function(x){
   # namx <- as.character(substitute(list(x)))[-1L]
@@ -440,7 +440,7 @@ usr <- function(x){
     mm <- unsm(ncol(dummy))
   }
   colnames(mm) <- rownames(mm) <- colnames(dummy) 
-  return(list(dummy,mm))
+  return(list(Z=dummy,thetaC=mm))
 }
 
 ###############

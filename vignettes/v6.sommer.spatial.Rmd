@@ -90,7 +90,7 @@ summary(m1.sommer)$varcomp
 # lattice::levelplot(fit~row*col,data=DT)
 
 ```
-
+ 
 ### 2) Two dimensional splines (single spatial component)
 
 To reduce the computational burden of fitting multiple spatial kernels `sommer` provides a single spatial kernel method through the `spl2Da` function. This as will be shown, can produce similar results to the more flexible model. Use the one that fits better your needs.

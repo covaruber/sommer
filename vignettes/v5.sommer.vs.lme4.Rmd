@@ -85,7 +85,7 @@ summary(fm2)$varcomp
 # summary(fm2)$varcomp
 
 ```
-
+ 
 Notice that Days is a numerical (not factor) variable.
 
 ## 3) Random slopes and random intercepts (with correlation)

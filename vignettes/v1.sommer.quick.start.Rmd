@@ -249,7 +249,7 @@ Very often in multi-environment trials, the assumption that the genetic variance
 
 data(DT_example)
 DT <- DT_example
-
+ 
 ans2r <- mmer(Yield~Env,
               random= ~Name + vsr(dsr(Env),Name),
               rcov= ~ vsr(dsr(Env),units),

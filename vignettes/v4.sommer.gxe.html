@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2022-09-02" />
+<meta name="date" content="2022-09-08" />
 
 <title>Fitting genotype by environment models in sommer</title>
 
@@ -349,7 +349,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Fitting genotype by environment models in sommer</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2022-09-02</h4>
+<h4 class="date">2022-09-08</h4>
 
 
 
@@ -406,7 +406,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ## ============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
 <div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1"></a><span class="co"># or</span></span>
-<span id="cb8-2"><a href="#cb8-2"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(<span class="kw">solve</span>(A), <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
+<span id="cb8-2"><a href="#cb8-2"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(<span class="kw">solve</span>(A), <span class="dt">Class=</span><span class="st">&quot;dgCMatrix&quot;</span>)</span>
 <span id="cb8-3"><a href="#cb8-3"></a>ansSingle &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
 <span id="cb8-4"><a href="#cb8-4"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">isc</span>(Name), <span class="dt">Gu=</span>Ai),</span>
 <span id="cb8-5"><a href="#cb8-5"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
@@ -464,7 +464,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1"></a><span class="co"># or </span></span>
 <span id="cb12-2"><a href="#cb12-2"></a></span>
-<span id="cb12-3"><a href="#cb12-3"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(<span class="kw">solve</span>(A), <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
+<span id="cb12-3"><a href="#cb12-3"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(<span class="kw">solve</span>(A), <span class="dt">Class=</span><span class="st">&quot;dgCMatrix&quot;</span>)</span>
 <span id="cb12-4"><a href="#cb12-4"></a>ansMain &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
 <span id="cb12-5"><a href="#cb12-5"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">isc</span>(Name), <span class="dt">Gu=</span>Ai),</span>
 <span id="cb12-6"><a href="#cb12-6"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
@@ -526,7 +526,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ## ============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
 <div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1"></a><span class="co"># or</span></span>
-<span id="cb16-2"><a href="#cb16-2"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(<span class="kw">solve</span>(A), <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
+<span id="cb16-2"><a href="#cb16-2"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(<span class="kw">solve</span>(A), <span class="dt">Class=</span><span class="st">&quot;dgCMatrix&quot;</span>)</span>
 <span id="cb16-3"><a href="#cb16-3"></a>ansDG &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
 <span id="cb16-4"><a href="#cb16-4"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">dsc</span>(Env),<span class="kw">isc</span>(Name), <span class="dt">Gu=</span>Ai),</span>
 <span id="cb16-5"><a href="#cb16-5"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
@@ -595,9 +595,9 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <span id="cb20-3"><a href="#cb20-3"></a>Ei &lt;-<span class="st"> </span><span class="kw">solve</span>(E)</span>
 <span id="cb20-4"><a href="#cb20-4"></a>Ai &lt;-<span class="st"> </span><span class="kw">solve</span>(A)</span>
 <span id="cb20-5"><a href="#cb20-5"></a>EAi &lt;-<span class="st"> </span><span class="kw">kronecker</span>(Ei,Ai, <span class="dt">make.dimnames =</span> <span class="ot">TRUE</span>)</span>
-<span id="cb20-6"><a href="#cb20-6"></a>Ei &lt;-<span class="st"> </span><span class="kw">as</span>(Ei, <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
-<span id="cb20-7"><a href="#cb20-7"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(Ai, <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
-<span id="cb20-8"><a href="#cb20-8"></a>EAi &lt;-<span class="st"> </span><span class="kw">as</span>(EAi, <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
+<span id="cb20-6"><a href="#cb20-6"></a>Ei &lt;-<span class="st"> </span><span class="kw">as</span>(Ei, <span class="dt">Class=</span><span class="st">&quot;dgCMatrix&quot;</span>)</span>
+<span id="cb20-7"><a href="#cb20-7"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(Ai, <span class="dt">Class=</span><span class="st">&quot;dgCMatrix&quot;</span>)</span>
+<span id="cb20-8"><a href="#cb20-8"></a>EAi &lt;-<span class="st"> </span><span class="kw">as</span>(EAi, <span class="dt">Class=</span><span class="st">&quot;dgCMatrix&quot;</span>)</span>
 <span id="cb20-9"><a href="#cb20-9"></a>ansCS &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
 <span id="cb20-10"><a href="#cb20-10"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">isc</span>(Name), <span class="dt">Gu=</span>Ai) <span class="op">+</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">isc</span>(Env<span class="op">:</span>Name), <span class="dt">Gu=</span>EAi),</span>
 <span id="cb20-11"><a href="#cb20-11"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units, </span>
@@ -670,7 +670,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <span id="cb24-3"><a href="#cb24-3"></a></span>
 <span id="cb24-4"><a href="#cb24-4"></a><span class="co"># or</span></span>
 <span id="cb24-5"><a href="#cb24-5"></a>Ai &lt;-<span class="st"> </span><span class="kw">solve</span>(A)</span>
-<span id="cb24-6"><a href="#cb24-6"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(Ai, <span class="dt">Class=</span><span class="st">&quot;sparseMatrix&quot;</span>)</span>
+<span id="cb24-6"><a href="#cb24-6"></a>Ai &lt;-<span class="st"> </span><span class="kw">as</span>(Ai, <span class="dt">Class=</span><span class="st">&quot;dgCMatrix&quot;</span>)</span>
 <span id="cb24-7"><a href="#cb24-7"></a>ansUS &lt;-<span class="st"> </span><span class="kw">mmec</span>(Yield<span class="op">~</span>Env,</span>
 <span id="cb24-8"><a href="#cb24-8"></a>              <span class="dt">random=</span> <span class="op">~</span><span class="st"> </span><span class="kw">vsc</span>(<span class="kw">usc</span>(Env),<span class="kw">isc</span>(Name), <span class="dt">Gu=</span>Ai),</span>
 <span id="cb24-9"><a href="#cb24-9"></a>              <span class="dt">rcov=</span> <span class="op">~</span><span class="st"> </span>units,</span>
@@ -960,9 +960,9 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <pre><code>## Using the weights matrix</code></pre>
 <div class="sourceCode" id="cb42"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1"></a><span class="kw">summary</span>(ans2)<span class="op">$</span>varcomp</span></code></pre></div>
 <pre><code>##                     VarComp VarCompSE     Zratio Constraint
-## Effect:isc:isc     2.463610 0.2275963 10.8244720   Positive
-## Env:Effect:isc:isc 5.754576 0.6055289  9.5033881   Positive
-## units:m:           1.000000 1.8910611  0.5288036      Fixed</code></pre>
+## Effect:isc:isc     2.459336 0.2279828 10.7873760   Positive
+## Env:Effect:isc:isc 5.756794 0.6051921  9.5123406   Positive
+## units:m:           1.000000 1.8799484  0.5319295      Fixed</code></pre>
 </div>
 <div id="literature" class="section level2">
 <h2>Literature</h2>

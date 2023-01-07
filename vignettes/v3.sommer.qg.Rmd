@@ -206,7 +206,7 @@ In addition, other functions can be added on top to fit models with covariance s
 # data(DT_cornhybrids)
 # DT <- DT_cornhybrids
 # DTi <- DTi_cornhybrids
-# GT <- as(GT_cornhybrids, Class = "sparseMatrix")
+# GT <- as(GT_cornhybrids, Class = "dgCMatrix")
 # GT[1:4,1:4]
 # DT=DT[with(DT, order(Location)), ]
 # ### fit the model
@@ -216,7 +216,7 @@ In addition, other functions can be added on top to fit models with covariance s
 #               data=DT, verbose = FALSE)
 # summary(modFD)
 ```
-
+ 
 ### 3) Using the vpredict calculator
 
 Sometimes the user needs to calculate ratios or functions of specific variance-covariance components and obtain the standard errors for such parameters. Examples of these are the genetic correlations, heritabilities, etc. Using the CPdata we will show how to estimate the heritability and the standard error using the `vpredict()` function that uses the delta method to come up with these parameters. This can be extended for any linear combination of the variance components.
@@ -457,8 +457,8 @@ Md <- (Md_technow*2) - 1
 Mf <- (Mf_technow*2) - 1
 Ad <- A.mat(Md)
 Af <- A.mat(Mf)
-Adi <- as(solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad))), Class="sparseMatrix")
-Afi <- as(solve(Af + diag(1e-4,ncol(Af),ncol(Af))), Class="sparseMatrix")
+Adi <- as(solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad))), Class="dgCMatrix")
+Afi <- as(solve(Af + diag(1e-4,ncol(Af),ncol(Af))), Class="dgCMatrix")
 # RUN THE PREDICTION MODEL
 y.trn <- DT
 vv1 <- which(!is.na(DT$GY))

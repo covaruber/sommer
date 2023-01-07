@@ -8,22 +8,16 @@ mmer <- function(fixed, random, rcov, data, weights, W,
                  dateWarning=TRUE, date.warning=TRUE,
                  verbose=TRUE,reshapeOutput=TRUE,
                  stepWeight=NULL, emWeight=NULL){
-  
-  my.year <- 2022
-  my.month <- 12 #month when the user will start to get notifications the 1st day of next month
-  ### if my month = 5, user will start to get notification in June 1st (next month)
-  datee <- Sys.Date()
-  year.mo.day <- as.numeric(strsplit(as.character(datee),"-")[[1]])# <- as.numeric(strsplit(gsub("....-","",datee),"-")[[1]])
-  your.year <- year.mo.day[1]
-  your.month <- year.mo.day[2]
+
+  my.date <- "2023-04-01"
+  your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
   if(dateWarning){
-    if(your.month > my.month & your.year >= my.year){
-      # error if your month is greater and your year is smaller
+    if (your.date > my.date) {
       cat("Version out of date. Please update sommer to the newest version using:\ninstall.packages('sommer') in a new session\n Use the 'dateWarning' argument to disable the warning message.")
     }
   }
-  
+
   if(missing(data)){
     data <- environment(fixed)
     if(!missing(random)){
@@ -32,11 +26,11 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     nodata <-TRUE
     cat("data argument not provided \n")
   }else{nodata=FALSE}
-  
+
   if(missing(rcov)){
     rcov = as.formula("~units")
   }
-  
+
   #################
   ## do the needed for naMethodY and naMethodX
   dataor <- data
@@ -78,15 +72,15 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     ges <- list()
     gesI <- list()
     re_namel1 <- list()
-    
-    
+
+
     # bn=0.1
     bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
     # print(str(data))
     # print(str(model.matrix(~id-1,data)))
     # print(str(as(model.matrix(~id-1,data), Class = "sparseMatrix")))
     for(u in 1:length(rtermss)){ # for each random effect
-      
+
       checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vs","vsr","gvsr","spl2Da","spl2Db")) #
       # print(checkvs)
       if(length(checkvs)>0){ ## if this term is a variance structure
@@ -138,7 +132,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
             ff$Gtc[lower.tri(ff$Gtc)] <- 0
             gesI[[u]] <- rep(list(ff$Gtc),length(ff$Z))
           }
-          
+
         }
         # print(ff$Gtc)
         # print(gesI[[u]])
@@ -177,9 +171,9 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   termsEN <- numeric()
   bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
   for(u in 1:length(rcovtermss)){
-    
+
     checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vs","vsr","gvsr"))
-    
+
     if(length(checkvs)>0){ ## if this term is a variance structure
       ff <- eval(parse(text = rcovtermss[u]),data,parent.frame())# envir = data)
       rs[[u]] <- ff$Z
@@ -222,7 +216,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   gesr <- unlist(gesr,recursive=FALSE)
   gesIr <- unlist(gesIr,recursive=FALSE)
   re_namel2 <- unlist(re_namel2,recursive=FALSE)
-  
+
   if(!missing(random)){
     GES <- c(ges,gesr)
     GESI <- c(gesI,gesIr)
@@ -230,14 +224,14 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     GES <- c(gesr)
     GESI <- c(gesIr)
   }
-  
+
   #################
   #################
   ## get Xs
-  
+
   # Expand the fixed terms to handle interactions
   fixedtermss <- attr(terms(fixed),"term.labels")
-  
+
   # yuyuf <- strsplit(as.character(fixed[3]), split = "[+-]")[[1]]
   # yuyufint <- strsplit(as.character(fixed[3]), split = "[+]")[[1]]
   # fixedtermss <- apply(data.frame(yuyuf),1,function(x){
@@ -247,7 +241,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   # test1 <- length(which(fixedtermss %in% "1"))
   # test2 <- length(which(fixedtermss %in% "-1"))
   # test2 <- length(c( grep("-1", yuyufint), grep("- 1", yuyufint) ))
-  
+
   # This will handle cases when user enters 1 anywhere in the fixed effects
   if(attr(terms(fixed),"intercept")==1){ # there should be intercept
     useinter <- TRUE
@@ -271,7 +265,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     }
     addxs <- do.call(cbind,addxs)
   }else{fixedvsterms <- NULL}
-  
+
   # '%!in%' <- function(x,y)!('%in%'(x,y))
   # if(test1 == 0 & test2 == 0){ # there should be intercept
   #   fixedtermss <- c("1",fixedtermss)
@@ -281,7 +275,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   #   fixedtermss <- fixedtermss[which(fixedtermss%!in%"1")]
   #   fixedtermss <- c("-1",fixedtermss)
   # }
-  
+
   # print(fixedtermss)
   newfixed <- as.formula(paste("~",paste(fixedtermss,collapse = "+")))
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
@@ -323,18 +317,18 @@ mmer <- function(fixed, random, rcov, data, weights, W,
       if(is.null(ffx$Gti)){ ## initial vc if user don't provide them
         gesf[[u]] <- list(( matrix(1,nt,nt) * 0 + 1) * 0.1 + diag(0.05, nt))
       }else{gesf[[u]] <- rep(list(ffx$Gti),length(ffx$Z))}
-      
+
       if(is.null(ffx$Gtc)){ ## contraints if user don't provide them
         mm <- diag(1,nt,nt); mm[lower.tri(mm)] <- 0; #mm[upper.tri(mm)] <- 2
         gesIf[[u]] <- list(mm)
       }else{gesIf[[u]] <- rep(list(ffx$Gtc),length(ffx$Z))}
     }else{ ## if is a normal term
-      
+
       if(allfixedterms[u] == "1"){
         findlevs <- colnames(model.matrix(as.formula(paste("~",allfixedterms[u])), data=data))
       }else{
         findlevs <- colnames(model.matrix(as.formula(paste("~",allfixedterms[u],"-1")), data=data))
-        
+
         check9 <- grep(":",allfixedterms[u])
         if(length(check9) > 0){
           splitby0 <- strsplit(allfixedterms[u],":")[[1]]
@@ -364,14 +358,14 @@ mmer <- function(fixed, random, rcov, data, weights, W,
       findlevs2 <- which(colnames(baseX) %in% findlevs)
       xpp <- as.matrix(baseX[, findlevs2])
       colnames(xpp) <- colnames(baseX)[findlevs2]
-      
+
       xs[[u]] <- list(xpp)
       gesf[[u]] <- list(( matrix(1,nt,nt) * 0 + 1) * 0.1 + diag(0.05, nt))
       mm <- diag(1,nt,nt); mm[lower.tri(mm)] <- 0; #mm[upper.tri(mm)] <- 2
       gesIf[[u]] <- list(mm)
     }
   }
-  
+
   # print(str(xs))
   # print(str(gesIf))
   gesIx <- unlist(gesIf,recursive=FALSE)
@@ -381,7 +375,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   #################
   #################
   ## weights
-  
+
   if(!missing(weights)){
     col1 <- deparse(substitute(weights))
     coco <- data[[col1]]
@@ -390,22 +384,22 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     WW <- diag(1/sqrt(coco)) # W is already squared and inverted
   }else{
     isInvW=TRUE
-    ws <- rep(1,nrow(yvar))
-    WW <- diag(ws) # W is already squared and inverted
+    ws <- rep(1,nrow(yvar)) # we build W as a diagonal
+    WW <- diag(ws) #
   }
   if(!missing(W)){
     isInvW=FALSE
     WW <- W # user has provided W and needs to be squared and inverted
   }
-  
+
   if(is.null(stepWeight)){
     stepWeight <- rep(0.9,nIters); stepWeight[1:2] <- c(0.5,0.7)
   }
-  
+
   if(is.null(emWeight)){
     emWeight <- rep(0, nIters)
   }
-  
+
   #################
   ## subset data
   if(method == "NR"){
@@ -444,23 +438,23 @@ mmer <- function(fixed, random, rcov, data, weights, W,
                    dateWarning=dateWarning,
                    verbose=verbose,reshapeOutput=reshapeOutput)
     }
-    
+
     res <- list(yvar=yvar, X=X,Gx=Gx,Z=Z,K=K,R=R,GES=GES,GESI=GESI, W=WW, isInvW=isInvW,
                 nIters=nIters, tolParConvLL=tolParConvLL, tolParInv=tolParInv,
                 selected=selected,getPEV=getPEV,verbose=verbose, retscaled=FALSE,
                 re_names=re_names,good=good,fixedtermss=fixedtermss,args=args, stepWeight=stepWeight,
-                emWeight=emWeight # emupdate=emupdate, 
+                emWeight=emWeight # emupdate=emupdate,
     )
   }else{
-    
+
     res <- .Call("_sommer_MNR",PACKAGE = "sommer",yvar, X,Gx,Z,K,R,GES,GESI, WW, isInvW,
                  nIters, tolParConvLL, tolParInv,
-                 selected,getPEV,verbose, FALSE, stepWeight, emWeight) # emupdate, 
-    
+                 selected,getPEV,verbose, FALSE, stepWeight, emWeight) # emupdate,
+
     # res <- MNR(yvar, X,Gx,Z,K,R,GES,GESI, W,isInvW,
     #              nIters, tolParConvLL, tolParInv,
     #              selected,getPEV,verbose, FALSE)
-    
+
     if(length(res) > 0){
       nslices <- dim(res$sigma)[3]
       itraits <- colnames(yvar)

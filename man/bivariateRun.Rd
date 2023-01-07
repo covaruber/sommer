@@ -44,10 +44,10 @@
 # #### look at the data and fit the model
 # head(DT)
 # ans.m <- mmer(cbind(Yield,color,FruitAver, Firmness)~1,
-#                random=~ vs(id, Gu=A, Gtc=unsm(4))
-#                + vs(Rowf,Gtc=diag(4))
-#                + vs(Colf,Gtc=diag(4)), na.method.Y="include",
-#                rcov=~ vs(units,Gtc=unsm(4)), return.param = TRUE,
+#                random=~ vsr(id, Gu=A, Gtc=unsm(4))
+#                + vsr(Rowf,Gtc=diag(4))
+#                + vsr(Colf,Gtc=diag(4)), na.method.Y="include",
+#                rcov=~ vsr(units,Gtc=unsm(4)), return.param = TRUE,
 #                data=DT)
 # 
 # # define the number of cores (number of bivariate models) as (nt*(nt-1))/2 
@@ -58,10 +58,10 @@
 # mm <- transformConstraints(ans.m[[8]],3)
 # 
 # ans.m.final <- mmer(cbind(Yield,color,FruitAver, Firmness)~1,
-#               random=~ vs(id, Gu=A, Gtc=unsm(4))
-#               + vs(Rowf,Gtc=diag(4))
-#               + vs(Colf,Gtc=diag(4)), na.method.Y="include",
-#               rcov=~ vs(units,Gtc=unsm(4)), 
+#               random=~ vsr(id, Gu=A, Gtc=unsm(4))
+#               + vsr(Rowf,Gtc=diag(4))
+#               + vsr(Colf,Gtc=diag(4)), na.method.Y="include",
+#               rcov=~ vsr(units,Gtc=unsm(4)), 
 #               init = res$sigmas_scaled, constraints = mm,
 #               data=DT, iters=1)
 # 

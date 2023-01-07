@@ -4,7 +4,7 @@
 \description{\code{predict} method for class \code{"mmec"}.
 }
 \usage{
-\method{predict}{mmec}(object, Dtable=NULL, D)
+\method{predict}{mmec}(object, Dtable=NULL, D, \dots)
 }
 \arguments{
  \item{object}{a mixed model of class \code{"mmec"}}
@@ -20,6 +20,7 @@
  
  }
  \item{D}{a character string specifying the variable used to extract levels for the rows of the D matrix and its construction. Alternatively, the D matrix (of class dgCMatrix) specifying the matrix to be used for the predictions directly.}
+ \item{\dots}{Further arguments to be passed.}
 }
 \details{
   This function allows to produce predictions specifying those variables that define the margins of the hypertable to be predicted (argument classify). Predictions are obtained for each combination of values of the specified variables that is present in the data set used to fit the model. See vignettes for more details. 
