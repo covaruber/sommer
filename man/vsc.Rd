@@ -37,7 +37,7 @@
 
    \item{meThetaC}{constraints for the variance covariance matrix between the main effects desired.}
 
-   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmer function through the addScaleParam argument.}
+   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmec function through the addScaleParam argument.}
 
 }
 \details{

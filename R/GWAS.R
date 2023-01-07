@@ -27,8 +27,8 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
   dwToUse <- c(dateWarning,date.warning)
   v<-which(!dwToUse)
   if(length(v) == 0){v<-1}
-  ## return all parameters for a mixed model
-  res <- mmer(fixed=fixed, random=random, rcov=rcov, data=data, weights=weights, W=W, 
+  ## return all parameters for a mixed model (NOT ACTUAL FITTING)
+  res <- mmer(fixed=fixed, random=random, rcov=rcov, data=data, weights=weights, W=W,  # silence weights and W when testing
               nIters=nIters, tolParConvLL=tolParConvLL, tolParInv=tolParInv, 
               init=init, constraints=constraints, method=method, 
               getPEV=getPEV,
@@ -41,74 +41,121 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
               )
   # print(str(res))
   
-  if(returnParam){
+  if(returnParam){ # if user only wants the initial parameters and objects
     lastmodel <- res
-  }else{
+  }else{  # if actual fitting is required
     ## fit initial models if P3D
-    if(P3D){
+    if(P3D){ # same VC for all markers
       lastmodel <- .Call("_sommer_MNR",PACKAGE = "sommer",res$yvar, res$X,res$Gx,
                          res$Z,res$K,res$R,res$GES,res$GESI,res$W, res$isInvW,
                          res$nIters,res$tolParConvLL,res$tolParInv, res$selected,res$getPEV,res$verbose,
                          TRUE, res$stepWeight, res$emWeight)
       Vinv <- lastmodel$Vi
-    }else{
-      lastmodel <- .Call("_sommer_MNR",PACKAGE = "sommer",res$yvar, res$X,res$Gx,
-                         res$Z,res$K,res$R,res$GES,res$GESI,res$W, res$isInvW,
-                         res$nIters,res$tolParConvLL,res$tolParInv, res$selected,res$getPEV,FALSE,
-                         TRUE, res$stepWeight, res$emWeight)
-      Vinv <- lastmodel$Vi
+      ## get names of random effects
+      re_names <- unlist(res$re_names)
+      re_names <- gsub("\\(Intercept):","",re_names)
+      gTermi <- which(re_names %in% gTerm)
+      if(length(gTermi) < 1){
+        stop("No match between the Gterm and the random effects present.")
+      }
+      ## get input matrices
+      Y <- scale(res$yvar) 
+      Z <- do.call(cbind,res$Z[gTermi])
+      
+      if (n.PC > 0) {
+        Kb <- do.call(adiag1,res$K[gTermi])
+        eig.vec <- eigen(Kb)$vectors
+        X <- do.call(cbind,res$X)
+        zbeig <- Z %*% eig.vec[,1:n.PC]
+        X <- make.full(cbind(X,zbeig))
+      }else {
+        X <- do.call(cbind,res$X)
+        X <- make.full(X)
+      }
+      
+      if(nrow(M) != ncol(Z)){
+        stop(paste("Marker matrix M needs to have same numbers of rows(",nrow(M),") than columns of the gTerm incidence matrix(",ncol(Z),")."),call. = FALSE)
+      }
+      
+      if(length(which(rownames(M) != colnames(Z)))){
+        M <- M[colnames(Z),]
+      }
+      m <- ncol(M); colnamesM <- colnames(M)
+      ######################
+      ## scorecalc function
+      ######################
+      cat(red("Performing GWAS evaluation\n"))
+      preScores <- .Call("_sommer_gwasForLoop",PACKAGE = "sommer",
+                         M,Y,as.matrix(Z),X,Vinv,min.MAF,TRUE
+      ) 
+      v2 <- length(Y) - ((ncol(X)+1)*ncol(Y)) # ncol(XZMi)
+      scores <- -log10(pbeta(preScores, v2/2, 1/2))
+      ########################
+      rownames(scores) <- colnames(M)
+      colnames(scores) <- colnames(Y)
+      
+      lastmodel$scores <- scores
+      lastmodel$method <- method
+      lastmodel$constraints <- res[[8]]
+      class(lastmodel)<-c("mmergwas")
+    }else{ # if different variance for each marker
+      
+      ## get names of random effects
+      re_names <- unlist(res$re_names)
+      re_names <- gsub("\\(Intercept):","",re_names)
+      gTermi <- which(re_names %in% gTerm)
+      if(length(gTermi) < 1){
+        stop("No match between the Gterm and the random effects present.")
+      }
+      Y <- scale(res$yvar) 
+      Z <- do.call(cbind,res$Z[gTermi])
+      if(nrow(M) != ncol(Z)){
+        stop(paste("Marker matrix M needs to have same numbers of rows(",nrow(M),") than columns of the gTerm incidence matrix(",ncol(Z),")."),call. = FALSE)
+      }
+      
+      if (n.PC > 0) {
+        Kb <- do.call(adiag1,res$K[gTermi])
+        eig.vec <- eigen(Kb)$vectors
+        X <- do.call(cbind,res$X)
+        zbeig <- Z %*% eig.vec[,1:n.PC]
+        X <- make.full(cbind(X,zbeig))
+      }else {
+        X <- do.call(cbind,res$X)
+        X <- make.full(X)
+      }
+      #
+      preScores <- bs <- numeric()
+      for(iMarker in 1:ncol(M)){
+        print(iMarker)
+        mi <- M[,iMarker]
+        if(var(mi) > 0){ # if var > 0
+          Xmi <- cbind(X,mi)
+          lastmodel <- .Call("_sommer_MNR",PACKAGE = "sommer",res$yvar, list(Xmi),res$Gx,
+                             res$Z,res$K,res$R,res$GES,res$GESI,res$W, res$isInvW,
+                             res$nIters,res$tolParConvLL,res$tolParInv, res$selected,res$getPEV,FALSE,
+                             TRUE, res$stepWeight, res$emWeight)
+          b = lastmodel$Beta
+          var.b = diag(as.matrix(lastmodel$VarBeta))
+          se.b = sqrt(abs(var.b))
+          t.val  = b/se.b
+          preScores[iMarker] = 1 - pnorm(t.val[nrow(t.val),])
+          bs[iMarker] = b[nrow(b),] # last fixed effect where we put the marker
+        }else{ # if var == 0
+          preScores[iMarker] <- 1
+          bs[iMarker] = 0 # effect
+        }
+      } # for loop for each marker
+      scores <- as.matrix(-log10(preScores))
+      rownames(scores) <- colnames(M) # marker names
+      colnames(scores) <- colnames(Y) # trait names
+      lastmodel$scores <- scores
+      lastmodel$method <- method
+      lastmodel$constraints <- res[[8]]
+      class(lastmodel)<-c("mmergwas")
+      
     }
-    ## get names of random effects
-    re_names <- unlist(res$re_names)
-    re_names <- gsub("\\(Intercept):","",re_names)
-    gTermi <- which(re_names %in% gTerm)
-    if(length(gTermi) < 1){
-      stop("No match between the Gterm and the random effects present.")
-    }
-    ## get input matrices
-    Y <- scale(res$yvar) 
-    Z <- do.call(cbind,res$Z[gTermi])
     
-    if (n.PC > 0) {
-      Kb <- do.call(adiag1,res$K[gTermi])
-      eig.vec <- eigen(Kb)$vectors
-      X <- do.call(cbind,res$X)
-      zbeig <- Z %*% eig.vec[,1:n.PC]
-      X <- make.full(cbind(X,zbeig))
-    }else {
-      X <- do.call(cbind,res$X)
-      X <- make.full(X)
-    }
-    
-    if(nrow(M) != ncol(Z)){
-      stop(paste("Marker matrix M needs to have same numbers of rows(",nrow(M),") than columns of the gTerm incidence matrix(",ncol(Z),")."),call. = FALSE)
-    }
-    
-    if(length(which(rownames(M) != colnames(Z)))){
-      M <- M[colnames(Z),]
-    }
-    m <- ncol(M); colnamesM <- colnames(M)
-    ######################
-    ## scorecalc function
-    ######################
-    cat(red("Performing GWAS evaluation\n"))
-    preScores <- .Call("_sommer_gwasForLoop",PACKAGE = "sommer",
-                       M,Y,as.matrix(Z),X,Vinv,min.MAF,TRUE
-                       ) # we need a different function for P3D that uses MNR
-    # preScores <- gwasForLoop(
-    #                    M,Y,as.matrix(Z),X,Vinv,min.MAF
-    # ) # we need a different function for P3D that uses MNR
-    v2 <- length(Y) - ((ncol(X)+1)*ncol(Y)) # ncol(XZMi)
-    scores <- -log10(pbeta(preScores, v2/2, 1/2))
-    ########################
-    rownames(scores) <- colnames(M)
-    colnames(scores) <- colnames(Y)
-    
-    lastmodel$scores <- scores
-    lastmodel$method <- method
-    lastmodel$constraints <- res[[8]]
-    class(lastmodel)<-c("mmergwas")
-  }
+  } # if actual fitting is required
   
   return(lastmodel)
 }

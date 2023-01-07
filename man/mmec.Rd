@@ -222,25 +222,25 @@ ans1 <- mmec(Yield~Env,
              data=DT)
 summary(ans1)
 
-####===========================================####
-#### Univariate heterogeneous variance models  ####
-####===========================================####
-DT=DT[with(DT, order(Env)), ]
-## Compound simmetry (CS) + Diagonal (DIAG) model
-ans2 <- mmec(Yield~Env,
-             random= ~Name + vsc(dsc(Env),isc(Name)),
-             rcov= ~ vsc(dsc(Env),isc(units)),
-             data=DT)
-summary(ans2)
-
-####===========================================####
-####  Univariate unstructured variance models  ####
-####===========================================####
-
-ans3 <- mmec(Yield~Env,
-             random=~ vsc(usc(Env),isc(Name)),
-             rcov=~vsc(dsc(Env),isc(units)),
-             data=DT)
-summary(ans3)
+# ####===========================================####
+# #### Univariate heterogeneous variance models  ####
+# ####===========================================####
+# DT=DT[with(DT, order(Env)), ]
+# ## Compound simmetry (CS) + Diagonal (DIAG) model
+# ans2 <- mmec(Yield~Env,
+#              random= ~Name + vsc(dsc(Env),isc(Name)),
+#              rcov= ~ vsc(dsc(Env),isc(units)),
+#              data=DT)
+# summary(ans2)
+# 
+# ####===========================================####
+# ####  Univariate unstructured variance models  ####
+# ####===========================================####
+# 
+# ans3 <- mmec(Yield~Env,
+#              random=~ vsc(usc(Env),isc(Name)),
+#              rcov=~vsc(dsc(Env),isc(units)),
+#              data=DT)
+# summary(ans3)
 
 }

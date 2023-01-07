@@ -441,7 +441,21 @@ summary(mix1)$varcomp
 summary(mix3)$varcomp
 ```
 
-For the vsc() function for the c x c problem the theta and thetaC arguments can be used directly in the additional structures.
+For the vsc() function used in mmec() for the c x c problem the theta and thetaC arguments can be used directly in the covariance structures. For example to fix the residuals equal to 1:
+
+```{r}
+
+mm <- matrix(3,1,1) ## matrix to fix the var comp
+vei <- var(DT$Yield, na.rm = TRUE) # we want to fix the vc to be half of the previous uinvariate model
+
+mix3 <- mmec(Yield~1,
+              random=~Rowf, # unconstrained
+              rcov= ~ vsc(isc(units, thetaC=mm,theta=matrix(1/vei,1,1))), # constrained
+              data=DT, verbose = FALSE)
+
+# analyze variance components
+summary(mix3)$varcomp
+```
 
 ### 8) How can I constrain two variance components to be equal? 
 

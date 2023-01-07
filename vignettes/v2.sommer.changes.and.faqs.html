@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2022-09-08" />
+<meta name="date" content="2023-01-07" />
 
 <title>Changes and FAQs for the sommer package</title>
 
@@ -29,46 +29,31 @@ document.addEventListener('DOMContentLoaded', function(e) {
   }
 });
 </script>
-<script>// Hide empty <a> tag within highlighted CodeBlock for screen reader accessibility (see https://github.com/jgm/pandoc/issues/6352#issuecomment-626106786) -->
-// v0.0.1
-// Written by JooYoung Seo (jooyoung@psu.edu) and Atsushi Yasumoto on June 1st, 2020.
-
-document.addEventListener('DOMContentLoaded', function() {
-  const codeList = document.getElementsByClassName("sourceCode");
-  for (var i = 0; i < codeList.length; i++) {
-    var linkList = codeList[i].getElementsByTagName('a');
-    for (var j = 0; j < linkList.length; j++) {
-      if (linkList[j].innerHTML === "") {
-        linkList[j].setAttribute('aria-hidden', 'true');
-      }
-    }
-  }
-});
-</script>
 
 <style type="text/css">
-  code{white-space: pre-wrap;}
-  span.smallcaps{font-variant: small-caps;}
-  span.underline{text-decoration: underline;}
-  div.column{display: inline-block; vertical-align: top; width: 50%;}
-  div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
-  ul.task-list{list-style: none;}
-    </style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
 
 
 
 <style type="text/css">
-  code {
-    white-space: pre;
-  }
-  .sourceCode {
-    overflow: visible;
-  }
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
 </style>
 <style type="text/css" data-origin="pandoc">
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
 code.sourceCode > span { color: inherit; text-decoration: inherit; }
 div.sourceCode { margin: 1em 0; }
 pre.sourceCode { margin: 0; }
@@ -80,55 +65,54 @@ pre > code.sourceCode { white-space: pre-wrap; }
 pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
 }
 pre.numberSource code
-  { counter-reset: source-line 0; }
+{ counter-reset: source-line 0; }
 pre.numberSource code > span
-  { position: relative; left: -4em; counter-increment: source-line; }
+{ position: relative; left: -4em; counter-increment: source-line; }
 pre.numberSource code > span > a:first-child::before
-  { content: counter(source-line);
-    position: relative; left: -1em; text-align: right; vertical-align: baseline;
-    border: none; display: inline-block;
-    -webkit-touch-callout: none; -webkit-user-select: none;
-    -khtml-user-select: none; -moz-user-select: none;
-    -ms-user-select: none; user-select: none;
-    padding: 0 4px; width: 4em;
-    color: #aaaaaa;
-  }
-pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa;  padding-left: 4px; }
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
 div.sourceCode
-  {   }
+{ }
 @media screen {
 pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
 }
-code span.al { color: #ff0000; font-weight: bold; } /* Alert */
-code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } /* Annotation */
-code span.at { color: #7d9029; } /* Attribute */
-code span.bn { color: #40a070; } /* BaseN */
-code span.bu { } /* BuiltIn */
-code span.cf { color: #007020; font-weight: bold; } /* ControlFlow */
-code span.ch { color: #4070a0; } /* Char */
-code span.cn { color: #880000; } /* Constant */
-code span.co { color: #60a0b0; font-style: italic; } /* Comment */
-code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } /* CommentVar */
-code span.do { color: #ba2121; font-style: italic; } /* Documentation */
-code span.dt { color: #902000; } /* DataType */
-code span.dv { color: #40a070; } /* DecVal */
-code span.er { color: #ff0000; font-weight: bold; } /* Error */
-code span.ex { } /* Extension */
-code span.fl { color: #40a070; } /* Float */
-code span.fu { color: #06287e; } /* Function */
-code span.im { } /* Import */
-code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } /* Information */
-code span.kw { color: #007020; font-weight: bold; } /* Keyword */
-code span.op { color: #666666; } /* Operator */
-code span.ot { color: #007020; } /* Other */
-code span.pp { color: #bc7a00; } /* Preprocessor */
-code span.sc { color: #4070a0; } /* SpecialChar */
-code span.ss { color: #bb6688; } /* SpecialString */
-code span.st { color: #4070a0; } /* String */
-code span.va { color: #19177c; } /* Variable */
-code span.vs { color: #4070a0; } /* VerbatimString */
-code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warning */
-
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
 </style>
 <script>
 // apply pandoc div.sourceCode style to pre.sourceCode instead
@@ -137,13 +121,20 @@ code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } /* Warni
   for (var i = 0; i < sheets.length; i++) {
     if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
     try { var rules = sheets[i].cssRules; } catch (e) { continue; }
-    for (var j = 0; j < rules.length; j++) {
+    var j = 0;
+    while (j < rules.length) {
       var rule = rules[j];
       // check if there is a div.sourceCode rule
-      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") continue;
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
       var style = rule.style.cssText;
       // check if color or background-color is set
-      if (rule.style.color === '' && rule.style.backgroundColor === '') continue;
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
       // replace div.sourceCode by a pre.sourceCode rule
       sheets[i].deleteRule(j);
       sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
@@ -347,29 +338,47 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 
 
-<h1 class="title toc-ignore">Changes and FAQs for the sommer package</h1>
+<h1 class="title toc-ignore">Changes and FAQs for the sommer
+package</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2022-09-08</h4>
+<h4 class="date">2023-01-07</h4>
 
 
 
-<p>The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver. The package is focused on problems of the type p &gt; n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to specify the variance-covariance structure for the random effects, to specify heterogeneous variances, and to obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc.</p>
-<p>Recently, I decided to code the main algorithm (Newton-Raphson &amp; Average-Information) in C++ which encouraged me to refactor all the machinery including special functions and specification of the models. For a more in depth explanation of how the machinery works please read the “Quick start for the sommer package” vignette by typing <code>vignette(&#39;sommer.start&#39;)</code>. Here I will focus on just making a translation of the old specification to the new specification.</p>
-<p>The purpose of this vignette is to first show the changes in syntax for <code>sommer</code> and frequently asked question.</p>
+<p>The sommer package was developed to provide R users with a powerful
+and reliable multivariate mixed model solver. The package is focused on
+problems of the type p &gt; n (more effects to estimate than
+observations) and its core algorithm is coded in C++ using the Armadillo
+library. This package allows the user to specify the variance-covariance
+structure for the random effects, to specify heterogeneous variances,
+and to obtain other parameters such as BLUPs, BLUEs, residuals, fitted
+values, variances for fixed and random effects, etc.</p>
+<p>Recently, I decided to code the main algorithm (Newton-Raphson &amp;
+Average-Information) in C++ which encouraged me to refactor all the
+machinery including special functions and specification of the models.
+For a more in depth explanation of how the machinery works please read
+the “Quick start for the sommer package” vignette by typing
+<code>vignette(&#39;sommer.start&#39;)</code>. Here I will focus on just making
+a translation of the old specification to the new specification.</p>
+<p>The purpose of this vignette is to first show the changes in syntax
+for <code>sommer</code> and frequently asked question.</p>
 <p><strong>SECTION 1: The new syntax of sommer</strong></p>
 <ol style="list-style-type: decimal">
 <li>The specification of multiresponse model</li>
 <li>The specification of multivariate unknown covariance structures</li>
 <li>The specification of additional unknown covariance structures</li>
-<li>The specification of unknown covariance structures in the residuals</li>
+<li>The specification of unknown covariance structures in the
+residuals</li>
 <li>Special models</li>
 </ol>
 <p><strong>SECTION 2: Frequently asked questions</strong></p>
 <ol style="list-style-type: decimal">
 <li>I got an error similar to…</li>
 <li>My model runs very slow.</li>
-<li>Can I run both rrBLUP for markers and GBLUP for individuals in sommer?</li>
-<li>I am missing BLUPs for individuals even when I provided them in the relationship matrix.</li>
+<li>Can I run both rrBLUP for markers and GBLUP for individuals in
+sommer?</li>
+<li>I am missing BLUPs for individuals even when I provided them in the
+relationship matrix.</li>
 <li>How can I use the AR1(), CS() and ARMA() functions?</li>
 <li>Can I run GWAS in MET experiments with replicates?</li>
 <li>How can I constrain the value of specific random effects?</li>
@@ -381,27 +390,49 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h2>SECTION 1: The new syntax of sommer</h2>
 <div id="the-specification-of-multiresponse-model" class="section level3">
 <h3>1) The specification of multiresponse model</h3>
-<p>In past versions (depending how old your version) there was an argument called <code>MVM</code> which had to be set to TRUE if the user wanted to run a true multi-trait model since the specification</p>
+<p>In past versions (depending how old your version) there was an
+argument called <code>MVM</code> which had to be set to TRUE if the user
+wanted to run a true multi-trait model since the specification</p>
 <p><code>fixed= cbind(y1,y2)~x</code></p>
-<p>would by default fit 2 univariate models in parallel. That is no longer the case, the <code>MVM</code> argument doesn’t exist and if a model like the one above is specified it will run a true multi-trait model.</p>
+<p>would by default fit 2 univariate models in parallel. That is no
+longer the case, the <code>MVM</code> argument doesn’t exist and if a
+model like the one above is specified it will run a true multi-trait
+model.</p>
 </div>
 <div id="the-specification-of-multivariate-unknown-covariance-structures" class="section level3">
-<h3>2) The specification of multivariate unknown covariance structures</h3>
-<p>In the previous versions when I introduced the multivariate solver I decided to follow the asreml syntax to specify the unknown covariance structure that needed to be estimated. For example, a diagonal model for the multitrait model, assuming a random effect called <code>re</code> looked something like this:</p>
+<h3>2) The specification of multivariate unknown covariance
+structures</h3>
+<p>In the previous versions when I introduced the multivariate solver I
+decided to follow the asreml syntax to specify the unknown covariance
+structure that needed to be estimated. For example, a diagonal model for
+the multitrait model, assuming a random effect called <code>re</code>
+looked something like this:</p>
 <p><code>fixed= cbind(y1,y2)~x</code></p>
 <p><code>random= ~ diag(trait):re</code></p>
 <p>and an unstructured multitrait model was:</p>
 <p><code>random= ~ usr(trait):re</code></p>
-<p>Although this was easier for users familiar with asreml, it put a lot of limitations on the way constraints for variance components were specified. The same model in the new versions looks like this:</p>
+<p>Although this was easier for users familiar with asreml, it put a lot
+of limitations on the way constraints for variance components were
+specified. The same model in the new versions looks like this:</p>
 <p><code>random= ~ vsr(re, Gtc=unsm(2))</code></p>
-<p>where the <code>Gtc</code> argument helps usr to indicate what type of structure this random effect represents. Here I specified an unstructured model with the function <code>unsm()</code> with a number 2 for 2 traits. The user can specify either <code>diag()</code> or <code>uncm()</code>, or any customized matrix with dimensions t x t (t being the number of traits) containing the number 0,1,2,3 that specify the constraint:</p>
+<p>where the <code>Gtc</code> argument helps usr to indicate what type
+of structure this random effect represents. Here I specified an
+unstructured model with the function <code>unsm()</code> with a number 2
+for 2 traits. The user can specify either <code>diag()</code> or
+<code>uncm()</code>, or any customized matrix with dimensions t x t (t
+being the number of traits) containing the number 0,1,2,3 that specify
+the constraint:</p>
 <ul>
 <li>0: not to be estimated</li>
-<li>1: estimated and constrained to be positive (i.e. variance component)</li>
-<li>2: estimated and unconstrained (can be negative or positive, i.e. covariance component)</li>
-<li>3: not to be estimated but fixed (value has to be provided in the <code>Gti</code> argument)</li>
+<li>1: estimated and constrained to be positive (i.e. variance
+component)</li>
+<li>2: estimated and unconstrained (can be negative or positive,
+i.e. covariance component)</li>
+<li>3: not to be estimated but fixed (value has to be provided in the
+<code>Gti</code> argument)</li>
 </ul>
-<p>All these models fit a model with the following variance for <code>re</code>:</p>
+<p>All these models fit a model with the following variance for
+<code>re</code>:</p>
 <p><span class="math inline">\(var(u) = T\)</span> <span class="math inline">\(\otimes\)</span> <span class="math inline">\(A\)</span></p>
 <p>where:</p>
 <p><span class="math display">\[\mathbf{var(u)} = \left[\begin{array}
@@ -410,26 +441,35 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 {\sigma_{g_{_{t2,t1}}}} &amp; {\sigma^2_{g_{_{t2,t2}}}} \\
 \end{array}\right] \otimes A
 \]</span></p>
-<p>By making this change now, the user has full control of the constraints applied to the estimation of variance components and can provide initial values easily using the <code>Gti</code> argument.</p>
+<p>By making this change now, the user has full control of the
+constraints applied to the estimation of variance components and can
+provide initial values easily using the <code>Gti</code> argument.</p>
 </div>
 <div id="the-specification-of-additional-unknown-covariance-structures" class="section level3">
-<h3>3) The specification of additional unknown covariance structures</h3>
-<p>If we focus for a moment on a univariate mixed model we can also have other unknown covariance structures specified.</p>
+<h3>3) The specification of additional unknown covariance
+structures</h3>
+<p>If we focus for a moment on a univariate mixed model we can also have
+other unknown covariance structures specified.</p>
 <p><span class="math inline">\(var(u) = E\)</span> <span class="math inline">\(\otimes ... \otimes\)</span> <span class="math inline">\(F\)</span> <span class="math inline">\(\otimes\)</span> <span class="math inline">\(A\)</span></p>
 <p>where:</p>
 <p><span class="math display">\[\mathbf{var(u)} = \left[\begin{array}
 {rrr}
-{\sigma^2_{g_{_{e1,e1}}}} &amp; {\sigma_{g_{_{e1,e2}}}} &amp; {\sigma_{g_{_{e1,e3}}}} \\
-{\sigma_{g_{_{e2,e1}}}} &amp; {\sigma^2_{g_{_{e2,e2}}}} &amp; {\sigma_{g_{_{e2,e3}}}} \\
-{\sigma_{g_{_{e3,e1}}}} &amp; {\sigma_{g_{_{e3,e2}}}} &amp; {\sigma^2_{g_{_{e3,e3}}}} \\
+{\sigma^2_{g_{_{e1,e1}}}} &amp; {\sigma_{g_{_{e1,e2}}}} &amp;
+{\sigma_{g_{_{e1,e3}}}} \\
+{\sigma_{g_{_{e2,e1}}}} &amp; {\sigma^2_{g_{_{e2,e2}}}} &amp;
+{\sigma_{g_{_{e2,e3}}}} \\
+{\sigma_{g_{_{e3,e1}}}} &amp; {\sigma_{g_{_{e3,e2}}}} &amp;
+{\sigma^2_{g_{_{e3,e3}}}} \\
 \end{array}\right] \otimes ... \otimes \left[\begin{array}
 {rr}
 {\sigma^2_{g_{_{f1,f1}}}} &amp; {\sigma_{g_{_{f1,f2}}}} \\
 {\sigma_{g_{_{f2,f1}}}} &amp; {\sigma^2_{g_{_{f2,f2}}}} \\
 \end{array}\right] \otimes A
 \]</span></p>
-<p>If we think about the multi trait model, this is very similar but with an additional kroneker product for the multivariate version:</p>
-<p><span class="math inline">\(var(u) =T\)</span> <span class="math inline">\(\otimes\)</span> <span class="math inline">\(E\)</span> <span class="math inline">\(\otimes ... \otimes\)</span> <span class="math inline">\(F\)</span> <span class="math inline">\(\otimes\)</span> <span class="math inline">\(A\)</span></p>
+<p>If we think about the multi trait model, this is very similar but
+with an additional kroneker product for the multivariate version:</p>
+<p><span class="math inline">\(var(u) =T\)</span> <span class="math inline">\(\otimes\)</span> <span class="math inline">\(E\)</span> <span class="math inline">\(\otimes ...
+\otimes\)</span> <span class="math inline">\(F\)</span> <span class="math inline">\(\otimes\)</span> <span class="math inline">\(A\)</span></p>
 <p>where:</p>
 <p><span class="math display">\[\mathbf{var(u)} = \left[\begin{array}
 {rr}
@@ -437,67 +477,115 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 {\sigma_{g_{_{t2,t1}}}} &amp; {\sigma^2_{g_{_{t2,t2}}}} \\
 \end{array}\right] \otimes \left[\begin{array}
 {rrr}
-{\sigma^2_{g_{_{e1,e1}}}} &amp; {\sigma_{g_{_{e1,e2}}}} &amp; {\sigma_{g_{_{e1,e3}}}} \\
-{\sigma_{g_{_{e2,e1}}}} &amp; {\sigma^2_{g_{_{e2,e2}}}} &amp; {\sigma_{g_{_{e2,e3}}}} \\
-{\sigma_{g_{_{e3,e1}}}} &amp; {\sigma_{g_{_{e3,e2}}}} &amp; {\sigma^2_{g_{_{e3,e3}}}} \\
+{\sigma^2_{g_{_{e1,e1}}}} &amp; {\sigma_{g_{_{e1,e2}}}} &amp;
+{\sigma_{g_{_{e1,e3}}}} \\
+{\sigma_{g_{_{e2,e1}}}} &amp; {\sigma^2_{g_{_{e2,e2}}}} &amp;
+{\sigma_{g_{_{e2,e3}}}} \\
+{\sigma_{g_{_{e3,e1}}}} &amp; {\sigma_{g_{_{e3,e2}}}} &amp;
+{\sigma^2_{g_{_{e3,e3}}}} \\
 \end{array}\right] \otimes ... \otimes \left[\begin{array}
 {rr}
 {\sigma^2_{g_{_{f1,f1}}}} &amp; {\sigma_{g_{_{f1,f2}}}} \\
 {\sigma_{g_{_{f2,f1}}}} &amp; {\sigma^2_{g_{_{f2,f2}}}} \\
 \end{array}\right] \otimes A
 \]</span></p>
-<p>Getting back to the point–the additional unknown covariance structures besides the multi-trait (T) before were specified with asreml syntax. For example a univariate diagonal and unstructured model, assumed a random effect called <code>id</code> representing the treatments planted in different environments coded in a second random effect called <code>env</code>. The model used to look like:</p>
+<p>Getting back to the point–the additional unknown covariance
+structures besides the multi-trait (T) before were specified with asreml
+syntax. For example a univariate diagonal and unstructured model,
+assumed a random effect called <code>id</code> representing the
+treatments planted in different environments coded in a second random
+effect called <code>env</code>. The model used to look like:</p>
 <p><code>fixed= y1~x</code></p>
-<p><code>random= ~ diag(env):id</code> or <code>random= ~ usr(env):id</code></p>
+<p><code>random= ~ diag(env):id</code> or
+<code>random= ~ usr(env):id</code></p>
 <p>and now it would be specified as:</p>
 <p><code>fixed= y1~x</code></p>
-<p><code>random= ~ vsr(dsr(env),id)</code> or <code>random= ~ vsr(usr(env),id)</code></p>
-<p>where the <code>dsr()</code> and <code>usr()</code> functions specify diagonal and unstructured models respectively. Now <code>csr()</code> for a customized structure is available. The main gain from having changed the formulation is that the new specification through the <code>vsr()</code> function allows for contructing more complex moels. For example, assume individuals specified in a column called <code>id</code> tested in three environments in a column called <code>env</code> measured at two different time points specified in a column called <code>time</code>. We may want something more flexible than:</p>
+<p><code>random= ~ vsr(dsr(env),id)</code> or
+<code>random= ~ vsr(usr(env),id)</code></p>
+<p>where the <code>dsr()</code> and <code>usr()</code> functions specify
+diagonal and unstructured models respectively. Now <code>csr()</code>
+for a customized structure is available. The main gain from having
+changed the formulation is that the new specification through the
+<code>vsr()</code> function allows for contructing more complex moels.
+For example, assume individuals specified in a column called
+<code>id</code> tested in three environments in a column called
+<code>env</code> measured at two different time points specified in a
+column called <code>time</code>. We may want something more flexible
+than:</p>
 <p><code>fixed= y1~x</code></p>
 <p><code>random= ~ id</code></p>
-<p>We could actually assume that individuals are correlated within the environments for the different time points but want to consider envrionments indepedent. The variance for such random effects is the following:</p>
+<p>We could actually assume that individuals are correlated within the
+environments for the different time points but want to consider
+envrionments indepedent. The variance for such random effects is the
+following:</p>
 <p><span class="math display">\[\mathbf{var(u)} = \left[\begin{array}
 {rrr}
-{\sigma^2_{g_{_{e1,e1}}}} &amp; {\sigma_{g_{_{e1,e2}}}} &amp; {\sigma_{g_{_{e1,e3}}}} \\
-{\sigma_{g_{_{e2,e1}}}} &amp; {\sigma^2_{g_{_{e2,e2}}}} &amp; {\sigma_{g_{_{e2,e3}}}} \\
-{\sigma_{g_{_{e3,e1}}}} &amp; {\sigma_{g_{_{e3,e2}}}} &amp; {\sigma^2_{g_{_{e3,e3}}}} \\
+{\sigma^2_{g_{_{e1,e1}}}} &amp; {\sigma_{g_{_{e1,e2}}}} &amp;
+{\sigma_{g_{_{e1,e3}}}} \\
+{\sigma_{g_{_{e2,e1}}}} &amp; {\sigma^2_{g_{_{e2,e2}}}} &amp;
+{\sigma_{g_{_{e2,e3}}}} \\
+{\sigma_{g_{_{e3,e1}}}} &amp; {\sigma_{g_{_{e3,e2}}}} &amp;
+{\sigma^2_{g_{_{e3,e3}}}} \\
 \end{array}\right] \otimes \left[\begin{array}
 {rr}
 {\sigma^2_{g_{_{t1,t1}}}} &amp; {\sigma_{g_{_{t1,t2}}}} \\
 {\sigma_{g_{_{t2,t1}}}} &amp; {\sigma^2_{g_{_{t2,t2}}}} \\
 \end{array}\right] \otimes A
-\]</span> which was not possible in previous versions of sommer and now can be specified as:</p>
+\]</span> which was not possible in previous versions of sommer and now
+can be specified as:</p>
 <p><code>random= ~ vsr(usr(env),dsr(time),id)</code></p>
-<p>and the same logic can be extended to as many interacting factors as desired.</p>
+<p>and the same logic can be extended to as many interacting factors as
+desired.</p>
 </div>
 <div id="the-specification-of-unknown-covariance-structures-in-the-residuals" class="section level3">
-<h3>4) The specification of unknown covariance structures in the residuals</h3>
-<p>Previously, sommer was limited to only diagonal models in the residuals (unstructured available only for multi-trait before). Now all the same applications discussed for the random term also apply for the residual term. Just keep in mind that the residual term is always called <code>units</code>.</p>
+<h3>4) The specification of unknown covariance structures in the
+residuals</h3>
+<p>Previously, sommer was limited to only diagonal models in the
+residuals (unstructured available only for multi-trait before). Now all
+the same applications discussed for the random term also apply for the
+residual term. Just keep in mind that the residual term is always called
+<code>units</code>.</p>
 <p>Previous versions:</p>
 <p><code>random= ~ diag(trait):diag(env):units</code></p>
 <p><code>random= ~ usr(trait):diag(env):units</code> # limit</p>
 <p>New versions (&gt;3.7):</p>
-<p><code>random= ~ vsr(dsr(env),units, Gtc=mm)</code> ## can be extended to more interacting factors</p>
-<p><code>random= ~ vsr(usr(env),units, Gtc=mm)</code> ## can be extended to more interacting factors</p>
-<p><code>random= ~ vsr(at(env),units, Gtc=mm)</code> ## can be extended to more interacting factors</p>
-<p><code>random= ~ vsr(csr(env),units, Gtc=mm)</code> ## can be extended to more interacting factors</p>
-<p>where <code>mm</code> can be any matrix specifying the type of multi-trait model (constraints). For example we could use <code>unsm()</code> <code>diag()</code>, <code>uncm()</code> or any other customized matrix.</p>
+<p><code>random= ~ vsr(dsr(env),units, Gtc=mm)</code> ## can be extended
+to more interacting factors</p>
+<p><code>random= ~ vsr(usr(env),units, Gtc=mm)</code> ## can be extended
+to more interacting factors</p>
+<p><code>random= ~ vsr(at(env),units, Gtc=mm)</code> ## can be extended
+to more interacting factors</p>
+<p><code>random= ~ vsr(csr(env),units, Gtc=mm)</code> ## can be extended
+to more interacting factors</p>
+<p>where <code>mm</code> can be any matrix specifying the type of
+multi-trait model (constraints). For example we could use
+<code>unsm()</code> <code>diag()</code>, <code>uncm()</code> or any
+other customized matrix.</p>
 </div>
 <div id="special-models" class="section level3">
 <h3>5) Special models</h3>
-<p>In previous versions the use of asreml formulation really limited the expansion of sommer to more sophistiated models. Now there are many more possible models.</p>
+<p>In previous versions the use of asreml formulation really limited the
+expansion of sommer to more sophistiated models. Now there are many more
+possible models.</p>
 <p>Previous versions:</p>
 <div id="overlay-models" class="section level4">
 <h4>Overlay models</h4>
-<p>Previous version: limited to 2 columns and only random and no covariance structures.</p>
+<p>Previous version: limited to 2 columns and only random and no
+covariance structures.</p>
 <p><code>random= ~  x + and(y)</code></p>
-<p>New versions (&gt;3.7): in theory there are no limits. Can be extended to more interacting factors in the unknown covariance structures and can overlay as many columns as needed. Plus is fully functional with the multivariate models.</p>
+<p>New versions (&gt;3.7): in theory there are no limits. Can be
+extended to more interacting factors in the unknown covariance
+structures and can overlay as many columns as needed. Plus is fully
+functional with the multivariate models.</p>
 <p><code>random=~ vsr(..., overlay(x1,...,xn), Gtc=mm)</code></p>
 </div>
 <div id="random-regression-models" class="section level4">
 <h4>Random regression models</h4>
 <p>Previous version: Not available before</p>
-<p>New versions (&gt;3.7): in theory no limits. Can be extended to more interacting factors in the unknown covariance structures and only requires the use of the <code>leg()</code> function. Plus is fully functional with the multivariate models.</p>
+<p>New versions (&gt;3.7): in theory no limits. Can be extended to more
+interacting factors in the unknown covariance structures and only
+requires the use of the <code>leg()</code> function. Plus is fully
+functional with the multivariate models.</p>
 <p><code>random=~ vsr(usr(leg(v,1)),x)</code></p>
 <p><code>random=~ vsr(dsr(leg(v,1)),x)</code></p>
 <p><code>random=~ vsr(leg(v,1),x)</code></p>
@@ -505,22 +593,30 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <div id="gwas-models" class="section level4">
 <h4>GWAS models</h4>
 <p>Previous version: Only univariate models available</p>
-<p>New versions (&gt;3.7): all the power of the <code>mmer()</code> function is available plus you can fit multivariate GWAS models. See details in the sommer.start vignettes.</p>
+<p>New versions (&gt;3.7): all the power of the <code>mmer()</code>
+function is available plus you can fit multivariate GWAS models. See
+details in the sommer.start vignettes.</p>
 </div>
 <div id="spatial-models" class="section level4">
 <h4>Spatial models</h4>
 <p>Previous version: It was called directly in the formula</p>
 <p><code>random=~ spl2D(Row,Col,at=?)</code></p>
-<p>New versions (&gt;3.7): It has to be called within the <code>vsr()</code> function but now it can be combined with all the unknown covariance structures available.</p>
-<p><code>random=~ vsr(...,spl2D(Row,Col,at=?), Gtc=mm)</code> # being mm any multi-trait constraint-structure.</p>
+<p>New versions (&gt;3.7): It has to be called within the
+<code>vsr()</code> function but now it can be combined with all the
+unknown covariance structures available.</p>
+<p><code>random=~ vsr(...,spl2D(Row,Col,at=?), Gtc=mm)</code> # being mm
+any multi-trait constraint-structure.</p>
 </div>
 <div id="customized-random-effects" class="section level4">
 <h4>Customized random effects</h4>
 <p>Previous version: It was provided in the grouping argument</p>
 <p><code>random=~ grp(x),</code></p>
 <p><code>grouping=list(x=Z)</code></p>
-<p>New versions (&gt;3.7): It has to be called within the <code>vsr()</code> function but now it can be combined with all the unknown covariance structures available.</p>
-<p><code>random=~vsr(,..., Z, Gtc=mm)</code> # mm is any multi-trait constraint-structure.</p>
+<p>New versions (&gt;3.7): It has to be called within the
+<code>vsr()</code> function but now it can be combined with all the
+unknown covariance structures available.</p>
+<p><code>random=~vsr(,..., Z, Gtc=mm)</code> # mm is any multi-trait
+constraint-structure.</p>
 </div>
 </div>
 </div>
@@ -528,50 +624,83 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h2>SECTION 2: Frequently asked questions</h2>
 <div id="i-got-an-error-similar-to" class="section level3">
 <h3>1) I got an error similar to:</h3>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1"></a><span class="co"># iteration    LogLik     wall    cpu(sec)   restrained</span></span>
-<span id="cb1-2"><a href="#cb1-2"></a><span class="co">#     1      -224.676   18:11:23      3           0</span></span>
-<span id="cb1-3"><a href="#cb1-3"></a><span class="co"># Sistem is singular. Aborting the job. You could try a bigger tolparinv value.</span></span></code></pre></div>
-<p>This error indicates that your model is singular (phenotypic variance V matrix is not invertible) and therefore the model is stopped, throwing the error message and returning an empty list. You can try a simpler model or just modify the argument <code>tolparinv</code> in the <code>mmer()</code> function. The default is 1e-3, which means that it will try to invert V and if it fails it will try to add a small value to the diagonal of V of 1e-3 to make it invertible and try bigger and biger numbers. If this fails then the program will return the empty list.</p>
-<p>Sometimes the model becomes singular when you use variance covariance matrices (i.e. genomic relationship matrices) that are not full-rank. You can try to make it full-rank and try again.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># iteration    LogLik     wall    cpu(sec)   restrained</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co">#     1      -224.676   18:11:23      3           0</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="co"># Sistem is singular. Aborting the job. You could try a bigger tolparinv value.</span></span></code></pre></div>
+<p>This error indicates that your model is singular (phenotypic variance
+V matrix is not invertible) and therefore the model is stopped, throwing
+the error message and returning an empty list. You can try a simpler
+model or just modify the argument <code>tolparinv</code> in the
+<code>mmer()</code> function. The default is 1e-3, which means that it
+will try to invert V and if it fails it will try to add a small value to
+the diagonal of V of 1e-3 to make it invertible and try bigger and biger
+numbers. If this fails then the program will return the empty list.</p>
+<p>Sometimes the model becomes singular when you use variance covariance
+matrices (i.e. genomic relationship matrices) that are not full-rank.
+You can try to make it full-rank and try again.</p>
 </div>
 <div id="my-model-runs-very-slow" class="section level3">
 <h3>2) My model runs very slow</h3>
-<p>Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused on problems of the type p &gt; n (more random effect levels than observations) and models with dense covariance structures. For example, for an experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated twice with a covariance structure of 1000x1000) sommer will be faster than MME-based software. Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n &gt; p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) asreml or other MME-based algorithms will be much faster and we recommend you to opt for those software.</p>
+<p>Keep in mind that sommer uses direct inversion (DI) algorithm which
+can be very slow for large datasets. The package is focused on problems
+of the type p &gt; n (more random effect levels than observations) and
+models with dense covariance structures. For example, for an experiment
+with dense covariance structures with low-replication (i.e. 2000 records
+from 1000 individuals replicated twice with a covariance structure of
+1000x1000) sommer will be faster than MME-based software. Also for
+genomic problems with large number of random effect levels, i.e. 300
+individuals (n) with 100,000 genetic markers (p). For highly replicated
+trials with small covariance structures or n &gt; p (i.e. 2000 records
+from 200 individuals replicated 10 times with covariance structure of
+200x200) asreml or other MME-based algorithms will be much faster and we
+recommend you to opt for those software.</p>
 </div>
 <div id="can-i-run-both-rrblup-for-markers-and-gblup-for-individuals-in-sommer" class="section level3">
-<h3>3) Can I run both; rrBLUP for markers and GBLUP for individuals in sommer?</h3>
-<p>Both types of models can be fitted in sommer. Please see the vignette #1.</p>
+<h3>3) Can I run both; rrBLUP for markers and GBLUP for individuals in
+sommer?</h3>
+<p>Both types of models can be fitted in sommer. Please see the vignette
+#1.</p>
 </div>
 <div id="i-am-missing-blups-for-individuals-even-when-i-provided-them-in-the-relationship-matrix" class="section level3">
-<h3>4) I am missing BLUPs for individuals even when I provided them in the relationship matrix</h3>
-<p>I got this good question in the past: “when I want to fit an animal model with the sommer package using an additive relationship matrix(A), this A matrix would contain parents. But the random effects only contains animals in the random effect but not including parents in the A matrix. How can I get the random effects for parents?”</p>
-<p>Answer: The easy way to do it is to make sure that even if the parents don’t show up in the dataset, you need to make sure that they are present in the levels of the column that contains the individuals (i.e. animal IDs), in addition they have to be provided in the relationship matrix and that’s it. They should be returned in the blups.</p>
-<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1"></a><span class="kw">library</span>(sommer)</span></code></pre></div>
+<h3>4) I am missing BLUPs for individuals even when I provided them in
+the relationship matrix</h3>
+<p>I got this good question in the past: “when I want to fit an animal
+model with the sommer package using an additive relationship matrix(A),
+this A matrix would contain parents. But the random effects only
+contains animals in the random effect but not including parents in the A
+matrix. How can I get the random effects for parents?”</p>
+<p>Answer: The easy way to do it is to make sure that even if the
+parents don’t show up in the dataset, you need to make sure that they
+are present in the levels of the column that contains the individuals
+(i.e. animal IDs), in addition they have to be provided in the
+relationship matrix and that’s it. They should be returned in the
+blups.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span></code></pre></div>
 <pre><code>## Loading required package: Matrix</code></pre>
 <pre><code>## Loading required package: MASS</code></pre>
 <pre><code>## Loading required package: lattice</code></pre>
 <pre><code>## Loading required package: crayon</code></pre>
-<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb7-2"><a href="#cb7-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb7-3"><a href="#cb7-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
-<span id="cb7-4"><a href="#cb7-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
-<span id="cb7-5"><a href="#cb7-5"></a><span class="co">#### create the variance-covariance matrix</span></span>
-<span id="cb7-6"><a href="#cb7-6"></a>A &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
-<span id="cb7-7"><a href="#cb7-7"></a><span class="co">#### look at the data and fit the model</span></span>
-<span id="cb7-8"><a href="#cb7-8"></a><span class="kw">set.seed</span>(<span class="dv">12</span>)</span>
-<span id="cb7-9"><a href="#cb7-9"></a>DT2 &lt;-<span class="st"> </span><span class="kw">droplevels</span>(DT[<span class="kw">sample</span>(<span class="dv">1</span><span class="op">:</span><span class="kw">nrow</span>(DT),<span class="dv">100</span>),]) <span class="co"># we simulate a dataset with only 100 animals</span></span>
-<span id="cb7-10"><a href="#cb7-10"></a><span class="kw">nrow</span>(DT2); <span class="kw">length</span>(<span class="kw">levels</span>(DT2<span class="op">$</span>id))</span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>GT <span class="ot">&lt;-</span> GT_cpdata</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>MP <span class="ot">&lt;-</span> MP_cpdata</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a><span class="do">#### create the variance-covariance matrix</span></span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>A <span class="ot">&lt;-</span> <span class="fu">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a><span class="do">#### look at the data and fit the model</span></span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a><span class="fu">set.seed</span>(<span class="dv">12</span>)</span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a>DT2 <span class="ot">&lt;-</span> <span class="fu">droplevels</span>(DT[<span class="fu">sample</span>(<span class="dv">1</span><span class="sc">:</span><span class="fu">nrow</span>(DT),<span class="dv">100</span>),]) <span class="co"># we simulate a dataset with only 100 animals</span></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a><span class="fu">nrow</span>(DT2); <span class="fu">length</span>(<span class="fu">levels</span>(DT2<span class="sc">$</span>id))</span></code></pre></div>
 <pre><code>## [1] 100</code></pre>
 <pre><code>## [1] 100</code></pre>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1"></a><span class="co"># we fit a model with the reduced datatset where only 100 blups will be returned since only</span></span>
-<span id="cb10-2"><a href="#cb10-2"></a><span class="co"># 100 levels exist in the &quot;id&quot; column</span></span>
-<span id="cb10-3"><a href="#cb10-3"></a>mix1 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb10-4"><a href="#cb10-4"></a>              <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(id,<span class="dt">Gu=</span>A)</span>
-<span id="cb10-5"><a href="#cb10-5"></a>                      <span class="op">+</span><span class="st"> </span>Rowf <span class="op">+</span><span class="st"> </span>Colf,</span>
-<span id="cb10-6"><a href="#cb10-6"></a>              <span class="dt">rcov=</span><span class="op">~</span>units,</span>
-<span id="cb10-7"><a href="#cb10-7"></a>              <span class="dt">data=</span>DT2, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># we fit a model with the reduced datatset where only 100 blups will be returned since only</span></span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># 100 levels exist in the &quot;id&quot; column</span></span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>mix1 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id,<span class="at">Gu=</span>A)</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>                      <span class="sc">+</span> Rowf <span class="sc">+</span> Colf,</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT2, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
 <pre><code>## Adding additional levels of Gu in the model matrix of &#39;id&#39;</code></pre>
-<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1"></a><span class="kw">summary</span>(mix1)</span></code></pre></div>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix1)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
 ## **********************  sommer 4.1  ********************** 
@@ -597,16 +726,16 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ## Colf    35
 ## ============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1"></a><span class="kw">length</span>(mix1<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>Yield) <span class="co"># only 100 levels</span></span></code></pre></div>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(mix1<span class="sc">$</span>U<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span><span class="sc">$</span>Yield) <span class="co"># only 100 levels</span></span></code></pre></div>
 <pre><code>## [1] 363</code></pre>
-<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1"></a><span class="co"># we add additional levels to the &quot;id&quot; column and also provide them in the relationship matrix</span></span>
-<span id="cb16-2"><a href="#cb16-2"></a><span class="kw">levels</span>(DT2<span class="op">$</span>id) &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="kw">levels</span>(DT2<span class="op">$</span>id), <span class="kw">setdiff</span>(<span class="kw">levels</span>(DT<span class="op">$</span>id), <span class="kw">levels</span>(DT2<span class="op">$</span>id)))</span>
-<span id="cb16-3"><a href="#cb16-3"></a>mix2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb16-4"><a href="#cb16-4"></a>             <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(id,<span class="dt">Gu=</span>A)</span>
-<span id="cb16-5"><a href="#cb16-5"></a>             <span class="op">+</span><span class="st"> </span>Rowf <span class="op">+</span><span class="st"> </span>Colf,</span>
-<span id="cb16-6"><a href="#cb16-6"></a>             <span class="dt">rcov=</span><span class="op">~</span>units,</span>
-<span id="cb16-7"><a href="#cb16-7"></a>             <span class="dt">data=</span>DT2, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb16-8"><a href="#cb16-8"></a><span class="kw">summary</span>(mix2)</span></code></pre></div>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># we add additional levels to the &quot;id&quot; column and also provide them in the relationship matrix</span></span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="fu">levels</span>(DT2<span class="sc">$</span>id) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fu">levels</span>(DT2<span class="sc">$</span>id), <span class="fu">setdiff</span>(<span class="fu">levels</span>(DT<span class="sc">$</span>id), <span class="fu">levels</span>(DT2<span class="sc">$</span>id)))</span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>mix2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>             <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id,<span class="at">Gu=</span>A)</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>             <span class="sc">+</span> Rowf <span class="sc">+</span> Colf,</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>             <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT2, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix2)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
 ## **********************  sommer 4.1  ********************** 
@@ -632,218 +761,325 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 ## Colf    35
 ## ============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
-<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1"></a><span class="kw">length</span>(mix2<span class="op">$</span>U<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">$</span>Yield) <span class="co"># now 363 levels</span></span></code></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(mix2<span class="sc">$</span>U<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span><span class="sc">$</span>Yield) <span class="co"># now 363 levels</span></span></code></pre></div>
 <pre><code>## [1] 363</code></pre>
-<p>As of 4.1.2 this shouldn’t be a problem since internally the <code>mmer()</code> solver adds the missing levels, but we leave this for reference for people using older versions of sommer.</p>
+<p>As of 4.1.2 this shouldn’t be a problem since internally the
+<code>mmer()</code> solver adds the missing levels, but we leave this
+for reference for people using older versions of sommer.</p>
 </div>
 <div id="how-can-i-use-the-ar1-cs-and-arma-functions" class="section level3">
 <h3>5) How can I use the AR1(), CS() and ARMA() functions</h3>
-<p>Sommer doesn’t support the estimation of additional correlation components like AR1 in the way asreml does. Still, if the user knows the correlation value or can do an iterative approach to find the best value then these functions can be used to specify the variance covariance structure for a given random effect.</p>
-<p>For example, in the DT_cpdata dataset we have a field with row and column coordinates. This allows fitting row and column as random effects:</p>
-<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1"></a><span class="kw">library</span>(sommer)</span>
-<span id="cb20-2"><a href="#cb20-2"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb20-3"><a href="#cb20-3"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb20-4"><a href="#cb20-4"></a>mix1 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb20-5"><a href="#cb20-5"></a>              <span class="dt">random=</span><span class="op">~</span><span class="st"> </span>Rowf <span class="op">+</span><span class="st"> </span>Colf,</span>
-<span id="cb20-6"><a href="#cb20-6"></a>              <span class="dt">rcov=</span><span class="op">~</span>units,</span>
-<span id="cb20-7"><a href="#cb20-7"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb20-8"><a href="#cb20-8"></a><span class="kw">summary</span>(mix1)<span class="op">$</span>varcomp</span></code></pre></div>
+<p>Sommer doesn’t support the estimation of additional correlation
+components like AR1 in the way asreml does. Still, if the user knows the
+correlation value or can do an iterative approach to find the best value
+then these functions can be used to specify the variance covariance
+structure for a given random effect.</p>
+<p>For example, in the DT_cpdata dataset we have a field with row and
+column coordinates. This allows fitting row and column as random
+effects:</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>mix1 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span> Rowf <span class="sc">+</span> Colf,</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix1)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                     VarComp VarCompSE    Zratio Constraint
 ## Rowf.Yield-Yield   832.2879  393.8951  2.112968   Positive
 ## Colf.Yield-Yield   153.9201  126.7582  1.214281   Positive
 ## units.Yield-Yield 3647.3486  290.4910 12.555804   Positive</code></pre>
-<p>If the user wants to relax the independence between rows and define an AR1 covariance structure among rows then the model could be fitted as:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1"></a><span class="kw">library</span>(sommer)</span>
-<span id="cb22-2"><a href="#cb22-2"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb22-3"><a href="#cb22-3"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb22-4"><a href="#cb22-4"></a>mixAR1row &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb22-5"><a href="#cb22-5"></a>             <span class="dt">random=</span><span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(Rowf, <span class="dt">Gu=</span><span class="kw">AR1</span>(Rowf, <span class="dt">rho=</span><span class="fl">0.3</span>)) <span class="op">+</span><span class="st"> </span>Colf,</span>
-<span id="cb22-6"><a href="#cb22-6"></a>             <span class="dt">rcov=</span><span class="op">~</span>units,</span>
-<span id="cb22-7"><a href="#cb22-7"></a>             <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb22-8"><a href="#cb22-8"></a><span class="kw">summary</span>(mixAR1row)<span class="op">$</span>varcomp</span></code></pre></div>
+<p>If the user wants to relax the independence between rows and define
+an AR1 covariance structure among rows then the model could be fitted
+as:</p>
+<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>mixAR1row <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>             <span class="at">random=</span><span class="sc">~</span> <span class="fu">vsr</span>(Rowf, <span class="at">Gu=</span><span class="fu">AR1</span>(Rowf, <span class="at">rho=</span><span class="fl">0.3</span>)) <span class="sc">+</span> Colf,</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>             <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mixAR1row)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                      VarComp VarCompSE    Zratio Constraint
 ## u:Rowf.Yield-Yield  791.8219  387.8695  2.041465   Positive
 ## Colf.Yield-Yield    154.5660  126.8094  1.218885   Positive
 ## units.Yield-Yield  3643.6027  290.1689 12.556834   Positive</code></pre>
 <p>The same could be done for the column random effect:</p>
-<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1"></a><span class="kw">library</span>(sommer)</span>
-<span id="cb24-2"><a href="#cb24-2"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb24-3"><a href="#cb24-3"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb24-4"><a href="#cb24-4"></a>mixAR1col &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb24-5"><a href="#cb24-5"></a>             <span class="dt">random=</span><span class="op">~</span><span class="st"> </span>Rowf <span class="op">+</span><span class="st"> </span><span class="kw">vsr</span>(Colf, <span class="dt">Gu=</span><span class="kw">AR1</span>(Colf, <span class="dt">rho=</span><span class="fl">0.3</span>)),</span>
-<span id="cb24-6"><a href="#cb24-6"></a>             <span class="dt">rcov=</span><span class="op">~</span>units,</span>
-<span id="cb24-7"><a href="#cb24-7"></a>             <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb24-8"><a href="#cb24-8"></a><span class="kw">summary</span>(mixAR1col)<span class="op">$</span>varcomp</span></code></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>mixAR1col <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>             <span class="at">random=</span><span class="sc">~</span> Rowf <span class="sc">+</span> <span class="fu">vsr</span>(Colf, <span class="at">Gu=</span><span class="fu">AR1</span>(Colf, <span class="at">rho=</span><span class="fl">0.3</span>)),</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>             <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mixAR1col)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                      VarComp VarCompSE    Zratio Constraint
 ## Rowf.Yield-Yield    830.3623  392.8264  2.113815   Positive
 ## u:Colf.Yield-Yield  178.7490  134.2703  1.331262   Positive
 ## units.Yield-Yield  3624.6074  287.6072 12.602629   Positive</code></pre>
-<p>If on the other hand, you would like to model the presence of correlation in row and columns at the same time the model would look like this:</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1"></a><span class="kw">library</span>(sommer)</span>
-<span id="cb26-2"><a href="#cb26-2"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb26-3"><a href="#cb26-3"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb26-4"><a href="#cb26-4"></a>mixAR1rowcol &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb26-5"><a href="#cb26-5"></a>                  <span class="dt">random=</span><span class="op">~</span><span class="st"> </span><span class="kw">vsr</span>(Rowf<span class="op">:</span>Colf, </span>
-<span id="cb26-6"><a href="#cb26-6"></a>                              <span class="dt">Gu=</span><span class="kw">kronecker</span>(<span class="kw">AR1</span>(Rowf, <span class="dt">rho=</span><span class="fl">0.3</span>),<span class="kw">AR1</span>(Colf, <span class="dt">rho=</span><span class="fl">0.3</span>),<span class="dt">make.dimnames =</span> <span class="ot">TRUE</span>) </span>
-<span id="cb26-7"><a href="#cb26-7"></a>                              ),</span>
-<span id="cb26-8"><a href="#cb26-8"></a>                  <span class="dt">rcov=</span><span class="op">~</span>units,</span>
-<span id="cb26-9"><a href="#cb26-9"></a>                  <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb26-10"><a href="#cb26-10"></a><span class="kw">summary</span>(mixAR1rowcol)<span class="op">$</span>varcomp</span></code></pre></div>
+<p>If on the other hand, you would like to model the presence of
+correlation in row and columns at the same time the model would look
+like this:</p>
+<div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>mixAR1rowcol <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>                  <span class="at">random=</span><span class="sc">~</span> <span class="fu">vsr</span>(Rowf<span class="sc">:</span>Colf, </span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>                              <span class="at">Gu=</span><span class="fu">kronecker</span>(<span class="fu">AR1</span>(Rowf, <span class="at">rho=</span><span class="fl">0.3</span>),<span class="fu">AR1</span>(Colf, <span class="at">rho=</span><span class="fl">0.3</span>),<span class="at">make.dimnames =</span> <span class="cn">TRUE</span>) </span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>                              ),</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>                  <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>                  <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mixAR1rowcol)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                          VarComp VarCompSE   Zratio Constraint
 ## u:Rowf:Colf.Yield-Yield 2474.339  730.1474 3.388821   Positive
 ## units.Yield-Yield       2025.584  622.1023 3.256030   Positive</code></pre>
-<p>Notice that if you specify a random effect that is the interaction between 2 random effects the covariance structure to be specified in the <code>Gu</code> argument has to be built using the <code>kronecker()</code> function. The same applies to the <code>ARMA()</code> and <code>CS()</code> functions. Please keep in mind that the correlation values (rho argument) is a fixed value not estimated by REML like asreml does but you can always follow an iterative approach.</p>
+<p>Notice that if you specify a random effect that is the interaction
+between 2 random effects the covariance structure to be specified in the
+<code>Gu</code> argument has to be built using the
+<code>kronecker()</code> function. The same applies to the
+<code>ARMA()</code> and <code>CS()</code> functions. Please keep in mind
+that the correlation values (rho argument) is a fixed value not
+estimated by REML like asreml does but you can always follow an
+iterative approach.</p>
 </div>
 <div id="can-i-run-gwas-in-met-experiments-with-replicates" class="section level3">
 <h3>6) Can I run GWAS in MET experiments with replicates?</h3>
-<p>Yes, please see the vignette for QG using sommer and the method of GWAS by GBLUP.</p>
+<p>Yes, please see the vignette for QG using sommer and the method of
+GWAS by GBLUP.</p>
 </div>
 <div id="how-can-i-constrain-the-value-of-specific-random-effects" class="section level3">
 <h3>7) How can I constrain the value of specific random effects?</h3>
-<p>When using the <code>vsr()</code> function three additional arguments help to control the following:</p>
+<p>When using the <code>vsr()</code> function three additional arguments
+help to control the following:</p>
 <ul>
-<li><code>Gu</code>: matrix for covariances among levels for the u.th random effect</li>
-<li><code>Gti</code>: matrix of initial values for the variance-covariance components</li>
-<li><code>Gtc</code>: matrix of constraints for the variance-covariance components</li>
+<li><code>Gu</code>: matrix for covariances among levels for the u.th
+random effect</li>
+<li><code>Gti</code>: matrix of initial values for the
+variance-covariance components</li>
+<li><code>Gtc</code>: matrix of constraints for the variance-covariance
+components</li>
 </ul>
-<p>Since each random effect can be seen as a multi-trait variance covariance structure, the univariate models are just an extension where the multi-trait variance covariance structure is a 1 x 1 matrix. When inspecting the results for the mixed models fitted by the <code>mmer()</code> function corresponding to the variance components stored in the <code>sigma</code> element, you will notice that each random effect contains a t x t matrix which corresponds to the multi-trait structure we referred to. For example:</p>
-<div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb28-2"><a href="#cb28-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb28-3"><a href="#cb28-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
-<span id="cb28-4"><a href="#cb28-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
-<span id="cb28-5"><a href="#cb28-5"></a><span class="co">#### create the variance-covariance matrix</span></span>
-<span id="cb28-6"><a href="#cb28-6"></a>A &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
-<span id="cb28-7"><a href="#cb28-7"></a><span class="co">#### look at the data and fit the model</span></span>
-<span id="cb28-8"><a href="#cb28-8"></a>mix1 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb28-9"><a href="#cb28-9"></a>              <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(id,<span class="dt">Gu=</span>A),</span>
-<span id="cb28-10"><a href="#cb28-10"></a>              <span class="dt">rcov=</span><span class="op">~</span>units,</span>
-<span id="cb28-11"><a href="#cb28-11"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb28-12"><a href="#cb28-12"></a>mix1<span class="op">$</span>sigma<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span></span></code></pre></div>
+<p>Since each random effect can be seen as a multi-trait variance
+covariance structure, the univariate models are just an extension where
+the multi-trait variance covariance structure is a 1 x 1 matrix. When
+inspecting the results for the mixed models fitted by the
+<code>mmer()</code> function corresponding to the variance components
+stored in the <code>sigma</code> element, you will notice that each
+random effect contains a t x t matrix which corresponds to the
+multi-trait structure we referred to. For example:</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>GT <span class="ot">&lt;-</span> GT_cpdata</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>MP <span class="ot">&lt;-</span> MP_cpdata</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="do">#### create the variance-covariance matrix</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>A <span class="ot">&lt;-</span> <span class="fu">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="do">#### look at the data and fit the model</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>mix1 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id,<span class="at">Gu=</span>A),</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>mix1<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span></span></code></pre></div>
 <pre><code>##          Yield
 ## Yield 650.4145</code></pre>
-<p>Here the sigma element contains the random effects for <code>id</code> and <code>units</code> (error). Each of these contains a matrix of 1 by 1, but in a multi trait model would look like this:</p>
-<div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1"></a><span class="kw">data</span>(DT_cpdata)</span>
-<span id="cb30-2"><a href="#cb30-2"></a>DT &lt;-<span class="st"> </span>DT_cpdata</span>
-<span id="cb30-3"><a href="#cb30-3"></a>GT &lt;-<span class="st"> </span>GT_cpdata</span>
-<span id="cb30-4"><a href="#cb30-4"></a>MP &lt;-<span class="st"> </span>MP_cpdata</span>
-<span id="cb30-5"><a href="#cb30-5"></a><span class="co">#### create the variance-covariance matrix</span></span>
-<span id="cb30-6"><a href="#cb30-6"></a>A &lt;-<span class="st"> </span><span class="kw">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
-<span id="cb30-7"><a href="#cb30-7"></a><span class="co">#### look at the data and fit the model</span></span>
-<span id="cb30-8"><a href="#cb30-8"></a>mix2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(Yield,color)<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb30-9"><a href="#cb30-9"></a>              <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(id,<span class="dt">Gu=</span>A, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)),</span>
-<span id="cb30-10"><a href="#cb30-10"></a>              <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vsr</span>(units,<span class="dt">Gtc=</span><span class="kw">diag</span>(<span class="dv">2</span>)),</span>
-<span id="cb30-11"><a href="#cb30-11"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb30-12"><a href="#cb30-12"></a>mix2<span class="op">$</span>sigma<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span></span></code></pre></div>
+<p>Here the sigma element contains the random effects for
+<code>id</code> and <code>units</code> (error). Each of these contains a
+matrix of 1 by 1, but in a multi trait model would look like this:</p>
+<div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>GT <span class="ot">&lt;-</span> GT_cpdata</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>MP <span class="ot">&lt;-</span> MP_cpdata</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="do">#### create the variance-covariance matrix</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>A <span class="ot">&lt;-</span> <span class="fu">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="do">#### look at the data and fit the model</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>mix2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(<span class="fu">cbind</span>(Yield,color)<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id,<span class="at">Gu=</span>A, <span class="at">Gtc=</span><span class="fu">unsm</span>(<span class="dv">2</span>)),</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsr</span>(units,<span class="at">Gtc=</span><span class="fu">diag</span>(<span class="dv">2</span>)),</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span></span></code></pre></div>
 <pre><code>##             Yield       color
 ## Yield 634.6295932 0.471715518
 ## color   0.4717155 0.005126228</code></pre>
-<p>Notice that for 2 traits this becomes a 2 by 2 matrix. In order to put constraints in some of these random effect matrices you can use the <code>Gtc</code> argument as show above. For the <code>id</code> random effect we have specified that variance components should be estimated and be positive (diagonals with a 1), whereas covariance components should be estimated and unconstrained to be positive or negative (off-diagonals with a 2).</p>
-<div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1"></a><span class="kw">unsm</span>(<span class="dv">2</span>)</span></code></pre></div>
+<p>Notice that for 2 traits this becomes a 2 by 2 matrix. In order to
+put constraints in some of these random effect matrices you can use the
+<code>Gtc</code> argument as show above. For the <code>id</code> random
+effect we have specified that variance components should be estimated
+and be positive (diagonals with a 1), whereas covariance components
+should be estimated and unconstrained to be positive or negative
+(off-diagonals with a 2).</p>
+<div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">unsm</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>##      [,1] [,2]
 ## [1,]    1    2
 ## [2,]    2    1</code></pre>
-<div class="sourceCode" id="cb34"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1"></a>mix2<span class="op">$</span>sigma<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span></span></code></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span></span></code></pre></div>
 <pre><code>##             Yield       color
 ## Yield 634.6295932 0.471715518
 ## color   0.4717155 0.005126228</code></pre>
-<p>On the other hand, for the <code>units</code> (error) random effect we have specified in the <code>Gtc</code> argument that variance components should be estimated and be positive (diagonals), whereas covariance components should not be estimated (off-diagonals with a 0)</p>
-<div class="sourceCode" id="cb36"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1"></a><span class="kw">diag</span>(<span class="dv">2</span>)</span></code></pre></div>
+<p>On the other hand, for the <code>units</code> (error) random effect
+we have specified in the <code>Gtc</code> argument that variance
+components should be estimated and be positive (diagonals), whereas
+covariance components should not be estimated (off-diagonals with a
+0)</p>
+<div class="sourceCode" id="cb36"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">diag</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>##      [,1] [,2]
 ## [1,]    1    0
 ## [2,]    0    1</code></pre>
-<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1"></a>mix2<span class="op">$</span>sigma<span class="op">$</span><span class="st">`</span><span class="dt">u:units</span><span class="st">`</span></span></code></pre></div>
+<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:units</span><span class="st">`</span></span></code></pre></div>
 <pre><code>##          Yield       color
 ## Yield 4009.336 0.000000000
 ## color    0.000 0.002563711</code></pre>
-<p>If the user would like to constrain a value to be fixed and not change through the estimation process of other random effects the user needs to provide the initial value (scaled with respect to the error variance) of those variance-covariance components in the <code>Gti</code> argument and use a matrix with the value 3 in the <code>Gtc</code> constraint matrix.</p>
-<div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1"></a>mm &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="dv">3</span>,<span class="dv">1</span>,<span class="dv">1</span>) <span class="co">## matrix to fix the var comp</span></span>
-<span id="cb40-2"><a href="#cb40-2"></a>initialVal &lt;-<span class="st"> </span>mix1<span class="op">$</span>sigma_scaled<span class="op">$</span><span class="st">`</span><span class="dt">u:id</span><span class="st">`</span><span class="op">/</span><span class="dv">2</span> <span class="co"># we want to fix the vc to be half of the previous uinvariate model</span></span>
-<span id="cb40-3"><a href="#cb40-3"></a></span>
-<span id="cb40-4"><a href="#cb40-4"></a>mix3 &lt;-<span class="st"> </span><span class="kw">mmer</span>(Yield<span class="op">~</span><span class="dv">1</span>,</span>
-<span id="cb40-5"><a href="#cb40-5"></a>              <span class="dt">random=</span><span class="op">~</span><span class="kw">vsr</span>(id, <span class="dt">Gu=</span>A, <span class="dt">Gti=</span>initialVal, <span class="dt">Gtc=</span>mm), <span class="co"># constrained</span></span>
-<span id="cb40-6"><a href="#cb40-6"></a>              <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vsr</span>(units), <span class="co"># unconstrained</span></span>
-<span id="cb40-7"><a href="#cb40-7"></a>              <span class="dt">data=</span>DT, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb40-8"><a href="#cb40-8"></a></span>
-<span id="cb40-9"><a href="#cb40-9"></a><span class="co"># analyze variance components</span></span>
-<span id="cb40-10"><a href="#cb40-10"></a><span class="kw">summary</span>(mix1)<span class="op">$</span>varcomp</span></code></pre></div>
+<p>If the user would like to constrain a value to be fixed and not
+change through the estimation process of other random effects the user
+needs to provide the initial value (scaled with respect to the error
+variance) of those variance-covariance components in the
+<code>Gti</code> argument and use a matrix with the value 3 in the
+<code>Gtc</code> constraint matrix.</p>
+<div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>mm <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">3</span>,<span class="dv">1</span>,<span class="dv">1</span>) <span class="do">## matrix to fix the var comp</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>initialVal <span class="ot">&lt;-</span> mix1<span class="sc">$</span>sigma_scaled<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span><span class="sc">/</span><span class="dv">2</span> <span class="co"># we want to fix the vc to be half of the previous uinvariate model</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>mix3 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id, <span class="at">Gu=</span>A, <span class="at">Gti=</span>initialVal, <span class="at">Gtc=</span>mm), <span class="co"># constrained</span></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsr</span>(units), <span class="co"># unconstrained</span></span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze variance components</span></span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix1)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                     VarComp VarCompSE    Zratio Constraint
 ## u:id.Yield-Yield   650.4145  325.5562  1.997856   Positive
 ## units.Yield-Yield 4031.0153  344.6051 11.697493   Positive</code></pre>
-<div class="sourceCode" id="cb42"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1"></a><span class="kw">summary</span>(mix3)<span class="op">$</span>varcomp</span></code></pre></div>
+<div class="sourceCode" id="cb42"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix3)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                       VarComp VarCompSE    Zratio Constraint
 ## u:id.Yield-Yield     325.2072  259.0889  1.255196      Fixed
 ## u:units.Yield-Yield 4051.3786  352.4804 11.493912   Positive</code></pre>
-<p>For the vsc() function for the c x c problem the theta and thetaC arguments can be used directly in the additional structures.</p>
+<p>For the vsc() function for the c x c problem the theta and thetaC
+arguments can be used directly in the additional structures. For example
+to fix the residuals equal to 1:</p>
+<div class="sourceCode" id="cb44"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>mm <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">3</span>,<span class="dv">1</span>,<span class="dv">1</span>) <span class="do">## matrix to fix the var comp</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>vei <span class="ot">&lt;-</span> <span class="fu">var</span>(DT<span class="sc">$</span>Yield, <span class="at">na.rm =</span> <span class="cn">TRUE</span>) <span class="co"># we want to fix the vc to be half of the previous uinvariate model</span></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>mix3 <span class="ot">&lt;-</span> <span class="fu">mmec</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span>Rowf, <span class="co"># unconstrained</span></span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span> <span class="sc">~</span> <span class="fu">vsc</span>(<span class="fu">isc</span>(units, <span class="at">thetaC=</span>mm,<span class="at">theta=</span><span class="fu">matrix</span>(<span class="dv">1</span><span class="sc">/</span>vei,<span class="dv">1</span>,<span class="dv">1</span>))), <span class="co"># constrained</span></span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze variance components</span></span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix3)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                VarComp    VarCompSE       Zratio Constraint
+## Rowf:isc:isc  976.2789 8.911832e-16 1.095486e+18   Positive
+## units:mm:vei:   1.0000 1.227629e-03 8.145785e+02      Fixed</code></pre>
 </div>
 <div id="how-can-i-constrain-two-variance-components-to-be-equal" class="section level3">
 <h3>8) How can I constrain two variance components to be equal?</h3>
-<p>Sometimes the built-in capacities of sommer are not flexible enough to do all what users want. One of those situations is to fix variance components to be equal. Let’s simulate some multitrait data:</p>
-<div class="sourceCode" id="cb44"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1"></a><span class="kw">library</span>(<span class="st">&quot;MASS&quot;</span>)  <span class="co">## needed for mvrnorm</span></span>
-<span id="cb44-2"><a href="#cb44-2"></a>n &lt;-<span class="st"> </span><span class="dv">100</span></span>
-<span id="cb44-3"><a href="#cb44-3"></a>mu &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="dv">1</span>,<span class="dv">2</span>)</span>
-<span id="cb44-4"><a href="#cb44-4"></a>Sigma &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">c</span>(<span class="dv">10</span>,<span class="dv">5</span>,<span class="dv">5</span>,<span class="dv">10</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
-<span id="cb44-5"><a href="#cb44-5"></a>Y &lt;-<span class="st"> </span><span class="kw">mvrnorm</span>(n,mu,Sigma); <span class="kw">colnames</span>(Y) &lt;-<span class="st"> </span><span class="kw">c</span>(<span class="st">&quot;y1&quot;</span>,<span class="st">&quot;y2&quot;</span>)</span>
-<span id="cb44-6"><a href="#cb44-6"></a><span class="co">## this simulates multivariate normal rvs</span></span>
-<span id="cb44-7"><a href="#cb44-7"></a>y &lt;-<span class="st"> </span><span class="kw">as.vector</span>(<span class="kw">t</span>(Y))</span>
-<span id="cb44-8"><a href="#cb44-8"></a>df1 &lt;-<span class="st"> </span><span class="kw">data.frame</span>(Y)</span>
-<span id="cb44-9"><a href="#cb44-9"></a>df2 &lt;-<span class="st"> </span><span class="kw">data.frame</span>(y)</span></code></pre></div>
-<p>Now lets assume that we want to fit a multitrait model with an unstructured error variance structure with the built-in capacity. That would be as easy as this:</p>
-<div class="sourceCode" id="cb45"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb45-1"><a href="#cb45-1"></a>mix1 &lt;-<span class="st"> </span><span class="kw">mmer</span>(<span class="kw">cbind</span>(y1,y2)<span class="op">~</span><span class="dv">1</span>, <span class="dt">rcov=</span><span class="op">~</span><span class="kw">vsr</span>(units, <span class="dt">Gtc=</span><span class="kw">unsm</span>(<span class="dv">2</span>)), <span class="dt">data=</span>df1, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb45-2"><a href="#cb45-2"></a>mix1<span class="op">$</span>sigma</span></code></pre></div>
+<p>Sometimes the built-in capacities of sommer are not flexible enough
+to do all what users want. One of those situations is to fix variance
+components to be equal. Let’s simulate some multitrait data:</p>
+<div class="sourceCode" id="cb46"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;MASS&quot;</span>)  <span class="do">## needed for mvrnorm</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">100</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>mu <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">2</span>)</span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>Sigma <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">10</span>,<span class="dv">5</span>,<span class="dv">5</span>,<span class="dv">10</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>Y <span class="ot">&lt;-</span> <span class="fu">mvrnorm</span>(n,mu,Sigma); <span class="fu">colnames</span>(Y) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;y1&quot;</span>,<span class="st">&quot;y2&quot;</span>)</span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a><span class="do">## this simulates multivariate normal rvs</span></span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>y <span class="ot">&lt;-</span> <span class="fu">as.vector</span>(<span class="fu">t</span>(Y))</span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a>df1 <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(Y)</span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a>df2 <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(y)</span></code></pre></div>
+<p>Now lets assume that we want to fit a multitrait model with an
+unstructured error variance structure with the built-in capacity. That
+would be as easy as this:</p>
+<div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>mix1 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(<span class="fu">cbind</span>(y1,y2)<span class="sc">~</span><span class="dv">1</span>, <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsr</span>(units, <span class="at">Gtc=</span><span class="fu">unsm</span>(<span class="dv">2</span>)), <span class="at">data=</span>df1, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>mix1<span class="sc">$</span>sigma</span></code></pre></div>
 <pre><code>## $`u:units`
 ##          y1        y2
 ## y1 9.902536  5.543521
 ## y2 5.543521 10.125877</code></pre>
-<p>But now assume that you would like to constrain the variance of <code>y1</code> and <code>y2</code> to be equal. This requires the user to take a different approach. The user can build externally the multitrait matrices and fit them directly. Let’s do this to recreate the exact same result as using the built-in capabilities:</p>
-<div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1"></a>X &lt;-<span class="st"> </span><span class="kw">kronecker</span>(<span class="kw">rep</span>(<span class="dv">1</span>,n),<span class="kw">diag</span>(<span class="dv">1</span>,<span class="dv">2</span>))</span>
-<span id="cb47-2"><a href="#cb47-2"></a>V1 &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
-<span id="cb47-3"><a href="#cb47-3"></a>V2 &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">c</span>(<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">1</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
-<span id="cb47-4"><a href="#cb47-4"></a>V3 &lt;-<span class="st"> </span><span class="kw">matrix</span>(<span class="kw">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
-<span id="cb47-5"><a href="#cb47-5"></a>sig1 &lt;-<span class="st"> </span><span class="kw">kronecker</span>(<span class="kw">diag</span>(<span class="dv">1</span>,n),V1) <span class="co"># variance component 1</span></span>
-<span id="cb47-6"><a href="#cb47-6"></a>sig2 &lt;-<span class="st"> </span><span class="kw">kronecker</span>(<span class="kw">diag</span>(<span class="dv">1</span>,n),V2) <span class="co"># variance component 2</span></span>
-<span id="cb47-7"><a href="#cb47-7"></a>gam &lt;-<span class="st"> </span><span class="kw">kronecker</span>(<span class="kw">diag</span>(<span class="dv">1</span>,n),V3) <span class="co"># covariance component</span></span>
-<span id="cb47-8"><a href="#cb47-8"></a><span class="co"># now fit the model</span></span>
-<span id="cb47-9"><a href="#cb47-9"></a>mix2 &lt;-<span class="st"> </span><span class="kw">mmer</span>(y<span class="op">~</span>X<span class="dv">-1</span>, <span class="dt">rcov =</span> <span class="op">~</span><span class="kw">vsr</span>(sig1)<span class="op">+</span><span class="kw">vsr</span>(sig2)<span class="op">+</span><span class="kw">vsr</span>(gam), <span class="dt">data=</span>df2, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb47-10"><a href="#cb47-10"></a>mix2<span class="op">$</span>sigmaVector</span></code></pre></div>
-<pre><code>## u:sig1.y-y u:sig2.y-y  u:gam.y-y 
-##   9.902527  10.125858   5.543497</code></pre>
-<p>Notice that we fitted a univariate model but we built the kernels and fitted those kernels one by one.</p>
-<p>Now we will constrain the two variance components to be equal. This is done the following way:</p>
-<div class="sourceCode" id="cb49"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1"></a>sig &lt;-<span class="st"> </span>sig1<span class="op">+</span>sig2</span>
-<span id="cb49-2"><a href="#cb49-2"></a>mix3 &lt;-<span class="st"> </span><span class="kw">mmer</span>(y<span class="op">~</span>X<span class="dv">-1</span>, <span class="dt">rcov =</span> <span class="op">~</span><span class="kw">vsr</span>(sig)<span class="op">+</span><span class="kw">vsr</span>(gam), <span class="dt">data=</span>df2, <span class="dt">nIters=</span><span class="dv">30</span>, <span class="dt">verbose =</span> <span class="ot">FALSE</span>)</span>
-<span id="cb49-3"><a href="#cb49-3"></a>mix3<span class="op">$</span>sigmaVector</span></code></pre></div>
-<pre><code>## u:sig.y-y u:gam.y-y 
-## 10.014085  5.543302</code></pre>
+<p>But now assume that you would like to constrain the variance of
+<code>y1</code> and <code>y2</code> to be equal. This requires the user
+to take a different approach. The user can build externally the
+multitrait matrices and fit them directly. Let’s do this to recreate the
+exact same result as using the built-in capabilities:</p>
+<div class="sourceCode" id="cb49"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>X <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">rep</span>(<span class="dv">1</span>,n),<span class="fu">diag</span>(<span class="dv">1</span>,<span class="dv">2</span>))</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>V1 <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>V2 <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">1</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>V3 <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>sig1 <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">diag</span>(<span class="dv">1</span>,n),V1) <span class="co"># variance component 1</span></span>
+<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>sig2 <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">diag</span>(<span class="dv">1</span>,n),V2) <span class="co"># variance component 2</span></span>
+<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>gam <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">diag</span>(<span class="dv">1</span>,n),V3) <span class="co"># covariance component</span></span>
+<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a><span class="co"># now fit the model</span></span>
+<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a>mix2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(y<span class="sc">~</span>X<span class="dv">-1</span>, <span class="at">rcov =</span> <span class="sc">~</span><span class="fu">vsr</span>(sig1)<span class="sc">+</span><span class="fu">vsr</span>(sig2)<span class="sc">+</span><span class="fu">vsr</span>(gam), <span class="at">data=</span>df2, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
+<pre><code>## System is singular (V). Stopping the job. Try a bigger number of tolparinv.</code></pre>
+<div class="sourceCode" id="cb51"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigmaVector</span></code></pre></div>
+<pre><code>## NULL</code></pre>
+<p>Notice that we fitted a univariate model but we built the kernels and
+fitted those kernels one by one.</p>
+<p>Now we will constrain the two variance components to be equal. This
+is done the following way:</p>
+<div class="sourceCode" id="cb53"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb53-1"><a href="#cb53-1" aria-hidden="true" tabindex="-1"></a>sig <span class="ot">&lt;-</span> sig1<span class="sc">+</span>sig2</span>
+<span id="cb53-2"><a href="#cb53-2" aria-hidden="true" tabindex="-1"></a>mix3 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(y<span class="sc">~</span>X<span class="dv">-1</span>, <span class="at">rcov =</span> <span class="sc">~</span><span class="fu">vsr</span>(sig)<span class="sc">+</span><span class="fu">vsr</span>(gam), <span class="at">data=</span>df2, <span class="at">nIters=</span><span class="dv">30</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
+<pre><code>## System is singular (V). Stopping the job. Try a bigger number of tolparinv.</code></pre>
+<div class="sourceCode" id="cb55"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb55-1"><a href="#cb55-1" aria-hidden="true" tabindex="-1"></a>mix3<span class="sc">$</span>sigmaVector</span></code></pre></div>
+<pre><code>## NULL</code></pre>
 </div>
 <div id="i-get-an-error-when-installing-directly-from-github" class="section level3">
 <h3>9) I get an error when installing directly from github</h3>
-<p>Some people experience issues when trying to install the newest version of sommer from GitHub in their mac computer using the following command line:</p>
+<p>Some people experience issues when trying to install the newest
+version of sommer from GitHub in their mac computer using the following
+command line:</p>
 <p>devtools::install_github(‘covaruber/sommer’)</p>
-<p>one of the error messages that have been identified by users is related to the installation of the gfortran compiler. If you have that issue, the information of the following website may solve your instalation problem:</p>
+<p>one of the error messages that have been identified by users is
+related to the installation of the gfortran compiler. If you have that
+issue, the information of the following website may solve your
+instalation problem:</p>
 <p><a href="https://www.cynkra.com/blog/2021-03-16-gfortran-macos/" class="uri">https://www.cynkra.com/blog/2021-03-16-gfortran-macos/</a></p>
 </div>
 <div id="i-get-and-error-when-specifying-an-interaction-of-the-form-xz" class="section level3">
-<h3>10) I get and error when specifying an interaction of the form X:Z</h3>
-<p>If you get an error message similar to the following when specifying an interaction in your model:</p>
-<p>Error in X:Z : NA/NaN argument In addition: Warning messages: 1: In X:Z : numerical expression has “n” elements: only the first used 2: In X:Z : numerical expression has “n” elements: only the first used 3: In eval(substitute(expr), data, enclos = parent.frame()) : NAs introduced by coercion</p>
-<p>Please check that your variables in the interaction are all of class factor. Making all factors using the as.factor() function should fix your error.</p>
+<h3>10) I get and error when specifying an interaction of the form
+X:Z</h3>
+<p>If you get an error message similar to the following when specifying
+an interaction in your model:</p>
+<p>Error in X:Z : NA/NaN argument In addition: Warning messages: 1: In
+X:Z : numerical expression has “n” elements: only the first used 2: In
+X:Z : numerical expression has “n” elements: only the first used 3: In
+eval(substitute(expr), data, enclos = parent.frame()) : NAs introduced
+by coercion</p>
+<p>Please check that your variables in the interaction are all of class
+factor. Making all factors using the as.factor() function should fix
+your error.</p>
 </div>
 </div>
 <div id="literature" class="section level2">
 <h2>Literature</h2>
-<p>Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6):1-15.</p>
-<p>Covarrubias-Pazaran G. 2018. Software update: Moving the R package sommer to multivariate mixed models for genome-assisted prediction. doi: <a href="https://doi.org/10.1101/354639" class="uri">https://doi.org/10.1101/354639</a></p>
-<p>Bernardo Rex. 2010. Breeding for quantitative traits in plants. Second edition. Stemma Press. 390 pp.</p>
-<p>Gilmour et al. 1995. Average Information REML: An efficient algorithm for variance parameter estimation in linear mixed models. Biometrics 51(4):1440-1450.</p>
-<p>Henderson C.R. 1975. Best Linear Unbiased Estimation and Prediction under a Selection Model. Biometrics vol. 31(2):423-447.</p>
-<p>Kang et al. 2008. Efficient control of population structure in model organism association mapping. Genetics 178:1709-1723.</p>
-<p>Lee, D.-J., Durban, M., and Eilers, P.H.C. (2013). Efficient two-dimensional smoothing with P-spline ANOVA mixed models and nested bases. Computational Statistics and Data Analysis, 61, 22 - 37.</p>
-<p>Lee et al. 2015. MTG2: An efficient algorithm for multivariate linear mixed model analysis based on genomic information. Cold Spring Harbor. doi: <a href="http://dx.doi.org/10.1101/027201" class="uri">http://dx.doi.org/10.1101/027201</a>.</p>
-<p>Maier et al. 2015. Joint analysis of psychiatric disorders increases accuracy of risk prediction for schizophrenia, bipolar disorder, and major depressive disorder. Am J Hum Genet; 96(2):283-294.</p>
-<p>Rodriguez-Alvarez, Maria Xose, et al. Correcting for spatial heterogeneity in plant breeding experiments with P-splines. Spatial Statistics 23 (2018): 52-71.</p>
-<p>Searle. 1993. Applying the EM algorithm to calculating ML and REML estimates of variance components. Paper invited for the 1993 American Statistical Association Meeting, San Francisco.</p>
-<p>Yu et al. 2006. A unified mixed-model method for association mapping that accounts for multiple levels of relatedness. Genetics 38:203-208.</p>
-<p>Tunnicliffe W. 1989. On the use of marginal likelihood in time series model estimation. JRSS 51(1):15-27.</p>
+<p>Covarrubias-Pazaran G. 2016. Genome assisted prediction of
+quantitative traits using the R package sommer. PLoS ONE 11(6):1-15.</p>
+<p>Covarrubias-Pazaran G. 2018. Software update: Moving the R package
+sommer to multivariate mixed models for genome-assisted prediction. doi:
+<a href="https://doi.org/10.1101/354639" class="uri">https://doi.org/10.1101/354639</a></p>
+<p>Bernardo Rex. 2010. Breeding for quantitative traits in plants.
+Second edition. Stemma Press. 390 pp.</p>
+<p>Gilmour et al. 1995. Average Information REML: An efficient algorithm
+for variance parameter estimation in linear mixed models. Biometrics
+51(4):1440-1450.</p>
+<p>Henderson C.R. 1975. Best Linear Unbiased Estimation and Prediction
+under a Selection Model. Biometrics vol. 31(2):423-447.</p>
+<p>Kang et al. 2008. Efficient control of population structure in model
+organism association mapping. Genetics 178:1709-1723.</p>
+<p>Lee, D.-J., Durban, M., and Eilers, P.H.C. (2013). Efficient
+two-dimensional smoothing with P-spline ANOVA mixed models and nested
+bases. Computational Statistics and Data Analysis, 61, 22 - 37.</p>
+<p>Lee et al. 2015. MTG2: An efficient algorithm for multivariate linear
+mixed model analysis based on genomic information. Cold Spring Harbor.
+doi: <a href="http://dx.doi.org/10.1101/027201" class="uri">http://dx.doi.org/10.1101/027201</a>.</p>
+<p>Maier et al. 2015. Joint analysis of psychiatric disorders increases
+accuracy of risk prediction for schizophrenia, bipolar disorder, and
+major depressive disorder. Am J Hum Genet; 96(2):283-294.</p>
+<p>Rodriguez-Alvarez, Maria Xose, et al. Correcting for spatial
+heterogeneity in plant breeding experiments with P-splines. Spatial
+Statistics 23 (2018): 52-71.</p>
+<p>Searle. 1993. Applying the EM algorithm to calculating ML and REML
+estimates of variance components. Paper invited for the 1993 American
+Statistical Association Meeting, San Francisco.</p>
+<p>Yu et al. 2006. A unified mixed-model method for association mapping
+that accounts for multiple levels of relatedness. Genetics
+38:203-208.</p>
+<p>Tunnicliffe W. 1989. On the use of marginal likelihood in time series
+model estimation. JRSS 51(1):15-27.</p>
 </div>
 
 

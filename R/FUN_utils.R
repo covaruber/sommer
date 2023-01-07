@@ -128,7 +128,7 @@ vcsExtract <- function(object){
   ################################################
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by REML",rlt,"\n", collapse = ""))
-  cat(paste(rlh," sommer 4.1 ",rlh, "\n", collapse = ""))
+  cat(paste(rlh," sommer 4.2 ",rlh, "\n", collapse = ""))
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\n")
   cat("")
@@ -211,7 +211,7 @@ vcsExtract <- function(object){
   ################################################
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by REML",rlt,"\n", collapse = ""))
-  cat(paste(rlh," sommer 4.1 ",rlh, "\n", collapse = ""))
+  cat(paste(rlh," sommer 4.2 ",rlh, "\n", collapse = ""))
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\n")
   cat("")
@@ -724,7 +724,7 @@ plot.mmec <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 2.1 or later")
   assign(".sommer.home", file.path(library, pkg),
          pos=match("package:sommer", search()))
-  sommer.version = "4.1.8 (2023-01-01)" # usually 2 months before it expires
+  sommer.version = "4.2.0 (2023-01-01)" # usually 4 months after it expires
 
   assign(".sommer.version", sommer.version, pos=match("package:sommer", search()))
   if(interactive())
