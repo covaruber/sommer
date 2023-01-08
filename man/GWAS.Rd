@@ -206,19 +206,7 @@ If all parameters are correctly indicated the program will return a list with th
 \item{BIC}{Bayesian information criterion}
 \item{convergence}{a TRUE/FALSE statement indicating if the model converged.}
 \item{monitor}{The values of log-likelihood and variance-covariance components across iterations during the REML estimation.}
-\item{scores}{ A dataframe with as many columns as markers analyzed and 5 rows containing the following:
-
-\emph{beta}: marker effects.
-
-\emph{score}: marker scores (-log_{10}p) for the traits.
-
-\emph{Fstat}: F-statistic associated to the test.
-
-\emph{R2}: R2 value for each marker.
-
-\emph{R2s}: R2 value for each marker scaled.
-
-}
+\item{scores}{ marker scores (-log_{10}p) for the traits}
 \item{method}{The method for extimation of variance components specified by the user.}
 \item{constraints}{contraints used in the mixed models for the random effects.}
 

@@ -437,6 +437,5 @@ version 4.2.0.1 (2023-01-01)
 + arma::inv, arma::solve, arma::chol are much slower than Eigen, we need to find how to use both libraries in the same function
 + add FA covariance structure
 + Add correlation models
-+ bring back the betas, and R2 for markers in GWAS. Need to use C++ cubes (sort of list) to store betas, scores and R so we extract them in a good order.
 + Generalized linear models
  
