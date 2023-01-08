@@ -103,7 +103,7 @@ S3method(print, wald.test)
   importFrom("grDevices", "col2rgb", "colorRampPalette", "gray.colors",
              "rgb","dev.cur", "dev.size", "xy.coords", "topo.colors")
   importFrom("stats", "reformulate", "as.formula", "cov", "density", "gaussian", "glm",
-             "lm", "median", "optimize", "pbeta", "pchisq", "predict",
+             "lm", "median", "optimize", "pbeta", "pchisq","pnorm", "predict",
              "printCoefmat", "qqnorm", "smooth.spline", "var", "rnorm", 
              "model.matrix","na.omit", "p.adjust","kmeans","dist", "runif",
              "nobs", "ppoints", "sd", "model.frame", "model.response", "na.pass",
