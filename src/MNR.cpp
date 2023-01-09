@@ -759,8 +759,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
           V = V + (D*(tolparinv*100));
           arma::inv_sympd(Vi,V);
           if(Vi.n_rows == 0){ // finally, if fails try to invert with diag(1e-3)
-            Rcpp::Rcout << "System is singular (V). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
-            return 0;
+            // Rcpp::Rcout << "System is singular (V). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
+            Rcpp::stop("System is singular (V). Aborting the job. Try a bigger number of tolparinv.");
+            // return 0;
           }
         }
       }
@@ -790,8 +791,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         if(tXVXVX.n_rows == 0){ // if fails try to invert with diag(1e-4)
           arma::solve(tXVXVX,tXVX + (D*(tolparinv*100)),VX.t());
           if(tXVXVX.n_rows == 0){ // finally stop
-            Rcpp::Rcout << "System is singular (tXVXVX). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
-            return 0;
+            // Rcpp::Rcout << "System is singular (tXVXVX). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
+            Rcpp::stop("System is singular (tXVXVX). Aborting the job. Try a bigger number of tolparinv.");
+            // return 0;
           }
         }
       }
@@ -876,8 +878,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       Inf_inv = arma::pinv(Inf, 1.490116e-08); // Inverse of Fishers or information matrix
 
       if(Inf_inv.n_rows == 0){ // if fails
-        Rcpp::Rcout << "System is singular (Inf_inv). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
-        return 0;
+        // Rcpp::Rcout << "System is singular (Inf_inv). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
+        // return 0;
+        Rcpp::stop("System is singular (Inf_inv). Aborting the job. Try a bigger number of tolparinv.");
       }
       // }
 
@@ -922,8 +925,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         arma::mat Inf_norestrain_inv; // define the inverse of the information matrix
         arma::inv(Inf_norestrain_inv, Inf_norestrain); // Inverse of Fishers (subset of Inf)
         if(Inf_norestrain_inv.n_rows == 0){ // if fails
-          Rcpp::Rcout << "System is singular (Inf_norestrain_inv). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
-          return 0;
+          // Rcpp::Rcout << "System is singular (Inf_norestrain_inv). Stopping the job. Try a bigger number of tolparinv." << arma::endl;
+          // return 0;
+          Rcpp::stop("System is singular (Inf_norestrain_inv). Aborting the job. Try a bigger number of tolparinv.");
         }
         arma::vec scorenorestrain = score(no_restrain); // subset of scores (1st derivatives)
         arma::vec coef_ut_un_norestrain = coef_ut_un(no_restrain); // subset of vc
@@ -1005,8 +1009,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         arma::mat FI_c = FI / (sp * sp.t());
         sigma_cov = pinv(FI_c);
         if(sigma_cov.n_rows == 0){ // if fails
-          Rcpp::Rcout << "System is singular (sigma_cov). Aborting the job." << arma::endl;
-          return 0;
+          // Rcpp::Rcout << "System is singular (sigma_cov). Aborting the job." << arma::endl;
+          // return 0;
+          Rcpp::stop("System is singular (sigma_cov). Aborting the job. Try a bigger number of tolparinv.");
         }
       }
 
@@ -1018,8 +1023,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         if(tXVXi.n_rows == 0){// if fails try to invert with diag(1e-5)
           arma::inv(tXVXi,tXVX+(D*(tolparinv*10)));
           if(tXVXi.n_rows == 0){
-            Rcpp::Rcout << "System is singular (tXVXi). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
-            return 0;
+            // Rcpp::Rcout << "System is singular (tXVXi). Aborting the job. Try a bigger number of tolparinv." << arma::endl;
+            // return 0;
+            Rcpp::stop("System is singular (tXVXi). Aborting the job. Try a bigger number of tolparinv.");
           }
         }
       }
