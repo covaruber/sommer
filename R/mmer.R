@@ -492,11 +492,21 @@ mmer <- function(fixed, random, rcov, data, weights, W,
       res$dataOriginal <- dataor
       res$terms <- list(response=list(colnames(yvar)),fixed=list(allfixedterms), random=termsR, rcov=termsE)
       res$termsN <- list(response=ncol(yvar),fixed=length(X), random=termsRN, rcov=termsEN)
+      res$xEffectsN <- unlist(lapply(X,ncol))
+      res$zEffectsN <- unlist(lapply(Z,ncol))
+      fixedTerms <- unlist(res$terms$fixed)
+      randomTerms <- unlist(res$terms$random)
+      Dtable <- data.frame(type=c(rep("fixed",length(fixedTerms)), rep("random",length(randomTerms))), 
+                           term=c(fixedTerms, randomTerms), 
+                           include=FALSE, average=FALSE)
+      res$Dtable <- Dtable
+      res$W <- cbind(do.call(cbind,X),do.call(cbind,Z))
       if(reshapeOutput){
         colnames(res$sigmaSE) <- rownames(res$sigmaSE) <- names(res$sigmaVector)
         res$sigmaVector <- vcsExtract(res)
       }
       res$reshapeOutput <- reshapeOutput
+      
       class(res)<-c("mmer")
     }
   }
