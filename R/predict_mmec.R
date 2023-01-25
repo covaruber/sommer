@@ -23,8 +23,10 @@
   # fill the Dt table
   if(is.null(Dtable)){ # if user didn't provide the Dtable
     Dtable <- object$Dtable # we extract it from the model
+    termsInDtable <- apply(data.frame(Dtable$term),1,function(xx){all.vars(as.formula(paste0("~",xx)))})
     if(is.character(D)){ # if D is properly provided
-      pickTerm <- grep(D, Dtable[,"term"]) # the default rule is to invoke D in the Dtable
+      pickTerm <- which( unlist(lapply(termsInDtable, function(xxx){ifelse(length(which(xxx == D)) > 0, 1, 0)})) > 0)
+      # pickTerm <- grep(D, Dtable[,"term"]) # the default rule is to invoke D in the Dtable
       if(length(pickTerm) > 0){Dtable[pickTerm,"include"]=TRUE; Dtable[pickTerm,"average"]=TRUE }else{Dtable[,"include"]=TRUE}# otherwise if the desired term is not present we just provide fitted values
     }
   }
@@ -32,9 +34,17 @@
   if(is.character(D)){
     # create model matrices to form D
     P <- sparse.model.matrix(as.formula(paste0("~",D,"-1")), data=object$data)
+    colnames(P) <- gsub(D,"",colnames(P))
     tP <- t(P)
     W <- object$W
     D = tP %*% W
+    colnames(D) <- c(rownames(object$b),rownames(object$u))
+    rd <- rownames(D)
+    cd <- colnames(D)
+    for(jRow in 1:nrow(D)){ # for each effect add 1's where missing
+      myMatch <- which(cd == rd[jRow])
+      if(length(myMatch) > 0){D[jRow,myMatch]=1}
+    }
     # apply rules in Dtable
     for(iRow in 1:nrow(Dtable)){
       w <- effectsN[[iRow]]
