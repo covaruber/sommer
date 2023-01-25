@@ -22,7 +22,7 @@
     Dtable <- object$Dtable # we extract it from the model
     if(is.character(D)){ # if D is properly provided
       pickTerm <- grep(D, Dtable[,"term"]) # the default rule is to invoke D in the Dtable
-      if(length(pickTerm) > 0){Dtable[pickTerm,"include"]=TRUE}else{Dtable[,"include"]=TRUE}# otherwise if the desired term is not present we just provide fitted values
+      if(length(pickTerm) > 0){Dtable[pickTerm,"include"]=TRUE; Dtable[pickTerm,"average"]=TRUE }else{Dtable[,"include"]=TRUE}# otherwise if the desired term is not present we just provide fitted values
     }
   }
   if(is.character(D)){
@@ -43,13 +43,22 @@
         D[,s:e] <- subD
         # average rule
         if(Dtable[iRow,"average"]){ # set to 1
+          # average the include set
+          subD <- apply(subD,1,function(x){
+            v <- which(x > 0);  x[v] <- x[v]/length(v)
+            return(x)
+          })
+          D[,s:e] <- subD
+        }
+      }else{ # set to zero
+        if(Dtable[iRow,"average"]){ # set to 1
           subD <- D[,s:e] + 1
           subD <- subD/subD
           subD[which(subD > 0, arr.ind = TRUE)] = subD[which(subD > 0, arr.ind = TRUE)]/ncol(subD)
           D[,s:e] <- subD
+        }else{
+          D[,s:e] <- D[,s:e] * 0
         }
-      }else{ # set to zero
-        D[,s:e] <- D[,s:e] * 0
       }
     }
     interceptColumn <- grep("Intercept",object$Beta$Effect )

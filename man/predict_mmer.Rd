@@ -10,13 +10,15 @@
  \item{object}{a mixed model of class \code{"mmer"}}
  \item{Dtable}{a table specifying the terms to be included or averaged.
  
-  An "include" term means that the model matrices for that fixed or random effect is filled with 1's for the positions where column names and row names match.
+   An "include" term means that the model matrices for that fixed or random effect is filled with 1's for the positions where column names and row names match.
   
-  An "include and average" term means that the model matrices for that fixed or random effect is filled with 1/#levels for the positions where column names and row names match.
+  An "include and average" term means that the model matrices for that fixed or random effect is filled with 1/#1's in that row.
   
-  If a term is not considered "include" is then totally ignored in the BLUP and SE calculation. 
+  An "average" term alone means that all rows for such fixed or random effect will be filled with 1/#levels in the effect.
   
-  If a term is considered "average" but is not in "include" it will be ignored, so please be careful when using "average".
+  If a term is not considered "include" or "average" is then totally ignored in the BLUP and SE calculation. 
+  
+  The default rule to invoke when the user doesn't provide the Dtable is to include and average all terms that match the argument D.
  
  }
  \item{D}{a character string specifying the variable used to extract levels for the rows of the D matrix and its construction. Alternatively, the D matrix (of class dgCMatrix) specifying the matrix to be used for the predictions directly.}
