@@ -106,7 +106,7 @@
     silent = TRUE
   )
   if(inherits(Ci,"try-error") ){
-    WtViW = WtViW + diag(mean(diag(Vi))*3, nrow(WtViW),nrow(WtViW))
+    WtViW = WtViW + diag(mean(diag(Vi)), nrow(WtViW),nrow(WtViW))
     Ci <- try(
       solve(WtViW),
       silent = TRUE

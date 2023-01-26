@@ -23,7 +23,6 @@
   # fill the Dt table for rules
   if(is.null(Dtable) & is.character(D) ){ # if user didn't provide the Dtable but D is character
     Dtable <- object$Dtable # we extract it from the model
-    # termsInDtable <- apply(data.frame(Dtable$term),1,function(xx){all.vars(as.formula(paste0("~",xx)))})
     termsInDtable <- apply(data.frame(Dtable$term),1,function(xx){all.names(as.formula(paste0("~",xx)))})
     termsInDtable <- lapply(termsInDtable, function(x){intersect(x,colnames(object$data))})
     # term identified
