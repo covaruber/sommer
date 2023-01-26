@@ -45,6 +45,7 @@
   }
   ## if user has provided D as a classify then we create the D matrix
   if(is.character(D)){
+    interceptColumn <- grep("Intercept",object$Beta$Effect )
     Dtable$start <- start
     Dtable$end <- end
     # create model matrices to form D
@@ -69,40 +70,48 @@
       s <- Dtable[iRow,"start"]; e <- Dtable[iRow,"end"]
       # include/exclude rule
       if(Dtable[iRow,"include"]){ # set to 1
-        subD <- D[,s:e]
+        subD <- D[,s:e,drop=FALSE]
         subD[which(subD > 0, arr.ind = TRUE)] = 1
         D[,s:e] <- subD
         # average rule
         if(Dtable[iRow,"average"]){ # set to 1
           # average the include set
-          subD <- apply(subD,1,function(x){
-            v <- which(x > 0);  x[v] <- x[v]/length(v)
-            return(x)
-          })
+          for(o in 1:nrow(subD)){
+            v <- which(subD[o,] > 0);  subD[o,v] <- subD[o,v]/(length(v) + length(interceptColumn))
+          }
           D[,s:e] <- subD
         }
       }else{ # set to zero
         if(Dtable[iRow,"average"]){ # set to 1
-          subD <- D[,s:e] + 1
+          subD <- D[,s:e,drop=FALSE] + 1
           subD <- subD/subD
-          subD[which(subD > 0, arr.ind = TRUE)] = subD[which(subD > 0, arr.ind = TRUE)]/ncol(subD)
+          subD[which(subD > 0, arr.ind = TRUE)] = subD[which(subD > 0, arr.ind = TRUE)]/(ncol(subD) + length(interceptColumn))
           D[,s:e] <- subD
         }else{
           D[,s:e] <- D[,s:e] * 0
         }
       }
     }
-    interceptColumn <- grep("Intercept",object$Beta$Effect )
     if(length(interceptColumn) > 0){D[,interceptColumn] = 1}
   }else{ }# user has provided D as a matrix to do direct multiplication
   ## calculate predictions and standard errors
   bu <- c(object$Beta$Estimate,unlist(object$U)) #object$bu
   predicted.value <- D %*% bu 
-  Vi <- object$Vi 
-  VW = Vi %*% W; # VW
-  WtViW = t(W) %*% VW; # W'VW
-  WtViWi = ginv(as.matrix(WtViW)) #
-  Ci = WtViWi
+  ## standard error
+  Vi <- object$Vi
+  ViW = Vi %*% W; # PW
+  WtViW = t(W) %*% ViW; # W'PW
+  Ci <- try(
+    solve(WtViW),
+    silent = TRUE
+  )
+  if(inherits(Ci,"try-error") ){
+    WtViW = WtViW + diag(mean(diag(Vi))*3, nrow(WtViW),nrow(WtViW))
+    Ci <- try(
+      solve(WtViW),
+      silent = TRUE
+    )
+  }
   vcov <- D %*% Ci %*% t(D)
   std.error <- sqrt(diag(vcov))
   pvals <- data.frame(id=rownames(D),predicted.value=predicted.value[,1], std.error=std.error)

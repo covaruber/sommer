@@ -433,7 +433,8 @@ version 4.2.0.1 (2023-01-01)
  ########################
 version 4.2.1 (2023-04-01)
 ########################
- + Predict function for mmec() now works well and returns the same results than asreml.
+ + Predict function for mmec() now works well and returns the same results than asreml. 
+ + The predict function for mmer() on the other hand has been modify to calculare C = t(W) Vi W and Ci = solve(C), where W=[X Z] but when Vi is singular it makes difficult to come up with standard error identical to the mme-based methods.
 
 ######################
 ## PENDINGS AND PRIORITIES
@@ -443,5 +444,4 @@ version 4.2.1 (2023-04-01)
 + add FA covariance structure
 + Add correlation models
 + Generalized linear models
-+ We need to check how to construct the coefficient matrix our of the direct inversion output using V.inverse can't find it in Henderson notes, maybe Gianola's or Valente's.
  

@@ -66,7 +66,7 @@
       w <- effectsN[[iRow]]
       # include/exclude rule
       if(Dtable[iRow,"include"]){ # set to 1
-        subD <- D[,w]
+        subD <- D[,w,drop=FALSE]
         subD[which(subD > 0, arr.ind = TRUE)] = 1
         D[,w] <- subD
         # average rule
@@ -79,7 +79,7 @@
         }
       }else{ # set to zero
         if(Dtable[iRow,"average"]){ # set to 1
-          subD <- D[,w] + 1
+          subD <- D[,w,drop=FALSE] + 1
           subD <- subD/subD
           subD[which(subD > 0, arr.ind = TRUE)] = subD[which(subD > 0, arr.ind = TRUE)]/ncol(subD)
           D[,w] <- subD
