@@ -429,6 +429,11 @@ version 4.2.0.1 (2023-01-01)
 ########################
  + P3D argument enabled again
  + Bug in mmec() for using weights with simple residual structures has been fixed. Now stage-wise analysis should work well.
+ 
+ ########################
+version 4.2.1 (2023-04-01)
+########################
+ + Predict function for mmec() now works well and returns the same results than asreml.
 
 ######################
 ## PENDINGS AND PRIORITIES
@@ -438,4 +443,5 @@ version 4.2.0.1 (2023-01-01)
 + add FA covariance structure
 + Add correlation models
 + Generalized linear models
++ We need to check how to construct the coefficient matrix our of the direct inversion output using V.inverse can't find it in Henderson notes, maybe Gianola's or Valente's.
  

@@ -7,7 +7,7 @@
 
 
 "predict.mmec" <- function(object, Dtable=NULL, D, ...){
-  classify <- D # save a copy before D is overwriten
+  if(is.character(D)){classify <- D}else{classify="id"} # save a copy before D is overwriten
   # complete the Dtable withnumber of effects in each term
   xEffectN <- lapply(object$partitionsX, as.vector)
   nz <- unlist(lapply(object$uList,function(x){nrow(x)*ncol(x)}))
@@ -20,17 +20,33 @@
   }
   names(zEffectsN) <- names(nz)
   effectsN = c(xEffectN,zEffectsN)
-  # fill the Dt table
-  if(is.null(Dtable)){ # if user didn't provide the Dtable
+  # fill the Dt table for rules
+  if(is.null(Dtable) & is.character(D) ){ # if user didn't provide the Dtable but D is character
     Dtable <- object$Dtable # we extract it from the model
     termsInDtable <- apply(data.frame(Dtable$term),1,function(xx){all.vars(as.formula(paste0("~",xx)))})
-    if(is.character(D)){ # if D is properly provided
-      pickTerm <- which( unlist(lapply(termsInDtable, function(xxx){ifelse(length(which(xxx == D)) > 0, 1, 0)})) > 0)
-      # pickTerm <- grep(D, Dtable[,"term"]) # the default rule is to invoke D in the Dtable
-      if(length(pickTerm) > 0){Dtable[pickTerm,"include"]=TRUE; Dtable[pickTerm,"average"]=TRUE }else{Dtable[,"include"]=TRUE}# otherwise if the desired term is not present we just provide fitted values
+    # term identified
+    termsInDtableN <- unlist(lapply(termsInDtable,length))
+    pickTerm <- which( unlist(lapply(termsInDtable, function(xxx){ifelse(length(which(xxx == D)) > 0, 1, 0)})) > 0)
+    if(length(pickTerm) == 0){stop(paste("Predict:",classify,"not in the model."), call. = FALSE)}
+    # check if the term to predict is fixed or random
+    pickTermIsFixed = ifelse("fixed" %in% Dtable[pickTerm,"type"], TRUE,FALSE)
+    ## 1) when we predict a random effect, fixed effects are purely "average"
+    if(!pickTermIsFixed){Dtable[which(Dtable$type %in% "fixed"),"average"]=TRUE; Dtable[pickTerm,"include"]=TRUE}
+    ## 2) when we predict a fixed effect, random effects are ignored and the fixed effect is purely "include"
+    if(pickTermIsFixed){Dtable[pickTerm,"include"]=TRUE}
+    ## 3) for predicting a random effect, the interactions are ignored and only main effect is "included", then we follow 1) 
+    ## 4) for a model with pure interaction trying to predict a main effect of the interaction we "include" and "average" the interaction and follow 1)
+    if(length(pickTerm) == 1){ # only one effect identified
+      if(termsInDtableN[pickTerm] > 1){ # we are in #4 (is a pure interaction model)
+        Dtable[pickTerm,"average"]=TRUE
+      }
+    }else{# more than 1, there's main effect and interactions, situation #3
+      main <- which(termsInDtableN[pickTerm] == min(termsInDtableN[pickTerm])[1])
+      Dtable[pickTerm,"include"]=FALSE;  Dtable[pickTerm,"average"]=FALSE # reset
+      Dtable[pickTerm[main],"include"]=TRUE
     }
   }
-  # user has provided D as a classify
+  ## if user has provided D as a classify then we create the D matrix
   if(is.character(D)){
     # create model matrices to form D
     P <- sparse.model.matrix(as.formula(paste0("~",D,"-1")), data=object$data)
@@ -56,10 +72,9 @@
         # average rule
         if(Dtable[iRow,"average"]){ # set to 1
           # average the include set
-          subD <- apply(subD,1,function(x){
-            v <- which(x > 0);  x[v] <- x[v]/length(v)
-            return(x)
-          })
+          for(o in 1:nrow(subD)){
+            v <- which(subD[o,] > 0);  subD[o,v] <- subD[o,v]/length(v)
+          }
           D[,w] <- subD
         }
       }else{ # set to zero
@@ -76,12 +91,12 @@
     interceptColumn <- grep("Intercept",rownames(object$b) )
     if(length(interceptColumn) > 0){D[,interceptColumn] = 1}
   }else{ }# user has provided D as a matrix to do direct multiplication
-  
+  ## calculate predictions and standard errors
   bu <- object$bu
   predicted.value <- D %*% bu
   vcov <- D %*% object$Ci %*% t(D)
   std.error <- sqrt(diag(vcov))
-  pvals <- data.frame(id=colnames(P),predicted.value=predicted.value[,1], std.error=std.error)
+  pvals <- data.frame(id=rownames(D),predicted.value=predicted.value[,1], std.error=std.error)
   if(is.character(classify)){colnames(pvals)[1] <- classify}
   return(list(pvals=pvals,D=D,vcov=vcov, Dtable=Dtable))
 }
