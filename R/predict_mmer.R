@@ -93,6 +93,7 @@
       }
     }
     if(length(interceptColumn) > 0){D[,interceptColumn] = 1}
+    if(length(which(Dtable$term == "1")) > 0){Dtable[which(Dtable$term == "1"),"include"]=TRUE}
   }else{ }# user has provided D as a matrix to do direct multiplication
   ## calculate predictions and standard errors
   bu <- c(object$Beta$Estimate,unlist(object$U)) #object$bu
