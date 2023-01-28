@@ -11,7 +11,17 @@
   # complete the Dtable withnumber of effects in each term
   xEffectN <- lapply(object$partitionsX, as.vector)
   nz <- unlist(lapply(object$uList,function(x){nrow(x)*ncol(x)}))
-  add <- max(xEffectN[[length(xEffectN)]]) + 1
+  # add a value but if there's no intercept consider it
+  lenEff <- length(xEffectN)
+  toAdd <- xEffectN[[lenEff]];
+  if(length(toAdd) > 0){ # there's a value in the last element of xEffectN
+    add <- max(toAdd) + 1 # this is our last column of fixed effects
+  }else{ # there's not a value in the last element of xEffectN
+    if(lenEff > 1){
+      toAdd2 <- xEffectN[[lenEff-1]]
+      add <- max(toAdd2) + 1
+    }
+  }
   zEffectsN <- list()
   for(i in 1:length(nz)){
     end= add + nz[i] - 1
@@ -35,7 +45,7 @@
     if(!pickTermIsFixed){Dtable[which(Dtable$type %in% "fixed"),"average"]=TRUE; Dtable[pickTerm,"include"]=TRUE}
     ## 2) when we predict a fixed effect, random effects are ignored and the fixed effect is purely "include"
     if(pickTermIsFixed){Dtable[pickTerm,"include"]=TRUE}
-    ## 3) for predicting a random effect, the interactions are ignored and only main effect is "included", then we follow 1) 
+    ## 3) for predicting a random effect, the interactions are ignored and only main effect is "included", then we follow 1)
     ## 4) for a model with pure interaction trying to predict a main effect of the interaction we "include" and "average" the interaction and follow 1)
     if(length(pickTerm) == 1){ # only one effect identified
       if(termsInDtableN[pickTerm] > 1){ # we are in #4 (is a pure interaction model)
@@ -89,7 +99,7 @@
         }
       }
     }
-    interceptColumn <- grep("Intercept",rownames(object$b) )
+    interceptColumn <- unique(c(grep("Intercept",rownames(object$b) ))) # ,which(rownames(object$b)=="1")
     if(length(interceptColumn) > 0){D[,interceptColumn] = 1}
   }else{ }# user has provided D as a matrix to do direct multiplication
   ## calculate predictions and standard errors
@@ -115,8 +125,8 @@
 }
 
 # "predict.mmec" <- function(object, Dtable=NULL, D, ...){
-#   
-#   
+#
+#
 #   if(is(D,"character")){ ## if user don't provide a D but a Dtable
 #     ## get the names of terms used for each effect from the Dtable
 #     termNames <- apply(data.frame(Dtable[,"term"]),1,function(x){
@@ -139,7 +149,7 @@
 #     ## D matrix
 #     Dformed <- Matrix(0, nrow(dataPredict), nrow(object$bu))
 #     colnames(Dformed) <- c(rownames(object$b),rownames(object$u))
-#     
+#
 #     #######################
 #     ## Fill the fixed part of D
 #     #######################
@@ -148,23 +158,23 @@
 #       if( DtableF[i,"include"] ){ # if we want to include
 #         for(j in 1:ncol(dataPredict)){
 #           for(k in 1:nrow(dataPredict)){
-#             
+#
 #             namesPartition <- rownames(object$b)[object$partitionsX[[i]]]
 #             namesPartitionList <- strsplit(namesPartition,split = ":")
 #             v <- which( unlist( lapply(namesPartitionList,function(h){
 #               res <- ifelse(length(which(h == as.character(dataPredict[k,j]))) > 0,TRUE,FALSE)
 #               return(res)
 #             })  ))
-#             
+#
 #             if(length(v) > 0){
 #               if(DtableF[i,"include"] & !DtableF[i,"average"] ){ # if we want purely include
-#                 Dformed[k,namesPartition[v]]=1 
+#                 Dformed[k,namesPartition[v]]=1
 #               }
 #               if(DtableF[i,"include"] & DtableF[i,"average"]){ # if we want to include and average
 #                 Dformed[k,namesPartition[v]]=1/length(v)
 #               }
 #             }
-#             
+#
 #           }
 #         }
 #       }else{ # if we don't want to include
@@ -173,28 +183,28 @@
 #         }
 #       }
 #     }
-#     
+#
 #     vInt <- which(colnames(Dformed) == "Intercept")
 #     if(length(vInt) > 0 ){Dformed[,"Intercept"]=1}
-#     
+#
 #     #######################
 #     ## Fill the random part of D
 #     #######################
 #     DtableR <- Dtable[which(Dtable[,"type"] == "random"),]
 #     termNamesR <- termNames[which(Dtable[,"type"] == "random")]
 #     for(i in 1:nrow(dataPredict)){ # for each row in the D table or the DataPredict dataset
-#       
+#
 #       dp0 <- as.data.frame(dataPredict[i,]); colnames(dp0) <- colnames(dataPredict)
 #       for(j in 1:length(object$partitions)){
-#         
+#
 #         if(DtableR[j,"include"]){
 #           # print(dp0)
-#           
+#
 #           dp <- as.data.frame(dp0[,intersect(colnames(dp0),termNamesR[[j]])]); colnames(dp) <-intersect(colnames(dp0),termNamesR[[j]])
 #           # print(dp)
 #           part <- object$partitions[[j]]
 #           partv <- part[1:1]:part[nrow(part),2]
-#           
+#
 #           if(ncol(object$uList[[j]]) == 1){
 #             nam2 <- rownames(object$uList[[j]])
 #             nam3 <- unlist(lapply(as.list(rownames(object$uList[[j]])),function(x){x2<-strsplit(x,split = ":")[[1]];x2<-x2[length(x2)];return(x2)}))
@@ -205,14 +215,14 @@
 #             }
 #             nam3 <- vector(mode="character")
 #           }
-#           
+#
 #           namp <- apply( dp , 1 , paste , collapse = ":" )
 #           v1 <- which(nam2 %in% namp)
 #           v2 <- which(nam3 %in% namp)
 #           v <- sort(unique(c(v1,v2)), decreasing = FALSE)
 #           if(length(v) > 0){
 #             if(DtableR[j,"include"] & !DtableR[j,"average"] ){ # if we want purely include
-#               Dformed[i,partv[v]]=1  # Dformed[k,namesPartition[v]]=1 
+#               Dformed[i,partv[v]]=1  # Dformed[k,namesPartition[v]]=1
 #             }
 #             if(DtableR[j,"include"] & DtableR[j,"average"]){ # if we want to include and average
 #               Dformed[i,partv[v]]=1/(length(v)*nrow(part)) #Dformed[k,namesPartition[v]]=1/length(v)
@@ -223,27 +233,27 @@
 #             Dformed[,partv]=1/length(partv)
 #           }
 #         }
-#         
-#         
+#
+#
 #       }
 #     }
-#     
-#   }else if(is(D,"dgCMatrix")){ 
+#
+#   }else if(is(D,"dgCMatrix")){
 #     dataPredict <- data.frame(id=1:nrow(D))
 #     Dformed <- D
 #   }
-#   
+#
 #   Ci <- object$Ci
-#   
+#
 #   vcov <- Dformed%*%Ci%*%t(Dformed)
-#   se <- as.vector(sqrt(diag(vcov))) 
-#   
+#   se <- as.vector(sqrt(diag(vcov)))
+#
 #   predicted.value <- as.vector(Dformed %*% object$bu)
-#   
+#
 #   dataPredict$predicted.value <- predicted.value
 #   dataPredict$se <- se
-#   
+#
 #   return(list(pvals=dataPredict, vcov=vcov, D=Dformed, Ci=Ci))
-#   
+#
 # }
 
