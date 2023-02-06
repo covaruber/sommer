@@ -22,18 +22,18 @@ This data was simulated for fruit breeding applications.
 }
 \references{
 
-Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
- 
+Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744
+
 }
 \examples{
 
 # ####=========================================####
-# #### For CRAN time limitations most lines in the 
-# #### examples are silenced with one '#' mark, 
+# #### For CRAN time limitations most lines in the
+# #### examples are silenced with one '#' mark,
 # #### remove them and run the examples using
 # #### command + shift + C |OR| control + shift + C
 # ####=========================================####
-# 
+#
 # data(DT_cpdata)
 # DT <- DT_cpdata
 # GT <- GT_cpdata
@@ -48,7 +48,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #               rcov=~units,
 #               data=DT)
 # summary(mix1)$varcomp
-# 
+#
 # ## mmec uses the inverse of the relationship matrix
 # Ai <- as(solve(A + diag(1e-4,ncol(A),ncol(A))), Class="dgCMatrix")
 # mix2 <- mmec(Yield~1,
@@ -57,7 +57,16 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #              rcov=~units,
 #              data=DT)
 # summary(mix2)$varcomp
-# 
+#
+# vg <- summary(mix2)$varcomp[1,1] # genetic variance
+# G <- A*vg # genetic variance-covariance
+# Ci <- mix2$Ci # coefficient matrix
+# ind <- as.vector(mix2$partitions$`vsc(isc(id), Gu = Ai)`)
+# ind <- seq(ind[1],ind[2])
+# Ctt <- Ci[ind,ind] # portion of Ci for genotypes
+# R2 <- (G - Ctt)/G # reliability matrix
+# mean(diag(R2)) # average reliability of the trial
+#
 # ####====================####
 # #### multivariate model ####
 # ####     2 traits       ####
