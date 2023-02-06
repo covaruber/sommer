@@ -1397,7 +1397,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   for (int iIter = 0; iIter < nIters; ++iIter) {
 
     // ###########################
-    // # 1) absorption of m onto y
+    // # 1) absorption of m onto y to obtain y'Py and logDetC
     // # PAPER FORMULA from Jensen and Madsen 1997, Gilmour et al., 1995
     // # expand coefficient matrix (C) to have the response variable
     // # M = W' Ri W # with W = [X Z y]
@@ -1501,7 +1501,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       }
     }
     arma::vec yPy =arma::square(Mchol.submat( Mchol.n_rows-1, Mchol.n_cols-1, Mchol.n_rows-1,  Mchol.n_cols-1 ));
-    arma::mat Mpp = Mchol.submat( 0,0, Mchol.n_rows-2,  Mchol.n_cols-2 );
+    arma::mat Mpp = Mchol.submat( 0,0, Mchol.n_rows-2,  Mchol.n_cols-2 ); // M without y portion (last row and column of M)
     double logDetC = 2 * accu(log(Mpp.diag()));
 
     // ###########################
@@ -1632,7 +1632,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     }
 
     // ###########################
-    // # 4) absorption of m onto W (2 VAR, 1 COV)
+    // # 4) absorption of m onto Wu (2 VAR, 1 COV) to obtain Wu' P Wu  which is the AI matrix
     // # we had to change the avInf to avInf/sigmas
     // # PAPER FORMULA (Smith, 1995) Differentiation of the Cholesky Algorithm
     // # avInf.ij = ((chol(M))[n,n])^2 # the square of the last diagonal element of the cholesky factorization
@@ -1661,7 +1661,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
           WiWj0 = Wu.t() * Wu ;//  wk'Riwj # C22 lower right
         }
         XWjxZWj = XWjxZWj0 * (1/arma::as_scalar(thetaResidualsVec(0))); // [X'Riwj Z'Riwj]' # C12 upper right
-        WiWj = WiWj0 * (1/arma::as_scalar(thetaResidualsVec(0)));//  wk'Riwj # C22 lower right 
+        WiWj = WiWj0 * (1/arma::as_scalar(thetaResidualsVec(0)));//  wk'Riwj # C22 lower right
       }
     }
     arma::sp_mat A2 = M.submat( 0,0, M.n_rows-2,  M.n_cols-2 );
@@ -1690,7 +1690,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     // avInf = avInf.t() * avInf  ;
 
     // ##########################
-    // # 5) get 1st derivatives from MME-version (correct)
+    // # 5) get 1st derivatives (dL/ds2i) from MME-version
     // # PAPER FORMULA (Lee and Van der Werf, 2006)
     // # dL/ds2u = -0.5 [(Nu/s2u) - (tr(AiCuu)/s4u) -  (e/s2e)'(Zu/s2u)]
     // # dL/ds2e = -0.5 [((Nr-Nb)/s2e) - [(Nu - (tr(AiCuu)/s2u))*(1/s2e)] - ... - (e/s2e)'(e/s2e)]
@@ -1780,7 +1780,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     }
 
     // ###########################
-    // # 6) update the variance paramters (CORRECT)
+    // # 6) update the variance paramters using the Newton method
     // # PAPER FORMULA (Lee and Van der Werf, 2006)
     // # theta.n+1 = theta.n + (AInfi * dL/ds2)
     // ###########################

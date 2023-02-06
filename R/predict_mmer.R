@@ -31,7 +31,7 @@
     if(!pickTermIsFixed){Dtable[which(Dtable$type %in% "fixed"),"average"]=TRUE; Dtable[pickTerm,"include"]=TRUE}
     ## 2) when we predict a fixed effect, random effects are ignored and the fixed effect is purely "include"
     if(pickTermIsFixed){Dtable[pickTerm,"include"]=TRUE}
-    ## 3) for predicting a random effect, the interactions are ignored and only main effect is "included", then we follow 1) 
+    ## 3) for predicting a random effect, the interactions are ignored and only main effect is "included", then we follow 1)
     ## 4) for a model with pure interaction trying to predict a main effect of the interaction we "include" and "average" the interaction and follow 1)
     if(length(pickTerm) == 1){ # only one effect identified
       if(termsInDtableN[pickTerm] > 1){ # we are in #4 (is a pure interaction model)
@@ -97,22 +97,43 @@
   }else{ }# user has provided D as a matrix to do direct multiplication
   ## calculate predictions and standard errors
   bu <- c(object$Beta$Estimate,unlist(object$U)) #object$bu
-  predicted.value <- D %*% bu 
+  predicted.value <- D %*% bu
   ## standard error
   Vi <- object$Vi
-  ViW = Vi %*% W; # PW
-  WtViW = t(W) %*% ViW; # W'PW
-  Ci <- try(
+  ViW = Vi %*% W; # ViW (nxp)
+  WtViW = t(W) %*% ViW; # W'ViW (pxp)
+  # inverse of W'ViW
+  WtViWi <- try(
     solve(WtViW),
     silent = TRUE
   )
-  if(inherits(Ci,"try-error") ){
+  if(inherits(WtViWi,"try-error") ){
     WtViW = WtViW + diag(mean(diag(Vi)), nrow(WtViW),nrow(WtViW))
-    Ci <- try(
+    WtViWi <- try(
       solve(WtViW),
       silent = TRUE
     )
   }
+  # get G (not sure if this is the right G) var(u) = Z' G [Vi - (VX*tXVXVX)] G Z'
+  # H <- do.call(adiag1, lapply(object$VarU, function(x){do.call(adiag1,x)}))
+  # H <- adiag1(object$VarBeta*0,H)
+  # G <- H
+
+  # Gs <- lapply(as.list(1:length(object$K)), function(x){object$K[[x]]*as.vector(object$sigma[[x]])})
+  # Gs2 <- adiag1(object$VarBeta*0,do.call(adiag1,Gs))
+  # tWG <- W %*% Gs2
+  # G <- t(tWG) %*% object$P %*% tWG
+
+  PEV <- do.call(adiag1, lapply(object$PevU, function(x){do.call(adiag1,x)}))
+  PEV <- adiag1(object$VarBeta,PEV)
+  G <- PEV # it should ideally be G but we don't extract that
+
+  # build the projection matrix
+  P <- object$P # Vi - (Vi%*%X%*%(XtViX)%*%t(X)%*%Vi)
+  # project W using P
+  WtPW <- t(W) %*% (P) %*% W
+  # add G to complete the coefficient matrix
+  Ci <- WtPW + G # G because is the inverse of Gi which is what goes into the M matrix
   vcov <- D %*% Ci %*% t(D)
   std.error <- sqrt(diag(vcov))
   pvals <- data.frame(id=rownames(D),predicted.value=predicted.value[,1], std.error=std.error)
@@ -135,20 +156,20 @@
 }
 
 # "predict.mmer" <- function(object,classify=NULL,hypertable=NULL,...){
-# 
+#
 #   getHypertable <- function(object,classify=NULL,...){
-# 
+#
 #     classify<- unique(unlist(strsplit(classify,":")))
-# 
+#
 #     if(is.null(classify)){
 #       stop("Please provide the classify argument. For fitted values use the fitted() function.",call. = FALSE)
 #     }
-# 
+#
 #     oto <- oto2 <- object$terms
 #     oto2$fixed[[1]] <- setdiff(oto2$fixed[[1]],c("1","-1"))
 #     oto2$fixed <- lapply(oto2$fixed,function(x){paste(x,collapse = ":")})
 #     oto2$random <- lapply(oto2$random,function(x){paste(x,collapse = ":")}) # paste to present as the form A:B:C
-# 
+#
 #     for(u in 3:length(object$terms)){ # change random terms to split by ":"
 #       prov <- object$terms[[u]]
 #       if(length(prov) > 0){
@@ -157,7 +178,7 @@
 #         }
 #       }
 #     }
-# 
+#
 #     # This doesn't quite give identical results. Does it matter?
 #     include <- unique(c(all.vars(object$call$fixed)[-1], # variables in the fixed formula (remove the response)
 #                         all.vars(object$call$random))) # variables in the random formula
@@ -172,32 +193,32 @@
 #     allTermsUsed <- unique(attr(terms.formula(reformulate(allTermsUsed)), "term.labels")) # paste to present as A:B:C
 #     # Remove terms that include a : (i.e. interaction terms)
 #     allTermsUsed <- allTermsUsed[!grepl(":", allTermsUsed)]
-# 
+#
 #     # all.vars(form)
 #     toAgg <- unique(unlist(strsplit(include,":")))
 #     toAgg <- intersect(toAgg, colnames(object$dataOriginal))
 #     ignored <- setdiff(allTermsUsed,toAgg)
-# 
+#
 #     # print(head(object$dataOriginal))
 #     # print(toAgg)
 #     levelsOfTerms <- lapply(as.list(toAgg),function(x){(unique(object$dataOriginal[,x]))})
-# 
+#
 #     DTX <- expand.grid(levelsOfTerms);
-# 
+#
 #     colnames(DTX) <- toAgg
-# 
+#
 #     toMerge <- unique(object$dataOriginal[,c(colnames(DTX),ignored)])
 #     if(!is.data.frame(toMerge)){
 #       toMerge <- data.frame(toMerge); colnames(toMerge) <- colnames(DTX)
 #     }
 #     toMerge[,object$terms$response[[1]]] <- 1
-# 
+#
 #     DTX <-merge(toMerge, DTX, all.y = TRUE)
-# 
+#
 #     if(length(object$terms$response[[1]]) < 2){
 #       YY = data.frame(DTX[,object$terms$response[[1]]]); colnames(YY) <- object$terms$response[[1]]
 #     }else{YY = DTX[,object$terms$response[[1]]]}
-# 
+#
 #     DTX[,object$terms$response[[1]]] <- apply(YY,2,imputev)
 #     if(length(ignored) > 0){ # if there's ignored columns
 #       if(length(ignored) == 1){
@@ -212,7 +233,7 @@
 #     # ##################################################
 #     # ##################################################
 #     # ##################################################
-# 
+#
 #     if(is.null(object$call$random)){
 #       originalModelForMatricesSE <- mmer(fixed=object$call$fixed,
 #                                          # random=object$call$random,
@@ -244,10 +265,10 @@
 #     predictSummary <- data.frame(namesLevelsO,namesLevels,formLevels,nLevels,id,ignored,include, average)
 #     colnames(predictSummary) <- c("termHL","term","type","nLevels","id","ignored","include","average")
 #     # ##################################################
-# 
+#
 #     return(predictSummary)
 #   }
-# 
+#
 #   if(is.null(hypertable)){
 #     # if user doesn't provide hypertable, we build one that :
 #     # 1) 'ignores' all random effects that don't match with classify
@@ -268,19 +289,19 @@
 #     hypertable <- hyp
 #   }
 #   # print(hypertable)
-# 
+#
 #   fToAverage=NULL
 #   classify<- unique(unlist(strsplit(classify,":")))
-# 
+#
 #   if(is.null(classify)){
 #     stop("Please provide the classify argument. For fitted values use the fitted() function.",call. = FALSE)
 #   }
-# 
+#
 #   oto <- oto2 <- object$terms
 #   oto2$fixed[[1]] <- setdiff(oto2$fixed[[1]],c("1","-1")) # get fixed factors plus intercept
 #   oto2$fixed <- lapply(oto2$fixed,function(x){paste(x,collapse = ":")}) # paste the fixed factors
 #   oto2$random <- lapply(oto2$random,function(x){paste(x,collapse = ":")}) # paste the random terms
-# 
+#
 #   for(u in 3:length(object$terms)){ # change random terms to split by ":"
 #     prov <- object$terms[[u]]
 #     if(length(prov) > 0){
@@ -289,17 +310,17 @@
 #       }
 #     }
 #   }
-# 
+#
 #   # initially assume that we will include all the factors in the prediction
 #   include <- setdiff(unique(c(unlist(object$terms$fixed),unlist(object$terms$random))),c("1","-1"))
-# 
+#
 #   # now use the input from the user
 #   if(!is.null(hypertable)){ # if user provides a hypertable, use the customization instead
 #     include <- setdiff(hypertable[which(hypertable$include),"termHL"],c("1","-1"))
 #   }
-#   
+#
 #   include <- unique(unlist(lapply(include,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
-# 
+#
 #   ##################################################
 #   # step 0. find all variables used in the modeling
 #   allTermsUsed <- unique(c(unlist(object$terms$fixed), unlist(object$terms$random)))
@@ -307,24 +328,24 @@
 #   allTermsUsed<- allTermsUsed[which(allTermsUsed!= "-1")]
 #   allTermsUsed <- unique(unlist(strsplit(allTermsUsed,":")))
 #   allTermsUsed <- unique(unlist(lapply(allTermsUsed,function(x){y <- regmatches(x, gregexpr("(?<=\\().*?(?=\\))", x, perl=T))[[1]]; if(length(y) > 0){return(y)}else{return(x)}}))) # paste to present as A:B:C
-# 
+#
 #   toAgg <- unique(unlist(strsplit(include,":")))
 #   ignored <- setdiff(allTermsUsed,toAgg)
 #   # print(ignored)
-# 
+#
 #   ## impute variables to avoid issues in dimensions
 #   for(i in 1:length(allTermsUsed)){
 #     if(is.numeric(object$dataOriginal[,allTermsUsed[i]]) | is.factor(object$dataOriginal[,allTermsUsed[i]]) ){
 #       object$dataOriginal[,allTermsUsed[i]] <- imputev(object$dataOriginal[,allTermsUsed[i]])
 #     }
 #   }
-# 
-# 
+#
+#
 #   levelsOfTerms <- lapply(as.list(toAgg),function(x){unique(object$dataOriginal[,x])})
 #   DTX <- expand.grid(levelsOfTerms);
 #   colnames(DTX) <- toAgg
 #   # toMerge <- object$dataOriginal[,c(colnames(DTX),ignored,object$terms$response[[1]])]
-# 
+#
 #   toMerge <- unique(object$dataOriginal[,c(colnames(DTX),ignored)])
 #   if(!is.data.frame(toMerge)){
 #     toMerge <- data.frame(toMerge); colnames(toMerge) <- colnames(DTX)
@@ -335,11 +356,11 @@
 #   DTX <-merge(toMerge, DTX, all.y = TRUE) # by=intersect(colnames(DTX),colnames(toMerge)),
 #   # print(str(DTX))
 #   # DTX <-merge(DTX, object$dataOriginal[,c(colnames(DTX),ignored)], all.x = TRUE)
-# 
+#
 #   if(length(object$terms$response[[1]]) < 2){
 #     YY = data.frame(DTX[,object$terms$response[[1]]]); colnames(YY) <- object$terms$response[[1]]
 #   }else{YY = DTX[,object$terms$response[[1]]]}
-# 
+#
 #   DTX[,object$terms$response[[1]]] <- apply(YY,2,imputev)
 #   if(length(ignored) > 0){ # if there's ignored columns
 #     if(length(ignored) == 1){
@@ -422,8 +443,8 @@
 #     fToUse[[i]]<-grep(toAgg[i],object$terms$fixed[[1]])
 #   }
 #   fToUse = sort(c(1,unique(unlist(fToUse))))
-# 
-# 
+#
+#
 #   # print(fToUse)
 #   # print(length(modelForMatrices$X))
 #   if(!is.null(hypertable)){ # if user provides a hypertable, use the customization instead
@@ -447,7 +468,7 @@
 #     # if(hypertable$term[1] == "1"){
 #     #   modelForMatrices$X[[1]] <- modelForMatrices$X[[1]]/averFactor
 #     # }
-# 
+#
 #     # print(str(modelForMatrices$X))
 #     X <- do.call(cbind,modelForMatrices$X[fToUse]) # build X cbinding the ones required
 #     #
@@ -494,7 +515,7 @@
 #     };
 #     reUsed0 <- Reduce("+",reUsed0); reUsed0[which(reUsed0 > 0)]=reUsed0[which(reUsed0 > 0)]/reUsed0[which(reUsed0 > 0)]
 #     # print(reUsed0)
-# 
+#
 #     # identify which effects estimated correspond to each random term in the model
 #     zToUse <- list(); start=1
 #     for(i in 1:nre){
@@ -503,7 +524,7 @@
 #     }
 #     zToUse <- unique(unlist(zToUse[which(reUsed0 == 1)]))
 #     # print(zToUse)
-# 
+#
 #     if(!is.null(hypertable)){ # if user provides a hypertable, use the customization instead
 #       nFixed <- max(which(hypertable$type == "fixed"))
 #       # which ones the user wants to force to be included
@@ -528,9 +549,9 @@
 #           modelForMatrices$Z[[rToAverage[zi]]] <- ((modelForMatrices$Z[[rToAverage[zi]]]+1)/(modelForMatrices$Z[[rToAverage[zi]]]+1)) / averFactor
 #         }
 #       }
-# 
+#
 #     }
-# 
+#
 #     if(length(zToUse) == 0){zToUse=NULL}
 #     # print(zToUse)
 #     nz <- length(modelForMatrices$Z)
@@ -549,13 +570,13 @@
 #       G.mv.original.List <- lapply(as.list((zToUse)),function(x){
 #         kronecker(as.matrix(originalModelForMatricesSE$K[[x]]),originalModel$sigma[,,x])
 #       }); G.mv.original <- do.call(adiag1,G.mv.original.List)
-# 
+#
 #       tZ.mv.original.List <- lapply(as.list((zToUse)),function(x){
 #         kronecker(as.matrix(t(originalModelForMatricesSE$Z[[x]])),TT)
 #       }); tZ.mv.original <- do.call(rbind,tZ.mv.original.List)
-# 
+#
 #       G.tZ.mv.original <- G.mv.original %*% tZ.mv.original # GZ' as many rows as obs, as many cols as levels
-# 
+#
 #       if(length(fToUse) > 0){ # Cov(b,u) = 0 - (X'ViX)-X' Vi GZ
 #         cov.b.pev <- 0 - ( XtViX %*% t(X.mv.original) %*% originalModel$Vi %*% t(G.tZ.mv.original) )
 #         GZtViZG <-  G.tZ.mv.original%*%originalModel$Vi%*%t(G.tZ.mv.original)
@@ -563,7 +584,7 @@
 #         VarU <- GZtViZG - GZtViXPXViZG
 #         pev <- G.mv.original - VarU
 #       }
-# 
+#
 #       # (185 x 3)' (185 x 185) = (3 x 185)  (185 x 185) (levs164 x obs185)' = (3 x 164)
 #       # bring the design matrices for extended model to get standard errors for the extended model
 #       Z.extended <- lapply(as.list((zToUse)),function(x){
@@ -599,7 +620,7 @@
 #   }
 #   ##################################################
 #   # add y.hat to the grid
-# 
+#
 #   if(length(allTermsUsed) == 1){
 #     DTX2 <- data.frame(DTX[,-which(colnames(DTX) %in% ys)])
 #     colnames(DTX2) <- allTermsUsed
@@ -619,10 +640,10 @@
 #   DTX2$status <- "Estimable"
 #   DTX2$status[which(is.nan(DTX2$standard.error))] <- "Issues"
 #   DTX2$standard.error[which(is.nan(DTX2$standard.error))] <- 0
-# 
+#
 #   ##################################################
 #   # aggregate to desired shape
-# 
+#
 #   myForm <- paste0("predicted.value~",paste(classify, collapse = "+"), "+trait")
 #   pvals <- aggregate(as.formula(myForm), FUN=mean, data=DTX2)
 #   myFormSE <- paste0("standard.error~",paste(classify, collapse = "+"), "+trait")
@@ -631,34 +652,34 @@
 #   colnames(pvalsSE)[ncol(pvalsSE)] <- "standard.error"
 #   # print(classify)
 #   pvals <- merge(pvals,pvalsSE, by=c("trait",classify))
-# 
+#
 #   # ##################################################
 #   ## hypertable summary
-# 
+#
 #   nLevels <- c(unlist(lapply(originalModelForMatricesSE$X,ncol)), unlist(lapply(originalModelForMatricesSE$Z,ncol)))
 #   namesLevels <- c(unlist(oto$fixed),names(object$U))
-# 
+#
 #   namesLevelsO <- data.frame( x=c(unlist(oto2$fixed),unlist(oto2$random)), y=c(object$termsN$fixed, object$termsN$random))
 #   namesLevelsO <- unlist(apply(namesLevelsO,1,function(x){rep(x[1],x[2])}))
-# 
+#
 #   formLevels <- c(rep("fixed",length(unlist(oto$fixed))),rep("random",length(names(object$U))))
 #   id <- 1:length(formLevels)
 #   ignored <- rep(TRUE,length(id)) # all ignored by default
 #   include <- rep(FALSE,length(id)) # none include by default
 #   average <- rep(FALSE, length(id))
-# 
+#
 #   include[fToUse]=TRUE # specify which fixed effects where used
 #   if(!is.null(fToAverage)){
 #     average[fToAverage]=TRUE # specify which fixed effects where used
 #   }
 #   if(!is.null(zToUse)){include[length(modelForMatrices$X)+zToUse]=TRUE} # specify which random effects where used
-# 
+#
 #   ignored[fToUse]=FALSE # specify which fixed effects ARE NOT ignored
 #   if(!is.null(zToUse)){ignored[length(modelForMatrices$X)+zToUse]=FALSE} # specify which random effects ARE NOT ignored
-# 
+#
 #   predictSummary <- data.frame(namesLevelsO,namesLevels,formLevels,nLevels,id,ignored,include, average)
 #   colnames(predictSummary) <- c("termHL","term","type","nLevels","id","ignored","include","average")
-# 
+#
 #   toreturn2 <- list(pvals=pvals,
 #                     hypertable=predictSummary,
 #                     model=modelForMatrices,
@@ -667,10 +688,10 @@
 #                     C22=pev,
 #                     Xextended=X.mv.extended,
 #                     Zextended=Z.extended
-# 
+#
 #   )
 #   attr(toreturn2, "class")<-c("predict.mmer", "list")
-# 
+#
 #   return(toreturn2)
 # }
 

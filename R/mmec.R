@@ -153,11 +153,19 @@ mmec <- function(fixed, random, rcov, data, W,
     colnamesBase <- colnames(X)[partitionsX[[ix]]]
     colnamesBaseList <- strsplit(colnamesBase,":")
     toRemoveList <- strsplit(fixedTerms[ix],":")[[1]] # words to remove from the level names in the ix.th fixed effect
-    if(toRemoveList %in% "1"){}else{toRemoveList <- all.vars(as.formula(paste("~",paste(toRemoveList, collapse = "+"))))}
+    # print(toRemoveList)
+    if("1" %in% unlist(toRemoveList)){}else{toRemoveList <- all.vars(as.formula(paste("~",paste(toRemoveList, collapse = "+"))))}
     for(j in 1:length(toRemoveList)){
       if( classColumns[[toRemoveList[[j]]]] != "numeric"){ # only remove the name from the level if is structure between factors, not for random regressions
-        nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE))
-        colnamesBaseList <- lapply(colnamesBaseList, function(h){if(nchar(h) > nc){h[j] <- substr(h[j],1+nc,nchar(h[j]))} ; return(h)}) # only remove the initial name if the name is actually longer
+        nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE)) # number of letters to remove
+        colnamesBaseList <- lapply(colnamesBaseList, function(h){
+          if(is.na(h[j])){ # is the intercept? no
+            return(h)
+          }else{ # is the intercept? yes
+            if(nchar(h[j]) > nc){h[j] <- substr(h[j],1+nc,nchar(h[j]))}
+            return(h)
+          }
+        }) # only remove the initial name if the name is actually longer
       }
     }
     colnames(X)[partitionsX[[ix]]] <- unlist(lapply(lapply(colnamesBaseList,na.omit), function(x){paste(x, collapse=":")}))
