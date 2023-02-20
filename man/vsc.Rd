@@ -33,11 +33,11 @@
 
    \item{meN}{number of main effects in the variance structure. Is always counted from last to first.}
 
-   \item{meTheta}{variance covariance matrix between the main effects desired.}
+   \item{meTheta}{variance covariance matrix between the main effects desired. Just to be modified if the number of main effects is greater of 1 (e.g., indirect genetic effects).}
 
-   \item{meThetaC}{constraints for the variance covariance matrix between the main effects desired.}
+   \item{meThetaC}{constraints for the variance covariance matrix between the main effects desired. Just to be modified if the number of main effects is greater of 1 (e.g., indirect genetic effects).}
 
-   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmec function through the addScaleParam argument.}
+   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmec function through the addScaleParam argument in the \code{mmec} function .}
 
 }
 \details{

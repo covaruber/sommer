@@ -1,15 +1,15 @@
 vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE){
-  
+
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
-  
+
   init <- list(...) #  e.g. init <- list(usc(data$Env),isc(data$Name)) | init <- list(dsc(data$YEAR),isc(data$units))
-  
+
   namess <- as.character(substitute(list(...)))[-1L] # namess <- c("Env","Name") | namess <- c("YEAR","units")
-  namess2 <- apply(data.frame(namess),1,function(x){ 
+  namess2 <- apply(data.frame(namess),1,function(x){
     return(all.vars(as.formula(paste0("~",x))))
   })
-  
+
   ## let's test that user provided all terms encapsulated in a structure
   listLength <- length(init)
   if(listLength == 1){ # very simple structure
@@ -22,22 +22,23 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     whichElemBad <- which(lengthElem < 3) ## which are not encapsulated
   }
   if(length(whichElemBad) > 0){
-    stop(paste("Term(s): '",paste(namess2[whichElemBad],collapse = ","),"' in the vsc() function are not encapsulated in a structure function. Please correct (e.g., using isc(), dsc(), usc(), atc(), csc(), etc.)."),call. = FALSE)
+    badd <- paste(namess2[whichElemBad],collapse = ",")
+    stop(paste0("Term(s): '",badd,"' in the vsc() function are not encapsulated in a structure function. Please correct [for example, using vsc(isc(",badd,")), vsc(dsc(",badd,")), vsc(usc(",badd,")), vsc(atc(",badd,")), vsc(csc(",badd,")), etc.]."),call. = FALSE)
   }
-  
+
   ## extract names of variables and collpase as interaction
-  
+
   namess2 <- as.vector(unique(unlist(namess2))) # remove repeats if exist
   namess2[which(namess2 == "")] <- namess[which(namess2 == "")] # remove empties if exist
   # extract the name of the main variable
   ref_name <- namess2[length(namess2)]
   # certain random effects coming from spl2D(), leg(), and others may need some help to find the terms
   specialVariables <- unlist(lapply(init,function(x){(attributes(x)$variables)}))
-  # 
+  #
   if("units" %in% namess2){ # if residual
     is.residual =TRUE
   }else{is.residual=FALSE}
-  
+
   ### get the data
   if(length(init)>meN){ # if there is a covariance structure not only isc
     for(i in 1:(length(init)-meN)){ # for all terms prior to the main effect(s) keep nme in mind
@@ -93,7 +94,7 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
         }
       }
       counter <- counter+1
-      if(meN <= 1){ # if there's only one main effect 
+      if(meN <= 1){ # if there's only one main effect
         if(pasteNames & !is.residual){ # if there's a covariance structure paste names, if only isc() don't
           # colnames(Z[[j]]) <- paste(colnames(Z1prov),colnames(Z0)[j],sep=":")
         }
@@ -141,7 +142,7 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
   sp0 <- ifelse(sp,1,0)
   sp0 <- rep(sp0,nrow(thetaF))
   if(sp){thetaF <- thetaF*0}
-  
+
   output <- list(Z=Z, Gu=Gu, theta=theta, thetaC=thetaC, thetaF=thetaF,partitionsR=partitionsR, sp=sp0)
   return(output)
 }

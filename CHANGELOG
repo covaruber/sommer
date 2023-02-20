@@ -440,6 +440,7 @@ version 4.2.1 (2023-04-01)
 
 ######################
 ## PENDINGS AND PRIORITIES
++ correct bug in the spl2Dc function
 + correct the random regression model in the vignettes
 + check that C22 is being calculated correctly in predict.mmer
 + we need to recode how the C matrix is constructed, adopt linear sum instead of [W y]' R [W y], otherwise the solver is extremely slow for complex models with many effects to be estimated.

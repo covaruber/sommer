@@ -225,6 +225,7 @@ DT <- DT_h2
 ## build the environmental index
 ei <- aggregate(y~Env, data=DT,FUN=mean)
 colnames(ei)[2] <- "envIndex"
+ei$envIndex <- ei$envIndex - mean(ei$envIndex,na.rm=TRUE) # center the envIndex to have clean VCs
 ei <- ei[with(ei, order(envIndex)), ]
 
 ## add the environmental index to the original dataset
