@@ -79,6 +79,7 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     # baseZnames <- colnames(init[[1]]$Z)
     for(k in (length(init)-meN+1):(length(init))){
       Z1prov <- init[[k]]$Z # main effect matrix
+      cn <- colnames(Z1prov)
       if(is.residual){
         vv <- which(Z0[,j] != 0) # which rows belong to the ith environment
         partitionsR[[j]] <- matrix(c(vv[1],vv[length(vv)]),nrow=1)
@@ -91,6 +92,19 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
           Z[[counter]] <- as(Z1prov * provZ0iCol, Class = "dgCMatrix")
         }else{
           Z[[counter]] <- Z1provZ0iCol
+        }
+        if(is.null(cn)){
+          stop("Gu matrix needs to have row and column names matching the levels of the random effect. Please correct \n", call. = TRUE )
+        }
+        checkg <- setdiff(cn,colnames(Gu)) # make sure missing levels is not a thing
+        if(length(checkg)>0){
+          stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
+        }
+        checkg2 <- setdiff(colnames(Gu),cn) # check if additional G levels exist
+        if(length(checkg2)>0){
+          cat(paste0("Adding additional levels of Gu in the model matrix of '",ref_name,"' \n"))
+          added <- Matrix(0, nrow = nrow(Z1provZ0iCol), ncol = length(checkg2)); colnames(added) <- checkg2
+          Z[[counter]] <- cbind(Z1provZ0iCol,added)
         }
       }
       counter <- counter+1

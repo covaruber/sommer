@@ -1,5 +1,5 @@
 atcg1234 <- function(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, silent=FALSE, by.allele=FALSE, imp=TRUE, ref.alleles=NULL){
-
+  
   impute.mode <- function(x) {
     ix <- which(is.na(x))
     if (length(ix) > 0) {
@@ -132,166 +132,173 @@ atcg1234 <- function(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, silent=FA
   }
   
   if(is.null(ref.alleles)){
-  #############################
-  if(by.allele){ ####&&&&&&&&&&&&&&&&&&&&&& use zero.one function
-    user.code <- apply(data[,c(1:(round(dim(data)[2]/20)))], 2, function(x){q <- which(!is.na(x))[1];ss1 <- substr(x[q], start=1,stop=1);ss2 <- substr(x[q], start=2,stop=2);vv1 <-which(c(ss1,ss2)=="");if(length(vv1)>0){y <-1}else{y <- 0}; return(y)})
-    AA <- sum(user.code, na.rm = TRUE)/length(user.code)
-    if(AA > .9){ # means user is using single letter
-      rnd <- rownames(data)
-      data <- apply(data,2,gbs.to.bisnp);#W2[1:5,1:5]
-      rownames(data) <- rnd
-    }
-    M <- zero.one(data)
-    
-  }else{ ###&&&&&&&&&&&&&&&&&&&&&&&&
-    n.g <- apply(data,2,function(x){length(table(x))})
-    bad <- which(n.g > 3)
-    if(length(bad) == dim(data)[2]){
-      cat("Error. All your markers are multiallelic. This function requires at least one bi-allelic marker\n")
-    }
-    
-    # tells you which markers have double letter code, i.e. TT instead of T
-    # 1: has only one letter
-    # 0: has two letters
-    user.code <- apply(data[,c(1:(round(dim(data)[2]/20)))], 2, function(x){q <- which(!is.na(x))[1];ss1 <- substr(x[q], start=1,stop=1);ss2 <- substr(x[q], start=2,stop=2);vv1 <-which(c(ss1,ss2)=="");if(length(vv1)>0){y <-1}else{y <- 0}; return(y)})
-    AA <- sum(user.code, na.rm = TRUE)/length(user.code)
-    if(AA > .9){
-      rrn <- rownames(data)
+    #############################
+    if(by.allele){ ####&&&&&&&&&&&&&&&&&&&&&& use zero.one function
+      ncolsData <- dim(data)[2]
+      ncolsData <- max(2,round(ncolsData/20))
+      # print(ncolsData)
+      user.code <- apply(data[,c(1:ncolsData)], 2, function(x){q <- which(!is.na(x))[1];ss1 <- substr(x[q], start=1,stop=1);ss2 <- substr(x[q], start=2,stop=2);vv1 <-which(c(ss1,ss2)=="");if(length(vv1)>0){y <-1}else{y <- 0}; return(y)})
+      print(user.code)
+      AA <- sum(user.code, na.rm = TRUE)/length(user.code)
+      if(AA > .9){ # means user is using single letter
+        rnd <- rownames(data)
+        data <- apply(data,2,gbs.to.bisnp);#W2[1:5,1:5]
+        rownames(data) <- rnd
+      }
+      M <- zero.one(data)
       
-      cat("Converting GBS or single-letter code to biallelic code\n")
+    }else{ ###&&&&&&&&&&&&&&&&&&&&&&&&
+      n.g <- apply(data,2,function(x){length(table(x))})
+      bad <- which(n.g > 3)
+      if(length(bad) == dim(data)[2]){
+        cat("Error. All your markers are multiallelic. This function requires at least one bi-allelic marker\n")
+      }
+      
+      # tells you which markers have double letter code, i.e. TT instead of T
+      # 1: has only one letter
+      # 0: has two letters
+      ncolsData <- dim(data)[2]
+      ncolsData <- max(2,round(ncolsData/20))
+      # print(ncolsData)
+      user.code <- apply(data[,c(1:ncolsData)], 2, function(x){q <- which(!is.na(x))[1];ss1 <- substr(x[q], start=1,stop=1);ss2 <- substr(x[q], start=2,stop=2);vv1 <-which(c(ss1,ss2)=="");if(length(vv1)>0){y <-1}else{y <- 0}; return(y)})
+      AA <- sum(user.code, na.rm = TRUE)/length(user.code)
+      if(AA > .9){
+        rrn <- rownames(data)
+        
+        cat("Converting GBS or single-letter code to biallelic code\n")
+        if(silent){
+          data <- apply(data, 2,gbs.to.bisnp)
+        }else{
+          data <- apply_pb(data, 2,gbs.to.bisnp) 
+        }
+        rownames(data) <- rrn
+        data <- as.data.frame(data)
+      }
+      #### apply with progress bar ######
+      s1 <- rownames(data)
+      s2 <- colnames(data)
+      data <- as.data.frame(t(data))
+      rownames(data) <- s2
+      colnames(data) <- s1
+      bases <- c("A", "C", "G", "T","l","m","n","p","h","k","-","+","e","f","g","a","b","c","d")
+      ## get reference allele function
+      get.ref <- function(x, format) {
+        if (format == "numeric") {
+          ref.alt <- c(0, 1)
+        }
+        if (format == "AB") {
+          ref.alt <- c("A", "B")
+        }
+        if (format == "ATCG") {
+          y <- paste(na.omit(x), collapse = "")
+          ans <- apply(array(bases), 1, function(z, y) {
+            length(grep(z, y, fixed = T))
+          }, y)
+          if (sum(ans) > 2) {
+            ref.alt <- (bases[which(ans == 1)])[1:2]
+            #stop("Error in genotype matrix: More than 2 alleles")
+          }
+          if (sum(ans) == 2) {
+            ref.alt <- bases[which(ans == 1)]
+          }
+          if (sum(ans) == 1) {
+            ref.alt <- c(bases[which(ans == 1)], NA)
+          }
+        }
+        return(ref.alt)
+      }
+      
+      get.multi <- function(x, format) {
+        if (format == "numeric") {
+          ref.alt <- c(0, 1)
+        }
+        if (format == "AB") {
+          ref.alt <- c("A", "B")
+        }
+        if (format == "ATCG") {
+          y <- paste(na.omit(x), collapse = "")
+          ans <- apply(array(bases), 1, function(z, y) {
+            length(grep(z, y, fixed = T))
+          }, y)
+          if (sum(ans) > 2) {
+            ref.alt <- TRUE
+          }
+          if (sum(ans) == 2) {
+            ref.alt <- FALSE
+          }
+          if (sum(ans) == 1) {
+            ref.alt <- FALSE
+          }
+        }
+        return(ref.alt)
+      }
+      
+      ####################################
+      ## convert to matrix format
+      ####################################
+      markers <- as.matrix(data)
+      ####################################
+      # get reference alleles
+      ####################################
+      cat("Obtaining reference alleles\n")
       if(silent){
-        data <- apply(data, 2,gbs.to.bisnp)
+        tmp <- apply(markers, 1, get.ref, format=format)
       }else{
-        data <- apply_pb(data, 2,gbs.to.bisnp) 
+        tmp <- apply_pb(markers, 1, get.ref, format=format) 
       }
-      rownames(data) <- rrn
-      data <- as.data.frame(data)
-    }
-    #### apply with progress bar ######
-    s1 <- rownames(data)
-    s2 <- colnames(data)
-    data <- as.data.frame(t(data))
-    rownames(data) <- s2
-    colnames(data) <- s1
-    bases <- c("A", "C", "G", "T","l","m","n","p","h","k","-","+","e","f","g","a","b","c","d")
-    ## get reference allele function
-    get.ref <- function(x, format) {
-      if (format == "numeric") {
-        ref.alt <- c(0, 1)
-      }
-      if (format == "AB") {
-        ref.alt <- c("A", "B")
-      }
-      if (format == "ATCG") {
-        y <- paste(na.omit(x), collapse = "")
-        ans <- apply(array(bases), 1, function(z, y) {
-          length(grep(z, y, fixed = T))
-        }, y)
-        if (sum(ans) > 2) {
-          ref.alt <- (bases[which(ans == 1)])[1:2]
-          #stop("Error in genotype matrix: More than 2 alleles")
+      
+      if(multi){ # if markers with multiple alleles should be removed
+        cat("Checking for markers with more than 2 alleles. If found will be removed.\n")
+        if(silent){
+          tmpo <- apply(markers, 1, get.multi, format = format)
+        }else{
+          tmpo <- apply_pb(markers, 1, get.multi, format = format) 
         }
-        if (sum(ans) == 2) {
-          ref.alt <- bases[which(ans == 1)]
-        }
-        if (sum(ans) == 1) {
-          ref.alt <- c(bases[which(ans == 1)], NA)
-        }
+        ###&&&&&&&&&&&& HERE WE MUST INSERT THE NEW FUNCTIONALITY, WHERE WE DETECTED MULTIPLE ALLELES
+        multi.allelic <- which(!tmpo) # good markers
+        markers <- markers[multi.allelic,]
+        tmp <- tmp[, multi.allelic]
       }
-      return(ref.alt)
-    }
-    
-    get.multi <- function(x, format) {
-      if (format == "numeric") {
-        ref.alt <- c(0, 1)
-      }
-      if (format == "AB") {
-        ref.alt <- c("A", "B")
-      }
-      if (format == "ATCG") {
-        y <- paste(na.omit(x), collapse = "")
-        ans <- apply(array(bases), 1, function(z, y) {
-          length(grep(z, y, fixed = T))
-        }, y)
-        if (sum(ans) > 2) {
-          ref.alt <- TRUE
-        }
-        if (sum(ans) == 2) {
-          ref.alt <- FALSE
-        }
-        if (sum(ans) == 1) {
-          ref.alt <- FALSE
-        }
-      }
-      return(ref.alt)
-    }
-    
-    ####################################
-    ## convert to matrix format
-    ####################################
-    markers <- as.matrix(data)
-    ####################################
-    # get reference alleles
-    ####################################
-    cat("Obtaining reference alleles\n")
-    if(silent){
-      tmp <- apply(markers, 1, get.ref, format=format)
-    }else{
-      tmp <- apply_pb(markers, 1, get.ref, format=format) 
-    }
-    
-    if(multi){ # if markers with multiple alleles should be removed
-      cat("Checking for markers with more than 2 alleles. If found will be removed.\n")
+      
+      Ref <- tmp[1, ]
+      Alt <- tmp[2, ]
+      ####################################
+      ## bind reference allele and markers and convert to numeric format based on the 
+      # reference/alternate allele found
+      ####################################
+      cat("Converting to numeric format\n")
       if(silent){
-        tmpo <- apply(markers, 1, get.multi, format = format)
+        M <- apply(cbind(Ref, markers), 1, function(x) {
+          y <- gregexpr(pattern = x[1], text = x[-1], fixed = T)
+          ans <- as.integer(lapply(y, function(z) {
+            ifelse(z[1] < 0, ploidy, ploidy - length(z))
+          }))
+          return(ans)
+        })
       }else{
-        tmpo <- apply_pb(markers, 1, get.multi, format = format) 
+        M <- apply_pb(cbind(Ref, markers), 1, function(x) {
+          y <- gregexpr(pattern = x[1], text = x[-1], fixed = T)
+          ans <- as.integer(lapply(y, function(z) {
+            ifelse(z[1] < 0, ploidy, ploidy - length(z))
+          }))
+          return(ans)
+        })
       }
-      ###&&&&&&&&&&&& HERE WE MUST INSERT THE NEW FUNCTIONALITY, WHERE WE DETECTED MULTIPLE ALLELES
-      multi.allelic <- which(!tmpo) # good markers
-      markers <- markers[multi.allelic,]
-      tmp <- tmp[, multi.allelic]
+      
+      gid.geno <- s1 #colnames(geno)
+      rownames(M) <- gid.geno
+      ####################################
+      # identify bad markers
+      ####################################
+      bad <- length(which(!is.element(na.omit(M), 0:ploidy)))
+      if (bad > 0) {
+        stop("Invalid marker calls.")
+      }
+      
     }
-    
-    Ref <- tmp[1, ]
-    Alt <- tmp[2, ]
+    #rownames(M) <- rownames(data)
     ####################################
-    ## bind reference allele and markers and convert to numeric format based on the 
-    # reference/alternate allele found
-    ####################################
-    cat("Converting to numeric format\n")
-    if(silent){
-      M <- apply(cbind(Ref, markers), 1, function(x) {
-        y <- gregexpr(pattern = x[1], text = x[-1], fixed = T)
-        ans <- as.integer(lapply(y, function(z) {
-          ifelse(z[1] < 0, ploidy, ploidy - length(z))
-        }))
-        return(ans)
-      })
-    }else{
-      M <- apply_pb(cbind(Ref, markers), 1, function(x) {
-        y <- gregexpr(pattern = x[1], text = x[-1], fixed = T)
-        ans <- as.integer(lapply(y, function(z) {
-          ifelse(z[1] < 0, ploidy, ploidy - length(z))
-        }))
-        return(ans)
-      })
-    }
-    
-    gid.geno <- s1 #colnames(geno)
-    rownames(M) <- gid.geno
-    ####################################
-    # identify bad markers
-    ####################################
-    bad <- length(which(!is.element(na.omit(M), 0:ploidy)))
-    if (bad > 0) {
-      stop("Invalid marker calls.")
-    }
-    
-  }
-  #rownames(M) <- rownames(data)
-  ####################################
-  rownames(tmp) <- c("Alt","Ref")
+    rownames(tmp) <- c("Alt","Ref")
   }else{# user provides reference alleles and just want a conversion
     
     common.mark <- intersect(colnames(data), colnames(ref.alleles))

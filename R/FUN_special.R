@@ -590,10 +590,6 @@ usc <- function(x, thetaC=NULL, theta=NULL){
   }
   colnames(mm) <- rownames(mm) <- colnames(dummy)
   bnmm <- diag(ncol(mm))*.05 + matrix(.1,ncol(mm),ncol(mm))
-  # if(nrow(bnmm) > 1){
-  #   bnmm[upper.tri(bnmm)]=bnmm[upper.tri(bnmm)]/3
-  #   bnmm[lower.tri(bnmm)]=bnmm[lower.tri(bnmm)]/3
-  # }
   if(!is.null(thetaC)){
     mm <- thetaC
   }

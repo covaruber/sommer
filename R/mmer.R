@@ -26,7 +26,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     nodata <-TRUE
     cat("data argument not provided \n")
   }else{nodata=FALSE}
-
+  data <- as.data.frame(data)
   if(missing(rcov)){
     rcov = as.formula("~units")
   }
@@ -152,7 +152,6 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     }
     Z <- unlist(zs,recursive=FALSE)
     K <- unlist(ks,recursive=FALSE)
-    # print(ges)
     ges <- unlist(ges,recursive=FALSE)
     gesI <- unlist(gesI,recursive=FALSE)
     re_namel1 <- unlist(re_namel1,recursive=FALSE)

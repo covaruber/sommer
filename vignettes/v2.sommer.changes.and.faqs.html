@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2023-01-07" />
+<meta name="date" content="2023-02-21" />
 
 <title>Changes and FAQs for the sommer package</title>
 
@@ -341,7 +341,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h1 class="title toc-ignore">Changes and FAQs for the sommer
 package</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2023-01-07</h4>
+<h4 class="date">2023-02-21</h4>
 
 
 
@@ -385,6 +385,8 @@ relationship matrix.</li>
 <li>How can I constrain two variance components to be equal?</li>
 <li>I get an error when installing directly from github</li>
 <li>I get and error when specifying an interaction of the form X:Z</li>
+<li>I get the error “contrasts&lt;-<code>(</code><em>tmp</em>`, value =
+contr.funs[1 + isOF[nn]])”</li>
 </ol>
 <div id="section-1-the-new-syntax-of-sommer" class="section level2">
 <h2>SECTION 1: The new syntax of sommer</h2>
@@ -703,7 +705,7 @@ blups.</p>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix1)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
-## **********************  sommer 4.1  ********************** 
+## **********************  sommer 4.2  ********************** 
 ## ============================================================
 ##          logLik      AIC      BIC Method Converge
 ## Value -47.00674 96.01348 98.61865     NR     TRUE
@@ -738,7 +740,7 @@ blups.</p>
 <span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix2)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
-## **********************  sommer 4.1  ********************** 
+## **********************  sommer 4.2  ********************** 
 ## ============================================================
 ##          logLik      AIC      BIC Method Converge
 ## Value -47.00674 96.01348 98.61865     NR     TRUE
@@ -950,9 +952,9 @@ variance) of those variance-covariance components in the
 <pre><code>##                       VarComp VarCompSE    Zratio Constraint
 ## u:id.Yield-Yield     325.2072  259.0889  1.255196      Fixed
 ## u:units.Yield-Yield 4051.3786  352.4804 11.493912   Positive</code></pre>
-<p>For the vsc() function for the c x c problem the theta and thetaC
-arguments can be used directly in the additional structures. For example
-to fix the residuals equal to 1:</p>
+<p>For the vsc() function used in mmec() for the c x c problem the theta
+and thetaC arguments can be used directly in the covariance structures.
+For example to fix the residuals equal to 1:</p>
 <div class="sourceCode" id="cb44"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>mm <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">3</span>,<span class="dv">1</span>,<span class="dv">1</span>) <span class="do">## matrix to fix the var comp</span></span>
 <span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>vei <span class="ot">&lt;-</span> <span class="fu">var</span>(DT<span class="sc">$</span>Yield, <span class="at">na.rm =</span> <span class="cn">TRUE</span>) <span class="co"># we want to fix the vc to be half of the previous uinvariate model</span></span>
 <span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a></span>
@@ -964,7 +966,7 @@ to fix the residuals equal to 1:</p>
 <span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze variance components</span></span>
 <span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix3)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                VarComp    VarCompSE       Zratio Constraint
-## Rowf:isc:isc  976.2789 8.911832e-16 1.095486e+18   Positive
+## Rowf:isc:isc  976.2789 8.911917e-16 1.095476e+18   Positive
 ## units:mm:vei:   1.0000 1.227629e-03 8.145785e+02      Fixed</code></pre>
 </div>
 <div id="how-can-i-constrain-two-variance-components-to-be-equal" class="section level3">
@@ -1029,8 +1031,8 @@ issue, the information of the following website may solve your
 instalation problem:</p>
 <p><a href="https://www.cynkra.com/blog/2021-03-16-gfortran-macos/" class="uri">https://www.cynkra.com/blog/2021-03-16-gfortran-macos/</a></p>
 </div>
-<div id="i-get-and-error-when-specifying-an-interaction-of-the-form-xz" class="section level3">
-<h3>10) I get and error when specifying an interaction of the form
+<div id="i-get-an-error-when-specifying-an-interaction-of-the-form-xz" class="section level3">
+<h3>10) I get an error when specifying an interaction of the form
 X:Z</h3>
 <p>If you get an error message similar to the following when specifying
 an interaction in your model:</p>
@@ -1042,6 +1044,20 @@ by coercion</p>
 <p>Please check that your variables in the interaction are all of class
 factor. Making all factors using the as.factor() function should fix
 your error.</p>
+</div>
+<div id="i-get-the-error-contrasts-tmp-value-contr.funs1-isofnn" class="section level3">
+<h3>11) I get the error: contrasts&lt;-(<code>*tmp*</code>, value =
+contr.funs[1 + isOF[nn]])</h3>
+<p>If you get an error message similar to the following when fitting
+your model:</p>
+<p>Error in contrasts&lt;-(<code>*tmp*</code>, value = contr.funs[1 +
+isOF[nn]]) : contrasts can be applied only to factors with 2 or more
+levels</p>
+<p>Please check that your dataset is a regular dataframe. If your
+dataset used as input is of class tibtable or any other you may get this
+error message. Please use the following command to fix the issue:</p>
+<p>dataset &lt;- as.data.frame(dataset)</p>
+<p>This should put the dataset in the expected format.</p>
 </div>
 </div>
 <div id="literature" class="section level2">

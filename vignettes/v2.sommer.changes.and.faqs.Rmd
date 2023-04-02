@@ -35,6 +35,7 @@ The purpose of this vignette is to first show the changes in syntax for `sommer`
 8) How can I constrain two variance components to be equal?
 9) I get an error when installing directly from github
 10) I get and error when specifying an interaction of the form X:Z
+11) I get the error "contrasts<-`(`*tmp*`, value = contr.funs[1 + isOF[nn]])"
 
 ## SECTION 1: The new syntax of sommer
 
@@ -512,7 +513,7 @@ one of the error messages that have been identified by users is related to the i
 
 https://www.cynkra.com/blog/2021-03-16-gfortran-macos/
 
-### 10) I get and error when specifying an interaction of the form X:Z
+### 10) I get an error when specifying an interaction of the form X:Z
 
 If you get an error message similar to the following when specifying an interaction in your model:
 
@@ -526,6 +527,20 @@ In addition: Warning messages:
   NAs introduced by coercion
 
 Please check that your variables in the interaction are all of class factor. Making all factors using the as.factor() function should fix your error.
+
+### 11) I get the error: contrasts<-(`*tmp*`, value = contr.funs[1 + isOF[nn]])
+
+If you get an error message similar to the following when fitting your model:
+
+Error in contrasts<-(`*tmp*`, value = contr.funs[1 + isOF[nn]]) : 
+  contrasts can be applied only to factors with 2 or more levels
+
+Please check that your dataset is a regular dataframe. If your dataset used as input is of class tibtable or any other you may get this error message. Please use the following command to fix the issue:
+
+dataset <- as.data.frame(dataset)
+
+This should put the dataset in the expected format.
+
 
 ## Literature
 
