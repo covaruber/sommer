@@ -9,7 +9,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
                  verbose=TRUE,reshapeOutput=TRUE,
                  stepWeight=NULL, emWeight=NULL){
 
-  my.date <- "2023-04-01"
+  my.date <- "2023-08-01"
   your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
   if(dateWarning){
@@ -231,16 +231,6 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   # Expand the fixed terms to handle interactions
   fixedtermss <- attr(terms(fixed),"term.labels")
 
-  # yuyuf <- strsplit(as.character(fixed[3]), split = "[+-]")[[1]]
-  # yuyufint <- strsplit(as.character(fixed[3]), split = "[+]")[[1]]
-  # fixedtermss <- apply(data.frame(yuyuf),1,function(x){
-  # strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
-  # })
-  # identify if user wants intercept or not
-  # test1 <- length(which(fixedtermss %in% "1"))
-  # test2 <- length(which(fixedtermss %in% "-1"))
-  # test2 <- length(c( grep("-1", yuyufint), grep("- 1", yuyufint) ))
-
   # This will handle cases when user enters 1 anywhere in the fixed effects
   if(attr(terms(fixed),"intercept")==1){ # there should be intercept
     useinter <- TRUE
@@ -265,17 +255,6 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     addxs <- do.call(cbind,addxs)
   }else{fixedvsterms <- NULL}
 
-  # '%!in%' <- function(x,y)!('%in%'(x,y))
-  # if(test1 == 0 & test2 == 0){ # there should be intercept
-  #   fixedtermss <- c("1",fixedtermss)
-  # }else if(test1 > 0 & test2 == 0){# there should be intercept as well
-  #   fixedtermss <- c(fixedtermss)
-  # }else{ # there's no intercept
-  #   fixedtermss <- fixedtermss[which(fixedtermss%!in%"1")]
-  #   fixedtermss <- c("-1",fixedtermss)
-  # }
-
-  # print(fixedtermss)
   newfixed <- as.formula(paste("~",paste(fixedtermss,collapse = "+")))
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
   mf <- eval(mf, parent.frame())
@@ -295,7 +274,6 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   colnames(baseX) <- nameskeepx
   if(colsdropped > 0){
     warning(paste("fixed-effect model matrix is rank deficient so dropping",colsdropped,"columns / coefficients\n"),call. = FALSE)
-    # cat(blue(paste("fixed-effect model matrix is rank deficient so dropping",colsdropped,"columns / coefficients\n")))
   }
   # print(colnames(baseX))
   xs <- list()
@@ -416,27 +394,15 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   # print("good")
   if(returnParam){
     good <- provdat$good
-    if(missing(weights)){
-      args <- list(fixed=fixed, random=random, rcov=rcov, data=data,
-                   nIters=nIters, tolParConvLL=tolParConvLL, tolParInv=tolParInv,
-                   init=init, constraints=constraints, method=method,
-                   getPEV=getPEV,
-                   naMethodX=naMethodX,
-                   naMethodY=naMethodY,
-                   returnParam=returnParam,
-                   dateWarning=dateWarning,
-                   verbose=verbose,reshapeOutput=reshapeOutput)
-    }else{
-      args <- list(fixed=fixed, random=random, rcov=rcov, data=data, weights=weights,
-                   nIters=nIters, tolParConvLL=tolParConvLL, tolParInv=tolParInv,
-                   init=init, constraints=constraints, method=method,
-                   getPEV=getPEV,
-                   naMethodX=naMethodX,
-                   naMethodY=naMethodY,
-                   returnParam=returnParam,
-                   dateWarning=dateWarning,
-                   verbose=verbose,reshapeOutput=reshapeOutput)
-    }
+    args <- list(fixed=fixed, random=random, rcov=rcov, data=data, weights=substitute(weights),
+                 nIters=nIters, tolParConvLL=tolParConvLL, tolParInv=tolParInv,
+                 init=init, constraints=constraints, method=method,
+                 getPEV=getPEV,
+                 naMethodX=naMethodX,
+                 naMethodY=naMethodY,
+                 returnParam=returnParam,
+                 dateWarning=dateWarning,
+                 verbose=verbose,reshapeOutput=reshapeOutput)
 
     res <- list(yvar=yvar, X=X,Gx=Gx,Z=Z,K=K,R=R,GES=GES,GESI=GESI, W=WW, isInvW=isInvW,
                 nIters=nIters, tolParConvLL=tolParConvLL, tolParInv=tolParInv,

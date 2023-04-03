@@ -68,6 +68,24 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     Z0 <- Matrix(1,nrow(init[[1]]$Z),1)
     pasteNames=FALSE
   }
+  #######################################
+  ## check covariance matrices
+  `%!in%` = Negate(`%in%`)
+  if(is.null(Gu)){
+    x <- data.frame(d=as.factor(1:ncol(init[[length(init)]]$Z)))
+    Gu <- sparse.model.matrix(~d-1, x)
+    colnames(Gu) <- rownames(Gu) <- colnames(init[[length(init)]]$Z)
+  }else{
+    if (!inherits(Gu, "dgCMatrix")){
+      stop("Gu matrix is not of class dgCMatrix. Please correct \n", call. = TRUE )
+    }
+    # cn <- colnames(init[[k]]$Z)
+    # if(is.null(cn)){
+    #   stop("Gu matrix needs to have row and column names matching the levels of the random effect. Please correct \n", call. = TRUE )
+    # }
+    # Gu <- Gu[cn,cn]
+  }
+  #############################
   ######################################
   ## now build the Z matrices
   Z <- list()
@@ -96,7 +114,10 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
         if(is.null(cn)){
           stop("Gu matrix needs to have row and column names matching the levels of the random effect. Please correct \n", call. = TRUE )
         }
+        # print(cn)
+        # print(colnames(Gu))
         checkg <- setdiff(cn,colnames(Gu)) # make sure missing levels is not a thing
+        # print(checkg)
         if(length(checkg)>0){
           stop(paste("levels of",ref_name,"missing in Gu"),call. = FALSE)
         }
@@ -116,6 +137,7 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     }
   }
   Zind <- rep(1,length(Z))
+
   ######################################
   ## meN adjustment
   ## modify theta and thetaC according to the number of mainEffect matrices
@@ -129,24 +151,7 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     theta <- kronecker(theta,meTheta, make.dimnames = TRUE)
     thetaC <- kronecker(thetaC,meThetaC, make.dimnames = TRUE)
   }
-  #######################################
-  ## check covariance matrices
-  `%!in%` = Negate(`%in%`)
-  if(is.null(Gu)){
-    x <- data.frame(d=as.factor(1:ncol(Z[[1]])))
-    Gu <- sparse.model.matrix(~d-1, x)
-    colnames(Gu) <- rownames(Gu) <- colnames(Z[[1]])
-  }else{
-    if (!inherits(Gu, "dgCMatrix")){
-      stop("Gu matrix is not of class dgCMatrix. Please correct \n", call. = TRUE )
-    }
-    cn <- colnames(Z[[1]])
-    if(is.null(cn)){
-      stop("Gu matrix needs to have row and column names matching the levels of the random effect. Please correct \n", call. = TRUE )
-    }
-    # print(cn)
-    Gu <- Gu[cn,cn]
-  }
+
   #########################################
   ## thetaF
   nn <- length(which(thetaC > 0))#unlist(lapply(thetaC, function(x){length(which(x > 0))}))

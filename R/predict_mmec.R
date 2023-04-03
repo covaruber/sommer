@@ -37,7 +37,7 @@
     termsInDtable <- lapply(termsInDtable, function(x){intersect(x,colnames(object$data))})
     # term identified
     termsInDtableN <- unlist(lapply(termsInDtable,length))
-    pickTerm <- which( unlist(lapply(termsInDtable, function(xxx){ifelse(length(which(xxx == D)) > 0, 1, 0)})) > 0)
+    pickTerm <- which( unlist(lapply(termsInDtable, function(xxx){ifelse(length(which(paste(xxx,collapse = ":") == D)) > 0, 1, 0)})) > 0)
     if(length(pickTerm) == 0){stop(paste("Predict:",classify,"not in the model."), call. = FALSE)}
     # check if the term to predict is fixed or random
     pickTermIsFixed = ifelse("fixed" %in% Dtable[pickTerm,"type"], TRUE,FALSE)

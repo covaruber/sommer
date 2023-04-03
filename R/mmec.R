@@ -1,5 +1,5 @@
 mmec <- function(fixed, random, rcov, data, W,
-                 nIters=20, tolParConvLL = 1e-03,
+                 nIters=25, tolParConvLL = 1e-03,
                  tolParConvNorm = 1e-04, tolParInv = 1e-06,
                  naMethodX="exclude",
                  naMethodY="exclude",
@@ -8,7 +8,7 @@ mmec <- function(fixed, random, rcov, data, W,
                  verbose=TRUE, addScaleParam=NULL,
                  stepWeight=NULL, emWeight=NULL){
 
-  my.date <- "2023-04-01"
+  my.date <- "2023-08-01"
   your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
   if(dateWarning){
@@ -67,7 +67,7 @@ mmec <- function(fixed, random, rcov, data, W,
     })
 
     for(u in 1:length(rtermss)){ # for each random effect
-      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsc","spl2Dc1")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
+      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsc","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
 
       if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
         rtermss[u] <- paste("vsc( isc(",rtermss[u],") )")
@@ -192,8 +192,11 @@ mmec <- function(fixed, random, rcov, data, W,
   #################
   ## information weights
 
+  logspace <- function (n, start, end) {
+    exp(seq(log(start), log(end), length.out = n))
+  }
   if(is.null(emWeight)){
-    emWeight <- c(seq(1,.1,-.15),rep(0.04,nIters))
+    emWeight <- logspace(nIters, 1, 0.009) #
   }
   if(is.null(stepWeight)){
     w <- which(emWeight <= .04) # where AI starts

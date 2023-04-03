@@ -829,8 +829,18 @@ summary(m3)$varcomp
 Now, the model can be used together with the `classify` argument to obtain means for the `classify` argument. For example, the model includes in the fixed formula the terms "V" for variety, "N" for nitrogen treatments, and "V:N" for the interaction between variety and nitrogen. The `classify` argument can be used to specify the term for which the means are desired. In the following example the means for the nitrogen treatments are obtained as follows:
 
 ```{r}
-p0 <- predict.mmer(object=m3, classify = "N")
-p0$pvals
+Dt <- m3$Dtable; Dt
+# first fixed effect just average
+Dt[1,"average"] = TRUE
+# second fixed effect include
+Dt[2,"include"] = TRUE
+# third fixed effect include and average
+Dt[3,"include"] = TRUE
+Dt[3,"average"] = TRUE
+Dt
+
+pp=predict(object=m3, Dtable=Dt, D="N")
+pp$pvals
 ```
 
 ## Literature

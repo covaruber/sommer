@@ -722,15 +722,14 @@ plot.mmec <- function(x, stnd=TRUE, ...) {
   Rv = R.Version()
   if(!exists("getRversion", baseenv()) || (getRversion() < "2.1"))
     stop("This package requires R 2.1 or later")
-  assign(".sommer.home", file.path(library, pkg),
-         pos=match("package:sommer", search()))
-  sommer.version = "4.2.1 (2023-04-01)" # usually 4 months after it expires
-
-  assign(".sommer.version", sommer.version, pos=match("package:sommer", search()))
-  if(interactive())
-  {
+  # assign(".sommer.home", file.path(library, pkg),
+  #        pos=match("package:sommer", search()))
+  # value = "4.2.1 (2023-04-01)" # usually 4 months after it expires
+  #
+  # assign(".sommer.version", value, pos=match("package:sommer", search()))
+  if(interactive()) {
     packageStartupMessage(blue(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(blue(paste("[]   Solving Mixed Model Equations in R (sommer) ", sommer.version, " []",sep="")),appendLF=TRUE)
+    packageStartupMessage(blue(paste("[]   Solving Mixed Model Equations in R (sommer) 4.2.1 (2023-04-01) []",sep="")),appendLF=TRUE)
     packageStartupMessage(blue(paste("[]   ------------- Multivariate Linear Mixed Models --------------  []")),appendLF=TRUE)
     packageStartupMessage(blue("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
     packageStartupMessage(blue("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)

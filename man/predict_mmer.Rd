@@ -9,51 +9,51 @@
 \arguments{
  \item{object}{a mixed model of class \code{"mmer"}}
  \item{Dtable}{a table specifying the terms to be included or averaged.
- 
+
    An "include" term means that the model matrices for that fixed or random effect is filled with 1's for the positions where column names and row names match.
-  
+
   An "include and average" term means that the model matrices for that fixed or random effect is filled with 1/#1's in that row.
-  
+
   An "average" term alone means that all rows for such fixed or random effect will be filled with 1/#levels in the effect.
-  
-  If a term is not considered "include" or "average" is then totally ignored in the BLUP and SE calculation. 
-  
+
+  If a term is not considered "include" or "average" is then totally ignored in the BLUP and SE calculation.
+
   The default rule to invoke when the user doesn't provide the Dtable is to include and average all terms that match the argument D.
- 
+
  }
  \item{D}{a character string specifying the variable used to extract levels for the rows of the D matrix and its construction. Alternatively, the D matrix (of class dgCMatrix) specifying the matrix to be used for the predictions directly.}
  \item{\dots}{Further arguments to be passed.}
 }
 \details{
-  This function allows to produce predictions specifying those variables that define the margins of the hypertable to be predicted (argument D). Predictions are obtained for each combination of values of the specified variables that is present in the data set used to fit the model. See vignettes for more details. 
-  
+  This function allows to produce predictions specifying those variables that define the margins of the hypertable to be predicted (argument D). Predictions are obtained for each combination of values of the specified variables that is present in the data set used to fit the model. See vignettes for more details.
+
   For predicted values the pertinent design matrices X and Z together with BLUEs (b) and BLUPs (u) are multiplied and added together.
-  
+
   predicted.value equal Xb + Zu.1 + ... + Zu.n
-  
+
   For computing standard errors for predictions the parts of the coefficient matrix:
-  
+
   C11 equal (X.t() V.inv() X).inv()
-  
-  C12 equal 0 - [(X.t() V.inv() X).inv() X.t() V.inv() G Z] 
-  
+
+  C12 equal 0 - [(X.t() V.inv() X).inv() X.t() V.inv() G Z]
+
   C22 equal PEV equal G - [Z.t() G[V.inv() - (V.inv() X X.t() V.inv() X V.inv() X)]G Z.t()]
-  
+
   In practive C equals ( W.t() V.inv() W ).inv()
-  
+
   when both fixed and random effects are present in the inclusion set. If only fixed and random effects are included, only the respective terms from the SE for fixed or random effects are calculated.
-  
+
  }
 \value{
 
   \item{pvals}{the table of predictions according to the specified arguments.}
-  
+
   \item{vcov}{the variance covariance for the predictions.}
-  
+
   \item{D}{the model matrix for predictions as defined in Welham et al.(2004).}
-  
+
   \item{Dtable}{the table specifying the terms to include and terms to be averaged.}
-  
+
  }
  \references{
   Welham, S., Cullis, B., Gogel, B., Gilmour, A., and Thompson, R. (2004). Prediction in linear mixed models. Australian and New Zealand Journal of Statistics, 46, 325 - 347.
@@ -65,56 +65,24 @@
 
 data(DT_yatesoats)
 DT <- DT_yatesoats
-
-m3 <- mmer(fixed=Y ~ V + N + V:N,
+m3 <- mmer(fixed=Y ~ V + N + V:N ,
            random = ~ B + B:MP,
            rcov=~units,
            data = DT)
-summary(m3)$varcomp
 
-p0 <- predict.mmer(object=m3, classify = "N")
-p0$hypertable; p0$pvals
+#############################
+## predict means for nitrogen
+#############################
+pp=predict(object=m3, D="N")
+pp$pvals
 
-p0 <- predict.mmer(object=m3, classify = "V")
-p0$hypertable; p0$pvals
+#############################
+## predict means for variety
+#############################
+pp=predict(object=m3, D="V")
+pp$pvals
 
-p0 <- predict.mmer(object=m3, classify = "B")
-p0$hypertable; p0$pvals
 
-p0 <- predict.mmer(object=m3, classify = c("V","N"))
-p0$hypertable; p0$pvals
 
-########################################
-## Modify terms in the prediction
-## Ignore a term: it doesn't include the 
-## model matrix in the BLUP and its SE
-########################################
-p0 <- predict.mmer(object=m3, classify = "N")
-
-# modify the prediction
-hypertable <- p0$hypertable; hypertable
-# ignore the B:MP random term
-hypertable[6,c("ignored","include","average")] <- c(TRUE,FALSE,FALSE) 
-hypertable
-
-p1 <- predict.mmer(object=m3, classify = "N", hypertable = hypertable)
-p1$pvals
-
-########################################
-## Modify terms in the prediction
-## Average a term: it fills the model matrix
-## for the term with 1/#levels affecting
-## the BLUP and its SE
-########################################
-p0 <- predict.mmer(object=m3, classify = "N")
-
-# modify the prediction
-hypertable <- p0$hypertable; hypertable
-# average the V:N fixed term
-hypertable[4,c("ignored","include","average")] <- c(FALSE,TRUE,TRUE) 
-hypertable
-
-p1 <- predict.mmer(object=m3, classify = "N", hypertable = hypertable)
-p1$pvals
 
 }

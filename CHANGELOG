@@ -428,20 +428,27 @@ version 4.1.7 (2022-07-01)
 version 4.2.0.1 (2023-01-01)
 ########################
  + P3D argument enabled again
- + Bug in mmec() for using weights with simple residual structures has been fixed. Now stage-wise analysis should work well. The problem still exist in the mmer() function though where variance components are restricted in a ddiferent way.
+ + Bug in mmec() for using weights with simple residual structures has been fixed. Now stage-wise analysis should work well. The problem still exist in the mmer() function though, where variance components are restricted in a different way.
 
- ########################
+########################
 version 4.2.1 (2023-04-01)
 ########################
  + Predict function for mmec() now works well and returns the same results than asreml.
  + The predict function for mmer() on the other hand has been modify to calculare C = t(W) Vi W and Ci = solve(C), where W=[X Z] but when Vi is singular it makes difficult to come up with standard error identical to the mme-based methods.
  + The overlay() function now works in the fixed part of the formula.
  + The predict function now works with models using the overlay function.
+ + A bug in the atcg1234 function that was causing failure with few markers has been fixed.
+
+########################
+version 4.2.2 (2023-08-01)
+########################
+ + Weights can be used now in the GWAS function.
+ + The emWeight argument now uses a decreasing logarithmic scale to assign weights to each iteration of the AI algorithm
+
 
 ######################
 ## PENDINGS AND PRIORITIES
 + correct bug in the spl2Dc function
-+ correct the random regression model in the vignettes
 + check that C22 is being calculated correctly in predict.mmer
 + we need to recode how the C matrix is constructed, adopt linear sum instead of [W y]' R [W y], otherwise the solver is extremely slow for complex models with many effects to be estimated.
 + we need to find how to do symbolic cholesky instead of computing cholesky every iteration in mmec
