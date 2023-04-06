@@ -2,10 +2,10 @@ useDynLib(sommer, .registration=TRUE)
 importFrom(Rcpp, evalCpp)
 #exportPattern("^[[:alpha:]]+")
 
-export(   
+export(
        transp,jet.colors,bathy.colors,
       LD.decay,
-      manhattan, map.plot, 
+      manhattan, map.plot,
        dfToMatrix
        )
 
@@ -14,7 +14,7 @@ export(mmer, GWAS, mmec)
 
 ## FUN_special and FUN_vsc and FUN_vsrgvsr
 export(atr,csr,dsr,usr,vsr, gvsr, vs, ## mmer
-       atc,csc,dsc,usc,vsc, isc, ## mmec
+       atc,csc,dsc,usc,vsc, isc, rrc, ## mmec
        unsm,fixm,fcm,
        list2usmat, transformConstraints,
        overlay, add.diallel.vars,
@@ -27,8 +27,9 @@ export( spl2Da,spl2Db, spl2Dc,spl2Dmats,bbasis,tpsmmbwrapper)
 export(atcg1234,build.HMM)
 
 ## FUN_stats
-export(adiag1, imputev,
-       leg, wald.test
+export(adiag1, imputev, logspace,
+       leg, wald.test,
+       r2
        )
 
 ## FUN_relationships
@@ -39,10 +40,10 @@ export(EM, MEMMA, AI)
 
 ## FUN_utils
 export( # mmer
-       summary.mmer, residuals.mmer, fitted.mmer, coef.mmer, 
-       anova.mmer, plot.mmer, predict.mmer, vpredict.mmer, 
+       summary.mmer, residuals.mmer, fitted.mmer, coef.mmer,
+       anova.mmer, plot.mmer, predict.mmer, vpredict.mmer,
         # mmec
-       summary.mmec, residuals.mmec, fitted.mmec, coef.mmec, 
+       summary.mmec, residuals.mmec, fitted.mmec, coef.mmec,
        anova.mmec, plot.mmec, predict.mmec, pmonitor,
         # others
        randef)
@@ -98,17 +99,17 @@ S3method(print, wald.test)
              "available.packages", "contrib.url","str")
   importFrom("methods", "as")
 #  importFrom("crayon", "blue")
-  
+
 ### extra suggested by CRAN
   importFrom("grDevices", "col2rgb", "colorRampPalette", "gray.colors",
              "rgb","dev.cur", "dev.size", "xy.coords", "topo.colors")
   importFrom("stats", "reformulate", "as.formula", "cov", "density", "gaussian", "glm",
              "lm", "median", "optimize", "pbeta", "pchisq","pnorm", "predict",
-             "printCoefmat", "qqnorm", "smooth.spline", "var", "rnorm", 
+             "printCoefmat", "qqnorm", "smooth.spline", "var", "rnorm",
              "model.matrix","na.omit", "p.adjust","kmeans","dist", "runif",
              "nobs", "ppoints", "sd", "model.frame", "model.response", "na.pass",
              "cor", "optim", "rchisq","quantile","deriv","terms.formula",
-             "aggregate","pf","terms")
+             "aggregate","pf","terms", "reshape")
   importFrom("lattice", "wireframe")
 #  importFrom("data.table", "setkeyv","data.table")
 

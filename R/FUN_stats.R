@@ -1,39 +1,69 @@
-wald.test <- function (Sigma, b, Terms = NULL, L = NULL, H0 = NULL, df = NULL, 
+logspace <- function (n, start, end) {
+  exp(seq(log(start), log(end), length.out = n))
+}
+
+r2 <- function(object, object2=NULL){
+  if(!inherits(object, "mmec")){
+    stop("This function is only available for models fitted with the mmec() function.", call. = FALSE)
+  }
+  result <- list()
+  for(iPart in 1:length(object$uPevList)){
+    pev <- object$uPevList[[iPart]]
+    variance0 <- as.numeric(diag(object$theta[[iPart]]))
+    variance <- apply(data.frame(variance0),1,function(x){rep(x,nrow(pev))})
+    if(!is.null(object2)){
+      if(!is.null(object2$Ai)){
+        for(iVar in 1:length(variance0)){ # if user provided A matrices we subsitute with more accurate values
+          variance[,iVar] <- variance0[iVar] * diag(solve(object2$Ai[[iPart]]))
+        }
+      }else{
+        stop("object2 needs to be a model that sets the argument 'returnParam=TRUE' so we can extract the relationship matrices. Please correct. ", call. = FALSE)
+      }
+
+    }
+    result[[iPart]] <- (variance - pev)/variance
+  }
+  names(result) <- names(object$uList)
+  return(result)
+}
+
+
+wald.test <- function (Sigma, b, Terms = NULL, L = NULL, H0 = NULL, df = NULL,
                   verbose = FALSE) {
-  if (is.null(Terms) & is.null(L)) 
+  if (is.null(Terms) & is.null(L))
     stop("One of the arguments Terms or L must be used.")
-  if (!is.null(Terms) & !is.null(L)) 
+  if (!is.null(Terms) & !is.null(L))
     stop("Only one of the arguments Terms or L must be used.")
   if (is.null(Terms)) {
     w <- nrow(L)
     Terms <- seq(length(b))[colSums(L) > 0]
   }
   else w <- length(Terms)
-  if (is.null(H0)) 
+  if (is.null(H0))
     H0 <- rep(0, w)
-  if (w != length(H0)) 
+  if (w != length(H0))
     stop("Vectors of tested coefficients and of null hypothesis have different lengths\n")
   if (is.null(L)) {
     L <- matrix(rep(0, length(b) * w), ncol = length(b))
     for (i in 1:w) L[i, Terms[i]] <- 1
   }
-  dimnames(L) <- list(paste("L", as.character(seq(NROW(L))), 
+  dimnames(L) <- list(paste("L", as.character(seq(NROW(L))),
                             sep = ""), names(b))
   f <- L %*% b
   V <- Sigma
   mat <- qr.solve(L %*% V %*% t(L))
   stat <- t(f - H0) %*% mat %*% (f - H0)
   p <- 1 - pchisq(stat, df = w)
-  if (is.null(df)) 
+  if (is.null(df))
     res <- list(chi2 = c(chi2 = stat, df = w, P = p))
   else {
     fstat <- stat/nrow(L)
     df1 <- nrow(L)
     df2 <- df
-    res <- list(chi2 = c(chi2 = stat, df = w, P = p), Ftest = c(Fstat = fstat, 
+    res <- list(chi2 = c(chi2 = stat, df = w, P = p), Ftest = c(Fstat = fstat,
                                                                 df1 = df1, df2 = df2, P = 1 - pf(fstat, df1, df2)))
   }
-  structure(list(Sigma = Sigma, b = b, Terms = Terms, H0 = H0, 
+  structure(list(Sigma = Sigma, b = b, Terms = Terms, H0 = H0,
                  L = L, result = res, verbose = verbose, df = df), class = "wald.test")
 }
 
@@ -63,7 +93,7 @@ print.wald.test <- function(x, digits = 2, ...){
   if(!is.null(df)){
     v <- x[["result"]][["Ftest"]]
     cat("\nF test:\n")
-    cat("W = ", format(v["Fstat"], digits = digits, nsmall = 1), 
+    cat("W = ", format(v["Fstat"], digits = digits, nsmall = 1),
         ", df1 = ", v["df1"],
         ", df2 = ", v["df2"],
         ", P(> W) = ", format(v["P"], digits = digits), "\n", sep = "")
@@ -71,10 +101,10 @@ print.wald.test <- function(x, digits = 2, ...){
 }
 
 leg <- function(x,n=1,u=-1,v=1, intercept=TRUE, intercept1=FALSE){
-  
+
   init0 <- as.character(substitute(list(x)))[-1L]
-  
-  
+
+
   requireNamespace("orthopolynom",quietly=TRUE)
   (leg4coef <- orthopolynom::legendre.polynomials(n=n, normalized=TRUE))
   leg4 <- as.matrix(as.data.frame(orthopolynom::polynomial.values(polynomials=leg4coef,
@@ -92,7 +122,7 @@ leg <- function(x,n=1,u=-1,v=1, intercept=TRUE, intercept1=FALSE){
 }
 
 matrix.trace <- function(x){
-  if (!is.square.matrix(x)) 
+  if (!is.square.matrix(x))
     stop("argument x is not a square matrix")
   return(sum(diag(x)))
 }
@@ -136,9 +166,9 @@ hadamard.prod <-function (x, y){
       stop("argument x is neither a matrix or a vector")
     }
   }
-  if (nrow(Xmat) != nrow(Ymat)) 
+  if (nrow(Xmat) != nrow(Ymat))
     stop("argumentx x and y do not have the same row order")
-  if (ncol(Xmat) != ncol(Ymat)) 
+  if (ncol(Xmat) != ncol(Ymat))
     stop("arguments x and y do not have the same column order")
   return(Xmat * Ymat)
 }
@@ -150,7 +180,7 @@ adiag1 <- function (..., pad = as.integer(0), do.dimnames = TRUE){
   }
   if (length(args) > 2) {
     jj <- do.call("Recall", c(args[-1], list(pad = pad)))
-    return(do.call("Recall", c(list(args[[1]]), list(jj), 
+    return(do.call("Recall", c(list(args[[1]]), list(jj),
                                list(pad = pad))))
   }
   a <- args[[1]]
@@ -173,7 +203,7 @@ adiag1 <- function (..., pad = as.integer(0), do.dimnames = TRUE){
   }
   s <- array(pad, dim.a + dim.b)
   s <- do.call("[<-", c(list(s), lapply(dim.a, seq_len), list(a)))
-  ind <- lapply(seq(dim.b), function(i) seq_len(dim.b[[i]]) + 
+  ind <- lapply(seq(dim.b), function(i) seq_len(dim.b[[i]]) +
                   dim.a[[i]])
   out <- do.call("[<-", c(list(s), ind, list(b)))
   n.a <- dimnames(a)
@@ -222,7 +252,7 @@ fdr <- function(p, fdr.level=0.05){
   #ro3 <- -log(c(ro2,0.05), 10)
   #ro4 <- 10^-ro3
   #ro5 <-p.adjust(ro4, method="fdr")
-  ##### adjust for FDR ---- ADJUSTED IN P.VAL SCALE ----- 
+  ##### adjust for FDR ---- ADJUSTED IN P.VAL SCALE -----
   pvalA <- p.adjust(pval, method="fdr")
   #plot(pvalA)
   ##### ---- VALS IN LOG.10 SCALE -----
@@ -237,7 +267,7 @@ fdr <- function(p, fdr.level=0.05){
   sortedd <- sort(pvalA, decreasing = TRUE)
   closer <- sortedd[which(sortedd < fdr.level)[1]] # closest value found to the fdr.level indicated by the user
   vv <- which(pvalA == closer)[1]
-  
+
   #vv <- which(pvalA.l10 > fdr.ad)
   if(length(vv)>0){
     fdr.10 <- p[vv]#fdr.or <- min(p[vv])
@@ -251,8 +281,8 @@ fdr <- function(p, fdr.level=0.05){
 }
 
 fdr2 <- function(p, fdr.level=0.05){
-  
-  
+
+
   ##### transform to real p-values
   # if maximum value is grater than 1 means that is in -log10 or LOD scale
   # if maximum value is less than one means that the user is using already raw  p.values
@@ -261,7 +291,7 @@ fdr2 <- function(p, fdr.level=0.05){
   }else{
     pval <- p
   }
-  
+
   ##for endelmans function
   pen <- -log(pval,10)
   ########## make sure there is a value
@@ -270,7 +300,7 @@ fdr2 <- function(p, fdr.level=0.05){
   #ro3 <- -log(c(ro2,0.05), 10)
   #ro4 <- 10^-ro3
   #ro5 <-p.adjust(ro4, method="fdr")
-  ##### adjust for FDR ---- ADJUSTED IN P.VAL SCALE ----- 
+  ##### adjust for FDR ---- ADJUSTED IN P.VAL SCALE -----
   pvalA <- p.adjust(pval, method="fdr")
   #plot(pvalA)
   ##### ---- VALS IN LOG.10 SCALE -----
@@ -285,13 +315,13 @@ fdr2 <- function(p, fdr.level=0.05){
   sortedd <- sort(pvalA, decreasing = TRUE)
   closer <- sortedd[which(sortedd < fdr.level)[1]] # closest value found to the fdr.level indicated by the user
   vv <- which(pvalA == closer)[1]
-  
+
   #vv <- which(pvalA.l10 > fdr.ad)
   if(length(vv)>0 & !is.na(vv)){
     fdr.10 <- p[vv]#fdr.or <- min(p[vv])
     #fdr <- 0.05
   }else{
-    
+
     fdrendel <- function(dd, fdr.level=0.05){
       qvalue <- function(p) {
         smooth.df = 3
@@ -330,7 +360,7 @@ fdr2 <- function(p, fdr.level=0.05){
         qvalue <- pi0 * m * p/v
         qvalue[u[m]] <- min(qvalue[u[m]], 1)
         for (i in (m - 1):1) {
-          qvalue[u[i]] <- min(qvalue[u[i]], qvalue[u[i + 1]], 
+          qvalue[u[i]] <- min(qvalue[u[i]], qvalue[u[i + 1]],
                               1)
         }
         return(qvalue)
@@ -339,7 +369,7 @@ fdr2 <- function(p, fdr.level=0.05){
       q.ans <- qvalue(10^-dd)
       temp <- cbind(q.ans, dd)
       temp <- temp[order(temp[, 1]), ]
-      
+
       temp2 <- tapply(temp[, 2], temp[, 1], mean)
       qvals <- as.numeric(rownames(temp2))
       x <- which.min(abs(qvals - fdr.level))
@@ -350,12 +380,12 @@ fdr2 <- function(p, fdr.level=0.05){
       }
       #print(qvals[first:last])
       #print(temp2[first:last])
-      splin <- smooth.spline(x = qvals[first:last], y = temp2[first:last], 
+      splin <- smooth.spline(x = qvals[first:last], y = temp2[first:last],
                              df = 3)
       popo <- predict(splin, x = fdr.level)$y
       return(popo)
     }
-    
+
     fdr.10 <- fdrendel( pen,fdr.level = fdr.level)
   }
   ######

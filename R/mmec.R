@@ -192,11 +192,10 @@ mmec <- function(fixed, random, rcov, data, W,
   #################
   ## information weights
 
-  logspace <- function (n, start, end) {
-    exp(seq(log(start), log(end), length.out = n))
-  }
   if(is.null(emWeight)){
-    emWeight <- logspace(nIters, 1, 0.009) #
+    initialEmSteps <- logspace(round(nIters*.8), 1, 0.009) # 80% of the iterations requested are used for the logarithmic decrease
+    restEmSteps <- rep(0.009, nIters - length(initialEmSteps)) # the rest we assign a very small emWeight value
+    emWeight <- c( initialEmSteps, restEmSteps) # plot(emWeight) # we bind both for the modeling
   }
   if(is.null(stepWeight)){
     w <- which(emWeight <= .04) # where AI starts
@@ -301,6 +300,7 @@ mmec <- function(fixed, random, rcov, data, W,
     }else{
       res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE)
     }
+    res$args <- list(fixed=fixed, random=random, rcov=rcov)
     class(res)<-c("mmec")
   }
   return(res)

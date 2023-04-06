@@ -434,22 +434,22 @@ version 4.2.0.1 (2023-01-01)
 version 4.2.1 (2023-04-01)
 ########################
  + Predict function for mmec() now works well and returns the same results than asreml.
- + The predict function for mmer() on the other hand has been modify to calculare C = t(W) Vi W and Ci = solve(C), where W=[X Z] but when Vi is singular it makes difficult to come up with standard error identical to the mme-based methods.
+ + The predict function for mmer() on the other hand has been modified to calculate C = t(W) Vi W and Ci = solve(C), where W=[X Z] but when Vi is singular it makes difficult to come up with standard error identical to the mme-based methods.
  + The overlay() function now works in the fixed part of the formula.
  + The predict function now works with models using the overlay function.
- + A bug in the atcg1234 function that was causing failure with few markers has been fixed.
+ + A bug in the atcg1234 function that was causing failure when few markers were used has been fixed.
+ + Weights can be used now in the GWAS function.
+ + The emWeight argument now uses a decreasing logarithmic scale to assign weights to each iteration of the AI algorithm to guarantee convergence as best as we can.
+ + Bug in the spl2Dc function in mmec has been fixed
+
 
 ########################
 version 4.2.2 (2023-08-01)
 ########################
- + Weights can be used now in the GWAS function.
- + The emWeight argument now uses a decreasing logarithmic scale to assign weights to each iteration of the AI algorithm
 
 
 ######################
 ## PENDINGS AND PRIORITIES
-+ correct bug in the spl2Dc function
-+ check that C22 is being calculated correctly in predict.mmer
 + we need to recode how the C matrix is constructed, adopt linear sum instead of [W y]' R [W y], otherwise the solver is extremely slow for complex models with many effects to be estimated.
 + we need to find how to do symbolic cholesky instead of computing cholesky every iteration in mmec
 + arma::inv, arma::solve, arma::chol are much slower than Eigen, we need to find how to use both libraries in the same function

@@ -11,7 +11,7 @@ Auxiliary function used for modelling the spatial or environmental effect as a t
 \usage{
 spl2Dc(x.coord,y.coord,at.var=NULL,at.levels=NULL, type="PSANOVA", 
       nsegments = c(10,10), penaltyord = c(2,2), degree = c(3,3), 
-      nestorder = c(1,1), thetaC=NULL, theta=NULL)
+      nestorder = c(1,1), thetaC=NULL, theta=NULL, sp=FALSE)
 }
 \arguments{
   \item{x.coord}{vector of coordinates on the x-axis direction (i.e. row) to use in the 2 dimensional spline.}
@@ -25,6 +25,8 @@ spl2Dc(x.coord,y.coord,at.var=NULL,at.levels=NULL, type="PSANOVA",
   \item{nestorder}{numerical vector of length 2 containing the divisor of the number of segments (\code{nsegments}) to be used for the construction of the nested B-spline basis for the smooth-by-smooth interaction component. In this case, the nested B-spline basis will be constructed assuming a total of \code{nsegments}/\code{nestorder} segments. Default set to 1, which implies that nested basis are not used. See \code{SAP} for more details.}
   \item{thetaC}{an optional matrix for constraints in the variance components.}
   \item{theta}{an optional matrix for initial values of the variance components.}
+  \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmec function through the addScaleParam argument in the \code{mmec} function .}
+     
 }
 \details{
 

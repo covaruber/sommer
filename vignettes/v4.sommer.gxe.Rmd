@@ -20,8 +20,9 @@ The purpose of this vignette is to show how to fit different genotype by environ
 5) Multienvironment model: Unstructured model (US)
 6) Multienvironment model: Random regression model (RR)
 7) Multienvironment model: Other covariance structures for GxE
-8) Finlay-Wilkinson regression
-9) Two stage analysis
+8) Multienvironment model: Finlay-Wilkinson regression
+9) Multienvironment model: Factor analytic (reduced rank) model (FA)
+10) Two stage analysis
 
 When the breeder decides to run a trial and apply selection in a single environment (whether because the amount of seed is a limitation or there's no availability for a location) the breeder takes the risk of selecting material for a target population of environments (TPEs) using an environment that is not representative of the larger TPE. Therefore, many breeding programs try to base their selection decision on multi-environment trial (MET) data. Models could be adjusted by adding additional information like spatial information, experimental design information, etc. In this tutorial we will focus mainly on the covariance structures for GxE and the incorporation of relationship matrices for the genotype effect.
 
@@ -264,7 +265,11 @@ text(y=preds[,2],x=e, labels = rownames(mu), cex=0.5, pos = 1)
 
 ```
 
-## 9) Two stage analysis
+## 9) Factor analytic (reduced rank) model
+
+When the number of environments where genotypes are evaluated is big and we want to consider the genetic correlation between environments and specific variance components
+
+## 10) Two stage analysis
 
 It is common then to fit a first model that accounts for the variation of random design elements, e.g., locations, years, blocks, and fixed genotype effects to obtain the estimated marginal means (EMMs) or best linear unbiased estimators (BLUEs) as adjusted entry means. These adjusted entry means are then used as the phenotype or response variable in GWAS and genomic prediction studies.
 

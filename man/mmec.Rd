@@ -13,7 +13,7 @@ The \code{mmec} function uses the Henderson mixed model equations and the Averag
 
 \usage{
 
-mmec(fixed, random, rcov, data, W, nIters=20, tolParConvLL = 1e-03,
+mmec(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
      tolParConvNorm = 1e-04, tolParInv = 1e-06, naMethodX="exclude",
      naMethodY="exclude", returnParam=FALSE, dateWarning=TRUE,
      verbose=TRUE,addScaleParam=NULL, stepWeight=NULL, emWeight=NULL)

@@ -731,7 +731,7 @@ plot.mmec <- function(x, stnd=TRUE, ...) {
     packageStartupMessage(blue(paste("[]==================================================================[]")),appendLF=TRUE)
     packageStartupMessage(blue(paste("[]   Solving Mixed Model Equations in R (sommer) 4.2.1 (2023-04-01) []",sep="")),appendLF=TRUE)
     packageStartupMessage(blue(paste("[]   ------------- Multivariate Linear Mixed Models --------------  []")),appendLF=TRUE)
-    packageStartupMessage(blue("[]   Author: Giovanny Covarrubias-Pazaran                           []"),appendLF=TRUE)
+    packageStartupMessage(paste0(blue("[]   Author: Giovanny Covarrubias-Pazaran",paste0(bgGreen(white(" ")), bgWhite(magenta("*")), bgRed(white(" "))),"                      []")),appendLF=TRUE)
     packageStartupMessage(blue("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
     packageStartupMessage(blue("[]   Dedicated to the University of Chapingo and UW-Madison         []"),appendLF=TRUE)
     packageStartupMessage(blue("[]   Type 'vignette('v1.sommer.quick.start')' for a short tutorial  []"),appendLF=TRUE)

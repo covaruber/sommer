@@ -331,7 +331,7 @@ subdata <- function(data,fixed,na.method.Y=NULL,na.method.X=NULL){
 }
 
 ##############
-## VS structure
+## VS structures
 atr <- function(x, levs){
   if(is.matrix(x)){
     dummy <- x
@@ -444,7 +444,57 @@ usr <- function(x){
 }
 
 ###############
-## VS structure for mmec
+## VS structures for mmec
+
+rrc <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL, nPC=2, returnLam=FALSE, cholD=TRUE){
+  if(is.null(timevar)){stop("Please provide the timevar argument.", call. = FALSE)}
+  if(is.null(idvar)){stop("Please provide the idvar argument.", call. = FALSE)}
+  if(is.null(response)){stop("Please provide the response argument.", call. = FALSE)}
+  # these are called PC models by Meyer 2009, GSE. This is a reduced rank implementation
+  # we produce loadings, the Z*L so we can use it to estimate factor scores in mmec()
+  dtx <- data.frame(timevar=timevar, idvar=idvar, v.names=response)
+  dtx2 <- aggregate(v.names~timevar+idvar, data=dtx, FUN=mean, na.rm=TRUE)
+  wide <- reshape(dtx2, direction = "wide", idvar = "idvar",
+                  timevar = "timevar", v.names = "v.names", sep= "_")
+  Y <- apply(wide[,-1],2, sommer::imputev)
+  rownames(Y) <- wide[,1]
+  if(!is.null(Gu)){Y=Gu%*%Y} # adjust if covariance matrix exist
+  # if(scaleY){
+  GE <- cov(scale(Y, scale = TRUE, center = TRUE)) # surrogate of unstructured matrix to start with
+  # }else{
+  #   GE <- cov(Y)
+  # } 
+  GE <- as.matrix(nearPD(GE)$mat)
+  # GE <- as.data.frame(t(scale( t(scale(Y, center=T,scale=F)), center=T, scale=F)))  # sum(GE^2)
+  if(cholD){
+    ## OPTION 2. USING CHOLESKY
+    Lam <- t(chol(GE)); # LOADINGS  # same GE=LL' from cholesky  plot(unlist(Lam%*%t(Lam)), unlist(GE))
+  }else{
+    ## OPTION 1. USING SVD
+    U <- svd(GE)$u;  # V <- svd(GE)$v
+    D <- diag(svd(GE)$d)
+    Lam <- U %*% sqrt(D); # LOADINGS 
+  }
+  # pick required PCs
+  Lam <- Lam[,1:nPC];  # Se <- Se[,1:nPC]
+  ##
+  rownames(Lam) <- rownames(GE)#levels(dataset$Genotype);  # rownames(Se) <- colnames(GE)#levels(dataset$Environment)
+  colnames(Lam) <- paste("PC", 1:ncol(Lam), sep =""); # colnames(Se) <- paste("PC", 1:ncol(Se), sep ="")
+  rownames(Lam) <- gsub("v.names_","", rownames(Lam))
+  ######### GEreduced = Sg %*% t(Se) 
+  # if we want to merge with PCs for environments
+  dtx$index <- 1:nrow(dtx)
+  dtx2 <- dtx[which(!is.na(dtx$v.names)),]
+  Z <- Matrix::sparse.model.matrix(~timevar -1, na.action = na.pass, data=dtx2)
+  Z <- Z%*%Lam # we multiple original Z by the LOADINGS
+  Z <- as.matrix(Z)
+  rownames(Z) <- NULL
+  if(returnLam){
+    return(list(Lam=Lam))
+  }else{
+    return(Z)
+  }
+}
 atc <- function(x, levs, thetaC=NULL, theta=NULL){
   if(is.matrix(x)){
     dummy <- x

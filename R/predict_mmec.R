@@ -35,10 +35,19 @@
     Dtable <- object$Dtable # we extract it from the model
     termsInDtable <- apply(data.frame(Dtable$term),1,function(xx){all.names(as.formula(paste0("~",xx)))})
     termsInDtable <- lapply(termsInDtable, function(x){intersect(x,colnames(object$data))})
+    termsInDtable <- lapply(termsInDtable, function(x){return(unique(c(x, paste(x, collapse=":"))))})
     # term identified
     termsInDtableN <- unlist(lapply(termsInDtable,length))
-    pickTerm <- which( unlist(lapply(termsInDtable, function(xxx){ifelse(length(which(paste(xxx,collapse = ":") == D)) > 0, 1, 0)})) > 0)
-    if(length(pickTerm) == 0){stop(paste("Predict:",classify,"not in the model."), call. = FALSE)}
+    pickTerm <- which( unlist(lapply(termsInDtable, function(xxx){ifelse(length(which(xxx == D)) > 0, 1, 0)})) > 0)
+    if(length(pickTerm) == 0){
+      isInDf <- which(colnames(object$data) %in% D)
+      if(length(isInDf) > 0){ # is in data frame but not in model
+        stop(paste("Predict:",classify,"not in the model but present in the original dataset. You may need to provide the
+                   Dtable argument to know how to predict", classify), call. = FALSE)
+      }else{
+        stop(paste("Predict:",classify,"not in the model and not present in the original dataset. Please correct D."), call. = FALSE)
+      }
+    }
     # check if the term to predict is fixed or random
     pickTermIsFixed = ifelse("fixed" %in% Dtable[pickTerm,"type"], TRUE,FALSE)
     ## 1) when we predict a random effect, fixed effects are purely "average"
