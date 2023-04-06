@@ -267,7 +267,33 @@ text(y=preds[,2],x=e, labels = rownames(mu), cex=0.5, pos = 1)
 
 ## 9) Factor analytic (reduced rank) model
 
-When the number of environments where genotypes are evaluated is big and we want to consider the genetic correlation between environments and specific variance components
+When the number of environments where genotypes are evaluated is big and we want to consider the genetic covariance between environments and location-specific variance components we cannot fit an unstructured covariance in the model since the number of parameters is too big and the matrix can become non-full rank leading to singularities. In those cases is suggested a dimensionality reduction technique. Among those the factor analytic structures proposed by many research groups (Piepho, Smith, Cullis, Thompson, Meyer, etc.) are the way to go. Sommer has a reduced-rank factor analytic implementation available through the rrc() function. Here we show an example of how to fit the model:
+
+```{r}
+
+data(DT_h2)
+DT <- DT_h2
+DT=DT[with(DT, order(Env)), ]
+
+ans1b <- mmec(y~Env,
+              random=~vsc( usc( rrc(Env, Name, y, nPC = 2) ) , isc(Name)),
+              rcov=~units, 
+              # we recommend giving more iterations to these models
+              nIters = 50, 
+              # we recommend giving more EM iterations at the beggining for usc models
+              emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
+              verbose=FALSE,
+              data=DT)
+
+summary(ans1b)$varcomp
+
+Lam=with(DT, rrc(Env, Name, y, returnLam = TRUE, nPC = 2))$Lam # extract loadings
+score.mat <- ans1b$uList[[1]]; # extract factor scores
+BLUP = score.mat %*% t(Lam) # BLUPs for all environments
+
+```
+
+As can be seen BLUPs for all environments can be recovered by multiplying the loadings (Lam) by the factor scores (score.mat). This is a parsomonious way to model an unstructured covariance.
 
 ## 10) Two stage analysis
 
@@ -295,7 +321,8 @@ for(i in 1:length(envs)){
   ans1$Beta$Env <- envs[i]
   
   BLUEL[[i]] <- ans1$Beta
-  XtXL[[i]] <- ans1$VarBeta
+  # to be comparable to 1/(se^2) = 1/PEV = 1/Ci = 1/[(X'X)inv]
+  XtXL[[i]] <- solve(ans1$VarBeta) 
 }
 
 DT2 <- do.call(rbind, BLUEL)

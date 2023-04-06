@@ -27,7 +27,7 @@ This implementation of a version of the reduced rank factor analytic models uses
 
 3) A Cholesky or SVD decomposition is performed in the Sigma matrix to return the matrix of loadings Lam.
 
-4) n PCs are kept and used to form a new incidence matrix Z* = Z Lam
+4) n PCs are kept and used to form a new incidence matrix Z.star = Z Lam
 
 5) This matrix is later used for the mmec() machinery to be used with the usc (FA) structure. The resulting BLUPs from the mixed model are the optimized factor scores.
 
@@ -37,14 +37,15 @@ This implementation does not update the loadings during the REML process, only t
 \value{
   \describe{
     
-    \item{$Z}{ a incidence matrix Z* = Z Lam.}
+    \item{$Z}{ a incidence matrix Z.star = Z Lam.}
   }
 }
 \references{
 
-  Meyer K (2009) Factor-analytic models for genotype × environment type problems and structured covariance matrices. Genetics Selection Evolution, 41:21
+  Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744
   
-  Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
+  Meyer K (2009) Factor analytic models for genotype by environment type problems and structured covariance matrices. Genetics Selection Evolution, 41:21
+  
 }
 \author{
   Giovanny Covarrubias-Pazaran
@@ -57,7 +58,7 @@ DT <- DT_h2
 DT=DT[with(DT, order(Env)), ]
 
 ans1b <- mmec(y~Env,
-              random=~vsc( usc(rrc(Env, Name, y, nPC = 2)) , isc(Name)),
+              random=~vsc( usc(rrc(Env, Name, y, nPC = 3)) , isc(Name)),
               rcov=~units, 
               # we recommend giving more iterations to these models
               nIters = 50, 
@@ -66,17 +67,18 @@ ans1b <- mmec(y~Env,
               data=DT)
 
 summary(ans1b)$varcomp
-
+vcd <- diag(ans1b$theta[[1]])
+vcd/sum(vcd) # the 3rd PC still explains more than the 2nd
 # ## Extract BLUPs
 # ## extract loadings
-# Lam=with(DT, rrc(Env, Name, y, returnLam = TRUE, nPC = 2))$Lam 
+# Lam=with(DT, rrc(Env, Name, y, returnLam = TRUE, nPC = 3))$Lam 
 # ## extract factor scores
 # score.mat <- ans1b$uList[[1]]; 
 # ## BLUPs for all environments
-# E= score.mat * t(Lam) 
+# E= score.mat  t(Lam)  # change space for matrix product
 # ## Extract the covariance matrix
 # vc <- ans1b$theta[[1]];vc
-# G = Lam * vc * t(Lam)
+# G = Lam  vc  t(Lam) # change space for matrix product
 # lattice::levelplot(cov2cor(G))
 
 

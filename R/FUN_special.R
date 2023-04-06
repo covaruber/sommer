@@ -459,11 +459,7 @@ rrc <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL, nPC=2, returnL
   Y <- apply(wide[,-1],2, sommer::imputev)
   rownames(Y) <- wide[,1]
   if(!is.null(Gu)){Y=Gu%*%Y} # adjust if covariance matrix exist
-  # if(scaleY){
   GE <- cov(scale(Y, scale = TRUE, center = TRUE)) # surrogate of unstructured matrix to start with
-  # }else{
-  #   GE <- cov(Y)
-  # } 
   GE <- as.matrix(nearPD(GE)$mat)
   # GE <- as.data.frame(t(scale( t(scale(Y, center=T,scale=F)), center=T, scale=F)))  # sum(GE^2)
   if(cholD){
@@ -476,7 +472,8 @@ rrc <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL, nPC=2, returnL
     Lam <- U %*% sqrt(D); # LOADINGS 
   }
   # pick required PCs
-  Lam <- Lam[,1:nPC];  # Se <- Se[,1:nPC]
+  colnamesLam <- colnames(Lam)
+  Lam <- as.matrix(Lam[,1:nPC]); colnames(Lam) <- colnamesLam[1:nPC]  # Se <- Se[,1:nPC]
   ##
   rownames(Lam) <- rownames(GE)#levels(dataset$Genotype);  # rownames(Se) <- colnames(GE)#levels(dataset$Environment)
   colnames(Lam) <- paste("PC", 1:ncol(Lam), sep =""); # colnames(Se) <- paste("PC", 1:ncol(Se), sep ="")
@@ -486,7 +483,8 @@ rrc <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL, nPC=2, returnL
   dtx$index <- 1:nrow(dtx)
   dtx2 <- dtx[which(!is.na(dtx$v.names)),]
   Z <- Matrix::sparse.model.matrix(~timevar -1, na.action = na.pass, data=dtx2)
-  Z <- Z%*%Lam # we multiple original Z by the LOADINGS
+  colnames(Z) <- gsub("timevar","",colnames(Z))
+  Z <- Z%*%Lam[colnames(Z),] # we multiple original Z by the LOADINGS
   Z <- as.matrix(Z)
   rownames(Z) <- NULL
   if(returnLam){
