@@ -998,10 +998,10 @@ function. Here we show an example of how to fit the model:</p>
 <span id="cb40-14"><a href="#cb40-14" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb40-15"><a href="#cb40-15" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(ans1b)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                       VarComp VarCompSE    Zratio Constraint
-## Env:Name:y:PC1:PC1 19.8608282 2.2039108 9.0116297   Positive
-## Env:Name:y:PC1:PC2  0.6059993 1.1914617 0.5086183   Unconstr
-## Env:Name:y:PC2:PC2  2.5049396 3.1207934 0.8026612   Positive
-## units:isc:isc       6.8377252 0.8297633 8.2405730   Positive</code></pre>
+## Env:Name:y:PC1:PC1 14.7797212 2.1735853 6.7996970   Positive
+## Env:Name:y:PC1:PC2  0.5721396 1.3828997 0.4137246   Unconstr
+## Env:Name:y:PC2:PC2  3.0682493 2.9985559 1.0232423   Positive
+## units:isc:isc       7.6250662 0.8331028 9.1526112   Positive</code></pre>
 <div class="sourceCode" id="cb42"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a>Lam<span class="ot">=</span><span class="fu">with</span>(DT, <span class="fu">rrc</span>(Env, Name, y, <span class="at">returnLam =</span> <span class="cn">TRUE</span>, <span class="at">nPC =</span> <span class="dv">2</span>))<span class="sc">$</span>Lam <span class="co"># extract loadings</span></span>
 <span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>score.mat <span class="ot">&lt;-</span> ans1b<span class="sc">$</span>uList[[<span class="dv">1</span>]]; <span class="co"># extract factor scores</span></span>
 <span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>BLUP <span class="ot">=</span> score.mat <span class="sc">%*%</span> <span class="fu">t</span>(Lam) <span class="co"># BLUPs for all environments</span></span></code></pre></div>
@@ -1044,30 +1044,31 @@ in GWAS and genomic prediction studies.</p>
 <span id="cb45-11"><a href="#cb45-11" aria-hidden="true" tabindex="-1"></a>  ans1<span class="sc">$</span>Beta<span class="sc">$</span>Env <span class="ot">&lt;-</span> envs[i]</span>
 <span id="cb45-12"><a href="#cb45-12" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb45-13"><a href="#cb45-13" aria-hidden="true" tabindex="-1"></a>  BLUEL[[i]] <span class="ot">&lt;-</span> ans1<span class="sc">$</span>Beta</span>
-<span id="cb45-14"><a href="#cb45-14" aria-hidden="true" tabindex="-1"></a>  XtXL[[i]] <span class="ot">&lt;-</span> ans1<span class="sc">$</span>VarBeta</span>
-<span id="cb45-15"><a href="#cb45-15" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb45-16"><a href="#cb45-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb45-17"><a href="#cb45-17" aria-hidden="true" tabindex="-1"></a>DT2 <span class="ot">&lt;-</span> <span class="fu">do.call</span>(rbind, BLUEL)</span>
-<span id="cb45-18"><a href="#cb45-18" aria-hidden="true" tabindex="-1"></a>OM <span class="ot">&lt;-</span> <span class="fu">do.call</span>(adiag1,XtXL)</span>
-<span id="cb45-19"><a href="#cb45-19" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb45-20"><a href="#cb45-20" aria-hidden="true" tabindex="-1"></a><span class="do">##########</span></span>
-<span id="cb45-21"><a href="#cb45-21" aria-hidden="true" tabindex="-1"></a><span class="do">## stage 2</span></span>
-<span id="cb45-22"><a href="#cb45-22" aria-hidden="true" tabindex="-1"></a><span class="do">## use mmec for sparse equation</span></span>
-<span id="cb45-23"><a href="#cb45-23" aria-hidden="true" tabindex="-1"></a><span class="do">##########</span></span>
-<span id="cb45-24"><a href="#cb45-24" aria-hidden="true" tabindex="-1"></a>m <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">1</span><span class="sc">/</span><span class="fu">var</span>(DT2<span class="sc">$</span>Estimate, <span class="at">na.rm =</span> <span class="cn">TRUE</span>))</span>
-<span id="cb45-25"><a href="#cb45-25" aria-hidden="true" tabindex="-1"></a>ans2 <span class="ot">&lt;-</span> <span class="fu">mmec</span>(Estimate<span class="sc">~</span>Env,</span>
-<span id="cb45-26"><a href="#cb45-26" aria-hidden="true" tabindex="-1"></a>             <span class="at">random=</span><span class="sc">~</span>Effect <span class="sc">+</span> Env<span class="sc">:</span>Effect, </span>
-<span id="cb45-27"><a href="#cb45-27" aria-hidden="true" tabindex="-1"></a>             <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsc</span>(<span class="fu">isc</span>(units,<span class="at">thetaC =</span> <span class="fu">matrix</span>(<span class="dv">3</span>), <span class="at">theta =</span> m)),</span>
-<span id="cb45-28"><a href="#cb45-28" aria-hidden="true" tabindex="-1"></a>             <span class="at">W=</span>OM, </span>
-<span id="cb45-29"><a href="#cb45-29" aria-hidden="true" tabindex="-1"></a>             <span class="at">verbose=</span><span class="cn">FALSE</span>,</span>
-<span id="cb45-30"><a href="#cb45-30" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT2</span>
-<span id="cb45-31"><a href="#cb45-31" aria-hidden="true" tabindex="-1"></a>             )</span></code></pre></div>
+<span id="cb45-14"><a href="#cb45-14" aria-hidden="true" tabindex="-1"></a>  <span class="co"># to be comparable to 1/(se^2) = 1/PEV = 1/Ci = 1/[(X&#39;X)inv]</span></span>
+<span id="cb45-15"><a href="#cb45-15" aria-hidden="true" tabindex="-1"></a>  XtXL[[i]] <span class="ot">&lt;-</span> <span class="fu">solve</span>(ans1<span class="sc">$</span>VarBeta) </span>
+<span id="cb45-16"><a href="#cb45-16" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb45-17"><a href="#cb45-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-18"><a href="#cb45-18" aria-hidden="true" tabindex="-1"></a>DT2 <span class="ot">&lt;-</span> <span class="fu">do.call</span>(rbind, BLUEL)</span>
+<span id="cb45-19"><a href="#cb45-19" aria-hidden="true" tabindex="-1"></a>OM <span class="ot">&lt;-</span> <span class="fu">do.call</span>(adiag1,XtXL)</span>
+<span id="cb45-20"><a href="#cb45-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb45-21"><a href="#cb45-21" aria-hidden="true" tabindex="-1"></a><span class="do">##########</span></span>
+<span id="cb45-22"><a href="#cb45-22" aria-hidden="true" tabindex="-1"></a><span class="do">## stage 2</span></span>
+<span id="cb45-23"><a href="#cb45-23" aria-hidden="true" tabindex="-1"></a><span class="do">## use mmec for sparse equation</span></span>
+<span id="cb45-24"><a href="#cb45-24" aria-hidden="true" tabindex="-1"></a><span class="do">##########</span></span>
+<span id="cb45-25"><a href="#cb45-25" aria-hidden="true" tabindex="-1"></a>m <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">1</span><span class="sc">/</span><span class="fu">var</span>(DT2<span class="sc">$</span>Estimate, <span class="at">na.rm =</span> <span class="cn">TRUE</span>))</span>
+<span id="cb45-26"><a href="#cb45-26" aria-hidden="true" tabindex="-1"></a>ans2 <span class="ot">&lt;-</span> <span class="fu">mmec</span>(Estimate<span class="sc">~</span>Env,</span>
+<span id="cb45-27"><a href="#cb45-27" aria-hidden="true" tabindex="-1"></a>             <span class="at">random=</span><span class="sc">~</span>Effect <span class="sc">+</span> Env<span class="sc">:</span>Effect, </span>
+<span id="cb45-28"><a href="#cb45-28" aria-hidden="true" tabindex="-1"></a>             <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsc</span>(<span class="fu">isc</span>(units,<span class="at">thetaC =</span> <span class="fu">matrix</span>(<span class="dv">3</span>), <span class="at">theta =</span> m)),</span>
+<span id="cb45-29"><a href="#cb45-29" aria-hidden="true" tabindex="-1"></a>             <span class="at">W=</span>OM, </span>
+<span id="cb45-30"><a href="#cb45-30" aria-hidden="true" tabindex="-1"></a>             <span class="at">verbose=</span><span class="cn">FALSE</span>,</span>
+<span id="cb45-31"><a href="#cb45-31" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT2</span>
+<span id="cb45-32"><a href="#cb45-32" aria-hidden="true" tabindex="-1"></a>             )</span></code></pre></div>
 <pre><code>## Using the weights matrix</code></pre>
 <div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(ans2)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                     VarComp VarCompSE    Zratio Constraint
-## Effect:isc:isc     2.441380 0.6821254  3.579078   Positive
-## Env:Effect:isc:isc 5.688181 0.2232632 25.477465   Positive
-## units:m:           1.000000 0.2232632  4.479018      Fixed</code></pre>
+## Effect:isc:isc     2.076920 0.5758219  3.606880   Positive
+## Env:Effect:isc:isc 3.333792 0.1850479 18.015831   Positive
+## units:m:           1.000000 0.1850479  5.404005      Fixed</code></pre>
 </div>
 <div id="literature" class="section level2">
 <h2>Literature</h2>

@@ -456,9 +456,27 @@ rrc <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL, nPC=2, returnL
   dtx2 <- aggregate(v.names~timevar+idvar, data=dtx, FUN=mean, na.rm=TRUE)
   wide <- reshape(dtx2, direction = "wide", idvar = "idvar",
                   timevar = "timevar", v.names = "v.names", sep= "_")
-  Y <- apply(wide[,-1],2, sommer::imputev)
-  rownames(Y) <- wide[,1]
-  if(!is.null(Gu)){Y=Gu%*%Y} # adjust if covariance matrix exist
+  rowNamesWide <-  wide[,1]
+  rownames(wide) <- rowNamesWide
+  wide <- wide[,-1]
+  # if user doesn't provide the a Gu we impute simply and use the correlation matrix as a Gu
+  if(is.null(Gu)){ 
+    X <- apply(wide, 2, sommer::imputev)
+    Gu <- cor(t(X))
+  }else{
+    Gu = cov2cor(Gu)
+  } 
+  # impute missing data using a relationship matrix 
+  if(is.null(rownames(Gu))){stop("Gu needs to have row names.", call. = FALSE)}
+  if(is.null(colnames(Gu))){stop("Gu needs to have column names.", call. = FALSE)}
+  for(iEnv in 1:ncol(wide)){ # iEnv=1
+    withData <- which(!is.na(wide[,iEnv]))
+    withoutData <- which(is.na(wide[,iEnv]))
+    imputationVector <- as.numeric(Gu[as.character(rowNamesWide),as.character(rowNamesWide[withData])] %*% as.matrix(wide[withData,iEnv]))
+    wide[,iEnv] <- imputationVector  # wide[withoutData,iEnv] <- imputationVector[withoutData]
+  }
+  ##
+  Y <- apply(wide,2, sommer::imputev)
   GE <- cov(scale(Y, scale = TRUE, center = TRUE)) # surrogate of unstructured matrix to start with
   GE <- as.matrix(nearPD(GE)$mat)
   # GE <- as.data.frame(t(scale( t(scale(Y, center=T,scale=F)), center=T, scale=F)))  # sum(GE^2)
@@ -471,13 +489,14 @@ rrc <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL, nPC=2, returnL
     D <- diag(svd(GE)$d)
     Lam <- U %*% sqrt(D); # LOADINGS 
   }
-  # pick required PCs
   colnamesLam <- colnames(Lam)
-  Lam <- as.matrix(Lam[,1:nPC]); colnames(Lam) <- colnamesLam[1:nPC]  # Se <- Se[,1:nPC]
+  rownamesLam <- rownames(Lam)
+  Lam <- as.matrix(Lam[,1:nPC]); 
+  colnames(Lam) <- colnamesLam[1:nPC]
+  rownames(Lam) <- rownamesLam
   ##
-  rownames(Lam) <- rownames(GE)#levels(dataset$Genotype);  # rownames(Se) <- colnames(GE)#levels(dataset$Environment)
-  colnames(Lam) <- paste("PC", 1:ncol(Lam), sep =""); # colnames(Se) <- paste("PC", 1:ncol(Se), sep ="")
-  rownames(Lam) <- gsub("v.names_","", rownames(Lam))
+  rownames(Lam) <- gsub("v.names_","",rownames(Lam))#rownames(GE)#levels(dataset$Genotype);  # rownames(Se) <- colnames(GE)#levels(dataset$Environment)
+  colnames(Lam) <- paste("PC", 1:ncol(Lam), sep =""); # 
   ######### GEreduced = Sg %*% t(Se) 
   # if we want to merge with PCs for environments
   dtx$index <- 1:nrow(dtx)
@@ -488,7 +507,7 @@ rrc <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL, nPC=2, returnL
   Z <- as.matrix(Z)
   rownames(Z) <- NULL
   if(returnLam){
-    return(list(Lam=Lam))
+    return(list(Lam=Lam, wide=wide))
   }else{
     return(Z)
   }

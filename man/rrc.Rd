@@ -13,7 +13,7 @@
   \item{timevar}{vector of the dataset containing the variable to be used to form columns in the wide table.}
   \item{idvar}{vector of the dataset containing the variable to be used to form rows in the wide table.}
   \item{response}{vector of the dataset containing the response variable to be used to fill the cells of the wide table.}
-  \item{Gu}{an optional covariance matrix between levels of the idvar.}
+  \item{Gu}{an optional covariance matrix (\strong{NOT THE INVERSE}) between levels of the idvar in case a sparse (unbalanced) design between timevar and idvar exist.}
   \item{nPC}{number of principal components to keep.}
   \item{returnLam}{a TRUE/FALSE argument specifying if the function should return the matrix of loadings of the incidence matrix for the model. The default is FALSE so it returns the incidence matrix.}
   \item{cholD}{a TRUE/FALSE argument specifying if the function should perform a Cholesky decomposition (TRUE) to form the matrix of loadings or the singular value decomposition (FALSE).}
@@ -31,7 +31,7 @@ This implementation of a version of the reduced rank factor analytic models uses
 
 5) This matrix is later used for the mmec() machinery to be used with the usc (FA) structure. The resulting BLUPs from the mixed model are the optimized factor scores.
 
-This implementation does not update the loadings during the REML process, only the factor scores. This is different to the regular FA modeling where the loadings are estimated as well. 
+This implementation does not update the loadings during the REML process, only estimates the factor scores. This is different to the asreml FA modeling where the loadings are estimated as well. 
 
 }
 \value{

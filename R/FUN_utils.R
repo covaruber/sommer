@@ -738,8 +738,8 @@ plot.mmec <- function(x, stnd=TRUE, ...) {
     packageStartupMessage(blue("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
     packageStartupMessage(blue(paste("[]==================================================================[]")),appendLF=TRUE)
     packageStartupMessage(blue("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
-    packageStartupMessage(blue("Newest source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
-    packageStartupMessage(blue("To install type: library(devtools); install_github('covaruber/sommer')"),appendLF=TRUE)
+    packageStartupMessage(blue("Current source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
+    packageStartupMessage(blue("If needed install as: devtools::install_github('covaruber/sommer')"),appendLF=TRUE)
 
   }
   invisible()

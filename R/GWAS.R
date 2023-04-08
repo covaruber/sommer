@@ -91,12 +91,16 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
                          M,Y,as.matrix(Z),X,Vinv,min.MAF,TRUE
       )
       v2 <- length(Y) - ((ncol(X)+1)*ncol(Y)) # ncol(XZMi)
-      scores <- -log10(pbeta(preScores, v2/2, 1/2))
+      pvals <- pbeta(preScores, v2/2, 1/2)
+      scores <- -log10(pvals)
       ########################
       rownames(scores) <- colnames(M)
       colnames(scores) <- colnames(Y)
-
+      
+      lastmodel$pvals <- pvals
       lastmodel$scores <- scores
+      lastmodel$shape1 <- v2/2
+      lastmodel$shape2 <- 1/2
       lastmodel$method <- method
       lastmodel$constraints <- res[[8]]
       class(lastmodel)<-c("mmergwas")
@@ -110,6 +114,7 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
         stop("No match between the Gterm and the random effects present.")
       }
       Y <- scale(res$yvar)
+      # print(head(Y))
       Z <- do.call(cbind,res$Z[gTermi])
       if(nrow(M) != ncol(Z)){
         stop(paste("Marker matrix M needs to have same numbers of rows(",nrow(M),") than columns of the gTerm incidence matrix(",ncol(Z),")."),call. = FALSE)
@@ -126,9 +131,9 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
         X <- make.full(X)
       }
       #
-      preScores <- bs <- numeric()
+      preScores <- bs <- list()
       for(iMarker in 1:ncol(M)){
-        print(iMarker)
+        # print(iMarker)
         mi <- M[,iMarker]
         if(var(mi) > 0){ # if var > 0
           Xmi <- cbind(X,mi)
@@ -140,17 +145,28 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
           var.b = diag(as.matrix(lastmodel$VarBeta))
           se.b = sqrt(abs(var.b))
           t.val  = b/se.b
-          preScores[iMarker] = 1 - pnorm(t.val[nrow(t.val),])
-          bs[iMarker] = b[nrow(b),] # last fixed effect where we put the marker
+          # print(t.val)
+          preScores[[iMarker]] = 1 - pnorm(t.val[(nrow(t.val)-ncol(Y)+1):nrow(t.val),])
+          # print(b)
+          bs[[iMarker]] = b[(nrow(b)-ncol(Y)+1):nrow(b),] # last fixed effect where we put the marker
         }else{ # if var == 0
-          preScores[iMarker] <- 1
-          bs[iMarker] = 0 # effect
+          preScores[[iMarker]] <- rep(1,ncol(Y))
+          bs[[iMarker]] = rep(0,ncol(Y)) # effect
         }
       } # for loop for each marker
-      scores <- as.matrix(-log10(preScores))
+      preScores <- do.call(rbind,preScores)
+      bs <- do.call(rbind, bs)
+      scores <- apply(preScores, 2, function(x){-log10(x)})
+      
+      # scores <- as.matrix(-log10(preScores))
+      
       rownames(scores) <- colnames(M) # marker names
+      # print(head(scores));print(colnames(Y))
       colnames(scores) <- colnames(Y) # trait names
+     
+      lastmodel$effects <- bs
       lastmodel$scores <- scores
+      lastmodel$pvals <- preScores
       lastmodel$method <- method
       lastmodel$constraints <- res[[8]]
       class(lastmodel)<-c("mmergwas")

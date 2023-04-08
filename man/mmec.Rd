@@ -31,7 +31,7 @@ mmec(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
 
   \code{\link{vsc}(...,Gu)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (i.e. usc,dsc,at,csc) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance matrices among the levels of the random effect. Auxiliar functions for building the variance models are:
 
-  ** \code{\link{dsc}(x)}, \code{\link{usc}(x)}, \code{\link{csc}(x)}, \code{\link{isc}(x)}, and \code{\link{atr}(x,levs)} can be used to specify unknown diagonal, unstructured and customized unstructured and diagonal covariance structures to be estimated by REML.
+  ** \code{\link{dsc}(x)}, \code{\link{usc}(x)}, \code{\link{rrc}(x,y,z)} , \code{\link{isc}(x)},\code{\link{csc}(x)}, and \code{\link{atc}(x,levs)} can be used to specify unknown diagonal, unstructured, reduced-rank, identity, and customized unstructured and diagonal covariance structures respectively to be estimated by REML.
 
   ** \code{\link{unsm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can be used to build easily matrices to specify constraints in the Gtc argument of the \code{\link{vsc}()} function.
 
@@ -99,6 +99,10 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
  \code{\link{vsc}(\link{usc}(x),isc(y))}
 
  can be used to specify an unstructured covariance structure for the "y" covariate for all levels of the  covariate "x", i.e. \emph{random=~vsc(usc(Location),isc(ID))}  fits variance and covariance components for ID at all levels of the covariate Location.
+ 
+ \code{\link{vsc}(\link{usc}(\link{rrc}(x,y,z,nPC)),isc(y))}
+
+ can be used to specify an unstructured covariance structure for the "y" effect for all levels of the  covariate "x", and a response variable "z", e.g., \emph{random=~vsc(rrc(Location,ID,response, nPC=2),isc(ID))}  fits a reduced-rank factor analytic covariance for ID at 2 principal components of the covariate Location.
 
   \code{\link{vsc}(isc(\link{overlay}(...,rlist=NULL,prefix=NULL)))}
 
@@ -114,7 +118,7 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
 \strong{S3 methods}{
 
-S3 methods are available for some parameter extraction such as \code{\link{fitted.mmec}}, \code{\link{residuals.mmec}}, \code{\link{summary.mmec}}, \code{\link{randef}}, \code{\link{coef.mmec}}, \code{\link{anova.mmec}}, \code{\link{plot.mmec}}, and \code{\link{predict.mmec}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (i.e. ratios like h2).
+S3 methods are available for some parameter extraction such as \code{\link{fitted.mmec}}, \code{\link{residuals.mmec}}, \code{\link{summary.mmec}}, \code{\link{randef}}, \code{\link{coef.mmec}}, \code{\link{anova.mmec}}, \code{\link{plot.mmec}}, and \code{\link{predict.mmec}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (i.e. ratios like h2). The \code{\link{r2}} function calculates reliability. 
 
 }
 

@@ -36,7 +36,7 @@ A good converter from letter code to numeric format is implemented in the functi
 
 \section{Functions for statistical analysis and S3 methods}{
 
-The \code{\link{vpredict}} function can be used to estimate standard errors for linear combinations of variance components (e.g. ratios like h2). S3 methods are available for some parameter extraction such as:
+The \code{\link{vpredict}} function can be used to estimate standard errors for linear combinations of variance components (e.g. ratios like h2). The \code{\link{r2}} function calculates reliability. S3 methods are available for some parameter extraction such as:
 
 + \code{\link{predict.mmer}}, \code{\link{predict.mmec}},
 
