@@ -28,7 +28,7 @@ export(atcg1234,build.HMM)
 
 ## FUN_stats
 export(adiag1, imputev, logspace,
-       leg, wald.test,
+       leg, wald.test, corImputation,
        r2
        )
 

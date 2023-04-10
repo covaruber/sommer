@@ -20,9 +20,9 @@ Direct-Inversion (Newton-Raphson and Average Information) >> \code{\link{mmer}} 
 
 Henderson's mixed model equations (Average Information) >> \code{\link{mmec}} function
 
-The algorithms are coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic models. Sommer was designed to include complex covariance structures, e.g., additive, dominance and epistatic relationship structures or other covariance structures.  
+The algorithms are coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic models. Sommer was designed to include complex covariance structures, e.g., unstructured, reduced-rank, diagonal. And also to model relationships between levels of a random effect, e.g., additive, dominance and epistatic relationship structures.  
 
-The \code{\link{mmer}} function can deal well with small and medium-size data sets (< 10,000 observations/records for average computers given the computational burden carried by the direct-inversion algorithms) since it works in the c > r problem and inverts an r x r matrix (being r the number of records). On the other hand, the \code{\link{mmec}} function can deal with greater number of records as long as the number of coefficients to estimate is < 20,000 coefficients since it works in the r > c problem and inverts a c x c matrix (being c the #of coefficients). The \code{\link{predict.mmer}} and \code{\link{predict.mmec}} functions can be used to obtain adjusted means. This package returns variance-covariance components, BLUPs, BLUEs, residuals, fitted values, variances-covariances for fixed and random effects, etc.
+The \code{\link{mmer}} function can deal well with small and medium-size data sets (< 10,000 observations/records for average computers given the computational burden carried by the direct-inversion algorithms) since it works in the c > r problem and inverts an r x r matrix (being r the number of records and c the number of coefficients). On the other hand, the \code{\link{mmec}} function can deal with greater number of records (r>250K) as long as the number of coefficients to estimate is < 10,000 coefficients (c) since it works in the r > c problem and inverts a c x c matrix (being c the number of coefficients). The \code{\link{predict.mmer}} and \code{\link{predict.mmec}} functions can be used to obtain adjusted means. This package returns variance-covariance components, BLUPs, BLUEs, residuals, fitted values, variances-covariances for fixed and random effects, etc.
 
 }
 
@@ -61,13 +61,13 @@ Recently, spatial modeling has been added added to sommer using the two-dimensio
 }
 
 \section{Keeping sommer updated}{
-The sommer package is updated on CRAN every 3-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer . This can be easily installed typing the following in the R console:
+The sommer package is updated on CRAN every 4-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer. This can be easily installed typing the following in the R console:
 
 library(devtools)
 
 install_github("covaruber/sommer")
 
-This is recommended since bugs fixes will be immediately available in the GitHub source but not in CRAN until the next update.
+This is recommended if you reported a bug, was fixed and was immediately pushed to GitHub but not in CRAN until the next update.
 }
 
 \section{Tutorials}{
@@ -87,7 +87,7 @@ or visit \strong{https://covaruber.github.io}
 }
 
 \section{Getting started}{
-The package has been equiped with several datasets to learn how to use the sommer package: 
+The package has been equiped with several datasets to learn how to use the sommer package (and almost to learn all sort of quantitative genetic analysis): 
 
 * \code{\link{DT_halfdiallel}}, \code{\link{DT_fulldiallel}} and \code{\link{DT_mohring}} datasets have examples to fit half and full diallel designs. 
 

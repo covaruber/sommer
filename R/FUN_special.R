@@ -474,6 +474,7 @@ rrc <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL, nPC=2, returnL
     withoutData <- which(is.na(wide[,iEnv]))
     imputationVector <- as.numeric(Gu[as.character(rowNamesWide),as.character(rowNamesWide[withData])] %*% as.matrix(wide[withData,iEnv]))
     wide[,iEnv] <- imputationVector  # wide[withoutData,iEnv] <- imputationVector[withoutData]
+    # scaleFactor=imputationVector[withData[1]] / wide[withData[1],iEnv]
   }
   ##
   Y <- apply(wide,2, sommer::imputev)

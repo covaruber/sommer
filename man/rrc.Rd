@@ -16,7 +16,7 @@
   \item{Gu}{an optional covariance matrix (\strong{NOT THE INVERSE}) between levels of the idvar in case a sparse (unbalanced) design between timevar and idvar exist.}
   \item{nPC}{number of principal components to keep.}
   \item{returnLam}{a TRUE/FALSE argument specifying if the function should return the matrix of loadings of the incidence matrix for the model. The default is FALSE so it returns the incidence matrix.}
-  \item{cholD}{a TRUE/FALSE argument specifying if the function should perform a Cholesky decomposition (TRUE) to form the matrix of loadings or the singular value decomposition (FALSE).}
+  \item{cholD}{a TRUE/FALSE argument specifying if the function should perform a Cholesky decomposition (TRUE) to form the matrix of loadings or the singular value decomposition (FALSE). Default is Cholesky.}
 }
 \details{
 This implementation of a version of the reduced rank factor analytic models uses the so-called principal component (PC) models (Meyer, 2009) which assumes specific effects (psi) are equal to 0. The function does the following:
@@ -37,7 +37,7 @@ This implementation does not update the loadings during the REML process, only e
 \value{
   \describe{
     
-    \item{$Z}{ a incidence matrix Z.star = Z Lam.}
+    \item{$Z}{ a incidence matrix Z.star = Z Lam which is the original incidence matrix for the timevar multiplied by the loadings.}
   }
 }
 \references{
@@ -71,14 +71,14 @@ vcd <- diag(ans1b$theta[[1]])
 vcd/sum(vcd) # the 3rd PC still explains more than the 2nd
 # ## Extract BLUPs
 # ## extract loadings
-# Lam=with(DT, rrc(Env, Name, y, returnLam = TRUE, nPC = 3))$Lam 
+# loadings=with(DT, rrc(Env, Name, y, returnLam = TRUE, nPC = 3))$Lam 
 # ## extract factor scores
-# score.mat <- ans1b$uList[[1]]; 
+# scores <- ans1b$uList[[1]]; 
 # ## BLUPs for all environments
-# E= score.mat  t(Lam)  # change space for matrix product
+# E= scores  t(loadings)  # change space for matrix product
 # ## Extract the covariance matrix
 # vc <- ans1b$theta[[1]];vc
-# G = Lam  vc  t(Lam) # change space for matrix product
+# G = loadings  vc  t(loadings) # change space for matrix product
 # lattice::levelplot(cov2cor(G))
 
 

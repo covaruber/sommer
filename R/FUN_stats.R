@@ -1,3 +1,57 @@
+corImputation <- function(wide, Gu=NULL, nearest=1, roundR=FALSE){
+  if(is.null(Gu)){
+    X <- apply(wide, 2, sommer::imputev)
+    Gu <- cor(t(X))
+  }
+  wide2 <- wide
+  rowNamesWide <-  rownames(wide)
+  
+  for(iEnv in 1:ncol(wide)){ # iEnv=10
+    withData <- which(!is.na(wide[,iEnv]))
+    withoutData <- which(is.na(wide[,iEnv]))
+    toPredict <- 1:nrow(wide)
+    if(length(toPredict) > 1){
+      likelihood=Gu[as.character(rowNamesWide)[toPredict],as.character(rowNamesWide)[withData]]
+    }else{
+      likelihood=matrix(Gu[as.character(rowNamesWide)[toPredict],as.character(rowNamesWide)[withData]], nrow=1)
+      rownames(likelihood) <- as.character(rowNamesWide)[toPredict]
+      colnames(likelihood) <- as.character(rowNamesWide)[withData]
+    }
+    replacement <- numeric()
+    for(iInd in 1:nrow(likelihood)){ # iInd=1
+      # averaging only the positively correlated to avoid decrease   # wide[iInd, iEnv]
+      indLik <- sort(abs(likelihood[iInd,]), decreasing = TRUE)
+      toAverage <- indLik[1:min(c(nearest,length(withData)))]
+      indLikToAverage <- likelihood[iInd,names(toAverage)]
+      replacement[iInd] <- mean(wide[names(which(indLikToAverage > 0)),iEnv]) 
+    }
+    names(replacement) <- rownames(likelihood)
+    # time to replace the missing data
+    dd=data.frame(replacement=replacement, index=1:length(replacement),
+                  imputed=1, id=rownames(likelihood),orVal=wide[,iEnv])
+    dd$imputed[which(dd$id %in% names(withoutData))]=0
+    head(dd)
+    if(roundR){
+      wide2[toPredict,iEnv] <- round(replacement)
+    }else{
+      wide2[toPredict,iEnv] <- replacement
+    }
+  }
+  for(jRow in 1:nrow(wide)){
+    miss <- which(is.na(wide[jRow,]))
+    if(length(miss) > 0){
+      dd=data.frame(full=wide2[jRow,], partial=wide[jRow,])
+      model <- lm(partial~full,data=dd[which(!is.na(dd$partial)),])
+      if(roundR){
+        wide[jRow,miss] <- round(predict(model,newdata = dd[which(is.na(dd$partial)),]))
+      }else{
+        wide[jRow,miss] <- predict(model,newdata = dd[which(is.na(dd$partial)),])
+      }
+    }
+  }
+  return(list(imputed=wide, corImputed=wide))
+}
+
 logspace <- function (n, start, end) {
   exp(seq(log(start), log(end), length.out = n))
 }
@@ -19,7 +73,7 @@ r2 <- function(object, object2=NULL){
       }else{
         stop("object2 needs to be a model that sets the argument 'returnParam=TRUE' so we can extract the relationship matrices. Please correct. ", call. = FALSE)
       }
-
+      
     }
     result[[iPart]] <- (variance - pev)/variance
   }
@@ -29,7 +83,7 @@ r2 <- function(object, object2=NULL){
 
 
 wald.test <- function (Sigma, b, Terms = NULL, L = NULL, H0 = NULL, df = NULL,
-                  verbose = FALSE) {
+                       verbose = FALSE) {
   if (is.null(Terms) & is.null(L))
     stop("One of the arguments Terms or L must be used.")
   if (!is.null(Terms) & !is.null(L))
@@ -101,14 +155,14 @@ print.wald.test <- function(x, digits = 2, ...){
 }
 
 leg <- function(x,n=1,u=-1,v=1, intercept=TRUE, intercept1=FALSE){
-
+  
   init0 <- as.character(substitute(list(x)))[-1L]
-
-
+  
+  
   requireNamespace("orthopolynom",quietly=TRUE)
   (leg4coef <- orthopolynom::legendre.polynomials(n=n, normalized=TRUE))
   leg4 <- as.matrix(as.data.frame(orthopolynom::polynomial.values(polynomials=leg4coef,
-                                                    x=orthopolynom::scaleX(x, u=u, v=v))))
+                                                                  x=orthopolynom::scaleX(x, u=u, v=v))))
   colnames(leg4) <- paste("leg",0:(ncol(leg4)-1),sep="")
   if(!intercept){
     leg4 <- leg4[, 2:ncol(leg4), drop = FALSE]
@@ -267,7 +321,7 @@ fdr <- function(p, fdr.level=0.05){
   sortedd <- sort(pvalA, decreasing = TRUE)
   closer <- sortedd[which(sortedd < fdr.level)[1]] # closest value found to the fdr.level indicated by the user
   vv <- which(pvalA == closer)[1]
-
+  
   #vv <- which(pvalA.l10 > fdr.ad)
   if(length(vv)>0){
     fdr.10 <- p[vv]#fdr.or <- min(p[vv])
@@ -281,8 +335,8 @@ fdr <- function(p, fdr.level=0.05){
 }
 
 fdr2 <- function(p, fdr.level=0.05){
-
-
+  
+  
   ##### transform to real p-values
   # if maximum value is grater than 1 means that is in -log10 or LOD scale
   # if maximum value is less than one means that the user is using already raw  p.values
@@ -291,7 +345,7 @@ fdr2 <- function(p, fdr.level=0.05){
   }else{
     pval <- p
   }
-
+  
   ##for endelmans function
   pen <- -log(pval,10)
   ########## make sure there is a value
@@ -315,13 +369,13 @@ fdr2 <- function(p, fdr.level=0.05){
   sortedd <- sort(pvalA, decreasing = TRUE)
   closer <- sortedd[which(sortedd < fdr.level)[1]] # closest value found to the fdr.level indicated by the user
   vv <- which(pvalA == closer)[1]
-
+  
   #vv <- which(pvalA.l10 > fdr.ad)
   if(length(vv)>0 & !is.na(vv)){
     fdr.10 <- p[vv]#fdr.or <- min(p[vv])
     #fdr <- 0.05
   }else{
-
+    
     fdrendel <- function(dd, fdr.level=0.05){
       qvalue <- function(p) {
         smooth.df = 3
@@ -369,7 +423,7 @@ fdr2 <- function(p, fdr.level=0.05){
       q.ans <- qvalue(10^-dd)
       temp <- cbind(q.ans, dd)
       temp <- temp[order(temp[, 1]), ]
-
+      
       temp2 <- tapply(temp[, 2], temp[, 1], mean)
       qvals <- as.numeric(rownames(temp2))
       x <- which.min(abs(qvals - fdr.level))
@@ -385,7 +439,7 @@ fdr2 <- function(p, fdr.level=0.05){
       popo <- predict(splin, x = fdr.level)$y
       return(popo)
     }
-
+    
     fdr.10 <- fdrendel( pen,fdr.level = fdr.level)
   }
   ######

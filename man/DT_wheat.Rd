@@ -60,6 +60,9 @@ A platform for meta-analysis of rice crop data. \emph{Plant Physiology} \bold{13
 # data(DT_wheat)
 # DT <- DT_wheat
 # GT <- GT_wheat
+# DTlong <- data.frame(pheno=as.vector(DT), 
+#                      env=sort(rep(1:4,nrow(DT))), 
+#                      id=rep(rownames(DT),4))
 # DT <- as.data.frame(DT);colnames(DT) <- paste0("x",1:4);DT$line <- rownames(DT);
 # rownames(GT) <- DT$line
 # K <- A.mat(GT) # additive relationship matrix
