@@ -36,6 +36,7 @@ The purpose of this vignette is to first show the changes in syntax for `sommer`
 9) I get an error when installing directly from github
 10) I get and error when specifying an interaction of the form X:Z
 11) I get the error "contrasts<-`(`*tmp*`, value = contr.funs[1 + isOF[nn]])"
+12) My model only runs few iterations giving meaningless results
 
 ## SECTION 1: The new syntax of sommer
 
@@ -540,6 +541,10 @@ Please check that your dataset is a regular dataframe. If your dataset used as i
 dataset <- as.data.frame(dataset)
 
 This should put the dataset in the expected format.
+
+### 12) My mmec model only runs few iterations giving meaningless results
+
+This can happen when the units of your trait being modeled are either too small or too big. Try scaling the units of your trait so the differences between the levels is not in either too big (var>10,000) or too small units (var < 0.01). Alternatively, modify the argument tolParInv to a smaller value like 1e-8 or higher. Last and probably the best since is guaranteed to work is, scale your trait using the scale() function.
 
 
 ## Literature

@@ -445,7 +445,75 @@ usr <- function(x){
 
 ###############
 ## VS structures for mmec
-
+redmm <- function (x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE) {
+  
+  if(is.null(M)){
+    stop("M cannot be NULL. We need a matrix of features that defines the levels of x")
+  }else{
+    
+    if (inherits(x, "dgCMatrix") | inherits(x, "matrix")) {
+      notPresentInM <- setdiff(colnames(Z),rownames(M))
+      notPresentInZ <- setdiff(rownames(M),colnames(x))
+    }else{
+      notPresentInM <- setdiff(unique(x),rownames(M))
+      notPresentInZ <- setdiff(rownames(M),unique(x))
+    }
+    
+    # if(length(notPresentInM) > 0 ){
+    #   stop("All levels in x need to be present in M")
+    # }
+    # 
+    # if(length(notPresentInZ) > 0 ){
+    #   stop("All levels in M need to be present in x")
+    # }
+    if(is.null(Lam)){
+      nPC <- min(c(nPC, ncol(M)))
+      if(cholD){
+        smd <- try(chol(M) , silent = TRUE)
+        if(inherits(smd, "try-error")){smd <- try(chol((M+diag(1e-5,nrow(M),nrow(M))) ) , silent = TRUE)}
+        Lam0 = t(smd)
+      }else{
+        smd <- svd(M) 
+        Lam0 = smd$u
+      }
+      Lam = Lam0[,1:min(c(nPC,ncol(M))), drop=FALSE]
+      rownames(Lam) <- rownames(M)
+      colnames(Lam) <- paste0("nPC",1:nPC)
+    }else{
+      Lam0=Lam
+      Lam = Lam0[,1:min(c(nPC,ncol(M))), drop=FALSE]
+      rownames(Lam) <- rownames(M)
+      colnames(Lam) <- paste0("nPC",1:nPC)
+    }
+  }
+  if (inherits(x, "dgCMatrix") | inherits(x, "matrix")) {
+    Z <- x
+  }else{
+    if (!is.character(x) & !is.factor(x)) {
+      namess <- as.character(substitute(list(x)))[-1L]
+      Z <- Matrix(x, ncol = 1)
+      colnames(Z) <- namess
+    }else {
+      dummy <- x
+      levs <- na.omit(unique(dummy))
+      if (length(levs) > 1) {
+        Z <- Matrix::sparse.model.matrix(~dummy - 1, na.action = na.pass)
+        colnames(Z) <- gsub("dummy", "", colnames(Z))
+      } else {
+        vv <- which(!is.na(dummy))
+        Z <- Matrix(0, nrow = length(dummy))
+        Z[vv, ] <- 1
+        colnames(Z) <- levs
+      }
+    }
+  }
+  
+  Zstar <- as.matrix(Z %*% Lam[colnames(Z),])
+  if(returnLam){
+    return(list(Z = Zstar, Lam=Lam, Lam0=Lam0)) 
+  }else{return(Zstar)}
+  
+}
 rrc <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL, nPC=2, returnLam=FALSE, cholD=TRUE){
   if(is.null(timevar)){stop("Please provide the timevar argument.", call. = FALSE)}
   if(is.null(idvar)){stop("Please provide the idvar argument.", call. = FALSE)}

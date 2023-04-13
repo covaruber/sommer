@@ -446,13 +446,15 @@ version 4.2.1 (2023-04-01)
 version 4.2.2 (2023-08-01)
 ########################
  + Bug in the rrc() covariance structure function when using a relationship matrix has been solved.
+ + The new function redmm() function to create a reduced model matrix to fit huge models has been added
 
 
 ######################
 ## PENDINGS AND PRIORITIES
-+ when the user selects a reduced-rank model we need to ensure that the predict function uses the lambdas to have the right predictions
-+ we need to recode how the C matrix is constructed, adopt linear sum instead of [W y]' R [W y], otherwise the solver is extremely slow for complex models with many effects to be estimated.
++ we need to recode how the C matrix is constructed, adopt linear sum instead of [W y]' R [W y], otherwise the solver is extremely slow for complex models with many effects to be estimated since we multiply every time. Build the coefficient matrix only once and never modify. Then the Gi matrix should be a linear sum of Ai * vc (* being kronecker). If R will always be a diagonal with ones we should only ignore it and multiply the C + Gi by the factor 1/Ve. Still not sure how we avoid multiplication R for heterogeneous models.
++ internally make the ai_mme function to scale the trait first and then bring back to the original units to avoid modifying the tolParinv argument.
 + we need to find how to do symbolic cholesky instead of computing cholesky every iteration in mmec
-+ arma::inv, arma::solve, arma::chol are much slower than Eigen, we need to find how to use both libraries in the same function
++ we need to find how to avoid inverting the coeficcient matrix for the calculation of first derivatives (Meyer 1995 may have the solution but I can't understand that paper fully.).
++ arma::inv, arma::solve, arma::chol are slower than Eigen, we need to find how to use both libraries in the same function
 + Add correlation models
 + Generalized linear models

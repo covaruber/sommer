@@ -73,8 +73,14 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
   `%!in%` = Negate(`%in%`)
   if(is.null(Gu)){
     x <- data.frame(d=as.factor(1:ncol(init[[length(init)]]$Z)))
-    Gu <- sparse.model.matrix(~d-1, x)
-    colnames(Gu) <- rownames(Gu) <- colnames(init[[length(init)]]$Z)
+    if(nrow(x) == 1){ # is a numeric variables
+      Gu <- matrix(1);
+      colnames(Gu) <- rownames(Gu) <- colnames(init[[length(init)]]$Z)
+      Gu <- as(Gu, Class="dgCMatrix"); 
+    }else{ # there's levels since it is a factor model
+      Gu <- sparse.model.matrix(~d-1, x)
+      colnames(Gu) <- rownames(Gu) <- colnames(init[[length(init)]]$Z)
+    }
   }else{
     if (!inherits(Gu, "dgCMatrix")){
       stop("Gu matrix is not of class dgCMatrix. Please correct \n", call. = TRUE )

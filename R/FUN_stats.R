@@ -40,16 +40,18 @@ corImputation <- function(wide, Gu=NULL, nearest=1, roundR=FALSE){
   for(jRow in 1:nrow(wide)){
     miss <- which(is.na(wide[jRow,]))
     if(length(miss) > 0){
-      dd=data.frame(full=wide2[jRow,], partial=wide[jRow,])
-      model <- lm(partial~full,data=dd[which(!is.na(dd$partial)),])
+      dd=data.frame(full=as.vector(unlist(wide2[jRow,])), partial=as.vector(unlist(wide[jRow,])))
+      model <- RcppArmadillo::fastLm(partial~full,data=dd[which(!is.na(dd$partial)),])
+      # model <- lm(partial~full,data=dd[which(!is.na(dd$partial)),])
+      pp=model$coefficients[1]+(dd[which(is.na(dd$partial)),"full"]*model$coefficients[2])
       if(roundR){
-        wide[jRow,miss] <- round(predict(model,newdata = dd[which(is.na(dd$partial)),]))
+        wide[jRow,miss] <- round(pp)#round(predict(model,newdata = dd[which(is.na(dd$partial)),]))
       }else{
-        wide[jRow,miss] <- predict(model,newdata = dd[which(is.na(dd$partial)),])
+        wide[jRow,miss] <- pp#predict(model,newdata = dd[which(is.na(dd$partial)),])
       }
     }
   }
-  return(list(imputed=wide, corImputed=wide))
+  return(list(imputed=wide, corImputed=wide2))
 }
 
 logspace <- function (n, start, end) {

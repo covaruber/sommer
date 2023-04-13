@@ -1,0 +1,65 @@
+\name{redmm}
+\alias{redmm}
+\title{Reduced Model Matrix}
+\description{
+  `redmm` uses a matrix decomposition to create a reduced model matrix of an effect (x) assumed to be a linear function of some feature matrix (M).
+}
+\usage{
+  redmm(x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE)
+}
+
+\arguments{
+  \item{x}{as vector with values to form a model matrix or the matrix itself for an effect of interest.}
+  \item{M}{a matrix of features explaining the levels of x.}
+  \item{Lam}{a matrix of loadings in case is already available to avoid recomputing it.}
+  \item{nPC}{number of principal components to keep from the matrix of loadings to form the model matrix.}
+  \item{cholD}{should a Cholesky or a Singular value decomposition should be used. The default is the SVD.}
+}
+\value{
+  \describe{
+    
+    \item{$S3}{ A list with 3 elements:
+    
+    1) The model matrix to be used in the mixed modeling.
+    
+    2) The reduced matrix of loadings (nPC columns).
+    
+    3) The full matrix of loadings.
+    
+    }
+  }
+}
+\references{
+  
+  Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
+  
+}
+\author{
+  Giovanny Covarrubias-Pazaran
+}
+
+\examples{
+  
+####=========================================####
+#### For CRAN time limitations most lines in the 
+#### examples are silenced with one '#' mark, 
+#### remove them and run the examples
+####=========================================####
+
+data(DT_technow)
+DT <- DT_technow
+Md <- Md_technow
+
+M <- tcrossprod(Md)
+xx = with(DT, redmm(x=dent, M=M, nPC=10))
+
+# ans <- mmec(GY~1,
+#             # new model matrix instead of dent
+#             random=~vsc(isc(xx$Z)),
+#             rcov=~units,
+#             data=DT)
+# summary(ans)$varcomp
+# u = xx$Lam * ans$uList[[1]] # change * for model matrix
+
+}
+\seealso{The core functions of the package \code{\link{mmec}} }

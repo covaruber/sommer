@@ -247,7 +247,7 @@ mmec <- function(fixed, random, rcov, data, W,
 
     thetaFinput <- cbind(thetaFinput,thetaFinputSP)
     thetaFinput
-
+    # print(str(Ai))
     res <- .Call("_sommer_ai_mme_sp",PACKAGE = "sommer",
                  X,Z, Zind,
                  Ai,yvar,
@@ -289,6 +289,10 @@ mmec <- function(fixed, random, rcov, data, W,
       for(i in 1:length(res$partitions)){
         blupTable <- apply(res$partitions[[i]],1,function(x2){return(res$bu[x2[1]:x2[2]])})
         pevTable <- apply(res$partitions[[i]],1,function(x2){return(diag(res$Ci)[x2[1]:x2[2]])})
+        if(length(blupTable) == 1){ # if is a single value instead of a matrix
+          blupTable <- as.data.frame(blupTable);
+          pevTable <- as.data.frame(pevTable); 
+        }
         colnames(blupTable) <- colnames(pevTable) <- colnames(theta[[i]])
         rownames(blupTable) <- rownames(pevTable) <- colnames(Z[[which(Zind == i)[1]]])
         uList[[i]] <- blupTable; uPevList[[i]] <- pevTable
@@ -296,11 +300,13 @@ mmec <- function(fixed, random, rcov, data, W,
     }
     res$uList <- uList; res$uPevList <- uPevList
     if(!missing(random)){
+      res$args <- list(fixed=fixed, random=random, rcov=rcov)
       res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX)),rep("random",length(res$partitions))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE)
     }else{
+      res$args <- list(fixed=fixed, rcov=rcov)
       res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE)
     }
-    res$args <- list(fixed=fixed, random=random, rcov=rcov)
+    
     class(res)<-c("mmec")
   }
   return(res)

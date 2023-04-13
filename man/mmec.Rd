@@ -35,7 +35,7 @@ mmec(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
 
   ** \code{\link{unsm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can be used to build easily matrices to specify constraints in the Gtc argument of the \code{\link{vsc}()} function.
 
-  ** \code{\link{overlay}()}, \code{\link{spl2Dc}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vsc}()} function.
+  ** \code{\link{overlay}()}, \code{\link{spl2Dc}()}, and \code{\link{leg}()}, \code{\link{redmm}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline, random regression, and dimensionality-reduction models within the \code{\link{vsc}()} function.
 
   }
   \item{rcov}{A formula specifying the name of the \strong{error term}, i.e. \emph{rcov= ~ units}.
@@ -64,8 +64,8 @@ mmec(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
   \item{verbose}{A TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
   \item{addScaleParam}{additional scale parameters for the thetaF matrix.}
   \item{stepWeight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which happens very often with the AI method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight.}
-  \item{emWeight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emWeight will be applied to the AI information matrix to produce a joint information matrix. By default the function gives a weight to the EM algorithm of 1, 0.9, 0.8, 0.7, 0.6, 0.4, 0.2 to the first 7 iterations and the rest a value 0.04. You can modify this argument by providing a different vector with as many values as iterations.}
-
+  \item{emWeight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emWeight will be applied to the AI information matrix to produce a joint information matrix. By default the function gives a weight to the EM algorithm of a logarithmic decrease rate using the following code \code{logspace(nIters,1,0.05)}.
+  }
 }
 
 \details{
@@ -106,7 +106,11 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
   \code{\link{vsc}(isc(\link{overlay}(...,rlist=NULL,prefix=NULL)))}
 
- can be used to specify overlay of design matrices between consecutive random effects specified, i.e. \emph{random=~vsc(overlay(male,female))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vsc().
+ can be used to specify overlay of design matrices between consecutive random effects specified, i.e. \emph{random=~vsc(isc(overlay(male,female)))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vsc().
+ 
+   \code{\link{vsc}(isc(\link{redmm}(x,M,nPC)))}
+
+ can be used to create a reduced model matrix of an effect (x) assumed to be a linear function of some feature matrix (M), i.e. \emph{random=~vsc(isc(redmm(x,M)))} creates an incidence matrix from a very large set of features (M) that belong to the levels of x to create a reduced model matrix. See \code{\link{redmm}} for details.Can be combined with vsc().
 
   \code{\link{vsc}(\link{leg}(x,n),isc(y))}
 

@@ -1421,7 +1421,6 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       }
       Hs = arma::sp_mat(chol(arma::mat(H)));
     }
-
     arma::sp_mat Ri(nR,nR); // matrix to store R inverse
     arma::field<arma::sp_mat> Rij(nSs); // field to store sub R matrices
     arma::field<arma::sp_mat> RijInv(nSs); // field to store sub R inverse matrices
@@ -1628,7 +1627,6 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
           Wu = arma::join_rows(Wu , Sprov * (1/arma::as_scalar(thetaResidualsVec(0))) * arma::sp_mat(e) );
         }
       }
-
     }
 
     // ###########################
@@ -1668,27 +1666,6 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::spsolve(buWu, A2, arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
     avInf = WiWj - (buWu.t()*XWjxZWj);
 
-    // C =  M.submat( 0,0, M.n_rows-2,  M.n_cols-2 ); // already define before the algorithm
-    // if(nSs > 1){ // if R is complex do the whole matrix product  in every iteration
-    //   XWjxZWj = W.t() * Ri * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
-    //   WiXxWiZ = Wu.t() * Ri * W ;// [wk'RiX wk'RiZ] # C21 lower left
-    //   WiWj = Wu.t() * Ri * Wu ;//  wk'Riwj # C22 lower right
-    // }else{ // if R is simple multiply only obatin this matrices once and in every iteration multiply by a factor
-    //   if(iIter == 0){
-    //     XWjxZWj0 = W.t() * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
-    //     WiXxWiZ0 = Wu.t() * W ;// [wk'RiX wk'RiZ] # C21 lower left
-    //     WiWj0 = Wu.t() * Wu ;//  wk'Riwj # C22 lower right
-    //   }
-    //   XWjxZWj = XWjxZWj0 * (1/arma::as_scalar(thetaResidualsVec(0))); // [X'Riwj Z'Riwj]' # C12 upper right
-    //   WiXxWiZ = WiXxWiZ0 * (1/arma::as_scalar(thetaResidualsVec(0)));// [wk'RiX wk'RiZ] # C21 lower left
-    //   WiWj = WiWj0 * (1/arma::as_scalar(thetaResidualsVec(0)));//  wk'Riwj # C22 lower right
-    // }
-    // arma::sp_mat MWu = arma::join_cols( arma::join_rows(C,XWjxZWj) , arma::join_rows(WiXxWiZ,WiWj) );
-    // arma::mat MWuChol = chol(arma::mat(MWu)); // Cholesky decomposition of C expanded by Wu
-    // // Average information
-    // avInf = MWuChol.submat(MWuChol.n_rows - Wu.n_cols, MWuChol.n_cols - Wu.n_cols,MWuChol.n_rows -1,MWuChol.n_cols - 1);
-    // avInf = avInf.t() * avInf  ;
-
     // ##########################
     // # 5) get 1st derivatives (dL/ds2i) from MME-version
     // # PAPER FORMULA (Lee and Van der Werf, 2006)
@@ -1704,17 +1681,9 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::vec v(Mchol.n_cols-1, arma::fill::ones);//option 1
     arma::mat D = diagmat(v); // option 1
     arma::mat Cichol = arma::solve( trimatu(Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2) ), D);  // indicate that A is triangular; option 1
-    // arma::mat D = arma::eye<arma::mat>(Mchol.n_cols-1,Mchol.n_cols-1); // option 2
-    // arma::sp_mat pp = arma::sp_mat(Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2)); //option 2
-    // arma::mat Cichol = arma::spsolve( pp , D, "superlu");  // option 2
-    // arma::mat Cichol = inv( trimatu(Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2)) ); // option 3
-    // arma::mat Cichol = inv_sympd( Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2) ); //option 4
     // multiply by it's transpose
     arma::sp_mat Cip = arma::sp_mat(Cichol);
     Ci = Cip * Cip.t() ;
-    // arma::mat pp = arma::mat(M.submat(0,0,M.n_rows-2,M.n_cols-2)); // option 5
-    // arma::sp_mat Ci = arma::sp_mat(inv_sympd( pp )); //option 5
-
     arma::field<arma::mat> emInfList(nRRe);
     arma::vec dLu;//(nVcTotal); // we will join cols
     if(nZs > 0){ // if random effects exist
@@ -1860,17 +1829,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     if(iIter == 0){
       delta_minus1 = delta;
     }else{
-      percDelta.col(iIter) =delta/delta_minus1; // percDelta(nVcTotal,nIters)
-      // arma::vec dCheck = percDelta.col(iIter)/percDelta.col((iIter-1));
-      // arma::uvec check1 = arma::find(arma::abs(dCheck) > 4); // which VC update > 15x
-      // arma::uvec check2 = arma::find(toBoundary.row(iIter) == 0); // which are not in the boundary
-      // arma::uvec deltaCheck = check1;//arma::intersect(check1,check2);
-      // if(deltaCheck.n_elem > 0){
-      //   Rcpp::Rcout << "Reducing updates" << arma::endl;
-      //   delta(deltaCheck) = delta(deltaCheck) * 0.1; //% (1/dCheck(deltaCheck));
-      //   expectedNewTheta(deltaCheck) = thetaUnlisted(deltaCheck) - delta(deltaCheck);
-      // }
-      // delta_minus1 = delta;
+      percDelta.col(iIter) =delta/delta_minus1; 
     }
     // D) if not positive-definite change to EM update
     arma::vec pdCheck;
@@ -1887,8 +1846,6 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     if(eigenFind.n_elem > 0){
       Rcpp::Rcout << "Updated VC is not positive definite, changing to EM step" << arma::endl;
       InfMat = (0.5 * avInf) + (0.5 * emInf);
-      // arma::sp_mat Ix = arma::speye<arma::sp_mat>(nVcTotal,nVcTotal);
-      // InfMat = InfMat + (Ix*tolParInv);
       if(constrained.n_elem > 0){
         Rcpp::Rcout << "Update using constraints" << arma::endl;
         InfMat_uu = InfMat(unconstrained,unconstrained);
@@ -2017,3 +1974,56 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
 // }
 
 
+
+
+// C =  M.submat( 0,0, M.n_rows-2,  M.n_cols-2 ); // already define before the algorithm
+// if(nSs > 1){ // if R is complex do the whole matrix product  in every iteration
+//   XWjxZWj = W.t() * Ri * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
+//   WiXxWiZ = Wu.t() * Ri * W ;// [wk'RiX wk'RiZ] # C21 lower left
+//   WiWj = Wu.t() * Ri * Wu ;//  wk'Riwj # C22 lower right
+// }else{ // if R is simple multiply only obatin this matrices once and in every iteration multiply by a factor
+//   if(iIter == 0){
+//     XWjxZWj0 = W.t() * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
+//     WiXxWiZ0 = Wu.t() * W ;// [wk'RiX wk'RiZ] # C21 lower left
+//     WiWj0 = Wu.t() * Wu ;//  wk'Riwj # C22 lower right
+//   }
+//   XWjxZWj = XWjxZWj0 * (1/arma::as_scalar(thetaResidualsVec(0))); // [X'Riwj Z'Riwj]' # C12 upper right
+//   WiXxWiZ = WiXxWiZ0 * (1/arma::as_scalar(thetaResidualsVec(0)));// [wk'RiX wk'RiZ] # C21 lower left
+//   WiWj = WiWj0 * (1/arma::as_scalar(thetaResidualsVec(0)));//  wk'Riwj # C22 lower right
+// }
+// arma::sp_mat MWu = arma::join_cols( arma::join_rows(C,XWjxZWj) , arma::join_rows(WiXxWiZ,WiWj) );
+// arma::mat MWuChol = chol(arma::mat(MWu)); // Cholesky decomposition of C expanded by Wu
+// // Average information
+// avInf = MWuChol.submat(MWuChol.n_rows - Wu.n_cols, MWuChol.n_cols - Wu.n_cols,MWuChol.n_rows -1,MWuChol.n_cols - 1);
+// avInf = avInf.t() * avInf  ;
+
+
+// get the inverse of the coefficient matrix
+// arma::mat D = arma::eye<arma::mat>(Mchol.n_cols-1,Mchol.n_cols-1); // option 2
+// arma::sp_mat pp = arma::sp_mat(Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2)); //option 2
+// arma::mat Cichol = arma::spsolve( pp , D, "superlu");  // option 2
+// arma::mat Cichol = inv( trimatu(Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2)) ); // option 3
+// arma::mat Cichol = inv_sympd( Mchol.submat(0,0,Mchol.n_rows-2,Mchol.n_cols-2) ); //option 4
+
+// multiply by its transpose
+// arma::mat pp = arma::mat(M.submat(0,0,M.n_rows-2,M.n_cols-2)); // option 5
+// arma::sp_mat Ci = arma::sp_mat(inv_sympd( pp )); //option 5
+
+
+// percDelta(nVcTotal,nIters)
+// arma::vec dCheck = percDelta.col(iIter)/percDelta.col((iIter-1));
+// arma::uvec check1 = arma::find(arma::abs(dCheck) > 4); // which VC update > 15x
+// arma::uvec check2 = arma::find(toBoundary.row(iIter) == 0); // which are not in the boundary
+// arma::uvec deltaCheck = check1;//arma::intersect(check1,check2);
+// if(deltaCheck.n_elem > 0){
+//   Rcpp::Rcout << "Reducing updates" << arma::endl;
+//   delta(deltaCheck) = delta(deltaCheck) * 0.1; //% (1/dCheck(deltaCheck));
+//   expectedNewTheta(deltaCheck) = thetaUnlisted(deltaCheck) - delta(deltaCheck);
+// }
+// delta_minus1 = delta;
+
+
+
+
+// arma::sp_mat Ix = arma::speye<arma::sp_mat>(nVcTotal,nVcTotal);
+// InfMat = InfMat + (Ix*tolParInv);
