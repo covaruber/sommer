@@ -239,7 +239,7 @@ bool isDiagonal_spmat(const arma::sp_mat x){
 }
 
 // [[Rcpp::export]]
-arma::mat amat(const arma::mat & Xo, const bool & endelman, double minMAF) {
+arma::mat amat(const arma::mat & Xo, const bool & vanraden, double minMAF) {
 
   // remove min.MAF
   arma::rowvec pfreq = mean(Xo+1,0)/2; // frequency of p
@@ -258,7 +258,7 @@ arma::mat amat(const arma::mat & Xo, const bool & endelman, double minMAF) {
   int n = X.n_rows;
   arma::mat A(n,n);
 
-  if(endelman == true){ //  Endelman
+  if(vanraden == true){ //  regular vanRaden 
 
     arma::rowvec ms012 = mean( X+1, 0 ); // means of columns
     arma::rowvec freq = ms012/2;
@@ -271,7 +271,7 @@ arma::mat amat(const arma::mat & Xo, const bool & endelman, double minMAF) {
     arma::mat K = W * W.t();
     A = K/v/p;
 
-  }else{ // regular vanRaden
+  }else{ // Endelman (currently we have a bug here)
 
     // IN R: M <- scale(X, center = TRUE, scale = FALSE)
     arma::rowvec ms = mean( X, 0 ); // means of columns

@@ -35,7 +35,7 @@ ARMA = function(x, rho=0.25, lambda=0.25) {
   return(MN)
 }
 
-A.mat <- function(X, endelman=TRUE, min.MAF=0, return.imputed=FALSE){
+A.mat <- function(X, min.MAF=0, return.imputed=FALSE){
   ################
   ## impute
   missingCheck <- which(is.na(X), arr.ind = TRUE)
@@ -44,10 +44,10 @@ A.mat <- function(X, endelman=TRUE, min.MAF=0, return.imputed=FALSE){
     uniqueCols <- unique(missingCheck[,2])
     X[,uniqueCols] <- apply(X[,uniqueCols],2,imputev)
   }
-  
+  vanraden=TRUE
   ##################
   res <- .Call("_sommer_amat",PACKAGE = "sommer",
-               X, endelman, min.MAF
+               X, vanraden, min.MAF
   )
   colnames(res) <- rownames(res) <- rownames(X)
   if(return.imputed){

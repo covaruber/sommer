@@ -49,8 +49,8 @@ isDiagonal_spmat <- function(x) {
     .Call(`_sommer_isDiagonal_spmat`, x)
 }
 
-amat <- function(Xo, endelman, minMAF) {
-    .Call(`_sommer_amat`, Xo, endelman, minMAF)
+amat <- function(Xo, vanraden, minMAF) {
+    .Call(`_sommer_amat`, Xo, vanraden, minMAF)
 }
 
 dmat <- function(Xo, nishio, minMAF) {

@@ -147,15 +147,15 @@ BEGIN_RCPP
 END_RCPP
 }
 // amat
-arma::mat amat(const arma::mat& Xo, const bool& endelman, double minMAF);
-RcppExport SEXP _sommer_amat(SEXP XoSEXP, SEXP endelmanSEXP, SEXP minMAFSEXP) {
+arma::mat amat(const arma::mat& Xo, const bool& vanraden, double minMAF);
+RcppExport SEXP _sommer_amat(SEXP XoSEXP, SEXP vanradenSEXP, SEXP minMAFSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
     Rcpp::traits::input_parameter< const arma::mat& >::type Xo(XoSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type endelman(endelmanSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type vanraden(vanradenSEXP);
     Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
-    rcpp_result_gen = Rcpp::wrap(amat(Xo, endelman, minMAF));
+    rcpp_result_gen = Rcpp::wrap(amat(Xo, vanraden, minMAF));
     return rcpp_result_gen;
 END_RCPP
 }
