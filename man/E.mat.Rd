@@ -8,16 +8,13 @@ Epistatic relationship matrix
 Calculates the realized epistatic relationship matrix of second order (additive x additive, additive x dominance, or dominance x dominance) using hadamard products with the C++ Armadillo library.
 }
 \usage{
-E.mat(X,endelman=TRUE,nishio=TRUE,type="A#A",min.MAF=0.02)
+E.mat(X,nishio=TRUE,type="A#A",min.MAF=0.02)
 }
 
 \arguments{
   \item{X}{
 Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} lines and \eqn{m} biallelic markers, 
 coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are allowed.
-}
-\item{endelman}{
-Set endelman=TRUE to use the estimation procedure for the A matrix (see Details in the A.mat help page).  
 }
 \item{nishio}{
 If TRUE Nishio ans Satoh. (2014), otherwise Su et al. (2012) (see Details in the D.mat help page).

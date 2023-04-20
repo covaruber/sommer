@@ -466,13 +466,13 @@ vv2 <- sample(vv1, 100)
 y.trn[vv2,"GY"] <- NA
 anss2 <- mmec(GY~1, 
               random=~vsc(isc(dent),Gu=Adi) + vsc(isc(flint),Gu=Afi), 
-              rcov=~units, nIters=3,
+              rcov=~units, nIters=15,
               data=y.trn, verbose = FALSE) 
 summary(anss2)$varcomp
 
-# zu1 <- model.matrix(~dent-1,y.trn) %*% anss2$U$`u:dent`$GY
-# zu2 <- model.matrix(~flint-1,y.trn) %*% anss2$U$`u:flint`$GY
-# u <- zu1+zu2+anss2$Beta[1,"Estimate"]
+# zu1 <- model.matrix(~dent-1,y.trn) %*% anss2$uList$`vsc(isc(dent), Gu = Adi)`
+# zu2 <- model.matrix(~flint-1,y.trn) %*% anss2$uList$`vsc(isc(flint), Gu = Afi)`
+# u <- zu1+zu2+as.vector(anss2$b)
 # cor(u[vv2,], DT$GY[vv2])
 ```
 

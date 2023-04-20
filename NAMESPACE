@@ -19,7 +19,7 @@ export(atr,csr,dsr,usr,vsr, gvsr, vs, ## mmer
        list2usmat, transformConstraints,
        # special functions to create model matrices
        overlay, redmm, 
-       add.diallel.vars,
+       add.diallel.vars, stackTrait,
        bivariateRun, vpredict)
 
 ## FUN_spatial

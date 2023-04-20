@@ -5,7 +5,7 @@
   `redmm` uses a matrix decomposition to create a reduced model matrix of an effect (x) assumed to be a linear function of some feature matrix (M).
 }
 \usage{
-  redmm(x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE)
+  redmm(x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE)
 }
 
 \arguments{
@@ -14,6 +14,7 @@
   \item{Lam}{a matrix of loadings in case is already available to avoid recomputing it.}
   \item{nPC}{number of principal components to keep from the matrix of loadings to form the model matrix.}
   \item{cholD}{should a Cholesky or a Singular value decomposition should be used. The default is the SVD.}
+  \item{returnLam}{should the function return the loading matrix in addition to the incidence matrix. Default is FALSE.}
 }
 \value{
   \describe{

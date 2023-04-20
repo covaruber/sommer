@@ -247,7 +247,6 @@ mmec <- function(fixed, random, rcov, data, W,
 
     thetaFinput <- cbind(thetaFinput,thetaFinputSP)
     thetaFinput
-    # print(str(Ai))
     res <- .Call("_sommer_ai_mme_sp",PACKAGE = "sommer",
                  X,Z, Zind,
                  Ai,yvar,

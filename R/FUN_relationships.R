@@ -79,16 +79,16 @@ D.mat <- function(X, nishio=TRUE, min.MAF=0, return.imputed=FALSE){
   }
 }
 
-E.mat <- function(X,endelman=TRUE,nishio=TRUE,type="A#A",min.MAF=0.02){
+E.mat <- function(X,nishio=TRUE,type="A#A",min.MAF=0.02){
   
   if(type == "A#A"){
-    A <- A.mat(X, endelman=endelman,min.MAF=min.MAF)
+    A <- A.mat(X, min.MAF=min.MAF)
     E <- .Call("_sommer_emat",PACKAGE = "sommer",
                A, A
     )
   }
   if(type == "A#D"){
-    A <- A.mat(X, endelman=endelman,min.MAF=min.MAF)
+    A <- A.mat(X, min.MAF=min.MAF)
     D <- D.mat(X, nishio=nishio,min.MAF=min.MAF)
     E <- .Call("_sommer_emat",PACKAGE = "sommer",
                A, D

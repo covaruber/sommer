@@ -1,3 +1,24 @@
+stackTrait <- function(data, traits){
+  idvars <- setdiff(colnames(data), traits)
+  dataScaled <- data
+  for(iTrait in traits){
+    dataScaled[,iTrait] <- scale(dataScaled[,iTrait])
+  }
+  data2 <- reshape(data, idvar = idvars, varying = traits,
+                   timevar = "trait",
+                   times = traits,v.names = "value", direction = "long")
+  data2Scaled <- reshape(dataScaled, idvar = idvars, varying = traits,
+                         timevar = "trait",
+                         times = traits,v.names = "value", direction = "long")
+  data2 <- as.data.frame(data2)
+  data2$valueS <- as.vector(unlist(data2Scaled$value))
+  rownames(data2) <- NULL
+  varG <- cov(data[,traits], use="pairwise.complete.obs")
+  # varG <- apply(data[,traits],2,var, na.rm=TRUE) 
+  mu <- apply(data[,traits],2,mean, na.rm=TRUE) 
+  return(list(long=data2, varG=varG, mu=mu))
+}
+
 add.diallel.vars <- function(df, par1="Par1", par2="Par2",sep.cross="-"){
   # Dummy variables for selfs, crosses, combinations
   df[,"is.cross"] <- ifelse(df[,par1] == df[,par2], 0, 1)
