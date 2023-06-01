@@ -447,10 +447,11 @@ version 4.2.2 (2023-08-01)
 ########################
  + Bug in the rrc() covariance structure function when using a relationship matrix has been solved.
  + The new function redmm() function to create a reduced model matrix to fit huge models has been added
+ + There was a bug where the A matrix was not being reordered when provided. It has been fixed
 
 
 ######################
-## PENDINGS AND PRIORITIES
+## PENDINGS AND PRIORITIES 
 + we need to recode how the C matrix is constructed, adopt linear sum instead of [W y]' R [W y], otherwise the solver is extremely slow for complex models with many effects to be estimated since we multiply every time. Build the coefficient matrix only once and never modify. Then the Gi matrix should be a linear sum of Ai * vc (* being kronecker). If R will always be a diagonal with ones we should only ignore it and multiply the C + Gi by the factor 1/Ve. Still not sure how we avoid multiplication R for heterogeneous models.
 + internally make the ai_mme function to scale the trait first and then bring back to the original units to avoid modifying the tolParinv argument.
 + we need to find how to do symbolic cholesky instead of computing cholesky every iteration in mmec
