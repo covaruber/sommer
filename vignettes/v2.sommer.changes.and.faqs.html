@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2023-04-03" />
+<meta name="date" content="2023-05-10" />
 
 <title>Changes and FAQs for the sommer package</title>
 
@@ -341,7 +341,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h1 class="title toc-ignore">Changes and FAQs for the sommer
 package</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2023-04-03</h4>
+<h4 class="date">2023-05-10</h4>
 
 
 
@@ -387,6 +387,9 @@ relationship matrix.</li>
 <li>I get and error when specifying an interaction of the form X:Z</li>
 <li>I get the error “contrasts&lt;-<code>(</code><em>tmp</em>`, value =
 contr.funs[1 + isOF[nn]])”</li>
+<li>I get an error “Error: addition: incompatible matrix dimensions:
+n1xn1 and n2xn2”</li>
+<li>My model only runs few iterations giving meaningless results</li>
 </ol>
 <div id="section-1-the-new-syntax-of-sommer" class="section level2">
 <h2>SECTION 1: The new syntax of sommer</h2>
@@ -701,9 +704,7 @@ blups.</p>
 <span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>                      <span class="sc">+</span> Rowf <span class="sc">+</span> Colf,</span>
 <span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span>units,</span>
 <span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT2, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.Adding additional levels of Gu in the model matrix of &#39;id&#39;</code></pre>
+<pre><code>## Adding additional levels of Gu in the model matrix of &#39;id&#39;</code></pre>
 <div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix1)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
@@ -738,11 +739,8 @@ blups.</p>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>             <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id,<span class="at">Gu=</span>A)</span>
 <span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>             <span class="sc">+</span> Rowf <span class="sc">+</span> Colf,</span>
 <span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>             <span class="at">rcov=</span><span class="sc">~</span>units,</span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT2, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix2)</span></code></pre></div>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT2, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix2)</span></code></pre></div>
 <pre><code>## ============================================================
 ##          Multivariate Linear Mixed Model fit by REML         
 ## **********************  sommer 4.2  ********************** 
@@ -768,7 +766,7 @@ blups.</p>
 ## Colf    35
 ## ============================================================
 ## Use the &#39;$&#39; sign to access results and parameters</code></pre>
-<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(mix2<span class="sc">$</span>U<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span><span class="sc">$</span>Yield) <span class="co"># now 363 levels</span></span></code></pre></div>
+<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="fu">length</span>(mix2<span class="sc">$</span>U<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span><span class="sc">$</span>Yield) <span class="co"># now 363 levels</span></span></code></pre></div>
 <pre><code>## [1] 363</code></pre>
 <p>As of 4.1.2 this shouldn’t be a problem since internally the
 <code>mmer()</code> solver adds the missing levels, but we leave this
@@ -784,17 +782,14 @@ structure for a given random effect.</p>
 <p>For example, in the DT_cpdata dataset we have a field with row and
 column coordinates. This allows fitting row and column as random
 effects:</p>
-<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>mix1 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span> Rowf <span class="sc">+</span> Colf,</span>
-<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span>units,</span>
-<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix1)<span class="sc">$</span>varcomp</span></code></pre></div>
+<div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>mix1 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span> Rowf <span class="sc">+</span> Colf,</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb20-8"><a href="#cb20-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix1)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                     VarComp VarCompSE    Zratio Constraint
 ## Rowf.Yield-Yield   832.2879  393.8951  2.112968   Positive
 ## Colf.Yield-Yield   153.9201  126.7582  1.214281   Positive
@@ -802,33 +797,27 @@ effects:</p>
 <p>If the user wants to relax the independence between rows and define
 an AR1 covariance structure among rows then the model could be fitted
 as:</p>
-<div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
-<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
-<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
-<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>mixAR1row <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
-<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>             <span class="at">random=</span><span class="sc">~</span> <span class="fu">vsr</span>(Rowf, <span class="at">Gu=</span><span class="fu">AR1</span>(Rowf, <span class="at">rho=</span><span class="fl">0.3</span>)) <span class="sc">+</span> Colf,</span>
-<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>             <span class="at">rcov=</span><span class="sc">~</span>units,</span>
-<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mixAR1row)<span class="sc">$</span>varcomp</span></code></pre></div>
+<div class="sourceCode" id="cb22"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>mixAR1row <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>             <span class="at">random=</span><span class="sc">~</span> <span class="fu">vsr</span>(Rowf, <span class="at">Gu=</span><span class="fu">AR1</span>(Rowf, <span class="at">rho=</span><span class="fl">0.3</span>)) <span class="sc">+</span> Colf,</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>             <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mixAR1row)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                      VarComp VarCompSE    Zratio Constraint
 ## u:Rowf.Yield-Yield  791.8219  387.8695  2.041465   Positive
 ## Colf.Yield-Yield    154.5660  126.8094  1.218885   Positive
 ## units.Yield-Yield  3643.6027  290.1689 12.556834   Positive</code></pre>
 <p>The same could be done for the column random effect:</p>
-<div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
-<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
-<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
-<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>mixAR1col <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
-<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a>             <span class="at">random=</span><span class="sc">~</span> Rowf <span class="sc">+</span> <span class="fu">vsr</span>(Colf, <span class="at">Gu=</span><span class="fu">AR1</span>(Colf, <span class="at">rho=</span><span class="fl">0.3</span>)),</span>
-<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>             <span class="at">rcov=</span><span class="sc">~</span>units,</span>
-<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mixAR1col)<span class="sc">$</span>varcomp</span></code></pre></div>
+<div class="sourceCode" id="cb24"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb24-3"><a href="#cb24-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb24-4"><a href="#cb24-4" aria-hidden="true" tabindex="-1"></a>mixAR1col <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb24-5"><a href="#cb24-5" aria-hidden="true" tabindex="-1"></a>             <span class="at">random=</span><span class="sc">~</span> Rowf <span class="sc">+</span> <span class="fu">vsr</span>(Colf, <span class="at">Gu=</span><span class="fu">AR1</span>(Colf, <span class="at">rho=</span><span class="fl">0.3</span>)),</span>
+<span id="cb24-6"><a href="#cb24-6" aria-hidden="true" tabindex="-1"></a>             <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb24-7"><a href="#cb24-7" aria-hidden="true" tabindex="-1"></a>             <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb24-8"><a href="#cb24-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mixAR1col)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                      VarComp VarCompSE    Zratio Constraint
 ## Rowf.Yield-Yield    830.3623  392.8264  2.113815   Positive
 ## u:Colf.Yield-Yield  178.7490  134.2703  1.331262   Positive
@@ -836,19 +825,16 @@ as:</p>
 <p>If on the other hand, you would like to model the presence of
 correlation in row and columns at the same time the model would look
 like this:</p>
-<div class="sourceCode" id="cb34"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
-<span id="cb34-2"><a href="#cb34-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
-<span id="cb34-3"><a href="#cb34-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
-<span id="cb34-4"><a href="#cb34-4" aria-hidden="true" tabindex="-1"></a>mixAR1rowcol <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
-<span id="cb34-5"><a href="#cb34-5" aria-hidden="true" tabindex="-1"></a>                  <span class="at">random=</span><span class="sc">~</span> <span class="fu">vsr</span>(Rowf<span class="sc">:</span>Colf, </span>
-<span id="cb34-6"><a href="#cb34-6" aria-hidden="true" tabindex="-1"></a>                              <span class="at">Gu=</span><span class="fu">kronecker</span>(<span class="fu">AR1</span>(Rowf, <span class="at">rho=</span><span class="fl">0.3</span>),<span class="fu">AR1</span>(Colf, <span class="at">rho=</span><span class="fl">0.3</span>),<span class="at">make.dimnames =</span> <span class="cn">TRUE</span>) </span>
-<span id="cb34-7"><a href="#cb34-7" aria-hidden="true" tabindex="-1"></a>                              ),</span>
-<span id="cb34-8"><a href="#cb34-8" aria-hidden="true" tabindex="-1"></a>                  <span class="at">rcov=</span><span class="sc">~</span>units,</span>
-<span id="cb34-9"><a href="#cb34-9" aria-hidden="true" tabindex="-1"></a>                  <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb36"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mixAR1rowcol)<span class="sc">$</span>varcomp</span></code></pre></div>
+<div class="sourceCode" id="cb26"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>mixAR1rowcol <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a>                  <span class="at">random=</span><span class="sc">~</span> <span class="fu">vsr</span>(Rowf<span class="sc">:</span>Colf, </span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>                              <span class="at">Gu=</span><span class="fu">kronecker</span>(<span class="fu">AR1</span>(Rowf, <span class="at">rho=</span><span class="fl">0.3</span>),<span class="fu">AR1</span>(Colf, <span class="at">rho=</span><span class="fl">0.3</span>),<span class="at">make.dimnames =</span> <span class="cn">TRUE</span>) </span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>                              ),</span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>                  <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>                  <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mixAR1rowcol)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                          VarComp VarCompSE   Zratio Constraint
 ## u:Rowf:Colf.Yield-Yield 2474.339  730.1474 3.388821   Positive
 ## units.Yield-Yield       2025.584  622.1023 3.256030   Positive</code></pre>
@@ -886,41 +872,35 @@ inspecting the results for the mixed models fitted by the
 stored in the <code>sigma</code> element, you will notice that each
 random effect contains a t x t matrix which corresponds to the
 multi-trait structure we referred to. For example:</p>
-<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
-<span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
-<span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>GT <span class="ot">&lt;-</span> GT_cpdata</span>
-<span id="cb38-4"><a href="#cb38-4" aria-hidden="true" tabindex="-1"></a>MP <span class="ot">&lt;-</span> MP_cpdata</span>
-<span id="cb38-5"><a href="#cb38-5" aria-hidden="true" tabindex="-1"></a><span class="do">#### create the variance-covariance matrix</span></span>
-<span id="cb38-6"><a href="#cb38-6" aria-hidden="true" tabindex="-1"></a>A <span class="ot">&lt;-</span> <span class="fu">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
-<span id="cb38-7"><a href="#cb38-7" aria-hidden="true" tabindex="-1"></a><span class="do">#### look at the data and fit the model</span></span>
-<span id="cb38-8"><a href="#cb38-8" aria-hidden="true" tabindex="-1"></a>mix1 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
-<span id="cb38-9"><a href="#cb38-9" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id,<span class="at">Gu=</span>A),</span>
-<span id="cb38-10"><a href="#cb38-10" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span>units,</span>
-<span id="cb38-11"><a href="#cb38-11" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>mix1<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span></span></code></pre></div>
+<div class="sourceCode" id="cb28"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb28-2"><a href="#cb28-2" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb28-3"><a href="#cb28-3" aria-hidden="true" tabindex="-1"></a>GT <span class="ot">&lt;-</span> GT_cpdata</span>
+<span id="cb28-4"><a href="#cb28-4" aria-hidden="true" tabindex="-1"></a>MP <span class="ot">&lt;-</span> MP_cpdata</span>
+<span id="cb28-5"><a href="#cb28-5" aria-hidden="true" tabindex="-1"></a><span class="do">#### create the variance-covariance matrix</span></span>
+<span id="cb28-6"><a href="#cb28-6" aria-hidden="true" tabindex="-1"></a>A <span class="ot">&lt;-</span> <span class="fu">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
+<span id="cb28-7"><a href="#cb28-7" aria-hidden="true" tabindex="-1"></a><span class="do">#### look at the data and fit the model</span></span>
+<span id="cb28-8"><a href="#cb28-8" aria-hidden="true" tabindex="-1"></a>mix1 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb28-9"><a href="#cb28-9" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id,<span class="at">Gu=</span>A),</span>
+<span id="cb28-10"><a href="#cb28-10" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span>units,</span>
+<span id="cb28-11"><a href="#cb28-11" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb28-12"><a href="#cb28-12" aria-hidden="true" tabindex="-1"></a>mix1<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span></span></code></pre></div>
 <pre><code>##          Yield
 ## Yield 650.4145</code></pre>
 <p>Here the sigma element contains the random effects for
 <code>id</code> and <code>units</code> (error). Each of these contains a
 matrix of 1 by 1, but in a multi trait model would look like this:</p>
-<div class="sourceCode" id="cb42"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
-<span id="cb42-2"><a href="#cb42-2" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
-<span id="cb42-3"><a href="#cb42-3" aria-hidden="true" tabindex="-1"></a>GT <span class="ot">&lt;-</span> GT_cpdata</span>
-<span id="cb42-4"><a href="#cb42-4" aria-hidden="true" tabindex="-1"></a>MP <span class="ot">&lt;-</span> MP_cpdata</span>
-<span id="cb42-5"><a href="#cb42-5" aria-hidden="true" tabindex="-1"></a><span class="do">#### create the variance-covariance matrix</span></span>
-<span id="cb42-6"><a href="#cb42-6" aria-hidden="true" tabindex="-1"></a>A <span class="ot">&lt;-</span> <span class="fu">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
-<span id="cb42-7"><a href="#cb42-7" aria-hidden="true" tabindex="-1"></a><span class="do">#### look at the data and fit the model</span></span>
-<span id="cb42-8"><a href="#cb42-8" aria-hidden="true" tabindex="-1"></a>mix2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(<span class="fu">cbind</span>(Yield,color)<span class="sc">~</span><span class="dv">1</span>,</span>
-<span id="cb42-9"><a href="#cb42-9" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id,<span class="at">Gu=</span>A, <span class="at">Gtc=</span><span class="fu">unsm</span>(<span class="dv">2</span>)),</span>
-<span id="cb42-10"><a href="#cb42-10" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsr</span>(units,<span class="at">Gtc=</span><span class="fu">diag</span>(<span class="dv">2</span>)),</span>
-<span id="cb42-11"><a href="#cb42-11" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb44"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span></span></code></pre></div>
+<div class="sourceCode" id="cb30"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb30-1"><a href="#cb30-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_cpdata)</span>
+<span id="cb30-2"><a href="#cb30-2" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_cpdata</span>
+<span id="cb30-3"><a href="#cb30-3" aria-hidden="true" tabindex="-1"></a>GT <span class="ot">&lt;-</span> GT_cpdata</span>
+<span id="cb30-4"><a href="#cb30-4" aria-hidden="true" tabindex="-1"></a>MP <span class="ot">&lt;-</span> MP_cpdata</span>
+<span id="cb30-5"><a href="#cb30-5" aria-hidden="true" tabindex="-1"></a><span class="do">#### create the variance-covariance matrix</span></span>
+<span id="cb30-6"><a href="#cb30-6" aria-hidden="true" tabindex="-1"></a>A <span class="ot">&lt;-</span> <span class="fu">A.mat</span>(GT) <span class="co"># additive relationship matrix</span></span>
+<span id="cb30-7"><a href="#cb30-7" aria-hidden="true" tabindex="-1"></a><span class="do">#### look at the data and fit the model</span></span>
+<span id="cb30-8"><a href="#cb30-8" aria-hidden="true" tabindex="-1"></a>mix2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(<span class="fu">cbind</span>(Yield,color)<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb30-9"><a href="#cb30-9" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id,<span class="at">Gu=</span>A, <span class="at">Gtc=</span><span class="fu">unsm</span>(<span class="dv">2</span>)),</span>
+<span id="cb30-10"><a href="#cb30-10" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsr</span>(units,<span class="at">Gtc=</span><span class="fu">diag</span>(<span class="dv">2</span>)),</span>
+<span id="cb30-11"><a href="#cb30-11" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb30-12"><a href="#cb30-12" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span></span></code></pre></div>
 <pre><code>##             Yield       color
 ## Yield 634.6295932 0.471715518
 ## color   0.4717155 0.005126228</code></pre>
@@ -931,11 +911,11 @@ effect we have specified that variance components should be estimated
 and be positive (diagonals with a 1), whereas covariance components
 should be estimated and unconstrained to be positive or negative
 (off-diagonals with a 2).</p>
-<div class="sourceCode" id="cb46"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="fu">unsm</span>(<span class="dv">2</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb32"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb32-1"><a href="#cb32-1" aria-hidden="true" tabindex="-1"></a><span class="fu">unsm</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>##      [,1] [,2]
 ## [1,]    1    2
 ## [2,]    2    1</code></pre>
-<div class="sourceCode" id="cb48"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb48-1"><a href="#cb48-1" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span></span></code></pre></div>
+<div class="sourceCode" id="cb34"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb34-1"><a href="#cb34-1" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span></span></code></pre></div>
 <pre><code>##             Yield       color
 ## Yield 634.6295932 0.471715518
 ## color   0.4717155 0.005126228</code></pre>
@@ -944,11 +924,11 @@ we have specified in the <code>Gtc</code> argument that variance
 components should be estimated and be positive (diagonals), whereas
 covariance components should not be estimated (off-diagonals with a
 0)</p>
-<div class="sourceCode" id="cb50"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb50-1"><a href="#cb50-1" aria-hidden="true" tabindex="-1"></a><span class="fu">diag</span>(<span class="dv">2</span>)</span></code></pre></div>
+<div class="sourceCode" id="cb36"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb36-1"><a href="#cb36-1" aria-hidden="true" tabindex="-1"></a><span class="fu">diag</span>(<span class="dv">2</span>)</span></code></pre></div>
 <pre><code>##      [,1] [,2]
 ## [1,]    1    0
 ## [2,]    0    1</code></pre>
-<div class="sourceCode" id="cb52"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb52-1"><a href="#cb52-1" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:units</span><span class="st">`</span></span></code></pre></div>
+<div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigma<span class="sc">$</span><span class="st">`</span><span class="at">u:units</span><span class="st">`</span></span></code></pre></div>
 <pre><code>##          Yield       color
 ## Yield 4009.336 0.000000000
 ## color    0.000 0.002563711</code></pre>
@@ -958,42 +938,38 @@ needs to provide the initial value (scaled with respect to the error
 variance) of those variance-covariance components in the
 <code>Gti</code> argument and use a matrix with the value 3 in the
 <code>Gtc</code> constraint matrix.</p>
-<div class="sourceCode" id="cb54"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb54-1"><a href="#cb54-1" aria-hidden="true" tabindex="-1"></a>mm <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">3</span>,<span class="dv">1</span>,<span class="dv">1</span>) <span class="do">## matrix to fix the var comp</span></span>
-<span id="cb54-2"><a href="#cb54-2" aria-hidden="true" tabindex="-1"></a>initialVal <span class="ot">&lt;-</span> mix1<span class="sc">$</span>sigma_scaled<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span><span class="sc">/</span><span class="dv">2</span> <span class="co"># we want to fix the vc to be half of the previous uinvariate model</span></span>
-<span id="cb54-3"><a href="#cb54-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb54-4"><a href="#cb54-4" aria-hidden="true" tabindex="-1"></a>mix3 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
-<span id="cb54-5"><a href="#cb54-5" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id, <span class="at">Gu=</span>A, <span class="at">Gti=</span>initialVal, <span class="at">Gtc=</span>mm), <span class="co"># constrained</span></span>
-<span id="cb54-6"><a href="#cb54-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsr</span>(units), <span class="co"># unconstrained</span></span>
-<span id="cb54-7"><a href="#cb54-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb56"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze variance components</span></span>
-<span id="cb56-2"><a href="#cb56-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix1)<span class="sc">$</span>varcomp</span></code></pre></div>
+<div class="sourceCode" id="cb40"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb40-1"><a href="#cb40-1" aria-hidden="true" tabindex="-1"></a>mm <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">3</span>,<span class="dv">1</span>,<span class="dv">1</span>) <span class="do">## matrix to fix the var comp</span></span>
+<span id="cb40-2"><a href="#cb40-2" aria-hidden="true" tabindex="-1"></a>initialVal <span class="ot">&lt;-</span> mix1<span class="sc">$</span>sigma_scaled<span class="sc">$</span><span class="st">`</span><span class="at">u:id</span><span class="st">`</span><span class="sc">/</span><span class="dv">2</span> <span class="co"># we want to fix the vc to be half of the previous uinvariate model</span></span>
+<span id="cb40-3"><a href="#cb40-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-4"><a href="#cb40-4" aria-hidden="true" tabindex="-1"></a>mix3 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb40-5"><a href="#cb40-5" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span><span class="fu">vsr</span>(id, <span class="at">Gu=</span>A, <span class="at">Gti=</span>initialVal, <span class="at">Gtc=</span>mm), <span class="co"># constrained</span></span>
+<span id="cb40-6"><a href="#cb40-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsr</span>(units), <span class="co"># unconstrained</span></span>
+<span id="cb40-7"><a href="#cb40-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb40-8"><a href="#cb40-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb40-9"><a href="#cb40-9" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze variance components</span></span>
+<span id="cb40-10"><a href="#cb40-10" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix1)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                     VarComp VarCompSE    Zratio Constraint
 ## u:id.Yield-Yield   650.4145  325.5562  1.997856   Positive
 ## units.Yield-Yield 4031.0153  344.6051 11.697493   Positive</code></pre>
-<div class="sourceCode" id="cb58"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb58-1"><a href="#cb58-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix3)<span class="sc">$</span>varcomp</span></code></pre></div>
+<div class="sourceCode" id="cb42"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb42-1"><a href="#cb42-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix3)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                       VarComp VarCompSE    Zratio Constraint
 ## u:id.Yield-Yield     325.2072  259.0889  1.255196      Fixed
 ## u:units.Yield-Yield 4051.3786  352.4804 11.493912   Positive</code></pre>
 <p>For the vsc() function used in mmec() for the c x c problem the theta
 and thetaC arguments can be used directly in the covariance structures.
 For example to fix the residuals equal to 1:</p>
-<div class="sourceCode" id="cb60"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb60-1"><a href="#cb60-1" aria-hidden="true" tabindex="-1"></a>mm <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">3</span>,<span class="dv">1</span>,<span class="dv">1</span>) <span class="do">## matrix to fix the var comp</span></span>
-<span id="cb60-2"><a href="#cb60-2" aria-hidden="true" tabindex="-1"></a>vei <span class="ot">&lt;-</span> <span class="fu">var</span>(DT<span class="sc">$</span>Yield, <span class="at">na.rm =</span> <span class="cn">TRUE</span>) <span class="co"># we want to fix the vc to be half of the previous uinvariate model</span></span>
-<span id="cb60-3"><a href="#cb60-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb60-4"><a href="#cb60-4" aria-hidden="true" tabindex="-1"></a>mix3 <span class="ot">&lt;-</span> <span class="fu">mmec</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
-<span id="cb60-5"><a href="#cb60-5" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span>Rowf, <span class="co"># unconstrained</span></span>
-<span id="cb60-6"><a href="#cb60-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span> <span class="sc">~</span> <span class="fu">vsc</span>(<span class="fu">isc</span>(units, <span class="at">thetaC=</span>mm,<span class="at">theta=</span><span class="fu">matrix</span>(<span class="dv">1</span><span class="sc">/</span>vei,<span class="dv">1</span>,<span class="dv">1</span>))), <span class="co"># constrained</span></span>
-<span id="cb60-7"><a href="#cb60-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb62"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb62-1"><a href="#cb62-1" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze variance components</span></span>
-<span id="cb62-2"><a href="#cb62-2" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix3)<span class="sc">$</span>varcomp</span></code></pre></div>
+<div class="sourceCode" id="cb44"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb44-1"><a href="#cb44-1" aria-hidden="true" tabindex="-1"></a>mm <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="dv">3</span>,<span class="dv">1</span>,<span class="dv">1</span>) <span class="do">## matrix to fix the var comp</span></span>
+<span id="cb44-2"><a href="#cb44-2" aria-hidden="true" tabindex="-1"></a>vei <span class="ot">&lt;-</span> <span class="fu">var</span>(DT<span class="sc">$</span>Yield, <span class="at">na.rm =</span> <span class="cn">TRUE</span>) <span class="co"># we want to fix the vc to be half of the previous uinvariate model</span></span>
+<span id="cb44-3"><a href="#cb44-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-4"><a href="#cb44-4" aria-hidden="true" tabindex="-1"></a>mix3 <span class="ot">&lt;-</span> <span class="fu">mmec</span>(Yield<span class="sc">~</span><span class="dv">1</span>,</span>
+<span id="cb44-5"><a href="#cb44-5" aria-hidden="true" tabindex="-1"></a>              <span class="at">random=</span><span class="sc">~</span>Rowf, <span class="co"># unconstrained</span></span>
+<span id="cb44-6"><a href="#cb44-6" aria-hidden="true" tabindex="-1"></a>              <span class="at">rcov=</span> <span class="sc">~</span> <span class="fu">vsc</span>(<span class="fu">isc</span>(units, <span class="at">thetaC=</span>mm,<span class="at">theta=</span><span class="fu">matrix</span>(<span class="dv">1</span><span class="sc">/</span>vei,<span class="dv">1</span>,<span class="dv">1</span>))), <span class="co"># constrained</span></span>
+<span id="cb44-7"><a href="#cb44-7" aria-hidden="true" tabindex="-1"></a>              <span class="at">data=</span>DT, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb44-8"><a href="#cb44-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb44-9"><a href="#cb44-9" aria-hidden="true" tabindex="-1"></a><span class="co"># analyze variance components</span></span>
+<span id="cb44-10"><a href="#cb44-10" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(mix3)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                VarComp    VarCompSE       Zratio Constraint
-## Rowf:isc:isc  976.2789 8.911917e-16 1.095476e+18   Positive
+## Rowf:isc:isc  976.0743 8.916297e-16 1.094708e+18   Positive
 ## units:mm:vei:   1.0000 1.227629e-03 8.145785e+02      Fixed</code></pre>
 </div>
 <div id="how-can-i-constrain-two-variance-components-to-be-equal" class="section level3">
@@ -1001,23 +977,20 @@ For example to fix the residuals equal to 1:</p>
 <p>Sometimes the built-in capacities of sommer are not flexible enough
 to do all what users want. One of those situations is to fix variance
 components to be equal. Let’s simulate some multitrait data:</p>
-<div class="sourceCode" id="cb64"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb64-1"><a href="#cb64-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;MASS&quot;</span>)  <span class="do">## needed for mvrnorm</span></span>
-<span id="cb64-2"><a href="#cb64-2" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">100</span></span>
-<span id="cb64-3"><a href="#cb64-3" aria-hidden="true" tabindex="-1"></a>mu <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">2</span>)</span>
-<span id="cb64-4"><a href="#cb64-4" aria-hidden="true" tabindex="-1"></a>Sigma <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">10</span>,<span class="dv">5</span>,<span class="dv">5</span>,<span class="dv">10</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
-<span id="cb64-5"><a href="#cb64-5" aria-hidden="true" tabindex="-1"></a>Y <span class="ot">&lt;-</span> <span class="fu">mvrnorm</span>(n,mu,Sigma); <span class="fu">colnames</span>(Y) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;y1&quot;</span>,<span class="st">&quot;y2&quot;</span>)</span>
-<span id="cb64-6"><a href="#cb64-6" aria-hidden="true" tabindex="-1"></a><span class="do">## this simulates multivariate normal rvs</span></span>
-<span id="cb64-7"><a href="#cb64-7" aria-hidden="true" tabindex="-1"></a>y <span class="ot">&lt;-</span> <span class="fu">as.vector</span>(<span class="fu">t</span>(Y))</span>
-<span id="cb64-8"><a href="#cb64-8" aria-hidden="true" tabindex="-1"></a>df1 <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(Y)</span>
-<span id="cb64-9"><a href="#cb64-9" aria-hidden="true" tabindex="-1"></a>df2 <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(y)</span></code></pre></div>
+<div class="sourceCode" id="cb46"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb46-1"><a href="#cb46-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(<span class="st">&quot;MASS&quot;</span>)  <span class="do">## needed for mvrnorm</span></span>
+<span id="cb46-2"><a href="#cb46-2" aria-hidden="true" tabindex="-1"></a>n <span class="ot">&lt;-</span> <span class="dv">100</span></span>
+<span id="cb46-3"><a href="#cb46-3" aria-hidden="true" tabindex="-1"></a>mu <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">2</span>)</span>
+<span id="cb46-4"><a href="#cb46-4" aria-hidden="true" tabindex="-1"></a>Sigma <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">10</span>,<span class="dv">5</span>,<span class="dv">5</span>,<span class="dv">10</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb46-5"><a href="#cb46-5" aria-hidden="true" tabindex="-1"></a>Y <span class="ot">&lt;-</span> <span class="fu">mvrnorm</span>(n,mu,Sigma); <span class="fu">colnames</span>(Y) <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="st">&quot;y1&quot;</span>,<span class="st">&quot;y2&quot;</span>)</span>
+<span id="cb46-6"><a href="#cb46-6" aria-hidden="true" tabindex="-1"></a><span class="do">## this simulates multivariate normal rvs</span></span>
+<span id="cb46-7"><a href="#cb46-7" aria-hidden="true" tabindex="-1"></a>y <span class="ot">&lt;-</span> <span class="fu">as.vector</span>(<span class="fu">t</span>(Y))</span>
+<span id="cb46-8"><a href="#cb46-8" aria-hidden="true" tabindex="-1"></a>df1 <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(Y)</span>
+<span id="cb46-9"><a href="#cb46-9" aria-hidden="true" tabindex="-1"></a>df2 <span class="ot">&lt;-</span> <span class="fu">data.frame</span>(y)</span></code></pre></div>
 <p>Now lets assume that we want to fit a multitrait model with an
 unstructured error variance structure with the built-in capacity. That
 would be as easy as this:</p>
-<div class="sourceCode" id="cb65"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb65-1"><a href="#cb65-1" aria-hidden="true" tabindex="-1"></a>mix1 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(<span class="fu">cbind</span>(y1,y2)<span class="sc">~</span><span class="dv">1</span>, <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsr</span>(units, <span class="at">Gtc=</span><span class="fu">unsm</span>(<span class="dv">2</span>)), <span class="at">data=</span>df1, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb67"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb67-1"><a href="#cb67-1" aria-hidden="true" tabindex="-1"></a>mix1<span class="sc">$</span>sigma</span></code></pre></div>
+<div class="sourceCode" id="cb47"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb47-1"><a href="#cb47-1" aria-hidden="true" tabindex="-1"></a>mix1 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(<span class="fu">cbind</span>(y1,y2)<span class="sc">~</span><span class="dv">1</span>, <span class="at">rcov=</span><span class="sc">~</span><span class="fu">vsr</span>(units, <span class="at">Gtc=</span><span class="fu">unsm</span>(<span class="dv">2</span>)), <span class="at">data=</span>df1, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb47-2"><a href="#cb47-2" aria-hidden="true" tabindex="-1"></a>mix1<span class="sc">$</span>sigma</span></code></pre></div>
 <pre><code>## $`u:units`
 ##          y1        y2
 ## y1 9.902536  5.543521
@@ -1027,31 +1000,25 @@ would be as easy as this:</p>
 to take a different approach. The user can build externally the
 multitrait matrices and fit them directly. Let’s do this to recreate the
 exact same result as using the built-in capabilities:</p>
-<div class="sourceCode" id="cb69"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb69-1"><a href="#cb69-1" aria-hidden="true" tabindex="-1"></a>X <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">rep</span>(<span class="dv">1</span>,n),<span class="fu">diag</span>(<span class="dv">1</span>,<span class="dv">2</span>))</span>
-<span id="cb69-2"><a href="#cb69-2" aria-hidden="true" tabindex="-1"></a>V1 <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
-<span id="cb69-3"><a href="#cb69-3" aria-hidden="true" tabindex="-1"></a>V2 <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">1</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
-<span id="cb69-4"><a href="#cb69-4" aria-hidden="true" tabindex="-1"></a>V3 <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
-<span id="cb69-5"><a href="#cb69-5" aria-hidden="true" tabindex="-1"></a>sig1 <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">diag</span>(<span class="dv">1</span>,n),V1) <span class="co"># variance component 1</span></span>
-<span id="cb69-6"><a href="#cb69-6" aria-hidden="true" tabindex="-1"></a>sig2 <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">diag</span>(<span class="dv">1</span>,n),V2) <span class="co"># variance component 2</span></span>
-<span id="cb69-7"><a href="#cb69-7" aria-hidden="true" tabindex="-1"></a>gam <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">diag</span>(<span class="dv">1</span>,n),V3) <span class="co"># covariance component</span></span>
-<span id="cb69-8"><a href="#cb69-8" aria-hidden="true" tabindex="-1"></a><span class="co"># now fit the model</span></span>
-<span id="cb69-9"><a href="#cb69-9" aria-hidden="true" tabindex="-1"></a>mix2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(y<span class="sc">~</span>X<span class="dv">-1</span>, <span class="at">rcov =</span> <span class="sc">~</span><span class="fu">vsr</span>(sig1)<span class="sc">+</span><span class="fu">vsr</span>(sig2)<span class="sc">+</span><span class="fu">vsr</span>(gam,<span class="at">Gti =</span> <span class="fu">matrix</span>(.<span class="dv">15</span>)), <span class="at">data=</span>df2, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb71"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb71-1"><a href="#cb71-1" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigmaVector</span></code></pre></div>
+<div class="sourceCode" id="cb49"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb49-1"><a href="#cb49-1" aria-hidden="true" tabindex="-1"></a>X <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">rep</span>(<span class="dv">1</span>,n),<span class="fu">diag</span>(<span class="dv">1</span>,<span class="dv">2</span>))</span>
+<span id="cb49-2"><a href="#cb49-2" aria-hidden="true" tabindex="-1"></a>V1 <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">1</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb49-3"><a href="#cb49-3" aria-hidden="true" tabindex="-1"></a>V2 <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">0</span>,<span class="dv">1</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb49-4"><a href="#cb49-4" aria-hidden="true" tabindex="-1"></a>V3 <span class="ot">&lt;-</span> <span class="fu">matrix</span>(<span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>,<span class="dv">1</span>,<span class="dv">0</span>),<span class="dv">2</span>,<span class="dv">2</span>)</span>
+<span id="cb49-5"><a href="#cb49-5" aria-hidden="true" tabindex="-1"></a>sig1 <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">diag</span>(<span class="dv">1</span>,n),V1) <span class="co"># variance component 1</span></span>
+<span id="cb49-6"><a href="#cb49-6" aria-hidden="true" tabindex="-1"></a>sig2 <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">diag</span>(<span class="dv">1</span>,n),V2) <span class="co"># variance component 2</span></span>
+<span id="cb49-7"><a href="#cb49-7" aria-hidden="true" tabindex="-1"></a>gam <span class="ot">&lt;-</span> <span class="fu">kronecker</span>(<span class="fu">diag</span>(<span class="dv">1</span>,n),V3) <span class="co"># covariance component</span></span>
+<span id="cb49-8"><a href="#cb49-8" aria-hidden="true" tabindex="-1"></a><span class="co"># now fit the model</span></span>
+<span id="cb49-9"><a href="#cb49-9" aria-hidden="true" tabindex="-1"></a>mix2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(y<span class="sc">~</span>X<span class="dv">-1</span>, <span class="at">rcov =</span> <span class="sc">~</span><span class="fu">vsr</span>(sig1)<span class="sc">+</span><span class="fu">vsr</span>(sig2)<span class="sc">+</span><span class="fu">vsr</span>(gam,<span class="at">Gti =</span> <span class="fu">matrix</span>(.<span class="dv">15</span>)), <span class="at">data=</span>df2, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb49-10"><a href="#cb49-10" aria-hidden="true" tabindex="-1"></a>mix2<span class="sc">$</span>sigmaVector</span></code></pre></div>
 <pre><code>## u:sig1.y-y u:sig2.y-y  u:gam.y-y 
 ##   9.902350  10.125683   5.543179</code></pre>
 <p>Notice that we fitted a univariate model but we built the kernels and
 fitted those kernels one by one.</p>
 <p>Now we will constrain the two variance components to be equal. This
 is done the following way:</p>
-<div class="sourceCode" id="cb73"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb73-1"><a href="#cb73-1" aria-hidden="true" tabindex="-1"></a>sig <span class="ot">&lt;-</span> sig1<span class="sc">+</span>sig2</span>
-<span id="cb73-2"><a href="#cb73-2" aria-hidden="true" tabindex="-1"></a>mix3 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(y<span class="sc">~</span>X<span class="dv">-1</span>, <span class="at">rcov =</span> <span class="sc">~</span><span class="fu">vsr</span>(sig)<span class="sc">+</span><span class="fu">vsr</span>(gam,<span class="at">Gti =</span> <span class="fu">matrix</span>(.<span class="dv">15</span>)), <span class="at">data=</span>df2, <span class="at">nIters=</span><span class="dv">30</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Version out of date. Please update sommer to the newest version using:
-## install.packages(&#39;sommer&#39;) in a new session
-##  Use the &#39;dateWarning&#39; argument to disable the warning message.</code></pre>
-<div class="sourceCode" id="cb75"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb75-1"><a href="#cb75-1" aria-hidden="true" tabindex="-1"></a>mix3<span class="sc">$</span>sigmaVector</span></code></pre></div>
+<div class="sourceCode" id="cb51"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb51-1"><a href="#cb51-1" aria-hidden="true" tabindex="-1"></a>sig <span class="ot">&lt;-</span> sig1<span class="sc">+</span>sig2</span>
+<span id="cb51-2"><a href="#cb51-2" aria-hidden="true" tabindex="-1"></a>mix3 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(y<span class="sc">~</span>X<span class="dv">-1</span>, <span class="at">rcov =</span> <span class="sc">~</span><span class="fu">vsr</span>(sig)<span class="sc">+</span><span class="fu">vsr</span>(gam,<span class="at">Gti =</span> <span class="fu">matrix</span>(.<span class="dv">15</span>)), <span class="at">data=</span>df2, <span class="at">nIters=</span><span class="dv">30</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb51-3"><a href="#cb51-3" aria-hidden="true" tabindex="-1"></a>mix3<span class="sc">$</span>sigmaVector</span></code></pre></div>
 <pre><code>## u:sig.y-y u:gam.y-y 
 ## 10.014017  5.543179</code></pre>
 </div>
@@ -1094,6 +1061,30 @@ dataset used as input is of class tibtable or any other you may get this
 error message. Please use the following command to fix the issue:</p>
 <p>dataset &lt;- as.data.frame(dataset)</p>
 <p>This should put the dataset in the expected format.</p>
+</div>
+<div id="i-get-an-error-error-addition-incompatible-matrix-dimensions-n1xn1-and-n2xn2" class="section level3">
+<h3>12) I get an error “Error: addition: incompatible matrix dimensions:
+n1xn1 and n2xn2”</h3>
+<p>This is very likely because you’re fitting a different residual
+variance for different levels of a random variable. Please make sure you
+sort your dataset by the variables you’re fitting the residuals at. For
+example:</p>
+<p>DT=DT[with(DT, order(Env)), ]</p>
+<p>sorts a data set named DT by levels of a variable named Env. That way
+a model with a different residual variance for each level of Env can be
+fitted as:</p>
+<p>rcov ~ vsc(dsc(Env), isc(units))</p>
+</div>
+<div id="my-mmec-model-only-runs-few-iterations-giving-meaningless-results" class="section level3">
+<h3>13) My mmec model only runs few iterations giving meaningless
+results</h3>
+<p>This can happen when the units of your trait being modeled are either
+too small or too big. Try scaling the units of your trait so the
+differences between the levels is not in either too big (var&gt;10,000)
+or too small units (var &lt; 0.01). Alternatively, modify the argument
+tolParInv to a smaller value like 1e-8 or higher. Last and probably the
+best since is guaranteed to work is, scale your trait using the scale()
+function.</p>
 </div>
 </div>
 <div id="literature" class="section level2">

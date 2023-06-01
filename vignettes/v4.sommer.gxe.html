@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2023-04-06" />
+<meta name="date" content="2023-05-10" />
 
 <title>Fitting genotype by environment models in sommer</title>
 
@@ -341,7 +341,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h1 class="title toc-ignore">Fitting genotype by environment models in
 sommer</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2023-04-06</h4>
+<h4 class="date">2023-05-10</h4>
 
 
 
@@ -946,7 +946,9 @@ modeling. Here we show how to do it (not recommending it).</p>
 <span id="cb36-19"><a href="#cb36-19" aria-hidden="true" tabindex="-1"></a>             <span class="at">tolParConvNorm =</span> .<span class="dv">0001</span>,</span>
 <span id="cb36-20"><a href="#cb36-20" aria-hidden="true" tabindex="-1"></a>             <span class="at">nIters =</span> <span class="dv">50</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span></span>
 <span id="cb36-21"><a href="#cb36-21" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div>
-<pre><code>## as(&lt;dgeMatrix&gt;, &quot;dgCMatrix&quot;) is deprecated since Matrix 1.5-0; do as(., &quot;CsparseMatrix&quot;) instead</code></pre>
+<pre><code>## &#39;as(&lt;dgeMatrix&gt;, &quot;dgCMatrix&quot;)&#39; is deprecated.
+## Use &#39;as(., &quot;CsparseMatrix&quot;)&#39; instead.
+## See help(&quot;Deprecated&quot;) and help(&quot;Matrix-deprecated&quot;).</code></pre>
 <div class="sourceCode" id="cb38"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb38-1"><a href="#cb38-1" aria-hidden="true" tabindex="-1"></a><span class="co"># summary(mix2)$varcomp</span></span>
 <span id="cb38-2"><a href="#cb38-2" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb38-3"><a href="#cb38-3" aria-hidden="true" tabindex="-1"></a>b<span class="ot">=</span>mix2<span class="sc">$</span>uList<span class="sc">$</span><span class="st">`</span><span class="at">vsc(dsc(envIndex), isc(Name))</span><span class="st">`</span> <span class="co"># adaptability (b) or genotype slopes</span></span>

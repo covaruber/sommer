@@ -85,11 +85,6 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     if (!inherits(Gu, "dgCMatrix")){
       stop("Gu matrix is not of class dgCMatrix. Please correct \n", call. = TRUE )
     }
-    # cn <- colnames(init[[k]]$Z)
-    # if(is.null(cn)){
-    #   stop("Gu matrix needs to have row and column names matching the levels of the random effect. Please correct \n", call. = TRUE )
-    # }
-    # Gu <- Gu[cn,cn]
   }
   #############################
   ######################################
@@ -167,7 +162,9 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
   sp0 <- ifelse(sp,1,0)
   sp0 <- rep(sp0,nrow(thetaF))
   if(sp){thetaF <- thetaF*0}
-
+  # we make sure that the A matrix is properly ordered
+  cn <- colnames(Z[[length(Z)]])
+  Gu <- Gu[cn,cn]
   output <- list(Z=Z, Gu=Gu, theta=theta, thetaC=thetaC, thetaF=thetaF,partitionsR=partitionsR, sp=sp0)
   return(output)
 }

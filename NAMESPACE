@@ -26,7 +26,7 @@ export(atr,csr,dsr,usr,vsr, gvsr, vs, ## mmer
 export( spl2Da,spl2Db, spl2Dc,spl2Dmats,bbasis,tpsmmbwrapper)
 
 ## FUN_markers
-export(atcg1234,build.HMM)
+export(atcg1234,build.HMM, neMarker)
 
 ## FUN_stats
 export(adiag1, imputev, logspace,
@@ -88,9 +88,9 @@ S3method(print, wald.test)
   import("methods")
   import("Matrix")
   import("MASS")
-  import("lattice")
   import("crayon")
  # import("data.table")
+  # import("lattice")
 ############
 # IMPORTS
 ############
@@ -112,6 +112,7 @@ S3method(print, wald.test)
              "nobs", "ppoints", "sd", "model.frame", "model.response", "na.pass",
              "cor", "optim", "rchisq","quantile","deriv","terms.formula",
              "aggregate","pf","terms", "reshape")
-  importFrom("lattice", "wireframe")
+#  importFrom("RcppArmadillo", "fastLm")
+#  importFrom("lattice", "wireframe")
 #  importFrom("data.table", "setkeyv","data.table")
 

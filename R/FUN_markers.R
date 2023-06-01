@@ -1,3 +1,31 @@
+neMarker <- function(M, maxNe=100, maxMarker=1000, nSamples=5){
+  # maxMarker argument: only used a limited number of markers to avoid this to be too time consuming
+  v <- sample(1:ncol(M), min(c(maxMarker, ncol(M))))
+  M <- M[,v]
+  # calculate the total number of alleles in the population
+  nAllelesPop <- apply(M,2,function(x){ifelse(length(table(x)) > 1, 2, 1)})
+  nAllelesPopTotal <- sum(nAllelesPop)
+  # maxNe argument: define the range to test
+  maxNe <- min(c(maxNe, nrow(M)))
+  # do the sampling algorithm
+  allelesCovered <- allelesCoveredSe <- vector(mode="numeric", length = maxNe)
+  for(i in 2:maxNe){ # for a possible Ne
+    print(i)
+    allelesCoveredSample <- vector(mode="numeric", length = nSamples)
+    # nSamples argument: take a couple of samples 
+    for(j in 1:nSamples){
+      ii <- sample(1:nrow(M),i) # sample i individuals
+      nAllelesPopI <- apply(M[ii,],2,function(x){ifelse(length(table(x)) > 1, 2, 1)}) # how many alleles we collect in the sample
+      allelesCoveredSample[j] <- sum(nAllelesPopI) # sum them up
+    }
+    allelesCovered[i] <- mean(allelesCoveredSample)/nAllelesPopTotal # mean across samples
+    allelesCoveredSe[i] <- ( sd(allelesCoveredSample/nAllelesPopTotal) ) # SE across samples 
+  }
+  # save results
+  result <- data.frame(allelesCovered=allelesCovered, allelesCoveredSe=allelesCoveredSe, Ne=1:maxNe)
+  return(result)
+}
+
 atcg1234 <- function(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, silent=FALSE, by.allele=FALSE, imp=TRUE, ref.alleles=NULL){
   
   impute.mode <- function(x) {

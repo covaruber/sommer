@@ -1,11 +1,12 @@
-corImputation <- function(wide, Gu=NULL, nearest=1, roundR=FALSE){
+corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
+  if(is.null(rownames(wide))){stop("Rownames of the input matrix cannot be NULL. Please add them", call. = FALSE)}
   if(is.null(Gu)){
     X <- apply(wide, 2, sommer::imputev)
     Gu <- cor(t(X))
   }
   wide2 <- wide
   rowNamesWide <-  rownames(wide)
-  
+  # for each feature
   for(iEnv in 1:ncol(wide)){ # iEnv=10
     withData <- which(!is.na(wide[,iEnv]))
     withoutData <- which(is.na(wide[,iEnv]))
@@ -37,13 +38,15 @@ corImputation <- function(wide, Gu=NULL, nearest=1, roundR=FALSE){
       wide2[toPredict,iEnv] <- replacement
     }
   }
+  # for each individual
   for(jRow in 1:nrow(wide)){
     miss <- which(is.na(wide[jRow,]))
     if(length(miss) > 0){
       dd=data.frame(full=as.vector(unlist(wide2[jRow,])), partial=as.vector(unlist(wide[jRow,])))
-      model <- RcppArmadillo::fastLm(partial~full,data=dd[which(!is.na(dd$partial)),])
+      # model <- fastLm(partial~full,data=dd[which(!is.na(dd$partial)),])
       # model <- lm(partial~full,data=dd[which(!is.na(dd$partial)),])
-      pp=model$coefficients[1]+(dd[which(is.na(dd$partial)),"full"]*model$coefficients[2])
+      model <- mmec(partial~full,data=dd[which(!is.na(dd$partial)),], verbose = FALSE)
+      pp=as.vector(model$b[1,1])+(dd[which(is.na(dd$partial)),"full"]*as.vector(model$b[2,1]))
       if(roundR){
         wide[jRow,miss] <- round(pp)#round(predict(model,newdata = dd[which(is.na(dd$partial)),]))
       }else{
