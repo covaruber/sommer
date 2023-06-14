@@ -6,7 +6,7 @@
 }
 \usage{
   rrc(timevar=NULL, idvar=NULL, response=NULL, 
-      Gu=NULL, nPC=2, returnGamma=FALSE)
+      Gu=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE)
 }
 
 \arguments{
@@ -16,6 +16,7 @@
   \item{Gu}{an optional covariance matrix (\strong{NOT THE INVERSE}) between levels of the idvar in case a sparse (unbalanced) design between timevar and idvar exist.}
   \item{nPC}{number of principal components to keep.}
   \item{returnGamma}{a TRUE/FALSE argument specifying if the function should return the matrix of loadings of the incidence matrix for the model. The default is FALSE so it returns the incidence matrix.}
+    \item{cholD}{a TRUE/FALSE argument specifying if the Cholesky decomposition should be calculated or the singular value decomposition should be used instead.}
 }
 \details{
 This implementation of a version of the reduced rank factor analytic models uses the so-called principal component (PC) models (Meyer, 2009) which assumes specific effects (psi) are equal to 0. The model is as follows:
@@ -81,21 +82,21 @@ The resulting loadings (Gamma) and factor scores can be thought as an equivalent
 \examples{
 
 data(DT_h2)
-DT <- DT_h2
-DT=DT[with(DT, order(Env)), ]
-
-ans1b <- mmec(y~Env,
-              random=~vsc( usc(rrc(Env, Name, y, nPC = 3)) , isc(Name)),
-              rcov=~units, 
-              # we recommend giving more iterations to these models
-              nIters = 50, 
-              # we recommend giving more EM iterations at the beggining 
-              emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
-              data=DT)
-
-summary(ans1b)$varcomp
-vcd <- diag(ans1b$theta[[1]])
-vcd/sum(vcd) # the 3rd PC still explains more than the 2nd
+# DT <- DT_h2
+# DT=DT[with(DT, order(Env)), ]
+# 
+# ans1b <- mmec(y~Env,
+#               random=~vsc( usc(rrc(Env, Name, y, nPC = 3)) , isc(Name)),
+#               rcov=~units, 
+#               # we recommend giving more iterations to these models
+#               nIters = 50, 
+#               # we recommend giving more EM iterations at the beggining 
+#               emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
+#               data=DT)
+# 
+# summary(ans1b)$varcomp
+# vcd <- diag(ans1b$theta[[1]])
+# vcd/sum(vcd) # the 3rd PC still explains more than the 2nd
 # ## Extract BLUPs
 # ## extract loadings
 # loadings=with(DT, rrc(Env, Name, y, returnGamma = TRUE, nPC = 3))$Gamma

@@ -8,7 +8,7 @@ Build a hybrid marker matrix using parental genotypes from inbred individuals
 Uses the 2 marker matrices from both sets of inbred or partially inbred parents and creates all possible combinations unless the user specifies which hybrid genotypes to build (custom.hyb argument). It returns the additive and dominance marker matrices (-1,0,1; homo,het,homo in additive and 0,1,0; homo,het,homo for dominance).
 }
 \usage{
-build.HMM(M1,M2, custom.hyb=NULL, return.combos.only=FALSE)
+build.HMM(M1,M2, custom.hyb=NULL, return.combos.only=FALSE,separator=":")
 }
 
 \arguments{
@@ -25,8 +25,13 @@ coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are not allowe
 \item{custom.hyb}{
 A data frame with columns 'Var1' 'Var2', 'hybrid' which specifies which hybrids should be built using the M1 and M2 matrices provided.
 }
+
 \item{return.combos.only}{
 A TRUE/FALSE statement inicating if the function should skip building the geotype matrix for hybrids and only return the data frame with all possible combinations to be build. In case the user wants to subset the hybrids before building the marker matrix.
+}
+
+\item{separator}{
+Any desired character to be used when pasting the male and female columns to assign the name to the hybrids.
 }
 
 }

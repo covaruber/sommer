@@ -11,13 +11,13 @@ corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
     withData <- which(!is.na(wide[,iEnv]))
     withoutData <- which(is.na(wide[,iEnv]))
     toPredict <- 1:nrow(wide)
-    if(length(toPredict) > 1){
-      likelihood=Gu[as.character(rowNamesWide)[toPredict],as.character(rowNamesWide)[withData]]
-    }else{
-      likelihood=matrix(Gu[as.character(rowNamesWide)[toPredict],as.character(rowNamesWide)[withData]], nrow=1)
-      rownames(likelihood) <- as.character(rowNamesWide)[toPredict]
-      colnames(likelihood) <- as.character(rowNamesWide)[withData]
-    }
+    # if(length(toPredict) > 1){
+    likelihood=Gu[as.character(rowNamesWide)[toPredict],as.character(rowNamesWide)[withData], drop=FALSE]
+    # }else{
+    #   likelihood=matrix(Gu[as.character(rowNamesWide)[toPredict],as.character(rowNamesWide)[withData]], nrow=1)
+    #   rownames(likelihood) <- as.character(rowNamesWide)[toPredict]
+    #   colnames(likelihood) <- as.character(rowNamesWide)[withData]
+    # }
     replacement <- numeric()
     for(iInd in 1:nrow(likelihood)){ # iInd=1
       # averaging only the positively correlated to avoid decrease   # wide[iInd, iEnv]
@@ -54,6 +54,11 @@ corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
       }
     }
   }
+  stillEmpty <- which(is.na(wide), arr.ind = TRUE)
+  if(nrow(stillEmpty) > 0){wide[stillEmpty] <- mean(wide, na.rm=TRUE)}
+  stillEmpty <- which(is.na(wide2), arr.ind = TRUE)
+  if(nrow(stillEmpty) > 0){wide2[stillEmpty] <- mean(wide2, na.rm=TRUE)}
+  
   return(list(imputed=wide, corImputed=wide2))
 }
 

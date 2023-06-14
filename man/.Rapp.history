@@ -1,7 +1,0 @@
-library(RcppArmadillo)
-library(sommer)
-library(RcppArmadillo)
-library(Rcpp)
-library(RcppArmadillo)
-?RcppArmadillo
-library(sommer)

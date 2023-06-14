@@ -251,42 +251,42 @@ Tunnicliffe W. 1989. On the use of marginal likelihood in time series model esti
 ####=========================================####
 
 data(DT_example)
-DT <- DT_example
-DT=DT[with(DT, order(Env)), ]
-head(DT)
 
-####=========================================####
-#### Univariate homogeneous variance models  ####
-####=========================================####
-
-## Compound simmetry (CS) model
-ans1 <- mmer(Yield~Env,
-             random= ~ Name + Env:Name,
-             rcov= ~ units,
-             data=DT)
-summary(ans1)
-
-ans2 <- mmec(Yield~Env,
-             random= ~ Name + Env:Name,
-             rcov= ~ units,
-             data=DT)
-summary(ans2)
-
-####===========================================####
-#### Univariate heterogeneous variance models  ####
-####===========================================####
-
-## Compound simmetry (CS) + Diagonal (DIAG) model
-ans3 <- mmer(Yield~Env,
-             random= ~Name + vsr(dsr(Env),Name),
-             rcov= ~ vsr(dsr(Env),units),
-             data=DT)
-summary(ans3)
-
-ans4 <- mmec(Yield~Env,
-             random= ~Name + vsc(dsc(Env),isc(Name)),
-             rcov= ~ vsc(dsc(Env),isc(units)),
-             data=DT)
-summary(ans4)
+# DT <- DT_example
+# DT=DT[with(DT, order(Env)), ]
+# head(DT)
+# 
+# ####=========================================####
+# #### Univariate homogeneous variance models  ####
+# ####=========================================####
+# 
+# ## Compound simmetry (CS) model
+# ans1 <- mmer(Yield~Env,
+#              random= ~ Name + Env:Name,
+#              rcov= ~ units,
+#              data=DT)
+# summary(ans1)
+# 
+# ans2 <- mmec(Yield~Env,
+#              random= ~ Name + Env:Name,
+#              rcov= ~ units,
+#              data=DT)
+# summary(ans2)
+# 
+# ####===========================================####
+# #### Univariate heterogeneous variance models  ####
+# ####===========================================####
+# ## Compound simmetry (CS) + Diagonal (DIAG) model
+# ans3 <- mmer(Yield~Env,
+#              random= ~Name + vsr(dsr(Env),Name),
+#              rcov= ~ vsr(dsr(Env),units),
+#              data=DT)
+# summary(ans3)
+# 
+# ans4 <- mmec(Yield~Env,
+#              random= ~Name + vsc(dsc(Env),isc(Name)),
+#              rcov= ~ vsc(dsc(Env),isc(units)),
+#              data=DT)
+# summary(ans4)
 
 }

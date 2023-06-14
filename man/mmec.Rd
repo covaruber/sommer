@@ -25,11 +25,11 @@ mmec(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
 
   }
 
-  \item{random}{A formula specifying the name of the \strong{random effects}, i.e. \emph{random= ~ genotype + year}.
+  \item{random}{A formula specifying the name of the \strong{random effects}, e.g., \emph{random= ~ genotype + year}.
 
   Useful functions can be used to fit heterogeneous variances and other special models (\emph{see 'Special Functions' in the Details section for more information}):
 
-  \code{\link{vsc}(...,Gu)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (i.e. usc,dsc,at,csc) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance matrices among the levels of the random effect. Auxiliar functions for building the variance models are:
+  \code{\link{vsc}(...,Gu)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (e.g., usc,dsc,at,csc) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance matrices among the levels of the random effect. Auxiliar functions for building the variance models are:
 
   ** \code{\link{dsc}(x)}, \code{\link{usc}(x)}, \code{\link{rrc}(x,y,z)} , \code{\link{isc}(x)},\code{\link{csc}(x)}, and \code{\link{atc}(x,levs)} can be used to specify unknown diagonal, unstructured, reduced-rank, identity, and customized unstructured and diagonal covariance structures respectively to be estimated by REML.
 
@@ -38,9 +38,9 @@ mmec(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
   ** \code{\link{overlay}()}, \code{\link{spl2Dc}()}, and \code{\link{leg}()}, \code{\link{redmm}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline, random regression, and dimensionality-reduction models within the \code{\link{vsc}()} function.
 
   }
-  \item{rcov}{A formula specifying the name of the \strong{error term}, i.e. \emph{rcov= ~ units}.
+  \item{rcov}{A formula specifying the name of the \strong{error term}, e.g., \emph{rcov= ~ units}.
 
-  Special heterogeneous and special variance models and constraints for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, i.e. \emph{rcov=~vsc(dsc(covariate),isc(units))}
+  Special heterogeneous and special variance models and constraints for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, e.g., \emph{rcov=~vsc(dsc(covariate),isc(units))}
 
   When fitting structures at the level of residuals please make sure that your data is sorted based on the factors defining the structure. For example, for \emph{rcov= ~ vsc(dsc(xx), isc(units))} sort the datatset by the variable xx.
 
@@ -90,15 +90,15 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
  \code{\link{vsc}(\link{atc}(x,levels),isc(y))}
 
- can be used to specify heterogeneous variance for the "y" covariate at specific levels of the covariate "x", i.e. \emph{random=~vsc(at(Location,c("A","B")),isc(ID))} fits a variance component for ID at levels A and B of the covariate Location.
+ can be used to specify heterogeneous variance for the "y" covariate at specific levels of the covariate "x", e.g., \emph{random=~vsc(at(Location,c("A","B")),isc(ID))} fits a variance component for ID at levels A and B of the covariate Location.
 
  \code{\link{vsc}(\link{dsc}(x),isc(y))}
 
- can be used to specify a diagonal covariance structure for the "y" covariate for all levels of the covariate "x", i.e. \emph{random=~vsc(dsc(Location),isc(ID))}  fits a variance component for ID at all levels of the covariate Location.
+ can be used to specify a diagonal covariance structure for the "y" covariate for all levels of the covariate "x", e.g., \emph{random=~vsc(dsc(Location),isc(ID))}  fits a variance component for ID at all levels of the covariate Location.
 
  \code{\link{vsc}(\link{usc}(x),isc(y))}
 
- can be used to specify an unstructured covariance structure for the "y" covariate for all levels of the  covariate "x", i.e. \emph{random=~vsc(usc(Location),isc(ID))}  fits variance and covariance components for ID at all levels of the covariate Location.
+ can be used to specify an unstructured covariance structure for the "y" covariate for all levels of the  covariate "x", e.g., \emph{random=~vsc(usc(Location),isc(ID))}  fits variance and covariance components for ID at all levels of the covariate Location.
  
  \code{\link{vsc}(\link{usc}(\link{rrc}(x,y,z,nPC)),isc(y))}
 
@@ -106,11 +106,11 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
   \code{\link{vsc}(isc(\link{overlay}(...,rlist=NULL,prefix=NULL)))}
 
- can be used to specify overlay of design matrices between consecutive random effects specified, i.e. \emph{random=~vsc(isc(overlay(male,female)))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vsc().
+ can be used to specify overlay of design matrices between consecutive random effects specified, e.g., \emph{random=~vsc(isc(overlay(male,female)))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vsc().
  
    \code{\link{vsc}(isc(\link{redmm}(x,M,nPC)))}
 
- can be used to create a reduced model matrix of an effect (x) assumed to be a linear function of some feature matrix (M), i.e. \emph{random=~vsc(isc(redmm(x,M)))} creates an incidence matrix from a very large set of features (M) that belong to the levels of x to create a reduced model matrix. See \code{\link{redmm}} for details.Can be combined with vsc().
+ can be used to create a reduced model matrix of an effect (x) assumed to be a linear function of some feature matrix (M), e.g., \emph{random=~vsc(isc(redmm(x,M)))} creates an incidence matrix from a very large set of features (M) that belong to the levels of x to create a reduced model matrix. See \code{\link{redmm}} for details.Can be combined with vsc().
 
   \code{\link{vsc}(\link{leg}(x,n),isc(y))}
 
@@ -118,11 +118,11 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
   \code{\link{spl2Dc}(x.coord, y.coord, at.var, at.levels))}
 
-  can be used to fit a 2-dimensional spline (i.e. spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class) assuming multiple variance components. The 2D spline can be fitted at specific levels using the \code{at.var} and \code{at.levels} arguments. For example \emph{random=~spl2Dc(x.coord=Row,y.coord=Range,at.var=FIELD)}.
+  can be used to fit a 2-dimensional spline (e.g., spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class) assuming multiple variance components. The 2D spline can be fitted at specific levels using the \code{at.var} and \code{at.levels} arguments. For example \emph{random=~spl2Dc(x.coord=Row,y.coord=Range,at.var=FIELD)}.
 
 \strong{S3 methods}{
 
-S3 methods are available for some parameter extraction such as \code{\link{fitted.mmec}}, \code{\link{residuals.mmec}}, \code{\link{summary.mmec}}, \code{\link{randef}}, \code{\link{coef.mmec}}, \code{\link{anova.mmec}}, \code{\link{plot.mmec}}, and \code{\link{predict.mmec}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (i.e. ratios like h2). The \code{\link{r2}} function calculates reliability. 
+S3 methods are available for some parameter extraction such as \code{\link{fitted.mmec}}, \code{\link{residuals.mmec}}, \code{\link{summary.mmec}}, \code{\link{randef}}, \code{\link{coef.mmec}}, \code{\link{anova.mmec}}, \code{\link{plot.mmec}}, and \code{\link{predict.mmec}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (e.g., ratios like h2). The \code{\link{r2}} function calculates reliability. 
 
 }
 

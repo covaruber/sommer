@@ -287,9 +287,9 @@ ans1b <- mmec(y~Env,
 
 summary(ans1b)$varcomp
 
-Lam=with(DT, rrc(Env, Name, y, returnLam = TRUE, nPC = 2))$Lam # extract loadings
+Gamma=with(DT, rrc(Env, Name, y, returnGamma = TRUE, nPC = 2))$Gamma # extract loadings
 score.mat <- ans1b$uList[[1]]; # extract factor scores
-BLUP = score.mat %*% t(Lam) # BLUPs for all environments
+BLUP = score.mat %*% t(Gamma) # BLUPs for all environments
 
 ```
 

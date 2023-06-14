@@ -75,12 +75,16 @@
 # 
 # library(ggplot2) #For making plots
 # ggplot(ne,aes(x=Ne,y=allelesCovered))+
-#   geom_ribbon(aes(x=Ne,ymin=allelesCovered-allelesCoveredSe,ymax=allelesCovered+allelesCoveredSe),alpha=0.2,linetype=0)+
+#   geom_ribbon(aes(x=Ne,ymin=allelesCovered-allelesCoveredSe,
+#                   ymax=allelesCovered+allelesCoveredSe),
+#                   alpha=0.2,linetype=0)+
 #   geom_line(linewidth=1)+
 #   guides(alpha=FALSE)+
 #   theme_bw()+ 
 #   scale_x_continuous("Individual number")+
-#   scale_y_continuous("Allele coverage")  + geom_hline(yintercept = 0.95) + geom_hline(yintercept = 0.975)
+#   scale_y_continuous("Allele coverage")  + 
+#                geom_hline(yintercept = 0.95) + 
+#                geom_hline(yintercept = 0.975)
 
 }
 \seealso{The core functions of the package \code{\link{mmec}} }
