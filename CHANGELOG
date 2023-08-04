@@ -454,6 +454,12 @@ version 4.3.1 (2023-06-11)
  + There was a bug where the A matrix was not being reordered when provided in the mmec() function. It has been fixed.
  + A function to calculate effective population size based on allele coverage has been added.
  
+########################
+version 4.3.2 (2023-08-01)
+########################
+ + Bug in isc function fixed when matrices have a single column.
+ + redmm() function improved calling the RSpectra package
+ 
 ######################
 ## PENDINGS AND PRIORITIES 
 + we need to recode how the C matrix is constructed, adopt linear sum instead of [W y]' R [W y], otherwise the solver is extremely slow for complex models with many effects to be estimated since we multiply every time. Build the coefficient matrix only once and never modify. Then the Gi matrix should be a linear sum of Ai * vc (* being kronecker). If R will always be a diagonal with ones we should only ignore it and multiply the C + Gi by the factor 1/Ve. Still not sure how we avoid multiplication R for heterogeneous models.

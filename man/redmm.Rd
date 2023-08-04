@@ -2,7 +2,7 @@
 \alias{redmm}
 \title{Reduced Model Matrix}
 \description{
-  `redmm` uses a matrix decomposition to create a reduced model matrix of an effect (x) assumed to be a linear function of some feature matrix (M).
+  `redmm` uses a feature matrix M from a random variable x and performs a singular value decomposition or Cholesky on M and creates a model matrix for x.
 }
 \usage{
   redmm(x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE)
@@ -60,7 +60,7 @@ xx = with(DT, redmm(x=dent, M=M, nPC=10))
 #             rcov=~units,
 #             data=DT)
 # summary(ans)$varcomp
-# u = xx$Lam * ans$uList[[1]] # change * for model matrix
+# u = xx$Lam * ans$uList[[1]] # change * for matrix product
 
 }
 \seealso{The core functions of the package \code{\link{mmec}} }

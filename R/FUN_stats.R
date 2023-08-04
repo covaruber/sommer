@@ -168,7 +168,9 @@ leg <- function(x,n=1,u=-1,v=1, intercept=TRUE, intercept1=FALSE){
   
   init0 <- as.character(substitute(list(x)))[-1L]
   
-  
+  if(system.file(package = "orthopolynom") == ""){
+    stop("Please install the orthopolynom package to use this function.",call. = FALSE)
+  }
   requireNamespace("orthopolynom",quietly=TRUE)
   (leg4coef <- orthopolynom::legendre.polynomials(n=n, normalized=TRUE))
   leg4 <- as.matrix(as.data.frame(orthopolynom::polynomial.values(polynomials=leg4coef,

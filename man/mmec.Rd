@@ -120,6 +120,12 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
   can be used to fit a 2-dimensional spline (e.g., spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class) assuming multiple variance components. The 2D spline can be fitted at specific levels using the \code{at.var} and \code{at.levels} arguments. For example \emph{random=~spl2Dc(x.coord=Row,y.coord=Range,at.var=FIELD)}.
 
+\strong{Covariance between random effects}
+
+ \code{\link{covc}( \link{vsc}(\link{isc}(ran1)), \link{vsc}(\link{isc}(ran2)) )}
+
+ can be used to specify covariance between two different random effects, e.g., \emph{random=~covc( vsc(isc(x1)), vsc(isc(x2)) )} where two random effects in their own vsc() structure are encapsulated. Only applies for simple random effects.
+ 
 \strong{S3 methods}{
 
 S3 methods are available for some parameter extraction such as \code{\link{fitted.mmec}}, \code{\link{residuals.mmec}}, \code{\link{summary.mmec}}, \code{\link{randef}}, \code{\link{coef.mmec}}, \code{\link{anova.mmec}}, \code{\link{plot.mmec}}, and \code{\link{predict.mmec}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (e.g., ratios like h2). The \code{\link{r2}} function calculates reliability. 

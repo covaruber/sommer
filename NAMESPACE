@@ -14,7 +14,7 @@ export(mmer, GWAS, mmec)
 
 ## FUN_special and FUN_vsc and FUN_vsrgvsr
 export(atr,csr,dsr,usr,vsr, gvsr, vs, ## mmer
-       atc,csc,dsc,usc,vsc, isc, rrc, ## mmec
+       atc,csc,dsc,usc,vsc, isc, rrc, covc, ## mmec
        unsm,fixm,fcm,
        list2usmat, transformConstraints,
        # special functions to create model matrices

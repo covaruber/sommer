@@ -1,3 +1,14 @@
+covc <- function(ran1,ran2){
+  if( ncol(ran1$Z[[1]]) != ncol(ran2$Z[[1]]) ){stop("Matrices of the two random effects should have the same dimensions",call. = FALSE)}
+  ran1$Z[[2]] <- ran2$Z[[1]]
+  ran1$thetaC <- unsm(2); ran1$thetaC[lower.tri(ran1$thetaC)] = 0 # lower.tri must be 0
+  colnames(ran1$thetaC) <- rownames(ran1$thetaC) <- c("ran1","ran2")
+  ran1$theta <- diag(2) * 0.05 + matrix(0.1, 2, 2)
+  ran1$thetaF <- diag(3) # n x n, where n is number of vc to estimate
+  ran1$sp <- rep(0,3) # rep 0 n times, where n is number of vc to estimate
+  return(ran1)
+}
+
 stackTrait <- function(data, traits){
   idvars <- setdiff(colnames(data), traits)
   dataScaled <- data
@@ -468,6 +479,12 @@ usr <- function(x){
 ## VS structures for mmec
 redmm <- function (x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE) {
   
+  if(system.file(package = "RSpectra") == ""){
+    stop("Please install the RSpectra package to use the redmm() function.",call. = FALSE)
+  }else{
+    requireNamespace("RSpectra",quietly=TRUE)
+  }
+  
   if(is.null(M)){
     stop("M cannot be NULL. We need a matrix of features that defines the levels of x")
   }else{
@@ -494,8 +511,15 @@ redmm <- function (x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE) 
         if(inherits(smd, "try-error")){smd <- try(chol((M+diag(1e-5,nrow(M),nrow(M))) ) , silent = TRUE)}
         Lam0 = t(smd)
       }else{
-        smd <- svd(M) 
-        Lam0 = smd$u
+        # if(nrow(M) == ncol(M)){ # symmetric matrix
+        #   smd <- RSpectra::svds(M, k=nPC, which = "LM") # eigs_sym(M, k=nPC, which = "LM")
+        #   Lam0 <- smd$u # smd$vectors
+        # }else{
+        smd <- RSpectra::svds(M, k=nPC, which = "LM")
+        Lam0 <- smd$u
+        # }
+        # smd <- svd(M) 
+        # Lam0 = smd$u
       }
       Lam = Lam0[,1:min(c(nPC,ncol(M))), drop=FALSE]
       rownames(Lam) <- rownames(M)
@@ -572,8 +596,8 @@ rrc <- function(timevar=NULL, idvar=NULL, response=NULL,
   Sigma <- as.matrix(nearPD(Sigma)$mat)
   # GE <- as.data.frame(t(scale( t(scale(Y, center=T,scale=F)), center=T, scale=F)))  # sum(GE^2)
   if(cholD){
-  ## OPTION 2. USING CHOLESKY
-  Gamma <- t(chol(Sigma)); # LOADINGS  # same GE=LL' from cholesky  plot(unlist(Gamma%*%t(Gamma)), unlist(GE))
+    ## OPTION 2. USING CHOLESKY
+    Gamma <- t(chol(Sigma)); # LOADINGS  # same GE=LL' from cholesky  plot(unlist(Gamma%*%t(Gamma)), unlist(GE))
   }else{
     ## OPTION 1. USING SVD
     U <- svd(Sigma)$u;  # V <- svd(GE)$v

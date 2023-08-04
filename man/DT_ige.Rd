@@ -36,35 +36,33 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 data(DT_ige)
 DT <- DT_ige
-Af <- A_ige
-An <- A_ige
-### Direct genetic effects model
-# modDGE <- mmer(trait ~ block,
-#                random = ~ focal,
-#                rcov = ~ units, 
-#                data = DT)
-# summary(modDGE)$varcomp
-# 
-### Indirect genetic effects model without covariance between DGE and IGE
-# modDGE <- mmer(trait ~ block,
-#                random = ~focal + neighbour,
-#                rcov = ~ units, 
-#                data = DT)
-# summary(modDGE)$varcomp
-# 
-### Indirect genetic effects model with covariance between DGE and IGE
-# modIGE <- mmer(trait ~ block,
-#                random = ~ gvsr(focal, neighbour),
-#                rcov = ~ units, iters=4,
+# # Indirect genetic effects model without covariance between DGE and IGE
+# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
+#                random = ~ focal + neighbour,
+#                rcov = ~ units, nIters=100,
 #               data = DT)
 # summary(modIGE)$varcomp
-#
-### Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
-# modIGEb <- mmer(trait ~ block,
-#                random = ~ gvsr(focal, neighbour, Gu=list(Af,An)),
-#                rcov = ~ units, 
-#                data = DT)
-# summary(modIGEb)$varcomp
+# pmonitor(modIGE)
+# 
+# # Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
+# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
+#                random = ~ covc( vsc(isc(focal)), vsc(isc(neighbour)) ),
+#                rcov = ~ units, nIters=100,
+#               data = DT)
+# summary(modIGE)$varcomp
+# pmonitor(modIGE)
+# 
+# # form relationship matrix
+# Ai <- as( solve(A_ige + diag(1e-5, nrow(A_ige),nrow(A_ige) )), Class="dgCMatrix")
+# # Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
+# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
+#                random = ~ covc( vsc(isc(focal), Gu=Ai), vsc(isc(neighbour), Gu=Ai) ),
+#                rcov = ~ units, nIters=100,
+#               data = DT)
+# summary(modIGE)$varcomp
+# pmonitor(modIGE)
+
+
 }
 \keyword{datasets}
 \seealso{The core functions of the package \code{\link{mmer}} and \code{\link{mmec}} }
