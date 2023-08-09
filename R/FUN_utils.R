@@ -724,7 +724,7 @@ plot.mmec <- function(x, stnd=TRUE, ...) {
     stop("This package requires R 3.5.0 or later")
   if(interactive()) {
     packageStartupMessage(blue(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(blue(paste("[]   Solving Mixed Model Equations in R (sommer) 4.3.1 (2023-06-01) []",sep="")),appendLF=TRUE)
+    packageStartupMessage(blue(paste("[]   Solving Mixed Model Equations in R (sommer) 4.3.2 (2023-09-01) []",sep="")),appendLF=TRUE)
     packageStartupMessage(blue(paste("[]   ------------- Multivariate Linear Mixed Models --------------  []")),appendLF=TRUE)
     packageStartupMessage(paste0(blue("[]   Author: Giovanny Covarrubias-Pazaran",paste0(bgGreen(white(" ")), bgWhite(magenta("*")), bgRed(white(" "))),"                      []")),appendLF=TRUE)
     packageStartupMessage(blue("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
@@ -734,7 +734,7 @@ plot.mmec <- function(x, stnd=TRUE, ...) {
     packageStartupMessage(blue(paste("[]==================================================================[]")),appendLF=TRUE)
     packageStartupMessage(blue("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
     packageStartupMessage(blue("Current source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
-    packageStartupMessage(blue("If needed install as: devtools::install_github('covaruber/sommer')"),appendLF=TRUE)
+    packageStartupMessage(blue("If needed, install as: devtools::install_github('covaruber/sommer')"),appendLF=TRUE)
 
   }
   invisible()
