@@ -1,11 +1,17 @@
-covc <- function(ran1,ran2){
+covc <- function(ran1,ran2, thetaC=NULL, theta=NULL){
   if( ncol(ran1$Z[[1]]) != ncol(ran2$Z[[1]]) ){stop("Matrices of the two random effects should have the same dimensions",call. = FALSE)}
   ran1$Z[[2]] <- ran2$Z[[1]]
-  ran1$thetaC <- unsm(2); ran1$thetaC[lower.tri(ran1$thetaC)] = 0 # lower.tri must be 0
+  if(is.null(thetaC)){
+    ran1$thetaC <- unsm(2); 
+  }else{ran1$thetaC <- thetaC}
+  ran1$thetaC[lower.tri(ran1$thetaC)] = 0 # lower.tri must be 0
   colnames(ran1$thetaC) <- rownames(ran1$thetaC) <- c("ran1","ran2")
-  ran1$theta <- diag(2) * 0.05 + matrix(0.1, 2, 2)
-  ran1$thetaF <- diag(3) # n x n, where n is number of vc to estimate
-  ran1$sp <- rep(0,3) # rep 0 n times, where n is number of vc to estimate
+  if(is.null(theta)){
+    ran1$theta <- diag(2) * 0.05 + matrix(0.1, 2, 2)
+  }else{ran1$theta <- theta}
+  nvc <- length(which(thetaC > 0))
+  ran1$thetaF <- diag(nvc) # n x n, where n is number of vc to estimate
+  ran1$sp <- rep(0,nvc) # rep 0 n times, where n is number of vc to estimate
   return(ran1)
 }
 
@@ -496,35 +502,24 @@ redmm <- function (x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE) 
       notPresentInM <- setdiff(unique(x),rownames(M))
       notPresentInZ <- setdiff(rownames(M),unique(x))
     }
-    
-    # if(length(notPresentInM) > 0 ){
-    #   stop("All levels in x need to be present in M")
-    # }
-    # 
-    # if(length(notPresentInZ) > 0 ){
-    #   stop("All levels in M need to be present in x")
-    # }
-    if(is.null(Lam)){
-      nPC <- min(c(nPC, ncol(M)))
-      if(cholD){
-        smd <- try(chol(M) , silent = TRUE)
-        if(inherits(smd, "try-error")){smd <- try(chol((M+diag(1e-5,nrow(M),nrow(M))) ) , silent = TRUE)}
-        Lam0 = t(smd)
-      }else{
-        # if(nrow(M) == ncol(M)){ # symmetric matrix
-        #   smd <- RSpectra::svds(M, k=nPC, which = "LM") # eigs_sym(M, k=nPC, which = "LM")
-        #   Lam0 <- smd$u # smd$vectors
-        # }else{
-        smd <- RSpectra::svds(M, k=nPC, which = "LM")
-        Lam0 <- smd$u
-        # }
-        # smd <- svd(M) 
-        # Lam0 = smd$u
+    if(is.null(Lam)){ # user didn't provide a Lambda matrix
+      if(nPC == 0){ # user wants to use the full marker matrix
+        Lam <- Lam0 <- M
+      }else{ # user wants to use the PCA method
+        nPC <- min(c(nPC, ncol(M)))
+        if(cholD){
+          smd <- try(chol(M) , silent = TRUE)
+          if(inherits(smd, "try-error")){smd <- try(chol((M+diag(1e-5,nrow(M),nrow(M))) ) , silent = TRUE)}
+          Lam0 = t(smd)
+        }else{
+          smd <- RSpectra::svds(M, k=nPC, which = "LM")
+          Lam0 <- smd$u
+        }
+        Lam = Lam0[,1:min(c(nPC,ncol(M))), drop=FALSE]
+        rownames(Lam) <- rownames(M)
+        colnames(Lam) <- paste0("nPC",1:nPC)
       }
-      Lam = Lam0[,1:min(c(nPC,ncol(M))), drop=FALSE]
-      rownames(Lam) <- rownames(M)
-      colnames(Lam) <- paste0("nPC",1:nPC)
-    }else{
+    }else{ # user provided it's own Lambda matrix
       Lam0=Lam
       Lam = Lam0[,1:min(c(nPC,ncol(M))), drop=FALSE]
       rownames(Lam) <- rownames(M)
@@ -559,37 +554,40 @@ redmm <- function (x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE) 
   }else{return(Zstar)}
   
 }
+
 rrc <- function(timevar=NULL, idvar=NULL, response=NULL, 
-                Gu=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE){
-  if(is.null(timevar)){stop("Please provide the timevar argument.", call. = FALSE)}
-  if(is.null(idvar)){stop("Please provide the idvar argument.", call. = FALSE)}
-  if(is.null(response)){stop("Please provide the response argument.", call. = FALSE)}
+                Gu=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE, Z=NULL){
+  if(is.null(timevar) & is.null(Z)){stop("Please provide the timevar argument.", call. = FALSE)}
+  if(is.null(idvar) & is.null(Z)){stop("Please provide the idvar argument.", call. = FALSE)}
+  if(is.null(response) & is.null(Z)){stop("Please provide the response argument.", call. = FALSE)}
   # these are called PC models by Meyer 2009, GSE. This is a reduced rank implementation
   # we produce loadings, the Z*L so we can use it to estimate factor scores in mmec()
-  dtx <- data.frame(timevar=timevar, idvar=idvar, v.names=response)
-  dtx2 <- aggregate(v.names~timevar+idvar, data=dtx, FUN=mean, na.rm=TRUE)
-  wide <- reshape(dtx2, direction = "wide", idvar = "idvar",
-                  timevar = "timevar", v.names = "v.names", sep= "_")
-  rowNamesWide <-  wide[,1]
-  rownames(wide) <- rowNamesWide
-  wide <- wide[,-1]
-  # if user doesn't provide the a Gu we impute simply and use the correlation matrix as a Gu
-  if(is.null(Gu)){ 
-    X <- apply(wide, 2, sommer::imputev)
-    Gu <- cor(t(X))
-  }else{
-    Gu = cov2cor(Gu)
-  } 
-  # impute missing data using a relationship matrix 
-  if(is.null(rownames(Gu))){stop("Gu needs to have row names.", call. = FALSE)}
-  if(is.null(colnames(Gu))){stop("Gu needs to have column names.", call. = FALSE)}
-  for(iEnv in 1:ncol(wide)){ # iEnv=1
-    withData <- which(!is.na(wide[,iEnv]))
-    withoutData <- which(is.na(wide[,iEnv]))
-    imputationVector <- as.numeric(Gu[as.character(rowNamesWide),as.character(rowNamesWide[withData])] %*% as.matrix(wide[withData,iEnv]))
-    wide[,iEnv] <- imputationVector  # wide[withoutData,iEnv] <- imputationVector[withoutData]
-    # scaleFactor=imputationVector[withData[1]] / wide[withData[1],iEnv]
-  }
+  if(is.null(Z)){
+    dtx <- data.frame(timevar=timevar, idvar=idvar, v.names=response)
+    dtx2 <- aggregate(v.names~timevar+idvar, data=dtx, FUN=mean, na.rm=TRUE)
+    wide <- reshape(dtx2, direction = "wide", idvar = "idvar",
+                    timevar = "timevar", v.names = "v.names", sep= "_")
+    rowNamesWide <-  wide[,1]
+    rownames(wide) <- rowNamesWide
+    wide <- wide[,-1]
+    # if user doesn't provide the a Gu we impute simply and use the correlation matrix as a Gu
+    if(is.null(Gu)){ 
+      X <- apply(wide, 2, sommer::imputev)
+      Gu <- cor(t(X))
+    }else{
+      Gu = cov2cor(Gu)
+    } 
+    # impute missing data using a relationship matrix 
+    if(is.null(rownames(Gu))){stop("Gu needs to have row names.", call. = FALSE)}
+    if(is.null(colnames(Gu))){stop("Gu needs to have column names.", call. = FALSE)}
+    for(iEnv in 1:ncol(wide)){ # iEnv=1
+      withData <- which(!is.na(wide[,iEnv]))
+      withoutData <- which(is.na(wide[,iEnv]))
+      imputationVector <- as.numeric(Gu[as.character(rowNamesWide),as.character(rowNamesWide[withData])] %*% as.matrix(wide[withData,iEnv]))
+      wide[,iEnv] <- imputationVector  # wide[withoutData,iEnv] <- imputationVector[withoutData]
+      # scaleFactor=imputationVector[withData[1]] / wide[withData[1],iEnv]
+    }
+  }else{wide <- Z}
   ##
   Y <- apply(wide,2, sommer::imputev)
   Sigma <- cov(scale(Y, scale = TRUE, center = TRUE)) # surrogate of unstructured matrix to start with
@@ -607,7 +605,7 @@ rrc <- function(timevar=NULL, idvar=NULL, response=NULL,
   }
   colnamesGamma <- colnames(Gamma)
   rownamesGamma <- rownames(Gamma)
-  Gamma <- as.matrix(Gamma[,1:nPC]); 
+  Gamma <- Gamma[,1:nPC, drop=FALSE]; 
   colnames(Gamma) <- colnamesGamma[1:nPC]
   rownames(Gamma) <- rownamesGamma
   ##
@@ -615,17 +613,23 @@ rrc <- function(timevar=NULL, idvar=NULL, response=NULL,
   colnames(Gamma) <- paste("PC", 1:ncol(Gamma), sep =""); # 
   ######### GEreduced = Sg %*% t(Se) 
   # if we want to merge with PCs for environments
-  dtx$index <- 1:nrow(dtx)
-  dtx2 <- dtx[which(!is.na(dtx$v.names)),]
-  Z <- Matrix::sparse.model.matrix(~timevar -1, na.action = na.pass, data=dtx2)
-  colnames(Z) <- gsub("timevar","",colnames(Z))
-  Z <- Z%*%Gamma[colnames(Z),] # we multiple original Z by the LOADINGS
-  Z <- as.matrix(Z)
-  rownames(Z) <- NULL
+  if(is.null(Z)){
+    dtx$index <- 1:nrow(dtx)
+    dtx2 <- dtx[which(!is.na(dtx$v.names)),]
+    Z <- Matrix::sparse.model.matrix(~timevar -1, na.action = na.pass, data=dtx2)
+    colnames(Z) <- gsub("timevar","",colnames(Z))
+    Zstar <- Z%*%Gamma[colnames(Z),] # we multiple original Z by the LOADINGS
+    Zstar <- as.matrix(Zstar)
+    rownames(Z) <- NULL
+  }else{
+    Zstar <- Z %*% Gamma[colnames(Z),]
+    wide=NA
+  }
+  
   if(returnGamma){
     return(list(Gamma=Gamma, wide=wide))
   }else{
-    return(Z)
+    return(Zstar)
   }
 }
 atc <- function(x, levs, thetaC=NULL, theta=NULL){
@@ -653,7 +657,7 @@ atc <- function(x, levs, thetaC=NULL, theta=NULL){
       dummy <- x
       dummy <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass)
       colnames(dummy) <- gsub("dummy","",colnames(dummy))
-      dummy <- dummy[,levs]
+      dummy <- dummy[,levs, drop=FALSE]
       m0 <- rep(0,ncol(dummy))
       names(m0) <- levels(as.factor(colnames(dummy)))#as.character(unique(x))
       if(missing(levs)){levs <- names(m0)}
@@ -668,9 +672,11 @@ atc <- function(x, levs, thetaC=NULL, theta=NULL){
   }
   if(!is.null(thetaC)){
     mm <- thetaC
+    colnames(mm) <- rownames(mm) <- colnames(dummy)
   }
   if(!is.null(theta)){
     bnmm <- theta
+    colnames(bnmm) <- rownames(bnmm) <- colnames(dummy)
   }
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm, theta=bnmm))
@@ -704,9 +710,11 @@ csc <- function(x,mm, thetaC=NULL, theta=NULL){
   }
   if(!is.null(thetaC)){
     mm <- thetaC
+    colnames(mm) <- rownames(mm) <- colnames(dummy)
   }
   if(!is.null(theta)){
     bnmm <- theta
+    colnames(bnmm) <- rownames(bnmm) <- colnames(dummy)
   }
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm,theta=bnmm))
@@ -741,9 +749,11 @@ dsc <- function(x, thetaC=NULL, theta=NULL){
   }
   if(!is.null(thetaC)){
     mm <- thetaC
+    colnames(mm) <- rownames(mm) <- colnames(dummy)
   }
   if(!is.null(theta)){
     bnmm <- theta
+    colnames(bnmm) <- rownames(bnmm) <- colnames(dummy)
   }
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm, theta=bnmm))
@@ -775,9 +785,11 @@ usc <- function(x, thetaC=NULL, theta=NULL){
   bnmm <- diag(ncol(mm))*.05 + matrix(.1,ncol(mm),ncol(mm))
   if(!is.null(thetaC)){
     mm <- thetaC
+    colnames(mm) <- rownames(mm) <- colnames(dummy)
   }
   if(!is.null(theta)){
     bnmm <- theta
+    colnames(bnmm) <- rownames(bnmm) <- colnames(dummy)
   }
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm,theta=bnmm))

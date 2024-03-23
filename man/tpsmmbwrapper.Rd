@@ -101,11 +101,11 @@ List of length 7, 8 or 9 (according to the \code{asreml} and
     \itemize{
     \item \code{TP.col}, \code{TP.row} = column and row coordinates
     \item \code{TP.CxR} = combined index for use with smooth x smooth term
-    \item \code{TP.C.n} for n=1:{diff.c} = X parts of column spline for use
+    \item \code{TP.C.n} for n=1:(diff.c) = X parts of column spline for use
     in random model (where diff.c is the order of column differencing)
-    \item \code{TP.R.n} for n=1:{diff.r} = X parts of row spline for use in
+    \item \code{TP.R.n} for n=1:(diff.r) = X parts of row spline for use in
     random model (where diff.r is the order of row differencing)
-    \item \code{TP.CR.n} for n=1:{(diff.c*diff.r)} = interaction between the
+    \item \code{TP.CR.n} for n=1:((diff.c*diff.r)) = interaction between the
     two X parts for use in fixed model. The first variate is
     a constant term which should be omitted from the model when the constant
     (1) is present. If all elements are

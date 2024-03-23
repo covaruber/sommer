@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver. The package is focused on problems of the type p > n (more effects to estimate than observations) and its core algorithm is coded in C++ using the Armadillo library. This package allows the user to specify the variance-covariance structure for the random effects, to specify heterogeneous variances, and to obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mmer() function, and 2) n > p (more observations than effects to estimate) using the mmec() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to specify the variance-covariance structure for the random effects, to specify heterogeneous variances, and to obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
 
 Recently, I decided to code the main algorithm (Newton-Raphson & Average-Information) in C++ which encouraged me to refactor all the machinery including special functions and specification of the models. For a more in depth explanation of how the machinery works please read the "Quick start for the sommer package" vignette by typing `vignette('sommer.start')`. Here I will focus on just making a translation of the old specification to the new specification.
  

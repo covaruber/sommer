@@ -5,12 +5,14 @@
   \code{covc} merges the incidence matrices and covariance matrices of two random effects to fit an unstructured model between 2 different random effects to be fitted with the \code{\link{mmec}} solver.
 }
 \usage{
-  covc(ran1, ran2)
+  covc(ran1, ran2, thetaC=NULL, theta=NULL)
 }
 
 \arguments{
   \item{ran1}{the random call of the first random effect.}
   \item{ran2}{the random call of the first random effect.}
+  \item{thetaC}{an optional matrix for constraints in the variance components.}
+  \item{theta}{an optional matrix for initial values of the variance components.}
 }
 \details{
 This implementation aims to fit models where covariance between random variables is expected to exist. For example, indirect genetic effects.

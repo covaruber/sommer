@@ -126,23 +126,21 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
  can be used to specify covariance between two different random effects, e.g., \emph{random=~covc( vsc(isc(x1)), vsc(isc(x2)) )} where two random effects in their own vsc() structure are encapsulated. Only applies for simple random effects.
  
-\strong{S3 methods}{
+\strong{S3 methods}
 
 S3 methods are available for some parameter extraction such as \code{\link{fitted.mmec}}, \code{\link{residuals.mmec}}, \code{\link{summary.mmec}}, \code{\link{randef}}, \code{\link{coef.mmec}}, \code{\link{anova.mmec}}, \code{\link{plot.mmec}}, and \code{\link{predict.mmec}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (e.g., ratios like h2). The \code{\link{r2}} function calculates reliability. 
 
-}
 
 \strong{Additional Functions}
 
 Additional functions for genetic analysis have been included such as relationship matrix building (\code{\link{A.mat}}, \code{\link{D.mat}}, \code{\link{E.mat}}, \code{\link{H.mat}}),  build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), and manhattan plots (\code{\link{manhattan}}). If you need to build a pedigree-based relationship matrix use the \code{getA} function from the pedigreemm package.
 
-\strong{Bug report and contact}{
+\strong{Bug report and contact}
 
 If you have any technical questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com
 
 If you have any bug report please go to https://github.com/covaruber/sommer or send me an email to address it asap, just make sure you have read the vignettes carefully before sending your question.
 
-}
 \strong{Example Datasets}
 
 The package has been equiped with several datasets to learn how to use the sommer package:

@@ -459,6 +459,9 @@ version 4.3.2 (2023-08-01)
 ########################
  + Bug in isc function fixed when matrices have a single column.
  + redmm() function improved calling the RSpectra package
+ + now the mmec() function can use the different covariance structures in the fixed effect part so overlay and at models can be fitted as fixed.
+ + Bug in atc() function fixed when a single level was used.
+ + The covc() function has been added to calculate covariance between random effects as long as the incidence matrices of the random effects have the same levels.
  
 ######################
 ## PENDINGS AND PRIORITIES 

@@ -1,4 +1,4 @@
-vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE){
+vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE, isFixed=FALSE, verbose=TRUE){
 
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
@@ -124,7 +124,9 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
         }
         checkg2 <- setdiff(colnames(Gu),cn) # check if additional G levels exist
         if(length(checkg2)>0){
-          cat(paste0("Adding additional levels of Gu in the model matrix of '",ref_name,"' \n"))
+          if(verbose){
+            cat(paste0("Adding additional levels of Gu in the model matrix of '",ref_name,"' \n"))
+          }
           added <- Matrix(0, nrow = nrow(Z1provZ0iCol), ncol = length(checkg2)); colnames(added) <- checkg2
           Z[[counter]] <- cbind(Z1provZ0iCol,added)
         }
@@ -166,6 +168,10 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
   cn <- colnames(Z[[length(Z)]])
   Gu <- Gu[cn,cn, drop=FALSE]
   output <- list(Z=Z, Gu=Gu, theta=theta, thetaC=thetaC, thetaF=thetaF,partitionsR=partitionsR, sp=sp0)
-  return(output)
+  if(isFixed){
+    return(as.matrix(do.call(cbind,Z)))
+  }else{
+    return(output)
+  }
 }
 

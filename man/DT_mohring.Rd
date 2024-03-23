@@ -33,6 +33,10 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # head(DT)
 # DT2 <- add.diallel.vars(DT,par1="Par1", par2="Par2")
 # head(DT2)
+# # is.cross denotes a hybrid (1)
+# # is.self denotes an inbred (1)
+# # cross.type denotes one way (-1, e.g. AxB) and reciprocal (1, e.g., BxA) and no cross (0)
+# # cross.id denotes the name of the cross (same name for direct & reciprocal)
 #
 # # GRIFFING MODEL 2 with reciprocal effects ###########################
 # mod1h <- mmer(Ftime ~ 1, data=DT2,
@@ -41,7 +45,8 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #               + overlay(Par1, Par2)
 #               # SCA effects (includes cross and selfs)
 #               + cross.id
-#               # SCAR reciprocal effects (if zero there's no reciprocal effects)
+#               # SCAR reciprocal effects (remaining variance in crosses; 
+#               # if zero there's no reciprocal effects)
 #               + cross.id:cross.type)
 # summary(mod1h)$varcomp
 #
@@ -51,7 +56,8 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #                + vsc(isc(overlay(Par1, Par2)))
 #                # SCA effects (includes cross and selfs)
 #                + cross.id
-#                # SCAR reciprocal effects (if zero there's no reciprocal effects)
+#                # SCAR reciprocal effects (remaining variance in crosses; 
+#                # if zero there's no reciprocal effects)
 #                + vsc(dsc(cross.type), isc(cross.id)) )
 # summary(mod1hb)$varcomp
 #
@@ -65,21 +71,21 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # # GRIFFING MODEL 2, no reciprocal effects ##############################
 # mod1h <- mmer(Ftime ~ Block + is.cross, data=DT2,
 #               random = ~
-#                # GCA for all (female and male)
+#                # GCA effect for all (hybrids and inbreds)
 #                 overlay(Par1, Par2)
-#               # GCA (only for hybrids)
+#               # GCA effect (calculated only in hybrids; remaining variance)
 #               + overlay(Par1, Par2):is.cross
-#               # SCA (hybrids only)
+#               # SCA effect (calculated in hybrids only)
 #               + cross.id:is.cross)
 # summary(mod1h)$varcomp
 #
 # mod1h <- mmec(Ftime ~ Block + is.cross, data=DT2, nIters = 50,
 #               random = ~
-#                 # GCA for all (female and male)
+#                 # GCA effects for all (hybrids and inbreds)
 #                 vsc(isc(overlay(Par1, Par2)))
-#               # GCA (only for hybrids)
+#               # GCA effect (calculated only in hybrids; remaining variance)
 #               + vsc(isc(is.cross),isc(overlay(Par1, Par2)))
-#               # SCA (hybrids only)
+#               # SCA effect (calculated in hybrids only)
 #               + vsc(isc(is.cross), isc(cross.id))
 #               )
 # summary(mod1h)$varcomp
@@ -127,7 +133,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #               + Par1:is.self
 #               # SCA (for hybrids only)
 #               + cross.id:is.cross
-#               # SCAR reciprocal effects
+#               # SCAR reciprocal effects (remaning SCA variance)
 #               + cross.id:cross.type)
 # summary(mod1h)$varcomp
 #
@@ -139,7 +145,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #               + vsc(isc(is.self),isc(Par1))
 #               # SCA (for hybrids only)
 #               + vsc(isc(is.cross), isc(cross.id))
-#               # SCAR reciprocal effects
+#               # SCAR reciprocal effects (remaning SCA variance)
 #               + vsc(isc(cross.type), isc(cross.id))
 #               )
 # summary(mod1h)$varcomp
@@ -157,13 +163,13 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #               random = ~
 #                 # GCAC (for hybrids only)
 #                 overlay(Par1,Par2):is.cross
-#               # RGCA: exclude selfs (to identify reciprocal effects)
+#               # RGCA: exclude selfs (to identify reciprocal GCA effects)
 #               + overlay(Par1,Par2):cross.type
 #               # male GCA (for selfs only)
 #               + Par1:is.self
 #               # SCA (for hybrids only)
 #               + cross.id:is.cross
-#               # SCAR: exclude selfs (if zero there's no reciprocal effects)
+#               # SCAR: exclude selfs (if zero there's no reciprocal SCA effects)
 #               + cross.id:cross.type)
 # summary(mod1h)$varcomp
 #
@@ -171,13 +177,13 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #               random = ~
 #                 # GCAC (for hybrids only)
 #                 vsc(isc(is.cross),isc(overlay(Par1, Par2)))
-#               # RGCA: exclude selfs (to identify reciprocal effects)
+#               # RGCA: exclude selfs (to identify reciprocal GCA effects)
 #               + vsc(isc(cross.type),isc(overlay(Par1, Par2)))
 #               # male GCA (for selfs only)
 #               + vsc(isc(is.self),isc(Par1))
 #               # SCA (for hybrids only)
 #               + vsc(isc(is.cross), isc(cross.id))
-#               # SCAR: exclude selfs (if zero there's no reciprocal effects)
+#               # SCAR: exclude selfs (if zero there's no reciprocal SCA effects)
 #               + vsc(isc(cross.type), isc(cross.id))
 #               )
 # summary(mod1h)$varcomp

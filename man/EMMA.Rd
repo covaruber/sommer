@@ -26,7 +26,7 @@ The likelihood function optimized in this algorithm is:
 
 .
 
-logL = (n - p) * log(sum(eta^2/{ lambda + delta})) + sum(log(lambda + delta))
+logL = (n - p) * log(sum(eta^2/(lambda + delta)) + sum(log(lambda + delta))
 
 .
 

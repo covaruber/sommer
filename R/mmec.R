@@ -8,7 +8,7 @@ mmec <- function(fixed, random, rcov, data, W,
                  verbose=TRUE, addScaleParam=NULL,
                  stepWeight=NULL, emWeight=NULL){
 
-  my.date <- "2023-11-01"
+  my.date <- "2024-07-01"
   your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
   if(dateWarning){
@@ -156,16 +156,22 @@ mmec <- function(fixed, random, rcov, data, W,
     # print(toRemoveList)
     if("1" %in% unlist(toRemoveList)){}else{toRemoveList <- all.vars(as.formula(paste("~",paste(toRemoveList, collapse = "+"))))}
     for(j in 1:length(toRemoveList)){
-      if( classColumns[[toRemoveList[[j]]]] != "numeric"){ # only remove the name from the level if is structure between factors, not for random regressions
-        nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE)) # number of letters to remove
-        colnamesBaseList <- lapply(colnamesBaseList, function(h){
-          if(is.na(h[j])){ # is the intercept? no
-            return(h)
-          }else{ # is the intercept? yes
-            if(nchar(h[j]) > nc){h[j] <- substr(h[j],1+nc,nchar(h[j]))}
-            return(h)
-          }
-        }) # only remove the initial name if the name is actually longer
+      if( toRemoveList[[j]] %in% names(classColumns) ){
+        
+        if( classColumns[[toRemoveList[[j]]]] != "numeric"){ # only remove the name from the level if is structure between factors, not for random regressions
+          nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE)) # number of letters to remove
+          colnamesBaseList <- lapply(colnamesBaseList, function(h){
+            if(is.na(h[j])){ # is the intercept? no
+              return(h)
+            }else{ # is the intercept? yes
+              if(length(grep(toRemoveList[[j]],h[j])) == 1){ # if the factor word matches in the level
+                if(nchar(h[j]) > nc){h[j] <- substr(h[j],1+nc,nchar(h[j]))}
+              }
+              return(h)
+            }
+          }) # only remove the initial name if the name is actually longer
+        }
+        
       }
     }
     colnames(X)[partitionsX[[ix]]] <- unlist(lapply(lapply(colnamesBaseList,na.omit), function(x){paste(x, collapse=":")}))

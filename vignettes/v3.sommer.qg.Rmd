@@ -370,33 +370,33 @@ General variance structures can be used to fit indirect genetic effects. Here, w
 
 We first fit a direct genetic effects model:
 ```{r}
-data(DT_ige)
-DT <- DT_ige
-Af <- A_ige
-An <- A_ige
+# data(DT_ige)
+# DT <- DT_ige
+# Af <- A_ige
+# An <- A_ige
 
 ## Direct genetic effects model
-modDGE <- mmec(trait ~ block,
-               random = ~ focal,
-               rcov = ~ units, nIters=3,
-               data = DT, verbose=FALSE)
-summary(modDGE)$varcomp
+# modDGE <- mmec(trait ~ block,
+#                random = ~ focal,
+#                rcov = ~ units, nIters=3,
+#                data = DT, verbose=FALSE)
+# summary(modDGE)$varcomp
 
 ```
 
 We now fit the indirect genetic effects model without covariance between DGE and IGE:
 
 ```{r}
-data(DT_ige)
-DT <- DT_ige
-A <- A_ige
-
-## Indirect genetic effects model
-modIGE <- mmec(trait ~ block, dateWarning = FALSE,
-               random = ~ focal + neighbour, verbose = FALSE,
-               rcov = ~ units, nIters=100,
-              data = DT)
-summary(modIGE)$varcomp
+# data(DT_ige)
+# DT <- DT_ige
+# A <- A_ige
+# 
+# ## Indirect genetic effects model
+# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
+#                random = ~ focal + neighbour, verbose = FALSE,
+#                rcov = ~ units, nIters=100,
+#               data = DT)
+# summary(modIGE)$varcomp
 
 ```
 
@@ -404,12 +404,12 @@ We now fit the indirect genetic effects model with covariance between DGE and IG
 
 ```{r}
 
-### Indirect genetic effects model
-modIGE <- mmec(trait ~ block, dateWarning = FALSE,
-               random = ~ covc( vsc(isc(focal)), vsc(isc(neighbour)) ),
-               rcov = ~ units, nIters=100, verbose = FALSE,
-              data = DT)
-summary(modIGE)$varcomp
+# ### Indirect genetic effects model
+# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
+#                random = ~ covc( vsc(isc(focal)), vsc(isc(neighbour)) ),
+#                rcov = ~ units, nIters=100, verbose = FALSE,
+#               data = DT)
+# summary(modIGE)$varcomp
 
 ```
 

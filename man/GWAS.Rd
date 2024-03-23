@@ -89,7 +89,7 @@ GWAS(fixed, random, rcov, data, weights, W,
   \item{verbose}{a TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
     \item{stepWeight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which doesn't happen very often with the NR method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight to the initial 8-10 iterations.}
   \item{emWeight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emWeight will be applied to the NR/AI information matrix to produce a joint information matrix. If NULL weights for EM information matrix are zero and 1 for the NR/AI information matrix.}
-  \item{M}{The marker matrix containing the marker scores for each level of the random effect selected in the gTerm argument, coded as numeric based on the number of reference alleles in the genotype call, e.g. {-1,0,1} = {aa,Aa,AA}, levels in diploid individuals. Individuals in rows and markers in columns. No additional columns should be provided, is a purely numerical matrix. Similar logic applies to polyploid individuals, e.g. {-3,-2,-1,0,1,2,3} = {aaaa,aaaA,aaAA,Aaaa,AAaa,AAAa,AAAA}. }
+  \item{M}{The marker matrix containing the marker scores for each level of the random effect selected in the gTerm argument, coded as numeric based on the number of reference alleles in the genotype call, e.g. (-1,0,1) = (aa,Aa,AA), levels in diploid individuals. Individuals in rows and markers in columns. No additional columns should be provided, is a purely numerical matrix. Similar logic applies to polyploid individuals, e.g. (-3,-2,-1,0,1,2,3) = (aaaa,aaaA,aaAA,Aaaa,AAaa,AAAa,AAAA). }
   \item{gTerm}{a character vector indicating the random effect linked to the marker matrix M (i.e. the genetic term) in the model. The random effect selected should have the same number of levels than the number of rows of M. When fitting only a random effect without a special covariance structure (e.g., dsr, usr, etc.) you will need to add the call 'u:' to the name of the random effect given the behavior of the naming rules of the solver when having a simple random effect without covariance structure. }
   \item{n.PC}{Number of principal components to include as fixed effects. Default is 0 (equals K model).}
   \item{min.MAF}{Specifies the minimum minor allele frequency (MAF). If a marker has a MAF less than min.MAF, it is assigned a zero score.}
@@ -150,13 +150,12 @@ For a short tutorial on how to use this special functions you can look at the vi
 
 \emph{vignette('sommer.start')}
 
-\strong{Bug report and contact}{
+\strong{Bug report and contact}
 
 If you have any technical questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com. 
 
 If you have any bug report please go to https://github.com/covaruber/sommer or send me an email to address it asap.
 
-}
 
 \strong{Example Datasets}
 
@@ -206,7 +205,7 @@ If all parameters are correctly indicated the program will return a list with th
 \item{BIC}{Bayesian information criterion}
 \item{convergence}{a TRUE/FALSE statement indicating if the model converged.}
 \item{monitor}{The values of log-likelihood and variance-covariance components across iterations during the REML estimation.}
-\item{scores}{ marker scores (-log_{10}p) for the traits}
+\item{scores}{ marker scores (-log_(10)p) for the traits}
 \item{method}{The method for extimation of variance components specified by the user.}
 \item{constraints}{contraints used in the mixed models for the random effects.}
 

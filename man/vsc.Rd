@@ -5,7 +5,8 @@
   \code{vsc} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmec}} solver.
 }
 \usage{
-  vsc(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE)
+  vsc(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
+      sp=FALSE, isFixed=FALSE, verbose=TRUE)
 }
 
 \arguments{
@@ -38,6 +39,10 @@
    \item{meThetaC}{constraints for the variance covariance matrix between the main effects desired. Just to be modified if the number of main effects is greater of 1 (e.g., indirect genetic effects).}
 
    \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmec function through the addScaleParam argument in the \code{mmec} function .}
+   
+   \item{isFixed}{a TRUE/FALSE statement to indicate if the vsc function is being used in the fixed part of the model. When TRUE, the function only returns the model matrix to avoid any error messages associated to returning all elements for a random effect. FALSE is the default since it is assumed to be used for a variance structure in a random effect.}
+   
+   \item{verbose}{a TRUE/FALSE statement to indicate if messages should be printed when special situations accur. For example, adding unphenotyped individuals to the incidence matrices when present in the relationship  matrices.}
 
 }
 \details{
@@ -71,7 +76,7 @@ A <- A_example
 x <- as.character(unique(DT$Name))
 DT <- droplevels(DT[which(!is.na(match(DT$Name, x[1:5]))),])
 ## ============================ ##
-## example to without structure
+## example without structure
 ## ============================ ##
 isc(DT$Name)
 mix <- mmec(Yield~Env,
@@ -118,6 +123,14 @@ mix <- mmec(Yield~Env,
             random= ~ vsc(usc(Year),isc(Name)),
             rcov=~ vsc(dsc(Year),isc(units)),
             nIters = 3,
+            data=DT)
+## ============================ ##
+## example using structure in fixed effect
+## (notice the isFixed argument)
+## ============================ ##
+mix <- mmec(Yield~ vsc(atc(Env,"CA.2011"), isc(Name), isFixed = TRUE),
+            rcov=~ units,
+            nIters=3,
             data=DT)
 
 }

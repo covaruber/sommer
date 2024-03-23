@@ -6,7 +6,7 @@
 }
 \usage{
   rrc(timevar=NULL, idvar=NULL, response=NULL, 
-      Gu=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE)
+      Gu=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE, Z=NULL)
 }
 
 \arguments{
@@ -16,7 +16,9 @@
   \item{Gu}{an optional covariance matrix (\strong{NOT THE INVERSE}) between levels of the idvar in case a sparse (unbalanced) design between timevar and idvar exist.}
   \item{nPC}{number of principal components to keep.}
   \item{returnGamma}{a TRUE/FALSE argument specifying if the function should return the matrix of loadings of the incidence matrix for the model. The default is FALSE so it returns the incidence matrix.}
-    \item{cholD}{a TRUE/FALSE argument specifying if the Cholesky decomposition should be calculated or the singular value decomposition should be used instead.}
+  \item{cholD}{a TRUE/FALSE argument specifying if the Cholesky decomposition should be calculated or the singular value decomposition should be used instead.}
+  \item{Z}{an optional incidence matrix to perform a decomposition on, already built instead of using the timevar, idvar and response argument to create an incidence matrix Z. Is either one option or the other.}
+  
 }
 \details{
 This implementation of a version of the reduced rank factor analytic models uses the so-called principal component (PC) models (Meyer, 2009) which assumes specific effects (psi) are equal to 0. The model is as follows:

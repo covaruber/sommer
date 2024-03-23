@@ -10,8 +10,24 @@
 
 \arguments{
   \item{x}{vector of observations for the random effect.}
-  \item{thetaC}{an optional matrix for constraints in the variance components.}
-  \item{theta}{an optional matrix for initial values of the variance components.}
+  \item{thetaC}{an optional symmetric matrix for constraints in the variance-covariance components. The symmetric matrix should have as many rows and columns as the number of levels in the factor 'x'. The values in the matrix define how the variance-covariance components should be estimated:
+  
+  0: component will not be estimated
+  
+  1: component will be estimated and constrained to be positive
+  
+  2: component will be estimated and unconstrained
+  
+  3: component will be fixed to the value provided in the theta argument
+  
+  }
+  \item{theta}{an optional symmetric matrix for initial values of the variance-covariance components. The symmetric matrix should have as many rows and columns as the number of levels in the factor 'x'. The values in the matrix define the initial values of the variance-covariance components that will be subject to the constraints provided in thetaC. If not provided, initial values will be calculated as:
+  
+  diag(ncol(mm))*.05 + matrix(.1,ncol(mm),ncol(mm))
+  
+  where mm is the incidence matrix for the factor 'x'.
+  
+  }
 }
 \value{
   \describe{
@@ -28,5 +44,16 @@
 \examples{
 x <- as.factor(c(1:5,1:5,1:5));x
 dsc(x)
+## how to use the theta and thetaC arguments:
+# data(DT_example)
+# DT <- DT_example
+# theta <- diag(3)*2; theta # initial VCs
+# thetaC <- diag(3)*3; thetaC # fixed VCs
+# ans1 <- mmec(Yield~Env,
+#              random= ~ vsc( dsc(Env,theta = theta,thetaC = thetaC),isc(Name) ),
+#              rcov= ~ units,
+#              data=DT)
+# summary(ans1)$varcomp
+
 }
 \seealso{See the function \code{\link{vsc}} to know how to use \code{dsc} in the \code{\link{mmec}} solver.}

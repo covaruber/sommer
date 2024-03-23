@@ -129,23 +129,20 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
       
   can be used to fit a 2-dimensional spline (e.g., spatial modeling) using coordinates \code{x.coord} and \code{y.coord} (in numeric class) assuming multiple variance components. The 2D spline can be fitted at specific levels using the \code{at.var} and \code{at.levels} arguments. For example \emph{random=~spl2Db(x.coord=Row,y.coord=Range,at.var=FIELD)}.
 
-\strong{S3 methods}{
+\strong{S3 methods}
 
 S3 methods are available for some parameter extraction such as \code{\link{fitted.mmer}}, \code{\link{residuals.mmer}}, \code{\link{summary.mmer}}, \code{\link{randef}}, \code{\link{coef.mmer}}, \code{\link{anova.mmer}}, \code{\link{plot.mmer}}, and \code{\link{predict.mmer}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (e.g., ratios like h2). 
-
-}
 
 \strong{Additional Functions}
 
 Additional functions for genetic analysis have been included such as relationship matrix building (\code{\link{A.mat}}, \code{\link{D.mat}}, \code{\link{E.mat}}, \code{\link{H.mat}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), and manhattan plots (\code{\link{manhattan}}). If you need to build a pedigree-based relationship matrix use the \code{getA} function from the pedigreemm package. 
 
-\strong{Bug report and contact}{
+\strong{Bug report and contact}
 
 If you have any technical questions or suggestions please post it in https://stackoverflow.com or https://stats.stackexchange.com 
 
 If you have any bug report please go to https://github.com/covaruber/sommer or send me an email to address it asap, just make sure you have read the vignettes carefully before sending your question.
 
-}
 \strong{Example Datasets}
 
 The package has been equiped with several datasets to learn how to use the sommer package: 

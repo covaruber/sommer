@@ -6,7 +6,7 @@ export(
        transp,jet.colors,bathy.colors,
       LD.decay,
       manhattan, map.plot,
-       dfToMatrix
+       dfToMatrix, atcg1234BackTransform
        )
 
 ## FUN_main
@@ -29,7 +29,7 @@ export( spl2Da,spl2Db, spl2Dc,spl2Dmats,bbasis,tpsmmbwrapper)
 export(atcg1234,build.HMM, neMarker)
 
 ## FUN_stats
-export(adiag1, imputev, logspace,
+export(adiag1, imputev, propMissing, logspace,
        leg, wald.test, corImputation,
        r2
        )

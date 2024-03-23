@@ -1,3 +1,7 @@
+propMissing <- function(x){
+  length(which(is.na(x)))/length(x)
+}
+
 corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
   if(is.null(rownames(wide))){stop("Rownames of the input matrix cannot be NULL. Please add them", call. = FALSE)}
   if(is.null(Gu)){
