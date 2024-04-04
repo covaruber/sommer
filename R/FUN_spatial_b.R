@@ -679,7 +679,7 @@ bbasis <- function (x, xl, xr, ndx, deg)
 
 tps <- function (columncoordinates, rowcoordinates, nsegments=NULL, 
                       minbound=NULL, maxbound=NULL, degree = c(3, 3), penaltyord = c(2, 2), 
-                      nestorder = c(1, 1), asreml = "mbf", eigenvalues = "include", 
+                      nestorder = c(1, 1), asreml = "grp", eigenvalues = "include", 
                       method = "Lee", stub = NULL) 
 {
   if (missing(columncoordinates)) 
