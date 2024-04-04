@@ -2,7 +2,7 @@
 \alias{isc}
 \title{identity covariance structure}
 \description{
-  \code{isc} creates a diagonal covariance structure for the levels of the random effect  to be used with the \code{\link{mmec}} solver.
+  \code{isc} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mmec}} solver. Any random effect with a special covariance structure should end with an isc() structure.
 }
 \usage{
   isc(x, thetaC=NULL, theta=NULL)
@@ -10,8 +10,24 @@
 
 \arguments{
   \item{x}{vector of observations for the random effect.}
-  \item{thetaC}{an optional matrix for constraints in the variance components.}
-  \item{theta}{an optional matrix for initial values of the variance components.}
+    \item{thetaC}{an optional 1 x 1 matrix for constraints in the variance-covariance components. The values in the matrix define how the variance-covariance components should be estimated:
+  
+  0: component will not be estimated
+  
+  1: component will be estimated and constrained to be positive (default)
+  
+  2: component will be estimated and unconstrained
+  
+  3: component will be fixed to the value provided in the theta argument
+  
+  }
+  \item{theta}{an optional 1 x 1 matrix for initial values of the variance-covariance component. When providing customized values, these values should be scaled with respect to the original variance. For example, to provide an initial value of 1 to a given variance component, theta would be built as:
+  
+  theta = matrix( 1 / var(response) )
+  
+  The values in the matrix define the initial values of the variance-covariance components that will be subject to the constraints provided in thetaC. If not provided, initial values (theta) will be 0.15
+  
+  }
 }
 \value{
   \describe{
@@ -28,5 +44,12 @@
 \examples{
 x <- as.factor(c(1:5,1:5,1:5));x
 isc(x)
+
+# data(DT_example)
+# ans1 <- mmec(Yield~Env,
+#              random= ~ vsc( isc( Name ) ),
+#              data=DT_example)
+# summary(ans1)$varcomp
+
 }
 \seealso{See the function \code{\link{vsc}} to know how to use \code{isc} in the \code{\link{mmec}} solver.}

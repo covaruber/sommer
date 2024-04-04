@@ -21,7 +21,11 @@
   3: component will be fixed to the value provided in the theta argument
   
   }
-  \item{theta}{an optional symmetric matrix for initial values of the variance-covariance components. The symmetric matrix should have as many rows and columns as the number of levels in the factor 'x'. The values in the matrix define the initial values of the variance-covariance components that will be subject to the constraints provided in thetaC. If not provided, initial values will be calculated as:
+  \item{theta}{an optional symmetric matrix for initial values of the variance-covariance components. When providing customized values, these values should be scaled with respect to the original variance. For example, to provide an initial value of 1 to a given variance component, theta would be built as:
+  
+  theta = matrix( 1 / var(response) )
+  
+  The symmetric matrix should have as many rows and columns as the number of levels in the factor 'x'. The values in the matrix define the initial values of the variance-covariance components that will be subject to the constraints provided in thetaC. If not provided, initial values will be calculated as:
   
   diag(ncol(mm))*.05 + matrix(.1,ncol(mm),ncol(mm))
   

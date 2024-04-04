@@ -69,7 +69,8 @@ summary(ans1b)$varcomp
 # 
 # DT=DT[with(DT, order(Env)), ]
 # ans2b <- mmec(Yield~Env,
-#              random= ~Name + vsc(dsc(Env),isc(Name)),
+#              random= ~Name + vsc(dsc(Env),isc(Name)) +
+#                       vsc(atc(Env, c("CA.2011") ),isc(Block)) ,
 #              rcov= ~ vsc(dsc(Env),isc(units)),
 #              data=DT)
 # summary(ans2b)

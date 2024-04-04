@@ -2,7 +2,7 @@
 \alias{vsc}
 \title{variance structure specification}
 \description{
-  \code{vsc} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmec}} solver.
+  \code{vsc} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmec}} solver. 
 }
 \usage{
   vsc(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
