@@ -492,7 +492,20 @@ redmm <- function (x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE) 
   }
   
   if(is.null(M)){
-    stop("M cannot be NULL. We need a matrix of features that defines the levels of x")
+    # stop("M cannot be NULL. We need a matrix of features that defines the levels of x")
+    smd <- RSpectra::svds(x, k=nPC, which = "LM")
+    if(is.null(Lam)){
+      Lam0 <- smd$u
+      Lam = Lam0[,1:min(c(nPC,ncol(x))), drop=FALSE]
+      rownames(Lam) <- rownames(x)
+      colnames(Lam) <- paste0("nPC",1:nPC)
+    }else{
+      Lam0=Lam
+      Lam = Lam0[,1:min(c(nPC,ncol(M))), drop=FALSE]
+      rownames(Lam) <- rownames(M)
+      colnames(Lam) <- paste0("nPC",1:nPC)
+    }
+    Zstar <- Lam
   }else{
     
     if (inherits(x, "dgCMatrix") | inherits(x, "matrix")) {
@@ -548,7 +561,12 @@ redmm <- function (x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE) 
     }
   }
   
-  Zstar <- as.matrix(Z %*% Lam[colnames(Z),])
+  if(is.null(M)){
+    Zstar <- Lam
+  }else{
+    Zstar <- as.matrix(Z %*% Lam[colnames(Z),])
+  }
+  
   if(returnLam){
     return(list(Z = Zstar, Lam=Lam, Lam0=Lam0)) 
   }else{return(Zstar)}

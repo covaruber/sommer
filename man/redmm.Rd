@@ -2,15 +2,15 @@
 \alias{redmm}
 \title{Reduced Model Matrix}
 \description{
-  `redmm` uses a feature matrix M from a random variable x and performs a singular value decomposition or Cholesky on M and creates a model matrix for x.
+  `redmm` reduces a model matrix by performing a singular value decomposition or Cholesky on an incidence matrix.
 }
 \usage{
   redmm(x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE)
 }
 
 \arguments{
-  \item{x}{as vector with values to form a model matrix or the matrix itself for an effect of interest.}
-  \item{M}{a matrix of features explaining the levels of x.}
+  \item{x}{as vector with values to form a model matrix or the complete incidence matrix itself for an effect of interest.}
+  \item{M}{an optional matrix of features explaining the levels of x. If not provided is assumed that the entire incidence matrix has been provided in x. But if provided, the decomposition occurs in the matrix M. }
   \item{Lam}{a matrix of loadings in case is already available to avoid recomputing it.}
   \item{nPC}{number of principal components to keep from the matrix of loadings to form the model matrix.}
   \item{cholD}{should a Cholesky or a Singular value decomposition should be used. The default is the SVD.}
