@@ -676,3 +676,439 @@ bbasis <- function (x, xl, xr, ndx, deg)
   B <- (-1)^(deg + 1) * P %*% t(D)
   B
 }
+
+tps <- function (columncoordinates, rowcoordinates, nsegments=NULL, 
+                      minbound=NULL, maxbound=NULL, degree = c(3, 3), penaltyord = c(2, 2), 
+                      nestorder = c(1, 1), asreml = "mbf", eigenvalues = "include", 
+                      method = "Lee", stub = NULL) 
+{
+  if (missing(columncoordinates)) 
+    stop("columncoordinates argument must be set")
+  if (missing(rowcoordinates)) 
+    stop("rowcoordinates argument must be set")
+  col <- columncoordinates
+  nuc <- length(col)
+  col.match <- match(columncoordinates, col)
+  row <- sort(unique(rowcoordinates))
+  nur <- length(row)
+  row.match <- match(rowcoordinates, row)
+  nv <- length(columncoordinates)
+  if (is.null(minbound)) {
+    cminval <- min(col)
+    rminval <- min(row)
+  } else {
+    cminval <- min(c(minbound[1], min(col)))
+    if (length(minbound) < 2) {
+      rminval <- min(c(minbound[1], min(row)))
+    }
+    else {
+      rminval <- min(c(minbound[2], min(row)))
+    }
+  }
+  if (is.null(maxbound)) {
+    cmaxval <- max(col)
+    rmaxval <- max(row)
+  }
+  else {
+    cmaxval <- max(c(maxbound[1], max(col)))
+    if (length(maxbound) < 2) {
+      rmaxval <- max(c(maxbound[1], max(row)))
+    }
+    else {
+      rmaxval <- max(c(maxbound[2], max(row)))
+    }
+  }
+  if (is.null(nsegments)) {
+    nsegcol <- nuc - 1
+    nsegrow <- nur - 1
+  }
+  else {
+    nsegcol <- max(c(nsegments[1], 2))
+  }
+  if (length(nsegments) < 2) {
+    nsegrow <- max(c(nsegments[1], 2))
+  }
+  else {
+    nsegrow <- max(c(nsegments[2], 2))
+  }
+  nestcol <- floor(nestorder[1])
+  if (length(nestorder) < 2) 
+    nestrow <- floor(nestorder[1])
+  else nestrow <- floor(nestorder[2])
+  nsncol <- 0
+  if (nestcol > 1) {
+    if (nsegcol%%nestcol != 0) 
+      warning("Column nesting ignored: number of column segments must be a multiple of nesting order")
+    else nsncol <- nsegcol/nestcol
+  }
+  nsnrow <- 0
+  if (nestrow > 1) {
+    if (nsegrow%%nestrow != 0) 
+      warning("Row nesting ignored: number of row segments must be a multiple of nesting order")
+    else nsnrow <- nsegrow/nestrow
+  }
+  Bc <- bbasis(col, cminval, cmaxval, nsegcol, degree[1])
+  nc <- ncol(Bc)
+  if (length(degree) < 2) 
+    degr <- degree[1]
+  else degr <- degree[2]
+  Br <- bbasis(row, rminval, rmaxval, nsegrow, degr)
+  nr <- ncol(Br)
+  if (nsncol > 0) {
+    Bcn <- bbasis(col, cminval, cmaxval, nsncol, degree[1])
+    ncn <- ncol(Bcn)
+  }
+  else ncn <- nc
+  if (nsnrow > 1) {
+    Brn <- bbasis(row, rminval, rmaxval, nsnrow, degr)
+    nrn <- ncol(Brn)
+  }
+  else nrn <- nr
+  diff.c <- penaltyord[[1]]
+  Dc <- diff(diag(nc), diff = diff.c)
+  svd.c <- svd(crossprod(Dc))
+  nbc <- nc - diff.c
+  U.Zc <- svd.c$u[, c(1:nbc)]
+  U.Xc <- svd.c$u[, -c(1:nbc)]
+  L.c <- sqrt(svd.c$d[c(1:nbc)])
+  diagc <- L.c^2
+  BcU <- Bc %*% U.Zc
+  BcX <- Bc %*% U.Xc
+  BcULi <- BcU %*% diag(1/L.c)
+  if ("include" %in% eigenvalues) {
+    BcZmat.df <- as.data.frame(BcULi)
+    BcZmat <- BcULi
+  }
+  else {
+    BcZmat.df <- as.data.frame(BcU)
+    BcZmat <- BcU
+  }
+  BcZmat.df$TP.col <- col
+  mat1c <- matrix(rep(1, nuc), nrow = nuc)
+  BcXadj <- BcX - mat1c %*% t(mat1c) %*% BcX/nuc
+  Xfc <- (svd(crossprod(BcXadj)))$u[, c(ncol(BcXadj):1)]
+  BcX <- BcX %*% Xfc
+  if (BcX[1, 1] < 0) 
+    BcX[, 1] <- -1 * BcX[, 1]
+  if (BcX[1, 2] > 0) 
+    BcX[, 2] <- -1 * BcX[, 2]
+  if (nsncol > 0) {
+    Dcn <- diff(diag(ncn), diff = diff.c)
+    svd.cn <- svd(crossprod(Dcn))
+    nbcn <- ncn - diff.c
+    U.Zcn <- svd.cn$u[, c(1:nbcn)]
+    U.Xcn <- svd.cn$u[, -c(1:nbcn)]
+    L.cn <- sqrt(svd.cn$d[c(1:nbcn)])
+    BcnU <- Bcn %*% U.Zcn
+    BcnX <- Bcn %*% U.Xcn
+  }
+  else {
+    nbcn <- nbc
+    BcnU <- BcU
+    L.cn <- L.c
+  }
+  if (length(penaltyord) < 2) {
+    diff.r <- penaltyord[1]
+  }
+  else {
+    diff.r <- penaltyord[2]
+  }
+  Dr <- diff(diag(nr), diff = diff.r)
+  svd.r <- svd(crossprod(Dr))
+  nbr <- nr - diff.r
+  U.Zr <- svd.r$u[, c(1:nbr)]
+  U.Xr <- svd.r$u[, -c(1:nbr)]
+  L.r <- sqrt(svd.r$d[c(1:nbr)])
+  diagr <- L.r^2
+  BrU <- Br %*% U.Zr
+  BrX <- Br %*% U.Xr
+  BrULi <- BrU %*% diag(1/L.r)
+  if ("include" %in% eigenvalues) {
+    BrZmat.df <- as.data.frame(BrULi)
+    BrZmat <- BrULi
+  }
+  else {
+    BrZmat.df <- as.data.frame(BrU)
+    BrZmat <- BrU
+  }
+  BrZmat.df$TP.row <- row
+  mat1r <- matrix(rep(1, nur), nrow = nur)
+  BrXadj <- BrX - mat1r %*% t(mat1r) %*% BrX/nur
+  Xfr <- (svd(crossprod(BrXadj)))$u[, c(ncol(BrXadj):1)]
+  BrX <- BrX %*% Xfr
+  if (BrX[1, 1] < 0) 
+    BrX[, 1] <- -1 * BrX[, 1]
+  if (BrX[1, 2] > 0) 
+    BrX[, 2] <- -1 * BrX[, 2]
+  if (nsnrow > 0) {
+    Drn <- diff(diag(nrn), diff = diff.r)
+    svd.rn <- svd(crossprod(Drn))
+    nbrn <- nrn - diff.r
+    U.Zrn <- svd.rn$u[, c(1:nbrn)]
+    U.Xrn <- svd.rn$u[, -c(1:nbrn)]
+    L.rn <- sqrt(svd.rn$d[c(1:nbrn)])
+    BrnU <- Brn %*% U.Zrn
+    BrnX <- Brn %*% U.Xrn
+  }
+  else {
+    nbrn <- nbr
+    BrnU <- BrU
+    L.rn <- L.r
+  }
+  A <- 10^(floor(log10(max(row))) + 1)
+  row.index <- rep(row, times = nuc)
+  col.index <- rep(col, each = nur)
+  index <- A * col.index + row.index
+  C.R <- A * columncoordinates + rowcoordinates
+  BcrZ1 <- BcnU[col.match, ] %x% matrix(rep(1, nbrn), nrow = 1, 
+                                        ncol = nbrn)
+  BcrZ2 <- matrix(rep(1, nbcn), nrow = 1, ncol = nbcn) %x% 
+    BrnU[row.match, ]
+  BcrZ <- BcrZ1 * BcrZ2
+  diagrx <- rep(L.cn^2, each = nbrn)
+  diagcx <- rep(L.rn^2, times = nbcn)
+  if ("Lee" %in% method) {
+    diagcr <- diagrx + diagcx
+  }
+  if ("Wood" %in% method) {
+    diagcr <- diagrx * diagcx
+  }
+  if (!("Lee" %in% method) & !("Wood" %in% method)) {
+    stop("Invalid setting of method argument")
+  }
+  BcrZLi <- BcrZ %*% diag(1/sqrt(diagcr))
+  if ("include" %in% eigenvalues) {
+    BcrZmat.df <- as.data.frame(BcrZLi)
+    BcrZmat <- BcrZLi
+  }
+  else {
+    BcrZmat.df <- as.data.frame(BcrZ)
+    BcrZmat <- BcrZ
+  }
+  BcrZmat.df$TP.CxR <- C.R
+  tracelist <- list()
+  for (i in 1:diff.c) {
+    nm <- paste0("Xc", i, ":Zr")
+    tempmat <- (BcX[col.match, i] %x% matrix(rep(1, nbr), 
+                                             nrow = 1)) * BrZmat[row.match, ]
+    if ("include" %in% eigenvalues) 
+      tempmatsc <- tempmat
+    else tempmatsc <- tempmat * (rep(1, nv) %*% matrix((1/diagr), 
+                                                       nrow = 1))
+    tracelist[nm] <- sum(tempmatsc * tempmat)
+  }
+  for (i in 1:diff.r) {
+    nm <- paste0("Zc:Xr", i)
+    tempmat <- BcZmat[col.match, ] * (matrix(rep(1, nbc), 
+                                             nrow = 1) %x% BrX[row.match, i])
+    if ("include" %in% eigenvalues) 
+      tempmatsc <- tempmat
+    else tempmatsc <- tempmat * (rep(1, nv) %*% matrix((1/diagc), 
+                                                       nrow = 1))
+    tracelist[nm] <- sum(tempmatsc * tempmat)
+  }
+  if ("include" %in% eigenvalues) 
+    tracelist["Zc:Zr"] <- sum(BcrZmat * BcrZmat)
+  else {
+    tempmatsc <- BcrZmat * (rep(1, nv) %*% matrix((1/diagcr), 
+                                                  nrow = 1))
+    tracelist["Zc:Zr"] <- sum(tempmatsc * BcrZmat)
+  }
+  # outdata <- as.data.frame(data)
+  outdata <- data.frame(TP.col=columncoordinates)
+  outdata$TP.row <- rowcoordinates
+  outdata$TP.CxR <- C.R
+  BcrX1 <- BcX[col.match, ] %x% matrix(rep(1, diff.r), nrow = 1)
+  BcrX2 <- matrix(rep(1, diff.c), nrow = 1) %x% BrX[row.match, 
+  ]
+  BcrX <- BcrX1 * BcrX2
+  fixed <- list()
+  fixed$col <- data.frame(row.names = C.R)
+  for (i in 1:diff.c) {
+    c.fixed <- paste("TP.C", ".", i, sep = "")
+    outdata[c.fixed] <- BcX[col.match, i]
+    fixed$col[c.fixed] <- BcX[col.match, i]
+  }
+  fixed$row <- data.frame(row.names = C.R)
+  for (i in 1:diff.r) {
+    r.fixed <- paste("TP.R", ".", i, sep = "")
+    outdata[r.fixed] <- BrX[row.match, i]
+    fixed$row[r.fixed] <- BrX[row.match, i]
+  }
+  ncolX <- diff.c * diff.r
+  fixed$int <- data.frame(row.names = C.R)
+  for (i in 1:ncolX) {
+    cr.fixed <- paste("TP.CR", ".", i, sep = "")
+    outdata[cr.fixed] <- BcrX[, i]
+    fixed$int[cr.fixed] <- BcrX[, i]
+  }
+  if (!missing(stub)) {
+    cname <- paste0("BcZ", stub, ".df")
+    rname <- paste0("BrZ", stub, ".df")
+    crname <- paste0("BcrZ", stub, ".df")
+  }
+  else {
+    cname <- "BcZ.df"
+    rname <- "BrZ.df"
+    crname <- "BcrZ.df"
+  }
+  mbftext <- paste0("list(TP.col=list(key=c(\"TP.col\",\"TP.col\"),cov=\"", 
+                    cname, "\"),")
+  mbftext <- paste0(mbftext, "TP.row=list(key=c(\"TP.row\",\"TP.row\"),cov=\"", 
+                    rname, "\"),")
+  mbftext <- paste0(mbftext, "TP.CxR=list(key=c(\"TP.CxR\",\"TP.CxR\"),cov=\"", 
+                    crname, "\"))")
+  mbflist <- eval(parse(text = mbftext))
+  if ("grp" %in% asreml) {
+    grp <- list()
+    listnames <- list()
+    start <- length(outdata)
+    start0 <- start
+    scale <- 1
+    j <- 1
+    for (i in 1:diff.c) {
+      nm0 <- paste0(names(fixed$col[i]), "_frow")
+      listnames[j] <- nm0
+      for (k in 1:nbr) {
+        nm <- paste0(nm0, "_", k)
+        outdata[nm] <- scale * fixed$col[[i]] * BrZmat[row.match, 
+                                                       k]
+      }
+      grp[[j]] <- seq(from = start + 1, to = start + nbr, 
+                      by = 1)
+      start <- start + nbr
+      j <- j + 1
+    }
+    for (i in 1:diff.r) {
+      nm0 <- paste0(names(fixed$row[i]), "_fcol")
+      listnames[j] <- nm0
+      for (k in 1:nbc) {
+        nm <- paste0(nm0, "_", k)
+        outdata[nm] <- scale * fixed$row[[i]] * BcZmat[col.match, 
+                                                       k]
+      }
+      grp[[j]] <- seq(from = start + 1, to = start + nbc, 
+                      by = 1)
+      start <- start + nbc
+      j <- j + 1
+    }
+    m <- 0
+    nm0 <- "TP_fcol_frow"
+    listnames[j] <- nm0
+    for (k in 1:(nbrn * nbcn)) {
+      nm <- paste0(nm0, "_", k)
+      outdata[nm] <- scale * BcrZmat[, k]
+    }
+    grp[[j]] <- seq(from = start + 1, to = start + (nbcn * 
+                                                      nbrn), by = 1)
+    end <- start + (nbcn * nbrn)
+    j <- j + 1
+    listnames[j] <- "All"
+    grp[[j]] <- seq(from = start0 + 1, to = end, by = 1)
+    grp <- structure(grp, names = listnames)
+  }
+  if ("sepgrp" %in% asreml) {
+    grp <- list()
+    listnames <- list()
+    start <- length(outdata)
+    nm0 <- "TP_C"
+    listnames[1] <- nm0
+    for (i in 1:diff.c) {
+      nm <- paste0(nm0, "_", i)
+      outdata[nm] <- fixed$col[[i]]
+    }
+    grp[[1]] <- seq(from = start + 1, to = start + diff.c, 
+                    by = 1)
+    start <- start + diff.c
+    nm0 <- "TP_R"
+    listnames[2] <- nm0
+    for (i in 1:diff.r) {
+      nm <- paste0(nm0, "_", i)
+      outdata[nm] <- fixed$row[[i]]
+    }
+    grp[[2]] <- seq(from = start + 1, to = start + diff.r, 
+                    by = 1)
+    start <- start + diff.r
+    nm0 <- "TP_fcol"
+    listnames[3] <- nm0
+    for (k in 1:nbc) {
+      nm <- paste0(nm0, "_", k)
+      outdata[nm] <- BcZmat[col.match, k]
+    }
+    grp[[3]] <- seq(from = start + 1, to = start + nbc, by = 1)
+    start <- start + nbc
+    nm0 <- "TP_frow"
+    listnames[4] <- nm0
+    for (k in 1:nbr) {
+      nm <- paste0(nm0, "_", k)
+      outdata[nm] <- BrZmat[row.match, k]
+    }
+    grp[[4]] <- seq(from = start + 1, to = start + nbr, by = 1)
+    start <- start + nbr
+    grp <- structure(grp, names = listnames)
+    nm0 <- "TP_fcol_frow"
+    listnames[5] <- nm0
+    for (k in 1:(nbrn * nbcn)) {
+      nm <- paste0(nm0, "_", k)
+      outdata[nm] <- BcrZmat[, k]
+    }
+    grp[[5]] <- seq(from = start + 1, to = start + (nbcn * 
+                                                      nbrn), by = 1)
+    grp <- structure(grp, names = listnames)
+  }
+  if ("own" %in% asreml) {
+    grp <- list()
+    listnames <- list()
+    listnames[1] <- "All"
+    start <- length(outdata)
+    nm0 <- "Xc_Zr"
+    Xc_Zr <- (BcX[col.match, ] %x% matrix(rep(1, nbr), nrow = 1)) * 
+      (matrix(rep(1, diff.c), nrow = 1) %x% BrZmat[row.match, 
+      ])
+    nXc_Zr <- ncol(Xc_Zr)
+    for (i in 1:nXc_Zr) {
+      nm <- paste0(nm0, "_", i)
+      outdata[nm] <- Xc_Zr[, i]
+    }
+    nm0 <- "Zc_Xr"
+    Zc_Xr <- (BcZmat[col.match, ] %x% matrix(rep(1, diff.r), 
+                                             nrow = 1)) * (matrix(rep(1, nbc), nrow = 1) %x% BrX[row.match, 
+                                             ])
+    nZc_Xr <- ncol(Zc_Xr)
+    for (i in 1:nZc_Xr) {
+      nm <- paste0(nm0, "_", i)
+      outdata[nm] <- Zc_Xr[, i]
+    }
+    nm0 <- "Zc_Zr"
+    Zc_Zr <- BcrZmat
+    nZc_Zr <- ncol(Zc_Zr)
+    for (i in 1:nZc_Zr) {
+      nm <- paste0(nm0, "_", i)
+      outdata[nm] <- Zc_Zr[, i]
+    }
+    grp[[1]] <- seq(from = start + 1, to = start + nXc_Zr + 
+                      nZc_Xr + nZc_Zr, by = 1)
+    grp <- structure(grp, names = listnames)
+  }
+  res <- list()
+  res$data <- outdata
+  res$mbflist <- mbflist
+  res[["BcZ.df"]] <- BcZmat.df
+  res[["BrZ.df"]] <- BrZmat.df
+  res[["BcrZ.df"]] <- BcrZmat.df
+  res[["All"]] <- outdata[,grp$All]
+  res$dim <- c(diff.c = diff.c, nbc = nbc, nbcn = nbcn, diff.r = diff.r, 
+               nbr = nbr, nbrn = nbrn)
+  res$trace <- tracelist
+  if ("grp" %in% asreml) 
+    res$grp <- grp
+  if ("sepgrp" %in% asreml) 
+    res$grp <- grp
+  if ("own" %in% asreml) 
+    res$grp <- grp
+  if ("mbf" %in% asreml) 
+    res$grp <- NULL
+  if (!("include" %in% eigenvalues)) 
+    res$eigen <- list(diagc = diagc, diagr = diagr, diagcr = diagcr)
+  res
+}

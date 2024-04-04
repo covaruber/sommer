@@ -23,7 +23,7 @@ export(atr,csr,dsr,usr,vsr, gvsr, vs, ## mmer
        bivariateRun, vpredict)
 
 ## FUN_spatial
-export( spl2Da,spl2Db, spl2Dc,spl2Dmats,bbasis,tpsmmbwrapper)
+export( spl2Da,spl2Db, spl2Dc,spl2Dmats,bbasis,tpsmmbwrapper, tps)
 
 ## FUN_markers
 export(atcg1234,build.HMM, neMarker)
