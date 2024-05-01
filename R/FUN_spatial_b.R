@@ -1096,7 +1096,7 @@ tps <- function (columncoordinates, rowcoordinates, nsegments=NULL,
   res[["BcZ.df"]] <- BcZmat.df
   res[["BrZ.df"]] <- BrZmat.df
   res[["BcrZ.df"]] <- BcrZmat.df
-  res[["All"]] <- outdata[,grp$All]
+  res[["All"]] <- as.matrix(outdata[,grp$All])
   res$dim <- c(diff.c = diff.c, nbc = nbc, nbcn = nbcn, diff.r = diff.r, 
                nbr = nbr, nbrn = nbrn)
   res$trace <- tracelist

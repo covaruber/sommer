@@ -469,6 +469,12 @@ version 4.3.4 (2023-04-01)
  + thetaC and theta arguments in special functions in mmec are better documented and have some examples
  + the atcg1234backTransform function has been added to bring back from numbers to letters.
  
+########################
+version 4.3.5 (2023-08-01)
+########################
+ + we have added the tps function to produce tensor product splines from the TPSbits package in a more straightforward way to produce incidence matrices that can be used in the mmec solver more easily.
+ + keep improving the documentation of parameeters and examples
+ 
 ######################
 ## PENDINGS AND PRIORITIES 
 + we need to find out how to solve the message 'Error: Mat::init(): requested size is too large; suggest to enable ARMA_64BIT_WORD' that shows up when we have very big models.

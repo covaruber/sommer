@@ -24,9 +24,11 @@
   }
   \item{theta}{an optional symmetric matrix for initial values of the variance-covariance components. The symmetric matrix should have as many rows and columns as the number of levels in the factor 'x'. The values in the matrix define the initial values of the variance-covariance components that will be subject to the constraints provided in thetaC. If not provided, initial values will be calculated as:
   
-  diag(ncol(mm))*.05 + matrix(.1,ncol(mm),ncol(mm))
+  theta* = diag(ncol(mm))*.05 + matrix(.1,ncol(mm),ncol(mm))
   
-  where mm is the incidence matrix for the factor 'x'.
+  where mm is the incidence matrix for the factor 'x'. The values provided should be scaled by the variance of the response variable.
+  
+  theta = theta*/var(y)
   
   }
 }

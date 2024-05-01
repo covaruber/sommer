@@ -275,25 +275,40 @@ data(DT_h2)
 DT <- DT_h2
 DT=DT[with(DT, order(Env)), ]
 
-ans1b <- mmec(y~Env,
-              random=~vsc( usc( rrc(Env, Name, y, nPC = 2) ) , isc(Name)),
-              rcov=~units, 
-              # we recommend giving more iterations to these models
-              nIters = 50, 
-              # we recommend giving more EM iterations at the beggining for usc models
+# fit diagonal model first to produce H matrix
+ans1a <- mmec(y~Env,
+              random=~ vsc(dsc(Env), isc(Name)),
+              rcov=~units, nIters = 100,
+              # we recommend giving more EM iterations at the beggining
               emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
-              verbose=FALSE,
               data=DT)
 
-summary(ans1b)$varcomp
+H0 <- ans1a$uList$`vsc(dsc(Env), isc(Name))` # GxE table
+# reduced rank model
+ans1b <- mmec(y~Env,
+              random=~vsc( dsc(rrc(Env, H = H0, nPC = 3)) , isc(Name)) + # rr
+                vsc(dsc(Env), isc(Name)), # diag
+              rcov=~units,
+              # we recommend giving more iterations to these models
+              nIters = 100,
+              # we recommend giving more EM iterations at the beggining
+              emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
+              data=DT)
 
-Gamma=with(DT, rrc(Env, Name, y, returnGamma = TRUE, nPC = 2))$Gamma # extract loadings
-score.mat <- ans1b$uList[[1]]; # extract factor scores
-BLUP = score.mat %*% t(Gamma) # BLUPs for all environments
+## get the loadings
+loadings=with(DT, rrc(Env, nPC = 3, H = wide0, returnGamma = T) )$Gamma
+## extract factor scores from the model
+scores <- ans1b$uList[[1]];
+## BLUPs for all environments
+E= scores %*% t(loadings)  
+## Extract the covariance matrix
+vc <- ans1b$theta[[1]];vc # rr
+vc2 <- ans1b$theta[[2]];vc2 # diagonal
+G = loadings %*% vc %*% t(loadings) + vc2 
 
 ```
 
-As can be seen BLUPs for all environments can be recovered by multiplying the loadings (Lam) by the factor scores (score.mat). This is a parsomonious way to model an unstructured covariance.
+As can be seen genotype BLUPs for all environments can be recovered by multiplying the loadings (Gamma) by the factor scores. This is a parsomonious way to model an unstructured covariance.
 
 ## 10) Two stage analysis
 
