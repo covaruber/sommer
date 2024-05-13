@@ -107,18 +107,15 @@ This is the a model where you assume that the random effect has different interc
 ###########
 ## sommer
 ###########
-## no equivalence using mmer() to find the correlation between the 2 vc
 ## using mmec() the model would be
-# mm <- diag(2)+matrix(.02,2,2)
-# fm3 <- mmec(Reaction ~ Days,
-#             random=~ covc( vsc(isc(Subject)), vsc(isc(Days), isc(Subject)), theta = mm ), 
-#             nIters = 100,
-#             data=DT)
-# summary(fm3)$varcomp # or # 
-# cov2cor(fm3$theta[[1]])
+fm2 <- mmec(Reaction ~ Days,
+            random= ~ covc( vsc(isc(Subject)) , vsc(isc(Days), isc(Subject)) ), 
+            nIters = 200, data=DT, tolParInv = 1e-6, verbose = FALSE)
+summary(fm2)$varcomp
+cov2cor(fm2$theta[[1]])
 
 ```
-Notice that this last model required to specify the initial scaled variance components because an unstructured covariance normally has difficulty to converge. 
+Notice that this last model require a new function called covc() which creates the two random effects as before but now they have to be encapsulated in covc() instead of just added.  
 
 ## 4) Random slopes with a different intercept
 

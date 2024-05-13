@@ -7,7 +7,7 @@ covc <- function(ran1,ran2, thetaC=NULL, theta=NULL){
   ran1$thetaC[lower.tri(ran1$thetaC)] = 0 # lower.tri must be 0
   colnames(ran1$thetaC) <- rownames(ran1$thetaC) <- c("ran1","ran2")
   if(is.null(theta)){
-    ran1$theta <- diag(2) * 0.05 + matrix(0.1, 2, 2)
+    ran1$theta <- diag(2) * 0.15 + matrix(0.015, 2, 2)
   }else{ran1$theta <- theta}
   nvc <- length(which(thetaC > 0))
   ran1$thetaF <- diag(nvc) # n x n, where n is number of vc to estimate
@@ -16,11 +16,16 @@ covc <- function(ran1,ran2, thetaC=NULL, theta=NULL){
 }
 
 stackTrait <- function(data, traits){
-  idvars <- setdiff(colnames(data), traits)
+  
   dataScaled <- data
+  traits <- intersect(traits, colnames(data) )
+  idvars <- setdiff(colnames(data), traits)
   for(iTrait in traits){
     dataScaled[,iTrait] <- scale(dataScaled[,iTrait])
   }
+  columnTypes <- unlist(lapply(data[idvars],class)) 
+  columnTypes <- columnTypes[which(columnTypes %in% c("factor","character","integer"))]
+  idvars <- intersect(idvars,names(columnTypes))
   data2 <- reshape(data, idvar = idvars, varying = traits,
                    timevar = "trait",
                    times = traits,v.names = "value", direction = "long")
@@ -660,7 +665,7 @@ rrc <- function(x=NULL, H=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE){
   if(is.null(H) ){stop("Please provide the x argument.", call. = FALSE)}
   # these are called PC models by Meyer 2009, GSE. This is a reduced rank implementation
   # we produce loadings, the Z*L so we can use it to estimate factor scores in mmec()
-  Y <- apply(wide,2, sommer::imputev)
+  Y <- apply(H,2, sommer::imputev)
   Sigma <- cov(scale(Y, scale = TRUE, center = TRUE)) # surrogate of unstructured matrix to start with
   Sigma <- as.matrix(nearPD(Sigma)$mat)
   # GE <- as.data.frame(t(scale( t(scale(Y, center=T,scale=F)), center=T, scale=F)))  # sum(GE^2)
@@ -693,7 +698,7 @@ rrc <- function(x=NULL, H=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE){
   rownames(Z) <- NULL
   
   if(returnGamma){
-    return(list(Gamma=Gamma, wide=wide, Sigma=Sigma))
+    return(list(Gamma=Gamma, H=H, Sigma=Sigma))
   }else{
     return(Zstar)
   }

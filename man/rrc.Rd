@@ -10,7 +10,7 @@
 
 \arguments{
   \item{x}{vector of the dataset containing the variable to be used to form the incidence matrix.}
-  \item{H}{two-way table of genotype (rows) by environment (columns) effects. Row names and column names are required.}
+  \item{H}{two-way table of identifiers (rows; e.g., genotypes) by features (columns; e.g., environments) effects. Row names and column names are required. No missing data is allowed.}
   \item{nPC}{number of principal components to keep from the loadings matrix.}
   \item{returnGamma}{a TRUE/FALSE argument specifying if the function should return the matrix of loadings used to build the incidence matrix for the model. The default is FALSE so it returns only the incidence matrix.}
   \item{cholD}{a TRUE/FALSE argument specifying if the Cholesky decomposition should be calculated or the singular value decomposition should be used instead.}
@@ -37,9 +37,9 @@ y = Xb + Z(I Gamma)c + e = Xb + Z*c + e
 
 which is equal to the one above but assumes specific effects = 0. 
 
-\strong{The algorithm is the following:}
+\strong{The algorithm in rrc the following:}
 
-1) uses a wide-format table of timevar (m columns) by idvar (q rows)  named H to form the initial variance-covariance matrix and calculated as Sigma = H'H of dimensions m x m (column dimensions, e.g., environments x environments). 
+1) uses a wide-format table of timevar (m columns) by idvar (q rows) named H to form the initial variance-covariance matrix (Sigma) which is calculated as Sigma = H'H of dimensions m x m (column dimensions, e.g., environments x environments). 
 
 2) The Sigma matrix is then center and scaled. 
 
@@ -51,7 +51,7 @@ which is equal to the one above but assumes specific effects = 0.
 
 5) This matrix is later used for the REML machinery to be used with the usc (unstructured) or dsc (diagonal) structures to estimate variance components and factor scores. The resulting BLUPs from the mixed model are the optimized factor scores. Pretty much as a random regression over latent covariates.
 
-This implementation does not update the loadings during the REML process, only estimates the REML factor scores for fixed loadings. This is different to other software (e.g., asreml) where the loadings are updated during the REML process as well. 
+This implementation does not update the loadings (latent covariates) during the REML process, only estimates the REML factor scores for fixed loadings. This is different to other software (e.g., asreml) where the loadings are updated during the REML process as well. 
 
 BLUPs for genotypes in all locations can be recovered as:
 
