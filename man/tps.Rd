@@ -11,7 +11,7 @@ tps(
   degree = c(3, 3),
   penaltyord = c(2, 2),
   nestorder = c(1, 1),
-  asreml = "mbf",
+  asreml = "grp",
   eigenvalues = "include",
   method = "Lee",
   stub = NULL

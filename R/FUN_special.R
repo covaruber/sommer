@@ -660,46 +660,45 @@ redmm <- function (x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE) 
 #   }
 # }
 
-rrc <- function(x=NULL, H=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE){
-  if(is.null(x) ){stop("Please provide the x argument.", call. = FALSE)}
-  if(is.null(H) ){stop("Please provide the x argument.", call. = FALSE)}
-  # these are called PC models by Meyer 2009, GSE. This is a reduced rank implementation
-  # we produce loadings, the Z*L so we can use it to estimate factor scores in mmec()
-  Y <- apply(H,2, sommer::imputev)
-  Sigma <- cov(scale(Y, scale = TRUE, center = TRUE)) # surrogate of unstructured matrix to start with
+rrc <- function (x = NULL, H = NULL, nPC = 2, returnGamma = FALSE, cholD = TRUE) 
+{
+  if (is.null(x)) {
+    stop("Please provide the x argument.", call. = FALSE)
+  }
+  if (is.null(H)) {
+    stop("Please provide the x argument.", call. = FALSE)
+  }
+  Y <- apply(H, 2, imputev)
+  Sigma <- cov(scale(Y, scale = TRUE, center = TRUE))
   Sigma <- as.matrix(nearPD(Sigma)$mat)
-  # GE <- as.data.frame(t(scale( t(scale(Y, center=T,scale=F)), center=T, scale=F)))  # sum(GE^2)
-  if(cholD){
-    ## OPTION 2. USING CHOLESKY
-    Gamma <- t(chol(Sigma)); # LOADINGS  # same GE=LL' from cholesky  plot(unlist(Gamma%*%t(Gamma)), unlist(GE))
-  }else{
-    ## OPTION 1. USING SVD
-    U <- svd(Sigma)$u;  # V <- svd(GE)$v
+  if (cholD) {
+    Gamma <- t(chol(Sigma))
+  }
+  else {
+    U <- svd(Sigma)$u
     D <- diag(svd(Sigma)$d)
-    Gamma <- U %*% sqrt(D); # LOADINGS
+    Gamma <- U %*% sqrt(D)
     rownames(Gamma) <- colnames(Gamma) <- rownames(Sigma)
   }
   colnamesGamma <- colnames(Gamma)
   rownamesGamma <- rownames(Gamma)
-  Gamma <- Gamma[,1:nPC, drop=FALSE]; 
+  Gamma <- Gamma[, 1:nPC, drop = FALSE]
   colnames(Gamma) <- colnamesGamma[1:nPC]
   rownames(Gamma) <- rownamesGamma
-  ##
-  rownames(Gamma) <- gsub("v.names_","",rownames(Gamma))#rownames(GE)#levels(dataset$Genotype);  # rownames(Se) <- colnames(GE)#levels(dataset$Environment)
-  colnames(Gamma) <- paste("PC", 1:ncol(Gamma), sep =""); # 
-  ######### GEreduced = Sg %*% t(Se) 
-  # if we want to merge with PCs for environments
-  dtx <- data.frame(timevar=x)
+  rownames(Gamma) <- gsub("v.names_", "", rownames(Gamma))
+  colnames(Gamma) <- paste("PC", 1:ncol(Gamma), sep = "")
+  dtx <- data.frame(timevar = x)
   dtx$index <- 1:nrow(dtx)
-  Z <- Matrix::sparse.model.matrix(~timevar -1, na.action = na.pass, data=dtx)
-  colnames(Z) <- gsub("timevar","",colnames(Z))
-  Zstar <- Z%*%Gamma[colnames(Z),] # we multiple original Z by the LOADINGS
+  Z <- Matrix::sparse.model.matrix(~timevar - 1, na.action = na.pass, 
+                                   data = dtx)
+  colnames(Z) <- gsub("timevar", "", colnames(Z))
+  Zstar <- Z %*% Gamma[colnames(Z), ]
   Zstar <- as.matrix(Zstar)
   rownames(Z) <- NULL
-  
-  if(returnGamma){
-    return(list(Gamma=Gamma, H=H, Sigma=Sigma))
-  }else{
+  if (returnGamma) {
+    return(list(Gamma = Gamma, H = H, Sigma = Sigma, Zstar = Zstar))
+  }
+  else {
     return(Zstar)
   }
 }

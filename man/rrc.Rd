@@ -85,41 +85,52 @@ The resulting loadings (Gamma) and factor scores can be thought as an equivalent
 \examples{
 
 data(DT_h2)
-# DT <- DT_h2
-# DT=DT[with(DT, order(Env)), ]
-# 
-# # fit diagonal model first to produce H matrix
-# ans1a <- mmec(y~Env,
-#               random=~ vsc(dsc(Env), isc(Name)),
-#               rcov=~units, nIters = 100,
-#               # we recommend giving more EM iterations at the beggining
-#               emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
-#               data=DT)
-# 
-# H0 <- ans1a$uList$`vsc(dsc(Env), isc(Name))` # GxE table
-# # reduced rank model
-# ans1b <- mmec(y~Env,
-#               random=~vsc( dsc(rrc(Env, H = H0, nPC = 3)) , isc(Name)) + # rr
-#                 vsc(dsc(Env), isc(Name)), # diag
-#               rcov=~units,
-#               # we recommend giving more iterations to these models
-#               nIters = 100,
-#               # we recommend giving more EM iterations at the beggining
-#               emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
-#               data=DT)
-# 
-# ## get the loadings
-# loadings=with(DT, rrc(Env, nPC = 3, H = wide0, returnGamma = T) )$Gamma
-# ## extract factor scores from the model
-# scores <- ans1b$uList[[1]];
-# ## BLUPs for all environments
-# E= scores * t(loadings)  # change * for matrix product
-# ## Extract the covariance matrix
-# vc <- ans1b$theta[[1]];vc # rr
-# vc2 <- ans1b$theta[[2]];vc2 # diagonal
-# G = loadings * vc * t(loadings) + vc2 # change * for matrix product
-# lattice::levelplot(cov2cor(G))
-# lattice::levelplot(G)
+DT <- DT_h2
+DT=DT[with(DT, order(Env)), ]
+head(DT)
+indNames <- na.omit(unique(DT$Name))
+A <- diag(length(indNames))
+rownames(A) <- colnames(A) <- indNames
+
+\donttest{
+  
+# fit diagonal model first to produce H matrix
+ansDG <- mmec(y~Env,
+              random=~ vsc(dsc(Env), isc(Name)),
+              rcov=~units, nIters = 100,
+              # we recommend giving more EM iterations at the beggining
+              emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
+              data=DT)
+
+H0 <- ansDG$uList$`vsc(dsc(Env), isc(Name))` # GxE table
+
+# reduced rank model
+ansFA <- mmec(y~Env,
+              random=~vsc( usc(rrc(Env, H = H0, nPC = 3)) , isc(Name)) + # rr
+                vsc(dsc(Env), isc(Name)), # diag
+              rcov=~units,
+              # we recommend giving more iterations to these models
+              nIters = 100,
+              # we recommend giving more EM iterations at the beggining
+              emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
+              data=DT)
+
+vcFA <- ansFA$theta[[1]]
+vcDG <- ansFA$theta[[2]]
+
+loadings=with(DT, rrc(Env, nPC = 3, H = H0, returnGamma = TRUE) )$Gamma
+scores <- ansFA$uList[[1]]
+
+vcUS <- loadings \%*\% vcFA \%*\% t(loadings)
+G <- vcUS + vcDG
+# colfunc <- colorRampPalette(c("steelblue4","springgreen","yellow"))
+# hv <- heatmap(cov2cor(G), col = colfunc(100), symm = TRUE)
+
+uFA <- scores \%*\% t(loadings)
+uDG <- ansFA$uList[[2]]
+u <- uFA + uDG
+  
+}
 
 
 }

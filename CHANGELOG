@@ -473,11 +473,13 @@ version 4.3.4 (2023-04-01)
 version 4.3.5 (2023-08-01)
 ########################
  + we have added the tps function to produce tensor product splines from the TPSbits package in a more straightforward way to produce incidence matrices that can be used in the mmec solver more easily.
- + keep improving the documentation of parameeters and examples
+ + keep improving the documentation of parameters and examples in different functions
+ + rrc function for reduced rank models changed the specification and a good example is provided.
+ + mmec function now ensures that data is transformed to as.data.frame() to avoid issues with tibble objects as reported in github.
  
 ######################
 ## PENDINGS AND PRIORITIES 
-+ we need to find out how to solve the message 'Error: Mat::init(): requested size is too large; suggest to enable ARMA_64BIT_WORD' that shows up when we have very big models.
++ we need to find out how to solve the message 'Error: Mat::init(): requested size is too large; suggest to enable ARMA_64BIT_WORD' that shows up when we have very big models. In practice doesn't work in the compilation step. Still to be figured out.
 + we need to recode how the C matrix is constructed, adopt linear sum instead of [W y]' R [W y], otherwise the solver is extremely slow for complex models with many effects to be estimated since we multiply every time. Build the coefficient matrix only once and never modify. Then the Gi matrix should be a linear sum of Ai * vc (* being kronecker). If R will always be a diagonal with ones we should only ignore it and multiply the C + Gi by the factor 1/Ve. Still not sure how we avoid multiplication R for heterogeneous models.
 + internally make the ai_mme function to scale the trait first and then bring back to the original units to avoid modifying the tolParinv argument.
 + we need to find how to do symbolic cholesky instead of computing cholesky every iteration in mmec

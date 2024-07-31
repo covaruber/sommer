@@ -39,7 +39,8 @@ The vignettes aim to provide several examples in how to use the sommer package u
 1) Partitioned model
 2) UDU' decomposition
 3) Mating designs
-5) GWAS by GBLUP
+4) GWAS by GBLUP
+5) Reduced models
 
 ## SECTION 1: Introduction 
 
