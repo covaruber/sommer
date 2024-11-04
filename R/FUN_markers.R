@@ -1,4 +1,4 @@
-neMarker <- function(M, maxNe=100, maxMarker=1000, nSamples=5){
+neMarker <- function(M, neExplore=NULL, maxMarker=1000, nSamples=5){
   # maxMarker argument: only used a limited number of markers to avoid this to be too time consuming
   v <- sample(1:ncol(M), min(c(maxMarker, ncol(M))))
   M <- M[,v]
@@ -6,11 +6,12 @@ neMarker <- function(M, maxNe=100, maxMarker=1000, nSamples=5){
   nAllelesPop <- apply(M,2,function(x){ifelse(length(table(x)) > 1, 2, 1)})
   nAllelesPopTotal <- sum(nAllelesPop)
   # maxNe argument: define the range to test
-  maxNe <- min(c(maxNe, nrow(M)))
+  if(is.null(neExplore)){neExplore <- seq(10,100,10)}
   # do the sampling algorithm
-  allelesCovered <- allelesCoveredSe <- vector(mode="numeric", length = maxNe)
-  for(i in 2:maxNe){ # for a possible Ne
-    print(i)
+  counter <- 1
+  allelesCovered <- allelesCoveredSe <- vector(mode="numeric", length = length(neExplore) )
+  for(i in neExplore){ # for a possible Ne
+    print(paste("Exploring allele coverage (%) at Ne:",i))
     allelesCoveredSample <- vector(mode="numeric", length = nSamples)
     # nSamples argument: take a couple of samples 
     for(j in 1:nSamples){
@@ -18,11 +19,12 @@ neMarker <- function(M, maxNe=100, maxMarker=1000, nSamples=5){
       nAllelesPopI <- apply(M[ii,],2,function(x){ifelse(length(table(x)) > 1, 2, 1)}) # how many alleles we collect in the sample
       allelesCoveredSample[j] <- sum(nAllelesPopI) # sum them up
     }
-    allelesCovered[i] <- mean(allelesCoveredSample)/nAllelesPopTotal # mean across samples
-    allelesCoveredSe[i] <- ( sd(allelesCoveredSample/nAllelesPopTotal) ) # SE across samples 
+    allelesCovered[counter] <- mean(allelesCoveredSample)/nAllelesPopTotal # mean across samples
+    allelesCoveredSe[counter] <- ( sd(allelesCoveredSample/nAllelesPopTotal) ) # SE across samples 
+    counter <- counter+1
   }
   # save results
-  result <- data.frame(allelesCovered=allelesCovered, allelesCoveredSe=allelesCoveredSe, Ne=1:maxNe)
+  result <- data.frame(allelesCovered=allelesCovered, allelesCoveredSe=allelesCoveredSe, Ne=neExplore)
   return(result)
 }
 

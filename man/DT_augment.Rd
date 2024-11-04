@@ -7,6 +7,16 @@ DT_augment design example.
 \description{
 This dataset contains phenotpic data for one trait evaluated in the experimental design known as augmented design. This model allows to obtain BLUPs for genotypes that are unreplicated by dividing the field in blocks and replicating 'check genotypes' in the blocks and unreplicated genotypes randomly within the blocks. The presence of check genotypes (usually cultivars) allows the adjustment of unreplicated genotypes.
 
+The column 'Plot' indicates the number of plot in the field
+The column 'Entry' is a numeric value for each entry
+The colum 'Genotype' is the name of the individual
+The column 'Block' is the replicate or big block
+The column TSW is the response variable
+The column check is an indicator column for checks (0) and non-checks (1)
+The column Check.Gen is an indicator column for checks (89,90,91) and non-checks (999)
+
+The dataset has 3 unique checks (Ross=89, MF183=90, Starlight=91) and 50 entries.
+
 }
 \usage{data("DT_augment")}
 \format{

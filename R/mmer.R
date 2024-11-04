@@ -9,7 +9,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
                  verbose=TRUE,reshapeOutput=TRUE,
                  stepWeight=NULL, emWeight=NULL){
 
-  my.date <- "2024-11-01"
+  my.date <- "2025-02-01"
   your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
   if(dateWarning){

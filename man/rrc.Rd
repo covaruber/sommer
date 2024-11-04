@@ -37,7 +37,7 @@ y = Xb + Z(I Gamma)c + e = Xb + Z*c + e
 
 which is equal to the one above but assumes specific effects = 0. 
 
-\strong{The algorithm in rrc the following:}
+\strong{The algorithm in rrc is the following:}
 
 1) uses a wide-format table of timevar (m columns) by idvar (q rows) named H to form the initial variance-covariance matrix (Sigma) which is calculated as Sigma = H'H of dimensions m x m (column dimensions, e.g., environments x environments). 
 

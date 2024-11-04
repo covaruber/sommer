@@ -5,12 +5,12 @@
   `neMarker` uses a marker matrix to approximate the effective population size (Ne) by discovering how many individuals are needed to sample all possible alleles in a population.
 }
 \usage{
-  neMarker(M, maxNe=100, maxMarker=1000, nSamples=5)
+  neMarker(M, neExplore=NULL, maxMarker=1000, nSamples=5)
 }
 
 \arguments{
   \item{M}{marker matrix coded in a numerical faashion (any allele dosage is fine).}
-  \item{maxNe}{maximum number of effective population size to be calculated.}
+  \item{neExplore}{a vector of numbers with the effective population sizes to be explored.}
   \item{maxMarker}{maximum number of markers to use for the analysis.}
   \item{nSamples}{number of individuals to sample for the Ne calculation.}
 }
@@ -43,35 +43,35 @@
 # MP <- MP_cpdata
 # M <- GT
 # # run the function
-# ne <- neMarker(M, maxNe = 30, nSamples = 10)
+# ne <- neMarker(M, neExplore = seq(2,30,2), nSamples = 10)
 # ################
 # data(DT_technow) # maize
 # M <- Md_technow # dent
 # M <- (M*2) - 1
 # M <- M + 1
 # # run the function
-# ne <- neMarker(M, maxNe = 60, nSamples = 10)
+# ne <- neMarker(M, neExplore = seq(5,100,5), nSamples = 10)
 # ##
 # M <- Mf_technow # flint
 # M <- (M*2) - 1
 # M <- M + 1
 # # run the function
-# ne <- neMarker(M, maxNe = 60, nSamples = 10)
+# ne <- neMarker(M, neExplore = seq(5,100,5), nSamples = 10)
 # ################
 # data(DT_wheat) # cimmyt wheat
 # M <- GT_wheat + 1
 # # run the function
-# ne <- neMarker(M, maxNe = 60, nSamples = 10)
+# ne <- neMarker(M, neExplore = seq(5,60,5), nSamples = 10)
 # ###############
 # data(DT_rice) # Zhao rice
 # M <- atcg1234(GT_rice)$M
 # # run the function
-# ne <- neMarker(M,  maxNe = 60, nSamples = 10)
+# ne <- neMarker(M,  neExplore = seq(10,100,10), nSamples = 10)
 # ###############
 # data(DT_polyploid) # endelman potatoes
 # M <- atcg1234(data=GT_polyploid, ploidy=4)$M
 # # run the function
-# ne <- neMarker(M,  maxNe = 60, nSamples = 10)
+# ne <- neMarker(M,  neExplore = seq(10,100,10), nSamples = 10)
 # 
 # library(ggplot2) #For making plots
 # ggplot(ne,aes(x=Ne,y=allelesCovered))+
