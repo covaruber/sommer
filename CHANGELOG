@@ -486,4 +486,4 @@ version 4.3.5 (2023-08-01)
 + we need to find how to avoid inverting the coeficcient matrix for the calculation of first derivatives (Meyer 1995 may have the solution but I can't understand that paper fully.).
 + arma::inv, arma::solve, arma::chol are slower than Eigen, we need to find how to use both libraries in the same function
 + Add correlation models
-+ Generalized linear models
++ Generalized linear models...
