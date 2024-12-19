@@ -87,9 +87,12 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
       ## scorecalc function
       ######################
       cat(red("Performing GWAS evaluation\n"))
-      preScores <- .Call("_sommer_gwasForLoop",PACKAGE = "sommer",
+      results <- .Call("_sommer_gwasForLoop",PACKAGE = "sommer",
                          M,Y,as.matrix(Z),X,Vinv,min.MAF,TRUE
       )
+      preScores <- matrix(results[, , 1], nrow(results), ncol(results))
+      bs <- matrix(results[, , 2], nrow(results), ncol(results))
+
       v2 <- length(Y) - ((ncol(X)+1)*ncol(Y)) # ncol(XZMi)
       pvals <- pbeta(preScores, v2/2, 1/2)
       scores <- -log10(pvals)
@@ -97,6 +100,7 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
       rownames(scores) <- colnames(M)
       colnames(scores) <- colnames(Y)
       
+      lastmodel$effects <- bs
       lastmodel$pvals <- pvals
       lastmodel$scores <- scores
       lastmodel$shape1 <- v2/2
