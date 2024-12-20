@@ -408,12 +408,12 @@ arma::mat hmat(const arma::mat & A, const arma::mat & G22,
 }
 
 // [[Rcpp::export]]
-arma::mat scorecalc(const arma::mat & Mimv,
-                    const arma::mat & Ymv, // Y is provided as multitrait
-                    const arma::mat & Zmv, // Z is provided as univariate
-                    const arma::mat & Xmv, // X is provided as univariate
-                    const arma::mat & Vinv, // multivariate inverse of V
-                    int nt, double minMAF
+arma::cube scorecalc(const arma::mat & Mimv,
+                     const arma::mat & Ymv, // Y is provided as multitrait
+                     const arma::mat & Zmv, // Z is provided as univariate
+                     const arma::mat & Xmv, // X is provided as univariate
+                     const arma::mat & Vinv, // multivariate inverse of V
+                     int nt, double minMAF
 ) {
 
   double tolparinv = 0.00001;
@@ -439,39 +439,36 @@ arma::mat scorecalc(const arma::mat & Mimv,
     W = W + (D*tolparinv);
     arma::inv_sympd(Winv,W);
   }
-  // make the test if the inversion went well
-  arma::rowvec score(nt, arma::fill::zeros);
-  arma::rowvec bMarker(nt, arma::fill::zeros);
-  if(Winv.n_rows > 0 && MAF > minMAF){
-    arma::mat XZMimvVy = XZMimv.t() * (Vinv*Ymv); // XZM Vi y
-    arma::colvec b = Winv * XZMimvVy; // (XZV-ZX)- XZV-y
-    arma::colvec e = Ymv - (XZMimv * b); // Y - XB
-    arma::mat mVar = (e.t() * (Vinv * e))/v2; // eV-e/(n-p) = variance
-    double mVarAsDouble = mVar(0,0);
-    arma::mat bVar = Winv * mVarAsDouble; // eVe * B
-    // extract the right fixed effect
-    arma::mat bn(b.n_rows,1); // empty vector
-    for (int i = 0; i < b.n_rows; ++i) {
-      bn(i) = i; // fill it with their own position
-    }
-    arma::uvec ps = find(bn > (Xmv.n_cols-1)); // index for good markers
-    arma::colvec bMarkerTemp = b(ps); // beta for marker
-    arma::mat bMarkerVar = bVar(ps, ps); // var beta for marker
-    arma::vec fStat = arma::pow(bMarkerTemp, 2) / diagvec(bMarkerVar); // F statistic
-    arma::vec x = v2/(v2 + v1 * fStat); // probabilty
-    for (int j = 0; j < nt; ++j) {
-      score(j) = x(j);
-    }
-    for (int j = 0; j < bMarkerTemp.n_rows; ++j) {
-      bMarker(j) = bMarkerTemp(j);
-    }
-    // score = x;//-1 * (log10(x)); // log10(pbeta(x, v2/2, v1/2));
-  }
 
-  // Combine score and bMarker into a single matrix
-  arma::mat result(nt + bMarker.n_rows, 1, arma::fill::zeros);
-  result.rows(0, nt - 1) = score.t();
-  result.rows(nt, nt + bMarker.n_rows - 1) = bMarker.t();
+  // Initialize result cube
+  arma::cube result(Mimv.n_cols, nt, 3, arma::fill::zeros);
+
+  if (Winv.n_rows > 0 && MAF > minMAF) {
+    // Main calculations
+    arma::mat XZMimvVy = XZMimv.t() * (Vinv * Ymv); // XZM' Vi y
+    arma::colvec b = Winv * XZMimvVy;               // (XZ'VinvXZ)^-1 XZ'VinvY
+    arma::colvec e = Ymv - (XZMimv * b);            // Residuals: Y - Xb
+    arma::mat mVar = (e.t() * (Vinv * e)) / v2;     // Residual variance
+    double mVarAsDouble = mVar(0, 0);
+    arma::mat bVar = Winv * mVarAsDouble;           // Beta variance
+
+    // Extract the right fixed effect
+    arma::mat bn(b.n_rows, 1); // Empty vector
+    for (int i = 0; i < b.n_rows; ++i) {
+      bn(i) = i; // Fill it with their own position
+    }
+    arma::uvec ps = find(bn > (Xmv.n_cols - 1)); // Index for good markers
+    arma::colvec bMarker = b(ps);               // Beta for marker
+    arma::mat bMarkerVar = bVar(ps, ps);        // Variance for beta
+    arma::vec SEMarker = arma::sqrt(diagvec(bMarkerVar));
+    arma::vec fStat = arma::pow(bMarker / SEMarker, 2); // F statistic
+    arma::vec x = v2 / (v2 + v1 * fStat);               // Probability scores
+
+    // Fill the result cube
+    result.slice(0) = arma::reshape(x, Mimv.n_cols, nt);         // Scores
+    result.slice(1) = arma::reshape(bMarker, Mimv.n_cols, nt);  // Beta coefficients
+    result.slice(2) = arma::reshape(SEMarker, Mimv.n_cols, nt); // Standard errors
+  }
 
   return result;
 }
@@ -498,7 +495,7 @@ arma::cube gwasForLoop(const arma::mat & M, // marker matrix
   int n_marker = M.n_cols;
   arma::vec dummy(nt, arma::fill::ones);
   arma::uvec pos = arma::find(dummy > 0); // index for good markers
-  arma::cube results(n_marker, nt, 2, arma::fill::zeros); // 3D array: markers x traits x (scores & bMarkers)
+  arma::cube results(n_marker, nt, 3, arma::fill::zeros); // 3D array: markers x traits x (scores & bMarkers)
 
   // start for loop for each marker
   Progress p(n_marker, display_progress);
@@ -509,17 +506,12 @@ arma::cube gwasForLoop(const arma::mat & M, // marker matrix
     p.increment();
     arma::mat Mi = M.col(i); // extract marker i
     arma::mat Mimv = arma::kron(Mi,Dnt); // kronecker for multivariate
-    arma::mat prov = scorecalc(Mimv, Ymv, Zmv, Xmv, Vinv, nt, minMAF);
+    arma::cube prov = scorecalc(Mimv, Ymv, Zmv, Xmv, Vinv, nt, minMAF);
 
-    // Extract scores and bMarker from the result
-    arma::rowvec provScore = prov.rows(0, nt - 1).t();
-    arma::rowvec provBMarker = prov.rows(nt, prov.n_rows - 1).t();
-
-    // Fill the cube for scores and bMarkers
-    for (int j = 0; j < nt; ++j) {
-      results(i, j, 0) = provScore(j); // Scores
-      results(i, j, 1) = provBMarker(j); // bMarkers
-    }
+    // Assign slices
+    results.slice(0).row(i) = prov.slice(0).t(); // Scores
+    results.slice(1).row(i) = prov.slice(1).t(); // bMarkers
+    results.slice(2).row(i) = prov.slice(2).t(); // SEs
   }
 
   return results;
