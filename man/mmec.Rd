@@ -16,7 +16,8 @@ The \code{mmec} function uses the Henderson mixed model equations and the Averag
 mmec(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
      tolParConvNorm = 1e-04, tolParInv = 1e-06, naMethodX="exclude",
      naMethodY="exclude", returnParam=FALSE, dateWarning=TRUE,
-     verbose=TRUE,addScaleParam=NULL, stepWeight=NULL, emWeight=NULL)
+     verbose=TRUE,addScaleParam=NULL, stepWeight=NULL, emWeight=NULL,
+     contrasts=NULL)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -64,8 +65,8 @@ mmec(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
   \item{verbose}{A TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
   \item{addScaleParam}{additional scale parameters for the thetaF matrix.}
   \item{stepWeight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which happens very often with the AI method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight.}
-  \item{emWeight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emWeight will be applied to the AI information matrix to produce a joint information matrix. By default the function gives a weight to the EM algorithm of a logarithmic decrease rate using the following code \code{logspace(nIters,1,0.05)}.
-  }
+  \item{emWeight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emWeight will be applied to the AI information matrix to produce a joint information matrix. By default the function gives a weight to the EM algorithm of a logarithmic decrease rate using the following code \code{logspace(nIters,1,0.05)}. }
+  \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
 }
 
 \details{

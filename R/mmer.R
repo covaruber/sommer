@@ -7,7 +7,8 @@ mmer <- function(fixed, random, rcov, data, weights, W,
                  returnParam=FALSE,
                  dateWarning=TRUE, date.warning=TRUE,
                  verbose=TRUE,reshapeOutput=TRUE,
-                 stepWeight=NULL, emWeight=NULL){
+                 stepWeight=NULL, emWeight=NULL, 
+                 contrasts=NULL){
 
   my.date <- "2025-02-01"
   your.date <- Sys.Date()
@@ -258,7 +259,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   newfixed <- as.formula(paste("~",paste(fixedtermss,collapse = "+")))
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
   mf <- eval(mf, parent.frame())
-  baseX <- model.matrix(newfixed, mf)
+  baseX <- model.matrix(newfixed, mf, contrasts.arg=contrasts)
   # print(head(baseX))
   if(length(vsterms) > 0){baseX <- cbind(baseX,addxs)}
   if(as.double(nrow(baseX)) * as.double(ncol(baseX)) > 2147483647) {

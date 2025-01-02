@@ -6,7 +6,8 @@ mmec <- function(fixed, random, rcov, data, W,
                  returnParam=FALSE,
                  dateWarning=TRUE,
                  verbose=TRUE, addScaleParam=NULL,
-                 stepWeight=NULL, emWeight=NULL){
+                 stepWeight=NULL, emWeight=NULL, 
+                 contrasts=NULL){
 
   my.date <- "2025-02-01"
   your.date <- Sys.Date()
@@ -137,11 +138,11 @@ mmec <- function(fixed, random, rcov, data, W,
   fixedTerms <- gsub(" ", "", strsplit(as.character(fixed[3]), split = "[+-]")[[1]])
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
   mf <- eval(mf, parent.frame())
-  X <-  Matrix::sparse.model.matrix(newfixed, mf)
+  X <-  Matrix::sparse.model.matrix(newfixed, mf, contrasts.arg=contrasts)
 
 
   partitionsX <- list()#as.data.frame(matrix(NA,length(fixedTerms),2))
-  for(ix in 1:length(fixedTerms)){
+  for(ix in 1:length(fixedTerms)){ # save indices for partitions of each fixed effect
     effs <- colnames(Matrix::sparse.model.matrix(as.formula(paste("~",fixedTerms[ix],"-1")), mf))
     effs2 <- colnames(Matrix::sparse.model.matrix(as.formula(paste("~",fixedTerms[ix])), mf))
     partitionsX[[ix]] <- matrix(which(colnames(X) %in% c(effs,effs2)),nrow=1)
@@ -149,7 +150,7 @@ mmec <- function(fixed, random, rcov, data, W,
   names(partitionsX) <- fixedTerms
   classColumns <- lapply(data,class)
 
-  for(ix in 1:length(fixedTerms)){
+  for(ix in 1:length(fixedTerms)){ # clean column names in X matrix
     colnamesBase <- colnames(X)[partitionsX[[ix]]]
     colnamesBaseList <- strsplit(colnamesBase,":")
     toRemoveList <- strsplit(fixedTerms[ix],":")[[1]] # words to remove from the level names in the ix.th fixed effect

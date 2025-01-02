@@ -17,7 +17,7 @@ mmer(fixed, random, rcov, data, weights, W, nIters=20, tolParConvLL = 1e-03,
      tolParInv = 1e-06, init=NULL, constraints=NULL,method="NR", getPEV=TRUE,
      naMethodX="exclude", naMethodY="exclude",returnParam=FALSE, 
      dateWarning=TRUE,date.warning=TRUE,verbose=TRUE, reshapeOutput=TRUE, stepWeight=NULL,
-     emWeight=NULL)
+     emWeight=NULL, contrasts=NULL)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, e.g.:
@@ -69,6 +69,7 @@ mmer(fixed, random, rcov, data, weights, W, nIters=20, tolParConvLL = 1e-03,
   \item{reshapeOutput}{A TRUE/FALSE value to indicate if the output should be reshaped to be easier to interpret for the user, some information is missing from the multivariate models for an easy interpretation.}
   \item{stepWeight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which doesn't happen very often with the NR method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight to the initial 8-10 iterations.}
   \item{emWeight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emWeight will be applied to the NR/AI information matrix to produce a joint information matrix.}
+  \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
     
 }
 
