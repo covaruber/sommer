@@ -256,6 +256,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     addxs <- do.call(cbind,addxs)
   }else{fixedvsterms <- NULL}
 
+  data$`1` <-1
   newfixed <- as.formula(paste("~",paste(fixedtermss,collapse = "+")))
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
   mf <- eval(mf, parent.frame())
@@ -264,8 +265,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   if(length(vsterms) > 0){baseX <- cbind(baseX,addxs)}
   if(as.double(nrow(baseX)) * as.double(ncol(baseX)) > 2147483647) {
     qr <- qr(baseX, LAPACK = TRUE)
-  }
-  else {
+  } else {
     qr <- qr(baseX)
   }
   keepx <- qr$pivot[1:qr$rank]
@@ -303,10 +303,11 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     }else{ ## if is a normal term
 
       if(allfixedterms[u] == "1"){
-        findlevs <- colnames(model.matrix(as.formula(paste("~",allfixedterms[u])), data=data))
+        findlevs <- colnames(model.matrix(as.formula(paste("~",allfixedterms[u])), data=data, contrasts.arg=contrasts))
       }else{
-        findlevs <- colnames(model.matrix(as.formula(paste("~",allfixedterms[u],"-1")), data=data))
-
+        findlevsM <- colnames(model.matrix(as.formula(paste("~",allfixedterms[u],"-1")), data=data, contrasts.arg=contrasts))
+        findlevsP <- setdiff( colnames(model.matrix(as.formula(paste("~",allfixedterms[u])), data=data, contrasts.arg=contrasts)) , "(Intercept)" )
+        findlevs <- unique(c(findlevsM,findlevsP))
         check9 <- grep(":",allfixedterms[u])
         if(length(check9) > 0){
           splitby0 <- strsplit(allfixedterms[u],":")[[1]]
