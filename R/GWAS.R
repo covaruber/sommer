@@ -87,9 +87,13 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
       ## scorecalc function
       ######################
       cat(red("Performing GWAS evaluation\n"))
-      preScores <- .Call("_sommer_gwasForLoop",PACKAGE = "sommer",
+      results <- .Call("_sommer_gwasForLoop",PACKAGE = "sommer",
                          M,Y,as.matrix(Z),X,Vinv,min.MAF,TRUE
       )
+      preScores <- matrix(results[, , 1], nrow(results), ncol(results))
+      bs <- matrix(results[, , 2], nrow(results), ncol(results))
+      bs.se <- matrix(results[, , 3], nrow(results), ncol(results))
+
       v2 <- length(Y) - ((ncol(X)+1)*ncol(Y)) # ncol(XZMi)
       pvals <- pbeta(preScores, v2/2, 1/2)
       scores <- -log10(pvals)
@@ -97,6 +101,8 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
       rownames(scores) <- colnames(M)
       colnames(scores) <- colnames(Y)
       
+      lastmodel$effects <- bs
+      lastmodel$effects.se <- bs.se
       lastmodel$pvals <- pvals
       lastmodel$scores <- scores
       lastmodel$shape1 <- v2/2
@@ -131,7 +137,7 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
         X <- make.full(X)
       }
       #
-      preScores <- bs <- list()
+      preScores <- bs <- bs.se <- list()
       for(iMarker in 1:ncol(M)){
         # print(iMarker)
         mi <- M[,iMarker]
@@ -147,15 +153,18 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
           t.val  = b/se.b
           # print(t.val)
           preScores[[iMarker]] = 1 - pnorm(t.val[(nrow(t.val)-ncol(Y)+1):nrow(t.val),])
-          # print(b)
+          #print(b); print(se.b)
           bs[[iMarker]] = b[(nrow(b)-ncol(Y)+1):nrow(b),] # last fixed effect where we put the marker
+          bs.se[[iMarker]] = se.b[(length(se.b)-ncol(Y)+1):length(se.b)] # matching standard error
         }else{ # if var == 0
           preScores[[iMarker]] <- rep(1,ncol(Y))
           bs[[iMarker]] = rep(0,ncol(Y)) # effect
+          bs.se[[iMarker]] = rep(Inf,ncol(Y))
         }
       } # for loop for each marker
       preScores <- do.call(rbind,preScores)
       bs <- do.call(rbind, bs)
+      bs.se <- do.call(rbind, bs.se)
       scores <- apply(preScores, 2, function(x){-log10(x)})
       
       # scores <- as.matrix(-log10(preScores))
@@ -165,6 +174,7 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
       colnames(scores) <- colnames(Y) # trait names
      
       lastmodel$effects <- bs
+      lastmodel$effects.se <- bs.se
       lastmodel$scores <- scores
       lastmodel$pvals <- preScores
       lastmodel$method <- method
