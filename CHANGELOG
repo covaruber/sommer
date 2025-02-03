@@ -470,12 +470,18 @@ version 4.3.4 (2023-04-01)
  + the atcg1234backTransform function has been added to bring back from numbers to letters.
  
 ########################
-version 4.3.5 (2023-08-01)
+version 4.3.5 (2024-08-01)
 ########################
  + we have added the tps function to produce tensor product splines from the TPSbits package in a more straightforward way to produce incidence matrices that can be used in the mmec solver more easily.
  + keep improving the documentation of parameters and examples in different functions
  + rrc function for reduced rank models changed the specification and a good example is provided.
  + mmec function now ensures that data is transformed to as.data.frame() to avoid issues with tibble objects as reported in github.
+ 
+########################
+version 4.3.7 (2025-02-01)
+########################
+ + enhancing documentation
+
  
 ######################
 ## PENDINGS AND PRIORITIES 
