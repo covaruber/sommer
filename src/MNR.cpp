@@ -303,7 +303,7 @@ arma::mat dmat(const arma::mat & Xo, const bool & nishio, double minMAF) {
   arma::mat X = Xo2.cols(index); // new X only with polymorphic markers
 
   // initialize A
-  int p = X.n_cols;
+  // int p = X.n_cols;
   int n = X.n_rows;
   arma::mat D(n,n);
 
