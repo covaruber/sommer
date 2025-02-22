@@ -1303,7 +1303,8 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     for (int i = 0; i < nRe; ++i) { // for each random effect
       double val;
       double sign;
-      bool ok = log_det(val, sign, arma::mat(Ai[i])); // calculate the logDet of the covariance matrix
+      bool ok3 = log_det(val, sign, arma::mat(Ai[i])); // calculate the logDet of the covariance matrix
+      if(ok3 == false){ Rcpp::Rcout << "log determinant of Ai failed " << arma::endl};
       logDetA(i) =val*sign*(-1);
     }
   }
@@ -1526,13 +1527,15 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       for (int i = 0; i < nRe; ++i) {
         double val;
         double sign;
-        bool ok = log_det(val, sign, theta(i));  // form 2
+        bool ok1 = log_det(val, sign, theta(i));  // form 2
+        if(ok1 == false){ Rcpp::Rcout << "log determinant failed " << arma::endl};
         llikp = llikp + (nUsTotal(i)*val*sign) + logDetA(i);
       }
     }
     double val;
     double sign;
-    bool ok = log_det(val, sign, theta(nRRe-1));  // form 2
+    bool ok2 = log_det(val, sign, theta(nRRe-1));  // form 2
+    if(ok2 == false){ Rcpp::Rcout << "log determinant of R failed " << arma::endl};
     double logDetR = nR * val * sign;
     llik(iIter) = (- 0.5) * ( llikp + logDetC + logDetR + arma::as_scalar(yPy) );
 
