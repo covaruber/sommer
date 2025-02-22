@@ -68,7 +68,8 @@ data(DT_cpdata)
 # GT <- GT_cpdata
 # MP <- MP_cpdata
 # A <- A.mat(GT)
-# Ai <- as(solve(A + diag(1e-4,ncol(A),ncol(A))), Class="dgCMatrix")
+# Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # mix <- mmec(Yield~1,
 #             random=~vsc(isc(id), Gu=Ai) +
 #               Rowf + Colf +

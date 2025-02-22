@@ -1851,7 +1851,9 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     }
     arma::uvec eigenFind = find(pdCheck < 0);
     if(eigenFind.n_elem > 0){
+      if(verbose == true){ //
       Rcpp::Rcout << "Updated VC is not positive definite, changing to EM step" << arma::endl;
+      }
       InfMat = (0.5 * avInf) + (0.5 * emInf);
       if(constrained.n_elem > 0){
         Rcpp::Rcout << "Update using constraints" << arma::endl;

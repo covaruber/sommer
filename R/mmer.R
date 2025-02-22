@@ -387,9 +387,9 @@ mmer <- function(fixed, random, rcov, data, weights, W,
   #################
   ## provide arguments to MNR
   if(!missing(random)){
-    Z <- lapply(Z,function(x){as(x, Class = "dgCMatrix")})
+    Z <- lapply(Z,function(x){as(as(as( x,  "dMatrix"), "generalMatrix"), "CsparseMatrix")})
   }else{Z <- list();K <- list();random=NULL}
-  R <- lapply(R,function(x){as(x, Class = "dgCMatrix")})
+  R <- lapply(R,function(x){as(as(as( x,  "dMatrix"), "generalMatrix"), "CsparseMatrix")})
   if(!is.null(init)){GES <- init}
   if(!is.null(constraints)){GESI <- constraints}
   re_names <- c(re_namel1,re_namel2)

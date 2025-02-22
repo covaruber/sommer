@@ -448,11 +448,6 @@ build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE, separato
     ## marker matrix for hybrids one for each parent
     cat(paste("Building hybrid marker matrix for",nrow(Z1),"hybrids\n"))
     
-    # M1 <- as(M1, Class="dgCMatrix")
-    # M2 <- as(M2, Class="dgCMatrix")
-    # Z1 <- as(Z1, Class="dgCMatrix")
-    # Z2 <- as(Z2, Class="dgCMatrix")
-    
     cat("Extracting M1 contribution\n")
     if(all(checkM1 == c(1,1,0))){ # homo markers were coded correctly as -1,1
       Md <- Z1 %*% M1;  # was already converted to -1,1

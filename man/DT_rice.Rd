@@ -51,7 +51,8 @@ data(DT_rice)
 #             data=DT)
 # summary(mix)$varcomp
 # 
-# Ai <- as(solve(A + diag(1e-6,ncol(A),ncol(A))), Class="dgCMatrix")
+# Ai <- solve(A + diag(1e-6,ncol(A),ncol(A)))
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # mixb <- mmec(Protein.content~1,
 #             random = ~vsc(isc(geno), Gu=Ai) + geno,
 #             rcov=~units,

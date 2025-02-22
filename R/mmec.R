@@ -191,7 +191,7 @@ mmec <- function(fixed, random, rcov, data, W,
     W <- sparse.model.matrix(~d-1, x)
     useH=FALSE
   }else{
-    W <- as(W, Class = "dgCMatrix")
+    W <- as(as(as( W ,  "dMatrix"), "generalMatrix"), "CsparseMatrix") # as(W, Class = "dgCMatrix")
     useH=TRUE
   }
 

@@ -76,7 +76,7 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     if(nrow(x) == 1){ # is a numeric variables
       Gu <- matrix(1);
       colnames(Gu) <- rownames(Gu) <- colnames(init[[length(init)]]$Z)
-      Gu <- as(Gu, Class="dgCMatrix"); 
+      Gu <- as(as(as( Gu,  "dMatrix"), "generalMatrix"), "CsparseMatrix")# as(Gu, Class="dgCMatrix"); 
     }else{ # there's levels since it is a factor model
       Gu <- sparse.model.matrix(~d-1, x)
       colnames(Gu) <- rownames(Gu) <- colnames(init[[length(init)]]$Z)
@@ -107,8 +107,8 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
       }else{
         provZ0iCol <- Matrix(Z0[,j]) %*% Matrix(1,1,ncol(Z1prov))
         Z1provZ0iCol <- Z1prov * provZ0iCol
-        if(!is(class(Z1provZ0iCol), "dgCMatrix")){
-          Z[[counter]] <- as(Z1prov * provZ0iCol, Class = "dgCMatrix")
+        if(!inherits(Z1provZ0iCol, "dgCMatrix")){
+          Z[[counter]] <- as(as(as( Z1prov * provZ0iCol ,  "dMatrix"), "generalMatrix"), "CsparseMatrix") # as(Z1prov * provZ0iCol, Class = "dgCMatrix")
         }else{
           Z[[counter]] <- Z1provZ0iCol
         }

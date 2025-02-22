@@ -53,7 +53,8 @@ DT <- DT_ige
 # pmonitor(modIGE)
 # 
 # # form relationship matrix
-# Ai <- as( solve(A_ige + diag(1e-5, nrow(A_ige),nrow(A_ige) )), Class="dgCMatrix")
+# Ai <- solve(A_ige + diag(1e-5, nrow(A_ige),nrow(A_ige) ))
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # # Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
 # modIGE <- mmec(trait ~ block, dateWarning = FALSE,
 #                random = ~ covc( vsc(isc(focal), Gu=Ai), vsc(isc(neighbour), Gu=Ai) ),

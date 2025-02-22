@@ -830,7 +830,8 @@ dsc <- function(x, thetaC=NULL, theta=NULL){
   }else{
     if(!is.character(x) & !is.factor(x)){
       namess <- as.character(substitute(list(x)))[-1L]
-      dummy <- as(Matrix(x,ncol=1), Class = "dgCMatrix"); colnames(dummy) <- namess
+      dummy <-  as(as(as( Matrix(x,ncol=1) ,  "dMatrix"), "generalMatrix"), "CsparseMatrix") # as(Matrix(x,ncol=1), Class = "dgCMatrix"); 
+      colnames(dummy) <- namess
       mm <- diag(ncol(dummy));
     }else{
       dummy <- x
@@ -900,7 +901,7 @@ usc <- function(x, thetaC=NULL, theta=NULL){
 }
 isc <- function(x, thetaC=NULL, theta=NULL){
   if(class(x)[1] %in% c("dgCMatrix","matrix") ){
-    dummy <- as(x, Class="dgCMatrix")
+    dummy <-  as(as(as( x ,  "dMatrix"), "generalMatrix"), "CsparseMatrix") # as(x, Class="dgCMatrix")
     mm <- diag(1)#,ncol(x))
   }else{ # if user provides a vector
     if(!is.character(x) & !is.factor(x)){
@@ -913,7 +914,7 @@ isc <- function(x, thetaC=NULL, theta=NULL){
       if(length(levs) > 1){
         dummy  <- Matrix::sparse.model.matrix(~dummy-1,na.action = na.pass)
         if(!is(class(dummy), "dgCMatrix")){
-          dummy <- as(dummy, Class="dgCMatrix")
+          dummy <-  as(as(as( dummy ,  "dMatrix"), "generalMatrix"), "CsparseMatrix") # as(dummy, Class="dgCMatrix")
         }
         colnames(dummy) <- gsub("dummy","",colnames(dummy))
       }else{

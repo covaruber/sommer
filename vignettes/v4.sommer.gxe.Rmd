@@ -43,7 +43,8 @@ ansSingle <- mmer(Yield~1,
 summary(ansSingle)
 
 # or
-Ai <- as(solve(A), Class="dgCMatrix")
+Ai <- solve(A)
+Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 ansSingle <- mmec(Yield~1,
               random= ~ vsc(isc(Name), Gu=Ai),
               rcov= ~ units,
@@ -68,7 +69,8 @@ summary(ansMain)
 
 # or 
 
-Ai <- as(solve(A), Class="dgCMatrix")
+Ai <- solve(A)
+Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 ansMain <- mmec(Yield~Env,
               random= ~ vsc(isc(Name), Gu=Ai),
               rcov= ~ units,
@@ -90,7 +92,8 @@ ansDG <- mmer(Yield~Env,
 summary(ansDG)
 
 # or
-Ai <- as(solve(A), Class="dgCMatrix")
+Ai <- solve(A)
+Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 ansDG <- mmec(Yield~Env,
               random= ~ vsc(dsc(Env),isc(Name), Gu=Ai),
               rcov= ~ units,
@@ -118,9 +121,9 @@ E <- diag(length(unique(DT$Env)));rownames(E) <- colnames(E) <- unique(DT$Env)
 Ei <- solve(E)
 Ai <- solve(A)
 EAi <- kronecker(Ei,Ai, make.dimnames = TRUE)
-Ei <- as(Ei, Class="dgCMatrix")
-Ai <- as(Ai, Class="dgCMatrix")
-EAi <- as(EAi, Class="dgCMatrix")
+Ei <- as(as(as( Ei,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+EAi <- as(as(as( EAi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 ansCS <- mmec(Yield~Env,
               random= ~ vsc(isc(Name), Gu=Ai) + vsc(isc(Env:Name), Gu=EAi),
               rcov= ~ units, 
@@ -145,7 +148,7 @@ summary(ansUS)
 
 # or
 Ai <- solve(A)
-Ai <- as(Ai, Class="dgCMatrix")
+Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 ansUS <- mmec(Yield~Env,
               random= ~ vsc(usc(Env),isc(Name), Gu=Ai),
               rcov= ~ units,

@@ -361,8 +361,8 @@ spl2Dc <-  function(x.coord,y.coord,at.var=NULL,at.levels=NULL, type="PSANOVA",
   if(sp){thetaF <- thetaF*0}
 
   partitionsR <- list() ## only meaningful for residuals
-  Zup <- lapply(Zup,function(x){as(x,Class="dgCMatrix")})
-  Kup <- as(Kup[[1]],Class="dgCMatrix")
+  Zup <- lapply(Zup,function(x){ as(as(as( x ,  "dMatrix"), "generalMatrix"), "CsparseMatrix")  }) # as(x,Class="dgCMatrix")
+  Kup <- as(as(as( Kup[[1]] ,  "dMatrix"), "generalMatrix"), "CsparseMatrix")  # as(Kup[[1]],Class="dgCMatrix")
   S3 <- list(Z=Zup,Gu=Kup,theta=theta,thetaC=thetaC,thetaF=thetaF,partitionsR=partitionsR, sp=sp0)
   return(S3)
 }

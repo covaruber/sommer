@@ -51,8 +51,10 @@ Mf <- Mf_technow
 #              data=DT)
 # summary(ans2)$varcomp
 # 
-# Adi <- as(solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad))), Class="dgCMatrix")
-# Afi <- as(solve(Af + diag(1e-4,ncol(Af),ncol(Af))), Class="dgCMatrix")
+# Adi <- solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad)))
+# Adi <- as(as(as( Adi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# Afi <- solve(Af + diag(1e-4,ncol(Af),ncol(Af)))
+# Afi <- as(as(as( Afi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # ans2b <- mmec(GY~1,
 #              random=~vsc(isc(dent),Gu=Adi) + vsc(isc(flint),Gu=Afi),
 #              rcov=~units,
