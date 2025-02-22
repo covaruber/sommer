@@ -83,7 +83,8 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     }
   }else{
     if (!inherits(Gu, "dgCMatrix")){
-      stop("Gu matrix is not of class dgCMatrix. Please correct \n", call. = TRUE )
+      Gu <- as(as(as( Gu,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+      # stop("Gu matrix is not of class dgCMatrix. Please correct \n", call. = TRUE )
     }
   }
   #############################
