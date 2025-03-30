@@ -70,10 +70,10 @@ mmer <- function(fixed, random, rcov, data, W,
     })
     
     for(u in 1:length(rtermss)){ # for each random effect
-      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsc","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
+      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsr","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
       
       if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
-        rtermss[u] <- paste("vsc( isc(",rtermss[u],") )")
+        rtermss[u] <- paste("vsr( isr(",rtermss[u],") )")
       }
       ff <- eval(parse(text = rtermss[u]),data,parent.frame()) # evaluate the variance structure
       Z <- c(Z, ff$Z)
@@ -107,10 +107,10 @@ mmer <- function(fixed, random, rcov, data, W,
   S <- list()
   Spartitions <- list()
   for(u in 1:length(rcovtermss)){ # for each random effect
-    checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vsc","gvs","spl2Da","spl2Db")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
+    checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vsr","gvs","spl2Da","spl2Db")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
     
     if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
-      rcovtermss[u] <- paste("vsc( isc(",rcovtermss[u],") )")
+      rcovtermss[u] <- paste("vsr( isr(",rcovtermss[u],") )")
     }
     
     ff <- eval(parse(text = rcovtermss[u]),data,parent.frame()) # evalaute the variance structure
@@ -254,14 +254,14 @@ mmer <- function(fixed, random, rcov, data, W,
       isInvW=FALSE
       AI=FALSE # use newton raphson
       returnScaled=FALSE # return scaled variance parameters
-      # translate vsc S into vsr R
+      # translate vsr S into vsr R
       R <- rep(list(Matrix::Diagonal(x= rep(0, nrow(yvar)) )), length(S) )
       for(iR in 1:length(S)){ # iR=1
         R[[iR]][Spartitions[[iR]][1,1]:Spartitions[[iR]][1,2],
                 Spartitions[[iR]][1,1]:Spartitions[[iR]][1,2] ] = S[[iR]]
       }
       R <- lapply(R,function(x){as(as(as( x,  "dMatrix"), "generalMatrix"), "CsparseMatrix")})
-      # translate vsc Z into vsr Z
+      # translate vsr Z into vsr Z
       
       THETA <- THETAc <- K <- Zdi <- list(); counter=1
       vary <- var(yvar[,1])

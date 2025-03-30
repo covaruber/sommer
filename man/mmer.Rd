@@ -2,19 +2,19 @@
 \alias{mmer}
 \title{
 
-\strong{m}ixed \strong{m}odel \strong{e}quations for \strong{c} coefficients
+\strong{m}ixed \strong{m}odel \strong{e}quations in \strong{r}
 
 }
 \description{
 
-The \code{mmer} function uses the Henderson mixed model equations and the Average 
-Information algorithm coded in C++ using the Armadillo library to optimize matrix 
+The \code{mmer} function uses either the direct inversion or the Henderson mixed 
+model equations algorithms coded in C++ using the Armadillo library to optimize matrix 
 operations common in problems with sparse data (e.g., genotype by environment models). 
 This algorithm is \strong{intended to be used for problems of the type r > c (more 
 records in the data than coefficients to estimate)}. For problems with of the type 
 c > r (more coefficients to estimate than records available), the direct inversion 
-algorithms are faster and we recommend to shift to the use of the \code{\link{mmer}} 
-function.
+algorithms are faster and we recommend using the argument \code{mme=FALSE} (default).
+For more records than coefficients set \code{mme=TRUE}.
 
 }
 
@@ -37,7 +37,12 @@ mmer(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
 
   Useful functions can be used to fit heterogeneous variances and other special models (\emph{see 'Special Functions' in the Details section for more information}):
 
-  \code{\link{vsr}(...,Gu)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (e.g., usr,dsr,at,csc) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance matrices among the levels of the random effect. Auxiliar functions for building the variance models are:
+  \code{\link{vsr}(...,Gu)} is the main function to specify variance models and
+  special structures for random effects. On the ... argument you provide the 
+  unknown variance-covariance structures (e.g., usr,dsr,atc,csr) and the random 
+  effect where such covariance structure will be used (the random effect of interest). 
+  Gu is used to provide known covariance matrices among the levels of the random effect.
+  Auxiliar functions for building the variance models are:
 
   ** \code{\link{dsr}(x)}, \code{\link{usr}(x)}, \code{\link{rrc}(x,y,z)} , \code{\link{isr}(x)},\code{\link{csc}(x)}, and \code{\link{atr}(x,levs)} can be used to specify unknown diagonal, unstructured, reduced-rank, identity, and customized unstructured and diagonal covariance structures respectively to be estimated by REML.
 

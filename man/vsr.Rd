@@ -16,7 +16,7 @@
 
   being \code{G.e}  a matrix containing the variance covariance components for g (genotypes) in each level of e (environments), \code{I.g} is the covariance among levels of g (genotypes; i.e. relationship matrix), and @ is the kronecker product. This would be specified in the mmer solver as:
 
-  \code{random=~vsr(dsc(e),g)}
+  \code{random=~vsr(dsr(e),g)}
 
   One strength of sommer is the ability to specify very complex structures with as many kronecker products as desired. For example:
 
@@ -26,9 +26,15 @@
 
   \code{random=~vsr(e,f,h,g)}
 
-  where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{dsc}}, \code{\link{usc}}, \code{\link{csc}}, \code{\link{atr}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
+  where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{dsr}}, \code{\link{usc}}, \code{\link{csc}}, \code{\link{atr}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
 
-  \item{Gu}{matrix with the inverse of a known variance-covariance values for the levels of the u.th random effect (e.g., the inverse of a relationship matrix among individuals or any other known inverse covariance matrix). If \code{NULL}, then an identity matrix is assumed. The Gu matrix can have more levels than the ones present in the random effect linked to it but not the other way around. Otherwise, an error message of missing level in Gu will be returned.}
+  \item{Gu}{matrix with either the inverse (in case of mme=TRUE) or raw variance-covariance (mme=FALSE)
+  values for the levels of the u.th random effect (e.g., the inverse of a 
+  relationship matrix among individuals or any other known inverse covariance 
+  matrix). If \code{NULL}, then an identity matrix is assumed.
+  The Gu matrix can have more levels than the ones present in the random effect
+  linked to it but not the other way around. Otherwise, an error message of missing
+  level in Gu will be returned.}
 
     \item{buildGu}{a \code{TRUE/FALSE} statement to indicate if the Gu matrix should be built in R when the value for the argument \code{Gu=NULL}. Repeat, only when when the value for the argument \code{Gu} is equal to \code{NULL}. In some cases when the incidence matrix is wide (e.g. rrBLUP models) the covariance structure is a huge p x p matrix that can be avoided when performing matrix operations. By setting this argument to \code{FALSE} it allows to skip forming this covariance matrix.}
 
@@ -99,12 +105,12 @@ mix <- mmer(Yield~Env,
             data=DT)
 summary(mix)$varcomp
 ## ============================ ##
-## example to use dsc() structure (DIAGONAL)
+## example to use dsr() structure (DIAGONAL)
 ## ============================ ##
-dsc(DT$Year)
+dsr(DT$Year)
 mix <- mmer(Yield~Env,
-            random= ~ vsr(dsc(Year),isr(Name)),
-            rcov=~ vsr(dsc(Year),isr(units)),
+            random= ~ vsr(dsr(Year),isr(Name)),
+            rcov=~ vsr(dsr(Year),isr(units)),
             nIters=10,
             data=DT)
 summary(mix)$varcomp
@@ -114,7 +120,7 @@ summary(mix)$varcomp
 # unique(DT$Year)
 # mix <- mmer(Yield~Env,
 #             random= ~ vsr(atc(Year,c("2011","2012")),isr(Name)),
-#             rcov=~ vsr(dsc(Year),isr(units)),
+#             rcov=~ vsr(dsr(Year),isr(units)),
 #             data=DT)
 ## ============================ ##
 ## example to use usc() structure (UNSTRUCTURED)
@@ -122,7 +128,7 @@ summary(mix)$varcomp
 usc(DT$Year)
 mix <- mmer(Yield~Env,
             random= ~ vsr(usc(Year),isr(Name)),
-            rcov=~ vsr(dsc(Year),isr(units)),
+            rcov=~ vsr(dsr(Year),isr(units)),
             nIters = 10,
             data=DT)
 ## ============================ ##
