@@ -54,13 +54,13 @@ Md <- Md_technow
 M <- tcrossprod(Md)
 xx = with(DT, redmm(x=dent, M=M, nPC=10))
 
-# ans <- mmec(GY~1,
+# ans <- mmer(GY~1,
 #             # new model matrix instead of dent
-#             random=~vsc(isc(xx$Z)),
+#             random=~vsr(isr(xx$Z)),
 #             rcov=~units,
 #             data=DT)
 # summary(ans)$varcomp
 # u = xx$Lam * ans$uList[[1]] # change * for matrix product
 
 }
-\seealso{The core functions of the package \code{\link{mmec}} }
+\seealso{The core functions of the package \code{\link{mmer}} }

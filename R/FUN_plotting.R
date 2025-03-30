@@ -16,6 +16,7 @@ pmonitor <- function(object,...){
 bathy.colors <- function(n, alpha=1){
   return(rgb(seq(0.9,0,len=n), seq(0.9,0,len=n), 1, alpha))
 }
+
 big.peaks.col <-function(x, tre){
   r <- rle(x)
   v <- which(rep(x = diff(sign(diff(c(-Inf, r$values, -Inf)))) == -2, times = r$lengths))
@@ -24,6 +25,7 @@ big.peaks.col <-function(x, tre){
   out <- list(pos=pos,hei=hei)
   return(out)
 }
+
 hits <- function(gwasm, nmar=10, threshold=1, pick=FALSE, method="cluster", only.mark=FALSE, plotting=TRUE){
   
   bagi <- function(gwasm, nmar=10, threshold=1, pick=FALSE, method="cluster", only.mark=FALSE, plotting=TRUE){
@@ -195,6 +197,7 @@ hits <- function(gwasm, nmar=10, threshold=1, pick=FALSE, method="cluster", only
   
   return(XXX)
 }
+
 jet.colors <- function(n, alpha=1) {
   if(n > 0) {
     if(length(alpha) != 1 & length(alpha) != n) {
@@ -212,6 +215,7 @@ jet.colors <- function(n, alpha=1) {
     character()
   }
 }
+
 map.plot <- function(data, trait=NULL, trait.scale="same", col.chr=NULL, col.trait=NULL, type="hist", cex=0.4, lwd=1, cex.axis=0.4, cex.trait=0.8, jump=5 ){
   sasa <- which(colnames(data) == "Locus")
   if(length(sasa) > 0){
@@ -449,6 +453,7 @@ map.plot <- function(data, trait=NULL, trait.scale="same", col.chr=NULL, col.tra
     
   }
 }
+
 maxi.qtl <- function(sma, distan=10, no.qtl=5, q95=2.5, LOD.int=FALSE, LODdrop=2, allCI=TRUE){
   param=NULL
   sma <- data.frame(sma)
@@ -574,6 +579,7 @@ maxi.qtl <- function(sma, distan=10, no.qtl=5, q95=2.5, LOD.int=FALSE, LODdrop=2
   return(res2)
   
 }
+
 manhattan <- function(map, col=NULL, fdr.level=0.05, show.fdr=TRUE, PVCN=NULL, ylim=NULL,...){
   
   if(!is.null(PVCN)){

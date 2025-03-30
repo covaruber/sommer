@@ -36,5 +36,34 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 x <- 1:4
 R1 <- AR1(x,rho=.25)
 image(R1)
+
+data(DT_sleepstudy)
+DT <- DT_sleepstudy
+head(DT)
+
+# define the correlation between Days
+D = with(DT, AR1(Days, rho=0.5))
+subs = unique(DT$Subject)
+# define the correlation between Subjects
+S = diag(length(subs))
+rownames(S) <- colnames(S) <- subs
+# make the kronecker product
+DS = kronecker(D,S, make.dimnames = TRUE)
+# form the covariance matrix between units 
+# this is assumes correlation between timepoints
+DT$ds <- paste(DT$Days, DT$Subject, sep=":")
+DS <- DS[DT$ds, DT$ds]
+colnames(DS) <- rownames(DS) <- paste0("u",1:nrow(DS))
+# fit the residual model
+head(DT)
+
+fm2 <- mmer(Reaction ~ Days,
+            random= ~ Subject, 
+            rcov = ~vsr(units, Gu=DS), # equivalent to Subject:ar1(Days)
+            data=DT, tolParInv = 1e-6, verbose = FALSE)
+summary(fm2)$varcomp
+
+# the matrix D can take any form: AR1, ARMA, or a custom correlation matrix
+
 }
 \seealso{The core function of the package \code{\link{mmer}}}

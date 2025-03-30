@@ -46,7 +46,7 @@ Mf <- Mf_technow
 # ###=========================================####
 # ###=========================================####
 # ans2 <- mmer(GY~1,
-#              random=~vsr(dent,Gu=Ad) + vsr(flint,Gu=Af),
+#              random=~vsr(isr(dent),Gu=Ad) + vsr(isr(flint),Gu=Af),
 #              rcov=~units,
 #              data=DT)
 # summary(ans2)$varcomp
@@ -55,22 +55,6 @@ Mf <- Mf_technow
 # Adi <- as(as(as( Adi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # Afi <- solve(Af + diag(1e-4,ncol(Af),ncol(Af)))
 # Afi <- as(as(as( Afi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# ans2b <- mmec(GY~1,
-#              random=~vsc(isc(dent),Gu=Adi) + vsc(isc(flint),Gu=Afi),
-#              rcov=~units,
-#              data=DT)
-# summary(ans2b)$varcomp
-# ####=========================================####
-# #### multivariate overlayed model
-# ####=========================================####
-# M <- rbind(Md,Mf)
-# A <- A.mat(M)
-# ans3 <- mmer(cbind(GY,GM)~1,
-#              random=~vsr(overlay(dent,flint),Gu=A),
-#              rcov=~vsr(units,Gtc=diag(2)),
-#              data=DT)
-# summary(ans2)
-# cov2cor(ans3$sigma[[1]])
 
 }
 \keyword{datasets}

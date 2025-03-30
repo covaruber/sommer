@@ -75,19 +75,13 @@ A platform for meta-analysis of rice crop data. \emph{Plant Physiology} \bold{13
 # head(DT)
 # #### univariate
 # mix0 <- mmer(x1~1,
-#              random = ~vsr(line,Gu=K),
+#              random = ~vsr(isr(line),Gu=K),
 #              rcov=~units,
 #              data=DT)
 # summary(mix0)$varcomp
-# 
+# # if using mme=TRUE provide Gu as inverse
 # Ki <- solve(K + diag(1e-4,ncol(K),ncol(K)))
 # Ki <- as(as(as( Ki,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# mix0b <- mmec(x1~1,
-#              random = ~vsc(isc(line),Gu=Ki),
-#              rcov=~units,
-#              data=DT)
-# summary(mix0b)$varcomp
-
 
 }
 \keyword{datasets}

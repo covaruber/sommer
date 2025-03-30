@@ -50,43 +50,18 @@ ans1 <- mmer(Yield~Env,
              data=DT)
 summary(ans1)$varcomp
 
-ans1b <- mmec(Yield~Env,
-             random= ~ Name + Env:Name,
-             rcov= ~ units,
-             data=DT)
-summary(ans1b)$varcomp
-
 # ####===========================================####
 # #### Univariate heterogeneous variance models  ####
 # ####===========================================####
 # 
 # ## Compound simmetry (CS) + Diagonal (DIAG) model
+# DT=DT[with(DT, order(Env)), ]
 # ans2 <- mmer(Yield~Env,
-#              random= ~Name + vsr(dsr(Env),Name),
-#              rcov= ~ vsr(dsr(Env),units),
+#              random= ~Name + vsr(dsr(Env),isr(Name)),
+#              rcov= ~ vsr(dsr(Env),isr(units)),
 #              data=DT)
 # summary(ans2)
-# 
-# DT=DT[with(DT, order(Env)), ]
-# ans2b <- mmec(Yield~Env,
-#              random= ~Name + vsc(dsc(Env),isc(Name)) +
-#                       vsc(atc(Env, c("CA.2011") ),isc(Block)) ,
-#              rcov= ~ vsc(dsc(Env),isc(units)),
-#              data=DT)
-# summary(ans2b)
-# 
-# ####==========================================####
-# #### Multivariate homogeneous variance models ####
-# ####==========================================####
-# 
-# ## Multivariate Compound simmetry (CS) model
-# DT$EnvName <- paste(DT$Env,DT$Name)
-# ans4 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vsr(Name) + vsr(EnvName),
-#               rcov= ~ vsr(units),
-#               data=DT)
-# summary(ans4)
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} and \code{\link{mmec}} }
+\seealso{The core functions of the package \code{\link{mmer}}  }

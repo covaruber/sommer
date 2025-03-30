@@ -1,4 +1,4 @@
-vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE, isFixed=FALSE, verbose=TRUE){
+vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE, isFixed=FALSE, verbose=TRUE){
 
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
@@ -141,7 +141,10 @@ vsc <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     }
   }
   Zind <- rep(1,length(Z))
-
+  # error message when units are not sorted by the factor desired
+  if(length(which(diff(unlist(partitionsR)) < 0) > 0)){
+    stop("Please sort your records according to the factor you are structuring your residual units.", call. = FALSE)
+  }
   ######################################
   ## meN adjustment
   ## modify theta and thetaC according to the number of mainEffect matrices

@@ -50,7 +50,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # rownames(S) <- colnames(S) <- levels(hybrid2$SCA)
 # 
 # ans <- mmer(Yield ~ Location,
-#              random = ~ vsr(GCA1,Gu=K1) + vsr(GCA2,Gu=K2), # + vsr(SCA,Gu=S),
+#              random = ~ vsr(isr(GCA1),Gu=K1) + vsr(isr(GCA2),Gu=K2), # + vsr(isr(SCA),Gu=S),
 #              rcov=~units,
 #              data=hybrid2)
 # summary(ans)$varcomp
@@ -62,13 +62,14 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # K2i <- as(as(as( K2i,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # Si <- solve(S + diag(1e-4,ncol(S),ncol(S)))
 # Si <- as(as(as( Si,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# ans2 <- mmec(Yield ~ Location,
-#             random = ~ vsc(isc(GCA1),Gu=K1i) + vsc(isc(GCA2),Gu=K2i), # + vsc(isc(SCA),Gu=Si),
-#             rcov=~units,
-#             data=hybrid2)
+# ans2 <- mmer(Yield ~ Location,
+#              random = ~ vsr(isr(GCA1),Gu=K1i) + vsr(isr(GCA2),Gu=K2i), # + vsr(isr(SCA),Gu=Si),
+#              mme=TRUE,
+#              rcov=~units,
+#              data=hybrid2)
 # summary(ans2)$varcomp
 
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} and \code{\link{mmec}} }
+\seealso{The core functions of the package \code{\link{mmer}}  }

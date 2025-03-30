@@ -10,20 +10,19 @@ export(
        )
 
 ## FUN_main
-export(mmer, GWAS, mmec)
+export(mmer, GWAS)
 
 ## FUN_special and FUN_vsc and FUN_vsrgvsr
-export(atr,csr,dsr,usr,vsr, gvsr, vs, ## mmer
-       atc,csc,dsc,usc,vsc, isc, rrc, covc, ## mmec
-       unsm,fixm,fcm,
+export(
+       atr,csr,dsr,usr,vsr, isr, rrr, covr, ## mmer
        list2usmat, transformConstraints,
        # special functions to create model matrices
        overlay, redmm, 
        add.diallel.vars, stackTrait,
-       bivariateRun, vpredict)
+       vpredict)
 
 ## FUN_spatial
-export( spl2Da,spl2Db, spl2Dc,spl2Dmats,bbasis,tpsmmbwrapper, tps)
+export( spl2Dc,spl2Dmats,bbasis,tpsmmbwrapper, tps)
 
 ## FUN_markers
 export(atcg1234,build.HMM, neMarker)
@@ -37,18 +36,16 @@ export(adiag1, imputev, propMissing, logspace,
 ## FUN_relationships
 export(A.mat, D.mat, E.mat, H.mat, AR1, CS, ARMA, simGECorMat)
 
-## FUN_algorithms
-export(EM, MEMMA, AI)
-
 ## FUN_utils
-export( # mmer
+export( 
+        # mmer
        summary.mmer, residuals.mmer, fitted.mmer, coef.mmer,
-       anova.mmer, plot.mmer, predict.mmer, vpredict.mmer,
-        # mmec
-       summary.mmec, residuals.mmec, fitted.mmec, coef.mmec,
-       anova.mmec, plot.mmec, predict.mmec, pmonitor,
+       anova.mmer, plot.mmer, predict.mmer, pmonitor,
         # others
        randef)
+
+# S3 METHODS mmer
+S3method(vpredict, mmer)
 
 # S3 METHODS mmer
 S3method(anova, mmer)
@@ -63,21 +60,6 @@ S3method(print, coef.mmer)
 S3method(print, summary.mmer)
 S3method(residuals, mmer)
 S3method(summary, mmer)
-S3method(vpredict, mmer)
-
-# S3 METHODS mmec
-S3method(anova, mmec)
-S3method(coef, mmec)
-S3method(fitted, mmec)
-S3method(plot, mmec)
-S3method(predict, mmec)
-S3method(print, predict.mmec)
-S3method(print, residuals.mmec)
-S3method(print, fitted.mmec)
-S3method(print, coef.mmec)
-S3method(print, summary.mmec)
-S3method(residuals, mmec)
-S3method(summary, mmec)
 
 # S3 METHODS other
 S3method(print, wald.test)

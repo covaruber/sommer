@@ -24,8 +24,8 @@
 # #### look at the data and fit the model
 # head(DT)
 # mix1 <- mmer(Yield~1,
-#               random=~vsr(id,Gu=A)
-#                       + Rowf + Colf + spl2Da(Row,Col),
+#               random=~vsr(isr(id),Gu=A)
+#                       + Rowf + Colf + spl2Dc(Row,Col),
 #               rcov=~units,
 #               data=DT)
 # 

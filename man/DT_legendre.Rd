@@ -33,16 +33,10 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # data(DT_legendre)
 # DT <- DT_legendre
 # mRR2<-mmer(Y~ 1 + Xf
-#            , random=~ vsr(usr(leg(X,1)),SUBJECT)
-#            , rcov=~vsr(units)
+#            , random=~ vsr(usr(leg(X,1)),isr(SUBJECT))
+#            , rcov=~units
 #            , data=DT)
 # summary(mRR2)$varcomp
-# 
-# mRR2b<-mmec(Y~ 1 + Xf
-#            , random=~ vsc(usc(leg(X,1)),isc(SUBJECT))
-#            , rcov=~vsc(isc(units))
-#            , data=DT)
-# summary(mRR2b)$varcomp
 
 }
 \keyword{datasets}

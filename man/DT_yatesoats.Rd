@@ -45,11 +45,5 @@ head(DT)
 #            rcov=~units,
 #            data = DT)
 # summary(m3)$varcomp
-# 
-# m3b <- mmec(fixed=Y ~ V + N + V:N,
-#            random = ~ B + B:MP,
-#            rcov=~units,
-#            data = DT)
-# summary(m3b)$varcomp
 }
 

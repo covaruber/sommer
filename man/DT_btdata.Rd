@@ -40,31 +40,8 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #              rcov=~units,
 #              data = DT)
 # summary(mix4)$varcomp
-# 
-# mix5 <- mmec(tarsus ~ sex,
-#              random = ~ dam + fosternest,
-#              rcov=~units,
-#              data = DT)
-# summary(mix5)$varcomp
-# 
-# ####=========================================####
-# ####=========================================####
-# ####=========================================####
-# #### EXAMPLE 2
-# #### more complex multivariate model
-# ####=========================================####
-# ####=========================================####
-# data(DT_btdata)
-# DT <- DT_btdata
-# mix3 <- mmer(cbind(tarsus, back) ~ sex,
-#                 random = ~ vsr(dam) + vsr(fosternest),
-#                 rcov= ~ vsr(units, Gtc=diag(2)),
-#                 data = DT)
-# summary(mix3)
-# #### calculate the genetic correlation
-# cov2cor(mix3$sigma$`u:dam`)
-# cov2cor(mix3$sigma$`u:fosternest`)
+
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}}, \code{\link{mmec}}}
+\seealso{The core functions of the package \code{\link{mmer}}  }

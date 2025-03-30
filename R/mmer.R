@@ -1,15 +1,16 @@
-mmer <- function(fixed, random, rcov, data, weights, W,
-                 nIters=20, tolParConvLL = 1e-03, tolParInv = 1e-06,
-                 init=NULL, constraints=NULL, method="NR",
-                 getPEV=TRUE,
+mmer <- function(fixed, random, rcov, data, W,
+                 nIters=25, tolParConvLL = 1e-03,
+                 tolParConvNorm = 1e-04, tolParInv = 1e-06,
                  naMethodX="exclude",
                  naMethodY="exclude",
                  returnParam=FALSE,
-                 dateWarning=TRUE, date.warning=TRUE,
-                 verbose=TRUE,reshapeOutput=TRUE,
+                 dateWarning=TRUE,
+                 verbose=TRUE, 
+                 # addScaleParam=NULL,
                  stepWeight=NULL, emWeight=NULL, 
-                 contrasts=NULL){
-
+                 # contrasts=NULL, 
+                 getPEV=TRUE, mme=FALSE){
+  
   my.date <- "2025-06-01"
   your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
@@ -18,7 +19,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
       cat("Version out of date. Please update sommer to the newest version using:\ninstall.packages('sommer') in a new session\n Use the 'dateWarning' argument to disable the warning message.")
     }
   }
-
+  
   if(missing(data)){
     data <- environment(fixed)
     if(!missing(random)){
@@ -26,22 +27,18 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     }
     nodata <-TRUE
     cat("data argument not provided \n")
-  }else{nodata=FALSE}
-  data <- as.data.frame(data)
+  }else{nodata=FALSE; data <- as.data.frame(data)}
+  
   if(missing(rcov)){
     rcov = as.formula("~units")
   }
-
+  
   #################
   ## do the needed for naMethodY and naMethodX
   dataor <- data
   provdat <- subdata(data, fixed=fixed, na.method.Y = naMethodY,na.method.X=naMethodX)
-  # print(str(provdat))
   data <- provdat$datar
   nonMissing <- provdat$good
-  # print(length(nonMissing))
-  # randomization <- sample(1:nrow(data))
-  # data <- data[randomization,]
   #################
   data$units <- levels(as.factor(paste("u",1:nrow(data),sep="")))
   #################
@@ -53,431 +50,383 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     stop("Please provide the 'data' argument for your specified variables.\nYou may be specifying some variables in your model not present in your dataset.", call. = FALSE)
   }
   mfna <- eval(mfna, data, parent.frame())
-  yvar <- as.matrix(model.response(mfna))
-  # print(head(yvar))
+  yvar <- sparse.model.matrix(as.formula(paste("~",response,"-1")),data)
   nt <- ncol(yvar)
   if(nt==1){colnames(yvar) <- response}
-  # print(colnames(yvar))
+  Vy <- var(yvar[,1])
+  # yvar <- scale(yvar)
   #################
   ## get Zs and Ks
-  termsR <- list()
-  termsRN <- numeric()
-  if(!missing(random)){
-    yuyu <- strsplit(as.character(random[2]), split = "[+]")[[1]]
-    rtermss <- apply(data.frame(yuyu),1,function(x){
+  
+  Z <- Ai <- theta <- thetaC <- thetaF <- sp <- list()
+  Zind <- numeric()
+  rTermsNames <- list()
+  counter <- 1
+  if(!missing(random)){ # if there's random effects
+    
+    yuyu <- strsplit(as.character(random[2]), split = "[+]")[[1]] # random parts
+    rtermss <- apply(data.frame(yuyu),1,function(x){ # split random terms
       strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
     })
-    # print(rtermss)
-    zs <- list()
-    ks <- list()
-    ges <- list()
-    gesI <- list()
-    re_namel1 <- list()
-
-
-    # bn=0.1
-    bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
-    # print(str(data))
-    # print(str(model.matrix(~id-1,data)))
-    # print(str(as(model.matrix(~id-1,data), Class = "sparseMatrix")))
+    
     for(u in 1:length(rtermss)){ # for each random effect
-
-      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vs","vsr","gvsr","spl2Da","spl2Db")) #
-      # print(checkvs)
-      if(length(checkvs)>0){ ## if this term is a variance structure
-        # print(rtermss[u])
-        # print(data)
-        ff <- eval(parse(text = rtermss[u]),data,parent.frame())# envir = data)
-        # print(nrow(ff$Z[[1]]))
-        # print(length(provdat$good))
-        # print((ff$Z[[1]]))
-        if(nrow(ff$Z[[1]]) != length(provdat$good)){
-          ## if the incidence matrix is different than the size of good very likely the user provided a matrix
-          ff$Z <- lapply(ff$Z,function(xxx){as.matrix(xxx[provdat$good,])})
-        }
-        # print(rtermss[u])
-        # print(ff$Gtc)
-        re_namel1[[u]] <- ff$re_name # store the levels
-        termsR[[u]] <- ff$terms # store the variables used for this variance structure
-        termsRN[u] <- length(ff$Z)
-        zs[[u]] <- ff$Z
-        ks[[u]] <- ff$K
-        if(is.null(ff$Gti)){ ## initial vc if user don't provide them
-          mml <- list()
-          for(k in 1:length(ff$Z)){ ## the diagonal of the matrix should be 1 is vc and 2 if cov
-            if(ff$typevc[k] == 2){div=2}else{div=1}## divisor
-            # mml[[k]] <- (( matrix(1,nt,nt) * 0 + 1) * 0.1 + diag(0.05, nt))/div
-            mml[[k]] <- bnmm/div
-          }
-          ges[[u]] <- mml
-        }else{ ## user provides initial values
-          if(is.list(ff$Gti)){ ## user provides a list of initial values
-            ges[[u]] <- ff$Gti
-          }else{
-            ges[[u]] <- rep(list(ff$Gti),length(ff$Z))
-          }
-        }
-        # print(str(ff))
-        # print(ff$Gtc)
-        if(is.null(ff$Gtc)){ ## contraints if user don't provide them
-          mml <- list()
-          for(k in 1:length(ff$Z)){ ## the diagonal of the matrix should be 1 is vc and 2 if cov
-            mm <- matrix(as.vector(ff$typevc[k]),nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
-            mml[[k]] <- mm
-          }
-          gesI[[u]] <- mml
-        }else{
-          if(is.list(ff$Gtc)){# user provides a list of constraints
-            gesI[[u]] <- lapply(ff$Gtc, function(x){x[lower.tri(x)] <- 0; return(x)})
-          }else{
-            ff$Gtc[lower.tri(ff$Gtc)] <- 0
-            gesI[[u]] <- rep(list(ff$Gtc),length(ff$Z))
-          }
-
-        }
-        # print(ff$Gtc)
-        # print(gesI[[u]])
-      }else{ ## if is a normal term
-        zpp <- model.matrix(as.formula(paste("~",rtermss[u],"-1")), data=data)
-        zs[[u]] <- list(zpp)
-        nu <- ncol(zpp)
-        ks[[u]] <- list(diag(1, nu,nu))
-        re_namel1[[u]] <- list(rtermss[u]) # store the levels
-        termsR[[u]] <- rtermss[u] # store the varibles used
-        termsRN[u] <- 1
-        ges[[u]] <- list(bnmm)
-        mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
-        gesI[[u]] <- list(mm)
-        # }
+      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsc","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
+      
+      if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
+        rtermss[u] <- paste("vsc( isc(",rtermss[u],") )")
       }
+      ff <- eval(parse(text = rtermss[u]),data,parent.frame()) # evaluate the variance structure
+      Z <- c(Z, ff$Z)
+      Ai <- c(Ai, ff$Gu)
+      theta[[u]] <- ff$theta
+      thetaC[[u]] <- ff$thetaC
+      thetaF[[u]] <- ff$thetaF
+      sp[[u]] <- ff$sp # rep(ff$sp,length(which(ff$thetaC > 0)))
+      Zind <- c(Zind, rep(u,length(ff$Z)))
+      checkvs <- numeric() # restart the check
+      ## names for monitor
+      baseNames <- which( ff$thetaC > 0, arr.ind = TRUE)
+      s1 <- paste(rownames(ff$thetaC)[baseNames[,"row"]], colnames(ff$thetaC)[baseNames[,"col"]],sep = ":")
+      s2 <- paste(all.vars(as.formula(paste("~",rtermss[u]))),collapse=":")
+      rTermsNames[[u]] <- paste(s2,s1,sep=":")
+      
+      counter <- counter + 1
     }
-    Z <- unlist(zs,recursive=FALSE)
-    K <- unlist(ks,recursive=FALSE)
-    ges <- unlist(ges,recursive=FALSE)
-    gesI <- unlist(gesI,recursive=FALSE)
-    re_namel1 <- unlist(re_namel1,recursive=FALSE)
-  }else{re_namel1 <- character()}
+  }
+  
+  nEffects <- sum(unlist(lapply(Z,ncol)))
+  nRecords <- length(yvar)
   #################
   ## get Rs
+  
   yuyur <- strsplit(as.character(rcov[2]), split = "[+]")[[1]]
   rcovtermss <- apply(data.frame(yuyur),1,function(x){
     strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
   })
-  rs <- list()
-  gesr <- list()
-  gesIr <- list()
-  re_namel2 <- list()
-  termsE <- list()
-  termsEN <- numeric()
-  bnmm <- matrix(0.1,nt,nt)+diag(.05,nt)
-  for(u in 1:length(rcovtermss)){
-
-    checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vs","vsr","gvsr"))
-
-    if(length(checkvs)>0){ ## if this term is a variance structure
-      ff <- eval(parse(text = rcovtermss[u]),data,parent.frame())# envir = data)
-      rs[[u]] <- ff$Z
-      re_namel2[[u]] <- ff$re_name
-      termsE[[u]] <- ff$terms
-      termsEN[u] <- length(ff$Z)
-      if(is.null(ff$Gti)){ ## initial vc if user don't provide them
-        mml <- list()
-        for(k in 1:length(ff$Z)){ ## the diagonal of the matrix should be 1 is vc and 2 if cov
-          if(ff$typevc[k] == 2){div=2}else{div=1}## divisor
-          # mml[[k]] <- (( matrix(1,nt,nt) * 0 + 1) * 0.04977728 + diag(0.02488864, nt,nt))/div
-          mml[[k]] <- (bnmm/div)*5
-        }
-        gesr[[u]] <-  mml
-      }else{gesr[[u]] <- rep(list(ff$Gti),length(ff$Z))}
-      if(is.null(ff$Gtc)){ ## contraints if user don't provide them
-        mml <- list()
-        for(k in 1:length(ff$Z)){ ## the diagonal of the matrix should be 1 is vc and 2 if cov
-          mm <- matrix(as.vector(ff$typevc[k]),nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
-          mml[[k]] <- mm
-        }
-        gesIr[[u]] <- mml
-      }else{
-        ff$Gtc[lower.tri(ff$Gtc)] <- 0
-        gesIr[[u]] <- rep(list(ff$Gtc),length(ff$Z))
-      }
-    }else{ ## if is a normal term
-      rpp <- model.matrix(as.formula(paste("~",rcovtermss[u],"-1")), data=data)
-      rs[[u]] <- list(rpp)
-      re_namel2[[u]] <- rcovtermss[u]
-      termsE[[u]] <- rcovtermss[u]
-      termsEN[u] <- 1
-      # gesr[[u]] <- list(( matrix(1,nt,nt) * 0 + 1) * 0.04977728 + diag(0.02488864, nt,nt))
-      gesr[[u]] <- list(bnmm*5)
-      mm <- matrix(1,nt,nt); mm[lower.tri(mm)] <- 0; mm[upper.tri(mm)] <- 2
-      gesIr[[u]] <- list(mm)
+  
+  S <- list()
+  Spartitions <- list()
+  for(u in 1:length(rcovtermss)){ # for each random effect
+    checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vsc","gvs","spl2Da","spl2Db")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
+    
+    if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
+      rcovtermss[u] <- paste("vsc( isc(",rcovtermss[u],") )")
     }
+    
+    ff <- eval(parse(text = rcovtermss[u]),data,parent.frame()) # evalaute the variance structure
+    S <- c(S, ff$Z)
+    Spartitions <- c(Spartitions, ff$partitionsR)
+    ## constraint
+    residualsNonFixed <- which(ff$thetaC != 3, arr.ind = TRUE)
+    if(nrow(residualsNonFixed) > 0){
+      ff$theta[residualsNonFixed] <- ff$theta[residualsNonFixed] * 5
+    }
+    theta[[counter]] <- ff$theta
+    thetaC[[counter]] <- ff$thetaC
+    thetaF[[counter]] <- ff$thetaF
+    sp[[counter]] <- ff$sp#rep(ff$sp,length(ff$Z))
+    
+    baseNames <- which( ff$thetaC > 0, arr.ind = TRUE)
+    s1 <- paste(rownames(ff$thetaC)[baseNames[,"row"]], colnames(ff$thetaC)[baseNames[,"col"]],sep = ":")
+    s2 <- paste(all.vars(as.formula(paste("~",rcovtermss[u]))),collapse=":")
+    rTermsNames[[counter]] <- paste(s2,s1,sep=":")
+    
+    checkvs <- numeric() # restart the check
+    counter <- counter + 1
   }
-  R <- unlist(rs,recursive=FALSE)
-  gesr <- unlist(gesr,recursive=FALSE)
-  gesIr <- unlist(gesIr,recursive=FALSE)
-  re_namel2 <- unlist(re_namel2,recursive=FALSE)
-
-  if(!missing(random)){
-    GES <- c(ges,gesr)
-    GESI <- c(gesI,gesIr)
-  }else{
-    GES <- c(gesr)
-    GESI <- c(gesIr)
-  }
-
   #################
   #################
   ## get Xs
-
-  # Expand the fixed terms to handle interactions
-  fixedtermss <- attr(terms(fixed),"term.labels")
-
-  # This will handle cases when user enters 1 anywhere in the fixed effects
-  if(attr(terms(fixed),"intercept")==1){ # there should be intercept
-    useinter <- TRUE
-    fixedtermss <- c(1, fixedtermss)
-    # }else if(test1 > 0 & test2 == 0){# there should be intercept as well
-    # useinter <- TRUE
-    # This will handle cases when user enters 1 anywhere in the fixed effects
-  }else{ # there's no intercept
-    useinter <- FALSE
-    fixedtermss <- c(-1, fixedtermss)
-  }
-  # print(useinter)
-  vsterms <- sort(unique(c(grep("vsr\\(",fixedtermss),grep("vs\\(",fixedtermss))), decreasing = FALSE)
-  if(length(vsterms)>0){
-    fixedvsterms <- fixedtermss[c(vsterms)]
-    fixedtermss <- fixedtermss[-c(vsterms)]
-    addxs <- list()
-    for(o in 1:length(fixedvsterms)){
-      ffx <- eval(parse(text = fixedvsterms[o]),data,parent.frame())
-      addxs[[o]] <- ffx$Z[[1]]
-    }
-    addxs <- do.call(cbind,addxs)
-  }else{fixedvsterms <- NULL}
-
   data$`1` <-1
-  newfixed <- as.formula(paste("~",paste(fixedtermss,collapse = "+")))
+  newfixed=fixed
+  fixedTerms <- gsub(" ", "", strsplit(as.character(fixed[3]), split = "[+-]")[[1]])
   mf <- try(model.frame(newfixed, data = data, na.action = na.pass), silent = TRUE)
   mf <- eval(mf, parent.frame())
-  baseX <- model.matrix(newfixed, mf, contrasts.arg=contrasts)
-  # print(head(baseX))
-  if(length(vsterms) > 0){baseX <- cbind(baseX,addxs)}
-  if(as.double(nrow(baseX)) * as.double(ncol(baseX)) > 2147483647) {
-    qr <- qr(baseX, LAPACK = TRUE)
-  } else {
-    qr <- qr(baseX)
+  X <-  Matrix::sparse.model.matrix(newfixed, mf, contrasts.arg=contrasts)
+  
+  
+  partitionsX <- list()#as.data.frame(matrix(NA,length(fixedTerms),2))
+  for(ix in 1:length(fixedTerms)){ # save indices for partitions of each fixed effect
+    effs <- colnames(Matrix::sparse.model.matrix(as.formula(paste("~",fixedTerms[ix],"-1")), mf))
+    effs2 <- colnames(Matrix::sparse.model.matrix(as.formula(paste("~",fixedTerms[ix])), mf))
+    partitionsX[[ix]] <- matrix(which(colnames(X) %in% c(effs,effs2)),nrow=1)
   }
-  keepx <- qr$pivot[1:qr$rank]
-  nameskeepx <- colnames(baseX)[keepx]
-  colsdropped <- ncol(baseX) - length(nameskeepx)
-  baseX <- matrix(baseX[, keepx],nrow(yvar),qr$rank)
-  colnames(baseX) <- nameskeepx
-  if(colsdropped > 0){
-    warning(paste("fixed-effect model matrix is rank deficient so dropping",colsdropped,"columns / coefficients\n"),call. = FALSE)
-  }
-  # print(colnames(baseX))
-  xs <- list()
-  gesf <- list()
-  gesIf <- list()
-  allfixedterms <- c(fixedtermss, fixedvsterms)
-  for(u in 1:length(allfixedterms)){
-    checkvs <- sort(unique(c(grep("vsr\\(",allfixedterms[u]),grep("vs\\(",allfixedterms[u]))), decreasing = FALSE)
-    # checkvs <- grep("vsr\\(",allfixedterms[u])
-    if(length(checkvs)>0){ ## if this term is a variance structure
-      ffx <- eval(parse(text = allfixedterms[u]),data,parent.frame())# envir = data)
-      findlevs <- colnames(ffx$Z[[1]])
-      findlevs2 <- which(colnames(baseX) %in% findlevs)
-      xpp <- as.matrix(baseX[, findlevs2])
-      colnames(xpp) <- colnames(baseX)[findlevs2]
-      # print(ff$Gtc)
-      xs[[u]] <- list(xpp)
-      if(is.null(ffx$Gti)){ ## initial vc if user don't provide them
-        gesf[[u]] <- list(( matrix(1,nt,nt) * 0 + 1) * 0.1 + diag(0.05, nt))
-      }else{gesf[[u]] <- rep(list(ffx$Gti),length(ffx$Z))}
-
-      if(is.null(ffx$Gtc)){ ## contraints if user don't provide them
-        mm <- diag(1,nt,nt); mm[lower.tri(mm)] <- 0; #mm[upper.tri(mm)] <- 2
-        gesIf[[u]] <- list(mm)
-      }else{gesIf[[u]] <- rep(list(ffx$Gtc),length(ffx$Z))}
-    }else{ ## if is a normal term
-
-      if(allfixedterms[u] == "1"){
-        findlevs <- colnames(model.matrix(as.formula(paste("~",allfixedterms[u])), data=data, contrasts.arg=contrasts))
-      }else{
-        findlevsM <- colnames(model.matrix(as.formula(paste("~",allfixedterms[u],"-1")), data=data, contrasts.arg=contrasts))
-        findlevsP <- setdiff( colnames(model.matrix(as.formula(paste("~",allfixedterms[u])), data=data, contrasts.arg=contrasts)) , "(Intercept)" )
-        findlevs <- unique(c(findlevsM,findlevsP))
-        check9 <- grep(":",allfixedterms[u])
-        if(length(check9) > 0){
-          splitby0 <- strsplit(allfixedterms[u],":")[[1]]
-          splitby1 <- rep(list(splitby0), length(splitby0))
-          splitby1 <- expand.grid(splitby1)
-          splitby1 <- splitby1[which(apply(splitby1,1,function(x){length(unique(x))}) > 1),]
-          splitby2 <- lapply(as.list(1:nrow(splitby1)), function(x){colnames(model.matrix(as.formula(paste("~", paste(as.vector(t(splitby1[x,])),collapse = ":"), "-1")), data = data))})
-          matches0 <- unlist(lapply(splitby2,function(x){length(which(colnames(baseX) %in% x))}))
-          best <- which(matches0 == max(matches0))[1]
-          findlevs <- colnames(model.matrix(as.formula(paste("~",paste(as.vector(t(splitby1[best,])),collapse = ":"), "-1")), data = data))
+  names(partitionsX) <- fixedTerms
+  classColumns <- lapply(data,class)
+  
+  for(ix in 1:length(fixedTerms)){ # clean column names in X matrix
+    colnamesBase <- colnames(X)[partitionsX[[ix]]]
+    colnamesBaseList <- strsplit(colnamesBase,":")
+    toRemoveList <- strsplit(fixedTerms[ix],":")[[1]] # words to remove from the level names in the ix.th fixed effect
+    # print(toRemoveList)
+    if("1" %in% unlist(toRemoveList)){}else{toRemoveList <- all.vars(as.formula(paste("~",paste(toRemoveList, collapse = "+"))))}
+    for(j in 1:length(toRemoveList)){
+      if( toRemoveList[[j]] %in% names(classColumns) ){
+        
+        if( classColumns[[toRemoveList[[j]]]] != "numeric"){ # only remove the name from the level if is structure between factors, not for random regressions
+          nc <- nchar(gsub(" ", "", toRemoveList[[j]], fixed = TRUE)) # number of letters to remove
+          colnamesBaseList <- lapply(colnamesBaseList, function(h){
+            if(is.na(h[j])){ # is the intercept? no
+              return(h)
+            }else{ # is the intercept? yes
+              if(length(grep(toRemoveList[[j]],h[j])) == 1){ # if the factor word matches in the level
+                if(nchar(h[j]) > nc){h[j] <- substr(h[j],1+nc,nchar(h[j]))}
+              }
+              return(h)
+            }
+          }) # only remove the initial name if the name is actually longer
         }
-        check10 <- grep("[*]",allfixedterms[u])
-        if(length(check10) > 0){
-          splitby0 <- strsplit(allfixedterms[u],"[*]")[[1]]
-          splitby1 <- rep(list(splitby0), length(splitby0))
-          splitby1 <- expand.grid(splitby1)
-          splitby1 <- splitby1[which(apply(splitby1,1,function(x){length(unique(x))}) > 1),]
-          splitby2 <- lapply(as.list(1:nrow(splitby1)), function(x){colnames(model.matrix(as.formula(paste("~", paste(as.vector(t(splitby1[x,])),collapse = "*"), "-1")), data = data))})
-          matches0 <- unlist(lapply(splitby2,function(x){length(which(colnames(baseX) %in% x))}))
-          best <- which(matches0 == max(matches0))[1]
-          findlevs <- colnames(model.matrix(as.formula(paste("~",paste(as.vector(t(splitby1[best,])),collapse = "*"), "-1")), data = data))
-        }
-        #
+        
       }
-      # print(allfixedterms[u])
-      # print(findlevs)
-      findlevs2 <- which(colnames(baseX) %in% findlevs)
-      xpp <- as.matrix(baseX[, findlevs2])
-      colnames(xpp) <- colnames(baseX)[findlevs2]
-
-      xs[[u]] <- list(xpp)
-      gesf[[u]] <- list(( matrix(1,nt,nt) * 0 + 1) * 0.1 + diag(0.05, nt))
-      mm <- diag(1,nt,nt); mm[lower.tri(mm)] <- 0; #mm[upper.tri(mm)] <- 2
-      gesIf[[u]] <- list(mm)
     }
+    colnames(X)[partitionsX[[ix]]] <- unlist(lapply(lapply(colnamesBaseList,na.omit), function(x){paste(x, collapse=":")}))
   }
-
-  # print(str(xs))
-  # print(str(gesIf))
-  gesIx <- unlist(gesIf,recursive=FALSE)
-  X <- unlist(xs,recursive=FALSE)
-  Gx <- gesIx
+  step1 <- gsub(" ", "", strsplit(as.character(fixed[3]), split = "[-]")[[1]])
+  step2 <- unlist(apply(data.frame(step1),1,function(x){strsplit(as.character(x), split = "[+]")[[1]]}))
+  intercCheck <- ifelse(length(intersect(c("1","-1"),step2)) == 0, TRUE, FALSE) # if length is zero it means that we have an intercept
+  if(intercCheck){colnames(X)[1] <- "Intercept"}
+  
   #################
   #################
-  #################
-  ## weights
-
-  if(!missing(weights)){
-    col1 <- deparse(substitute(weights))
-    coco <- data[[col1]]
-    # ws<- coco
-    isInvW=TRUE
-    WW <- diag(1/sqrt(coco)) # W is already squared and inverted
+  ## weight matrix
+  
+  if(missing(W)){ # provide W but don't use it
+    x <- data.frame(d=as.factor(1:length(yvar)))
+    W <- sparse.model.matrix(~d-1, x)
+    useH=FALSE
   }else{
-    isInvW=TRUE
-    ws <- rep(1,nrow(yvar)) # we build W as a diagonal
-    WW <- diag(ws) #
+    W <- as(as(as( W ,  "dMatrix"), "generalMatrix"), "CsparseMatrix") # as(W, Class = "dgCMatrix")
+    useH=TRUE
   }
-  if(!missing(W)){
-    isInvW=FALSE
-    WW <- W # user has provided W and needs to be squared and inverted
-  }
-
-  if(is.null(stepWeight)){
-    stepWeight <- rep(0.9,nIters); stepWeight[1:2] <- c(0.5,0.7)
-  }
-
+  
+  #################
+  #################
+  ## information weights
+  
   if(is.null(emWeight)){
-    emWeight <- rep(0, nIters)
-  }
-
-  #################
-  ## subset data
-  if(method == "NR"){
-    selected <- FALSE
-  }else{selected <- TRUE}
-  #################
-  ## provide arguments to MNR
-  if(!missing(random)){
-    Z <- lapply(Z,function(x){as(as(as( x,  "dMatrix"), "generalMatrix"), "CsparseMatrix")})
-  }else{Z <- list();K <- list();random=NULL}
-  R <- lapply(R,function(x){as(as(as( x,  "dMatrix"), "generalMatrix"), "CsparseMatrix")})
-  if(!is.null(init)){GES <- init}
-  if(!is.null(constraints)){GESI <- constraints}
-  re_names <- c(re_namel1,re_namel2)
-  # print("good")
-  if(returnParam){
-    good <- provdat$good
-    args <- list(fixed=fixed, random=random, rcov=rcov, data=data, weights=substitute(weights),
-                 nIters=nIters, tolParConvLL=tolParConvLL, tolParInv=tolParInv,
-                 init=init, constraints=constraints, method=method,
-                 getPEV=getPEV,
-                 naMethodX=naMethodX,
-                 naMethodY=naMethodY,
-                 returnParam=returnParam,
-                 dateWarning=dateWarning,
-                 verbose=verbose,reshapeOutput=reshapeOutput)
-
-    res <- list(yvar=yvar, X=X,Gx=Gx,Z=Z,K=K,R=R,GES=GES,GESI=GESI, W=WW, isInvW=isInvW,
-                nIters=nIters, tolParConvLL=tolParConvLL, tolParInv=tolParInv,
-                selected=selected,getPEV=getPEV,verbose=verbose, retscaled=FALSE,
-                re_names=re_names,good=good,fixedtermss=fixedtermss,args=args, stepWeight=stepWeight,
-                emWeight=emWeight # emupdate=emupdate,
-    )
-  }else{
-
-    res <- .Call("_sommer_MNR",PACKAGE = "sommer",yvar, X,Gx,Z,K,R,GES,GESI, WW, isInvW,
-                 nIters, tolParConvLL, tolParInv,
-                 selected,getPEV,verbose, FALSE, stepWeight, emWeight) # emupdate,
-
-    # res <- MNR(yvar, X,Gx,Z,K,R,GES,GESI, W,isInvW,
-    #              nIters, tolParConvLL, tolParInv,
-    #              selected,getPEV,verbose, FALSE)
-
-    if(length(res) > 0){
-      nslices <- dim(res$sigma)[3]
-      itraits <- colnames(yvar)
-      re_names <- gsub("\\(Intercept):","",re_names)
-      re_names_onlyrandom <- gsub("\\(Intercept):","",re_namel1)
-      dimnames(res$sigma) <- list(itraits,itraits,re_names)
-      names(res$U) <- re_names_onlyrandom
-      names(res$VarU) <- re_names_onlyrandom
-      names(res$PevU) <- re_names_onlyrandom
-      res$method <- method
-      res$call <- list(fixed=fixed,random=random,rcov=rcov,
-                       naMethodY=naMethodY,naMethodX=naMethodX)
-      if(!missing(random)){
-        namelist <- lapply(Z,function(x){colnames(x)})
-      }else{namelist <- list()}
-      # print(Gx)
-      namesbeta <- lapply(as.list(1:length(X)),function(x){
-        # print(Gx[[x]])
-        tt <- colnames(yvar)[as.logical(apply(Gx[[x]],1,sum))]
-        # print(head(X[[x]]))
-        ttp <- expand.grid(tt,colnames(X[[x]]))
-        # print(ttp)
-        return(ttp)
-      })
-      # print(namesbeta)
-      namesbeta <- do.call(rbind,namesbeta);
-      namelist[[length(namelist)+1]] <- namesbeta
-      # res$namelist <- namelist
-      if(reshapeOutput){
-        res <- reshape_mmer(res,namelist)
-      }
-      res$constraints <- GESI
-      res$constraintsF <- Gx
-      res$data <- data#dataor
-      res$dataOriginal <- dataor
-      res$terms <- list(response=list(colnames(yvar)),fixed=list(allfixedterms), random=termsR, rcov=termsE)
-      res$termsN <- list(response=ncol(yvar),fixed=length(X), random=termsRN, rcov=termsEN)
-      res$xEffectsN <- unlist(lapply(X,ncol))
-      res$zEffectsN <- unlist(lapply(Z,ncol))
-      fixedTerms <- unlist(res$terms$fixed)
-      randomTerms <- unlist(res$terms$random)
-      Dtable <- data.frame(type=c(rep("fixed",length(fixedTerms)), rep("random",length(randomTerms))),
-                           term=c(fixedTerms, randomTerms),
-                           include=FALSE, average=FALSE)
-      res$Dtable <- Dtable
-      res$W <- cbind(do.call(cbind,X),do.call(cbind,Z))
-      # res$K <- K
-      if(reshapeOutput){
-        colnames(res$sigmaSE) <- rownames(res$sigmaSE) <- names(res$sigmaVector)
-        res$sigmaVector <- vcsExtract(res)
-      }
-      res$reshapeOutput <- reshapeOutput
-
-      class(res)<-c("mmer")
+    if(nEffects >= nRecords){ # p > n
+      emWeight <- rep(0, nIters)
+    }else{ # n > p
+      initialEmSteps <- logspace(round(nIters*.8), 1, 0.009) # 80% of the iterations requested are used for the logarithmic decrease
+      restEmSteps <- rep(0.009, nIters - length(initialEmSteps)) # the rest we assign a very small emWeight value
+      emWeight <- c( initialEmSteps, restEmSteps) # plot(emWeight) # we bind both for the modeling
     }
+    
   }
-  # print("good")
+  if(is.null(stepWeight)){
+    w <- which(emWeight <= .04) # where AI starts
+    if(length(w) > 1){ # w has at least length = 2
+      stepWeight <- rep(.9,nIters);
+      if(nIters > 1){stepWeight[w[1:2]] <- c(0.5,0.7)} # .5, .7
+    }else{
+      stepWeight <- rep(.9,nIters);
+      if(nIters > 1){stepWeight[1:2] <- c(0.5,0.7)} # .5, .7
+    }
+    # stepWeight[1:3]=3
+  }
+  
+  #################
+  #################
+  ## information weights
+  theta <- lapply(theta, function(x){return(x*Vy)})
+  
+  thetaFinput <- do.call(adiag1,thetaF)
+  if(is.null(addScaleParam)){addScaleParam=0}
+  thetaFinputSP <- unlist(sp)
+  thetaFinput <- cbind(thetaFinput,thetaFinputSP)
+  thetaFinput
+  
+  if(returnParam){ # if user just wants to get input matrices
+    
+    res <- list(yvar=yvar, X=X,Z=Z,Zind=Zind,Ai=Ai,S=S,Spartitions=Spartitions, W=W, useH=useH,
+                nIters=nIters, tolParConvLL=tolParConvLL, tolParConvNorm=tolParConvNorm,
+                tolParInv=tolParInv,
+                verbose=verbose, addScaleParam=addScaleParam,
+                theta=theta,thetaC=thetaC, thetaF=thetaFinput,
+                stepWeight=stepWeight,emWeight=emWeight
+    )
+    
+  }else{
+    
+    #################################################
+    if(mme == FALSE){ # p > n = DIRECT INVERSION: transform all matrices to expected format
+      # get isInvW
+      isInvW=FALSE
+      AI=FALSE # use newton raphson
+      returnScaled=FALSE # return scaled variance parameters
+      # translate vsc S into vsr R
+      R <- rep(list(Matrix::Diagonal(x= rep(0, nrow(yvar)) )), length(S) )
+      for(iR in 1:length(S)){ # iR=1
+        R[[iR]][Spartitions[[iR]][1,1]:Spartitions[[iR]][1,2],
+                Spartitions[[iR]][1,1]:Spartitions[[iR]][1,2] ] = S[[iR]]
+      }
+      R <- lapply(R,function(x){as(as(as( x,  "dMatrix"), "generalMatrix"), "CsparseMatrix")})
+      # translate vsc Z into vsr Z
+      
+      THETA <- THETAc <- K <- Zdi <- list(); counter=1
+      vary <- var(yvar[,1])
+      thetaIndex <- thetaConstIndex <- numeric()
+      for(iTheta in 1:length(theta)){
+        for(iRow in 1:nrow(theta[[iTheta]])){ # iRow=1
+          for(iCol in iRow:ncol(theta[[iTheta]])){ # iCol=1
+            if(theta[[iTheta]][iRow,iCol] != 0){
+              THETA[[counter]] <- matrix(theta[[iTheta]][iRow,iCol]/vary,1,1)
+              THETAc[[counter]] <- matrix(thetaC[[iTheta]][iRow,iCol],1,1)
+              thetaConstIndex[counter] <- thetaC[[iTheta]][iRow,iCol]
+              thetaIndex[counter] <- iTheta
+              colnames(THETA[[counter]] ) <- rownames(THETA[[counter]] ) <- colnames(THETAc[[counter]] ) <- rownames(THETAc[[counter]] ) <- paste( colnames(theta[[iTheta]])[iRow], colnames(theta[[iTheta]])[iCol], sep="_" )
+              # if variance components only (we don't do this for residual vcs)
+              if(iTheta < length(theta)){ 
+                useZs <- which(Zind == iTheta)
+                if(iRow == iCol){ # if variance component
+                  K[[counter]] <- as.matrix(Ai[[iTheta]])
+                  Zdi[[counter]] <-  Z[[useZs[iRow]]] 
+                }else{ # if covariance component
+                  nrowcol <- nrow(Ai[[iTheta]])
+                  Kcov <- matrix(0,nrowcol*2,nrowcol*2)
+                  Kcov[1:nrowcol,(nrowcol+1):nrow(Kcov)] = as.matrix(Ai[[iTheta]])
+                  Kcov[(nrowcol+1):nrow(Kcov),1:nrowcol] = as.matrix(Ai[[iTheta]])
+                  K[[counter]] <- as.matrix(Kcov)
+                  Zdi[[counter]] <-  cbind( Z[[useZs[iRow]]], Z[[useZs[iCol]]] ) 
+                }
+              }
+              # enf of if variance component
+              counter=counter+1
+            }
+          }
+        }
+      }
+      # print(thetaIndex)
+      
+      if(!missing(random)){
+        XZY <- cbind(X,do.call(cbind,Z))
+      }else{XZY <- NULL}
+      Z <- Zdi; Zdi <- NULL
+      theta <- THETA; THETA <- NULL
+      # thetaC <- THETAc;  THETAc <- NULL
+      
+      res <- .Call("_sommer_MNR",PACKAGE = "sommer",
+                   as.matrix(yvar), 
+                   list(as.matrix(X)),
+                   list(matrix(1)),
+                   Z,K,R,
+                   theta,THETAc, 
+                   as.matrix(W), 
+                   isInvW,
+                   nIters, tolParConvLL, tolParInv,
+                   AI,getPEV,verbose, returnScaled, stepWeight, emWeight)
+      
+    }else if(mme == TRUE){ # n > p HENDERSON
+      
+      res <- .Call("_sommer_ai_mme_sp",PACKAGE = "sommer",
+                   X,Z, Zind,
+                   Ai,yvar,
+                   S, Spartitions, W, useH,
+                   nIters, tolParConvLL, tolParConvNorm,
+                   tolParInv,theta,
+                   thetaC,thetaFinput,
+                   addScaleParam,
+                   emWeight,
+                   stepWeight,
+                   verbose)
+      
+    }
+    ###### add rownames and build uList
+    rownames(res$b) <- colnames(X)
+    if(!missing(random)){
+      rownames(res$u) <- unlist(lapply(Z, colnames))
+      res$thetaC <- thetaC
+    }
+    rownames(res$bu) <- c(rownames(res$b),rownames(res$u))
+    rownames(res$monitor) <- unlist(rTermsNames)
+    res$sigma <- res$monitor[,which(res$llik[1,] == max(res$llik[1,]))] # we return the ones with max llik
+    res$data <- data
+    res$y <- yvar
+    res$partitionsX <- partitionsX
+    # res$Zind <- Zind
+    uList <- uPevList <- vector(mode="list",length = length(thetaC)-1)
+    names(uList) <- names(uPevList) <- rtermss
+    if(!missing(random)){
+      
+      if(mme==FALSE){ ######## adding ulist and upevlist similar to mme mme
+        newtheta <- list()
+        for(iTheta in 1:(length(thetaC)-1)){ # iTheta=2 # each element in the list
+          effsToUse <- which(thetaIndex == iTheta)
+          nEffs <- min(unlist(lapply(res$uList0[effsToUse], nrow)))
+          blupTable <- pevTable <-  Matrix::Matrix(0, nrow=nEffs, ncol=ncol(thetaC[[iTheta]]))
+          newthetasub <- thetaC[[iTheta]]
+          counter=1
+          for(iRow in 1:nrow(thetaC[[iTheta]])){ # iRow=1
+            for(iCol in iRow:ncol(thetaC[[iTheta]])){ # iCol=2
+              
+              if(thetaC[[iTheta]][iRow,iCol] != 0){ # if is to be estimated
+                newthetasub[iRow,iCol] <- newthetasub[iCol,iRow] <- res$theta[[effsToUse[counter]]]
+                if(iRow==iCol){ # variance component
+                  
+                  blupTable[,iRow] <- blupTable[,iRow] + res$uList0[[effsToUse[counter]]]
+                  pevTable[,iRow] <- pevTable[,iRow] + diag(res$Ci[[effsToUse[counter]]])
+                  counter=counter+1
+                  
+                }else{ # covariance component
+                  
+                  prov <- res$uList0[[effsToUse[counter]]]
+                  indexprov <- c( rep(iRow, nrow(prov)/2), rep(iCol, nrow(prov)/2) )
+                  # iRow
+                  blupTable[,iRow] <- blupTable[,iRow] +  res$uList0[[effsToUse[counter]]][which(indexprov == iRow),]
+                  pevTable[,iRow] <- pevTable[,iRow] +  diag(res$Ci[[effsToUse[counter]]])[which(indexprov == iRow)]
+                  # iCol
+                  blupTable[,iCol] <- blupTable[,iCol] +  res$uList0[[effsToUse[counter]]][which(indexprov == iCol),]
+                  pevTable[,iCol] <- pevTable[,iCol] +  diag(res$Ci[[effsToUse[counter]]])[which(indexprov == iCol)]
+                  counter=counter+1
+                  
+                }
+              }
+            }
+          }
+          colnames(blupTable) <- colnames(pevTable) <- colnames(thetaC[[iTheta]])
+          uList[[iTheta]] <- blupTable
+          uPevList[[iTheta]] <- pevTable
+          newtheta[[iTheta]] <- newthetasub
+        }
+        # move the PEV to the Cii matrix
+        if(length(Z) > 0){ # there's random effects
+          res$Ci <- sommer::adiag1(res$Ci_11, do.call(sommer::adiag1, res$Ci))
+          res$W <- XZY
+        }else{
+          res$Ci <- res$Ci_11
+        }
+        residualthetas <- which(thetaIndex == length(thetaC))
+        newtheta[[iTheta+1]] <- res$theta[residualthetas]
+        res$theta <- newtheta
+        res$uList0 <- NULL
+      }else if(mme==TRUE){ ######## adding ulist and upevlist in mme mme
+        names(res$partitions) <- rtermss
+        for(i in 1:length(res$partitions)){ # i=1
+          blupTable <- apply(res$partitions[[i]],1,function(x2){
+            toreturn <- res$bu[(x2[1]):(x2[2]),,drop=FALSE]
+            return(toreturn)
+          })
+          rownames(blupTable) <- rownames(res$bu)[res$partitions[[i]][1,1]:res$partitions[[i]][1,2]]
+          pevTable <- apply(res$partitions[[i]],1,function(x2){return(diag(res$Ci)[(x2[1]):(x2[2])])})
+          colnames(blupTable) <- colnames(pevTable) <- colnames(theta[[i]])
+          rownames(pevTable) <- rownames(blupTable) 
+          uList[[i]] <- blupTable; uPevList[[i]] <- pevTable
+        };
+        blupTable=NULL; pevTable=NULL; 
+      }
+      
+    }
+    
+    res$uList <- uList; res$uPevList <- uPevList
+    if(!missing(random)){
+      res$args <- list(fixed=fixed, random=random, rcov=rcov)
+      res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX)),rep("random",length(res$partitions))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE)
+    }else{
+      res$args <- list(fixed=fixed, rcov=rcov)
+      res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE)
+    }
+    
+    class(res)<-c("mmer")
+  }
   return(res)
 }

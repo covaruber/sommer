@@ -52,12 +52,6 @@
 #              rcov=~units, tolpar = 1e-6,
 #              data=data1)
 # summary(mix1)$varcomp
-# 
-# mix1b <- mmec(yield~entryc,
-#              random=~block+trt,
-#              rcov=~units, tolParConv = 1e-6,
-#              data=data1)
-# summary(mix1b)$varcomp
 
 }
 

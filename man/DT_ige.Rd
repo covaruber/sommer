@@ -37,7 +37,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 data(DT_ige)
 DT <- DT_ige
 # # Indirect genetic effects model without covariance between DGE and IGE
-# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
+# modIGE <- mmer(trait ~ block, dateWarning = FALSE,
 #                random = ~ focal + neighbour,
 #                rcov = ~ units, nIters=100,
 #               data = DT)
@@ -45,8 +45,8 @@ DT <- DT_ige
 # pmonitor(modIGE)
 # 
 # # Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
-# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
-#                random = ~ covc( vsc(isc(focal)), vsc(isc(neighbour)) ),
+# modIGE <- mmer(trait ~ block, dateWarning = FALSE,
+#                random = ~ covr( vsr(isr(focal)), vsr(isr(neighbour)) ),
 #                rcov = ~ units, nIters=100,
 #               data = DT)
 # summary(modIGE)$varcomp
@@ -56,8 +56,8 @@ DT <- DT_ige
 # Ai <- solve(A_ige + diag(1e-5, nrow(A_ige),nrow(A_ige) ))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # # Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
-# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
-#                random = ~ covc( vsc(isc(focal), Gu=Ai), vsc(isc(neighbour), Gu=Ai) ),
+# modIGE <- mmer(trait ~ block, dateWarning = FALSE,
+#                random = ~ covr( vsr(isr(focal), Gu=Ai), vsr(isr(neighbour), Gu=Ai) ),
 #                rcov = ~ units, nIters=100,
 #               data = DT)
 # summary(modIGE)$varcomp
@@ -66,4 +66,4 @@ DT <- DT_ige
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} and \code{\link{mmec}} }
+\seealso{The core functions of the package \code{\link{mmer}} }

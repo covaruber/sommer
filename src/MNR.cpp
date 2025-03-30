@@ -2,7 +2,7 @@
 
 // we only include RcppArmadillo.h which pulls Rcpp.h in for us
 #define ARMA_DONT_PRINT_ERRORS
-#define ARMA_64BIT_WORD 1
+// #define ARMA_64BIT_WORD 1
 #include "RcppArmadillo.h"
 #include "stdlib.h"
 
@@ -540,11 +540,13 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   int n_traits = Y.n_cols; // define n_traits=number of traits
   int no = Y.n_rows; // define n_traits=number of traits
   arma::vec n_levels(n_re, arma::fill::ones); // to store the number of columns each Z and R matrix has
+  arma::mat diagTrait = arma::eye(n_traits,n_traits);
   // ****************************************************
   // define ZKZ' and R
   // ****************************************************
   // calculate and concatenate ZKZ' and R
   arma::cube ZKZtR(no,no,n_re);
+  // arma::sp_mat XZYBIND;
 
   for (int i = 0; i < n_re; ++i) { // for each random effect
     int irw = i - n_random;
@@ -552,6 +554,12 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
 
       arma::sp_mat zp = Rcpp::as<arma::sp_mat>(Z[i]); // transform as sparse
       n_levels(i) = zp.n_cols; // store the number of columns or levels for this random effect
+      // if(XZYBIND.n_cols==0){
+      //   XZYBIND  = arma::sp_mat( arma::kron( diagTrait , arma::mat( Rcpp::as<arma::sp_mat>(Z[i]) ) ) ); // Rcpp::as<arma::sp_mat>(Z[i]);
+      // }else{
+      //   XZYBIND  = arma::join_horiz( XZYBIND, arma::sp_mat( arma::kron( diagTrait , arma::mat(Rcpp::as<arma::sp_mat>(Z[i]) ) ) ) );
+      // }
+      
       bool dcheck = isIdentity_mat(Rcpp::as<arma::mat>(K[i]));
       if(dcheck == true){ // if K[i] is diagonal
         if(zp.n_rows == zp.n_cols){//is a square matrix
@@ -605,7 +613,11 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       Xm = arma::join_horiz( Xm , kron(Rcpp::as<arma::mat>(Gx[i]), Rcpp::as<arma::mat>(X[i])) );
     }
   }
-
+  // if(n_random > 0){ // if there are random effects
+  //   XZYBIND  = arma::join_horiz(  arma::sp_mat(Xm), XZYBIND, arma::sp_mat(Ym) );
+  // }else{
+  //   XZYBIND  = arma::join_horiz( arma::sp_mat(Xm), arma::sp_mat(Ym) );
+  // }
   arma::mat Ys = scaleCpp(Y); // scale Y using the scaleCpp function made
   arma::vec Ysm = vectorise(Ys); // multivariate Y in scaled form
   // ****************************************************
@@ -721,6 +733,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   arma::mat dD = arma::diagmat(vdD);
   arma::mat sigma_cov;
   arma::mat tXVXi; // var-cov fixed effects
+  arma::mat V(nom,nom); // V or phenotypic variance matrix
 
   bool convergence = false;
   bool last_iteration = false;
@@ -740,7 +753,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     } // sigmatwo now has all VCs in a vector
 
     // multivariate ZKZ' and V
-    arma::mat V(nom,nom); // V or phenotypic variance matrix
+    
     int i;
     for(i=0; i < n_re; i++){ // loop for filling the multivariate ZGZ' and V
       // listGs.slice(i) = prov;
@@ -1081,7 +1094,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
             if(Ki.n_cols == Zprov.n_cols){ // if a regular random effect
               VarU(i) = ZKfv * (P * ZKfv.t()); // var(u) = Z' G [Vi - (VX*tXVXVX)] G Z'
               PevU(i) = VarK - Rcpp::as<arma::mat>(VarU(i)); // PEV = G - var(u)
-            }else{
+            }else{ // 
               VarU(i) = ZKfv * (P * ZKfv.t()); // var(u) = Z' G [Vi - (VX*tXVXVX)] G Z'
               // TO BE FIXED
               // not sure how to get the PEV without constructing VarK due to high-memory requirements in rrBLUP models with potentially millions of SNPs
@@ -1098,10 +1111,21 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   // end of algorithm
   // ****************************************************
   arma::vec dd,ee;
+  arma::mat u; // join blups in a single matrix format
+  arma::field<arma::mat> partitions(n_random); // store indices for each random effect
+  arma::vec end, start;
   for (int i = 0; i < n_re; ++i) {
     dd = join_cols(dd,mat_to_vecCpp(base_var,Rcpp::as<arma::mat>(GeI[i]))) ; // extract upper triangular in a vector form
     ee = join_cols(ee,mat_to_vecCpp(sc_var,Rcpp::as<arma::mat>(GeI[i]))) ; // extract upper triangular in a vector form
+    if( i < n_random ){
+      // startprov = u.n_rows;
+      u = join_cols(u, arma::mat(U[i]) ); // join blups in a single matrix
+      end = u.n_rows + beta.n_rows ; // index of where the random effect ends
+      start = end - arma::mat(U[i]).n_rows + 1;
+      partitions(i) = arma::join_rows(start,end);
+    }
   }
+  arma::mat bu = join_cols(beta, u );
   arma::mat FISH = (sigma_cov % (dd*dd.t())) / (ee*ee.t()); // bring back to original scale
   // recalculate V and P with original sigma values
   double AIC = (-2 * llik) + (2 * Xm.n_cols);
@@ -1110,10 +1134,10 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   // monitor
   sigma_store.each_col() %= dd;
   sigma_store.each_col() /= ee;
-  arma::mat monitor = join_cols(llik_store,sigma_store);
+  // arma::mat monitor = sigma_store.cols(0, cycle2); // join_cols(llik_store,sigma_store);
   // arma::uvec indices(cycle2,arma::fill::ones);
   // arma::mat monitor2 = monitor.cols(find(indices == 1));
-  arma::mat monitor2 = monitor.cols(0, cycle2);
+  // arma::mat monitor2 = monitor.cols(0, cycle2);
   arma::mat sigma_perc_change2;
   if(iters > 1){
     sigma_perc_change2 = sigma_perc_change.cols(1, cycle2); // indicate first and last column to subset to return at the end
@@ -1121,30 +1145,39 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     sigma_perc_change2 = sigma_perc_change; // indicate first and last column to subset to return at the end
   }
 
+  // arma::sp_mat M = XZYBIND.t() * arma::sp_mat(V) * XZYBIND;
+  
   // ****************************************************
   // return the results
   // ****************************************************
 
   return Rcpp::List::create(
-    Rcpp::Named("Vi") = Vi,
-    Rcpp::Named("P") = P,
-    Rcpp::Named("sigma") = sigma,
-    Rcpp::Named("sigma_scaled") = sigma_scaled,
-    Rcpp::Named("sigmaSE") = FISH,
-    Rcpp::Named("Beta") = beta,
-    Rcpp::Named("VarBeta") = tXVXi,
-    Rcpp::Named("U") = U,
-    Rcpp::Named("VarU") = VarU,
-    Rcpp::Named("PevU") = PevU,
-    Rcpp::Named("fitted") = fitted,
-    Rcpp::Named("residuals") = residuals,
+    Rcpp::Named("llik") =  llik_store.cols(0, cycle2) ,
+    // Rcpp::Named("M") = M,
+    // Rcpp::Named("W") = XZYBIND,
+    Rcpp::Named("b") = beta,
+    Rcpp::Named("u") = u,
+    Rcpp::Named("bu") = bu,
+    Rcpp::Named("Ci") = PevU,
+    Rcpp::Named("Ci_11") = tXVXi,
+    Rcpp::Named("theta") = sigma,
+    Rcpp::Named("theta_se") = FISH,
+    Rcpp::Named("theta_scaled") = sigma_scaled,
+    Rcpp::Named("avInf") = Inf, // dL2
+    Rcpp::Named("monitor") = sigma_store.cols(0, cycle2),
     Rcpp::Named("AIC") = AIC,
     Rcpp::Named("BIC") = BIC,
     Rcpp::Named("convergence") = convergence,
-    Rcpp::Named("monitor") = monitor2,
+    Rcpp::Named("partitions") = partitions,
+    Rcpp::Named("fitted") = fitted,
+    Rcpp::Named("residuals") = residuals,
+    Rcpp::Named("dL") = score, // dL
     Rcpp::Named("percChange") = sigma_perc_change2,
-    Rcpp::Named("dL") = score,
-    Rcpp::Named("dL2") = Inf
+    Rcpp::Named("Vi") = Vi,
+    Rcpp::Named("uList0") = U,
+    Rcpp::Named("P") = P
+    // Rcpp::Named("u_var") = VarU
+    
   );
 }
 
@@ -1312,7 +1345,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
 
   // define partitions (only used if random effects exist)
   int last = X.n_cols;
-  arma::field<arma::mat> partitions(nReAl); // store thetas (variance components)
+  arma::field<arma::mat> partitions(nReAl); // store indices of the random effects
   arma::vec zsAva;
   int Nu = 0;
   if(nZs > 0){ //if there's random effects (Z matrices) check where each starts and ends
@@ -1943,15 +1976,16 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   // return results in a list form
   return Rcpp::List::create(
     Rcpp::Named("llik") = llik,
-    Rcpp::Named("M") = M,
+    // Rcpp::Named("M") = M,
     Rcpp::Named("W") = W,
     Rcpp::Named("b") = b,
     Rcpp::Named("u") = u,
     Rcpp::Named("bu") = bu,
     Rcpp::Named("Ci") = Ci,
+    Rcpp::Named("theta") = theta,
     Rcpp::Named("avInf") = avInf, //InfMat,
     Rcpp::Named("monitor") = monitor,
-    Rcpp::Named("constraints") = thetaCUnlistedFinal,
+    // Rcpp::Named("constraints") = thetaCUnlistedFinal,
     Rcpp::Named("AIC") = AIC,
     Rcpp::Named("BIC") = BIC,
     Rcpp::Named("convergence") = convergence,
@@ -1959,8 +1993,8 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     Rcpp::Named("percDelta") = percDelta,
     Rcpp::Named("normMonitor") = normMonitor,
     Rcpp::Named("toBoundary") = toBoundary,
-    Rcpp::Named("Cchol") = A,
-    Rcpp::Named("theta") = theta
+    Rcpp::Named("Cchol") = A
+    
   );
 
 }

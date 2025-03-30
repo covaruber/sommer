@@ -1,11 +1,11 @@
-\name{rrc}
-\alias{rrc}
+\name{rrr}
+\alias{rrr}
 \title{reduced rank covariance structure}
 \description{
-  \code{rrc} creates a reduced rank factor analytic covariance structure by selecting the n vectors of the L matrix of the Cholesky decomposition or the U vectors of the SVD decomposition (loadings or latent covariates) to create a new incidence matrix of latent covariates that can be used with the \code{\link{mmec}} solver to fit random regressions on the latent covariates.
+  \code{rrr} creates a reduced rank factor analytic covariance structure by selecting the n vectors of the L matrix of the Cholesky decomposition or the U vectors of the SVD decomposition (loadings or latent covariates) to create a new incidence matrix of latent covariates that can be used with the \code{\link{mmer}} solver to fit random regressions on the latent covariates.
 }
 \usage{
-  rrc(x=NULL, H=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE)
+  rrr(x=NULL, H=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE)
 }
 
 \arguments{
@@ -37,7 +37,7 @@ y = Xb + Z(I Gamma)c + e = Xb + Z*c + e
 
 which is equal to the one above but assumes specific effects = 0. 
 
-\strong{The algorithm in rrc is the following:}
+\strong{The algorithm in rrr is the following:}
 
 1) uses a wide-format table of timevar (m columns) by idvar (q rows) named H to form the initial variance-covariance matrix (Sigma) which is calculated as Sigma = H'H of dimensions m x m (column dimensions, e.g., environments x environments). 
 
@@ -49,7 +49,7 @@ which is equal to the one above but assumes specific effects = 0.
 
 4) Gamma is used to form a new incidence matrix as Z* = Z Gamma
 
-5) This matrix is later used for the REML machinery to be used with the usc (unstructured) or dsc (diagonal) structures to estimate variance components and factor scores. The resulting BLUPs from the mixed model are the optimized factor scores. Pretty much as a random regression over latent covariates.
+5) This matrix is later used for the REML machinery to be used with the usc (unstructured) or dsr (diagonal) structures to estimate variance components and factor scores. The resulting BLUPs from the mixed model are the optimized factor scores. Pretty much as a random regression over latent covariates.
 
 This implementation does not update the loadings (latent covariates) during the REML process, only estimates the REML factor scores for fixed loadings. This is different to other software (e.g., asreml) where the loadings are updated during the REML process as well. 
 
@@ -95,19 +95,19 @@ rownames(A) <- colnames(A) <- indNames
 \donttest{
   
 # fit diagonal model first to produce H matrix
-ansDG <- mmec(y~Env,
-              random=~ vsc(dsc(Env), isc(Name)),
+ansDG <- mmer(y~Env,
+              random=~ vsr(dsr(Env), isr(Name)),
               rcov=~units, nIters = 100,
               # we recommend giving more EM iterations at the beggining
               emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
               data=DT)
 
-H0 <- ansDG$uList$`vsc(dsc(Env), isc(Name))` # GxE table
+H0 <- ansDG$uList$`vsr(dsr(Env), isr(Name))` # GxE table
 
 # reduced rank model
-ansFA <- mmec(y~Env,
-              random=~vsc( usc(rrc(Env, H = H0, nPC = 3)) , isc(Name)) + # rr
-                vsc(dsc(Env), isc(Name)), # diag
+ansFA <- mmer(y~Env,
+              random=~vsr( usc(rrr(Env, H = H0, nPC = 3)) , isr(Name)) + # rr
+                vsr(dsr(Env), isr(Name)), # diag
               rcov=~units,
               # we recommend giving more iterations to these models
               nIters = 100,
@@ -118,7 +118,7 @@ ansFA <- mmec(y~Env,
 vcFA <- ansFA$theta[[1]]
 vcDG <- ansFA$theta[[2]]
 
-loadings=with(DT, rrc(Env, nPC = 3, H = H0, returnGamma = TRUE) )$Gamma
+loadings=with(DT, rrr(Env, nPC = 3, H = H0, returnGamma = TRUE) )$Gamma
 scores <- ansFA$uList[[1]]
 
 vcUS <- loadings \%*\% vcFA \%*\% t(loadings)
@@ -134,4 +134,4 @@ u <- uFA + uDG
 
 
 }
-\seealso{The function \code{\link{vsc}} to know how to use \code{rrc} in the \code{\link{mmec}} solver.}
+\seealso{The function \code{\link{vsr}} to know how to use \code{rrr} in the \code{\link{mmer}} solver.}

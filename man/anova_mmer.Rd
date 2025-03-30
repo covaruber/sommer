@@ -4,12 +4,11 @@
 \description{\code{anova} method for class \code{"mmer"}.
 }
 \usage{
-\method{anova}{mmer}(object, object2=NULL, type=1, \dots)
+\method{anova}{mmer}(object, object2=NULL, \dots)
 }
 \arguments{
  \item{object}{an object of class \code{"mmer"}}
  \item{object2}{an object of class \code{"mmer"}, if NULL the program will provide regular sum of squares results.}
-  \item{type}{anova type, I or II}
  \item{\dots}{Further arguments to be passed}
 }
 \value{

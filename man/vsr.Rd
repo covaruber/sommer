@@ -5,57 +5,50 @@
   \code{vsr} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmer}} solver. 
 }
 \usage{
-  vsr(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE)
+  vsr(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
+      sp=FALSE, isFixed=FALSE, verbose=TRUE)
 }
 
 \arguments{
   \item{...}{variance structure to be specified following the logic desired in the internal kronecker product. For example, if user wants to define a diagonal variance structure for the random effect 'genotypes'(g) with respect to a random effect 'environments'(e), this is:
-  
+
   \code{var(g) = G.e @ I.g}
-  
+
   being \code{G.e}  a matrix containing the variance covariance components for g (genotypes) in each level of e (environments), \code{I.g} is the covariance among levels of g (genotypes; i.e. relationship matrix), and @ is the kronecker product. This would be specified in the mmer solver as:
-  
-  \code{random=~vsr(dsr(e),g)}
-  
+
+  \code{random=~vsr(dsc(e),g)}
+
   One strength of sommer is the ability to specify very complex structures with as many kronecker products as desired. For example:
-  
+
   \code{var(g) = G.e @ G.f @ G.h @ I.g}
-  
+
   is equivalent to
-  
+
   \code{random=~vsr(e,f,h,g)}
-  
-  where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{dsr}}, \code{\link{usr}}, \code{\link{csr}}, \code{\link{atr}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
 
-  \item{Gu}{matrix with the known variance-covariance values for the levels of the u.th random effect (i.e. relationship matrix among individuals or any other known covariance matrix). If \code{NULL}, then an identity matrix is assumed. The Gu matrix can have more levels than the ones present in the random effect linked to it but not the other way around. Otherwise, an error message of missing level in Gu will be returned.}
+  where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{dsc}}, \code{\link{usc}}, \code{\link{csc}}, \code{\link{atr}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
 
-  \item{Gti}{matrix with dimensions t x t (t equal to number of traits) with initial values of the variance-covariance components for the random effect specified in the .... argument. If \code{NULL} the program will provide the initial values. The values need to be scaled, see Details section.}
+  \item{Gu}{matrix with the inverse of a known variance-covariance values for the levels of the u.th random effect (e.g., the inverse of a relationship matrix among individuals or any other known inverse covariance matrix). If \code{NULL}, then an identity matrix is assumed. The Gu matrix can have more levels than the ones present in the random effect linked to it but not the other way around. Otherwise, an error message of missing level in Gu will be returned.}
 
-  \item{Gtc}{matrix with dimensions t x t (t equal to number of traits) of constraints for the variance-covariance components for the random effect specified in the ... argument according to the following rules:
-  
-  \code{0: not to be estimated}
-  
-  \code{1: estimated and constrained to be positive (i.e. variance component)}
-  
-  \code{2: estimated and unconstrained (can be negative or positive, i.e. covariance component)}
-  
-  \code{3: not to be estimated but fixed (value has to be provided in the Gti argument)}
-  
-  In the multi-response scenario if the user doesn't specify this argument the default is to build an unstructured matrix (using the \code{\link{unsm}}() function). This argument needs to be used wisely since some covariance among responses may not make sense. Useful functions to specify constraints are; \code{\link{diag}}(), \code{\link{unsm}}(), \code{\link{fixm}}().
-  }
-  
-  \item{reorderGu}{a \code{TRUE/FALSE} statement if the Gu matrix should be reordered based on the names of the design matrix of the random effect or passed with the custom order of the user. This may be important when fitting covariance components in a customized fashion. Only for advanced users.}
-  
     \item{buildGu}{a \code{TRUE/FALSE} statement to indicate if the Gu matrix should be built in R when the value for the argument \code{Gu=NULL}. Repeat, only when when the value for the argument \code{Gu} is equal to \code{NULL}. In some cases when the incidence matrix is wide (e.g. rrBLUP models) the covariance structure is a huge p x p matrix that can be avoided when performing matrix operations. By setting this argument to \code{FALSE} it allows to skip forming this covariance matrix.}
-    
+
+   \item{meN}{number of main effects in the variance structure. Is always counted from last to first.}
+
+   \item{meTheta}{variance covariance matrix between the main effects desired. Just to be modified if the number of main effects is greater of 1 (e.g., indirect genetic effects).}
+
+   \item{meThetaC}{constraints for the variance covariance matrix between the main effects desired. Just to be modified if the number of main effects is greater of 1 (e.g., indirect genetic effects).}
+
+   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmer function through the addScaleParam argument in the \code{mmer} function .}
+   
+   \item{isFixed}{a TRUE/FALSE statement to indicate if the vsr function is being used in the fixed part of the model. When TRUE, the function only returns the model matrix to avoid any error messages associated to returning all elements for a random effect. FALSE is the default since it is assumed to be used for a variance structure in a random effect.}
+   
+   \item{verbose}{a TRUE/FALSE statement to indicate if messages should be printed when special situations accur. For example, adding unphenotyped individuals to the incidence matrices when present in the relationship  matrices.}
+
 }
 \details{
- When providing initial values in the \code{Gti} argument the user has to provide scaled variance component values. The user can provide values from a previous model by accessing the \code{sigma_scaled} output from an \code{mmer} model or if an specific value is desired the user can obtain the scaled value as:
- 
- \code{m = x/var(y)}
- 
- where \code{x} is the desired initial value and \code{y} is the response variable. You can find an example in the \code{\link{DT_cpdata}} dataset.
- 
+
+...
+
 }
 \value{
   \describe{
@@ -63,8 +56,8 @@
   }
 }
 \references{
-  Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
-  
+  Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744
+
   Covarrubias-Pazaran G (2018) Software update: Moving the R package sommer to
   multivariate mixed models for genome-assisted prediction. doi:
   https://doi.org/10.1101/354639
@@ -77,103 +70,69 @@
 
 data(DT_example)
 DT <- DT_example
+DT=DT[with(DT, order(Env)), ]
 A <- A_example
 
+x <- as.character(unique(DT$Name))
+DT <- droplevels(DT[which(!is.na(match(DT$Name, x[1:5]))),])
 ## ============================ ##
-## example to without structure
+## example without structure
 ## ============================ ##
-dsr(DT$Year)
-mix <- mmer(Yield~Env, 
-            random= ~ vsr(Name),
-            rcov=~ vsr(units),
+isr(DT$Name)
+mix <- mmer(Yield~Env,
+            random= ~ vsr(isr(Name)),
+            rcov=~ units,
+            nIters=10,
             data=DT)
-            
+
 ## ============================ ##
-## example to without structure but 
+## example to without structure but
 ## using covariance among levels in the
 ## random effect Name
 ## ============================ ##
-dsr(DT$Year)
-mix <- mmer(Yield~Env, 
-            random= ~ vsr(Name, Gu=A),
-            rcov=~ vsr(units),
+Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
+Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+mix <- mmer(Yield~Env,
+            random= ~ vsr(isr(Name), Gu=Ai),
+            rcov=~ units,
+            nIters=10,
             data=DT)
-            
+summary(mix)$varcomp
 ## ============================ ##
-## example to use dsr() structure (DIAGONAL)
+## example to use dsc() structure (DIAGONAL)
 ## ============================ ##
-dsr(DT$Year)
-mix <- mmer(Yield~Env, 
-            random= ~ vsr(dsr(Year),Name),
-            rcov=~ vsr(dsr(Year),units),
+dsc(DT$Year)
+mix <- mmer(Yield~Env,
+            random= ~ vsr(dsc(Year),isr(Name)),
+            rcov=~ vsr(dsc(Year),isr(units)),
+            nIters=10,
             data=DT)
-
+summary(mix)$varcomp
 ## ============================ ##
-## example to use atr() structure (level-specific)
+## example to use atc() structure (level-specific)
 ## ============================ ##
-unique(DT$Year)
-mix <- mmer(Yield~Env, 
-            random= ~ vsr(atr(Year,c("2011","2012")),Name),
-            rcov=~ vsr(dsr(Year),units),
+# unique(DT$Year)
+# mix <- mmer(Yield~Env,
+#             random= ~ vsr(atc(Year,c("2011","2012")),isr(Name)),
+#             rcov=~ vsr(dsc(Year),isr(units)),
+#             data=DT)
+## ============================ ##
+## example to use usc() structure (UNSTRUCTURED)
+## ============================ ##
+usc(DT$Year)
+mix <- mmer(Yield~Env,
+            random= ~ vsr(usc(Year),isr(Name)),
+            rcov=~ vsr(dsc(Year),isr(units)),
+            nIters = 10,
             data=DT)
-
 ## ============================ ##
-## example to use usr() structure (UNSTRUCTURED)
+## example using structure in fixed effect
+## (notice the isFixed argument)
 ## ============================ ##
-usr(DT$Year)
-mix <- mmer(Yield~Env, 
-            random= ~ vsr(usr(Year),Name),
-            rcov=~ vsr(dsr(Year),units),
+mix <- mmer(Yield~ vsr(atc(Env,"CA.2011"), isr(Name), isFixed = TRUE),
+            rcov=~ units,
+            nIters=10,
             data=DT)
-
-## ============================ ##
-## example to use csr() structure (CUSTOMIZED)
-## ============================ ##
-unique(DT$Year)
-mm <- matrix(1,3,3); mm[1,3] <- mm[3,1] <- 0;mm #don't estimate cov 2011-2013
-mix <- mmer(Yield~Env, 
-            random= ~ vsr(csr(Year,mm),Name),
-            rcov=~ vsr(dsr(Year),units),
-            data=DT)
-
-## ============================ ##
-## example to use overlay() + vsr() structure
-## ============================ ##
-data("DT_halfdiallel")
-DT <- DT_halfdiallel
-head(DT)
-DT$femalef <- as.factor(DT$female)
-DT$malef <- as.factor(DT$male)
-DT$genof <- as.factor(DT$geno)
-A <- diag(7); colnames(A) <- rownames(A) <- 1:7;A # if you want to provide a covariance matrix
-#### model using overlay
-modh <- mmer(sugar~1, 
-             random=~vsr(overlay(femalef,malef,sparse=FALSE), Gu=A) 
-                     + genof,
-              data=DT)
-
-## ============================ ##
-## example to use vsr() + dsr() + spl2D() structure
-## ============================ ##            
-# ### mimic two fields
-# data(DT_cpdata)
-# DT <- DT_cpdata
-# GT <- GT_cpdata
-# MP <- MP_cpdata
-# aa <- DT; bb <- DT
-# aa$FIELD <- "A";bb$FIELD <- "B"
-# set.seed(1234)
-# aa$Yield <- aa$Yield + rnorm(length(aa$Yield),0,4)
-# DT2 <- rbind(aa,bb)
-# head(DT2)
-# 
-# mix <- mmer(Yield~1,
-#             random=~vsr(dsr(FIELD),id, Gu=A) + 
-#               vsr(dsr(FIELD),Rowf) +
-#               vsr(dsr(FIELD),Colf) +
-#                 vsr(dsr(FIELD),spl2D(Row,Col)),
-#             rcov=~vsr(dsr(FIELD),units),
-#             data=DT2)
 
 }
 \seealso{The core function of the package: \code{\link{mmer}}}

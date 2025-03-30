@@ -1,11 +1,11 @@
-\name{isc}
-\alias{isc}
+\name{isr}
+\alias{isr}
 \title{identity covariance structure}
 \description{
-  \code{isc} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mmec}} solver. Any random effect with a special covariance structure should end with an isc() structure.
+  \code{isr} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mmec}} solver. Any random effect with a special covariance structure should end with an isr() structure.
 }
 \usage{
-  isc(x, thetaC=NULL, theta=NULL)
+  isr(x, thetaC=NULL, theta=NULL)
 }
 
 \arguments{
@@ -43,13 +43,13 @@
 
 \examples{
 x <- as.factor(c(1:5,1:5,1:5));x
-isc(x)
+isr(x)
 
 # data(DT_example)
 # ans1 <- mmec(Yield~Env,
-#              random= ~ vsc( isc( Name ) ),
+#              random= ~ vsc( isr( Name ) ),
 #              data=DT_example)
 # summary(ans1)$varcomp
 
 }
-\seealso{See the function \code{\link{vsc}} to know how to use \code{isc} in the \code{\link{mmec}} solver.}
+\seealso{See the function \code{\link{vsc}} to know how to use \code{isr} in the \code{\link{mmec}} solver.}

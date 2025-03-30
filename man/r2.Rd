@@ -45,7 +45,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 data(DT_example)
 DT <- DT_example
 head(DT)
-ans1 <- mmec(Yield~Env,
+ans1 <- mmer(Yield~Env, mme=TRUE,
              random= ~ Name + Env:Name,
              rcov= ~ units,
              data=DT)

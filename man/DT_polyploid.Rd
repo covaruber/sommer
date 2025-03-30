@@ -68,17 +68,13 @@ data(DT_polyploid)
 # ### run as mixed model
 # ###=========================================####
 # ans <- mmer(tuber_shape~1,
-#             random=~vsr(Name, Gu=A),
+#             random=~vsr(isr(Name), Gu=A),
 #             data=DT2)
 # summary(ans)$varcomp
-# 
+# # if using mme=TRUE provide Gu as inverse
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# ansb <- mmec(tuber_shape~1,
-#             random=~vsc(isc(Name), Gu=Ai),
-#             data=DT2)
-# summary(ansb)$varcomp
-# 
+
 
 }
 \keyword{datasets}
