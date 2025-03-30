@@ -1,3 +1,20 @@
+## small matrix constructors
+unsm <- function(x, reps=NULL){
+  mm <- matrix(1,x,x)
+  mm[upper.tri(mm)] <- 2
+  mm[lower.tri(mm)] <- 2
+  if(!is.null(reps)){
+    return(rep(list(mm),reps))
+  }else{return(mm)}
+}
+
+fixm <- function(x, reps=NULL){
+  mm <- matrix(3,x,x)
+  if(!is.null(reps)){
+    return(rep(list(mm),reps))
+  }else{return(mm)}
+}
+
 covr <- function(ran1,ran2, thetaC=NULL, theta=NULL){
   if( ncol(ran1$Z[[1]]) != ncol(ran2$Z[[1]]) ){stop("Matrices of the two random effects should have the same dimensions",call. = FALSE)}
   ran1$Z[[2]] <- ran2$Z[[1]]
@@ -124,25 +141,6 @@ overlay<- function (..., rlist = NULL, prefix = NULL, sparse=FALSE){
   }
   attr(S3,"variables") <- namesInit
   return(S3)
-}
-
-list2usmat <- function(sigmaL){
-  
-  f <- function(n, x){
-    res <- ((n*(n-1))/2 + n) - x
-    if(res < 0){res <- 100}
-    return(res)
-  }
-  if(is.list(sigmaL)){
-    ss <- unlist(sigmaL)
-  }else{ss <- sigmaL}
-  
-  x <- length(ss)
-  n <- round(optimize(f, c(1, 50), tol = 0.0001, x=x)$minimum)
-  mss <- matrix(NA,n,n)
-  mss[upper.tri(mss,diag = TRUE)] <- ss
-  mss[lower.tri(mss)] <- t(mss[upper.tri(mss)])
-  return(mss)
 }
 
 replace.values <- function(Values,Search,Replace){
@@ -661,15 +659,6 @@ isr <- function(x, thetaC=NULL, theta=NULL){
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm, theta=bnmm))
 }
-###############
-## small matrix constructors
 
-transformConstraints <- function(list0,value=1){
-  ll <- lapply(list0, function(x){
-    x[which(x != 0,arr.ind = TRUE)] <- x[which(x != 0,arr.ind = TRUE)] / x[which(x != 0,arr.ind = TRUE)]
-    x <- x*value
-    return(x)
-  })
-  return(ll)
-}
+
 

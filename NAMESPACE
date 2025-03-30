@@ -13,9 +13,8 @@ export(
 export(mmer, GWAS)
 
 ## FUN_special and FUN_vsc and FUN_vsrgvsr
-export(
+export( unsm, fixm, # small constructors
        atr,csr,dsr,usr,vsr, isr, rrr, covr, ## mmer
-       list2usmat, transformConstraints,
        # special functions to create model matrices
        overlay, redmm, 
        add.diallel.vars, stackTrait,
