@@ -6,9 +6,9 @@ mmer <- function(fixed, random, rcov, data, W,
                  returnParam=FALSE,
                  dateWarning=TRUE,
                  verbose=TRUE, 
-                 # addScaleParam=NULL,
+                 addScaleParam=NULL,
                  stepWeight=NULL, emWeight=NULL, 
-                 # contrasts=NULL, 
+                 contrasts=NULL,
                  getPEV=TRUE, mme=FALSE){
   
   my.date <- "2025-06-01"
