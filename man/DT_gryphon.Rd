@@ -57,7 +57,21 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # ## mme algorithm uses the inverse of the relationship matrix
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-
+# ####====================####
+# #### multivariate model ####
+# ####     2 traits       ####
+# ####====================####
+# head(DT)
+# DT2 <- stackTrait(DT, traits = c("BWT","TARSUS"))
+# head(DT2$long)
+# 
+# # #### fit the multivariate model with no fixed effects (intercept only)
+# mix2 <- mmer(valueS~trait, mme=FALSE, # using direct inversion
+#              random=~vsr(usr(trait),isr(ANIMAL),Gu=A),
+#              rcov=~vsr(dsr(trait),isr(units)),
+#              data=DT2$long)
+# summary(mix2)$varcomp
+# cov2cor(mix2$theta[[1]])
 
 }
 \keyword{datasets}

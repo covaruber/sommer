@@ -14,7 +14,8 @@ This algorithm is \strong{intended to be used for problems of the type r > c (mo
 records in the data than coefficients to estimate)}. For problems with of the type 
 c > r (more coefficients to estimate than records available), the direct inversion 
 algorithms are faster and we recommend using the argument \code{mme=FALSE} (default).
-For more records than coefficients set \code{mme=TRUE}.
+For more records than coefficients set \code{mme=TRUE} and make sure you provide the
+relationship matrix as an inverse.
 
 }
 
@@ -33,9 +34,11 @@ mmer(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
 
   }
 
-  \item{random}{A formula specifying the name of the \strong{random effects}, e.g., \emph{random= ~ genotype + year}.
+  \item{random}{A formula specifying the name of the \strong{random effects}, e.g., 
+  \emph{random= ~ genotype + year}.
 
-  Useful functions can be used to fit heterogeneous variances and other special models (\emph{see 'Special Functions' in the Details section for more information}):
+  Useful functions can be used to fit heterogeneous variances and other special models
+  (\emph{see 'Special Functions' in the Details section for more information}):
 
   \code{\link{vsr}(...,Gu)} is the main function to specify variance models and
   special structures for random effects. On the ... argument you provide the 
@@ -44,7 +47,7 @@ mmer(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
   Gu is used to provide known covariance matrices among the levels of the random effect.
   Auxiliar functions for building the variance models are:
 
-  ** \code{\link{dsr}(x)}, \code{\link{usr}(x)}, \code{\link{rrc}(x,y,z)} , \code{\link{isr}(x)},\code{\link{csc}(x)}, and \code{\link{atr}(x,levs)} can be used to specify unknown diagonal, unstructured, reduced-rank, identity, and customized unstructured and diagonal covariance structures respectively to be estimated by REML.
+  ** \code{\link{dsr}(x)}, \code{\link{usr}(x)}, \code{\link{rrr}(x,y,z)} , \code{\link{isr}(x)},\code{\link{csr}(x)}, and \code{\link{atr}(x,levs)} can be used to specify unknown diagonal, unstructured, reduced-rank, identity, and customized unstructured and diagonal covariance structures respectively to be estimated by REML.
 
   ** \code{\link{unsm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can be used to build easily matrices to specify constraints in the Gtc argument of the \code{\link{vsr}()} function.
 
@@ -114,9 +117,9 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
  can be used to specify an unstructured covariance structure for the "y" covariate for all levels of the  covariate "x", e.g., \emph{random=~vsr(usr(Location),isr(ID))}  fits variance and covariance components for ID at all levels of the covariate Location.
  
- \code{\link{vsr}(\link{usr}(\link{rrc}(x,y,z,nPC)),isr(y))}
+ \code{\link{vsr}(\link{usr}(\link{rrr}(x,y,z,nPC)),isr(y))}
 
- can be used to specify an unstructured covariance structure for the "y" effect for all levels of the  covariate "x", and a response variable "z", e.g., \emph{random=~vsr(rrc(Location,ID,response, nPC=2),isr(ID))}  fits a reduced-rank factor analytic covariance for ID at 2 principal components of the covariate Location.
+ can be used to specify an unstructured covariance structure for the "y" effect for all levels of the  covariate "x", and a response variable "z", e.g., \emph{random=~vsr(rrr(Location,ID,response, nPC=2),isr(ID))}  fits a reduced-rank factor analytic covariance for ID at 2 principal components of the covariate Location.
 
   \code{\link{vsr}(isr(\link{overlay}(...,rlist=NULL,prefix=NULL)))}
 
@@ -128,7 +131,7 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
   \code{\link{vsr}(\link{leg}(x,n),isr(y))}
 
-  can be used to fit a random regression model using a numerical variable \code{x} that marks the trayectory for the random effect \code{y}. The leg function can be combined with the special functions \code{dsr}, \code{usr} \code{at} and \code{csc}. For example \emph{random=~vsr(leg(x,1),isr(y))} or \emph{random=~vsr(usr(leg(x,1)),isr(y))}.
+  can be used to fit a random regression model using a numerical variable \code{x} that marks the trayectory for the random effect \code{y}. The leg function can be combined with the special functions \code{dsr}, \code{usr} \code{at} and \code{csr}. For example \emph{random=~vsr(leg(x,1),isr(y))} or \emph{random=~vsr(usr(leg(x,1)),isr(y))}.
 
   \code{\link{spl2Dc}(x.coord, y.coord, at.var, at.levels))}
 
@@ -136,9 +139,9 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
 \strong{Covariance between random effects}
 
- \code{\link{covc}( \link{vsr}(\link{isr}(ran1)), \link{vsr}(\link{isr}(ran2)) )}
+ \code{\link{covr}( \link{vsr}(\link{isr}(ran1)), \link{vsr}(\link{isr}(ran2)) )}
 
- can be used to specify covariance between two different random effects, e.g., \emph{random=~covc( vsr(isr(x1)), vsr(isr(x2)) )} where two random effects in their own vsr() structure are encapsulated. Only applies for simple random effects.
+ can be used to specify covariance between two different random effects, e.g., \emph{random=~covr( vsr(isr(x1)), vsr(isr(x2)) )} where two random effects in their own vsr() structure are encapsulated. Only applies for simple random effects.
  
 \strong{S3 methods}
 

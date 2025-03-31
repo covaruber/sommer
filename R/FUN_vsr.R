@@ -19,12 +19,15 @@ vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
       whichElemBad <- numeric()
     }else{whichElemBad <- 1}
   }else{ # there's more than one term
+    # check that is a list first
+    whichElemBad1 <- which(!unlist(lapply(init,is.list)))
     lengthElem <- unlist(lapply(init,length))
-    whichElemBad <- which(lengthElem < 3) ## which are not encapsulated
+    whichElemBad2 <- which(lengthElem < 3) ## which are not encapsulated
+    whichElemBad <- sort(c(whichElemBad1,whichElemBad2), decreasing = FALSE)
   }
   if(length(whichElemBad) > 0){
     badd <- paste(namess2[whichElemBad],collapse = ",")
-    stop(paste0("Term(s): '",badd,"' in the vsc() function are not encapsulated in a structure function. Please correct [for example, using vsc(isc(",badd,")), vsc(dsc(",badd,")), vsc(usc(",badd,")), vsc(atc(",badd,")), vsc(csc(",badd,")), etc.]."),call. = FALSE)
+    stop(paste0("Term(s): '",badd,"' in the vsr() function are not encapsulated in a structure function. Please correct [for example, using vsr(isc(",badd,")), vsr(dsc(",badd,")), vsr(usc(",badd,")), vsr(atc(",badd,")), vsr(csc(",badd,")), etc.]."),call. = FALSE)
   }
 
   ## extract names of variables and collpase as interaction

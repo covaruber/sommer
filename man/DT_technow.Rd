@@ -55,7 +55,26 @@ Mf <- Mf_technow
 # Adi <- as(as(as( Adi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # Afi <- solve(Af + diag(1e-4,ncol(Af),ncol(Af)))
 # Afi <- as(as(as( Afi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-
+# ####====================####
+# #### multivariate model ####
+# ####     2 traits       ####
+# ####====================####
+# head(DT)
+# DT2 <- stackTrait(DT, traits = c("GY","GM"))
+# head(DT2$long)
+# 
+# M <- rbind(Md,Mf)
+# A <- A.mat(M)
+# Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# DT2$long=DT2$long[with(DT2$long, order(trait)), ]
+# 
+# ans3 <- mmer(valueS~trait, mme=TRUE,
+#              random=~vsr(usr(trait),isr(overlay(dent,flint)),Gu=Ai),
+#              rcov=~ vsr(dsr(trait), isr(units)),
+#              data=DT2$long)
+# summary(ans3)
+# cov2cor(ans3$theta[[1]])
 }
 \keyword{datasets}
 \seealso{The core functions of the package \code{\link{mmer}} }
