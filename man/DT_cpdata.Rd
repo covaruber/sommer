@@ -67,7 +67,23 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # Ctt <- Ci[ind,ind] # portion of Ci for genotypes
 # R2 <- (G - Ctt)/G # reliability matrix
 # mean(diag(R2)) # average reliability of the trial
-#
+# ####====================####
+# #### multivariate model ####
+# ####     2 traits       ####
+# ####====================####
+# head(DT)
+# DT2 <- stackTrait(DT, traits = c("color","Yield"))
+# head(DT2$long)
+# A <- A.mat(GT) # additive relationship matrix
+# # if using mme=TRUE you need to provide the inverse
+# Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# #### be patient take some time
+# ansm <- mmer( valueS ~ trait, # mme=TRUE,
+#                random=~ vsr(usr(trait), isr(id), Gu=A),
+#                rcov=~ vsr(dsr(trait), isr(units)),
+#                data=DT2$long)
+# cov2cor(ansm$theta[[1]])
 
 }
 \keyword{datasets}

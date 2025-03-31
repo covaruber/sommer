@@ -26,12 +26,22 @@
 
   \code{random=~vsr(e,f,h,g)}
 
-  where different covariance structures can be applied to the levels of \code{e,f,h} (i.e. \code{\link{dsr}}, \code{\link{usc}}, \code{\link{csc}}, \code{\link{atr}} or a combination of these). For more examples please see the vignettes 'sommer.start' available in the package.}
+  where different covariance structures can be applied to the levels of \code{e,f,h} 
+  (i.e. \code{\link{dsr}}, \code{\link{usc}}, \code{\link{csc}}, \code{\link{atr}}, \code{\link{isr}} or
+  a combination of these). For more examples please see the vignettes 'sommer.start' 
+  available in the package.}
 
-  \item{Gu}{matrix with either the inverse (in case of mme=TRUE) or raw variance-covariance (mme=FALSE)
-  values for the levels of the u.th random effect (e.g., the inverse of a 
+  \item{Gu}{matrix with either the inverse (in case of mme=TRUE) or raw variance-covariance 
+  (mme=FALSE) values for the levels of the u.th random effect (e.g., the inverse of a 
   relationship matrix among individuals or any other known inverse covariance 
-  matrix). If \code{NULL}, then an identity matrix is assumed.
+  matrix). If using an inverse remember to provide it in the right format:
+  
+  \code{Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))}
+  
+  \code{Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")}
+  
+  
+  Where A is your original relationship matrix. If \code{NULL}, then an identity matrix is assumed.
   The Gu matrix can have more levels than the ones present in the random effect
   linked to it but not the other way around. Otherwise, an error message of missing
   level in Gu will be returned.}
@@ -79,6 +89,10 @@ DT <- DT_example
 DT=DT[with(DT, order(Env)), ]
 A <- A_example
 
+# if using mme=TRUE remember to provide relationship as inverse in the Gu argument
+# Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+
 x <- as.character(unique(DT$Name))
 DT <- droplevels(DT[which(!is.na(match(DT$Name, x[1:5]))),])
 ## ============================ ##
@@ -96,10 +110,8 @@ mix <- mmer(Yield~Env,
 ## using covariance among levels in the
 ## random effect Name
 ## ============================ ##
-Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
-Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-mix <- mmer(Yield~Env,
-            random= ~ vsr(isr(Name), Gu=Ai),
+mix <- mmer(Yield~Env, 
+            random= ~ vsr(isr(Name), Gu=A),
             rcov=~ units,
             nIters=10,
             data=DT)

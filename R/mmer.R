@@ -204,7 +204,7 @@ mmer <- function(fixed, random, rcov, data, W,
   ## information weights
   
   if(is.null(emWeight)){
-    if(nEffects >= nRecords){ # p > n
+    if(mme==FALSE){ # p > n
       emWeight <- rep(0, nIters)
     }else{ # n > p
       initialEmSteps <- logspace(round(nIters*.8), 1, 0.009) # 80% of the iterations requested are used for the logarithmic decrease
