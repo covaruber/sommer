@@ -41,6 +41,23 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #              data = DT)
 # summary(mix4)$varcomp
 
+# MULTI-TRAIT EXAMPLE
+# head(DT)
+# DT2 <- stackTrait(DT, traits = c("tarsus","back"))
+# head(DT2$long)
+# DT2$long=DT2$long[with(DT2$long, order(trait)), ]
+# 
+# mix3 <- mmer(valueS ~ trait:sex - 1, mme=TRUE,
+#                 random = ~ vsr(usr(trait),isr(dam)) +  
+#                            vsr(usr(trait), isr(fosternest)),
+#                 rcov= ~ vsr(dsr(trait),isr(units)),
+#                 data = DT2$long)
+# 
+# 
+# summary(mix3)$varcomp
+# #### calculate the genetic correlation
+# cov2cor(mix3$theta[[1]])
+# cov2cor(mix3$theta[[2]])
 
 }
 \keyword{datasets}

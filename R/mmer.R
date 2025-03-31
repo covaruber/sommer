@@ -69,7 +69,7 @@ mmer <- function(fixed, random, rcov, data, W,
       strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
     })
     
-    for(u in 1:length(rtermss)){ # for each random effect
+    for(u in 1:length(rtermss)){ # for each random effect u=1
       checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsr","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
       
       if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
@@ -94,8 +94,8 @@ mmer <- function(fixed, random, rcov, data, W,
     }
   }
   
-  nEffects <- sum(unlist(lapply(Z,ncol)))
-  nRecords <- length(yvar)
+  # nEffects <- sum(unlist(lapply(Z,ncol)))
+  # nRecords <- length(yvar)
   #################
   ## get Rs
   
@@ -222,7 +222,6 @@ mmer <- function(fixed, random, rcov, data, W,
       stepWeight <- rep(.9,nIters);
       if(nIters > 1){stepWeight[1:2] <- c(0.5,0.7)} # .5, .7
     }
-    # stepWeight[1:3]=3
   }
   
   #################
@@ -338,17 +337,18 @@ mmer <- function(fixed, random, rcov, data, W,
       res$thetaC <- thetaC
     }
     rownames(res$bu) <- c(rownames(res$b),rownames(res$u))
+    # print(unlist(rTermsNames))
     rownames(res$monitor) <- unlist(rTermsNames)
     res$sigma <- res$monitor[,which(res$llik[1,] == max(res$llik[1,]))] # we return the ones with max llik
     res$data <- data
     res$y <- yvar
     res$partitionsX <- partitionsX
-    # res$Zind <- Zind
     uList <- uPevList <- vector(mode="list",length = length(thetaC)-1)
-    names(uList) <- names(uPevList) <- rtermss
+
     if(!missing(random)){
-      
+      names(uList) <- names(uPevList) <- rtermss
       if(mme==FALSE){ ######## adding ulist and upevlist similar to mme mme
+        names(res$partitions) <- rtermss
         newtheta <- list()
         for(iTheta in 1:(length(thetaC)-1)){ # iTheta=2 # each element in the list
           effsToUse <- which(thetaIndex == iTheta)
@@ -358,17 +358,17 @@ mmer <- function(fixed, random, rcov, data, W,
           counter=1
           for(iRow in 1:nrow(thetaC[[iTheta]])){ # iRow=1
             for(iCol in iRow:ncol(thetaC[[iTheta]])){ # iCol=2
-              
+
               if(thetaC[[iTheta]][iRow,iCol] != 0){ # if is to be estimated
                 newthetasub[iRow,iCol] <- newthetasub[iCol,iRow] <- res$theta[[effsToUse[counter]]]
                 if(iRow==iCol){ # variance component
-                  
+
                   blupTable[,iRow] <- blupTable[,iRow] + res$uList0[[effsToUse[counter]]]
                   pevTable[,iRow] <- pevTable[,iRow] + diag(res$Ci[[effsToUse[counter]]])
                   counter=counter+1
-                  
+
                 }else{ # covariance component
-                  
+
                   prov <- res$uList0[[effsToUse[counter]]]
                   indexprov <- c( rep(iRow, nrow(prov)/2), rep(iCol, nrow(prov)/2) )
                   # iRow
@@ -378,7 +378,7 @@ mmer <- function(fixed, random, rcov, data, W,
                   blupTable[,iCol] <- blupTable[,iCol] +  res$uList0[[effsToUse[counter]]][which(indexprov == iCol),]
                   pevTable[,iCol] <- pevTable[,iCol] +  diag(res$Ci[[effsToUse[counter]]])[which(indexprov == iCol)]
                   counter=counter+1
-                  
+
                 }
               }
             }
@@ -409,23 +409,26 @@ mmer <- function(fixed, random, rcov, data, W,
           rownames(blupTable) <- rownames(res$bu)[res$partitions[[i]][1,1]:res$partitions[[i]][1,2]]
           pevTable <- apply(res$partitions[[i]],1,function(x2){return(diag(res$Ci)[(x2[1]):(x2[2])])})
           colnames(blupTable) <- colnames(pevTable) <- colnames(theta[[i]])
-          rownames(pevTable) <- rownames(blupTable) 
+          rownames(pevTable) <- rownames(blupTable)
           uList[[i]] <- blupTable; uPevList[[i]] <- pevTable
         };
-        blupTable=NULL; pevTable=NULL; 
+        blupTable=NULL; pevTable=NULL;
       }
-      
+
     }
-    
     res$uList <- uList; res$uPevList <- uPevList
     if(!missing(random)){
       res$args <- list(fixed=fixed, random=random, rcov=rcov)
-      res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX)),rep("random",length(res$partitions))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE)
+      res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX)),
+                                      rep("random",length(res$partitions))
+                                      ),
+                               term=c(names(res$partitionsX),names(res$partitions)),
+                               include=FALSE,average=FALSE)
     }else{
       res$args <- list(fixed=fixed, rcov=rcov)
       res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE)
     }
-    
+    # 
     class(res)<-c("mmer")
   }
   return(res)

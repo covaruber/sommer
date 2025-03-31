@@ -1,11 +1,12 @@
 vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE, isFixed=FALSE, verbose=TRUE){
 
+  # buildGu=TRUE; meN=1; meTheta=NULL; meThetaC=NULL; sp=FALSE; isFixed=FALSE; verbose=TRUE
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
 
-  init <- list(...) #  e.g. init <- list(usc(data$Env),isc(data$Name)) | init <- list(dsc(data$YEAR),isc(data$units))
+  init <- list(...) #  e.g. init <- list(dsr(dt$Var1), dsr(dt$Var2), isr(dt$Var3)) | init <- list(usc(data$Env),isc(data$Name)) | init <- list(dsc(data$YEAR),isc(data$units))
 
-  namess <- as.character(substitute(list(...)))[-1L] # namess <- c("Env","Name") | namess <- c("YEAR","units")
+  namess <- as.character(substitute(list(...)))[-1L] # namess <- c("Var1","Var2","Var3")  | namess <- c("YEAR","units")
   namess2 <- apply(data.frame(namess),1,function(x){
     return(all.vars(as.formula(paste0("~",x))))
   })
@@ -48,8 +49,8 @@ vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
         Z0 <- init[[i]]$Z
       }else{ # after
         mm = init[[i]]$theta; mm=mm/mm; mm[which(is.nan(mm))]=0
-        theta <- kronecker(theta,mm)
-        thetaC <- kronecker(thetaC,init[[i]]$thetaC)
+        theta <- kronecker(theta,mm, make.dimnames = TRUE)
+        thetaC <- kronecker(thetaC,init[[i]]$thetaC, make.dimnames = TRUE)
         provZ <- init[[i]]$Z
         provZlist <- list()
         for(j in 1:ncol(provZ)){
@@ -58,7 +59,7 @@ vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
           provZlist[[j]] <- Z0 * provZiCol
           colnames(provZlist[[j]]) <- paste(colnames(Z0),colnames(provZ)[j],sep=":")
         }
-        Z0 <- cbind(Z0, do.call(cbind,provZlist))
+        Z0 <- do.call(cbind,provZlist) # cbind(Z0, do.call(cbind,provZlist))
       }
     }
     pasteNames=TRUE

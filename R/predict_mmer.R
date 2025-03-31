@@ -22,14 +22,19 @@
       add <- max(toAdd2) + 1
     }
   }
-  zEffectsN <- list()
-  for(i in 1:length(nz)){
-    end= add + nz[i] - 1
-    zEffectsN[[i]] <- add:end
-    add = end + 1
+  if(!is.null(nz)){
+    zEffectsN <- list()
+    for(i in 1:length(nz)){
+      end= add + nz[i] - 1
+      zEffectsN[[i]] <- add:end
+      add = end + 1
+    }
+    names(zEffectsN) <- names(nz)
+    effectsN = c(xEffectN,zEffectsN)
+  }else{
+    effectsN = xEffectN
   }
-  names(zEffectsN) <- names(nz)
-  effectsN = c(xEffectN,zEffectsN)
+  
   # fill the Dt table for rules
   if(is.null(Dtable) & is.character(D) ){ # if user didn't provide the Dtable but D is character
     Dtable <- object$Dtable # we extract it from the model
