@@ -68,7 +68,7 @@ mmer <- function(fixed, random, rcov, data, W,
     rtermss <- apply(data.frame(yuyu),1,function(x){ # split random terms
       strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
     })
-    
+    # print(rtermss)
     for(u in 1:length(rtermss)){ # for each random effect u=1
       checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsr","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
       
@@ -76,7 +76,8 @@ mmer <- function(fixed, random, rcov, data, W,
         rtermss[u] <- paste("vsr( isr(",rtermss[u],") )")
       }
       ff <- eval(parse(text = rtermss[u]),data,parent.frame()) # evaluate the variance structure
-      Z <- c(Z, ff$Z)
+      Z <- c(Z, lapply(ff$Z, function(x){if(nrow(x) != length(nonMissing)){return(x[nonMissing,])}else{return(x)} }) )
+      # Z <- c(Z, ff$Z)
       Ai <- c(Ai, ff$Gu)
       theta[[u]] <- ff$theta
       thetaC[[u]] <- ff$thetaC
@@ -235,6 +236,17 @@ mmer <- function(fixed, random, rcov, data, W,
   thetaFinput <- cbind(thetaFinput,thetaFinputSP)
   thetaFinput
   
+  if(mme){
+    nInverses <- length(unlist(lapply(Ai, function(x){attributes(x)$inverse})))
+    if(nInverses != length(Ai)){
+      stop("You have selected the 'mme' algorithm which requires all relationship
+      matrices to be inverted. Please make sure that you have inverted your
+      matrices and set the attribute to your matrices as follows:
+           attr(Gu, 'inverse')=TRUE 
+      where 'Gu' is to be replaced with your matrix name.", call. = FALSE)
+    }
+  }
+  
   if(returnParam){ # if user just wants to get input matrices
     
     res <- list(yvar=yvar, X=X,Z=Z,Zind=Zind,Ai=Ai,S=S,Spartitions=Spartitions, W=W, useH=useH,
@@ -298,6 +310,7 @@ mmer <- function(fixed, random, rcov, data, W,
       # print(thetaIndex)
       
       if(!missing(random)){
+        # print(length(nonMissing))
         XZY <- cbind(X,do.call(cbind,Z))
       }else{XZY <- NULL}
       Z <- Zdi; Zdi <- NULL

@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2023-05-10" />
+<meta name="date" content="2025-03-31" />
 
 <title>Spatial modeling using the sommer package</title>
 
@@ -50,6 +50,7 @@ overflow: visible;
 }
 </style>
 <style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
@@ -341,7 +342,7 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <h1 class="title toc-ignore">Spatial modeling using the sommer
 package</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2023-05-10</h4>
+<h4 class="date">2025-03-31</h4>
 
 
 
@@ -381,102 +382,93 @@ spatial models using the two dimensional splines models.</p>
 <p>In this example we show how to obtain the same results than using the
 SpATS package. This is achieved by using the <code>spl2Db</code>
 function which is a wrapper of the <code>tpsmmb</code> function.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(sommer)</span></code></pre></div>
 <pre><code>## Loading required package: Matrix</code></pre>
 <pre><code>## Loading required package: MASS</code></pre>
-<pre><code>## Loading required package: lattice</code></pre>
 <pre><code>## Loading required package: crayon</code></pre>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_yatesoats)</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_yatesoats</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>DT<span class="sc">$</span>row <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(<span class="fu">as.character</span>(DT<span class="sc">$</span>row))</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>DT<span class="sc">$</span>col <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(<span class="fu">as.character</span>(DT<span class="sc">$</span>col))</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>DT<span class="sc">$</span>R <span class="ot">&lt;-</span> <span class="fu">as.factor</span>(DT<span class="sc">$</span>row)</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>DT<span class="sc">$</span>C <span class="ot">&lt;-</span> <span class="fu">as.factor</span>(DT<span class="sc">$</span>col)</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co"># SPATS MODEL</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co"># m1.SpATS &lt;- SpATS(response = &quot;Y&quot;,</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co">#                   spatial = ~ PSANOVA(col, row, nseg = c(14,21), degree = 3, pord = 2),</span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co">#                   genotype = &quot;V&quot;, fixed = ~ 1,</span></span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co">#                   random = ~ R + C, data = DT,</span></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="co">#                   control = list(tolerance = 1e-04))</span></span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="co"># summary(m1.SpATS, which = &quot;variances&quot;)</span></span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a><span class="co"># Spatial analysis of trials with splines </span></span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="co"># Response:                   Y         </span></span>
-<span id="cb6-20"><a href="#cb6-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Genotypes (as fixed):       V         </span></span>
-<span id="cb6-21"><a href="#cb6-21" aria-hidden="true" tabindex="-1"></a><span class="co"># Spatial:                    ~PSANOVA(col, row, nseg = c(14, 21), degree = 3, pord = 2)</span></span>
-<span id="cb6-22"><a href="#cb6-22" aria-hidden="true" tabindex="-1"></a><span class="co"># Fixed:                      ~1        </span></span>
-<span id="cb6-23"><a href="#cb6-23" aria-hidden="true" tabindex="-1"></a><span class="co"># Random:                     ~R + C    </span></span>
-<span id="cb6-24"><a href="#cb6-24" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
-<span id="cb6-25"><a href="#cb6-25" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
-<span id="cb6-26"><a href="#cb6-26" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of observations:        72</span></span>
-<span id="cb6-27"><a href="#cb6-27" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of missing data:        0</span></span>
-<span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a><span class="co"># Effective dimension:           17.09</span></span>
-<span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a><span class="co"># Deviance:                      483.405</span></span>
-<span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
-<span id="cb6-31"><a href="#cb6-31" aria-hidden="true" tabindex="-1"></a><span class="co"># Variance components:</span></span>
-<span id="cb6-32"><a href="#cb6-32" aria-hidden="true" tabindex="-1"></a><span class="co">#                   Variance            SD     log10(lambda)</span></span>
-<span id="cb6-33"><a href="#cb6-33" aria-hidden="true" tabindex="-1"></a><span class="co"># R                 1.277e+02     1.130e+01           0.49450</span></span>
-<span id="cb6-34"><a href="#cb6-34" aria-hidden="true" tabindex="-1"></a><span class="co"># C                 2.673e-05     5.170e-03           7.17366</span></span>
-<span id="cb6-35"><a href="#cb6-35" aria-hidden="true" tabindex="-1"></a><span class="co"># f(col)            4.018e-15     6.339e-08          16.99668</span></span>
-<span id="cb6-36"><a href="#cb6-36" aria-hidden="true" tabindex="-1"></a><span class="co"># f(row)            2.291e-10     1.514e-05          12.24059</span></span>
-<span id="cb6-37"><a href="#cb6-37" aria-hidden="true" tabindex="-1"></a><span class="co"># f(col):row        1.025e-04     1.012e-02           6.59013</span></span>
-<span id="cb6-38"><a href="#cb6-38" aria-hidden="true" tabindex="-1"></a><span class="co"># col:f(row)        8.789e+01     9.375e+00           0.65674</span></span>
-<span id="cb6-39"><a href="#cb6-39" aria-hidden="true" tabindex="-1"></a><span class="co"># f(col):f(row)     8.036e-04     2.835e-02           5.69565</span></span>
-<span id="cb6-40"><a href="#cb6-40" aria-hidden="true" tabindex="-1"></a><span class="co"># </span></span>
-<span id="cb6-41"><a href="#cb6-41" aria-hidden="true" tabindex="-1"></a><span class="co"># Residual          3.987e+02     1.997e+01 </span></span>
-<span id="cb6-42"><a href="#cb6-42" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb6-43"><a href="#cb6-43" aria-hidden="true" tabindex="-1"></a><span class="co"># SOMMER MODEL</span></span>
-<span id="cb6-44"><a href="#cb6-44" aria-hidden="true" tabindex="-1"></a>m1.sommer <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Y<span class="sc">~</span><span class="dv">1</span><span class="sc">+</span>V<span class="sc">+</span></span>
-<span id="cb6-45"><a href="#cb6-45" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">spl2Db</span>(col,row, <span class="at">nsegments =</span> <span class="fu">c</span>(<span class="dv">14</span>,<span class="dv">21</span>), <span class="at">degree =</span> <span class="fu">c</span>(<span class="dv">3</span>,<span class="dv">3</span>), </span>
-<span id="cb6-46"><a href="#cb6-46" aria-hidden="true" tabindex="-1"></a>                           <span class="at">penaltyord =</span> <span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">2</span>), <span class="at">what =</span> <span class="st">&quot;base&quot;</span>), </span>
-<span id="cb6-47"><a href="#cb6-47" aria-hidden="true" tabindex="-1"></a>                  <span class="at">random =</span> <span class="sc">~</span>R<span class="sc">+</span>C<span class="sc">+</span></span>
-<span id="cb6-48"><a href="#cb6-48" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">spl2Db</span>(col,row, <span class="at">nsegments =</span> <span class="fu">c</span>(<span class="dv">14</span>,<span class="dv">21</span>), <span class="at">degree =</span> <span class="fu">c</span>(<span class="dv">3</span>,<span class="dv">3</span>), </span>
-<span id="cb6-49"><a href="#cb6-49" aria-hidden="true" tabindex="-1"></a>                           <span class="at">penaltyord =</span> <span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">2</span>), <span class="at">what=</span><span class="st">&quot;bits&quot;</span>),</span>
-<span id="cb6-50"><a href="#cb6-50" aria-hidden="true" tabindex="-1"></a>                  <span class="at">data=</span>DT, <span class="at">tolParConv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
-<pre><code>## Warning: fixed-effect model matrix is rank deficient so dropping 8 columns / coefficients</code></pre>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(m1.sommer)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##                VarComp VarCompSE     Zratio Constraint
-## R.Y-Y       125.928235  89.77330  1.4027360   Positive
-## C.Y-Y        -7.789528  24.29529 -0.3206189   Positive
-## A:fC.Y-Y      0.000000  19.09624  0.0000000   Positive
-## A:fR.Y-Y      0.000000  15.87659  0.0000000   Positive
-## A:fC.R.Y-Y    0.000000  21.42763  0.0000000   Positive
-## A:C.fR.Y-Y   82.177296  92.28630  0.8904604   Positive
-## A:fC.fR.Y-Y   0.000000  25.46390  0.0000000   Positive
-## units.Y-Y   405.900386  90.48195  4.4859820   Positive</code></pre>
-<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="co"># get the fitted values for the spatial kernel and plot</span></span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co"># ff &lt;- fitted.mmer(m1.sommer)</span></span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a><span class="co"># DT$fit &lt;- as.matrix(Reduce(&quot;+&quot;,ff$Zu[-c(1:2)])) </span></span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a><span class="co"># lattice::levelplot(fit~row*col,data=DT)</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">data</span>(DT_yatesoats)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_yatesoats</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>DT<span class="sc">$</span>row <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(<span class="fu">as.character</span>(DT<span class="sc">$</span>row))</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>DT<span class="sc">$</span>col <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(<span class="fu">as.character</span>(DT<span class="sc">$</span>col))</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>DT<span class="sc">$</span>R <span class="ot">&lt;-</span> <span class="fu">as.factor</span>(DT<span class="sc">$</span>row)</span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>DT<span class="sc">$</span>C <span class="ot">&lt;-</span> <span class="fu">as.factor</span>(DT<span class="sc">$</span>col)</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a><span class="co"># SPATS MODEL</span></span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="co"># m1.SpATS &lt;- SpATS(response = &quot;Y&quot;,</span></span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a><span class="co">#                   spatial = ~ PSANOVA(col, row, nseg = c(14,21), degree = 3, pord = 2),</span></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="co">#                   genotype = &quot;V&quot;, fixed = ~ 1,</span></span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a><span class="co">#                   random = ~ R + C, data = DT,</span></span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="co">#                   control = list(tolerance = 1e-04))</span></span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a><span class="co"># summary(m1.SpATS, which = &quot;variances&quot;)</span></span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a><span class="co"># Spatial analysis of trials with splines </span></span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a><span class="co"># Response:                   Y         </span></span>
+<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a><span class="co"># Genotypes (as fixed):       V         </span></span>
+<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a><span class="co"># Spatial:                    ~PSANOVA(col, row, nseg = c(14, 21), degree = 3, pord = 2)</span></span>
+<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a><span class="co"># Fixed:                      ~1        </span></span>
+<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a><span class="co"># Random:                     ~R + C    </span></span>
+<span id="cb5-24"><a href="#cb5-24" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb5-25"><a href="#cb5-25" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb5-26"><a href="#cb5-26" tabindex="-1"></a><span class="co"># Number of observations:        72</span></span>
+<span id="cb5-27"><a href="#cb5-27" tabindex="-1"></a><span class="co"># Number of missing data:        0</span></span>
+<span id="cb5-28"><a href="#cb5-28" tabindex="-1"></a><span class="co"># Effective dimension:           17.09</span></span>
+<span id="cb5-29"><a href="#cb5-29" tabindex="-1"></a><span class="co"># Deviance:                      483.405</span></span>
+<span id="cb5-30"><a href="#cb5-30" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb5-31"><a href="#cb5-31" tabindex="-1"></a><span class="co"># Variance components:</span></span>
+<span id="cb5-32"><a href="#cb5-32" tabindex="-1"></a><span class="co">#                   Variance            SD     log10(lambda)</span></span>
+<span id="cb5-33"><a href="#cb5-33" tabindex="-1"></a><span class="co"># R                 1.277e+02     1.130e+01           0.49450</span></span>
+<span id="cb5-34"><a href="#cb5-34" tabindex="-1"></a><span class="co"># C                 2.673e-05     5.170e-03           7.17366</span></span>
+<span id="cb5-35"><a href="#cb5-35" tabindex="-1"></a><span class="co"># f(col)            4.018e-15     6.339e-08          16.99668</span></span>
+<span id="cb5-36"><a href="#cb5-36" tabindex="-1"></a><span class="co"># f(row)            2.291e-10     1.514e-05          12.24059</span></span>
+<span id="cb5-37"><a href="#cb5-37" tabindex="-1"></a><span class="co"># f(col):row        1.025e-04     1.012e-02           6.59013</span></span>
+<span id="cb5-38"><a href="#cb5-38" tabindex="-1"></a><span class="co"># col:f(row)        8.789e+01     9.375e+00           0.65674</span></span>
+<span id="cb5-39"><a href="#cb5-39" tabindex="-1"></a><span class="co"># f(col):f(row)     8.036e-04     2.835e-02           5.69565</span></span>
+<span id="cb5-40"><a href="#cb5-40" tabindex="-1"></a><span class="co"># </span></span>
+<span id="cb5-41"><a href="#cb5-41" tabindex="-1"></a><span class="co"># Residual          3.987e+02     1.997e+01 </span></span>
+<span id="cb5-42"><a href="#cb5-42" tabindex="-1"></a></span>
+<span id="cb5-43"><a href="#cb5-43" tabindex="-1"></a><span class="co"># SOMMER MODEL</span></span>
+<span id="cb5-44"><a href="#cb5-44" tabindex="-1"></a>M <span class="ot">&lt;-</span> <span class="fu">spl2Dmats</span>(<span class="at">x.coord.name =</span> <span class="st">&quot;col&quot;</span>, <span class="at">y.coord.name =</span> <span class="st">&quot;row&quot;</span>, <span class="at">data=</span>DT, </span>
+<span id="cb5-45"><a href="#cb5-45" tabindex="-1"></a>               <span class="at">nseg =</span><span class="fu">c</span>(<span class="dv">14</span>,<span class="dv">21</span>), <span class="at">degree =</span> <span class="fu">c</span>(<span class="dv">3</span>,<span class="dv">3</span>), <span class="at">penaltyord =</span> <span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">2</span>) </span>
+<span id="cb5-46"><a href="#cb5-46" tabindex="-1"></a>               )</span>
+<span id="cb5-47"><a href="#cb5-47" tabindex="-1"></a>mix <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Y<span class="sc">~</span>V, <span class="at">mme =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb5-48"><a href="#cb5-48" tabindex="-1"></a>            <span class="at">random=</span><span class="sc">~</span> R <span class="sc">+</span> C <span class="sc">+</span> <span class="fu">vsr</span>(<span class="fu">isr</span>(M<span class="sc">$</span>fC)) <span class="sc">+</span> <span class="fu">vsr</span>(<span class="fu">isr</span>(M<span class="sc">$</span>fR)) <span class="sc">+</span> </span>
+<span id="cb5-49"><a href="#cb5-49" tabindex="-1"></a>              <span class="fu">vsr</span>(<span class="fu">isr</span>(M<span class="sc">$</span>fC.R)) <span class="sc">+</span> <span class="fu">vsr</span>(<span class="fu">isr</span>(M<span class="sc">$</span>C.fR)) <span class="sc">+</span></span>
+<span id="cb5-50"><a href="#cb5-50" tabindex="-1"></a>              <span class="fu">vsr</span>(<span class="fu">isr</span>(M<span class="sc">$</span>fC.fR)),</span>
+<span id="cb5-51"><a href="#cb5-51" tabindex="-1"></a>            <span class="at">rcov=</span><span class="sc">~</span>units, <span class="at">verbose=</span><span class="cn">FALSE</span>,</span>
+<span id="cb5-52"><a href="#cb5-52" tabindex="-1"></a>            <span class="at">data=</span>M<span class="sc">$</span>data)</span>
+<span id="cb5-53"><a href="#cb5-53" tabindex="-1"></a><span class="fu">summary</span>(mix)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                   VarComp VarCompSE       Zratio Constraint
+## R:mu:mu       106.7372504  107.3391 0.9943931442   Positive
+## C:mu:mu       177.6246506  130.6193 1.3598655811   Positive
+## M:fC:mu:mu      1.5372882 1760.2261 0.0008733470   Positive
+## M:fR:mu:mu      0.2247536  354.6059 0.0006338123   Positive
+## M:fC.R:mu:mu    0.4967322  220.1412 0.0022564260   Positive
+## M:C.fR:mu:mu    0.1566605  138.0162 0.0011350877   Positive
+## M:fC.fR:mu:mu   8.0964758  188.2043 0.0430196197   Positive
+## units:mu:mu   490.8149644  132.4019 3.7070073328   Positive</code></pre>
 </div>
-<div id="two-dimensional-splines-single-spatial-component" class="section level3">
-<h3>2) Two dimensional splines (single spatial component)</h3>
+<div id="two-dimensional-splines-in-single-field-single-spatial-component" class="section level3">
+<h3>2) Two dimensional splines in single field (single spatial
+component)</h3>
 <p>To reduce the computational burden of fitting multiple spatial
 kernels <code>sommer</code> provides a single spatial kernel method
 through the <code>spl2Da</code> function. This as will be shown, can
 produce similar results to the more flexible model. Use the one that
 fits better your needs.</p>
-<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># SOMMER MODEL</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>m2.sommer <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Y<span class="sc">~</span><span class="dv">1</span><span class="sc">+</span>V, </span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>                  <span class="at">random =</span> <span class="sc">~</span>R<span class="sc">+</span>C<span class="sc">+</span><span class="fu">spl2Da</span>(col,row, <span class="at">nsegments =</span> <span class="fu">c</span>(<span class="dv">14</span>,<span class="dv">21</span>), <span class="at">degree =</span> <span class="fu">c</span>(<span class="dv">3</span>,<span class="dv">3</span>), <span class="at">penaltyord =</span> <span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">2</span>)),</span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>                  <span class="at">data=</span>DT, <span class="at">tolParConv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(m1.sommer)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##                VarComp VarCompSE     Zratio Constraint
-## R.Y-Y       125.928235  89.77330  1.4027360   Positive
-## C.Y-Y        -7.789528  24.29529 -0.3206189   Positive
-## A:fC.Y-Y      0.000000  19.09624  0.0000000   Positive
-## A:fR.Y-Y      0.000000  15.87659  0.0000000   Positive
-## A:fC.R.Y-Y    0.000000  21.42763  0.0000000   Positive
-## A:C.fR.Y-Y   82.177296  92.28630  0.8904604   Positive
-## A:fC.fR.Y-Y   0.000000  25.46390  0.0000000   Positive
-## units.Y-Y   405.900386  90.48195  4.4859820   Positive</code></pre>
-<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="co"># get the fitted values for the spatial kernel and plot</span></span>
-<span id="cb13-2"><a href="#cb13-2" aria-hidden="true" tabindex="-1"></a><span class="co"># ff &lt;- fitted.mmer(m2.sommer)</span></span>
-<span id="cb13-3"><a href="#cb13-3" aria-hidden="true" tabindex="-1"></a><span class="co"># DT$fit &lt;- as.matrix(Reduce(&quot;+&quot;,ff$Zu[-c(1:2)])) </span></span>
-<span id="cb13-4"><a href="#cb13-4" aria-hidden="true" tabindex="-1"></a><span class="co"># lattice::levelplot(fit~row*col,data=DT)</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># SOMMER MODEL</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>mix <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Y<span class="sc">~</span>V,</span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>            <span class="at">random=</span><span class="sc">~</span> R <span class="sc">+</span> C <span class="sc">+</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>              <span class="fu">spl2Dc</span>(row,col),</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>            <span class="at">rcov=</span><span class="sc">~</span>units, <span class="at">verbose=</span><span class="cn">FALSE</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>            <span class="at">data=</span>DT)</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="fu">summary</span>(mix)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                      VarComp VarCompSE    Zratio Constraint
+## R:mu:mu             112.0476 0.1158422  967.2430   Positive
+## C:mu:mu             157.5950 0.2213238  712.0561   Positive
+## row:col:A:all:A:all 406.6870 0.6148783  661.4105   Positive
+## units:mu:mu         405.3580 0.1470355 2756.8711   Positive</code></pre>
 </div>
 <div id="spatial-models-in-multiple-trials-at-once" class="section level3">
 <h3>3) Spatial models in multiple trials at once</h3>
@@ -488,38 +480,30 @@ that will define the levels at which the variance components will be
 fitted. The second argument is a way for the user to specify the levels
 at which the spatial kernels should be fitted if the user doesn’t want
 to fit it for all levels (e.g., trials or fields).</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a>DT2 <span class="ot">&lt;-</span> <span class="fu">rbind</span>(DT,DT)</span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a>DT2<span class="sc">$</span>Y <span class="ot">&lt;-</span> DT2<span class="sc">$</span>Y <span class="sc">+</span> <span class="fu">rnorm</span>(<span class="fu">length</span>(DT2<span class="sc">$</span>Y))</span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a>DT2<span class="sc">$</span>trial <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fu">rep</span>(<span class="st">&quot;A&quot;</span>,<span class="fu">nrow</span>(DT)),<span class="fu">rep</span>(<span class="st">&quot;B&quot;</span>,<span class="fu">nrow</span>(DT)))</span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="fu">head</span>(DT2)</span></code></pre></div>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>DT2 <span class="ot">&lt;-</span> <span class="fu">rbind</span>(DT,DT)</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>DT2<span class="sc">$</span>Y <span class="ot">&lt;-</span> DT2<span class="sc">$</span>Y <span class="sc">+</span> <span class="fu">rnorm</span>(<span class="fu">length</span>(DT2<span class="sc">$</span>Y))</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>DT2<span class="sc">$</span>trial <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fu">rep</span>(<span class="st">&quot;A&quot;</span>,<span class="fu">nrow</span>(DT)),<span class="fu">rep</span>(<span class="st">&quot;B&quot;</span>,<span class="fu">nrow</span>(DT)))</span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a><span class="fu">head</span>(DT2)</span></code></pre></div>
 <pre><code>##   row col         Y   N          V  B         MP R C trial
-## 1   1   1  92.32686 0.2    Victory B2    Victory 1 1     A
-## 2   2   1  59.99670   0    Victory B2    Victory 2 1     A
-## 3   3   1 121.43188 0.4 Marvellous B2 Marvellous 3 1     A
-## 4   4   1 142.79743 0.6 Marvellous B2 Marvellous 4 1     A
-## 5   5   1 149.57914 0.6 GoldenRain B2 GoldenRain 5 1     A
-## 6   6   1 107.14658 0.2 GoldenRain B2 GoldenRain 6 1     A</code></pre>
-<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># SOMMER MODEL</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>m3.sommer <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Y<span class="sc">~</span><span class="dv">1</span><span class="sc">+</span>V, </span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>                  <span class="at">random =</span> <span class="sc">~</span><span class="fu">vsr</span>(<span class="fu">dsr</span>(trial),R)<span class="sc">+</span><span class="fu">vsr</span>(<span class="fu">dsr</span>(trial),C)<span class="sc">+</span></span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>                    <span class="fu">spl2Da</span>(col,row, <span class="at">nsegments =</span> <span class="fu">c</span>(<span class="dv">14</span>,<span class="dv">21</span>), <span class="at">degree =</span> <span class="fu">c</span>(<span class="dv">3</span>,<span class="dv">3</span>), </span>
-<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>                           <span class="at">penaltyord =</span> <span class="fu">c</span>(<span class="dv">2</span>,<span class="dv">2</span>), <span class="at">at.var =</span> trial),</span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>                  <span class="at">rcov =</span> <span class="sc">~</span><span class="fu">vsr</span>(<span class="fu">dsr</span>(trial),units),</span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>                  <span class="at">data=</span>DT2, <span class="at">tolParConv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(m3.sommer)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##              VarComp VarCompSE    Zratio Constraint
-## A:R.Y-Y     103.1560  81.69548 1.2626891   Positive
-## B:R.Y-Y     104.4305  81.41202 1.2827401   Positive
-## A:C.Y-Y     147.6438 141.25008 1.0452653   Positive
-## B:C.Y-Y     143.3076 138.25350 1.0365564   Positive
-## A:all.Y-Y   392.1157 895.11181 0.4380634   Positive
-## B:all.Y-Y   461.5621 885.50703 0.5212405   Positive
-## A:units.Y-Y 398.2528 207.44765 1.9197751   Positive
-## B:units.Y-Y 376.7528 202.38435 1.8615710   Positive</code></pre>
-<div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a><span class="co"># get the fitted values for the spatial kernel and plot</span></span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a><span class="co"># ff &lt;- fitted.mmer(m3.sommer)</span></span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a><span class="co"># DT2$fit &lt;- as.matrix(Reduce(&quot;+&quot;,ff$Zu[-c(1:4)])) </span></span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a><span class="co"># lattice::levelplot(fit~row*col|trial,data=DT2)</span></span></code></pre></div>
+## 1   1   1  91.30740 0.2    Victory B2    Victory 1 1     A
+## 2   2   1  61.31745   0    Victory B2    Victory 2 1     A
+## 3   3   1 122.41258 0.4 Marvellous B2 Marvellous 3 1     A
+## 4   4   1 143.69284 0.6 Marvellous B2 Marvellous 4 1     A
+## 5   5   1 148.98010 0.6 GoldenRain B2 GoldenRain 5 1     A
+## 6   6   1 109.36855 0.2 GoldenRain B2 GoldenRain 6 1     A</code></pre>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># SOMMER MODEL</span></span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>mix <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Y<span class="sc">~</span>V,</span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>            <span class="at">random=</span><span class="sc">~</span> R <span class="sc">+</span> C <span class="sc">+</span></span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>              <span class="fu">spl2Dc</span>(row,col, <span class="at">at.var =</span> trial),</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>            <span class="at">rcov=</span><span class="sc">~</span>units, <span class="at">verbose=</span><span class="cn">FALSE</span>,</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>            <span class="at">data=</span>DT2)</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a><span class="fu">summary</span>(mix)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                            VarComp  VarCompSE    Zratio Constraint
+## R:mu:mu                   195.6960 0.11718329 1669.9995   Positive
+## C:mu:mu                   184.2602 0.22356380  824.1953   Positive
+## row:col:trial:A:all:A:all 248.0860 0.41371352  599.6565   Positive
+## row:col:trial:B:all:B:all 239.0958 0.41036276  582.6450   Positive
+## units:mu:mu               337.8428 0.08005924 4219.9103   Positive</code></pre>
 </div>
 </div>
 <div id="literature" class="section level2">

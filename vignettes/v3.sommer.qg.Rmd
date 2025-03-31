@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mmer function, the mmec function can be faster when working with more records than coefficients to be estimated and we highly recommend to shift to the use of the `mmec` function.
+The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mmer function, the mmer function can be faster when working with more records than coefficients to be estimated and we highly recommend to shift to the use of the `mmer` function.
 
 The package is focused on problems of the type p > n related to genomic prediction (hybrid prediction & genomic selection) and GWAS analysis, although any general mixed model can be fitted as well. The package provides kernels to estimate additive (`A.mat`), dominance (`D.mat`), and epistatic (`E.mat`) relationship matrices that have been shown to increase prediction accuracy under certain scenarios or simply to estimate the variance components of such. The package provides flexibility to fit other genetic models such as full and half diallel models as well.
 
@@ -46,7 +46,7 @@ The vignettes aim to provide several examples in how to use the sommer package u
 
 ### Backgrounds in linear algebra
 
-The core of the package is the `mmer()` and `mmec` functions which solve the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information or mme-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). Since version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
+The core of the package is the `mmer()` and `mmer` functions which solve the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information or mme-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). Since version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
 
 <br>
 
@@ -144,9 +144,9 @@ data(DT_example)
 DT <- DT_example
 A <- A_example
 
-ans1 <- mmec(Yield~1,
+ans1 <- mmer(Yield~1,
              random= ~ Name + Env + Env:Name + Env:Block,
-             rcov= ~ units, nIters=3,
+             rcov= ~ units, nIters=10,
              data=DT, verbose = FALSE)
 summary(ans1)$varcomp
 (n.env <- length(levels(DT$Env)))
@@ -169,8 +169,8 @@ A <- A.mat(GT) # additive relationship matrix
 D <- D.mat(GT) # dominance relationship matrix
 E <- E.mat(GT) # epistatic relationship matrix
 ans.ADE <- mmer(color~1, 
-                 random=~vsr(id,Gu=A) + vsr(idd,Gu=D), 
-                 rcov=~units, nIters=3,
+                 random=~vsr(isr(id),Gu=A) + vsr(isr(idd),Gu=D), 
+                 rcov=~units, nIters=10,
                  data=DT,verbose = FALSE)
 (summary(ans.ADE)$varcomp)
 vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense
@@ -191,9 +191,9 @@ We estimate variance components for $GCA_2$ and $SCA$ specifying the variance st
 # DTi <- DTi_cornhybrids
 # GT <- GT_cornhybrids
 # ### fit the model
-# modFD <- mmec(Yield~1, 
-#               random=~ vsc(atc(Location,c("3","4")),isc(GCA2)), 
-#               rcov= ~ vsc(dsc(Location),isc(units)), nIters=3,
+# modFD <- mmer(Yield~1, 
+#               random=~ vsr(atr(Location,c("3","4")),isr(GCA2)), 
+#               rcov= ~ vsr(dsr(Location),isr(units)), nIters=10,
 #               returnParam = F,
 #               data=DT, verbose = FALSE)
 # summary(modFD)
@@ -211,9 +211,9 @@ In addition, other functions can be added on top to fit models with covariance s
 # GT[1:4,1:4]
 # DT=DT[with(DT, order(Location)), ]
 # ### fit the model
-# modFD <- mmec(Yield~1, 
-#               random=~ vsc(atc(Location,c("3","4")),isc(GCA2),Gu=GT), 
-#               rcov= ~ vsc(dsc(Location),isc(units)), nIters=3,
+# modFD <- mmer(Yield~1, 
+#               random=~ vsr(atr(Location,c("3","4")),isr(GCA2),Gu=GT), 
+#               rcov= ~ vsr(dsr(Location),isr(units)), nIters=10,
 #               data=DT, verbose = FALSE)
 # summary(modFD)
 ```
@@ -232,29 +232,14 @@ MP <- MP_cpdata
 ### look at the data
 A <- A.mat(GT) # additive relationship matrix
 ans <- mmer(color~1, 
-                random=~vsr(id,Gu=A), 
-                rcov=~units, nIters=3,
+                random=~vsr(isr(id),Gu=A), 
+                rcov=~units, nIters=10,
                 data=DT, verbose = FALSE)
 (summary(ans.ADE)$varcomp)
 vpredict(ans, h2 ~ (V1) / ( V1+V2) )
 
 ```
 The same can be used for multivariate models. Please check the documentation of the `vpredict` function to see more examples.
-
-#### 3.2) Standar error for genetic correlation
-
-```{r}
-## just silenced to avoid too much time building the vignettes
-# data(DT_btdata)
-# DT <- DT_btdata
-# mix3 <- mmer(cbind(tarsus, back) ~ sex,
-#                random = ~ vsr(dam, Gtc=unsm(2)) + vsr(fosternest,Gtc=diag(2)),
-#                rcov=~vsr(units,Gtc=unsm(2)), nIters=3,
-#                data = DT, verbose = FALSE)
-# summary(mix3)
-# #### calculate the genetic correlation
-# vpredict(mix3, gen.cor ~ V2 / sqrt(V1*V3))
-```
 
 ### 4) Half and full diallel designs (use of the overlay)
 
@@ -276,9 +261,9 @@ DT <- DT_cornhybrids
 DTi <- DTi_cornhybrids
 GT <- GT_cornhybrids
 
-modFD <- mmec(Yield~Location, 
+modFD <- mmer(Yield~Location, 
               random=~GCA1+GCA2+SCA, 
-              rcov=~units, nIters=3,
+              rcov=~units, nIters=10,
               data=DT, verbose = FALSE)
 (suma <- summary(modFD)$varcomp)
 Vgca <- sum(suma[1:2,1])
@@ -305,9 +290,9 @@ DT$femalef <- as.factor(DT$female)
 DT$malef <- as.factor(DT$male)
 DT$genof <- as.factor(DT$geno)
 #### model using overlay
-modh <- mmec(sugar~1, 
-             random=~vsc(isc(overlay(femalef,malef)) )
-             + genof, nIters=3,
+modh <- mmer(sugar~1, 
+             random=~vsr(isr(overlay(femalef,malef)) )
+             + genof, nIters=10,
              data=DT, verbose = FALSE)
 summary(modh)$varcomp
 ```
@@ -344,8 +329,8 @@ y.trn[vv,"X1"] <- NA
 head(y.trn)
 ## GBLUP
 ans <- mmer(X1~1,
-            random=~vsr(id,Gu=K), 
-            rcov=~units,nIters=3,
+            random=~vsr(isr(id),Gu=K), 
+            rcov=~units,nIters=10,
             data=y.trn, verbose = FALSE) # kinship based
 ans$U$`u:id`$X1 <- as.data.frame(ans$U$`u:id`$X1)
 rownames(ans$U$`u:id`$X1) <- gsub("id","",rownames(ans$U$`u:id`$X1))
@@ -353,8 +338,8 @@ cor(ans$U$`u:id`$X1[vv,],DT[vv,"X1"], use="complete")
 
 ## rrBLUP
 ans2 <- mmer(X1~1,
-             random=~vsr(list(GT), buildGu = FALSE), 
-             rcov=~units, getPEV = FALSE, nIters=3,
+             random=~vsr(isr(GT), buildGu = FALSE), 
+             rcov=~units, getPEV = FALSE, nIters=5, # you do more iterations
              data=y.trn, verbose = FALSE) # kinship based
 
 u <- GT %*% as.matrix(ans2$U$`u:GT`$X1) # BLUPs for individuals
@@ -377,9 +362,9 @@ We first fit a direct genetic effects model:
 # An <- A_ige
 
 ## Direct genetic effects model
-# modDGE <- mmec(trait ~ block,
+# modDGE <- mmer(trait ~ block,
 #                random = ~ focal,
-#                rcov = ~ units, nIters=3,
+#                rcov = ~ units, nIters=30,
 #                data = DT, verbose=FALSE)
 # summary(modDGE)$varcomp
 
@@ -393,7 +378,7 @@ We now fit the indirect genetic effects model without covariance between DGE and
 # A <- A_ige
 # 
 # ## Indirect genetic effects model
-# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
+# modIGE <- mmer(trait ~ block, dateWarning = FALSE,
 #                random = ~ focal + neighbour, verbose = FALSE,
 #                rcov = ~ units, nIters=100,
 #               data = DT)
@@ -406,8 +391,8 @@ We now fit the indirect genetic effects model with covariance between DGE and IG
 ```{r}
 
 # ### Indirect genetic effects model
-# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
-#                random = ~ covc( vsc(isc(focal)), vsc(isc(neighbour)) ),
+# modIGE <- mmer(trait ~ block, dateWarning = FALSE,
+#                random = ~ covr( vsr(isr(focal)), vsr(isr(neighbour)) ),
 #                rcov = ~ units, nIters=100, verbose = FALSE,
 #               data = DT)
 # summary(modIGE)$varcomp
@@ -422,8 +407,8 @@ On top of that we can include a relationship matrix for the two random effects t
 # Ai <- solve(A_ige + diag(1e-5, nrow(A_ige),nrow(A_ige) ))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # # Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
-# modIGE <- mmec(trait ~ block, dateWarning = FALSE,
-#                random = ~ covc( vsc(isc(focal), Gu=Ai), vsc(isc(neighbour), Gu=Ai) ),
+# modIGE <- mmer(trait ~ block, dateWarning = FALSE,
+#                random = ~ covr( vsr(isr(focal), Gu=Ai), vsr(isr(neighbour), Gu=Ai) ),
 #                rcov = ~ units, nIters=100, verbose = FALSE,
 #               data = DT)
 # summary(modIGE)$varcomp
@@ -470,14 +455,14 @@ y.trn <- DT
 vv1 <- which(!is.na(DT$GY))
 vv2 <- sample(vv1, 100)
 y.trn[vv2,"GY"] <- NA
-anss2 <- mmec(GY~1, 
-              random=~vsc(isc(dent),Gu=Adi) + vsc(isc(flint),Gu=Afi), 
+anss2 <- mmer(GY~1, 
+              random=~vsr(isr(dent),Gu=Adi) + vsr(isr(flint),Gu=Afi), 
               rcov=~units, nIters=15,
               data=y.trn, verbose = FALSE) 
 summary(anss2)$varcomp
 
-# zu1 <- model.matrix(~dent-1,y.trn) %*% anss2$uList$`vsc(isc(dent), Gu = Adi)`
-# zu2 <- model.matrix(~flint-1,y.trn) %*% anss2$uList$`vsc(isc(flint), Gu = Afi)`
+# zu1 <- model.matrix(~dent-1,y.trn) %*% anss2$uList$`vsr(isr(dent), Gu = Adi)`
+# zu2 <- model.matrix(~flint-1,y.trn) %*% anss2$uList$`vsr(isr(flint), Gu = Afi)`
 # u <- zu1+zu2+as.vector(anss2$b)
 # cor(u[vv2,], DT$GY[vv2])
 ```
@@ -502,16 +487,16 @@ MP <- MP_cpdata
 ### mimic two fields
 A <- A.mat(GT)
 mix <- mmer(Yield~1,
-            random=~vsr(id, Gu=A) +
-              vsr(Rowf) +
-              vsr(Colf) +
-              spl2Da(Row,Col), nIters=3,
-            rcov=~vsr(units),
+            random=~vsr(isr(id), Gu=A) +
+              Rowf +
+              Colf +
+              spl2Dc(Row,Col), nIters=10,
+            rcov=~ units,
             data=DT, verbose = FALSE)
 summary(mix)
 # make a plot to observe the spatial effects found by the spl2D()
-W <- with(DT,spl2Da(Row,Col)) # 2D spline incidence matrix
-DT$spatial <- W$Z$`A:all`%*%mix$U$`A:all`$Yield # 2D spline BLUPs
+W <- with(DT,spl2Dc(Row,Col)) # 2D spline incidence matrix
+DT$spatial <- W$Z$`A:all`%*% mix$uList$`spl2Dc(Row, Col` # 2D spline BLUPs
 # lattice::levelplot(spatial~Row*Col, data=DT) # plot the spatial effect by row and column
 ```
 
@@ -528,19 +513,22 @@ Sometimes is important to estimate genetic variance-covariance among traits--mul
 # GT <- GT_cpdata
 # MP <- MP_cpdata
 # A <- A.mat(GT)
-# ans.m <- mmer(cbind(Yield,color)~1,
-#                random=~ vsr(id, Gu=A, Gtc=unsm(2))
-#                + vsr(Rowf,Gtc=diag(2))
-#                + vsr(Colf,Gtc=diag(2)),
-#                rcov=~ vsr(units, Gtc=unsm(2)), nIters=3,
-#                data=DT, verbose = FALSE)
+# DT2 <- stackTrait(DT, traits = c("color","Yield"))
+# head(DT2$long)
+# A <- A.mat(GT) # additive relationship matrix
+# # if using mme=TRUE you need to provide the inverse
+# Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# #### be patient take some time
+# ansm <- mmer( valueS ~ trait, # mme=TRUE,
+#                random=~ vsr(usr(trait), isr(id), Gu=A),
+#                rcov=~ vsr(dsr(trait), isr(units)),
+#                data=DT2$long)
+# cov2cor(ansm$theta[[1]])
 ```
 
-Now you can extract the BLUPs using `randef(ans.m)` or simply `ans.m$U`. Also, genetic correlations and heritabilities can be calculated easily. 
+Now you can extract the BLUPs using `randef(ans.m)` or simply `ans.m$u`. Also, genetic correlations and heritabilities can be calculated easily. 
 
-```{r}
-# cov2cor(ans.m$sigma$`u:id`)
-```
 
 ## SECTION 3: Special topics in Quantitative genetics
 
@@ -558,12 +546,12 @@ M <- GT_cpdata
 # MARKER MODEL
 ################
 mix.marker <- mmer(color~1,
-                   random=~Rowf+vsr(M),
+                   random=~Rowf+vsr(isr(M)),
                    rcov=~units,data=DT, 
                    verbose = FALSE)
 
 
-me.marker <- mix.marker$U$`u:M`$color
+me.marker <- mix.marker$uList$`vsr(isr(M`
 
 ################
 # PARTITIONED GBLUP MODEL
@@ -574,12 +562,12 @@ MMTinv<-solve(MMT) ## inverse
 MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
 
 mix.part <- mmer(color~1,
-                 random=~Rowf+vsr(id, Gu=MMT),
+                 random=~Rowf+vsr(isr(id), Gu=MMT),
                  rcov=~units,data=DT,
                  verbose = FALSE)
 
 #convert BLUPs to marker effects me=M'(M'M)- u
-me.part<-MTMMTinv%*%matrix(mix.part$U$`u:id`$color,ncol=1)
+me.part<-MTMMTinv%*%matrix(mix.part$uList$`vsr(isr(id), Gu = MMT`,ncol=1)
 
 # compare marker effects between both models
 plot(me.marker,me.part)
@@ -673,7 +661,7 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 ## REML method
 ##############################
 mix2 <- mmer(yield~ setf + setf:repf,
-            random=~femalef:malef:setf + malef:setf, nIters=3,
+            random=~femalef:malef:setf + malef:setf, nIters=10,
             data=DT, verbose = FALSE)
 vc <- summary(mix2)$varcomp; vc
 Vfm <- vc[1,"VarComp"]
@@ -735,7 +723,7 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 
 mix2 <- mmer(yield~ setf + setf:repf ,
             random=~femalef:malef:setf + malef:setf + femalef:setf, 
-            nIters=3,
+            nIters=10,
             data=DT, verbose = FALSE)
 vc <- summary(mix2)$varcomp; vc
 Vfm <- vc[1,"VarComp"]
@@ -772,11 +760,11 @@ First we fit a regular GWAS/EMMAX using the GWAS function available in sommer th
 ###########################
 #### Regular GWAS/EMMAX approach
 ###########################
-mix2 <- GWAS(color~1,
-             random=~vsr(id, Gu=A) + Rowf + Colf,
-             rcov=~units, M=GT, gTerm = "u:id",
-             verbose = FALSE, nIters=3,
-             data=DT)
+# mix2 <- GWAS(color~1,
+#              random=~vsr(isr(id), Gu=A) + Rowf + Colf,
+#              rcov=~units, M=GT, gTerm = "u:id",
+#              verbose = FALSE, nIters=10,
+#              data=DT)
 ```
 
 To compare EMMAX to the approach proposed by Gualdron-Duarte et al. (2014) and Bernal-Rubio et al. (2016) we will start fitting an RRBLUP/SNP-BLUP model to show that the estimate of the marker effect by its standard error is mathematically equivalent to fixed regression EMMAX GWAS.
@@ -787,15 +775,17 @@ To compare EMMAX to the approach proposed by Gualdron-Duarte et al. (2014) and B
 ###########################
 Z <- GT[as.character(DT$id),]
 mixRRBLUP <- mmer(color~1,
-              random=~vsr(Z) + Rowf + Colf,
-              rcov=~units, nIters=3,
+              random=~vsr(isr(Z)) + Rowf + Colf,
+              rcov=~units, nIters=10,
               verbose = FALSE,
               data=DT)
 
-a <- mixRRBLUP$U$`u:Z`$color # marker effects
-se.a <- sqrt(diag(kronecker(diag(ncol(Z)),mixRRBLUP$sigma$`u:Z`) - mixRRBLUP$PevU$`u:Z`$color)) # SE of marker effects
+a <- mixRRBLUP$uList$`vsr(isr(Z`# marker effects
+start=mixRRBLUP$partitions[[1]][1]
+end=mixRRBLUP$partitions[[1]][2]
+se.a <- sqrt( diag(kronecker(diag(ncol(Z)),mixRRBLUP$theta[[1]]) - mixRRBLUP$Ci[start:end,start:end] ) ) # SE of marker effects
 t.stat <- a/se.a # t-statistic
-pvalRRBLUP <- dt(t.stat,df=n-k-1) # -log10(pval)
+pvalRRBLUP <- dt(t.stat[,1],df=n-k-1) # -log10(pval)
 ```
 Instead of fitting the RRBLUP/SNP-BLUP model we can fit a GBLUP model which is less computationally demanding and recover marker effects and their standard errors from the genotype effects.
 
@@ -808,12 +798,14 @@ MMT <-tcrossprod(M) ## MM' = additive relationship matrix
 MMTinv<-solve(MMT + diag(1e-6, ncol(MMT), ncol(MMT))) ## inverse of MM'
 MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
 mixGBLUP <- mmer(color~1,
-             random=~vsr(id, Gu=MMT) + Rowf + Colf,
-             rcov=~units, nIters=3,
+             random=~vsr(isr(id), Gu=MMT) + Rowf + Colf,
+             rcov=~units, nIters=10,
              verbose = FALSE,
              data=DT)
-a.from.g <-MTMMTinv%*%matrix(mixGBLUP$U$`u:id`$color,ncol=1)
-var.g <- kronecker(MMT,mixGBLUP$sigma$`u:id`) - mixGBLUP$PevU$`u:id`$color
+a.from.g <-MTMMTinv%*%matrix(mixGBLUP$uList$`vsr(isr(id), Gu = MMT`,ncol=1)
+start=mixGBLUP$partitions[[1]][1]
+end=mixGBLUP$partitions[[1]][2]
+var.g <- kronecker(MMT,mixGBLUP$theta[[1]]) - mixGBLUP$Ci[start:end,start:end]
 var.a.from.g <- t(M)%*%MMTinv%*% (var.g) %*% t(MMTinv)%*%M
 se.a.from.g <- sqrt(diag(var.a.from.g))
 t.stat.from.g <- a.from.g/se.a.from.g # t-statistic
@@ -833,7 +825,7 @@ plot(-log(pvalGBLUP), main="GWAS by GBLUP")
 
 ### Final remarks
 
-Keep in mind that mmer uses a direct inversion (DI) algorithm which can be very slow for large datasets with many records. When datasets have more records than coefficients to be estimated please shift to the use of the mmec function.
+Keep in mind that mmer uses a direct inversion (DI) algorithm which can be very slow for large datasets with many records. When datasets have more records than coefficients to be estimated please shift to the use of the mmer function.
 
 ## Literature
 

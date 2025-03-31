@@ -80,36 +80,32 @@ DT$C <- as.factor(DT$col)
 # Residual          3.987e+02     1.997e+01 
 
 # SOMMER MODEL
-m1.sommer <- mmer(Y~1+V+
-                    spl2Db(col,row, nsegments = c(14,21), degree = c(3,3), 
-                           penaltyord = c(2,2), what = "base"), 
-                  random = ~R+C+
-                    spl2Db(col,row, nsegments = c(14,21), degree = c(3,3), 
-                           penaltyord = c(2,2), what="bits"),
-                  data=DT, tolParConv = 1e-6, verbose = FALSE)
-summary(m1.sommer)$varcomp
-# get the fitted values for the spatial kernel and plot
-# ff <- fitted.mmer(m1.sommer)
-# DT$fit <- as.matrix(Reduce("+",ff$Zu[-c(1:2)])) 
-# lattice::levelplot(fit~row*col,data=DT)
+M <- spl2Dmats(x.coord.name = "col", y.coord.name = "row", data=DT, 
+               nseg =c(14,21), degree = c(3,3), penaltyord = c(2,2) 
+               )
+mix <- mmer(Y~V, mme = TRUE,
+            random=~ R + C + vsr(isr(M$fC)) + vsr(isr(M$fR)) + 
+              vsr(isr(M$fC.R)) + vsr(isr(M$C.fR)) +
+              vsr(isr(M$fC.fR)),
+            rcov=~units, verbose=FALSE,
+            data=M$data)
+summary(mix)$varcomp
 
 ```
 
-### 2) Two dimensional splines (single spatial component)
+### 2) Two dimensional splines in single field (single spatial component)
 
 To reduce the computational burden of fitting multiple spatial kernels `sommer` provides a single spatial kernel method through the `spl2Da` function. This as will be shown, can produce similar results to the more flexible model. Use the one that fits better your needs.
 
 ```{r, fig.show='hold'}
 
 # SOMMER MODEL
-m2.sommer <- mmer(Y~1+V, 
-                  random = ~R+C+spl2Da(col,row, nsegments = c(14,21), degree = c(3,3), penaltyord = c(2,2)),
-                  data=DT, tolParConv = 1e-6, verbose = FALSE)
-summary(m1.sommer)$varcomp
-# get the fitted values for the spatial kernel and plot
-# ff <- fitted.mmer(m2.sommer)
-# DT$fit <- as.matrix(Reduce("+",ff$Zu[-c(1:2)])) 
-# lattice::levelplot(fit~row*col,data=DT)
+mix <- mmer(Y~V,
+            random=~ R + C +
+              spl2Dc(row,col),
+            rcov=~units, verbose=FALSE,
+            data=DT)
+summary(mix)$varcomp
 
 ```
 
@@ -124,17 +120,12 @@ DT2$Y <- DT2$Y + rnorm(length(DT2$Y))
 DT2$trial <- c(rep("A",nrow(DT)),rep("B",nrow(DT)))
 head(DT2)
 # SOMMER MODEL
-m3.sommer <- mmer(Y~1+V, 
-                  random = ~vsr(dsr(trial),R)+vsr(dsr(trial),C)+
-                    spl2Da(col,row, nsegments = c(14,21), degree = c(3,3), 
-                           penaltyord = c(2,2), at.var = trial),
-                  rcov = ~vsr(dsr(trial),units),
-                  data=DT2, tolParConv = 1e-6, verbose = FALSE)
-summary(m3.sommer)$varcomp
-# get the fitted values for the spatial kernel and plot
-# ff <- fitted.mmer(m3.sommer)
-# DT2$fit <- as.matrix(Reduce("+",ff$Zu[-c(1:4)])) 
-# lattice::levelplot(fit~row*col|trial,data=DT2)
+mix <- mmer(Y~V,
+            random=~ R + C +
+              spl2Dc(row,col, at.var = trial),
+            rcov=~units, verbose=FALSE,
+            data=DT2)
+summary(mix)$varcomp
 
 ```
 

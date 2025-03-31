@@ -12,7 +12,7 @@
 
 <meta name="author" content="Giovanny Covarrubias-Pazaran" />
 
-<meta name="date" content="2023-05-10" />
+<meta name="date" content="2025-03-31" />
 
 <title>Translating lme4 models to sommer</title>
 
@@ -50,6 +50,7 @@ overflow: visible;
 }
 </style>
 <style type="text/css" data-origin="pandoc">
+html { -webkit-text-size-adjust: 100%; }
 pre > code.sourceCode { white-space: pre; position: relative; }
 pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
 pre > code.sourceCode > span:empty { height: 1.2em; }
@@ -340,19 +341,21 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 
 <h1 class="title toc-ignore">Translating lme4 models to sommer</h1>
 <h4 class="author">Giovanny Covarrubias-Pazaran</h4>
-<h4 class="date">2023-05-10</h4>
+<h4 class="date">2025-03-31</h4>
 
 
 
 <p>The sommer package was developed to provide R users a powerful and
-reliable multivariate mixed model solver. The package is focused on
-problems of the type p &gt; n (more effects to estimate than
-observations) and its core algorithm is coded in C++ using the Armadillo
-library. This package allows the user to fit mixed models with the
-advantage of specifying the variance-covariance structure for the random
-effects, and specifying heterogeneous variances, and obtaining other
-parameters such as BLUPs, BLUEs, residuals, fitted values, variances for
-fixed and random effects, etc.</p>
+reliable multivariate mixed model solver. The package is focused on two
+approaches: 1) p &gt; n (more effects to estimate than observations)
+using the mmer() function, and 2) n &gt; p (more observations than
+effects to estimate) using the mmer() function. The core algorithms are
+coded in C++ using the Armadillo library. This package allows the user
+to fit mixed models with the advantage of specifying the
+variance-covariance structure for the random effects, and specifying
+heterogeneous variances, and obtaining other parameters such as BLUPs,
+BLUEs, residuals, fitted values, variances for fixed and random effects,
+etc.</p>
 <p>The purpose of this vignette is to show how to translate the syntax
 formula from <code>lme4</code> models to <code>sommer</code> models.
 Feel free to remove the comment marks from the lme4 code so you can
@@ -369,39 +372,34 @@ compare the results.</p>
 <p>This is the simplest model people use when a random effect is desired
 and the levels of the random effect are considered to have the same
 intercept.</p>
-<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co"># install.packages(&quot;lme4&quot;)</span></span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="co"># library(lme4)</span></span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(sommer)</span></code></pre></div>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># install.packages(&quot;lme4&quot;)</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="co"># library(lme4)</span></span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">library</span>(sommer)</span></code></pre></div>
 <pre><code>## Loading required package: Matrix</code></pre>
 <pre><code>## Loading required package: MASS</code></pre>
-<pre><code>## Loading required package: lattice</code></pre>
 <pre><code>## Loading required package: crayon</code></pre>
-<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="fu">data</span>(DT_sleepstudy)</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_sleepstudy</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a><span class="do">## lme4</span></span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (1 | Subject), data=DT)</span></span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a><span class="co"># summary(fm1) # or vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a><span class="co"># Random effects:</span></span>
-<span id="cb6-9"><a href="#cb6-9" aria-hidden="true" tabindex="-1"></a><span class="co">#  Groups   Name        Variance Std.Dev.</span></span>
-<span id="cb6-10"><a href="#cb6-10" aria-hidden="true" tabindex="-1"></a><span class="co">#  Subject  (Intercept) 1378.2   37.12   </span></span>
-<span id="cb6-11"><a href="#cb6-11" aria-hidden="true" tabindex="-1"></a><span class="co">#  Residual              960.5   30.99   </span></span>
-<span id="cb6-12"><a href="#cb6-12" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
-<span id="cb6-13"><a href="#cb6-13" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb6-14"><a href="#cb6-14" aria-hidden="true" tabindex="-1"></a><span class="do">## sommer</span></span>
-<span id="cb6-15"><a href="#cb6-15" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb6-16"><a href="#cb6-16" aria-hidden="true" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
-<span id="cb6-17"><a href="#cb6-17" aria-hidden="true" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> Subject, </span>
-<span id="cb6-18"><a href="#cb6-18" aria-hidden="true" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb6-19"><a href="#cb6-19" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##                             VarComp VarCompSE   Zratio Constraint
-## Subject.Reaction-Reaction 1377.9758  505.0776 2.728246   Positive
-## units.Reaction-Reaction    960.4705  107.0638 8.971013   Positive</code></pre>
-<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="co"># fm2 &lt;- mmec(Reaction ~ Days,</span></span>
-<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a><span class="co">#             random= ~ Subject, </span></span>
-<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a><span class="co">#             data=DT, tolParInv = 1e-6, verbose = FALSE)</span></span>
-<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a><span class="co"># summary(fm2)$varcomp</span></span></code></pre></div>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">data</span>(DT_sleepstudy)</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>DT <span class="ot">&lt;-</span> DT_sleepstudy</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a><span class="do">## lme4</span></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (1 | Subject), data=DT)</span></span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a><span class="co"># summary(fm1) # or vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a><span class="co"># Random effects:</span></span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="co">#  Groups   Name        Variance Std.Dev.</span></span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a><span class="co">#  Subject  (Intercept) 1378.2   37.12   </span></span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a><span class="co">#  Residual              960.5   30.99   </span></span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="do">## sommer</span></span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> Subject, </span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                 VarComp  VarCompSE   Zratio Constraint
+## Subject:mu:mu 1377.9758 0.15918339  8656.53   Positive
+## units:mu:mu    960.4705 0.03374288 28464.39   Positive</code></pre>
 </div>
 <div id="random-slopes-and-random-intercepts-without-correlation" class="section level2">
 <h2>2) Random slopes and random intercepts (without correlation)</h2>
@@ -409,32 +407,28 @@ intercept.</p>
 different intercepts based on the levels of another variable. In
 addition the <code>||</code> in <code>lme4</code> assumes that slopes
 and intercepts have no correlation.</p>
-<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="do">## lme4</span></span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (Days || Subject), data=DT)</span></span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="co"># summary(fm1) # or vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Random effects:</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a><span class="co">#  Groups    Name        Variance Std.Dev.</span></span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a><span class="co">#  Subject   (Intercept) 627.57   25.051  </span></span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a><span class="co">#  Subject.1 Days         35.86    5.988  </span></span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a><span class="co">#  Residual              653.58   25.565  </span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a><span class="do">## sommer</span></span>
-<span id="cb9-14"><a href="#cb9-14" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb9-15"><a href="#cb9-15" aria-hidden="true" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
-<span id="cb9-16"><a href="#cb9-16" aria-hidden="true" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> Subject <span class="sc">+</span> <span class="fu">vsr</span>(Days, Subject), </span>
-<span id="cb9-17"><a href="#cb9-17" aria-hidden="true" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb9-18"><a href="#cb9-18" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##                                  VarComp VarCompSE   Zratio Constraint
-## Subject.Reaction-Reaction      627.54087 283.52939 2.213319   Positive
-## Days:Subject.Reaction-Reaction  35.86008  14.53187 2.467686   Positive
-## units.Reaction-Reaction        653.58305  76.72711 8.518281   Positive</code></pre>
-<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="co"># fm2 &lt;- mmec(Reaction ~ Days,</span></span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a><span class="co">#             random= ~ Subject + vsc(dsc(Days), isc(Subject)),</span></span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a><span class="co">#             data=DT, tolParInv = 1e-6, verbose = FALSE)</span></span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a><span class="co"># summary(fm2)$varcomp</span></span></code></pre></div>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="do">## lme4</span></span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (Days || Subject), data=DT)</span></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="co"># summary(fm1) # or vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="co"># Random effects:</span></span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="co">#  Groups    Name        Variance Std.Dev.</span></span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a><span class="co">#  Subject   (Intercept) 627.57   25.051  </span></span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a><span class="co">#  Subject.1 Days         35.86    5.988  </span></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a><span class="co">#  Residual              653.58   25.565  </span></span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a><span class="do">## sommer</span></span>
+<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
+<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> Subject <span class="sc">+</span> <span class="fu">vsr</span>(<span class="fu">isr</span>(Days), <span class="fu">isr</span>(Subject)), </span>
+<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                      VarComp   VarCompSE    Zratio Constraint
+## Subject:mu:mu      627.54087 0.089358886  7022.703   Positive
+## Days:Subject:mu:mu  35.86008 0.004579954  7829.791   Positive
+## units:mu:mu        653.58305 0.024181792 27027.900   Positive</code></pre>
 <p>Notice that Days is a numerical (not factor) variable.</p>
 </div>
 <div id="random-slopes-and-random-intercepts-with-correlation" class="section level2">
@@ -443,30 +437,36 @@ and intercepts have no correlation.</p>
 different intercepts based on the levels of another variable. In
 addition a single <code>|</code> in <code>lme4</code> assumes that
 slopes and intercepts have a correlation to be estimated.</p>
-<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a><span class="do">## lme4</span></span>
-<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (Days | Subject), data=DT)</span></span>
-<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a><span class="co"># summary(fm1) # or # vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
-<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Random effects:</span></span>
-<span id="cb12-7"><a href="#cb12-7" aria-hidden="true" tabindex="-1"></a><span class="co">#  Groups   Name        Variance Std.Dev. Corr</span></span>
-<span id="cb12-8"><a href="#cb12-8" aria-hidden="true" tabindex="-1"></a><span class="co">#  Subject  (Intercept) 612.10   24.741       </span></span>
-<span id="cb12-9"><a href="#cb12-9" aria-hidden="true" tabindex="-1"></a><span class="co">#           Days         35.07    5.922   0.07</span></span>
-<span id="cb12-10"><a href="#cb12-10" aria-hidden="true" tabindex="-1"></a><span class="co">#  Residual             654.94   25.592       </span></span>
-<span id="cb12-11"><a href="#cb12-11" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
-<span id="cb12-12"><a href="#cb12-12" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb12-13"><a href="#cb12-13" aria-hidden="true" tabindex="-1"></a><span class="do">## sommer</span></span>
-<span id="cb12-14"><a href="#cb12-14" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb12-15"><a href="#cb12-15" aria-hidden="true" tabindex="-1"></a><span class="do">## no equivalence in sommer to find the correlation between the 2 vc</span></span>
-<span id="cb12-16"><a href="#cb12-16" aria-hidden="true" tabindex="-1"></a><span class="do">## this is the most similar which is equivalent to (intercept || slope)</span></span>
-<span id="cb12-17"><a href="#cb12-17" aria-hidden="true" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
-<span id="cb12-18"><a href="#cb12-18" aria-hidden="true" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> Subject <span class="sc">+</span> <span class="fu">vsr</span>(Days, Subject), </span>
-<span id="cb12-19"><a href="#cb12-19" aria-hidden="true" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb12-20"><a href="#cb12-20" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##                                  VarComp VarCompSE   Zratio Constraint
-## Subject.Reaction-Reaction      627.54087 283.52939 2.213319   Positive
-## Days:Subject.Reaction-Reaction  35.86008  14.53187 2.467686   Positive
-## units.Reaction-Reaction        653.58305  76.72711 8.518281   Positive</code></pre>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a><span class="do">## lme4</span></span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (Days | Subject), data=DT)</span></span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a><span class="co"># summary(fm1) # or # vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a><span class="co"># Random effects:</span></span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a><span class="co">#  Groups   Name        Variance Std.Dev. Corr</span></span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a><span class="co">#  Subject  (Intercept) 612.10   24.741       </span></span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="co">#           Days         35.07    5.922   0.07</span></span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a><span class="co">#  Residual             654.94   25.592       </span></span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a><span class="do">## sommer</span></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days, <span class="co"># mme=TRUE,</span></span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">covr</span>( <span class="fu">vsr</span>(<span class="fu">isr</span>(Subject)) , <span class="fu">vsr</span>(<span class="fu">isr</span>(Days), <span class="fu">isr</span>(Subject)) ), </span>
+<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a>            <span class="at">nIters =</span> <span class="dv">200</span>, <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                           VarComp   VarCompSE     Zratio Constraint
+## Subject:Days:ran1:ran1 612.081194 0.091004402  6725.8416   Positive
+## Subject:Days:ran1:ran2   9.604358 0.014713160   652.7733   Unconstr
+## Subject:Days:ran2:ran2  35.073186 0.004660427  7525.7445   Positive
+## units:mu:mu            654.939143 0.024325575 26923.8914   Positive</code></pre>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="fu">cov2cor</span>(fm2<span class="sc">$</span>theta[[<span class="dv">1</span>]])</span></code></pre></div>
+<pre><code>##            ran1       ran2
+## ran1 1.00000000 0.06555053
+## ran2 0.06555053 1.00000000</code></pre>
+<p>Notice that this last model require a new function called covr()
+which creates the two random effects as before but now they have to be
+encapsulated in covr() instead of just added.</p>
 </div>
 <div id="random-slopes-with-a-different-intercept" class="section level2">
 <h2>4) Random slopes with a different intercept</h2>
@@ -474,136 +474,131 @@ slopes and intercepts have a correlation to be estimated.</p>
 different intercepts based on the levels of another variable but there’s
 not a main effect. The 0 in the intercept in lme4 assumes that random
 slopes interact with an intercept but without a main effect.</p>
-<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="do">## lme4</span></span>
-<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (0 + Days | Subject), data=DT)</span></span>
-<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="co"># summary(fm1) # or vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
-<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Random effects:</span></span>
-<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="co">#  Groups   Name Variance Std.Dev.</span></span>
-<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="co">#  Subject  Days  52.71    7.26   </span></span>
-<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="co">#  Residual      842.03   29.02   </span></span>
-<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
-<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="do">## sommer</span></span>
-<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="do">###########</span></span>
-<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
-<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">vsr</span>(Days, Subject), </span>
-<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##                                  VarComp VarCompSE   Zratio Constraint
-## Days:Subject.Reaction-Reaction  52.70946  19.09984 2.759681   Positive
-## units.Reaction-Reaction        842.02736  93.84640 8.972399   Positive</code></pre>
-<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a><span class="co"># fm2 &lt;- mmec(Reaction ~ Days,</span></span>
-<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a><span class="co">#             random= ~ vsc(dsc(Days), isc(Subject)), </span></span>
-<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a><span class="co">#             data=DT, tolParInv = 1e-6, verbose = FALSE)</span></span>
-<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a><span class="co"># summary(fm2)$varcomp</span></span></code></pre></div>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb13-2"><a href="#cb13-2" tabindex="-1"></a><span class="do">## lme4</span></span>
+<span id="cb13-3"><a href="#cb13-3" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb13-4"><a href="#cb13-4" tabindex="-1"></a><span class="co"># fm1 &lt;- lmer(Reaction ~ Days + (0 + Days | Subject), data=DT)</span></span>
+<span id="cb13-5"><a href="#cb13-5" tabindex="-1"></a><span class="co"># summary(fm1) # or vc &lt;- VarCorr(fm1); print(vc,comp=c(&quot;Variance&quot;))</span></span>
+<span id="cb13-6"><a href="#cb13-6" tabindex="-1"></a><span class="co"># Random effects:</span></span>
+<span id="cb13-7"><a href="#cb13-7" tabindex="-1"></a><span class="co">#  Groups   Name Variance Std.Dev.</span></span>
+<span id="cb13-8"><a href="#cb13-8" tabindex="-1"></a><span class="co">#  Subject  Days  52.71    7.26   </span></span>
+<span id="cb13-9"><a href="#cb13-9" tabindex="-1"></a><span class="co">#  Residual      842.03   29.02   </span></span>
+<span id="cb13-10"><a href="#cb13-10" tabindex="-1"></a><span class="co"># Number of obs: 180, groups:  Subject, 18</span></span>
+<span id="cb13-11"><a href="#cb13-11" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb13-12"><a href="#cb13-12" tabindex="-1"></a><span class="do">## sommer</span></span>
+<span id="cb13-13"><a href="#cb13-13" tabindex="-1"></a><span class="do">###########</span></span>
+<span id="cb13-14"><a href="#cb13-14" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
+<span id="cb13-15"><a href="#cb13-15" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">vsr</span>(<span class="fu">isr</span>(Days), <span class="fu">isr</span>(Subject)), </span>
+<span id="cb13-16"><a href="#cb13-16" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb13-17"><a href="#cb13-17" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                      VarComp   VarCompSE    Zratio Constraint
+## Days:Subject:mu:mu  52.70946 0.006019624  8756.271   Positive
+## units:mu:mu        842.02736 0.029577216 28468.783   Positive</code></pre>
 </div>
 <div id="other-models-available-in-sommer-but-not-in-lme4" class="section level2">
 <h2>4) Other models available in sommer but not in lme4</h2>
 <p>One of the strengths of sommer is the availability of other variance
 covariance structures. In this section we show 4 models available in
 sommer that are not available in lme4 and might be useful.</p>
-<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(orthopolynom)</span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a><span class="do">## diagonal model</span></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">vsr</span>(<span class="fu">dsr</span>(Daysf), Subject), </span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb17-6"><a href="#cb17-6" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##                               VarComp VarCompSE    Zratio Constraint
-## 0:Subject.Reaction-Reaction  139.5473  399.5095 0.3492967   Positive
-## 1:Subject.Reaction-Reaction  196.8544  411.8262 0.4780037   Positive
-## 2:Subject.Reaction-Reaction    0.0000  365.3178 0.0000000   Positive
-## 3:Subject.Reaction-Reaction  556.0773  501.2665 1.1093445   Positive
-## 4:Subject.Reaction-Reaction  855.2104  581.8190 1.4698910   Positive
-## 5:Subject.Reaction-Reaction 1699.4269  820.4561 2.0713197   Positive
-## 6:Subject.Reaction-Reaction 2910.8975 1175.7872 2.4757011   Positive
-## 7:Subject.Reaction-Reaction 1539.6201  779.1437 1.9760413   Positive
-## 8:Subject.Reaction-Reaction 2597.5337 1089.4522 2.3842568   Positive
-## 9:Subject.Reaction-Reaction 3472.7108 1351.5702 2.5693899   Positive
-## units.Reaction-Reaction      879.6958  247.4680 3.5547862   Positive</code></pre>
-<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a><span class="do">## unstructured model</span></span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">vsr</span>(<span class="fu">usr</span>(Daysf), Subject), </span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##                                 VarComp VarCompSE    Zratio Constraint
-## 0:Subject.Reaction-Reaction    402.6286  572.0867 0.7037894   Positive
-## 1:0:Subject.Reaction-Reaction 1022.5098  393.6922 2.5972314   Unconstr
-## 1:Subject.Reaction-Reaction    417.6460  521.3722 0.8010515   Positive
-## 2:0:Subject.Reaction-Reaction  540.3746  287.1704 1.8817210   Unconstr
-## 2:1:Subject.Reaction-Reaction  828.5156  325.7576 2.5433499   Unconstr
-## 2:Subject.Reaction-Reaction      0.0000  509.8962 0.0000000   Positive
-## 3:0:Subject.Reaction-Reaction  798.3750  397.0884 2.0105726   Unconstr
-## 3:1:Subject.Reaction-Reaction 1137.3863  443.9056 2.5622256   Unconstr
-## 3:2:Subject.Reaction-Reaction 1057.0708  385.9026 2.7392162   Unconstr
-## 3:Subject.Reaction-Reaction    760.2469  436.7463 1.7407060   Positive
-## 4:0:Subject.Reaction-Reaction  757.8909  411.2464 1.8429119   Unconstr
-## 4:1:Subject.Reaction-Reaction 1039.6832  447.5192 2.3232148   Unconstr
-## 4:2:Subject.Reaction-Reaction  911.1369  377.9651 2.4106377   Unconstr
-## 4:3:Subject.Reaction-Reaction 1590.6778  566.5376 2.8077180   Unconstr
-## 4:Subject.Reaction-Reaction    957.1797  364.0599 2.6291817   Positive
-## 5:0:Subject.Reaction-Reaction  932.5247  516.7169 1.8047110   Unconstr
-## 5:1:Subject.Reaction-Reaction 1179.5219  547.9498 2.1526095   Unconstr
-## 5:2:Subject.Reaction-Reaction  859.1635  440.5250 1.9503173   Unconstr
-## 5:3:Subject.Reaction-Reaction 1672.9989  664.0846 2.5192556   Unconstr
-## 5:4:Subject.Reaction-Reaction 2003.0167  738.6399 2.7117633   Unconstr
-## 5:Subject.Reaction-Reaction   2067.9299  553.3254 3.7372765   Positive
-## 6:0:Subject.Reaction-Reaction  666.1077  565.7589 1.1773702   Unconstr
-## 6:1:Subject.Reaction-Reaction  850.9395  583.6190 1.4580394   Unconstr
-## 6:2:Subject.Reaction-Reaction  916.2375  504.0273 1.8178333   Unconstr
-## 6:3:Subject.Reaction-Reaction 1785.8432  750.7274 2.3788171   Unconstr
-## 6:4:Subject.Reaction-Reaction 2077.5064  822.0777 2.5271412   Unconstr
-## 6:5:Subject.Reaction-Reaction 2603.2823 1035.1406 2.5149070   Unconstr
-## 6:Subject.Reaction-Reaction   3123.2005 1049.0352 2.9772123   Positive
-## 7:0:Subject.Reaction-Reaction  932.8190  490.4744 1.9018709   Unconstr
-## 7:1:Subject.Reaction-Reaction  927.3416  492.7764 1.8818709   Unconstr
-## 7:2:Subject.Reaction-Reaction  924.7079  426.2387 2.1694602   Unconstr
-## 7:3:Subject.Reaction-Reaction 1282.8637  583.3415 2.1991642   Unconstr
-## 7:4:Subject.Reaction-Reaction 1549.9053  643.7083 2.4077757   Unconstr
-## 7:5:Subject.Reaction-Reaction 1941.5523  811.3286 2.3930529   Unconstr
-## 7:6:Subject.Reaction-Reaction 2306.0261  951.5128 2.4235367   Unconstr
-## 7:Subject.Reaction-Reaction   1669.8274  612.0081 2.7284398   Positive
-## 8:0:Subject.Reaction-Reaction  920.3110  576.8500 1.5954079   Unconstr
-## 8:1:Subject.Reaction-Reaction 1044.9313  592.5243 1.7635247   Unconstr
-## 8:2:Subject.Reaction-Reaction  831.4993  486.9625 1.7075221   Unconstr
-## 8:3:Subject.Reaction-Reaction 1607.0156  717.6871 2.2391591   Unconstr
-## 8:4:Subject.Reaction-Reaction 2029.1022  805.6724 2.5185201   Unconstr
-## 8:5:Subject.Reaction-Reaction 3058.1945 1093.4722 2.7967739   Unconstr
-## 8:6:Subject.Reaction-Reaction 2927.6051 1177.5589 2.4861644   Unconstr
-## 8:7:Subject.Reaction-Reaction 2433.2427  957.7103 2.5406876   Unconstr
-## 8:Subject.Reaction-Reaction   2947.1635  844.8113 3.4885466   Positive
-## 9:0:Subject.Reaction-Reaction 1440.6886  690.1726 2.0874323   Unconstr
-## 9:1:Subject.Reaction-Reaction 1514.9679  703.4423 2.1536491   Unconstr
-## 9:2:Subject.Reaction-Reaction  967.8504  550.1628 1.7592073   Unconstr
-## 9:3:Subject.Reaction-Reaction 1742.6866  797.5934 2.1849310   Unconstr
-## 9:4:Subject.Reaction-Reaction 2198.3504  892.7701 2.4623924   Unconstr
-## 9:5:Subject.Reaction-Reaction 3236.8715 1196.2341 2.7058847   Unconstr
-## 9:6:Subject.Reaction-Reaction 2210.6321 1185.1233 1.8653182   Unconstr
-## 9:7:Subject.Reaction-Reaction 2399.5130 1027.8125 2.3345824   Unconstr
-## 9:8:Subject.Reaction-Reaction 3847.0132 1391.5584 2.7645359   Unconstr
-## 9:Subject.Reaction-Reaction   3946.2369 1228.6678 3.2118013   Positive
-## units.Reaction-Reaction        883.2477  577.9203 1.5283210   Positive</code></pre>
-<div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="do">## random regression (legendre polynomials)</span></span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">vsr</span>(<span class="fu">leg</span>(Days,<span class="dv">1</span>), Subject), </span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##                                  VarComp  VarCompSE   Zratio Constraint
-## leg0:Subject.Reaction-Reaction 2817.4048 1011.23903 2.786092   Positive
-## leg1:Subject.Reaction-Reaction  473.4608  199.53635 2.372805   Positive
-## units.Reaction-Reaction         654.9433   77.18822 8.485016   Positive</code></pre>
-<div class="sourceCode" id="cb23"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="do">## unstructured random regression (legendre)</span></span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">vsr</span>(<span class="fu">usr</span>(<span class="fu">leg</span>(Days,<span class="dv">1</span>)), Subject), </span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
-<pre><code>##                                       VarComp  VarCompSE   Zratio Constraint
-## leg0:Subject.Reaction-Reaction      2817.4056 1011.24156 2.786086   Positive
-## leg1:leg0:Subject.Reaction-Reaction  869.9590  381.02481 2.283208   Unconstr
-## leg1:Subject.Reaction-Reaction       473.4608  199.53612 2.372807   Positive
-## units.Reaction-Reaction              654.9428   77.18763 8.485075   Positive</code></pre>
-<div class="sourceCode" id="cb25"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="co"># same can be done with the mmec function</span></span></code></pre></div>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="fu">library</span>(orthopolynom)</span>
+<span id="cb15-2"><a href="#cb15-2" tabindex="-1"></a><span class="do">## diagonal model</span></span>
+<span id="cb15-3"><a href="#cb15-3" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
+<span id="cb15-4"><a href="#cb15-4" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">vsr</span>(<span class="fu">dsr</span>(Daysf), <span class="fu">isr</span>(Subject)), </span>
+<span id="cb15-5"><a href="#cb15-5" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb15-6"><a href="#cb15-6" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                     VarComp  VarCompSE    Zratio Constraint
+## Daysf:Subject:0:0  139.5473 0.12591190  1108.293   Positive
+## Daysf:Subject:1:1  196.8544 0.12979369  1516.672   Positive
+## Daysf:Subject:2:2    0.0000 0.11513582     0.000   Positive
+## Daysf:Subject:3:3  556.0773 0.15798227  3519.871   Positive
+## Daysf:Subject:4:4  855.2104 0.18336968  4663.859   Positive
+## Daysf:Subject:5:5 1699.4269 0.25858005  6572.150   Positive
+## Daysf:Subject:6:6 2910.8975 0.37056839  7855.223   Positive
+## Daysf:Subject:7:7 1539.6201 0.24555977  6269.838   Positive
+## Daysf:Subject:8:8 2597.5337 0.34335852  7565.077   Positive
+## Daysf:Subject:9:9 3472.7108 0.42596927  8152.491   Positive
+## units:mu:mu        879.6958 0.07799355 11279.084   Positive</code></pre>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a><span class="do">## unstructured model</span></span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">vsr</span>(<span class="fu">usr</span>(Daysf), <span class="fu">isr</span>(Subject)), </span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                     VarComp  VarCompSE    Zratio Constraint
+## Daysf:Subject:0:0  402.6295 0.18030278  2233.074   Positive
+## Daysf:Subject:0:1 1022.5119 0.12407891  8240.820   Unconstr
+## Daysf:Subject:1:1  540.3765 0.09050672  5970.567   Positive
+## Daysf:Subject:0:2  798.3776 0.12514932  6379.400   Unconstr
+## Daysf:Subject:1:2  757.8934 0.12961141  5847.429   Unconstr
+## Daysf:Subject:2:2  932.5281 0.16285235  5726.218   Positive
+## Daysf:Subject:0:3  666.1110 0.17830862  3735.719   Unconstr
+## Daysf:Subject:1:3  932.8224 0.15458150  6034.502   Unconstr
+## Daysf:Subject:2:3  920.3150 0.18180431  5062.119   Unconstr
+## Daysf:Subject:3:3 1440.6932 0.21751993  6623.270   Positive
+## Daysf:Subject:0:4  417.6471 0.16431924  2541.681   Unconstr
+## Daysf:Subject:1:4  828.5174 0.10266812  8069.860   Unconstr
+## Daysf:Subject:2:4 1137.3889 0.13990456  8129.748   Unconstr
+## Daysf:Subject:3:4 1039.6857 0.14104340  7371.389   Unconstr
+## Daysf:Subject:4:4 1179.5253 0.17269592  6830.070   Positive
+## Daysf:Subject:0:5  850.9426 0.18393755  4626.258   Unconstr
+## Daysf:Subject:1:5  927.3448 0.15530703  5971.042   Unconstr
+## Daysf:Subject:2:5 1044.9352 0.18674437  5595.538   Unconstr
+## Daysf:Subject:3:5 1514.9724 0.22170212  6833.369   Unconstr
+## Daysf:Subject:4:5    0.0000 0.16070252     0.000   Unconstr
+## Daysf:Subject:5:5 1057.0725 0.12162383  8691.327   Positive
+## Daysf:Subject:0:6  911.1384 0.11912213  7648.775   Unconstr
+## Daysf:Subject:1:6  859.1660 0.13883906  6188.215   Unconstr
+## Daysf:Subject:2:6  916.2395 0.15885275  5767.854   Unconstr
+## Daysf:Subject:3:6  924.7096 0.13433639  6883.538   Unconstr
+## Daysf:Subject:4:6  831.5018 0.15347463  5417.846   Unconstr
+## Daysf:Subject:5:6  967.8534 0.17339331  5581.838   Unconstr
+## Daysf:Subject:6:6  760.2487 0.13764795  5523.139   Positive
+## Daysf:Subject:0:7 1590.6803 0.17855402  8908.678   Unconstr
+## Daysf:Subject:1:7 1673.0027 0.20929780  7993.408   Unconstr
+## Daysf:Subject:2:7 1785.8465 0.23660459  7547.810   Unconstr
+## Daysf:Subject:3:7 1282.8669 0.18385014  6977.786   Unconstr
+## Daysf:Subject:4:7 1607.0198 0.22619157  7104.685   Unconstr
+## Daysf:Subject:5:7 1742.6915 0.25137547  6932.623   Unconstr
+## Daysf:Subject:6:7  957.1808 0.11473956  8342.204   Unconstr
+## Daysf:Subject:7:7 2003.0202 0.23279506  8604.221   Positive
+## Daysf:Subject:0:8 2077.5092 0.25909170  8018.432   Unconstr
+## Daysf:Subject:1:8 1549.9078 0.20287564  7639.694   Unconstr
+## Daysf:Subject:2:8 2029.1059 0.25392149  7991.076   Unconstr
+## Daysf:Subject:3:8 2198.3548 0.28137187  7812.987   Unconstr
+## Daysf:Subject:4:8 2067.9340 0.17438985 11858.110   Unconstr
+## Daysf:Subject:5:8 2603.2869 0.32624228  7979.612   Unconstr
+## Daysf:Subject:6:8 1941.5567 0.25570421  7592.979   Unconstr
+## Daysf:Subject:7:8 3058.2002 0.34462666  8873.951   Unconstr
+## Daysf:Subject:8:8 3236.8781 0.37701392  8585.566   Positive
+## Daysf:Subject:0:9 3123.2033 0.33062086  9446.480   Unconstr
+## Daysf:Subject:1:9 2306.0296 0.29988537  7689.703   Unconstr
+## Daysf:Subject:2:9 2927.6099 0.37112780  7888.414   Unconstr
+## Daysf:Subject:3:9 2210.6378 0.37351197  5918.519   Unconstr
+## Daysf:Subject:4:9 1669.8294 0.19288448  8657.147   Unconstr
+## Daysf:Subject:5:9 2433.2471 0.30183883  8061.412   Unconstr
+## Daysf:Subject:6:9 2399.5183 0.32393285  7407.456   Unconstr
+## Daysf:Subject:7:9 2947.1687 0.26625661 11068.903   Unconstr
+## Daysf:Subject:8:9 3847.0205 0.43857369  8771.663   Unconstr
+## Daysf:Subject:9:9 3946.2442 0.38723567 10190.808   Positive
+## units:mu:mu        883.2487 0.18214164  4849.241   Positive</code></pre>
+<div class="sourceCode" id="cb19"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" tabindex="-1"></a><span class="do">## random regression (legendre polynomials)</span></span>
+<span id="cb19-2"><a href="#cb19-2" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
+<span id="cb19-3"><a href="#cb19-3" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">vsr</span>(<span class="fu">dsr</span>(<span class="fu">leg</span>(Days,<span class="dv">1</span>)), <span class="fu">isr</span>(Subject)), </span>
+<span id="cb19-4"><a href="#cb19-4" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb19-5"><a href="#cb19-5" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                          VarComp  VarCompSE    Zratio Constraint
+## Days:Subject:leg0:leg0 2817.4048 0.31870838  8840.071   Positive
+## Days:Subject:leg1:leg1  473.4608 0.06288712  7528.740   Positive
+## units:mu:mu             654.9433 0.02432712 26922.352   Positive</code></pre>
+<div class="sourceCode" id="cb21"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" tabindex="-1"></a><span class="do">## unstructured random regression (legendre)</span></span>
+<span id="cb21-2"><a href="#cb21-2" tabindex="-1"></a>fm2 <span class="ot">&lt;-</span> <span class="fu">mmer</span>(Reaction <span class="sc">~</span> Days,</span>
+<span id="cb21-3"><a href="#cb21-3" tabindex="-1"></a>            <span class="at">random=</span> <span class="sc">~</span> <span class="fu">vsr</span>(<span class="fu">usr</span>(<span class="fu">leg</span>(Days,<span class="dv">1</span>)), <span class="fu">isr</span>(Subject)), </span>
+<span id="cb21-4"><a href="#cb21-4" tabindex="-1"></a>            <span class="at">data=</span>DT, <span class="at">tolParInv =</span> <span class="fl">1e-6</span>, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb21-5"><a href="#cb21-5" tabindex="-1"></a><span class="fu">summary</span>(fm2)<span class="sc">$</span>varcomp</span></code></pre></div>
+<pre><code>##                          VarComp  VarCompSE    Zratio Constraint
+## Days:Subject:leg0:leg0 2817.4056 0.31870916  8840.052   Positive
+## Days:Subject:leg0:leg1  869.9595 0.12008637  7244.448   Unconstr
+## Days:Subject:leg1:leg1  473.4608 0.06288707  7528.747   Positive
+## units:mu:mu             654.9429 0.02432696 26922.514   Positive</code></pre>
 </div>
 <div id="literature" class="section level2">
 <h2>Literature</h2>

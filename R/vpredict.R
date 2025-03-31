@@ -17,14 +17,14 @@ vpredict.mmer <- function (object, transform){
   tvalue <- eval(deriv(transform[[length(transform)]], names(pframe)), 
                  pframe)
   X <- as.vector(attr(tvalue, "gradient")) # just make it a sinpe vector of derivatives
-  tname <- if (length(transform) == 3) 
+  tname <- if(length(transform) == 3){
     transform[[2]]
-  else ""
+  } else {""}
   n <- length(pframe) ## number of parameters available, i.e. V1,V2,V3,V4
   i <- rep(1:n, 1:n) ## repeat each parameter by its own
   j <- sequence(1:n) ## makes a sequence from 1 to the number provided, i.e. if sequence(1:2) = 1 1 2, because it makes the sequence for 1:1 and then 1:2
   k <- 1 + (i > j) # all where i <= j get a 1, all i > j get a 2
-  Vmat <- object$sigmaSE
+  Vmat <- object$theta_se
   toext <- upper.tri(Vmat)
   diag(toext) <- TRUE
   Vmat <- Vmat[which(toext,arr.ind = TRUE)] ## extract the upper triangular

@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mmer() function, and 2) n > p (more observations than effects to estimate) using the mmec() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mmer() function, and 2) n > p (more observations than effects to estimate) using the mmer() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
 
 The purpose of this vignette is to show how to fit different genotype by environment (GxE) models using the sommer package:  
 
@@ -37,19 +37,15 @@ DT <- DT_example
 A <- A_example
 
 ansSingle <- mmer(Yield~1,
-              random= ~ vsr(Name, Gu=A),
+              random= ~ vsr(isr(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansSingle)
 
-# or
-Ai <- solve(A)
-Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-ansSingle <- mmec(Yield~1,
-              random= ~ vsc(isc(Name), Gu=Ai),
-              rcov= ~ units,
-              data=DT, verbose = FALSE)
-summary(ansSingle)
+# if setting mme=TRUE provide the inverse
+# Ai <- solve(A)
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, "inverse")=TRUE
 
 ```
 
@@ -62,20 +58,15 @@ A multi-environment model is the one that is fitted when the breeding program ca
 ```{r}
 
 ansMain <- mmer(Yield~Env,
-              random= ~ vsr(Name, Gu=A),
+              random= ~ vsr(isr(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansMain)
 
-# or 
-
-Ai <- solve(A)
-Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-ansMain <- mmec(Yield~Env,
-              random= ~ vsc(isc(Name), Gu=Ai),
-              rcov= ~ units,
-              data=DT, verbose = FALSE)
-summary(ansMain)
+# if setting mme=TRUE provide the inverse
+# Ai <- solve(A)
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, "inverse")=TRUE
 
 ```
 
@@ -86,19 +77,15 @@ A multi-environment model is the one that is fitted when the breeding program ca
 ```{r}
 
 ansDG <- mmer(Yield~Env,
-              random= ~ vsr(dsr(Env),Name, Gu=A),
+              random= ~ vsr(dsr(Env),isr(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansDG)
 
-# or
-Ai <- solve(A)
-Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-ansDG <- mmec(Yield~Env,
-              random= ~ vsc(dsc(Env),isc(Name), Gu=Ai),
-              rcov= ~ units,
-              data=DT, verbose = FALSE)
-summary(ansDG)
+# if setting mme=TRUE provide the inverse
+# Ai <- solve(A)
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, "inverse")=TRUE
 
 ```
 
@@ -107,16 +94,6 @@ summary(ansDG)
 A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The compound symmetry model assumes that GxE exists and that a main genotype variance-covariance component is expressed across all location. In addition, it assumes that a main genotype-by-environment variance is expressed across all locations. The main drawback is that the model assumes the same variance and covariance among locations. The fixed effect for environment plus the main effect for BLUP plus genotype-by-environment effect is used to predict the genotype effect in each location of interest.
 
 ```{r}
-E <- diag(length(unique(DT$Env)))
-rownames(E) <- colnames(E) <- unique(DT$Env)
-EA <- kronecker(E,A, make.dimnames = TRUE)
-ansCS <- mmer(Yield~Env,
-              random= ~ vsr(Name, Gu=A) + vsr(Env:Name, Gu=EA),
-              rcov= ~ units,
-              data=DT, verbose = FALSE)
-summary(ansCS)
-
-## or
 E <- diag(length(unique(DT$Env)));rownames(E) <- colnames(E) <- unique(DT$Env)
 Ei <- solve(E)
 Ai <- solve(A)
@@ -124,8 +101,10 @@ EAi <- kronecker(Ei,Ai, make.dimnames = TRUE)
 Ei <- as(as(as( Ei,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 EAi <- as(as(as( EAi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-ansCS <- mmec(Yield~Env,
-              random= ~ vsc(isc(Name), Gu=Ai) + vsc(isc(Env:Name), Gu=EAi),
+attr(Ai, "inverse")=TRUE
+attr(EAi, "inverse")=TRUE
+ansCS <- mmer(Yield~Env,
+              random= ~ vsr(isr(Name), Gu=Ai) + vsr(isr(Env:Name), Gu=EAi),
               rcov= ~ units, 
               data=DT, verbose = FALSE)
 summary(ansCS)
@@ -139,21 +118,15 @@ A multi-environment model is the one that is fitted when the breeding program ca
 ```{r}
 
 ansUS <- mmer(Yield~Env,
-              random= ~ vsr(usr(Env),Name, Gu=A),
+              random= ~ vsr(usr(Env),isr(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansUS)
-# adjust variance BLUPs by adding covariances
-# ansUS$U[1:6] <- unsBLUP(ansUS$U[1:6])
-
-# or
+# if setting mme=TRUE provide the inverse
 Ai <- solve(A)
 Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-ansUS <- mmec(Yield~Env,
-              random= ~ vsc(usc(Env),isc(Name), Gu=Ai),
-              rcov= ~ units,
-              data=DT, verbose = FALSE)
-summary(ansUS)
+attr(Ai, "inverse")=TRUE
+
 
 ```
 
@@ -164,16 +137,9 @@ A multi-environment model is the one that is fitted when the breeding program ca
 ```{r}
 library(orthopolynom)
 DT$EnvN <- as.numeric(as.factor(DT$Env))
+
 ansRR <- mmer(Yield~Env,
-              random= ~ vsr(leg(EnvN,1),Name),
-              rcov= ~ units,
-              data=DT, verbose = FALSE)
-summary(ansRR)
-
-# or
-
-ansRR <- mmec(Yield~Env,
-              random= ~ vsc(dsc(leg(EnvN,1)),isc(Name)),
+              random= ~ vsr(dsr(leg(EnvN,1)),isr(Name)),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansRR)
@@ -185,16 +151,9 @@ In addition, an unstructured, diagonal or other variance-covariance structure ca
 ```{r}
 library(orthopolynom)
 DT$EnvN <- as.numeric(as.factor(DT$Env))
+
 ansRR <- mmer(Yield~Env,
-              random= ~ vsr(usr(leg(EnvN,1)),Name),
-              rcov= ~ units,
-              data=DT, verbose = FALSE)
-summary(ansRR)
-
-# or
-
-ansRR <- mmec(Yield~Env,
-              random= ~ vsc(usc(leg(EnvN,1)),isc(Name)),
+              random= ~ vsr(usr(leg(EnvN,1)),isr(Name)),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansRR)
@@ -212,7 +171,7 @@ E <- AR1(DT$Env) # can be AR1() or CS(), etc.
 rownames(E) <- colnames(E) <- unique(DT$Env)
 EA <- kronecker(E,A, make.dimnames = TRUE)
 ansCS <- mmer(Yield~Env,
-              random= ~ vsr(Name, Gu=A) + vsr(Env:Name, Gu=EA),
+              random= ~ vsr(isr(Name), Gu=A) + vsr(isr(Env:Name), Gu=EA),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansCS)
@@ -236,18 +195,18 @@ ei <- ei[with(ei, order(envIndex)), ]
 DT2 <- merge(DT,ei, by="Env")
 
 # numeric by factor variables like envIndex:Name can't be used in the random part like this
-# they need to come with the vsc() structure
+# they need to come with the vsr() structure
 DT2 <- DT2[with(DT2, order(Name)), ]
-mix2 <- mmec(y~ envIndex,
-             random=~ Name + vsc(dsc(envIndex),isc(Name)), data=DT2,
-             rcov=~vsc(dsc(Name),isc(units)),
+mix2 <- mmer(y~ envIndex, mme=TRUE,
+             random=~ Name + vsr(dsr(envIndex),isr(Name)), data=DT2,
+             rcov=~vsr(dsr(Name),isr(units)),
              tolParConvNorm = .0001,
              nIters = 50, verbose = FALSE
 )
 # summary(mix2)$varcomp
 
-b=mix2$uList$`vsc(dsc(envIndex), isc(Name))` # adaptability (b) or genotype slopes
-mu=mix2$uList$`vsc( isc( Name ) )` # general adaptation (mu) or main effect
+b=mix2$uList$`vsr(dsr(envIndex), isr(Name))` # adaptability (b) or genotype slopes
+mu=mix2$uList$`vsr( isr( Name ) )` # general adaptation (mu) or main effect
 e=sqrt(summary(mix2)$varcomp[-c(1:2),1]) # error variance for each individual
 
 ## general adaptation (main effect) vs adaptability (response to better environments)
@@ -270,7 +229,7 @@ text(y=preds[,2],x=e, labels = rownames(mu), cex=0.5, pos = 1)
 
 ## 9) Factor analytic (reduced rank) model
 
-When the number of environments where genotypes are evaluated is big and we want to consider the genetic covariance between environments and location-specific variance components we cannot fit an unstructured covariance in the model since the number of parameters is too big and the matrix can become non-full rank leading to singularities. In those cases is suggested a dimensionality reduction technique. Among those the factor analytic structures proposed by many research groups (Piepho, Smith, Cullis, Thompson, Meyer, etc.) are the way to go. Sommer has a reduced-rank factor analytic implementation available through the rrc() function. Here we show an example of how to fit the model:
+When the number of environments where genotypes are evaluated is big and we want to consider the genetic covariance between environments and location-specific variance components we cannot fit an unstructured covariance in the model since the number of parameters is too big and the matrix can become non-full rank leading to singularities. In those cases is suggested a dimensionality reduction technique. Among those the factor analytic structures proposed by many research groups (Piepho, Smith, Cullis, Thompson, Meyer, etc.) are the way to go. Sommer has a reduced-rank factor analytic implementation available through the rrr() function. Here we show an example of how to fit the model:
 
 ```{r}
 
@@ -283,19 +242,19 @@ A <- diag(length(indNames))
 rownames(A) <- colnames(A) <- indNames
 
 # fit diagonal model first to produce H matrix
-ansDG <- mmec(y~Env,
-              random=~ vsc(dsc(Env), isc(Name)),
+ansDG <- mmer(y~Env, mme=TRUE,
+              random=~ vsr(dsr(Env), isr(Name)),
               rcov=~units, nIters = 100,
               # we recommend giving more EM iterations at the beggining
               emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
               data=DT, verbose = FALSE)
 
-H0 <- ansDG$uList$`vsc(dsc(Env), isc(Name))` # GxE table
+H0 <- ansDG$uList$`vsr(dsr(Env), isr(Name))` # GxE table
 
 # reduced rank model
-ansFA <- mmec(y~Env,
-              random=~vsc( usc(rrc(Env, H = H0, nPC = 3)) , isc(Name)) + # rr
-                vsc(dsc(Env), isc(Name)), # diag
+ansFA <- mmer(y~Env, mme=TRUE,
+              random=~vsr( usr(rrr(Env, H = H0, nPC = 3)) , isr(Name)) + # rr
+                vsr(dsr(Env), isr(Name)), # diag
               rcov=~units,
               # we recommend giving more iterations to these models
               nIters = 100, verbose = FALSE,
@@ -306,7 +265,7 @@ ansFA <- mmec(y~Env,
 vcFA <- ansFA$theta[[1]]
 vcDG <- ansFA$theta[[2]]
 
-loadings=with(DT, rrc(Env, nPC = 3, H = H0, returnGamma = TRUE) )$Gamma
+loadings=with(DT, rrr(Env, nPC = 3, H = H0, returnGamma = TRUE) )$Gamma
 scores <- ansFA$uList[[1]]
 
 vcUS <- loadings %*% vcFA %*% t(loadings)
@@ -340,16 +299,18 @@ BLUEL <- list()
 XtXL <- list()
 for(i in 1:length(envs)){
   ans1 <- mmer(y~Name-1,
-                random=~Block,
-                verbose=FALSE,
-                data=droplevels(DT[which(DT$Env == envs[i]),]
+               random=~Block,
+               verbose=FALSE,
+               data=droplevels(DT[which(DT$Env == envs[i]),]
                )
   )
   ans1$Beta$Env <- envs[i]
   
-  BLUEL[[i]] <- ans1$Beta
+  BLUEL[[i]] <- data.frame( Effect=factor(rownames(ans1$b)), 
+                            Estimate=ans1$b[,1], 
+                            Env=factor(envs[i]))
   # to be comparable to 1/(se^2) = 1/PEV = 1/Ci = 1/[(X'X)inv]
-  XtXL[[i]] <- solve(ans1$VarBeta) 
+  XtXL[[i]] <- solve(ans1$Ci_11) 
 }
 
 DT2 <- do.call(rbind, BLUEL)
@@ -357,16 +318,16 @@ OM <- do.call(adiag1,XtXL)
 
 ##########
 ## stage 2
-## use mmec for sparse equation
+## use mmer for sparse equation
 ##########
 m <- matrix(1/var(DT2$Estimate, na.rm = TRUE))
-ans2 <- mmec(Estimate~Env,
-             random=~Effect + Env:Effect, 
-             rcov=~vsc(isc(units,thetaC = matrix(3), theta = m)),
+ans2 <- mmer(Estimate~Env, mme=TRUE,
+             random=~ Effect + Env:Effect, 
+             rcov=~vsr(isr(units,thetaC = matrix(3), theta = m)),
              W=OM, 
              verbose=FALSE,
              data=DT2
-             )
+)
 summary(ans2)$varcomp
 
 ```

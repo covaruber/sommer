@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mmer() function, and 2) n > p (more observations than effects to estimate) using the mmec() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, and specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mmer() function, and 2) n > p (more observations than effects to estimate) using the mmer() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, and specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
 
 The purpose of this vignette is to show how to translate the syntax formula from `lme4` models to `sommer` models. Feel free to remove the comment marks from the lme4 code so you can compare the results.
 
@@ -47,11 +47,6 @@ fm2 <- mmer(Reaction ~ Days,
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 
-# fm2 <- mmec(Reaction ~ Days,
-#             random= ~ Subject, 
-#             data=DT, tolParInv = 1e-6, verbose = FALSE)
-# summary(fm2)$varcomp
-
 
 ```
 
@@ -75,14 +70,9 @@ This is the a model where you assume that the random effect has different interc
 ## sommer
 ###########
 fm2 <- mmer(Reaction ~ Days,
-            random= ~ Subject + vsr(Days, Subject), 
+            random= ~ Subject + vsr(isr(Days), isr(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
-
-# fm2 <- mmec(Reaction ~ Days,
-#             random= ~ Subject + vsc(dsc(Days), isc(Subject)),
-#             data=DT, tolParInv = 1e-6, verbose = FALSE)
-# summary(fm2)$varcomp
 
 ```
  
@@ -107,15 +97,14 @@ This is the a model where you assume that the random effect has different interc
 ###########
 ## sommer
 ###########
-## using mmec() the model would be
-fm2 <- mmec(Reaction ~ Days,
-            random= ~ covc( vsc(isc(Subject)) , vsc(isc(Days), isc(Subject)) ), 
+fm2 <- mmer(Reaction ~ Days, # mme=TRUE,
+            random= ~ covr( vsr(isr(Subject)) , vsr(isr(Days), isr(Subject)) ), 
             nIters = 200, data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 cov2cor(fm2$theta[[1]])
 
 ```
-Notice that this last model require a new function called covc() which creates the two random effects as before but now they have to be encapsulated in covc() instead of just added.  
+Notice that this last model require a new function called covr() which creates the two random effects as before but now they have to be encapsulated in covr() instead of just added.  
 
 ## 4) Random slopes with a different intercept
 
@@ -136,14 +125,9 @@ This is the a model where you assume that the random effect has different interc
 ## sommer
 ###########
 fm2 <- mmer(Reaction ~ Days,
-            random= ~ vsr(Days, Subject), 
+            random= ~ vsr(isr(Days), isr(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
-
-# fm2 <- mmec(Reaction ~ Days,
-#             random= ~ vsc(dsc(Days), isc(Subject)), 
-#             data=DT, tolParInv = 1e-6, verbose = FALSE)
-# summary(fm2)$varcomp
 
 ```
 
@@ -155,26 +139,25 @@ One of the strengths of sommer is the availability of other variance covariance 
 library(orthopolynom)
 ## diagonal model
 fm2 <- mmer(Reaction ~ Days,
-            random= ~ vsr(dsr(Daysf), Subject), 
+            random= ~ vsr(dsr(Daysf), isr(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 ## unstructured model
 fm2 <- mmer(Reaction ~ Days,
-            random= ~ vsr(usr(Daysf), Subject), 
+            random= ~ vsr(usr(Daysf), isr(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 ## random regression (legendre polynomials)
 fm2 <- mmer(Reaction ~ Days,
-            random= ~ vsr(leg(Days,1), Subject), 
+            random= ~ vsr(dsr(leg(Days,1)), isr(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 ## unstructured random regression (legendre)
 fm2 <- mmer(Reaction ~ Days,
-            random= ~ vsr(usr(leg(Days,1)), Subject), 
+            random= ~ vsr(usr(leg(Days,1)), isr(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 
-# same can be done with the mmec function
 ```
 
 ## Literature

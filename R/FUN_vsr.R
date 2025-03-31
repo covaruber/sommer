@@ -3,7 +3,7 @@ vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
   # buildGu=TRUE; meN=1; meTheta=NULL; meThetaC=NULL; sp=FALSE; isFixed=FALSE; verbose=TRUE
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
-
+  
   init <- list(...) #  e.g. init <- list(dsr(dt$Var1), dsr(dt$Var2), isr(dt$Var3)) | init <- list(usc(data$Env),isc(data$Name)) | init <- list(dsc(data$YEAR),isc(data$units))
 
   namess <- as.character(substitute(list(...)))[-1L] # namess <- c("Var1","Var2","Var3")  | namess <- c("YEAR","units")
@@ -11,6 +11,7 @@ vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     return(all.vars(as.formula(paste0("~",x))))
   })
 
+  
   ## let's test that user provided all terms encapsulated in a structure
   listLength <- length(init)
   if(listLength == 1){ # very simple structure
@@ -85,12 +86,16 @@ vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
       Gu <- sparse.model.matrix(~d-1, x)
       colnames(Gu) <- rownames(Gu) <- colnames(init[[length(init)]]$Z)
     }
-  }else{
+    attr(Gu, "inverse") =TRUE
+    myInverseAttribute <- attributes(Gu)$inverse
+  }else{ # user provided a Gu matrix
+    myInverseAttribute <- attributes(Gu)$inverse
     if (!inherits(Gu, "dgCMatrix")){
       Gu <- as(as(as( Gu,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
       # stop("Gu matrix is not of class dgCMatrix. Please correct \n", call. = TRUE )
     }
   }
+  
   #############################
   ######################################
   ## now build the Z matrices
@@ -175,6 +180,7 @@ vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
   # we make sure that the A matrix is properly ordered
   cn <- colnames(Z[[length(Z)]])
   Gu <- Gu[cn,cn, drop=FALSE]
+  attributes(Gu)$inverse = myInverseAttribute
   output <- list(Z=Z, Gu=Gu, theta=theta, thetaC=thetaC, thetaF=thetaF,partitionsR=partitionsR, sp=sp0)
   if(isFixed){
     return(as.matrix(do.call(cbind,Z)))
