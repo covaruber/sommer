@@ -27,7 +27,7 @@
   \code{random=~vsr(e,f,h,g)}
 
   where different covariance structures can be applied to the levels of \code{e,f,h} 
-  (i.e. \code{\link{dsr}}, \code{\link{usc}}, \code{\link{csc}}, \code{\link{atr}}, \code{\link{isr}} or
+  (i.e. \code{\link{dsr}}, \code{\link{usr}}, \code{\link{csr}}, \code{\link{atr}}, \code{\link{isr}} or
   a combination of these). For more examples please see the vignettes 'sommer.start' 
   available in the package.}
 
@@ -138,11 +138,11 @@ summary(mix)$varcomp
 #             rcov=~ vsr(dsr(Year),isr(units)),
 #             data=DT)
 ## ============================ ##
-## example to use usc() structure (UNSTRUCTURED)
+## example to use usr() structure (UNSTRUCTURED)
 ## ============================ ##
-usc(DT$Year)
+usr(DT$Year)
 mix <- mmer(Yield~Env,
-            random= ~ vsr(usc(Year),isr(Name)),
+            random= ~ vsr(usr(Year),isr(Name)),
             rcov=~ vsr(dsr(Year),isr(units)),
             nIters = 10,
             data=DT)
@@ -150,7 +150,7 @@ mix <- mmer(Yield~Env,
 ## example using structure in fixed effect
 ## (notice the isFixed argument)
 ## ============================ ##
-mix <- mmer(Yield~ vsr(atc(Env,"CA.2011"), isr(Name), isFixed = TRUE),
+mix <- mmer(Yield~ vsr(atr(Env,"CA.2011"), isr(Name), isFixed = TRUE),
             rcov=~ units,
             nIters=10,
             data=DT)

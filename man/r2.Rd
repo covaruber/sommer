@@ -13,7 +13,7 @@ r2(object, object2=NULL)
 
 \arguments{
   \item{object}{
-Model fitted with the mmec function.
+Model fitted with the mmer function.
 }
 \item{object2}{
 An optional model identical to object in the first argument but fitted with the argument returnParam set to TRUE to access the relationship matrices from the fitted model.
@@ -51,4 +51,4 @@ ans1 <- mmer(Yield~Env, mme=TRUE,
              data=DT)
 rel=r2(ans1)
 }
-\seealso{\code{\link{mmec}} -- the core function of the package }
+\seealso{\code{\link{mmer}} -- the core function of the package }

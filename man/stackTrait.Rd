@@ -2,7 +2,7 @@
 \alias{stackTrait}
 \title{Stacking traits in a dataset}
 \description{
-  \code{stackTrait} creates a dataset stacking traits in the long format to be used with the \code{\link{mmec}} solver for multi-trait models.
+  \code{stackTrait} creates a dataset stacking traits in the long format to be used with the \code{\link{mmer}} solver for multi-trait models.
 }
 \usage{
   stackTrait(data, traits)
@@ -36,4 +36,4 @@ DT2 <- stackTrait(DT, traits = c("Yield","Weight"))
 head(DT2)
 
 }
-\seealso{The function \code{\link{vsc}} to know how to use \code{stackTrait} in the \code{\link{mmec}} solver.}
+\seealso{The function \code{\link{vsr}} to know how to use \code{stackTrait} in the \code{\link{mmer}} solver.}

@@ -59,7 +59,7 @@ head(DT)
 
 fm2 <- mmer(Reaction ~ Days,
             random= ~ Subject, 
-            rcov = ~vsr(units, Gu=DS), # equivalent to Subject:ar1(Days)
+            rcov = ~vsr(isr(units), Gu=DS), # equivalent to Subject:ar1(Days)
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 

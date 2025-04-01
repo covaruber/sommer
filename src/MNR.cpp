@@ -2,7 +2,7 @@
 
 // we only include RcppArmadillo.h which pulls Rcpp.h in for us
 #define ARMA_DONT_PRINT_ERRORS
-// #define ARMA_64BIT_WORD 1
+#define ARMA_64BIT_WORD 1
 #include "RcppArmadillo.h"
 #include "stdlib.h"
 

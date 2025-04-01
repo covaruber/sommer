@@ -160,7 +160,7 @@ Since version 3.7 I have completly redefined the specification of the variance-c
 }
 \section{Differences of sommer >= 3.0.0 with previous versions}{
 
-Since version 3.0 I have decided to focus in developing the multivariate solver and for doing this I have decided to remove the M argument (for GWAS analysis) from the mmer function and move it to it's own function \code{\link{GWAS}}.
+Since version 3.0 I have decided to focus in developing the multivariate solver and for doing this I have decided to remove the M argument (for GWAS analysis) from the mmer function and move it to it's own function GWAS.
 
 Before the mmer solver had implemented the usr(trait), diag(trait), at(trait) asreml formulation for multivariate models that allow to specify the structure of the trait in multivariate models. Therefore the MVM argument was no longer needed. After version 3.7 now the multi-trait structures can be specified in the \code{Gt} and \code{Gtc} arguments of the \code{\link{vsr}} function.
 

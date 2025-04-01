@@ -65,4 +65,4 @@
 
 
 }
-\seealso{The core functions of the package \code{\link{mmer}} and \code{\link{mmec}} }
+\seealso{The core functions of the package \code{\link{mmer}}  }

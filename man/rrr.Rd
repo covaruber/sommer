@@ -95,7 +95,7 @@ rownames(A) <- colnames(A) <- indNames
 \donttest{
   
 # fit diagonal model first to produce H matrix
-ansDG <- mmer(y~Env,
+ansDG <- mmer(y~Env, mme=TRUE,
               random=~ vsr(dsr(Env), isr(Name)),
               rcov=~units, nIters = 100,
               # we recommend giving more EM iterations at the beggining
@@ -105,8 +105,8 @@ ansDG <- mmer(y~Env,
 H0 <- ansDG$uList$`vsr(dsr(Env), isr(Name))` # GxE table
 
 # reduced rank model
-ansFA <- mmer(y~Env,
-              random=~vsr( usc(rrr(Env, H = H0, nPC = 3)) , isr(Name)) + # rr
+ansFA <- mmer(y~Env, mme=TRUE,
+              random=~vsr( usr(rrr(Env, H = H0, nPC = 3)) , isr(Name)) + # rr
                 vsr(dsr(Env), isr(Name)), # diag
               rcov=~units,
               # we recommend giving more iterations to these models

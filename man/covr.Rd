@@ -1,11 +1,11 @@
-\name{covc}
-\alias{covc}
+\name{covr}
+\alias{covr}
 \title{covariance between random effects}
 \description{
-  \code{covc} merges the incidence matrices and covariance matrices of two random effects to fit an unstructured model between 2 different random effects to be fitted with the \code{\link{mmec}} solver.
+  \code{covr} merges the incidence matrices and covariance matrices of two random effects to fit an unstructured model between 2 different random effects to be fitted with the \code{\link{mmer}} solver.
 }
 \usage{
-  covc(ran1, ran2, thetaC=NULL, theta=NULL)
+  covr(ran1, ran2, thetaC=NULL, theta=NULL)
 }
 
 \arguments{
@@ -49,9 +49,9 @@ This implementation aims to fit models where covariance between random variables
 
 data(DT_ige)
 DT <- DT_ige
-covRes <- with(DT, covc( vsc(isc(focal)) , vsc(isc(neighbour)) ) )
+covRes <- with(DT, covr( vsr(isr(focal)) , vsr(isr(neighbour)) ) )
 str(covRes)
 # look at DT_ige help page to see how to fit an actual model
 
 }
-\seealso{The function \code{\link{vsc}} to know how to use \code{covc} in the \code{\link{mmec}} solver.}
+\seealso{The function \code{\link{vsr}} to know how to use \code{covr} in the \code{\link{mmer}} solver.}

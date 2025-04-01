@@ -49,7 +49,7 @@ corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
       dd=data.frame(full=as.vector(unlist(wide2[jRow,])), partial=as.vector(unlist(wide[jRow,])))
       # model <- fastLm(partial~full,data=dd[which(!is.na(dd$partial)),])
       # model <- lm(partial~full,data=dd[which(!is.na(dd$partial)),])
-      model <- mmec(partial~full,data=dd[which(!is.na(dd$partial)),], verbose = FALSE)
+      model <- mmer(partial~full,data=dd[which(!is.na(dd$partial)),], verbose = FALSE)
       pp=as.vector(model$b[1,1])+(dd[which(is.na(dd$partial)),"full"]*as.vector(model$b[2,1]))
       if(roundR){
         wide[jRow,miss] <- round(pp)#round(predict(model,newdata = dd[which(is.na(dd$partial)),]))
@@ -72,7 +72,7 @@ logspace <- function (n, start, end) {
 
 r2 <- function(object, object2=NULL){
   if(!inherits(object, "mmer")){
-    stop("This function is only available for models fitted with the mmec() function.", call. = FALSE)
+    stop("This function is only available for models fitted with the mmer() function.", call. = FALSE)
   }
   result <- list()
   for(iPart in 1:length(object$uPevList)){

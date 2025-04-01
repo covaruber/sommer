@@ -61,4 +61,4 @@ atr(x, c("1","2"))
 # summary(ans1)$varcomp
 
 }
-\seealso{The function \code{\link{vsc}} to know how to use \code{atr} in the \code{\link{mmer}} solver. }
+\seealso{The function \code{\link{vsr}} to know how to use \code{atr} in the \code{\link{mmer}} solver. }

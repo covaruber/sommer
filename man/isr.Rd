@@ -2,7 +2,7 @@
 \alias{isr}
 \title{identity covariance structure}
 \description{
-  \code{isr} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mmec}} solver. Any random effect with a special covariance structure should end with an isr() structure.
+  \code{isr} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mmer}} solver. Any random effect with a special covariance structure should end with an isr() structure.
 }
 \usage{
   isr(x, thetaC=NULL, theta=NULL)
@@ -46,10 +46,10 @@ x <- as.factor(c(1:5,1:5,1:5));x
 isr(x)
 
 # data(DT_example)
-# ans1 <- mmec(Yield~Env,
-#              random= ~ vsc( isr( Name ) ),
+# ans1 <- mmer(Yield~Env,
+#              random= ~ vsr( isr( Name ) ),
 #              data=DT_example)
 # summary(ans1)$varcomp
 
 }
-\seealso{See the function \code{\link{vsc}} to know how to use \code{isr} in the \code{\link{mmec}} solver.}
+\seealso{See the function \code{\link{vsr}} to know how to use \code{isr} in the \code{\link{mmer}} solver.}

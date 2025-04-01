@@ -39,7 +39,7 @@ DT$genof <- as.factor(DT$geno)
 A <- diag(7); colnames(A) <- rownames(A) <- 1:7;A # if you want to provide a covariance matrix
 #### model using overlay
 modh <- mmer(sugar~1, 
-             random=~vsr(overlay(femalef,malef, sparse = FALSE), Gu=A) 
+             random=~vsr(isr(overlay(femalef,malef, sparse = FALSE)), Gu=A) 
              + genof,
              data=DT)
 summary(modh)$varcomp

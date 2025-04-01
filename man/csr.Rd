@@ -2,7 +2,7 @@
 \alias{csr}
 \title{customized covariance structure}
 \description{
-  \code{csr} creates a customized covariance structure for specific levels of the random effect to be used with the \code{\link{mmec}} solver.
+  \code{csr} creates a customized covariance structure for specific levels of the random effect to be used with the \code{\link{mmer}} solver.
 }
 \usage{
   csr(x, mm, thetaC, theta)
@@ -51,4 +51,4 @@
 x <- as.factor(c(1:5,1:5,1:5));x
 csr(x,matrix(1,5,5))
 }
-\seealso{The function \code{\link{vsc}} to know how to use \code{csr} in the \code{\link{mmec}} solver.}
+\seealso{The function \code{\link{vsr}} to know how to use \code{csr} in the \code{\link{mmer}} solver.}

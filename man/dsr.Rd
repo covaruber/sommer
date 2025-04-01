@@ -2,7 +2,7 @@
 \alias{dsr}
 \title{diagonal covariance structure}
 \description{
-  \code{dsr} creates a diagonal covariance structure for the levels of the random effect  to be used with the \code{\link{mmec}} solver.
+  \code{dsr} creates a diagonal covariance structure for the levels of the random effect  to be used with the \code{\link{mmer}} solver.
 }
 \usage{
   dsr(x, thetaC=NULL, theta=NULL)
@@ -53,11 +53,12 @@ dsr(x)
 # DT <- DT_example
 # theta <- diag(3)*2; theta # initial VCs
 # thetaC <- diag(3)*3; thetaC # fixed VCs
-# ans1 <- mmec(Yield~Env,
+# ans1 <- mmer(Yield~Env,
 #              random= ~ vsr( dsr(Env,theta = theta,thetaC = thetaC),isr(Name) ),
 #              rcov= ~ units,
 #              data=DT)
 # summary(ans1)$varcomp
 
 }
-\seealso{See the function \code{\link{vsc}} to know how to use \code{dsr} in the \code{\link{mmec}} solver.}
+\seealso{See the function \code{\link{vsr}} to know how to use \code{dsr} in the \code{\link{mmer}} solver.}
+
