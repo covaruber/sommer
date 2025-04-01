@@ -35,7 +35,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # data(DT_btdata)
 # DT <- DT_btdata
 # head(DT)
-# mix4 <- mmer(tarsus ~ sex,
+# mix4 <- mme(tarsus ~ sex,
 #              random = ~ dam + fosternest,
 #              rcov=~units,
 #              data = DT)
@@ -47,10 +47,10 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # head(DT2$long)
 # DT2$long=DT2$long[with(DT2$long, order(trait)), ]
 # 
-# mix3 <- mmer(valueS ~ trait:sex - 1, mme=TRUE,
-#                 random = ~ vsr(usr(trait),isr(dam)) +  
-#                            vsr(usr(trait), isr(fosternest)),
-#                 rcov= ~ vsr(dsr(trait),isr(units)),
+# mix3 <- mme(valueS ~ trait:sex - 1, henderson=TRUE,
+#                 random = ~ vsm(usm(trait),ism(dam)) +  
+#                            vsm(usm(trait), ism(fosternest)),
+#                 rcov= ~ vsm(dsm(trait),ism(units)),
 #                 data = DT2$long)
 # 
 # 
@@ -61,4 +61,4 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}}  }
+\seealso{The core functions of the package \code{\link{mme}}  }

@@ -72,4 +72,3 @@ mapCP <- mapCP[which(mapCP$LG <= 3),]
 #                 unlinked = TRUE,gamma = .95)
 # abline(h=res3$all.LG, col="red")
 }
-\seealso{The core functions of the package \code{\link{mmer}} }

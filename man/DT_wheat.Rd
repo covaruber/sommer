@@ -69,13 +69,13 @@ A platform for meta-analysis of rice crop data. \emph{Plant Physiology} \bold{13
 # K[1:4,1:4]
 # ###=========================================####
 # ###=========================================####
-# ### using formula based 'mmer'
+# ### using formula based 'mme'
 # ###=========================================####
 # ###=========================================####
 # head(DT)
 # #### univariate
-# mix0 <- mmer(x1~1,
-#              random = ~vsr(isr(line),Gu=K),
+# mix0 <- mme(x1~1,
+#              random = ~vsm(ism(line),Gu=K),
 #              rcov=~units,
 #              data=DT)
 # summary(mix0)$varcomp
@@ -85,4 +85,4 @@ A platform for meta-analysis of rice crop data. \emph{Plant Physiology} \bold{13
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mme}} }

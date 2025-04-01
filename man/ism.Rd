@@ -1,11 +1,11 @@
-\name{isr}
-\alias{isr}
+\name{ism}
+\alias{ism}
 \title{identity covariance structure}
 \description{
-  \code{isr} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mmer}} solver. Any random effect with a special covariance structure should end with an isr() structure.
+  \code{ism} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mmer}} solver. Any random effect with a special covariance structure should end with an ism() structure.
 }
 \usage{
-  isr(x, thetaC=NULL, theta=NULL)
+  ism(x, thetaC=NULL, theta=NULL)
 }
 
 \arguments{
@@ -43,13 +43,13 @@
 
 \examples{
 x <- as.factor(c(1:5,1:5,1:5));x
-isr(x)
+ism(x)
 
 # data(DT_example)
-# ans1 <- mmer(Yield~Env,
-#              random= ~ vsr( isr( Name ) ),
+# ans1 <- mme(Yield~Env,
+#              random= ~ vsm( ism( Name ) ),
 #              data=DT_example)
 # summary(ans1)$varcomp
 
 }
-\seealso{See the function \code{\link{vsr}} to know how to use \code{isr} in the \code{\link{mmer}} solver.}
+\seealso{See the function \code{\link{vsr}} to know how to use \code{ism} in the \code{\link{mmer}} solver.}

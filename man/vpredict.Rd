@@ -1,8 +1,8 @@
 \name{vpredict}
 \alias{vpredict}
-\alias{vpredict.mmer}
-\title{vpredict form of a LMM fitted with mmer}
-\description{\code{vpredict} method for class \code{"mmer"}.
+\alias{vpredict.mme}
+\title{vpredict form of a LMM fitted with mme}
+\description{\code{vpredict} method for class \code{"mme"}.
 
 Post-analysis procedure to calculate linear combinations of variance components. Its intended use is when the variance components are either simple variances or are variances and covariances in an unstructured matrix. The functions covered are linear combinations of the variance components (for example, phenotypic variance), a ratio of two components (for example, heritabilities) and the correlation based on three components (for example, genetic correlation). 
  
@@ -14,12 +14,12 @@ The transform is specified with a formula. On the left side of the formula is a 
 \usage{
 
 vpredict(object, transform)
-\method{vpredict}{mmer}(object, transform)
+\method{vpredict}{mme}(object, transform)
 
 }
 \arguments{
 
- \item{object}{a model fitted with the mmer function.}
+ \item{object}{a model fitted with the mme function.}
  
  \item{transform}{a formula to calculate the function.}
  
@@ -34,7 +34,7 @@ vpredict(object, transform)
   differentiation with \code{\link[stats]{deriv}}.
 
 Though \code{vpredict} can calculate standard errors for non-linear functions
-  of (co)variance parameters from a fitted \code{mmer} model, it is limited
+  of (co)variance parameters from a fitted \code{mme} model, it is limited
   to non-linear functions constructed by mathematical operations such as the
   arithmetic operators \code{+}, \code{-}, \code{*}, \code{/} and \code{^},
   and single-variable functions such as  \code{exp} and \code{log}. See 
@@ -55,7 +55,7 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
   
  }
 \author{Giovanny Covarrubias}
-\seealso{\code{\link{vpredict}}, \code{\link{mmer}}}
+\seealso{\code{\link{vpredict}}, \code{\link{mme}}}
 \keyword{models}
 \examples{
 
@@ -73,64 +73,12 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
 # A <- A.mat(GT)
 # #### look at the data and fit the model
 # head(DT)
-# mix1 <- mmer(Yield~1,
-#               random=~vsr(id,Gu=A), 
+# mix1 <- mme(Yield~1,
+#               random=~vsm(ism(id),Gu=A), 
 #               data=DT)
 # summary(mix1)$varcomp
 # #### run the vpredict function
 # vpredict(mix1, h2 ~ V1 / ( V1 + V2 ) )
-# 
-# ####=========================================####
-# ####=========================================####
-# #### EXAMPLE 2
-# #### simple example with multivariate models
-# ####=========================================####
-# ####=========================================####
-# data(DT_cpdata)
-# DT <- DT_cpdata
-# GT <- GT_cpdata
-# MP <- MP_cpdata
-# #### create the variance-covariance matrix 
-# A <- A.mat(GT)
-# #### look at the data and fit the model
-# head(DT)
-# mix2 <- mmer(cbind(Yield,color)~1,
-#                random=~vsr(id,Gu=A, Gt=unsm(2)), 
-#                rcov=~vsr(units, Gt=unsm(2)),
-#               data=DT)
-# summary(mix2)$varcomp
-# ## genetic correlation
-# vpredict(mix2, gen.cor ~ V2 / sqrt(V1*V3))
-# 
-# ####=========================================####
-# ####=========================================####
-# #### EXAMPLE 3
-# #### more complex multivariate model
-# ####=========================================####
-# ####=========================================####
-# data(DT_btdata)
-# DT <- DT_btdata
-# mix3 <- mmer(cbind(tarsus, back) ~ sex,
-#                random = ~ vsr(dam, Gtc=unsm(2)) + vsr(fosternest,Gtc=diag(2)),
-#                rcov=~vsr(units,Gtc=unsm(2)),
-#                data = DT)
-# summary(mix3)$varcomp
-# #### calculate the genetic correlation
-# vpredict(mix3, gen.cor ~ V2 / sqrt(V1*V3))
-# 
-# ####=========================================####
-# ####=========================================####
-# #### EXAMPLE 4
-# #### going back to simple examples
-# ####=========================================####
-# ####=========================================####
-# data(DT_btdata)
-# DT <- DT_btdata
-# mix4 <- mmer(tarsus ~ sex, random = ~ dam + fosternest,
-#                data = DT) 
-# summary(mix4)$varcomp
-# #### calculate the ratio and its SE
-# vpredict(mix4, dam.prop ~ V1 / ( V1 + V2 + V3 ) )
 
 
 }

@@ -39,4 +39,3 @@ x <- sort(rep(1:3,100))
 # see dataset data(DT_legendre) for a random regression modeling example
 
 }
-\seealso{The core functions of the package \code{\link{mmer}}}

@@ -88,4 +88,3 @@ res2$HMM.dom[1:5,1:5]
 # D <- D.mat(M)
 
 }
-\seealso{\code{\link{mmer}}-- the core function of the package }

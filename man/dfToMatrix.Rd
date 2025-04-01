@@ -45,4 +45,3 @@ dfToMatrix(mdf, row = "Var1", column = "Var2",
 
 
 }
-\seealso{The core functions of the package \code{\link{mmer}} }

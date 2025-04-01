@@ -49,4 +49,6 @@ head(DT2)
 ## see ?DT_mohring for an example on how to use the data to fit diallel models.
 
 }
-\seealso{The core functions of the package \code{\link{mmer}}, the \code{\link{overlay}} function and the \code{\link{DT_mohring}} example. }
+\seealso{The \code{\link{overlay}} function and the \code{\link{DT_mohring}} example. }
+
+

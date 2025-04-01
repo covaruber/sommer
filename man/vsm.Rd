@@ -1,11 +1,11 @@
-\name{vsr}
-\alias{vsr}
+\name{vsm}
+\alias{vsm}
 \title{variance structure specification}
 \description{
-  \code{vsr} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmer}} solver. 
+  \code{vsm} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mme}} solver. 
 }
 \usage{
-  vsr(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
+  vsm(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
       sp=FALSE, isFixed=FALSE, verbose=TRUE)
 }
 
@@ -14,9 +14,9 @@
 
   \code{var(g) = G.e @ I.g}
 
-  being \code{G.e}  a matrix containing the variance covariance components for g (genotypes) in each level of e (environments), \code{I.g} is the covariance among levels of g (genotypes; i.e. relationship matrix), and @ is the kronecker product. This would be specified in the mmer solver as:
+  being \code{G.e}  a matrix containing the variance covariance components for g (genotypes) in each level of e (environments), \code{I.g} is the covariance among levels of g (genotypes; i.e. relationship matrix), and @ is the kronecker product. This would be specified in the mme solver as:
 
-  \code{random=~vsr(dsr(e),g)}
+  \code{random=~vsm(dsm(e),g)}
 
   One strength of sommer is the ability to specify very complex structures with as many kronecker products as desired. For example:
 
@@ -24,10 +24,10 @@
 
   is equivalent to
 
-  \code{random=~vsr(e,f,h,g)}
+  \code{random=~vsm(e,f,h,g)}
 
   where different covariance structures can be applied to the levels of \code{e,f,h} 
-  (i.e. \code{\link{dsr}}, \code{\link{usr}}, \code{\link{csr}}, \code{\link{atr}}, \code{\link{isr}} or
+  (i.e. \code{\link{dsm}}, \code{\link{usm}}, \code{\link{csm}}, \code{\link{atm}}, \code{\link{ism}} or
   a combination of these). For more examples please see the vignettes 'sommer.start' 
   available in the package.}
 
@@ -57,9 +57,9 @@
 
    \item{meThetaC}{constraints for the variance covariance matrix between the main effects desired. Just to be modified if the number of main effects is greater of 1 (e.g., indirect genetic effects).}
 
-   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmer function through the addScaleParam argument in the \code{mmer} function .}
+   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mme function through the addScaleParam argument in the \code{mme} function .}
    
-   \item{isFixed}{a TRUE/FALSE statement to indicate if the vsr function is being used in the fixed part of the model. When TRUE, the function only returns the model matrix to avoid any error messages associated to returning all elements for a random effect. FALSE is the default since it is assumed to be used for a variance structure in a random effect.}
+   \item{isFixed}{a TRUE/FALSE statement to indicate if the vsm function is being used in the fixed part of the model. When TRUE, the function only returns the model matrix to avoid any error messages associated to returning all elements for a random effect. FALSE is the default since it is assumed to be used for a variance structure in a random effect.}
    
    \item{verbose}{a TRUE/FALSE statement to indicate if messages should be printed when special situations accur. For example, adding unphenotyped individuals to the incidence matrices when present in the relationship  matrices.}
 
@@ -71,7 +71,7 @@
 }
 \value{
   \describe{
-    \item{$res}{a list with all neccesary elements (incidence matrices, known var-cov structures, unknown covariance structures to be estimated and constraints) to be used in the mmer solver.}
+    \item{$res}{a list with all neccesary elements (incidence matrices, known var-cov structures, unknown covariance structures to be estimated and constraints) to be used in the mme solver.}
   }
 }
 \references{
@@ -101,9 +101,9 @@ DT <- droplevels(DT[which(!is.na(match(DT$Name, x[1:5]))),])
 ## ============================ ##
 ## example without structure
 ## ============================ ##
-isr(DT$Name)
-mix <- mmer(Yield~Env,
-            random= ~ vsr(isr(Name)),
+ism(DT$Name)
+mix <- mme(Yield~Env,
+            random= ~ vsm(ism(Name)),
             rcov=~ units,
             nIters=10,
             data=DT)
@@ -113,47 +113,47 @@ mix <- mmer(Yield~Env,
 ## using covariance among levels in the
 ## random effect Name
 ## ============================ ##
-mix <- mmer(Yield~Env, 
-            random= ~ vsr(isr(Name), Gu=A),
+mix <- mme(Yield~Env, 
+            random= ~ vsm(ism(Name), Gu=A),
             rcov=~ units,
             nIters=10,
             data=DT)
 summary(mix)$varcomp
 ## ============================ ##
-## example to use dsr() structure (DIAGONAL)
+## example to use dsm() structure (DIAGONAL)
 ## ============================ ##
-dsr(DT$Year)
-mix <- mmer(Yield~Env,
-            random= ~ vsr(dsr(Year),isr(Name)),
-            rcov=~ vsr(dsr(Year),isr(units)),
+dsm(DT$Year)
+mix <- mme(Yield~Env,
+            random= ~ vsm(dsm(Year),ism(Name)),
+            rcov=~ vsm(dsm(Year),ism(units)),
             nIters=10,
             data=DT)
 summary(mix)$varcomp
 ## ============================ ##
-## example to use atc() structure (level-specific)
+## example to use atm() structure (level-specific)
 ## ============================ ##
 # unique(DT$Year)
-# mix <- mmer(Yield~Env,
-#             random= ~ vsr(atc(Year,c("2011","2012")),isr(Name)),
-#             rcov=~ vsr(dsr(Year),isr(units)),
+# mix <- mme(Yield~Env,
+#             random= ~ vsm(atm(Year,c("2011","2012")),ism(Name)),
+#             rcov=~ vsm(dsm(Year),ism(units)),
 #             data=DT)
 ## ============================ ##
-## example to use usr() structure (UNSTRUCTURED)
+## example to use usm() structure (UNSTRUCTURED)
 ## ============================ ##
-usr(DT$Year)
-mix <- mmer(Yield~Env,
-            random= ~ vsr(usr(Year),isr(Name)),
-            rcov=~ vsr(dsr(Year),isr(units)),
+usm(DT$Year)
+mix <- mme(Yield~Env,
+            random= ~ vsm(usm(Year),ism(Name)),
+            rcov=~ vsm(dsm(Year),ism(units)),
             nIters = 10,
             data=DT)
 ## ============================ ##
 ## example using structure in fixed effect
 ## (notice the isFixed argument)
 ## ============================ ##
-mix <- mmer(Yield~ vsr(atr(Env,"CA.2011"), isr(Name), isFixed = TRUE),
+mix <- mme(Yield~ vsm(atm(Env,"CA.2011"), ism(Name), isFixed = TRUE),
             rcov=~ units,
             nIters=10,
             data=DT)
 
 }
-\seealso{The core function of the package: \code{\link{mmer}}}
+\seealso{The core function of the package: \code{\link{mme}}}

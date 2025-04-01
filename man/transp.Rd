@@ -33,4 +33,3 @@ Ben Hui Liu. 1998. Statistical Genomics. CRC Press LLC. ISBN 0-8493-3166-8.
 \examples{
 transp("red", alpha=0.5)
 }
-\seealso{The core functions of the package \code{\link{mmer}} }

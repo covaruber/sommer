@@ -36,4 +36,3 @@ DT2 <- stackTrait(DT, traits = c("Yield","Weight"))
 head(DT2)
 
 }
-\seealso{The function \code{\link{vsr}} to know how to use \code{stackTrait} in the \code{\link{mmer}} solver.}

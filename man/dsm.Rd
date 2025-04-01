@@ -1,11 +1,11 @@
-\name{dsr}
-\alias{dsr}
+\name{dsm}
+\alias{dsm}
 \title{diagonal covariance structure}
 \description{
-  \code{dsr} creates a diagonal covariance structure for the levels of the random effect  to be used with the \code{\link{mmer}} solver.
+  \code{dsm} creates a diagonal covariance structure for the levels of the random effect  to be used with the \code{\link{mme}} solver.
 }
 \usage{
-  dsr(x, thetaC=NULL, theta=NULL)
+  dsm(x, thetaC=NULL, theta=NULL)
 }
 
 \arguments{
@@ -47,18 +47,18 @@
 
 \examples{
 x <- as.factor(c(1:5,1:5,1:5));x
-dsr(x)
+dsm(x)
 ## how to use the theta and thetaC arguments:
 # data(DT_example)
 # DT <- DT_example
 # theta <- diag(3)*2; theta # initial VCs
 # thetaC <- diag(3)*3; thetaC # fixed VCs
-# ans1 <- mmer(Yield~Env,
-#              random= ~ vsr( dsr(Env,theta = theta,thetaC = thetaC),isr(Name) ),
+# ans1 <- mme(Yield~Env,
+#              random= ~ vsm( dsm(Env,theta = theta,thetaC = thetaC),ism(Name) ),
 #              rcov= ~ units,
 #              data=DT)
 # summary(ans1)$varcomp
 
 }
-\seealso{See the function \code{\link{vsr}} to know how to use \code{dsr} in the \code{\link{mmer}} solver.}
+\seealso{See the function \code{\link{vsm}} to know how to use \code{dsm} in the \code{\link{mme}} solver.}
 

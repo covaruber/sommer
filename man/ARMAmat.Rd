@@ -38,4 +38,3 @@ x <- 1:4
 R1 <- ARMA(x,rho=.25,lambda=0.2)
 image(R1)
 }
-\seealso{The core function of the package \code{\link{mmer}}}

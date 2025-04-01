@@ -34,13 +34,13 @@ head(DT)
 #### fit the mixed model (very heavy model)
 ####=========================================####
 # DT=DT[with(DT, order(Env)), ]
-# ans1 <- mmer(y~Env, mme=FALSE,
-#               random=~vsr(dsr(Env),isr(Name)) + vsr(dsr(Env),isr(Block)),
-#               rcov=~vsr(dsr(Env),isr(units)),
+# ans1 <- mme(y~Env, henderson=FALSE,
+#               random=~vsm(dsm(Env),ism(Name)) + vsm(dsm(Env),ism(Block)),
+#               rcov=~vsm(dsm(Env),ism(units)),
 #               data=DT)
 # summary(ans1)$varcomp
 # 
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}}  }
+\seealso{The core functions of the package \code{\link{mme}}  }

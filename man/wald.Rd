@@ -75,7 +75,7 @@
 data(DT_yatesoats)
 DT <- DT_yatesoats
 
-m3 <- mmer(fixed=Y ~ V + N + V:N-1,
+m3 <- mme(fixed=Y ~ V + N + V:N-1,
            random = ~ B + B:MP,
            rcov=~units,
            data = DT)

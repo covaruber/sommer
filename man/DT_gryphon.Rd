@@ -48,8 +48,8 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # #### look at the data
 # head(DT)
 # #### fit the model with no fixed effects (intercept only)
-# mix1 <- mmer(BWT~1,
-#              random=~vsr(isr(ANIMAL),Gu=A),
+# mix1 <- mme(BWT~1,
+#              random=~vsm(ism(ANIMAL),Gu=A),
 #              rcov=~units,
 #              data=DT)
 # summary(mix1)$varcomp
@@ -66,13 +66,13 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # head(DT2$long)
 # 
 # # #### fit the multivariate model with no fixed effects (intercept only)
-# mix2 <- mmer(valueS~trait, mme=FALSE, # using direct inversion
-#              random=~vsr(usr(trait),isr(ANIMAL),Gu=A),
-#              rcov=~vsr(dsr(trait),isr(units)),
+# mix2 <- mme(valueS~trait, henderson=FALSE, # using direct inversion
+#              random=~vsm(usm(trait),ism(ANIMAL),Gu=A),
+#              rcov=~vsm(dsm(trait),ism(units)),
 #              data=DT2$long)
 # summary(mix2)$varcomp
 # cov2cor(mix2$theta[[1]])
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mme}} }

@@ -25,5 +25,4 @@
 image(matrix(seq(100), 100), col=jet.colors(100))
 }
 }
-\seealso{The core function of the package \code{\link{mmer}} }
 

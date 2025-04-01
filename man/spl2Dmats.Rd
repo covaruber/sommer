@@ -102,7 +102,7 @@ List of length 7 elements:
 }
 \description{
 \code{spl2Dmats} gets Tensor-Product P-Spline Mixed Model Incidence Matrices
-    for use with \code{sommer} and its main function \code{mmer}. We thank Sue Welham for making the TPSbits package available to the community. If you're using this function for your research please cite her TPSbits package :) this is mostly a wrapper of her tpsmmb function to enable the use in sommer.
+    for use with \code{sommer} and its main function \code{mme}. We thank Sue Welham for making the TPSbits package available to the community. If you're using this function for your research please cite her TPSbits package :) this is mostly a wrapper of her tpsmmb function to enable the use in sommer.
 }
 \examples{
 
@@ -115,10 +115,10 @@ A <- A.mat(GT) # additive relationship matrix
 
 M <- spl2Dmats(x.coord.name = "Col", y.coord.name = "Row", data=DT, nseg =c(14,21))
 head(M$data)
-# m1g <- mmer(Yield~1+TP.CR.2+TP.CR.3+TP.CR.4,
-#             random=~Rowf+Colf+vsr(isr(M$fC))+vsr(isr(M$fR))+
-#               vsr(isr(M$fC.R))+vsr(isr(M$C.fR))+vsr(isr(M$fC.fR))+
-#               vsr(isr(id),Gu=A),
+# m1g <- mme(Yield~1+TP.CR.2+TP.CR.3+TP.CR.4,
+#             random=~Rowf+Colf+vsm(ism(M$fC))+vsm(ism(M$fR))+
+#               vsm(ism(M$fC.R))+vsm(ism(M$C.fR))+vsm(ism(M$fC.fR))+
+#               vsm(ism(id),Gu=A),
 #             data=M$data, tolpar = 1e-6,
 #             iters=30)
 # 

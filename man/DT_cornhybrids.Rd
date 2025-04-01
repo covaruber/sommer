@@ -49,8 +49,8 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # S <- kronecker(K1, K2) ; dim(S)
 # rownames(S) <- colnames(S) <- levels(hybrid2$SCA)
 # 
-# ans <- mmer(Yield ~ Location,
-#              random = ~ vsr(isr(GCA1),Gu=K1) + vsr(isr(GCA2),Gu=K2), # + vsr(isr(SCA),Gu=S),
+# ans <- mme(Yield ~ Location,
+#              random = ~ vsm(ism(GCA1),Gu=K1) + vsm(ism(GCA2),Gu=K2), # + vsm(ism(SCA),Gu=S),
 #              rcov=~units,
 #              data=hybrid2)
 # summary(ans)$varcomp
@@ -62,9 +62,9 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # K2i <- as(as(as( K2i,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # Si <- solve(S + diag(1e-4,ncol(S),ncol(S)))
 # Si <- as(as(as( Si,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# ans2 <- mmer(Yield ~ Location,
-#              random = ~ vsr(isr(GCA1),Gu=K1i) + vsr(isr(GCA2),Gu=K2i), # + vsr(isr(SCA),Gu=Si),
-#              mme=TRUE,
+# ans2 <- mme(Yield ~ Location,
+#              random = ~ vsm(ism(GCA1),Gu=K1i) + vsm(ism(GCA2),Gu=K2i), # + vsm(ism(SCA),Gu=Si),
+#              henderson=TRUE,
 #              rcov=~units,
 #              data=hybrid2)
 # summary(ans2)$varcomp
@@ -72,4 +72,4 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}}  }
+\seealso{The core functions of the package \code{\link{mme}}  }

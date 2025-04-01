@@ -39,7 +39,7 @@ head(DT)
 # fm1 <- lmer(Reaction ~ Days + (1 | Subject), data=DT)
 # vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
 ## sommer
-fm2 <- mmer(Reaction ~ Days,
+fm2 <- mme(Reaction ~ Days,
             random= ~ Subject, 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
@@ -49,8 +49,8 @@ summary(fm2)$varcomp
 # fm1 <- lmer(Reaction ~ Days + (Days || Subject), data=DT)
 # vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
 ## sommer
-fm2 <- mmer(Reaction ~ Days,
-            random= ~ Subject + vsr(isr(Days), isr(Subject)), 
+fm2 <- mme(Reaction ~ Days,
+            random= ~ Subject + vsm(ism(Days), ism(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 
@@ -61,8 +61,8 @@ summary(fm2)$varcomp
 ## sommer
 ## no equivalence in sommer to find the correlation between the 2 vc
 ## this is the most similar which is equivalent to (intercept || slope)
-fm2 <- mmer(Reaction ~ Days,
-            random= ~ Subject + vsr(isr(Days), isr(Subject)), 
+fm2 <- mme(Reaction ~ Days,
+            random= ~ Subject + vsm(ism(Days), ism(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 
@@ -71,11 +71,11 @@ summary(fm2)$varcomp
 # fm1 <- lmer(Reaction ~ Days + (0 + Days | Subject), data=DT)
 # vc <- VarCorr(fm1); print(vc,comp=c("Variance"))
 ## sommer
-fm2 <- mmer(Reaction ~ Days,
-            random= ~ vsr(isr(Days), isr(Subject)), 
+fm2 <- mme(Reaction ~ Days,
+            random= ~ vsm(ism(Days), ism(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mme}} }

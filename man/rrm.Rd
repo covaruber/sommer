@@ -2,7 +2,7 @@
 \alias{rrr}
 \title{reduced rank covariance structure}
 \description{
-  \code{rrr} creates a reduced rank factor analytic covariance structure by selecting the n vectors of the L matrix of the Cholesky decomposition or the U vectors of the SVD decomposition (loadings or latent covariates) to create a new incidence matrix of latent covariates that can be used with the \code{\link{mmer}} solver to fit random regressions on the latent covariates.
+  \code{rrr} creates a reduced rank factor analytic covariance structure by selecting the n vectors of the L matrix of the Cholesky decomposition or the U vectors of the SVD decomposition (loadings or latent covariates) to create a new incidence matrix of latent covariates that can be used with the \code{\link{mme}} solver to fit random regressions on the latent covariates.
 }
 \usage{
   rrr(x=NULL, H=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE)
@@ -49,7 +49,7 @@ which is equal to the one above but assumes specific effects = 0.
 
 4) Gamma is used to form a new incidence matrix as Z* = Z Gamma
 
-5) This matrix is later used for the REML machinery to be used with the usc (unstructured) or dsr (diagonal) structures to estimate variance components and factor scores. The resulting BLUPs from the mixed model are the optimized factor scores. Pretty much as a random regression over latent covariates.
+5) This matrix is later used for the REML machinery to be used with the usc (unstructured) or dsm (diagonal) structures to estimate variance components and factor scores. The resulting BLUPs from the mixed model are the optimized factor scores. Pretty much as a random regression over latent covariates.
 
 This implementation does not update the loadings (latent covariates) during the REML process, only estimates the REML factor scores for fixed loadings. This is different to other software (e.g., asreml) where the loadings are updated during the REML process as well. 
 
@@ -95,19 +95,19 @@ rownames(A) <- colnames(A) <- indNames
 \donttest{
   
 # fit diagonal model first to produce H matrix
-ansDG <- mmer(y~Env, mme=TRUE,
-              random=~ vsr(dsr(Env), isr(Name)),
+ansDG <- mme(y~Env, henderson=TRUE,
+              random=~ vsm(dsm(Env), ism(Name)),
               rcov=~units, nIters = 100,
               # we recommend giving more EM iterations at the beggining
               emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
               data=DT)
 
-H0 <- ansDG$uList$`vsr(dsr(Env), isr(Name))` # GxE table
+H0 <- ansDG$uList$`vsm(dsm(Env), ism(Name))` # GxE table
 
 # reduced rank model
-ansFA <- mmer(y~Env, mme=TRUE,
-              random=~vsr( usr(rrr(Env, H = H0, nPC = 3)) , isr(Name)) + # rr
-                vsr(dsr(Env), isr(Name)), # diag
+ansFA <- mme(y~Env, henderson=TRUE,
+              random=~vsm( usm(rrr(Env, H = H0, nPC = 3)) , ism(Name)) + # rr
+                vsm(dsm(Env), ism(Name)), # diag
               rcov=~units,
               # we recommend giving more iterations to these models
               nIters = 100,
@@ -134,4 +134,4 @@ u <- uFA + uDG
 
 
 }
-\seealso{The function \code{\link{vsr}} to know how to use \code{rrr} in the \code{\link{mmer}} solver.}
+\seealso{The function \code{\link{vsm}} to know how to use \code{rrr} in the \code{\link{mme}} solver.}

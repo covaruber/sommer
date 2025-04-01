@@ -57,13 +57,12 @@ colnames(DS) <- rownames(DS) <- paste0("u",1:nrow(DS))
 # fit the residual model
 head(DT)
 
-fm2 <- mmer(Reaction ~ Days,
+fm2 <- mme(Reaction ~ Days,
             random= ~ Subject, 
-            rcov = ~vsr(isr(units), Gu=DS), # equivalent to Subject:ar1(Days)
+            rcov = ~vsm(ism(units), Gu=DS), # equivalent to Subject:ar1(Days)
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 
 # the matrix D can take any form: AR1, ARMA, or a custom correlation matrix
 
 }
-\seealso{The core function of the package \code{\link{mmer}}}

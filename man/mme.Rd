@@ -1,13 +1,13 @@
-\name{mmer}
-\alias{mmer}
+\name{mme}
+\alias{mme}
 \title{
 
-\strong{m}ixed \strong{m}odel \strong{e}quations in \strong{r}
+\strong{m}ixed \strong{m}odel \strong{e}quations
 
 }
 \description{
 
-The \code{mmer} function uses either the direct inversion or the Henderson mixed 
+The \code{mme} function uses either the direct inversion or the Henderson mixed 
 model equations algorithms coded in C++ using the Armadillo library to optimize matrix 
 operations common in problems with sparse data (e.g., genotype by environment models). 
 This algorithm is \strong{intended to be used for problems of the type r > c (more 
@@ -21,11 +21,11 @@ relationship matrix as an inverse.
 
 \usage{
 
-mmer(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
+mme(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
      tolParConvNorm = 1e-04, tolParInv = 1e-06, naMethodX="exclude",
      naMethodY="exclude", returnParam=FALSE, dateWarning=TRUE,
      verbose=TRUE,addScaleParam=NULL, stepWeight=NULL, emWeight=NULL,
-     contrasts=NULL, getPEV=TRUE, mme=FALSE)
+     contrasts=NULL, getPEV=TRUE, henderson=FALSE)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -40,25 +40,25 @@ mmer(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
   Useful functions can be used to fit heterogeneous variances and other special models
   (\emph{see 'Special Functions' in the Details section for more information}):
 
-  \code{\link{vsr}(...,Gu)} is the main function to specify variance models and
+  \code{\link{vsm}(...,Gu)} is the main function to specify variance models and
   special structures for random effects. On the ... argument you provide the 
-  unknown variance-covariance structures (e.g., usr,dsr,atc,csr) and the random 
+  unknown variance-covariance structures (e.g., usm,dsm,atm,csm) and the random 
   effect where such covariance structure will be used (the random effect of interest). 
   Gu is used to provide known covariance matrices among the levels of the random effect.
   Auxiliar functions for building the variance models are:
 
-  ** \code{\link{dsr}(x)}, \code{\link{usr}(x)}, \code{\link{rrr}(x,y,z)} , \code{\link{isr}(x)},\code{\link{csr}(x)}, and \code{\link{atr}(x,levs)} can be used to specify unknown diagonal, unstructured, reduced-rank, identity, and customized unstructured and diagonal covariance structures respectively to be estimated by REML.
+  ** \code{\link{dsm}(x)}, \code{\link{usm}(x)}, \code{\link{rrm}(x,y,z)} , \code{\link{ism}(x)},\code{\link{csm}(x)}, and \code{\link{atm}(x,levs)} can be used to specify unknown diagonal, unstructured, reduced-rank, identity, and customized unstructured and diagonal covariance structures respectively to be estimated by REML.
 
-  ** \code{\link{unsm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can be used to build easily matrices to specify constraints in the Gtc argument of the \code{\link{vsr}()} function.
+  ** \code{\link{unsm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can be used to build easily matrices to specify constraints in the Gtc argument of the \code{\link{vsm}()} function.
 
-  ** \code{\link{overlay}()}, \code{\link{spl2Dc}()}, and \code{\link{leg}()}, \code{\link{redmm}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline, random regression, and dimensionality-reduction models within the \code{\link{vsr}()} function.
+  ** \code{\link{overlay}()}, \code{\link{spl2Dc}()}, and \code{\link{leg}()}, \code{\link{redmm}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline, random regression, and dimensionality-reduction models within the \code{\link{vsm}()} function.
 
   }
   \item{rcov}{A formula specifying the name of the \strong{error term}, e.g., \emph{rcov= ~ units}.
 
-  Special heterogeneous and special variance models and constraints for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, e.g., \emph{rcov=~vsr(dsr(covariate),isr(units))}
+  Special heterogeneous and special variance models and constraints for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, e.g., \emph{rcov=~vsm(dsm(covariate),ism(units))}
 
-  When fitting structures at the level of residuals please make sure that your data is sorted based on the factors defining the structure. For example, for \emph{rcov= ~ vsr(dsr(xx), isr(units))} sort the datatset by the variable xx.
+  When fitting structures at the level of residuals please make sure that your data is sorted based on the factors defining the structure. For example, for \emph{rcov= ~ vsm(dsm(xx), ism(units))} sort the datatset by the variable xx.
 
   }
   \item{data}{A data frame containing the variables specified in the formulas for response, fixed, and random effects.}
@@ -78,12 +78,12 @@ mmer(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
    \item{returnParam}{A TRUE/FALSE value to indicate if the program should return the parameters to be used for fitting the model instead of fitting the model.}
    \item{dateWarning}{A TRUE/FALSE value to indicate if the program should warn you when is time to update the sommer package.}
   \item{verbose}{A TRUE/FALSE value to indicate if the program should return the progress of the iterative algorithm.}
-  \item{addScaleParam}{additional scale parameters for the thetaF matrix when using Henderson method (mme=TRUE).}
+  \item{addScaleParam}{additional scale parameters for the thetaF matrix when using Henderson method (henderson=TRUE).}
   \item{stepWeight}{A vector of values (of length equal to the number of iterations) indicating the weight used to multiply the update (delta) for variance components at each iteration. If NULL the 1st iteration will be multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can help to avoid that variance components go outside the parameter space in the initial iterations which happens very often with the AI method but it can be detected by looking at the behavior of the likelihood. In that case you may want to give a smaller weight.}
   \item{emWeight}{A vector of values (of length equal to the number of iterations) indicating with values between 0 and 1 the weight assigned to the EM information matrix. And the values 1 - emWeight will be applied to the AI information matrix to produce a joint information matrix. By default the function gives a weight to the EM algorithm of a logarithmic decrease rate using the following code \code{logspace(nIters,1,0.05)}. }
   \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
   \item{getPEV}{a logical value indicating if PEV should be returned.}
-  \item{mme}{a logical value indicating if the solving algorithm should be direct inversion (mme is FALSE) or Henderson's method (mme is TRUE). Default is direct inversion.}
+  \item{henderson}{a logical value indicating if the solving algorithm should be direct inversion (henderson is FALSE) or Henderson's method (henderson is TRUE). Default is direct inversion.}
 }
 
 \details{
@@ -106,33 +106,33 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
 \strong{Special variance structures}
 
- \code{\link{vsr}(\link{atr}(x,levels),isr(y))}
+ \code{\link{vsm}(\link{atm}(x,levels),ism(y))}
 
- can be used to specify heterogeneous variance for the "y" covariate at specific levels of the covariate "x", e.g., \emph{random=~vsr(at(Location,c("A","B")),isr(ID))} fits a variance component for ID at levels A and B of the covariate Location.
+ can be used to specify heterogeneous variance for the "y" covariate at specific levels of the covariate "x", e.g., \emph{random=~vsm(at(Location,c("A","B")),ism(ID))} fits a variance component for ID at levels A and B of the covariate Location.
 
- \code{\link{vsr}(\link{dsr}(x),isr(y))}
+ \code{\link{vsm}(\link{dsm}(x),ism(y))}
 
- can be used to specify a diagonal covariance structure for the "y" covariate for all levels of the covariate "x", e.g., \emph{random=~vsr(dsr(Location),isr(ID))}  fits a variance component for ID at all levels of the covariate Location.
+ can be used to specify a diagonal covariance structure for the "y" covariate for all levels of the covariate "x", e.g., \emph{random=~vsm(dsm(Location),ism(ID))}  fits a variance component for ID at all levels of the covariate Location.
 
- \code{\link{vsr}(\link{usr}(x),isr(y))}
+ \code{\link{vsm}(\link{usm}(x),ism(y))}
 
- can be used to specify an unstructured covariance structure for the "y" covariate for all levels of the  covariate "x", e.g., \emph{random=~vsr(usr(Location),isr(ID))}  fits variance and covariance components for ID at all levels of the covariate Location.
+ can be used to specify an unstructured covariance structure for the "y" covariate for all levels of the  covariate "x", e.g., \emph{random=~vsm(usm(Location),ism(ID))}  fits variance and covariance components for ID at all levels of the covariate Location.
  
- \code{\link{vsr}(\link{usr}(\link{rrr}(x,y,z,nPC)),isr(y))}
+ \code{\link{vsm}(\link{usm}(\link{rrm}(x,y,z,nPC)),ism(y))}
 
- can be used to specify an unstructured covariance structure for the "y" effect for all levels of the  covariate "x", and a response variable "z", e.g., \emph{random=~vsr(rrr(Location,ID,response, nPC=2),isr(ID))}  fits a reduced-rank factor analytic covariance for ID at 2 principal components of the covariate Location.
+ can be used to specify an unstructured covariance structure for the "y" effect for all levels of the  covariate "x", and a response variable "z", e.g., \emph{random=~vsm(rrm(Location,ID,response, nPC=2),ism(ID))}  fits a reduced-rank factor analytic covariance for ID at 2 principal components of the covariate Location.
 
-  \code{\link{vsr}(isr(\link{overlay}(...,rlist=NULL,prefix=NULL)))}
+  \code{\link{vsm}(ism(\link{overlay}(...,rlist=NULL,prefix=NULL)))}
 
- can be used to specify overlay of design matrices between consecutive random effects specified, e.g., \emph{random=~vsr(isr(overlay(male,female)))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vsr().
+ can be used to specify overlay of design matrices between consecutive random effects specified, e.g., \emph{random=~vsm(ism(overlay(male,female)))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vsm().
  
-   \code{\link{vsr}(isr(\link{redmm}(x,M,nPC)))}
+   \code{\link{vsm}(ism(\link{redmm}(x,M,nPC)))}
 
- can be used to create a reduced model matrix of an effect (x) assumed to be a linear function of some feature matrix (M), e.g., \emph{random=~vsr(isr(redmm(x,M)))} creates an incidence matrix from a very large set of features (M) that belong to the levels of x to create a reduced model matrix. See \code{\link{redmm}} for details.Can be combined with vsr().
+ can be used to create a reduced model matrix of an effect (x) assumed to be a linear function of some feature matrix (M), e.g., \emph{random=~vsm(ism(redmm(x,M)))} creates an incidence matrix from a very large set of features (M) that belong to the levels of x to create a reduced model matrix. See \code{\link{redmm}} for details.Can be combined with vsm().
 
-  \code{\link{vsr}(\link{leg}(x,n),isr(y))}
+  \code{\link{vsm}(\link{leg}(x,n),ism(y))}
 
-  can be used to fit a random regression model using a numerical variable \code{x} that marks the trayectory for the random effect \code{y}. The leg function can be combined with the special functions \code{dsr}, \code{usr} \code{at} and \code{csr}. For example \emph{random=~vsr(leg(x,1),isr(y))} or \emph{random=~vsr(usr(leg(x,1)),isr(y))}.
+  can be used to fit a random regression model using a numerical variable \code{x} that marks the trayectory for the random effect \code{y}. The leg function can be combined with the special functions \code{dsm}, \code{usm} \code{at} and \code{csm}. For example \emph{random=~vsm(leg(x,1),ism(y))} or \emph{random=~vsm(usm(leg(x,1)),ism(y))}.
 
   \code{\link{spl2Dc}(x.coord, y.coord, at.var, at.levels))}
 
@@ -140,13 +140,13 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
 
 \strong{Covariance between random effects}
 
- \code{\link{covr}( \link{vsr}(\link{isr}(ran1)), \link{vsr}(\link{isr}(ran2)) )}
+ \code{\link{covm}( \link{vsm}(\link{ism}(ran1)), \link{vsm}(\link{ism}(ran2)) )}
 
- can be used to specify covariance between two different random effects, e.g., \emph{random=~covr( vsr(isr(x1)), vsr(isr(x2)) )} where two random effects in their own vsr() structure are encapsulated. Only applies for simple random effects.
+ can be used to specify covariance between two different random effects, e.g., \emph{random=~covm( vsm(ism(x1)), vsm(ism(x2)) )} where two random effects in their own vsm() structure are encapsulated. Only applies for simple random effects.
  
 \strong{S3 methods}
 
-S3 methods are available for some parameter extraction such as \code{\link{fitted.mmer}}, \code{\link{residuals.mmer}}, \code{\link{summary.mmer}}, \code{\link{randef}}, \code{\link{coef.mmer}}, \code{\link{anova.mmer}}, \code{\link{plot.mmer}}, and \code{\link{predict.mmer}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (e.g., ratios like h2). The \code{\link{r2}} function calculates reliability. 
+S3 methods are available for some parameter extraction such as \code{\link{fitted.mme}}, \code{\link{residuals.mme}}, \code{\link{summary.mme}}, \code{\link{randef}}, \code{\link{coef.mme}}, \code{\link{anova.mme}}, \code{\link{plot.mme}}, and \code{\link{predict.mme}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (e.g., ratios like h2). The \code{\link{r2}} function calculates reliability. 
 
 
 \strong{Additional Functions}
@@ -219,7 +219,7 @@ If all parameters are correctly indicated the program will return a list with th
 \item{W}{the column binded matrix W = [X Z] }
 \item{uList}{a list containing the BLUPs in data frame format where rows are levels of the random effects and column the different factors at which the random effect is fitted. This is specially useful for diagonal and unstructured models.}
 \item{uPevList}{a list containing the BLUPs in data frame format where rows are levels of the random effects and column the different factors at which the random effect is fitted. This is specially useful for diagonal and unstructured models.}
-\item{args}{the fixed, random and residual formulas from the mmer model.}
+\item{args}{the fixed, random and residual formulas from the mme model.}
 \item{constraints}{The vector of constraints.}
 
 }
@@ -257,7 +257,7 @@ head(DT)
 ####=========================================####
 
 ## Compound simmetry (CS) model
-ans1 <- mmer(Yield~Env,
+ans1 <- mme(Yield~Env,
              random= ~ Name + Env:Name,
              rcov= ~ units,
              data=DT)
@@ -268,9 +268,9 @@ summary(ans1)
 # ####===========================================####
 # DT=DT[with(DT, order(Env)), ]
 # ## Compound simmetry (CS) + Diagonal (DIAG) model
-# ans2 <- mmer(Yield~Env,
-#              random= ~Name + vsr(dsr(Env),isr(Name)),
-#              rcov= ~ vsr(dsr(Env),isr(units)),
+# ans2 <- mme(Yield~Env,
+#              random= ~Name + vsm(dsm(Env),ism(Name)),
+#              rcov= ~ vsm(dsm(Env),ism(units)),
 #              data=DT)
 # summary(ans2)
 # 
@@ -278,9 +278,9 @@ summary(ans1)
 # ####  Univariate unstructured variance models  ####
 # ####===========================================####
 # 
-# ans3 <- mmer(Yield~Env,
-#              random=~ vsr(usr(Env),isr(Name)),
-#              rcov=~vsr(dsr(Env),isr(units)),
+# ans3 <- mme(Yield~Env,
+#              random=~ vsm(usm(Env),ism(Name)),
+#              rcov=~vsm(dsm(Env),ism(units)),
 #              data=DT)
 # summary(ans3)
 

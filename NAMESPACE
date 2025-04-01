@@ -10,11 +10,11 @@ export(
        )
 
 ## FUN_main
-export(mmer)
+export(mme)
 
 ## FUN_special and FUN_vsc and FUN_vsrgvsr
 export( unsm, fixm, # small constructors
-       atr,csr,dsr,usr,vsr, isr, rrr, covr, ## mmer
+       atm,csm,dsm,usm,vsm, ism, rrm, covm, ## mme
        # special functions to create model matrices
        overlay, redmm, 
        add.diallel.vars, stackTrait,
@@ -37,28 +37,28 @@ export(A.mat, D.mat, E.mat, H.mat, AR1, CS, ARMA, simGECorMat)
 
 ## FUN_utils
 export( 
-        # mmer
-       summary.mmer, residuals.mmer, fitted.mmer, coef.mmer,
-       anova.mmer, plot.mmer, predict.mmer, pmonitor,
+        # mme
+       summary.mme, residuals.mme, fitted.mme, coef.mme,
+       anova.mme, plot.mme, predict.mme, pmonitor,
         # others
        randef)
 
-# S3 METHODS mmer
-S3method(vpredict, mmer)
+# S3 METHODS mme
+S3method(vpredict, mme)
 
-# S3 METHODS mmer
-S3method(anova, mmer)
-S3method(coef, mmer)
-S3method(fitted, mmer)
-S3method(plot, mmer)
-S3method(predict, mmer)
-S3method(print, predict.mmer)
-S3method(print, residuals.mmer)
-S3method(print, fitted.mmer)
-S3method(print, coef.mmer)
-S3method(print, summary.mmer)
-S3method(residuals, mmer)
-S3method(summary, mmer)
+# S3 METHODS mme
+S3method(anova, mme)
+S3method(coef, mme)
+S3method(fitted, mme)
+S3method(plot, mme)
+S3method(predict, mme)
+S3method(print, predict.mme)
+S3method(print, residuals.mme)
+S3method(print, fitted.mme)
+S3method(print, coef.mme)
+S3method(print, summary.mme)
+S3method(residuals, mme)
+S3method(summary, mme)
 
 # S3 METHODS other
 S3method(print, wald.test)

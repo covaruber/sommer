@@ -37,4 +37,3 @@ x <- 1:4
 R1 <- CS(x,rho=.25)
 image(R1)
 }
-\seealso{The core function of the package \code{\link{mmer}} }

@@ -160,6 +160,6 @@ List of length 7, 8 or 9 (according to the \code{asreml} and
 }
 \description{
 \code{tpsmmbwrapper} is a wrapper of tpsmmb function from the TPSbits package to avoid version dependencies but if you're using this function for your research please cite the TPSbits package. This function is internally used by the \code{spl2Dmatrices} function to get Tensor-Product P-Spline Mixed Model Bits
-    (design matrices) for use with \code{sommer} and its main function \code{mmer}.
+    (design matrices) for use with \code{sommer}.
 }
 

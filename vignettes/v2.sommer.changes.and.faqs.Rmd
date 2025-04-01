@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mmer function with the default direct inversion algorithm (mme=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the mme argument to TRUE can bring significant speed ups.
+The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mme function with the default direct inversion algorithm (henderson=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the henderson argument to TRUE can bring significant speed ups.
  
 The purpose of this vignette is to first show the changes in syntax for `sommer` and frequently asked question.
 
@@ -51,7 +51,7 @@ would by default fit 2 univariate models in parallel. That is no longer the case
 
 and fit a model of the form:
 
-`valueS ~ trait, random=~vsr( dsr(trait), isr(geno) )`
+`valueS ~ trait, random=~vsm( dsm(trait), ism(geno) )`
 
 to fit a covariance structure for traits and genos.
 
@@ -65,13 +65,13 @@ In the previous versions when I introduced the multivariate solver I decided to 
 
 and an unstructured multitrait model was:
 
-`random= ~ usr(trait):re`
+`random= ~ usm(trait):re`
 
 Although this was easier for users familiar with asreml, it put a lot of limitations on the way constraints for variance components were specified. The same model in the new versions looks like this:
 
-`random= ~ vsr( usr(trait), isr(re) )`
+`random= ~ vsm( usm(trait), ism(re) )`
 
-where the `vsr` knows how to read the different variance structures for each factor. The user can specify `csr()` and provide a matrix with dimensions t x t (t being the number of traits) containing the number 0,1,2,3 that specify the constraints:
+where the `vsm` knows how to read the different variance structures for each factor. The user can specify `csm()` and provide a matrix with dimensions t x t (t being the number of traits) containing the number 0,1,2,3 that specify the constraints:
 
 + 0: not to be estimated
 + 1: estimated and constrained to be positive (i.e. variance component)
@@ -140,15 +140,15 @@ Getting back to the point--the additional unknown covariance structures besides 
 
 `fixed= y1~x`
 
-`random= ~ diag(env):id`     or    `random= ~ usr(env):id`
+`random= ~ diag(env):id`     or    `random= ~ usm(env):id`
 
 and now it would be specified as:
 
 `fixed= y1~x`
 
-`random= ~ vsr(dsr(env),isr(id))`    or    `random= ~ vsr(usr(env),isr(id))`
+`random= ~ vsm(dsm(env),ism(id))`    or    `random= ~ vsm(usm(env),ism(id))`
 
-where the `dsr()` and `usr()` functions specify diagonal and unstructured models respectively. Now `csr()` for a customized structure is available. The main gain from having changed the formulation is that the new specification through the `vsr()` function allows for contructing more complex moels. For example, assume individuals specified in a column called `id` tested in three environments in a column called `env` measured at two different time points specified in a column called `time`. We may want something more flexible than:
+where the `dsm()` and `usm()` functions specify diagonal and unstructured models respectively. Now `csm()` for a customized structure is available. The main gain from having changed the formulation is that the new specification through the `vsm()` function allows for contructing more complex moels. For example, assume individuals specified in a column called `id` tested in three environments in a column called `env` measured at two different time points specified in a column called `time`. We may want something more flexible than:
 
 `fixed= y1~x`
 
@@ -169,7 +169,7 @@ $$\mathbf{var(u)} = \left[\begin{array}
 $$ 
 which was not possible in previous versions of sommer and now can be specified as:
 
-`random= ~ vsr(usr(env),dsr(time),isr(id))`
+`random= ~ vsm(usm(env),dsm(time),ism(id))`
 
 and the same logic can be extended to as many interacting factors as desired.
 
@@ -181,17 +181,17 @@ Previous versions:
 
 `random= ~ diag(trait):diag(env):units`
 
-`random= ~ usr(trait):diag(env):units` # limit
+`random= ~ usm(trait):diag(env):units` # limit
 
 New versions (>4.4):
 
-`random= ~ vsr(dsr(env),isr(units))` ## can be extended to more interacting factors
+`random= ~ vsm(dsm(env),ism(units))` ## can be extended to more interacting factors
 
-`random= ~ vsr(usr(env),isr(units))` ## can be extended to more interacting factors
+`random= ~ vsm(usm(env),ism(units))` ## can be extended to more interacting factors
 
-`random= ~ vsr(atr(env),isr(units))` ## can be extended to more interacting factors
+`random= ~ vsm(atm(env),ism(units))` ## can be extended to more interacting factors
 
-`random= ~ vsr(csr(env),isr(units))` ## can be extended to more interacting factors
+`random= ~ vsm(csm(env),ism(units))` ## can be extended to more interacting factors
 
 where customized constraints can be specified in the `thetaC` argument of each variance structure. For example we could use `unsm()` `diag()`, `uncm()` or any other customized matrix in thetaC.
 
@@ -209,7 +209,7 @@ Previous version: limited to 2 columns and only random and no covariance structu
 
 New versions (>4.4): in theory there are no limits. Can be extended to more interacting factors in the unknown covariance structures and can overlay as many columns as needed. Plus is fully functional with the multivariate models.
 
-`random=~ vsr(..., isr( overlay(x1,...,xn) ) )` 
+`random=~ vsm(..., ism( overlay(x1,...,xn) ) )` 
 
 #### Random regression models
 
@@ -217,17 +217,17 @@ Previous version: Not available before
 
 New versions (>4.4): in theory no limits. Can be extended to more interacting factors in the unknown covariance structures and only requires the use of the `leg()` function. Plus is fully functional with the multivariate models.
 
-`random=~ vsr(usr(leg(v,1)),isr(x))` 
+`random=~ vsm(usm(leg(v,1)),ism(x))` 
 
-`random=~ vsr(dsr(leg(v,1)),isr(x))` 
+`random=~ vsm(dsm(leg(v,1)),ism(x))` 
 
-`random=~ vsr(dsr(leg(v,1)),isr(x))` 
+`random=~ vsm(dsm(leg(v,1)),ism(x))` 
 
 #### GWAS models
 
 Previous version: Only univariate models available
 
-New versions (>3.7): all the power of the `mmer()` function is available plus you can fit multivariate GWAS models. See details in the sommer.start vignettes.
+New versions (>3.7): all the power of the `mme()` function is available plus you can fit multivariate GWAS models. See details in the sommer.start vignettes.
 
 #### Spatial models
 
@@ -235,9 +235,9 @@ Previous version: It was called directly in the formula
 
 `random=~ spl2D(Row,Col,at=?)`
 
-New versions (>4.4): It has to be called within the `vsr()` function but now it can be combined with all the unknown covariance structures available.
+New versions (>4.4): It has to be called within the `vsm()` function but now it can be combined with all the unknown covariance structures available.
 
-`random=~ vsr(...,spl2Dc(Row,Col,at=?, thetaC=mm) )` # being mm any multi-trait constraint-structure.
+`random=~ vsm(...,spl2Dc(Row,Col,at=?, thetaC=mm) )` # being mm any multi-trait constraint-structure.
 
 #### Customized random effects
 
@@ -247,9 +247,9 @@ Previous version: It was provided in the grouping argument
 
 `grouping=list(x=Z)`
 
-New versions (>4.4): It has to be called within the `vsr()` function but now it can be combined with all the unknown covariance structures available. 
+New versions (>4.4): It has to be called within the `vsm()` function but now it can be combined with all the unknown covariance structures available. 
 
-`random=~vsr(,..., isr(Z, thetaC=mm))` # mm is any multi-trait constraint-structure.
+`random=~vsm(,..., ism(Z, thetaC=mm))` # mm is any multi-trait constraint-structure.
 
 ## SECTION 2: Frequently asked questions
 
@@ -261,13 +261,13 @@ New versions (>4.4): It has to be called within the `vsr()` function but now it 
 # Sistem is singular. Aborting the job. You could try a bigger tolparinv value.
 ```
 
-This error indicates that your model is singular (phenotypic variance V matrix is not invertible) and therefore the model is stopped, throwing the error message and returning an empty list. You can try a simpler model or just modify the argument `tolparinv` in the `mmer()` function. The default is 1e-3, which means that it will try to invert V and if it fails it will try to add a small value to the diagonal of V of 1e-3 to make it invertible and try bigger and biger numbers. If this fails then the program will return the empty list.
+This error indicates that your model is singular (phenotypic variance V matrix is not invertible) and therefore the model is stopped, throwing the error message and returning an empty list. You can try a simpler model or just modify the argument `tolparinv` in the `mme()` function. The default is 1e-3, which means that it will try to invert V and if it fails it will try to add a small value to the diagonal of V of 1e-3 to make it invertible and try bigger and biger numbers. If this fails then the program will return the empty list.
 
 Sometimes the model becomes singular when you use variance covariance matrices (i.e. genomic relationship matrices) that are not full-rank. You can try to make it full-rank and try again.
 
 ### 2) My model runs very slow
 
-Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused on problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for an experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) the direct-inversion used in mmer() when the argument mme=FALSE will be faster than MME-based algorithms Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) setting the argument mme=TRUE will be faster.
+Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused on problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for an experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) the direct-inversion used in mme() when the argument henderson=FALSE will be faster than MME-based algorithms Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) setting the argument henderson=TRUE will be faster.
 
 ### 3) Can I run both; rrBLUP for markers and GBLUP for individuals in sommer?
 
@@ -295,26 +295,26 @@ nrow(DT2); length(levels(DT2$id))
 
 # we fit a model with the reduced datatset where only 100 blups will be returned since only
 # 100 levels exist in the "id" column
-mix1 <- mmer(Yield~1,
-             random=~vsr(isr(id),Gu=A)
+mix1 <- mme(Yield~1,
+             random=~vsm(ism(id),Gu=A)
              + Rowf + Colf,
              rcov=~units,
              data=DT2, verbose = FALSE)
 summary(mix1)
-length(mix1$uList$`vsr(isr(id), Gu = A`) # only 100 levels
+length(mix1$uList$`vsm(ism(id), Gu = A`) # only 100 levels
 
 # we add additional levels to the "id" column and also provide them in the relationship matrix
 levels(DT2$id) <- c(levels(DT2$id), setdiff(levels(DT$id), levels(DT2$id)))
-mix2 <- mmer(Yield~1,
-             random=~vsr(isr(id),Gu=A)
+mix2 <- mme(Yield~1,
+             random=~vsm(ism(id),Gu=A)
              + Rowf + Colf,
              rcov=~units,
              data=DT2, verbose = FALSE)
 summary(mix2)
-length(mix2$uList$`vsr(isr(id), Gu = A`) # now 363 levels
+length(mix2$uList$`vsm(ism(id), Gu = A`) # now 363 levels
 
 ```
-As of 4.1.2 this shouldn't be a problem since internally the `mmer()` solver adds the missing levels, but we leave this for reference for people using older versions of sommer.
+As of 4.1.2 this shouldn't be a problem since internally the `mme()` solver adds the missing levels, but we leave this for reference for people using older versions of sommer.
  
 ### 5) How can I use the AR1(), CS() and ARMA() functions
 
@@ -326,7 +326,7 @@ For example, in the DT_cpdata dataset we have a field with row and column coordi
 library(sommer)
 data(DT_cpdata)
 DT <- DT_cpdata
-mix1 <- mmer(Yield~1,
+mix1 <- mme(Yield~1,
               random=~ Rowf + Colf,
               rcov=~units,
               data=DT, verbose = FALSE)
@@ -339,8 +339,8 @@ If the user wants to relax the independence between rows and define an AR1 covar
 library(sommer)
 data(DT_cpdata)
 DT <- DT_cpdata
-mixAR1row <- mmer(Yield~1,
-             random=~ vsr(isr(Rowf), Gu=AR1(Rowf, rho=0.3)) + Colf,
+mixAR1row <- mme(Yield~1,
+             random=~ vsm(ism(Rowf), Gu=AR1(Rowf, rho=0.3)) + Colf,
              rcov=~units,
              data=DT, verbose = FALSE)
 summary(mixAR1row)$varcomp
@@ -352,8 +352,8 @@ The same could be done for the column random effect:
 library(sommer)
 data(DT_cpdata)
 DT <- DT_cpdata
-mixAR1col <- mmer(Yield~1,
-             random=~ Rowf + vsr(isr(Colf), Gu=AR1(Colf, rho=0.3)),
+mixAR1col <- mme(Yield~1,
+             random=~ Rowf + vsm(ism(Colf), Gu=AR1(Colf, rho=0.3)),
              rcov=~units,
              data=DT, verbose = FALSE)
 summary(mixAR1col)$varcomp
@@ -365,8 +365,8 @@ If on the other hand, you would like to model the presence of correlation in row
 library(sommer)
 data(DT_cpdata)
 DT <- DT_cpdata
-mixAR1rowcol <- mmer(Yield~1,
-                  random=~ vsr(isr(Rowf:Colf), 
+mixAR1rowcol <- mme(Yield~1,
+                  random=~ vsm(ism(Rowf:Colf), 
                               Gu=kronecker(AR1(Rowf, rho=0.3),AR1(Colf, rho=0.3),make.dimnames = TRUE) 
                               ),
                   rcov=~units,
@@ -382,12 +382,12 @@ Yes, please see the vignette for QG using sommer and the method of GWAS by GBLUP
 
 ### 7) How can I constrain the value of specific random effects? 
 
-When using the `vsr()` function three additional arguments help to control the following:
+When using the `vsm()` function three additional arguments help to control the following:
 
 + `theta`: matrix for covariances among levels for the u.th random effect 
 + `thetaC`: matrix of constraints for the variance-covariance components
 
-Since each random effect can be seen as a multi-trait variance covariance structure, the univariate models are just an extension where the multi-trait variance covariance structure is a 1 x 1 matrix. When inspecting the results for the mixed models fitted by the `mmer()` function corresponding to the variance components stored in the `theta` element, you will notice that each random effect contains a t x t matrix which corresponds to the multi-trait structure we referred to. For example:
+Since each random effect can be seen as a multi-trait variance covariance structure, the univariate models are just an extension where the multi-trait variance covariance structure is a 1 x 1 matrix. When inspecting the results for the mixed models fitted by the `mme()` function corresponding to the variance components stored in the `theta` element, you will notice that each random effect contains a t x t matrix which corresponds to the multi-trait structure we referred to. For example:
 
 ```{r}
 data(DT_cpdata)
@@ -397,8 +397,8 @@ MP <- MP_cpdata
 #### create the variance-covariance matrix
 A <- A.mat(GT) # additive relationship matrix
 #### look at the data and fit the model
-mix1 <- mmer(Yield~1,
-              random=~vsr(isr(id),Gu=A),
+mix1 <- mme(Yield~1,
+              random=~vsm(ism(id),Gu=A),
               rcov=~units,
               data=DT, verbose = FALSE)
 mix1$theta[[1]]
@@ -411,13 +411,13 @@ Here the sigma element contains the random effects for `id` and `units` (error).
 # DT2 <- stackTrait(DT, traits = c("color","Yield"))
 # head(DT2$long)
 # A <- A.mat(GT) # additive relationship matrix
-# # if using mme=TRUE you need to provide the inverse
+# # if using henderson=TRUE you need to provide the inverse
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # #### be patient take some time
-# ansm <- mmer( valueS ~ trait, # mme=TRUE,
-#                random=~ vsr(usr(trait), isr(id), Gu=A),
-#                rcov=~ vsr(dsr(trait), isr(units)),
+# ansm <- mme( valueS ~ trait, # henderson=TRUE,
+#                random=~ vsm(usm(trait), ism(id), Gu=A),
+#                rcov=~ vsm(dsm(trait), ism(units)),
 #                data=DT2$long)
 # cov2cor(ansm$theta[[1]])
 ```
@@ -441,8 +441,8 @@ If the user would like to constrain a value to be fixed and not change through t
 mm <- matrix(3,1,1) ## matrix to fix the var comp
 initialVal <- matrix(mix1$theta_scaled[,,1]/2) # we want to fix the vc to be half of the previous uinvariate model
 
-mix3 <- mmer(Yield~1,
-              random=~vsr(isr(id, theta=initialVal, thetaC = mm), 
+mix3 <- mme(Yield~1,
+              random=~vsm(ism(id, theta=initialVal, thetaC = mm), 
                           Gu=A ), # constrained
               rcov=~units, # unconstrained
               data=DT, verbose = FALSE)
@@ -471,7 +471,7 @@ df2 <- data.frame(y, trait=sort(rep(paste0("trait",1:2), nrow(Y))), id=factor(re
 Now lets assume that we want to fit a multitrait model with an unstructured error variance structure with the built-in capacity. That would be as easy as this:
 
 ```{r}
-mix1 <- mmer(y~1, random=~vsr(usr(trait),isr(id)), data=df2, verbose = FALSE)
+mix1 <- mme(y~1, random=~vsm(usm(trait),ism(id)), data=df2, verbose = FALSE)
 mix1$theta[[1]]
 ```
 
@@ -488,7 +488,7 @@ colnames(sig2) <- paste0("sig2_",1:ncol(sig2))
 gam <- kronecker(diag(1,n),V3) # covariance component
 colnames(gam) <- paste0("gam_",1:ncol(gam))
 # now fit the model
-mix2 <- mmer(y~X-1, random = ~vsr(isr(sig1))+vsr(isr(sig2))+vsr(isr(gam)), data=df2, verbose = FALSE)
+mix2 <- mme(y~X-1, random = ~vsm(ism(sig1))+vsm(ism(sig2))+vsm(ism(gam)), data=df2, verbose = FALSE)
 mix2$theta
 ```
 Notice that we fitted a univariate model but we built the kernels and fitted those kernels one by one.
@@ -496,7 +496,7 @@ Notice that we fitted a univariate model but we built the kernels and fitted tho
 Now we will constrain the two variance components to be equal. This is done the following way:
 ```{r}
 sig <- sig1+sig2
-mix3 <- mmer(y~X-1, random = ~vsr(isr(sig))+vsr(isr(gam)), data=df2, nIters=30, verbose = FALSE)
+mix3 <- mme(y~X-1, random = ~vsm(ism(sig))+vsm(ism(gam)), data=df2, nIters=30, verbose = FALSE)
 mix3$theta
 ```
 

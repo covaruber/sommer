@@ -83,10 +83,10 @@ DT$C <- as.factor(DT$col)
 M <- spl2Dmats(x.coord.name = "col", y.coord.name = "row", data=DT, 
                nseg =c(14,21), degree = c(3,3), penaltyord = c(2,2) 
                )
-mix <- mmer(Y~V, mme = TRUE,
-            random=~ R + C + vsr(isr(M$fC)) + vsr(isr(M$fR)) + 
-              vsr(isr(M$fC.R)) + vsr(isr(M$C.fR)) +
-              vsr(isr(M$fC.fR)),
+mix <- mme(Y~V, henderson = TRUE,
+            random=~ R + C + vsm(ism(M$fC)) + vsm(ism(M$fR)) + 
+              vsm(ism(M$fC.R)) + vsm(ism(M$C.fR)) +
+              vsm(ism(M$fC.fR)),
             rcov=~units, verbose=FALSE,
             data=M$data)
 summary(mix)$varcomp
@@ -100,7 +100,7 @@ To reduce the computational burden of fitting multiple spatial kernels `sommer` 
 ```{r, fig.show='hold'}
 
 # SOMMER MODEL
-mix <- mmer(Y~V,
+mix <- mme(Y~V,
             random=~ R + C +
               spl2Dc(row,col),
             rcov=~units, verbose=FALSE,
@@ -120,7 +120,7 @@ DT2$Y <- DT2$Y + rnorm(length(DT2$Y))
 DT2$trial <- c(rep("A",nrow(DT)),rep("B",nrow(DT)))
 head(DT2)
 # SOMMER MODEL
-mix <- mmer(Y~V,
+mix <- mme(Y~V,
             random=~ R + C +
               spl2Dc(row,col, at.var = trial),
             rcov=~units, verbose=FALSE,

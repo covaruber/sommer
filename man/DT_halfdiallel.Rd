@@ -38,8 +38,8 @@ DT$genof <- as.factor(DT$geno)
 
 A <- diag(7); colnames(A) <- rownames(A) <- 1:7;A # if you want to provide a covariance matrix
 #### model using overlay
-modh <- mmer(sugar~1, 
-             random=~vsr(isr(overlay(femalef,malef, sparse = FALSE)), Gu=A) 
+modh <- mme(sugar~1, 
+             random=~vsm(ism(overlay(femalef,malef, sparse = FALSE)), Gu=A) 
              + genof,
              data=DT)
 summary(modh)$varcomp
@@ -50,4 +50,4 @@ summary(modh)$varcomp
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mme}} }

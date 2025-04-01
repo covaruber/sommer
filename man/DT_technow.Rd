@@ -45,8 +45,8 @@ Mf <- Mf_technow
 # Af <- A.mat(Mf)
 # ###=========================================####
 # ###=========================================####
-# ans2 <- mmer(GY~1,
-#              random=~vsr(isr(dent),Gu=Ad) + vsr(isr(flint),Gu=Af),
+# ans2 <- mme(GY~1,
+#              random=~vsm(ism(dent),Gu=Ad) + vsm(ism(flint),Gu=Af),
 #              rcov=~units,
 #              data=DT)
 # summary(ans2)$varcomp
@@ -69,12 +69,12 @@ Mf <- Mf_technow
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # DT2$long=DT2$long[with(DT2$long, order(trait)), ]
 # 
-# ans3 <- mmer(valueS~trait, mme=TRUE,
-#              random=~vsr(usr(trait),isr(overlay(dent,flint)),Gu=Ai),
-#              rcov=~ vsr(dsr(trait), isr(units)),
+# ans3 <- mme(valueS~trait, henderson=TRUE,
+#              random=~vsm(usm(trait),ism(overlay(dent,flint)),Gu=Ai),
+#              rcov=~ vsm(dsm(trait), ism(units)),
 #              data=DT2$long)
 # summary(ans3)
 # cov2cor(ans3$theta[[1]])
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mme}} }

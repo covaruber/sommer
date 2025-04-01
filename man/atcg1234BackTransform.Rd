@@ -54,4 +54,3 @@ genotypes[1:5,1:5] # look the original format
 
 
 }
-\seealso{The core function of the package \code{\link{mmer}} }

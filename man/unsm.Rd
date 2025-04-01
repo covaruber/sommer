@@ -29,4 +29,4 @@
 unsm(3)
 unsm(3,2)
 }
-\seealso{The function \code{\link{vsr}} to know how to use \code{unsm} in the \code{\link{mmer}} solver.}
+

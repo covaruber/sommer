@@ -7,7 +7,7 @@
 pmonitor(object, \dots)
 }
 \arguments{
- \item{object}{model object of class \code{"mmer"}}
+ \item{object}{model object of class \code{"mme"}}
  \item{\dots}{Further arguments to be passed to the plot function.}
 }
 \value{
@@ -18,12 +18,12 @@ pmonitor(object, \dots)
 data(DT_yatesoats)
 DT <- DT_yatesoats
 head(DT)
-m3 <- mmer(fixed=Y ~ V + N + V:N,
+m3 <- mme(fixed=Y ~ V + N + V:N,
            random = ~ B + B:MP,
            rcov=~units,
            data = DT)
 pmonitor(m3)
 }
-\seealso{\code{\link{plot}}, \code{\link{mmer}}}
+\seealso{\code{\link{plot}}, \code{\link{mme}}}
 \keyword{models}
 

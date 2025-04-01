@@ -1,11 +1,11 @@
-\name{usr}
-\alias{usr}
+\name{usm}
+\alias{usm}
 \title{unstructured covariance structure}
 \description{
-  \code{usr} creates an unstructured covariance structure for specific levels of the random effect to be used with the \code{\link{mmer}} solver.
+  \code{usm} creates an unstructured covariance structure for specific levels of the random effect to be used with the \code{\link{mme}} solver.
 }
 \usage{
-  usr(x, thetaC, theta)
+  usm(x, thetaC, theta)
 }
 
 \arguments{
@@ -48,7 +48,7 @@
 
 \examples{
 x <- as.factor(c(1:5,1:5,1:5));x
-usr(x)
+usm(x)
 ## how to use the theta and thetaC arguments:
 # data(DT_example)
 # DT <- DT_example
@@ -56,11 +56,11 @@ usr(x)
 # theta[lower.tri(theta)] <- t(theta)[lower.tri(theta)] 
 # theta # initial VCs
 # thetaC <- fixm(3); thetaC # fixed VCs
-# ans1 <- mmer(Yield~Env,
-#              random= ~ vsr( usr(Env,theta = theta,thetaC = thetaC),isr(Name) ),
+# ans1 <- mme(Yield~Env,
+#              random= ~ vsm( usm(Env,theta = theta,thetaC = thetaC),ism(Name) ),
 #              rcov= ~ units, nIters = 1,
 #              data=DT)
 # summary(ans1)$varcomp
 
 }
-\seealso{The function \code{\link{vsr}} to know how to use \code{usr} in the \code{\link{mmer}} solver.}
+

@@ -47,7 +47,7 @@
 # ## blocking factor: "block"
 # ## treatments, personal names for replicated and non-replicated: "trt"
 # ## check no check indicator: "new"
-# mix1 <- mmer(yield~entryc,
+# mix1 <- mme(yield~entryc,
 #              random=~block+trt,
 #              rcov=~units, tolpar = 1e-6,
 #              data=data1)

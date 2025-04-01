@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mmer function with the default direct inversion algorithm (mme=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the mme argument to TRUE can bring significant speed ups.
+The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mme function with the default direct inversion algorithm (henderson=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the henderson argument to TRUE can bring significant speed ups.
 
 The purpose of this quick start guide is to show the flexibility of the package under certain common scenarios:  
 
@@ -25,12 +25,12 @@ The purpose of this quick start guide is to show the flexibility of the package 
 3) Univariate unstructured variance models
 4) Multivariate homogeneous variance models
 5) Details on special functions for variance models
-    + the major vsr() function for special variance models and its auxiliars:
-    + atr() specific levels heterogeneous variance structure
-    + dsr() diagonal covariance structure
-    + usr() unstructured covariance
-    + csr() customized covariance structure
-    + isr() function for main effects
+    + the major vsm() function for special variance models and its auxiliars:
+    + atm() specific levels heterogeneous variance structure
+    + dsm() diagonal covariance structure
+    + usm() unstructured covariance
+    + csm() customized covariance structure
+    + ism() function for main effects
 6) The specification of constraints in the variance-covariance structures
     + unsm() unstructured constraint
     + fixm() fixed constraint
@@ -50,7 +50,7 @@ The purpose of this quick start guide is to show the flexibility of the package 
 
 ### 1) Background on mixed models
 
-The core of the package is the `mmer` function which solves the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information algorithms (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). From version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
+The core of the package is the `mme` function which solves the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information algorithms (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). From version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
 
 <br>
 
@@ -221,12 +221,12 @@ library(sommer)
 data(DT_example)
 DT <- DT_example
 ## solving for r records
-ans1c <- mmer(Yield~Env,
+ans1c <- mme(Yield~Env,
               random= ~ Name + Env:Name,
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ans1c)$varcomp
-## solving for c coefficients set mme=TRUE
+## solving for c coefficients set henderson=TRUE
 
 ```
 
@@ -240,20 +240,20 @@ data(DT_example)
 DT <- DT_example
 
 DT=DT[with(DT, order(Env)), ]
-ans2c <- mmer(Yield~Env,
-              random= ~Name + vsr(dsr(Env),isr(Name)),
-              rcov= ~ vsr(dsr(Env),isr(units)),
+ans2c <- mme(Yield~Env,
+              random= ~Name + vsm(dsm(Env),ism(Name)),
+              rcov= ~ vsm(dsm(Env),ism(units)),
               data=DT, verbose = FALSE)
 summary(ans2c)$varcomp
-## solving for c coefficients set mme=TRUE
+## solving for c coefficients set henderson=TRUE
 
 ```
 
-As you can see the special function `atr` or `diag` can be used to indicate that there's a different variance for the genotypes in each environment. The same was done for the residual. The difference between `atr` and `diag` is that the `atr` function can be used to specify the levels or specific environments where the variance is different.
+As you can see the special function `atm` or `diag` can be used to indicate that there's a different variance for the genotypes in each environment. The same was done for the residual. The difference between `atm` and `diag` is that the `atm` function can be used to specify the levels or specific environments where the variance is different.
 
 ### 3) Unstructured variance models
 
-A more relaxed asumption than the CS+DIAG model is the unstructured model (US) which assumes that among the levels of certain factor (i.e. Environments) there's a covariance struture of a second random effect (i.e. Genotypes). This can be done in sommer using the `usr(.)` function: 
+A more relaxed asumption than the CS+DIAG model is the unstructured model (US) which assumes that among the levels of certain factor (i.e. Environments) there's a covariance struture of a second random effect (i.e. Genotypes). This can be done in sommer using the `usm(.)` function: 
 
 ```{r}
 
@@ -261,20 +261,20 @@ data(DT_example)
 DT <- DT_example
 
 DT=DT[with(DT, order(Env)), ]
-ans3c <- mmer(Yield~Env,
-             random=~ vsr(usr(Env),isr(Name)),
-             rcov=~vsr(dsr(Env),isr(units)), 
+ans3c <- mme(Yield~Env,
+             random=~ vsm(usm(Env),ism(Name)),
+             rcov=~vsm(dsm(Env),ism(units)), 
              data=DT, verbose = FALSE)
 summary(ans3c)$varcomp
-## solving for c coefficients set mme=TRUE
+## solving for c coefficients set henderson=TRUE
 
 ```
 
-As can be seen the `usr(Env)` indicates that the genotypes (Name) can have a covariance structure among environments (Env).
+As can be seen the `usm(Env)` indicates that the genotypes (Name) can have a covariance structure among environments (Env).
 
 ### 4) Multivariate homogeneous variance models
 
-Currently there's a great push for multi-response models. This is motivated by the correlation that certain variables hide and that could benefit in the prediction perspective. In sommer to specify multivariate models the response requires the use of the `cbind()` function in the response, and the `usr(trait)`, `diag(trait)`, or `atr(trait)` functions in the random part of the model. 
+Currently there's a great push for multi-response models. This is motivated by the correlation that certain variables hide and that could benefit in the prediction perspective. In sommer to specify multivariate models the response requires the use of the `cbind()` function in the response, and the `usm(trait)`, `diag(trait)`, or `atm(trait)` functions in the random part of the model. 
 
 ```{r}
 
@@ -283,32 +283,32 @@ DT <- DT_example
 
 DT2 <- stackTrait(DT,traits = c("Yield","Weight"))$long
 DT2=DT2[with(DT2, order(trait)), ]
-ans4c <- mmer(valueS ~ Env:trait,
-             random= ~ vsr(usr(trait),isr(Name)),
-             rcov= ~ vsr(dsr(trait),isr(units)),
+ans4c <- mme(valueS ~ Env:trait,
+             random= ~ vsm(usm(trait),ism(Name)),
+             rcov= ~ vsm(dsm(trait),ism(units)),
              data=DT2, verbose = F)
 summary(ans4c)$varcomp
-## to solve for c coefficients set mme=TRUE
+## to solve for c coefficients set henderson=TRUE
 
 ```
 
-You may notice that we have added the `usr(trait)` behind the random effects. This is to indicate the structure that should be assumed in the multivariate model. The `diag(trait)` used behind a random effect (i.e. Name) indicates that for the traits modeled (Yield and Weight) there's no covariance component and should not be estimated, whereas `usr(trait)` assumes that for such a random effect, there's a covariance component to be estimated (i.e. covariance between Yield and Weight for the random effect Name). The same applies for the residual part (rcov).
+You may notice that we have added the `usm(trait)` behind the random effects. This is to indicate the structure that should be assumed in the multivariate model. The `diag(trait)` used behind a random effect (i.e. Name) indicates that for the traits modeled (Yield and Weight) there's no covariance component and should not be estimated, whereas `usm(trait)` assumes that for such a random effect, there's a covariance component to be estimated (i.e. covariance between Yield and Weight for the random effect Name). The same applies for the residual part (rcov).
 
 Any number of random effects can be specified with different structures.
 
 ### 5) Details on special functions for variance models
 
-#### the vsr() function for special variance models and its auxiliaries
+#### the vsm() function for special variance models and its auxiliaries
 
-The sommer function `vsr()` allows constructing complex variance models that are passed to the `mmer()` function which constitutes one of the most important features of the sommer package. The specification of the `vsr()` function has the form:
+The sommer function `vsm()` allows constructing complex variance models that are passed to the `mme()` function which constitutes one of the most important features of the sommer package. The specification of the `vsm()` function has the form:
 
-`random=~vsr(..., Gu)`
+`random=~vsm(..., Gu)`
 
-The idea is that the `vsr()` function reflects  the special variance structure that each random effect could have in the matrix notation:
+The idea is that the `vsm()` function reflects  the special variance structure that each random effect could have in the matrix notation:
 
 $var(u) = T \bigotimes E \bigotimes ... \bigotimes A$
 
-where the ... argument in the `vsr()` function is used to specify the kronecker products from all matrices that form the variance for the random effect , where the auxiliary functions `dsr()`, `usr()`, `csr()`, `atr()`, `isr`, can be used to define such structured variance structures with intial theta values and constraints. The idea is that a variance model for a random effect x (i.e. individuals) might require a more flexible model than just:
+where the ... argument in the `vsm()` function is used to specify the kronecker products from all matrices that form the variance for the random effect , where the auxiliary functions `dsm()`, `usm()`, `csm()`, `atm()`, `ism`, can be used to define such structured variance structures with intial theta values and constraints. The idea is that a variance model for a random effect x (i.e. individuals) might require a more flexible model than just:
 
 `random=~x`
 
@@ -316,28 +316,28 @@ For example, if individuals are tested in different time-points and environments
 
 $var(u) = T \bigotimes E \bigotimes S \bigotimes A$
 
-would be specified in the `vsr()` function as:
+would be specified in the `vsm()` function as:
 
-`random=~vsr(usr(e),usr(s), isr(x), Gu=A)`
+`random=~vsm(usm(e),usm(s), ism(x), Gu=A)`
 
 where the `e` would be a column vector in a data frame for the environments, `s` a column vector in the dataframe for the time points, `x` is the vector in the datrame for the identifier of individuals, `A` is a known square variance covariance matrix among individuals (usually an identity matrix; default if not specified), and T is a square matrices with as many rows and columns as the number of traits that specifies the trait covariance structure. 
 
 The auxiliary functions to build the variance models for the random effect are:
-  + dsr() diagonal covariance structure
-  + usr() unstructured covariance
-  + atr() specific levels heterogeneous variance structure
-  + isr() identity variance structure
-  + csr() customized covariance structure
+  + dsm() diagonal covariance structure
+  + usm() unstructured covariance
+  + atm() specific levels heterogeneous variance structure
+  + ism() identity variance structure
+  + csm() customized covariance structure
 
-#### the vsr() function for special variance models and its auxiliaries
+#### the vsm() function for special variance models and its auxiliaries
 
-The sommer function `vsr()` allows constructing complex variance models that are passed to the `mmer()` function which constitutes one of the most important features of the sommer package. The specification of the `vsr()` function has the form:
+The sommer function `vsm()` allows constructing complex variance models that are passed to the `mme()` function which constitutes one of the most important features of the sommer package. The specification of the `vsm()` function has the form:
 
-`random=~vsr(..., Gu)`
+`random=~vsm(..., Gu)`
 
 where the different variance structures are input as before but the constraints are specified within the auxiliar function with the argument theta and thetaC.
 
-#### dsr() and dsr() to specify a diagonal (DIAG) covariance structures
+#### dsm() and dsm() to specify a diagonal (DIAG) covariance structures
 
 A diagonal covariance structure looks like this:
 
@@ -350,9 +350,9 @@ $$\mathbf{\Sigma} = \left[\begin{array}
 $$
 Considering an example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments) the model would look like:
 
-`random=~vsr(dsr(e),isr(g))` 
+`random=~vsm(dsm(e),ism(g))` 
 
-#### usr() and usr() to specify an unstructured (US) covariance
+#### usm() and usm() to specify an unstructured (US) covariance
 
 An unstructured covariance looks like this:
 
@@ -366,9 +366,9 @@ $$
 
 Considering same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments) the model would look like:
 
-`random=~vsr(usr(e),isr(g))` 
+`random=~vsm(usm(e),ism(g))` 
 
-#### atr() and atc() to specify a level-specific heterogeneous variance
+#### atm() and atc() to specify a level-specific heterogeneous variance
 
 A diagonal covariance structure for specific levels of the second random effect looks like this:
 
@@ -382,11 +382,11 @@ $$
 
 Considering the same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments A,B,C) the model would look like:
 
-`random=~vsr(atc(e,c("A","B")),isr(g))`
+`random=~vsm(atc(e,c("A","B")),ism(g))`
 
 where the variance component for g is only fitted at levels A and B.
 
-#### csr() and csr() to specify a level-specific variance-covariance structure
+#### csm() and csm() to specify a level-specific variance-covariance structure
 
 A customized covariance structure for specific levels of the second random effect (variance and covariances) looks i.e. like this:
 
@@ -400,11 +400,11 @@ $$
 
 Considering same example for one random effect (g; indicating i.e. individuals) evaluated in different treatment levels (e; indicating i.e. the different treatments A,B,C) the model would look like:
 
-`random=~vsr(csr(e,mm=c("A","B")),isr(g))`
+`random=~vsm(csm(e,mm=c("A","B")),ism(g))`
 
 where `mm` indicates which variance and covariance components are estimated for `g`.
 
-### 6) The specification of multi-trait constraints in the variance components for the vsr function (Gtc argument)
+### 6) The specification of multi-trait constraints in the variance components for the vsm function (Gtc argument)
 
 One of the major strengths of sommer is its extreme flexibility to specify variance-covariance structures in the multi-trait framework. Since sommer 4.4 this is easily achieved by the use of the `thetaC` argument available in any of the special functions for variance structures. The `thetaC` argument expects a matrix of constraints for the variance-covariance components for the random effect filled with numbers according to the following rules:
 
@@ -419,38 +419,38 @@ Consider a multi-trait model with 4 traits (y1,...,y4) and 1 random effect (u) a
 
 `fixed=valueS~trait`
 
-`random= ~vsr(csr(trait, thetaC=?), isr(u))`
+`random= ~vsm(csm(trait, thetaC=?), ism(u))`
 
 The constraint for the 4 x 4 matrix of variance covariance components to be estimated can be an: 
 
 a) unstructured 
 
 ```{r}
-# csr(trait, thetaC=unsm(4))
+# csm(trait, thetaC=unsm(4))
 # # or just
-# usr(trait)
+# usm(trait)
 ```
 c) fixed (variance or covariance components indicated with a 3 are considered fixed and values are provided in the Gti argument)
 
-`random= ~vsr( csr(trait, thetaC=fixm(4)), isr(u) )` 
+`random= ~vsm( csm(trait, thetaC=fixm(4)), ism(u) )` 
 
 ### 7) Special functions for special models
 
 #### Random regression models
 
-In order to fit random regression models the user can use the `leg()` function to fit Legendre polynomials. This can be combined with other special covariance structures such as `dsr() / dsr()`, `usr() / usr()`, etc.
+In order to fit random regression models the user can use the `leg()` function to fit Legendre polynomials. This can be combined with other special covariance structures such as `dsm() / dsm()`, `usm() / usm()`, etc.
 
 ```{r}
 library(orthopolynom)
 data(DT_legendre)
 DT <- DT_legendre
 
-mRR2c<-mmer(Y~ 1 + Xf
-           , random=~ vsr(usr(leg(X,1)),isr(SUBJECT))
-           , rcov=~vsr(isr(units))
+mRR2c<-mme(Y~ 1 + Xf
+           , random=~ vsm(usm(leg(X,1)),ism(SUBJECT))
+           , rcov=~vsm(ism(units))
            , data=DT, verbose = FALSE)
 summary(mRR2c)$varcomp
-## to solve for c coefficients set mme=TRUE
+## to solve for c coefficients set henderson=TRUE
 ```
 
 Here, a numeric covariate X is used to explain the trajectory of the SUBJECTs and combined with an unstructured covariance matrix. The details can be found in the theory.
@@ -461,7 +461,7 @@ We will use the CPdata to show the use of 2-dimensional splines for accomodating
 
 In order to do a good job modeling the spatial trends happening in the field, special covariance structures have been proposed to accomodate such spatial trends (i.e. autoregressive residuals; ar1). Unfortunately, some of these covariance structures make the modeling rather unstable. More recently other research groups have proposed the use of 2-dimensional splines to overcome such issues and have a more robust modeling of the spatial terms (Lee et al. 2013; Rodríguez-Álvarez et al. 2018).
 
-In this example we assume an unreplicated population where row and range information is available which allows usr to fit a 2 dimensional spline model.
+In this example we assume an unreplicated population where row and range information is available which allows usm to fit a 2 dimensional spline model.
 
 ```{r}
 data(DT_cpdata)
@@ -470,8 +470,8 @@ GT <- GT_cpdata
 MP <- MP_cpdata
 ### mimic two fields
 A <- A.mat(GT)
-mix <- mmer(Yield~1,
-            random=~vsr(isr(id), Gu=A) +
+mix <- mme(Yield~1,
+            random=~vsm(ism(id), Gu=A) +
               Rowf +
               Colf +
               spl2Dc(Row,Col),
@@ -494,13 +494,13 @@ GT <- GT_cpdata
 MP <- MP_cpdata
 
 #### look at the data and fit the model
-mix1 <- mmer(Yield~1,
-              random=~vsr(isr(GT)),
+mix1 <- mme(Yield~1,
+              random=~vsm(ism(GT)),
               rcov=~units, nIters=10,
               data=DT,verbose = FALSE)
 
 ```
-the matrix GT is provided as a random effect by encapsulating the matrix in a list and provided in the `vsr()` function.
+the matrix GT is provided as a random effect by encapsulating the matrix in a list and provided in the `vsm()` function.
 
 ### 10) Likelihood ratio tests
 
@@ -518,8 +518,8 @@ MP <- MP_cpdata
 ### mimic two fields
 A <- A.mat(GT)
 
-mix1 <- mmer(Yield~1,
-            random=~vsr(isr(id), Gu=A) +
+mix1 <- mme(Yield~1,
+            random=~vsm(ism(id), Gu=A) +
               Rowf +
               Colf,
             rcov=~units, nIters=3,
@@ -529,15 +529,15 @@ mix1 <- mmer(Yield~1,
 And the model with the spatial kernel is the following:
 
 ```{r}
-mix2 <- mmer(Yield~1,
-            random=~vsr(isr(id), Gu=A) +
+mix2 <- mme(Yield~1,
+            random=~vsm(ism(id), Gu=A) +
               Rowf +
               Colf +
               spl2Dc(Row,Col),
             rcov=~units, nIters=10,
             data=DT,verbose = FALSE)
 ```
-Then to test if the second model brings value let usr fit the likelihood ratio test as follows:
+Then to test if the second model brings value let usm fit the likelihood ratio test as follows:
 
 ```{r}
 lrt <- anova(mix1, mix2)
@@ -611,13 +611,13 @@ The `predict()` function of the sommer package then builts the $C^{-1}$ matrix f
 
 ### 2) Predicting means
 
-The sommer package is equiped with a `predict()` function that can be used to calculate means and standard errors for fixed and random effects specified in the models fitted with the `mmer()` and `mmer` functions. Using the yatesoats dataset we will will fit some fixed and random effects.
+The sommer package is equiped with a `predict()` function that can be used to calculate means and standard errors for fixed and random effects specified in the models fitted with the `mme()` and `mme` functions. Using the yatesoats dataset we will will fit some fixed and random effects.
 
 ```{r}
 library(sommer)
 data(DT_yatesoats)
 DT <- DT_yatesoats
-m3 <- mmer(fixed=Y ~ V + N + V:N,
+m3 <- mme(fixed=Y ~ V + N + V:N,
            random = ~ B + B:MP,
            rcov=~units,
            data = DT, verbose=FALSE)

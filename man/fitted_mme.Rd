@@ -1,14 +1,14 @@
-\name{fitted.mmer}
-\alias{fitted.mmer}
-\title{fitted form a LMM fitted with mmer}
-\description{\code{fitted} method for class \code{"mmer"}.
+\name{fitted.mme}
+\alias{fitted.mme}
+\title{fitted form a LMM fitted with mme}
+\description{\code{fitted} method for class \code{"mme"}.
 }
 \usage{
-\method{fitted}{mmer}(object, \dots)
+\method{fitted}{mme}(object, \dots)
 }
 \arguments{
- \item{object}{an object of class \code{"mmer"}}
- \item{\dots}{Further arguments to be passed to the mmer function}
+ \item{object}{an object of class \code{"mme"}}
+ \item{\dots}{Further arguments to be passed to the mme function}
 }
 \value{
   vector of fitted values of the form y.hat = Xb + Zu including all terms of the model.
@@ -23,8 +23,8 @@
 # A <- A.mat(GT) # additive relationship matrix
 # #### look at the data and fit the model
 # head(DT)
-# mix1 <- mmer(Yield~1,
-#               random=~vsr(isr(id),Gu=A)
+# mix1 <- mme(Yield~1,
+#               random=~vsm(ism(id),Gu=A)
 #                       + Rowf + Colf + spl2Dc(Row,Col),
 #               rcov=~units,
 #               data=DT)
@@ -38,6 +38,6 @@
 # lattice::levelplot(`u:Row.fitted`~Row*Col, data=ff$dataWithFitted, col.regions = colfunc)
 
 }
-\seealso{\code{\link{fitted}}, \code{\link{mmer}}}
+\seealso{\code{\link{fitted}}, \code{\link{mme}}}
 \keyword{models}
 

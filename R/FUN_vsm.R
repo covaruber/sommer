@@ -1,4 +1,4 @@
-vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE, isFixed=FALSE, verbose=TRUE){
+vsm <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, sp=FALSE, isFixed=FALSE, verbose=TRUE){
 
   # buildGu=TRUE; meN=1; meTheta=NULL; meThetaC=NULL; sp=FALSE; isFixed=FALSE; verbose=TRUE
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
@@ -28,7 +28,7 @@ vsr <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
   }
   if(length(whichElemBad) > 0){
     badd <- paste(namess2[whichElemBad],collapse = ",")
-    stop(paste0("Term(s): '",badd,"' in the vsr() function are not encapsulated in a structure function. Please correct [for example, using vsr(isc(",badd,")), vsr(dsc(",badd,")), vsr(usc(",badd,")), vsr(atc(",badd,")), vsr(csc(",badd,")), etc.]."),call. = FALSE)
+    stop(paste0("Term(s): '",badd,"' in the vsm() function are not encapsulated in a structure function. Please correct [for example, using vsm(isc(",badd,")), vsm(dsc(",badd,")), vsm(usc(",badd,")), vsm(atc(",badd,")), vsm(csc(",badd,")), etc.]."),call. = FALSE)
   }
 
   ## extract names of variables and collpase as interaction

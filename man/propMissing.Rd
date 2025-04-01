@@ -27,5 +27,4 @@
 x <- c(1:10, NA)
 propMissing(x)
 }
-\seealso{See the function \code{\link{vsr}} to know how to use \code{propMissing} in the \code{\link{mmer}} solver.}
 

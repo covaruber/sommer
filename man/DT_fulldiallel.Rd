@@ -31,10 +31,10 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 data(DT_fulldiallel)
 DT <- DT_fulldiallel
 head(DT)
-mix <- mmer(stems~1, random=~female+male, data=DT)
+mix <- mme(stems~1, random=~female+male, data=DT)
 summary(mix)
 
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mme}} }

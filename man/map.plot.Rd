@@ -68,4 +68,3 @@ map.plot(geno, trait="X2", type="dot")
 # map.plot(MP, type="line", cex=0.6)
 
 }
-\seealso{The core functions of the package \code{\link{mmer}}}

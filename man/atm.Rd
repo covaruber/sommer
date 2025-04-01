@@ -1,11 +1,11 @@
-\name{atr}
-\alias{atr}
-\title{atr covariance structure}
+\name{atm}
+\alias{atm}
+\title{atm covariance structure}
 \description{
-  \code{atr} creates a diagonal covariance structure for specific levels of the random effect to be used with the \code{\link{mmer}} solver.
+  \code{atm} creates a diagonal covariance structure for specific levels of the random effect to be used with the \code{\link{mmex}} solver.
 }
 \usage{
-  atr(x, levs, thetaC, theta)
+  atm(x, levs, thetaC, theta)
 }
 
 \arguments{
@@ -47,18 +47,17 @@
 
 \examples{
 x <- as.factor(c(1:5,1:5,1:5));x
-atr(x, c("1","2"))
+atm(x, c("1","2"))
 ## how to use the theta and thetaC arguments:
 # data(DT_example)
 # DT <- DT_example
 # theta <- diag(2)*2; theta # initial VCs
 # thetaC <- diag(2)*3; thetaC # fixed VCs
-# ans1 <- mmer(Yield~Env,
-#              random= ~ vsr( atr(Env, levs=c("CA.2013", "CA.2011"),
-#                             theta = theta,thetaC = thetaC),isr(Name) ),
+# ans1 <- mmex(Yield~Env,
+#              random= ~ vsm( atm(Env, levs=c("CA.2013", "CA.2011"),
+#                             theta = theta,thetaC = thetaC),ism(Name) ),
 #              rcov= ~ units, nIters = 1,
 #              data=DT)
 # summary(ans1)$varcomp
 
 }
-\seealso{The function \code{\link{vsr}} to know how to use \code{atr} in the \code{\link{mmer}} solver. }

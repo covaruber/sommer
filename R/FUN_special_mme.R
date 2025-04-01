@@ -15,7 +15,7 @@ fixm <- function(x, reps=NULL){
   }else{return(mm)}
 }
 
-covr <- function(ran1,ran2, thetaC=NULL, theta=NULL){
+covm <- function(ran1,ran2, thetaC=NULL, theta=NULL){
   if( ncol(ran1$Z[[1]]) != ncol(ran2$Z[[1]]) ){stop("Matrices of the two random effects should have the same dimensions",call. = FALSE)}
   ran1$Z[[2]] <- ran2$Z[[1]]
   if(is.null(thetaC)){
@@ -379,7 +379,7 @@ redmm <- function (x, M = NULL, Lam=NULL, nPC=50, cholD=FALSE, returnLam=FALSE) 
   
 }
 
-rrr <- function (x = NULL, H = NULL, nPC = 2, returnGamma = FALSE, cholD = TRUE) 
+rrm <- function (x = NULL, H = NULL, nPC = 2, returnGamma = FALSE, cholD = TRUE) 
 {
   if (is.null(x)) {
     stop("Please provide the x argument.", call. = FALSE)
@@ -455,7 +455,7 @@ H <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL){
   return(wide)
 }
 
-atr <- function(x, levs, thetaC=NULL, theta=NULL){
+atm <- function(x, levs, thetaC=NULL, theta=NULL){
   if(is.matrix(x)){
     dummy <- x
     dummy <- dummy[,levs]
@@ -504,7 +504,7 @@ atr <- function(x, levs, thetaC=NULL, theta=NULL){
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm, theta=bnmm))
 }
-csr <- function(x,mm, thetaC=NULL, theta=NULL){
+csm <- function(x,mm, thetaC=NULL, theta=NULL){
   if(is.matrix(x)){
     mm <- mm
   }else{
@@ -542,7 +542,7 @@ csr <- function(x,mm, thetaC=NULL, theta=NULL){
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm,theta=bnmm))
 }
-dsr <- function(x, thetaC=NULL, theta=NULL){
+dsm <- function(x, thetaC=NULL, theta=NULL){
   if(is.matrix(x)){
     dummy <- x
     mm <- diag(1,ncol(x))
@@ -582,7 +582,7 @@ dsr <- function(x, thetaC=NULL, theta=NULL){
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm, theta=bnmm))
 }
-usr <- function(x, thetaC=NULL, theta=NULL){
+usm <- function(x, thetaC=NULL, theta=NULL){
   # namx <- as.character(substitute(list(x)))[-1L]
   if(is.matrix(x)){
     dummy <- x
@@ -619,7 +619,7 @@ usr <- function(x, thetaC=NULL, theta=NULL){
   mm[lower.tri(mm)]=0
   return(list(Z=dummy,thetaC=mm,theta=bnmm))
 }
-isr <- function(x, thetaC=NULL, theta=NULL){
+ism <- function(x, thetaC=NULL, theta=NULL){
   if(class(x)[1] %in% c("dgCMatrix","matrix") ){
     dummy <-  as(as(as( x ,  "dMatrix"), "generalMatrix"), "CsparseMatrix") # as(x, Class="dgCMatrix")
     mm <- diag(1)#,ncol(x))

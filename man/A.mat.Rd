@@ -65,4 +65,3 @@ A <- A.mat(X)
 # hv <- heatmap(A[1:15,1:15], col = colfunc(100),Colv = "Rowv")
 # str(hv)
 }
-\seealso{\code{\link{mmer}} -- the core function of the package }

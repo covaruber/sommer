@@ -87,4 +87,3 @@
 #                geom_hline(yintercept = 0.975)
 
 }
-\seealso{The core functions of the package \code{\link{mmer}} }

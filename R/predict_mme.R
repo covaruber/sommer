@@ -6,7 +6,7 @@
 # ignored is not used included in the prediction
 
 
-"predict.mmer" <- function(object, Dtable=NULL, D, ...){
+"predict.mme" <- function(object, Dtable=NULL, D, ...){
   if(is.character(D)){classify <- D}else{classify="id"} # save a copy before D is overwriten
   # complete the Dtable withnumber of effects in each term
   xEffectN <- lapply(object$partitionsX, as.vector)
@@ -126,7 +126,7 @@
   return(list(pvals=pvals,D=D,vcov=vcov, Dtable=Dtable))
 }
 
-"print.predict.mmer"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
+"print.predict.mme"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
   cat(blue(paste("
                  The predictions are obtained by averaging/aggregating across
                  the hypertable calculated from model terms constructed solely
@@ -138,7 +138,7 @@
   head(x$pvals,...)
 }
 
-# "predict.mmer" <- function(object, Dtable=NULL, D, ...){
+# "predict.mme" <- function(object, Dtable=NULL, D, ...){
 #
 #
 #   if(is(D,"character")){ ## if user don't provide a D but a Dtable

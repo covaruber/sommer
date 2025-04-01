@@ -44,7 +44,7 @@ head(DT)
 ####=========================================####
 
 ## Compound simmetry (CS) model
-ans1 <- mmer(Yield~Env,
+ans1 <- mme(Yield~Env,
              random= ~ Name + Env:Name,
              rcov= ~ units,
              data=DT)
@@ -56,12 +56,12 @@ summary(ans1)$varcomp
 # 
 # ## Compound simmetry (CS) + Diagonal (DIAG) model
 # DT=DT[with(DT, order(Env)), ]
-# ans2 <- mmer(Yield~Env,
-#              random= ~Name + vsr(dsr(Env),isr(Name)),
-#              rcov= ~ vsr(dsr(Env),isr(units)),
+# ans2 <- mme(Yield~Env,
+#              random= ~Name + vsm(dsm(Env),ism(Name)),
+#              rcov= ~ vsm(dsm(Env),ism(units)),
 #              data=DT)
 # summary(ans2)
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}}  }
+\seealso{The core functions of the package \code{\link{mme}}  }

@@ -50,4 +50,3 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 \examples{
 simGECorMat(9,3)
 }
-\seealso{\code{\link{mmer}} -- the core function of the package }

@@ -67,8 +67,8 @@ data(DT_polyploid)
 # ###=========================================####
 # ### run as mixed model
 # ###=========================================####
-# ans <- mmer(tuber_shape~1,
-#             random=~vsr(isr(Name), Gu=A),
+# ans <- mme(tuber_shape~1,
+#             random=~vsm(ism(Name), Gu=A),
 #             data=DT2)
 # summary(ans)$varcomp
 # # if using mme=TRUE provide Gu as inverse
@@ -78,4 +78,4 @@ data(DT_polyploid)
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mme}} }

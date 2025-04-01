@@ -55,4 +55,3 @@ tail(geno)
 manhattan(geno)
 
 }
-\seealso{The core functions of the package \code{\link{mmer}} }

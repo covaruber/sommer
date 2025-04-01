@@ -32,7 +32,7 @@ spl2Dc(x.coord,y.coord,at.var=NULL,at.levels=NULL, type="PSANOVA",
   \item{nestorder}{numerical vector of length 2 containing the divisor of the number of segments (\code{nsegments}) to be used for the construction of the nested B-spline basis for the smooth-by-smooth interaction component. In this case, the nested B-spline basis will be constructed assuming a total of \code{nsegments}/\code{nestorder} segments. Default set to 1, which implies that nested basis are not used. See \code{SAP} for more details.}
   \item{thetaC}{an optional matrix for constraints in the variance components.}
   \item{theta}{an optional matrix for initial values of the variance components.}
-  \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmer function through the addScaleParam argument in the \code{mmer} function .}
+  \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mme function through the addScaleParam argument in the \code{mme} function .}
      
 }
 \details{
@@ -64,7 +64,7 @@ Gilmour, A.R., Cullis, B.R., and Verbyla, A.P. (1997). Accounting for Natural an
 
 }
 \seealso{
-\code{\link{mmer}}
+\code{\link{mme}}
 }
 \examples{
 ## ============================ ##
@@ -75,15 +75,6 @@ data(DT_cpdata)
 # GT <- GT_cpdata
 # MP <- MP_cpdata
 # A <- A.mat(GT)
-# Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
-# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# mix <- mmer(Yield~1,
-#             random=~vsr(isr(id), Gu=Ai) +
-#               Rowf + Colf +
-#               spl2Dc(Row,Col),
-#             rcov=~units,
-#             data=DT)
-# summary(mix)$varcomp
 ## ============================ ##
 ## mimic 2 fields
 ## ============================ ## 
@@ -93,12 +84,12 @@ data(DT_cpdata)
 # aa$Yield <- aa$Yield + rnorm(length(aa$Yield),0,4)
 # DT2 <- rbind(aa,bb)
 # head(DT2)
-# mix <- mmer(Yield~1,
-#             random=~vsr(dsr(FIELD),isr(id), Gu=Ai) +
-#               vsr(dsr(FIELD),isr(Rowf)) +
-#               vsr(dsr(FIELD),isr(Colf)) +
+# mix <- mme(Yield~1,
+#             random=~vsm(dsm(FIELD),ism(id), Gu=Ai) +
+#               vsm(dsm(FIELD),ism(Rowf)) +
+#               vsm(dsm(FIELD),ism(Colf)) +
 #                 spl2Dc(Row,Col,at.var=FIELD),
-#             rcov=~vsr(dsr(FIELD),isr(units)),
+#             rcov=~vsm(dsm(FIELD),ism(units)),
 #             data=DT2)
 
 }

@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mmer() function, and 2) n > p (more observations than effects to estimate) using the mmer() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mme() function, and 2) n > p (more observations than effects to estimate) using the mme() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
 
 The purpose of this vignette is to show how to fit different genotype by environment (GxE) models using the sommer package:  
 
@@ -36,13 +36,13 @@ data(DT_example)
 DT <- DT_example
 A <- A_example
 
-ansSingle <- mmer(Yield~1,
-              random= ~ vsr(isr(Name), Gu=A),
+ansSingle <- mme(Yield~1,
+              random= ~ vsm(ism(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansSingle)
 
-# if setting mme=TRUE provide the inverse
+# if setting henderson=TRUE provide the inverse
 # Ai <- solve(A)
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # attr(Ai, "inverse")=TRUE
@@ -57,13 +57,13 @@ A multi-environment model is the one that is fitted when the breeding program ca
 
 ```{r}
 
-ansMain <- mmer(Yield~Env,
-              random= ~ vsr(isr(Name), Gu=A),
+ansMain <- mme(Yield~Env,
+              random= ~ vsm(ism(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansMain)
 
-# if setting mme=TRUE provide the inverse
+# if setting henderson=TRUE provide the inverse
 # Ai <- solve(A)
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # attr(Ai, "inverse")=TRUE
@@ -76,13 +76,13 @@ A multi-environment model is the one that is fitted when the breeding program ca
 
 ```{r}
 
-ansDG <- mmer(Yield~Env,
-              random= ~ vsr(dsr(Env),isr(Name), Gu=A),
+ansDG <- mme(Yield~Env,
+              random= ~ vsm(dsm(Env),ism(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansDG)
 
-# if setting mme=TRUE provide the inverse
+# if setting henderson=TRUE provide the inverse
 # Ai <- solve(A)
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # attr(Ai, "inverse")=TRUE
@@ -103,8 +103,8 @@ Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 EAi <- as(as(as( EAi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 attr(Ai, "inverse")=TRUE
 attr(EAi, "inverse")=TRUE
-ansCS <- mmer(Yield~Env,
-              random= ~ vsr(isr(Name), Gu=Ai) + vsr(isr(Env:Name), Gu=EAi),
+ansCS <- mme(Yield~Env,
+              random= ~ vsm(ism(Name), Gu=Ai) + vsm(ism(Env:Name), Gu=EAi),
               rcov= ~ units, 
               data=DT, verbose = FALSE)
 summary(ansCS)
@@ -117,12 +117,12 @@ A multi-environment model is the one that is fitted when the breeding program ca
 
 ```{r}
 
-ansUS <- mmer(Yield~Env,
-              random= ~ vsr(usr(Env),isr(Name), Gu=A),
+ansUS <- mme(Yield~Env,
+              random= ~ vsm(usm(Env),ism(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansUS)
-# if setting mme=TRUE provide the inverse
+# if setting henderson=TRUE provide the inverse
 Ai <- solve(A)
 Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 attr(Ai, "inverse")=TRUE
@@ -138,8 +138,8 @@ A multi-environment model is the one that is fitted when the breeding program ca
 library(orthopolynom)
 DT$EnvN <- as.numeric(as.factor(DT$Env))
 
-ansRR <- mmer(Yield~Env,
-              random= ~ vsr(dsr(leg(EnvN,1)),isr(Name)),
+ansRR <- mme(Yield~Env,
+              random= ~ vsm(dsm(leg(EnvN,1)),ism(Name)),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansRR)
@@ -152,8 +152,8 @@ In addition, an unstructured, diagonal or other variance-covariance structure ca
 library(orthopolynom)
 DT$EnvN <- as.numeric(as.factor(DT$Env))
 
-ansRR <- mmer(Yield~Env,
-              random= ~ vsr(usr(leg(EnvN,1)),isr(Name)),
+ansRR <- mme(Yield~Env,
+              random= ~ vsm(usm(leg(EnvN,1)),ism(Name)),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansRR)
@@ -170,8 +170,8 @@ Although not very commonly used in GxE models, the autoregressive of order 1 (AR
 E <- AR1(DT$Env) # can be AR1() or CS(), etc.
 rownames(E) <- colnames(E) <- unique(DT$Env)
 EA <- kronecker(E,A, make.dimnames = TRUE)
-ansCS <- mmer(Yield~Env,
-              random= ~ vsr(isr(Name), Gu=A) + vsr(isr(Env:Name), Gu=EA),
+ansCS <- mme(Yield~Env,
+              random= ~ vsm(ism(Name), Gu=A) + vsm(ism(Env:Name), Gu=EA),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansCS)
@@ -195,18 +195,18 @@ ei <- ei[with(ei, order(envIndex)), ]
 DT2 <- merge(DT,ei, by="Env")
 
 # numeric by factor variables like envIndex:Name can't be used in the random part like this
-# they need to come with the vsr() structure
+# they need to come with the vsm() structure
 DT2 <- DT2[with(DT2, order(Name)), ]
-mix2 <- mmer(y~ envIndex, mme=TRUE,
-             random=~ Name + vsr(dsr(envIndex),isr(Name)), data=DT2,
-             rcov=~vsr(dsr(Name),isr(units)),
+mix2 <- mme(y~ envIndex, henderson=TRUE,
+             random=~ Name + vsm(dsm(envIndex),ism(Name)), data=DT2,
+             rcov=~vsm(dsm(Name),ism(units)),
              tolParConvNorm = .0001,
              nIters = 50, verbose = FALSE
 )
 # summary(mix2)$varcomp
 
-b=mix2$uList$`vsr(dsr(envIndex), isr(Name))` # adaptability (b) or genotype slopes
-mu=mix2$uList$`vsr( isr( Name ) )` # general adaptation (mu) or main effect
+b=mix2$uList$`vsm(dsm(envIndex), ism(Name))` # adaptability (b) or genotype slopes
+mu=mix2$uList$`vsm( ism( Name ) )` # general adaptation (mu) or main effect
 e=sqrt(summary(mix2)$varcomp[-c(1:2),1]) # error variance for each individual
 
 ## general adaptation (main effect) vs adaptability (response to better environments)
@@ -229,7 +229,7 @@ text(y=preds[,2],x=e, labels = rownames(mu), cex=0.5, pos = 1)
 
 ## 9) Factor analytic (reduced rank) model
 
-When the number of environments where genotypes are evaluated is big and we want to consider the genetic covariance between environments and location-specific variance components we cannot fit an unstructured covariance in the model since the number of parameters is too big and the matrix can become non-full rank leading to singularities. In those cases is suggested a dimensionality reduction technique. Among those the factor analytic structures proposed by many research groups (Piepho, Smith, Cullis, Thompson, Meyer, etc.) are the way to go. Sommer has a reduced-rank factor analytic implementation available through the rrr() function. Here we show an example of how to fit the model:
+When the number of environments where genotypes are evaluated is big and we want to consider the genetic covariance between environments and location-specific variance components we cannot fit an unstructured covariance in the model since the number of parameters is too big and the matrix can become non-full rank leading to singularities. In those cases is suggested a dimensionality reduction technique. Among those the factor analytic structures proposed by many research groups (Piepho, Smith, Cullis, Thompson, Meyer, etc.) are the way to go. Sommer has a reduced-rank factor analytic implementation available through the rrm() function. Here we show an example of how to fit the model:
 
 ```{r}
 
@@ -242,19 +242,19 @@ A <- diag(length(indNames))
 rownames(A) <- colnames(A) <- indNames
 
 # fit diagonal model first to produce H matrix
-ansDG <- mmer(y~Env, mme=TRUE,
-              random=~ vsr(dsr(Env), isr(Name)),
+ansDG <- mme(y~Env, henderson=TRUE,
+              random=~ vsm(dsm(Env), ism(Name)),
               rcov=~units, nIters = 100,
               # we recommend giving more EM iterations at the beggining
               emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
               data=DT, verbose = FALSE)
 
-H0 <- ansDG$uList$`vsr(dsr(Env), isr(Name))` # GxE table
+H0 <- ansDG$uList$`vsm(dsm(Env), ism(Name))` # GxE table
 
 # reduced rank model
-ansFA <- mmer(y~Env, mme=TRUE,
-              random=~vsr( usr(rrr(Env, H = H0, nPC = 3)) , isr(Name)) + # rr
-                vsr(dsr(Env), isr(Name)), # diag
+ansFA <- mme(y~Env, henderson=TRUE,
+              random=~vsm( usm(rrm(Env, H = H0, nPC = 3)) , ism(Name)) + # rr
+                vsm(dsm(Env), ism(Name)), # diag
               rcov=~units,
               # we recommend giving more iterations to these models
               nIters = 100, verbose = FALSE,
@@ -265,7 +265,7 @@ ansFA <- mmer(y~Env, mme=TRUE,
 vcFA <- ansFA$theta[[1]]
 vcDG <- ansFA$theta[[2]]
 
-loadings=with(DT, rrr(Env, nPC = 3, H = H0, returnGamma = TRUE) )$Gamma
+loadings=with(DT, rrm(Env, nPC = 3, H = H0, returnGamma = TRUE) )$Gamma
 scores <- ansFA$uList[[1]]
 
 vcUS <- loadings %*% vcFA %*% t(loadings)
@@ -289,7 +289,7 @@ It is common then to fit a first model that accounts for the variation of random
 
 ##########
 ## stage 1
-## use mmer for dense field trials
+## use mme for dense field trials
 ##########
 data(DT_h2)
 DT <- DT_h2
@@ -298,7 +298,7 @@ envs <- unique(DT$Env)
 BLUEL <- list()
 XtXL <- list()
 for(i in 1:length(envs)){
-  ans1 <- mmer(y~Name-1,
+  ans1 <- mme(y~Name-1,
                random=~Block,
                verbose=FALSE,
                data=droplevels(DT[which(DT$Env == envs[i]),]
@@ -318,12 +318,12 @@ OM <- do.call(adiag1,XtXL)
 
 ##########
 ## stage 2
-## use mmer for sparse equation
+## use mme for sparse equation
 ##########
 m <- matrix(1/var(DT2$Estimate, na.rm = TRUE))
-ans2 <- mmer(Estimate~Env, mme=TRUE,
+ans2 <- mme(Estimate~Env, henderson=TRUE,
              random=~ Effect + Env:Effect, 
-             rcov=~vsr(isr(units,thetaC = matrix(3), theta = m)),
+             rcov=~vsm(ism(units,thetaC = matrix(3), theta = m)),
              W=OM, 
              verbose=FALSE,
              data=DT2

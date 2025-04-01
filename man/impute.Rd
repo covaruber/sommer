@@ -37,4 +37,3 @@ x <- rnorm(100)
 x[sample(1:100,10)] <- NA
 imputev(x)
 }
-\seealso{The core function of the package \code{\link{mmer}}}

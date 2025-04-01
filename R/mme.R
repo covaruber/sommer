@@ -1,4 +1,4 @@
-mmer <- function(fixed, random, rcov, data, W,
+mme <- function(fixed, random, rcov, data, W,
                  nIters=25, tolParConvLL = 1e-03,
                  tolParConvNorm = 1e-04, tolParInv = 1e-06,
                  naMethodX="exclude",
@@ -9,14 +9,14 @@ mmer <- function(fixed, random, rcov, data, W,
                  addScaleParam=NULL,
                  stepWeight=NULL, emWeight=NULL, 
                  contrasts=NULL,
-                 getPEV=TRUE, mme=FALSE){
+                 getPEV=TRUE, henderson=FALSE){
   
   my.date <- "2025-06-01"
   your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
   if(dateWarning){
     if (your.date > my.date) {
-      cat("Version out of date. Please update sommer to the newest version using:\ninstall.packages('sommer') in a new session\n Use the 'dateWarning' argument to disable the warning message.")
+      cat("Version out of date. Please update sommex to the newest version using:\ninstall.packages('sommex') in a new session\n Use the 'dateWarning' argument to disable the warning message.")
     }
   }
   
@@ -70,10 +70,10 @@ mmer <- function(fixed, random, rcov, data, W,
     })
     # print(rtermss)
     for(u in 1:length(rtermss)){ # for each random effect u=1
-      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsr","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
+      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsm","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
       
       if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
-        rtermss[u] <- paste("vsr( isr(",rtermss[u],") )")
+        rtermss[u] <- paste("vsm( ism(",rtermss[u],") )")
       }
       ff <- eval(parse(text = rtermss[u]),data,parent.frame()) # evaluate the variance structure
       Z <- c(Z, lapply(ff$Z, function(x){if(nrow(x) != length(nonMissing)){return(x[nonMissing,])}else{return(x)} }) )
@@ -108,10 +108,10 @@ mmer <- function(fixed, random, rcov, data, W,
   S <- list()
   Spartitions <- list()
   for(u in 1:length(rcovtermss)){ # for each random effect
-    checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vsr","gvs","spl2Da","spl2Db")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
+    checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vsm","gvs","spl2Da","spl2Db")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
     
     if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
-      rcovtermss[u] <- paste("vsr( isr(",rcovtermss[u],") )")
+      rcovtermss[u] <- paste("vsm( ism(",rcovtermss[u],") )")
     }
     
     ff <- eval(parse(text = rcovtermss[u]),data,parent.frame()) # evalaute the variance structure
@@ -265,14 +265,14 @@ mmer <- function(fixed, random, rcov, data, W,
       isInvW=FALSE
       AI=FALSE # use newton raphson
       returnScaled=FALSE # return scaled variance parameters
-      # translate vsr S into vsr R
+      # translate vsm S into vsm R
       R <- rep(list(Matrix::Diagonal(x= rep(0, nrow(yvar)) )), length(S) )
       for(iR in 1:length(S)){ # iR=1
         R[[iR]][Spartitions[[iR]][1,1]:Spartitions[[iR]][1,2],
                 Spartitions[[iR]][1,1]:Spartitions[[iR]][1,2] ] = S[[iR]]
       }
       R <- lapply(R,function(x){as(as(as( x,  "dMatrix"), "generalMatrix"), "CsparseMatrix")})
-      # translate vsr Z into vsr Z
+      # translate vsm Z into vsm Z
       
       THETA <- THETAc <- K <- Zdi <- list(); counter=1
       vary <- var(yvar[,1])
@@ -317,7 +317,7 @@ mmer <- function(fixed, random, rcov, data, W,
       theta <- THETA; THETA <- NULL
       # thetaC <- THETAc;  THETAc <- NULL
       
-      res <- .Call("_sommer_MNR",PACKAGE = "sommer",
+      res <- .Call("_sommex_MNR",PACKAGE = "sommex",
                    as.matrix(yvar), 
                    list(as.matrix(X)),
                    list(matrix(1)),
@@ -330,7 +330,7 @@ mmer <- function(fixed, random, rcov, data, W,
       
     }else if(mme == TRUE){ # n > p HENDERSON
       
-      res <- .Call("_sommer_ai_mme_sp",PACKAGE = "sommer",
+      res <- .Call("_sommex_ai_mme_sp",PACKAGE = "sommex",
                    X,Z, Zind,
                    Ai,yvar,
                    S, Spartitions, W, useH,
@@ -403,7 +403,7 @@ mmer <- function(fixed, random, rcov, data, W,
         }
         # move the PEV to the Cii matrix
         if(length(Z) > 0){ # there's random effects
-          res$Ci <- sommer::adiag1(res$Ci_11, do.call(sommer::adiag1, res$Ci))
+          res$Ci <- sommex::adiag1(res$Ci_11, do.call(sommex::adiag1, res$Ci))
           res$W <- XZY
         }else{
           res$Ci <- res$Ci_11
@@ -443,7 +443,7 @@ mmer <- function(fixed, random, rcov, data, W,
       res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE)
     }
     # 
-    class(res)<-c("mmer")
+    class(res)<-c("mme")
   }
   return(res)
 }

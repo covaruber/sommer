@@ -45,14 +45,14 @@ data(DT_rice)
 # head(DT)
 # M <- atcg1234(GT)
 # A <- A.mat(M$M)
-# mix <- mmer(Protein.content~1,
-#             random = ~vsr(isr(geno), Gu=A) + geno,
+# mix <- mme(Protein.content~1,
+#             random = ~vsm(ism(geno), Gu=A) + geno,
 #             rcov=~units,
 #             data=DT)
 # summary(mix)$varcomp
-# # if using mme=TRUE provide Gu as inverse
+# # if using henderson=TRUE provide Gu as inverse
 # Ai <- solve(A + diag(1e-6,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}} }
+\seealso{The core functions of the package \code{\link{mme}} }

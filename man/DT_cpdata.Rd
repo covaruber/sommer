@@ -7,9 +7,14 @@
 Genotypic and Phenotypic data for a CP population
 }
 \description{
-A CP population or F1 cross is the designation for a cross between 2 highly heterozygote individuals; i.e. humans, fruit crops, bredding populations in recurrent selection.
+A CP population or F1 cross is the designation for a cross between 2 highly heterozygote
+individuals; i.e. humans, fruit crops, bredding populations in recurrent selection.
 
-This dataset contains phenotpic data for 363 siblings for an F1 cross. These are averages over 2 environments evaluated for 4 traits; color, yield, fruit average weight, and firmness. The columns in the CPgeno file are the markers whereas the rows are the individuals. The CPpheno data frame contains the measurements for the 363 siblings, and as mentioned before are averages over 2 environments.
+This dataset contains phenotpic data for 363 siblings for an F1 cross. These are
+averages over 2 environments evaluated for 4 traits; color, yield, fruit average 
+weight, and firmness. The columns in the CPgeno file are the markers whereas the 
+rows are the individuals. The CPpheno data frame contains the measurements for the
+363 siblings, and as mentioned before are averages over 2 environments.
 
 }
 \usage{data("DT_cpdata")}
@@ -42,8 +47,8 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # A <- A.mat(GT) # additive relationship matrix
 # #### look at the data and fit the model
 # head(DT)
-# mix1 <- mmer(Yield~1, mme=FALSE,
-#               random=~vsr(isr(id),Gu=A)
+# mix1 <- mme(Yield~1, henderson=FALSE,
+#               random=~vsm(ism(id),Gu=A)
 #                       + Rowf + Colf,
 #               rcov=~units,
 #               data=DT)
@@ -52,8 +57,8 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # ## mmec uses the inverse of the relationship matrix
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# mix2 <- mmer(Yield~1, mme=TRUE,
-#               random=~vsr(isr(id),Gu=Ai)
+# mix2 <- mme(Yield~1, henderson=TRUE,
+#               random=~vsm(ism(id),Gu=Ai)
 #                       + Rowf + Colf,
 #               rcov=~units,
 #               data=DT)
@@ -62,7 +67,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # vg <- summary(mix2)$varcomp[1,1] # genetic variance
 # G <- A*vg # genetic variance-covariance
 # Ci <- mix2$Ci # coefficient matrix
-# ind <- as.vector(mix2$partitions$`vsr(isr(id), Gu = Ai)`)
+# ind <- as.vector(mix2$partitions$`vsm(ism(id), Gu = Ai)`)
 # ind <- seq(ind[1],ind[2])
 # Ctt <- Ci[ind,ind] # portion of Ci for genotypes
 # R2 <- (G - Ctt)/G # reliability matrix
@@ -79,12 +84,12 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # #### be patient take some time
-# ansm <- mmer( valueS ~ trait, # mme=TRUE,
-#                random=~ vsr(usr(trait), isr(id), Gu=A),
-#                rcov=~ vsr(dsr(trait), isr(units)),
+# ansm <- mme( valueS ~ trait, # henderson=TRUE,
+#                random=~ vsm(usm(trait), ism(id), Gu=A),
+#                rcov=~ vsm(dsm(trait), ism(units)),
 #                data=DT2$long)
 # cov2cor(ansm$theta[[1]])
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mmer}}  }
+\seealso{The core functions of the package \code{\link{mme}}  }
