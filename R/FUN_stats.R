@@ -71,7 +71,7 @@ logspace <- function (n, start, end) {
 }
 
 r2 <- function(object, object2=NULL){
-  if(!inherits(object, "mmec")){
+  if(!inherits(object, "mmer")){
     stop("This function is only available for models fitted with the mmec() function.", call. = FALSE)
   }
   result <- list()

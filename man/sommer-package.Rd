@@ -33,7 +33,8 @@ deal well with small and medium-size data sets (< 10,000 observations/records fo
 average computers given the computational burden carried by the direct-inversion 
 algorithms) since it works in the c > r problem and inverts an r x r matrix 
 (being r the number of records and c the number of coefficients). On the other hand,
-Henderson algorithms can deal with greater number of records (r>250K) as long as the 
+the Henderson algorithm in the \code{\link{mmer}} function can deal with 
+greater number of records (r>250K) as long as the 
 number of coefficients to estimate is < 10,000 coefficients (c) since it works in
 the r > c problem and inverts a c x c matrix (being c the number of coefficients).
 The \code{\link{predict.mmer}} function can be used to obtain adjusted means. 
@@ -81,16 +82,17 @@ The \code{\link{vpredict}} function can be used to estimate standard errors for 
 
 \section{Functions for trial analysis}{
 
-Recently, spatial modeling has been added added to sommer using the two-dimensional spline (\code{\link{spl2Da}} and \code{\link{spl2Db}} for \code{\link{mmer}} and \code{\link{spl2Dc}} for \code{\link{mmec}} ) functions.
+Recently, spatial modeling has been added added to sommer using the two-dimensional 
+spline (\code{\link{spl2Dc}}).
 
 }
 
 \section{Keeping sommer updated}{
 The sommer package is updated on CRAN every 4-months due to CRAN policies but you can find the latest source at https://github.com/covaruber/sommer. This can be easily installed typing the following in the R console:
 
-library(devtools)
+\code{library(devtools)}
 
-install_github("covaruber/sommer")
+\code{install_github("covaruber/sommer")}
 
 This is recommended if you reported a bug, was fixed and was immediately pushed to GitHub but not in CRAN until the next update.
 }
@@ -99,15 +101,13 @@ This is recommended if you reported a bug, was fixed and was immediately pushed 
 
  \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
-\strong{vignette("v1.sommer.quick.start")} 
+\code{vignette("v1.sommer.quick.start")} 
 
-\strong{vignette("v2.sommer.changes.and.faqs")}
+\code{vignette("v2.sommer.changes.and.faqs")}
 
-\strong{vignette("v3.sommer.qg")}
+\code{vignette("v3.sommer.qg")}
 
-\strong{vignette("v4.sommer.gxe")}
-
-or visit \strong{https://covaruber.github.io}
+\code{vignette("v4.sommer.gxe")}
 
 }
 
@@ -173,7 +173,13 @@ Keep in mind that sommer uses direct inversion (DI) algorithm which can be very 
 \section{Models Enabled}{
 
 
-The core of the package are the \code{\link{mmer}} and \code{\link{mmec}} (formula-based) functions which solve the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson, `AI` Direct-Inversion Average Information or the mme-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). Since version 2.0 sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
+The core of the package are the \code{\link{mmer}} (formula-based) function which 
+solve the mixed model equations. The functions are an interface to call the `NR`
+Direct-Inversion Newton-Raphson, `AI` Direct-Inversion Average Information or 
+the mme-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; 
+Lee et al. 2016). Since version 2.0 sommer can handle multivariate models. 
+Following Maier et al. (2015), the multivariate (and by extension the univariate)
+mixed model implemented has the form:
 
 
 
@@ -214,28 +220,6 @@ where || is the determinant of a matrix. And the REML estimates are updated usin
 
 Where, theta is the vector of variance components for random effects and covariance components among traits, H^-1 is the inverse of the Hessian matrix of second derivatives for the kth cycle, dL/dsigma^2_i is the vector of first derivatives of the likelihood with respect to the variance-covariance components. The Eigen decomposition of the relationship matrix proposed by Lee and Van Der Werf (2016) was included in the Newton-Raphson algorithm to improve time efficiency. Additionally, the popular vpredict function to estimate standard errors for linear combinations of variance components (i.e. heritabilities and genetic correlations) was added to the package as well.
 
-
-}
-
-\section{GWAS Models}{
-
-The GWAS models in the sommer package are enabled by using the M argument in the functions \code{\link{GWAS}}, which is expected to be a numeric marker matrix. Markers are treated as fixed effects according to the model proposed by Yu et al. (2006) for diploids, and Rosyara et al. (2016) (for polyploids). The matrices X and M are both fixed effects, but they are separated by 2 different arguments to distinguish factors such as environmental and design factors for the argument "X" and markers with "M".
-  
-  The genome-wide association analysis is based on the mixed model:
-
-\deqn{y = X \beta + Z g + M \tau + e}
-
-where \eqn{\beta} is a vector of fixed effects that can model both environmental factors and population structure.  
-The variable \eqn{g} models the genetic background of each line as a random effect with \eqn{Var[g] = K \sigma^2}.  
-The variable \eqn{\tau} models the additive SNP effect as a fixed effect.  The residual variance is \eqn{Var[\varepsilon] = I \sigma_e^2}
-  
-  When principal components are included (P+K model), the loadings are determined from an eigenvalue decomposition of the K matrix and are used in the fixed effect part.
-
-The argument "P3D" introduced by Zhang et al. (2010) can be used with the P3D argument.  When P3D=FALSE, this function is equivalent to AI/NR with REML where the variance components are estimated for each SNP or marker tested (Kang et al. 2008).  When P3D=TRUE, it is equivalent to NR (Kang et al. 2010) where the assumption is that variance components for all SNP/markers are the same and therefore the variance components are estimated only once (and markers are tested in a WLS framework being the the weight matrix (M) the inverse of the phenotypic variance matrix (V)).  Therefore, P3D=TRUE option is faster but can underestimate significance compared to P3D=FALSE.
-
-Multivariate GWAS are based in Covarrubias-Pazaran et al. (2018, In preparation), which adjusts betas for all response variables and then does the regular GWAS with such adjusted betas or marker effects.
-
-For extra details about the methods please read the canonical papers listed in the References section.
 
 }
 
