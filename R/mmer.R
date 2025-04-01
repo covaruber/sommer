@@ -341,7 +341,6 @@ mmer <- function(fixed, random, rcov, data, W,
                    emWeight,
                    stepWeight,
                    verbose)
-      res$theta_se <- solve(res$avInf/2)
       
     }
     ###### add rownames and build uList

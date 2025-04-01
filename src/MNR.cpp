@@ -1161,7 +1161,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     Rcpp::Named("Ci") = PevU,
     Rcpp::Named("Ci_11") = tXVXi,
     Rcpp::Named("theta") = sigma,
-    Rcpp::Named("theta_se") = FISH,
+    Rcpp::Named("theta_se") = FISH, // inverse of fisher's information
     Rcpp::Named("theta_scaled") = sigma_scaled,
     Rcpp::Named("avInf") = Inf, // dL2
     Rcpp::Named("monitor") = sigma_store.cols(0, cycle2),
@@ -1972,7 +1972,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   for (int i = 0; i < nRRe; ++i) {
     thetaCUnlistedFinal = join_cols(thetaCUnlistedFinal,mat_to_vecCpp2(thetaC[i],thetaC[i]));
   }
-
+  
   // return results in a list form
   return Rcpp::List::create(
     Rcpp::Named("llik") = llik,
@@ -1983,6 +1983,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     Rcpp::Named("bu") = bu,
     Rcpp::Named("Ci") = Ci,
     Rcpp::Named("theta") = theta,
+    Rcpp::Named("theta_se") = InfMatInv,
     Rcpp::Named("avInf") = avInf, //InfMat,
     Rcpp::Named("monitor") = monitor,
     // Rcpp::Named("constraints") = thetaCUnlistedFinal,
