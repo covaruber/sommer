@@ -485,12 +485,12 @@ to fit it for all levels (e.g., trials or fields).</p>
 <span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>DT2<span class="sc">$</span>trial <span class="ot">&lt;-</span> <span class="fu">c</span>(<span class="fu">rep</span>(<span class="st">&quot;A&quot;</span>,<span class="fu">nrow</span>(DT)),<span class="fu">rep</span>(<span class="st">&quot;B&quot;</span>,<span class="fu">nrow</span>(DT)))</span>
 <span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a><span class="fu">head</span>(DT2)</span></code></pre></div>
 <pre><code>##   row col         Y   N          V  B         MP R C trial
-## 1   1   1  91.28303 0.2    Victory B2    Victory 1 1     A
-## 2   2   1  61.58732   0    Victory B2    Victory 2 1     A
-## 3   3   1 121.20355 0.4 Marvellous B2 Marvellous 3 1     A
-## 4   4   1 142.31400 0.6 Marvellous B2 Marvellous 4 1     A
-## 5   5   1 150.51538 0.6 GoldenRain B2 GoldenRain 5 1     A
-## 6   6   1 110.07097 0.2 GoldenRain B2 GoldenRain 6 1     A</code></pre>
+## 1   1   1  90.23958 0.2    Victory B2    Victory 1 1     A
+## 2   2   1  60.29654   0    Victory B2    Victory 2 1     A
+## 3   3   1 120.65492 0.4 Marvellous B2 Marvellous 3 1     A
+## 4   4   1 143.68643 0.6 Marvellous B2 Marvellous 4 1     A
+## 5   5   1 148.63631 0.6 GoldenRain B2 GoldenRain 5 1     A
+## 6   6   1 107.92068 0.2 GoldenRain B2 GoldenRain 6 1     A</code></pre>
 <div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a><span class="co"># SOMMER MODEL</span></span>
 <span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a>mix <span class="ot">&lt;-</span> <span class="fu">mme</span>(Y<span class="sc">~</span>V,</span>
 <span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>            <span class="at">random=</span><span class="sc">~</span> R <span class="sc">+</span> C <span class="sc">+</span></span>
@@ -499,11 +499,11 @@ to fit it for all levels (e.g., trials or fields).</p>
 <span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>            <span class="at">data=</span>DT2)</span>
 <span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a><span class="fu">summary</span>(mix)<span class="sc">$</span>varcomp</span></code></pre></div>
 <pre><code>##                            VarComp VarCompSE    Zratio Constraint
-## R:mu:mu                   191.1474  83.78762 2.2813316   Positive
-## C:mu:mu                   183.9582 162.42643 1.1325630   Positive
-## row:col:trial:A:all:A:all 264.4707 307.31406 0.8605876   Positive
-## row:col:trial:B:all:B:all 258.4723 305.64497 0.8456620   Positive
-## units:mu:mu               340.7810  58.72504 5.8029939   Positive</code></pre>
+## R:mu:mu                   192.6008  84.46406 2.2802690   Positive
+## C:mu:mu                   178.0944 157.49378 1.1308029   Positive
+## row:col:trial:A:all:A:all 244.5949 305.53725 0.8005404   Positive
+## row:col:trial:B:all:B:all 242.0247 304.86228 0.7938822   Positive
+## units:mu:mu               347.7051  59.75607 5.8187408   Positive</code></pre>
 </div>
 </div>
 <div id="literature" class="section level2">
