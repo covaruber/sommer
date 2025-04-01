@@ -1,5 +1,5 @@
 mme <- function(fixed, random, rcov, data, W,
-                 nIters=25, tolParConvLL = 1e-03,
+                 nIters=25, tolParConvLL = 1e-04,
                  tolParConvNorm = 1e-04, tolParInv = 1e-06,
                  naMethodX="exclude",
                  naMethodY="exclude",

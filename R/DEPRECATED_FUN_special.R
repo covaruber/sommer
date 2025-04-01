@@ -1,3 +1,102 @@
+#### =========== ####
+## SUMMARY FUNCTION mmer #
+#### =========== ####
+"summary.mmer" <- function(object, ...) {
+  message("This function has been deprecated. Please start using 'mme' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
+  
+  replace.values <- function(Values,Search,Replace){
+    dd0 <- data.frame(Values)
+    vv <- which(Values%in%Search)
+    dd <- data.frame(Search,Replace)
+    rownames(dd) <- Search
+    dd0[vv,"Values"] <- as.character(dd[Values[vv],"Replace"])
+    return(dd0[,1])
+  }
+  
+  if(!object$reshapeOutput){stop("summary function only works for reshaped output.", call. = FALSE)}
+  #dim(object$u.hat)
+  digits = max(3, getOption("digits") - 3)
+  #forget <- length(object)
+  
+  groupss.nn <- lapply(object$U,function(x){
+    unlist(lapply(x,length))
+  })
+  groupss.nn <- do.call(rbind,groupss.nn)
+  
+  lll <- object$monitor[1,]
+  lll <- lll[which(lll > 1e-300 | lll < 0)]
+  lll2 <- lll[length(lll)]
+  
+  LLAIC <- data.frame(as.numeric(lll2), as.numeric(object$AIC),
+                      as.numeric(object$BIC), object$method, object$convergence)
+  colnames(LLAIC) = c("logLik","AIC","BIC","Method","Converge")
+  rownames(LLAIC) <- "Value"
+  
+  method=object$method
+  #extract fixed effects
+  coef <- as.data.frame((object$Beta))#, Std.Error=(matrix(sqrt(diag(object$Var.beta.hat)),ncol=1)), t.value=(matrix((object$beta.hat-0)/sqrt(diag(object$Var.beta.hat)), ncol=1)))
+  # if(dim(coef)[1] == 1){rownames(coef) <- "Intercept"}
+  
+  ## se and t values for fixed effects
+  ts <- ncol(object$sigma[[1]])
+  s2.beta <- diag(as.matrix(object$VarBeta))
+  coef$Std.Error <- sqrt(abs(s2.beta))
+  coef$t.value <- coef$Estimate/coef$Std.Error
+  # print(coef)
+  # nse.beta <- length(s2.beta)/ts
+  # inits <- seq(1,length(s2.beta),nse.beta)
+  # ends <- inits+nse.beta-1
+  # seti <- list() # stardard errors partitioned by trait
+  # for(u in 1:ts){
+  #   prox <- data.frame(coef[,u],sqrt(abs(s2.beta[inits[u]:ends[u]])))
+  #   prox$`t value` <- prox[,1]/prox[,2]
+  #   colnames(prox) <- c("Estimate","Std. Error","t value")
+  #   rownames(prox) <- rownames(coef)
+  #   seti[[u]] <- prox
+  # }
+  # names(seti) <- colnames(object$sigma[[1]])
+  
+  vcsl <- list()
+  consl <- list()
+  for(k in 1:length(object$sigma)){
+    x <- object$sigma[[k]]
+    y <- object$constraints[[k]]
+    xn <- names(object$sigma)[k]
+    vcs <- numeric()
+    cons <- numeric()
+    counter <-1
+    for(i in 1:ncol(x)){
+      for(j in i:ncol(x)){
+        # print(y[i,j])
+        if( y[i,j] != 0 ){
+          vcs[counter] <- x[i,j]
+          cons[counter] <- y[i,j]
+          names(vcs)[counter] <- paste(colnames(x)[i],colnames(x)[j],sep="-" )
+          counter <- counter+1
+        }
+      }
+    }
+    vcsl[[xn]] <- as.data.frame(vcs)
+    consl[[xn]] <- as.data.frame(cons)
+  }
+  mys2 <- do.call(rbind,vcsl)
+  mycons <- do.call(rbind,consl)
+  
+  rrr <- lapply(vcsl,rownames)
+  rrr <- rrr[which(unlist(lapply(rrr, length)) > 0)]
+  for(o in 1:length(rrr)){rrr[[o]] <- paste(names(rrr)[o],rrr[[o]],sep=".")}
+  rownames(mys2) <- as.vector(unlist(rrr))
+  
+  varcomp <- as.data.frame(cbind(mys2,sqrt(abs(diag(object$sigmaSE)))))
+  varcomp[,3] <- varcomp[,1]/varcomp[,2]
+  colnames(varcomp) <- c("VarComp","VarCompSE","Zratio")
+  varcomp$Constraint <- replace.values(mycons$cons, 1:3, c("Positive","Unconstr","Fixed"))
+  
+  output <- list(groups=groupss.nn, varcomp=varcomp, betas=coef, method=method,logo=LLAIC)
+  attr(output, "class")<-c("summary.mmer", "list")
+  return(output)
+}
+
 vsr <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
   
   message("This function has been deprecated. Please start using 'mme' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")

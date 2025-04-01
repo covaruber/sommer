@@ -13,15 +13,15 @@ operations common in problems with sparse data (e.g., genotype by environment mo
 This algorithm is \strong{intended to be used for problems of the type r > c (more 
 records in the data than coefficients to estimate)}. For problems with of the type 
 c > r (more coefficients to estimate than records available), the direct inversion 
-algorithms are faster and we recommend using the argument \code{mme=FALSE} (default).
-For more records than coefficients set \code{mme=TRUE} and make sure you provide the
+algorithms are faster and we recommend using the argument \code{henderson=FALSE} (default).
+For more records than coefficients set \code{henderson=TRUE} and make sure you provide the
 relationship matrix as an inverse.
 
 }
 
 \usage{
 
-mme(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-03,
+mme(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-04,
      tolParConvNorm = 1e-04, tolParInv = 1e-06, naMethodX="exclude",
      naMethodY="exclude", returnParam=FALSE, dateWarning=TRUE,
      verbose=TRUE,addScaleParam=NULL, stepWeight=NULL, emWeight=NULL,

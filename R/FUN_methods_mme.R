@@ -1,4 +1,28 @@
-
+##################################################################################################
+#Startup function
+#this function is executed once the library is loaded
+.onAttach = function(library, pkg)
+{
+  Rv = R.Version()
+  if(!exists("getRversion", baseenv()) || (getRversion() < "3.5.0"))
+    stop("This package requires R 3.5.0 or later")
+  if(interactive()) {
+    packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]   Solving Mixed Model Equations in R (sommer) 4.4.1 (2025-06-01) []",sep="")),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]   ------------- Multivariate Linear Mixed Models --------------  []")),appendLF=TRUE)
+    packageStartupMessage(paste0(magenta("[]   Author: Giovanny Covarrubias-Pazaran",paste0(bgGreen(white(" ")), bgWhite(magenta("*")), bgRed(white(" "))),"                      []")),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Dedicated to the University of Chapingo and UW-Madison         []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Type 'vignette('sommer.qg')' for a short tutorial              []"),appendLF=TRUE)
+    packageStartupMessage(magenta("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
+    packageStartupMessage(magenta("sommer is updated on CRAN every 3-months due to CRAN policies"),appendLF=TRUE)
+    packageStartupMessage(magenta("Current source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
+    packageStartupMessage(magenta("If needed, install as: devtools::install_github('covaruber/sommer')"),appendLF=TRUE)
+    
+  }
+  invisible()
+}
 
 #### =========== ####
 ## SUMMARY FUNCTION mme #
@@ -220,28 +244,4 @@ plot.mme <- function(x, stnd=TRUE, ...) {
   #####################
   layout(matrix(1,1,1))
 }
-##################################################################################################
-#Startup function
-#this function is executed once the library is loaded
-.onAttach = function(library, pkg)
-{
-  Rv = R.Version()
-  if(!exists("getRversion", baseenv()) || (getRversion() < "3.5.0"))
-    stop("This package requires R 3.5.0 or later")
-  if(interactive()) {
-    packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(magenta(paste("[]   Solving Mixed Model Equations in R (sommer) 4.4.1 (2025-06-01) []",sep="")),appendLF=TRUE)
-    packageStartupMessage(magenta(paste("[]   ------------- Multivariate Linear Mixed Models --------------  []")),appendLF=TRUE)
-    packageStartupMessage(paste0(magenta("[]   Author: Giovanny Covarrubias-Pazaran",paste0(bgGreen(white(" ")), bgWhite(magenta("*")), bgRed(white(" "))),"                      []")),appendLF=TRUE)
-    packageStartupMessage(magenta("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
-    packageStartupMessage(magenta("[]   Dedicated to the University of Chapingo and UW-Madison         []"),appendLF=TRUE)
-    packageStartupMessage(magenta("[]   Type 'vignette('v1.sommer.quick.start')' for a short tutorial  []"),appendLF=TRUE)
-    packageStartupMessage(magenta("[]   Type 'citation('sommer')' to know how to cite sommer           []"),appendLF=TRUE)
-    packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(magenta("sommer is updated on CRAN every 4-months due to CRAN policies"),appendLF=TRUE)
-    packageStartupMessage(magenta("Current source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
-    packageStartupMessage(magenta("If needed, install as: devtools::install_github('covaruber/sommer')"),appendLF=TRUE)
 
-  }
-  invisible()
-}

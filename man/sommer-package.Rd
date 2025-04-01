@@ -28,13 +28,14 @@ covariance structures, e.g., unstructured, reduced-rank, diagonal. And also to
 model relationships between levels of a random effect, e.g., additive, dominance 
 and epistatic relationship structures.  
 
-The direct inversion algorithm available in the \code{\link{mme}} function can
+The direct inversion algorithm available in the \code{\link{mme}} function
+(argument \code{henderson=FALSE}) can
 deal well with small and medium-size data sets (< 10,000 observations/records for 
 average computers given the computational burden carried by the direct-inversion 
 algorithms) since it works in the c > r problem and inverts an r x r matrix 
 (being r the number of records and c the number of coefficients). On the other hand,
-the Henderson algorithm in the \code{\link{mme}} function can deal with 
-greater number of records (r>250K) as long as the 
+the Henderson algorithm in the \code{\link{mme}} function (argument \code{henderson=TRUE})
+can deal with greater number of records (r>250K) as long as the 
 number of coefficients to estimate is < 10,000 coefficients (c) since it works in
 the r > c problem and inverts a c x c matrix (being c the number of coefficients).
 The \code{\link{predict.mme}} function can be used to obtain adjusted means. 
@@ -101,13 +102,13 @@ This is recommended if you reported a bug, was fixed and was immediately pushed 
 
  \strong{For tutorials} on how to perform different analysis with sommer please look at the vignettes by typing in the terminal:
 
-\code{vignette("v1.sommer.quick.start")} 
+\code{vignette("sommer.qg")}
 
-\code{vignette("v2.sommer.changes.and.faqs")}
+\code{vignette("sommer.gxe")}
 
-\code{vignette("v3.sommer.qg")}
+\code{vignette("sommer.vs.lme4")} 
 
-\code{vignette("v4.sommer.gxe")}
+\code{vignette("sommer.spatial")}
 
 }
 

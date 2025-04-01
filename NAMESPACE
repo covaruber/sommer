@@ -19,8 +19,8 @@ export( unsm, fixm, # small constructors
        overlay, redmm, 
        add.diallel.vars, stackTrait,
        vpredict,
-       # usr, dsr, csr, atr, vsr, vcsExtract, reshap.mmer DEPRECATED
-       mmer# mmer DEPRECATED
+       # usr, dsr, csr, atr, vcsExtract, reshap.mmer DEPRECATED
+       mmer, vsr, vs# mmer DEPRECATED
         
        )
 
@@ -63,6 +63,7 @@ S3method(print, coef.mme)
 S3method(print, summary.mme)
 S3method(residuals, mme)
 S3method(summary, mme)
+S3method(summary, mmer)
 
 # S3 METHODS other
 S3method(print, wald.test)
