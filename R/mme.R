@@ -317,7 +317,7 @@ mme <- function(fixed, random, rcov, data, W,
       theta <- THETA; THETA <- NULL
       # thetaC <- THETAc;  THETAc <- NULL
       
-      res <- .Call("_sommex_MNR",PACKAGE = "sommer",
+      res <- .Call("_sommer_MNR",PACKAGE = "sommer",
                    as.matrix(yvar), 
                    list(as.matrix(X)),
                    list(matrix(1)),
@@ -330,7 +330,7 @@ mme <- function(fixed, random, rcov, data, W,
       
     }else if(henderson == TRUE){ # n > p HENDERSON
       
-      res <- .Call("_sommex_ai_mme_sp",PACKAGE = "sommer",
+      res <- .Call("_sommer_ai_mme_sp",PACKAGE = "sommer",
                    X,Z, Zind,
                    Ai,yvar,
                    S, Spartitions, W, useH,
