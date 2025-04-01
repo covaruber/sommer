@@ -194,33 +194,33 @@ For details about the models enabled and more information about the covariance s
 \value{
 If all parameters are correctly indicated the program will return a list with the following information:
 
-\item{llik}{the vector of log-likelihoods across iterations}
-\item{M}{the coeficient matrix extended by the response vector y] }
-\item{W}{the column binded matrix W = [X Z y] }
+\item{data}{the dataset used in the model fitting.}
+\item{Dtable}{the table to be used for the predict function to help the program recognize the factors available.}
+\item{llik}{the vector of log-likelihoods across iterations}}
 \item{b}{the vector of fixed effect.}
 \item{u}{the vector of random effect.}
 \item{bu}{the vector of fixed and random effects together.}
 \item{Ci}{the inverse of the coefficient matrix.}
-\item{avInf}{The matrix of second derivatives of the likelihood with respect to the i.j th variance-covariance component.}
+\item{Ci_11}{the inverse of the coefficient matrix pertaining to the fixed effects.}
+\item{theta}{a list of estimated variance covariance matrices. Each element of the list corresponds to the different random and residual components}
+\item{theta_se}{inverse of the information matrix.}
+\item{InfMat}{information matrix.}
 \item{monitor}{The values of the variance-covariance components across iterations during the REML estimation.}
-\item{constraints}{The vector of constraints.}
 \item{AIC}{Akaike information criterion}
 \item{BIC}{Bayesian information criterion}
 \item{convergence}{a TRUE/FALSE statement indicating if the model converged.}
 \item{partitions}{a list where each element contains a matrix indicating where each random effect starts and ends.}
+\item{partitionsX}{a list where each element contains a matrix indicating where each fixed effect starts and ends.}
 \item{percDelta}{the matrix of percentage change in deltas (see tolParConvNorm argument).}
 \item{normMonitor}{the matrix of the three norms calculated (see tolParConvNorm argument).}
 \item{toBoundary}{the matrix of variance components that were forced to the boundary across iterations.}
 \item{Cchol}{the Cholesky decomposition of the coefficient matrix.}
-\item{theta}{a list of estimated variance covariance matrices. Each element of the list corresponds to the different random and residual components}
-\item{sigma}{the vector form of the variance-covariance parameters.}
-\item{data}{the dataset used in the model fitting.}
 \item{y}{the response vector.}
-\item{partitionsX}{a list where each element contains a matrix indicating where each fixed effect starts and ends.}
+\item{W}{the column binded matrix W = [X Z] }
 \item{uList}{a list containing the BLUPs in data frame format where rows are levels of the random effects and column the different factors at which the random effect is fitted. This is specially useful for diagonal and unstructured models.}
 \item{uPevList}{a list containing the BLUPs in data frame format where rows are levels of the random effects and column the different factors at which the random effect is fitted. This is specially useful for diagonal and unstructured models.}
-\item{Dtable}{the table to be used for the predict function to help the program recognize the factors available.}
 \item{args}{the fixed, random and residual formulas from the mmer model.}
+\item{constraints}{The vector of constraints.}
 
 }
 \references{
