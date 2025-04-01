@@ -1418,6 +1418,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   arma::mat avInf(nVcTotal,nVcTotal);
   arma::mat emInf(nVcTotal,nVcTotal);
   arma::mat InfMat(nVcTotal,nVcTotal);
+  arma::mat InfMatInv(nVcTotal,nVcTotal);
   bool convergence = false;
   double seconds;
   arma::sp_mat XWjxZWj(nEffects,nVcTotal), WiXxWiZ(nVcTotal,nEffects), WiWj(nVcTotal,nVcTotal);
@@ -1811,7 +1812,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     // Joint information matrix and update
     //                  AVERAGE INFORMATION                         +       EXPECTATION MAXIMIZATION
     InfMat = (weightAiInfMat * avInf) + (weightEmInfMat * emInf);
-    arma::mat InfMatInv = arma::pinv(InfMat, tolParInv); // inverse of the information matrix
+    InfMatInv = arma::pinv(InfMat, tolParInv); // inverse of the information matrix
     delta = (InfMatInv * arma::as_scalar(weightInf(iIter))) * dLu; // delta = I- * dLu/dLx
     // new values for variance components theta.i+1 = theta.i + delta
     arma::vec  expectedNewTheta = thetaUnlisted - delta;
