@@ -9,9 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mmer() function, and 2) n > p (more observations than effects to estimate) using the mmec() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to specify the variance-covariance structure for the random effects, to specify heterogeneous variances, and to obtain other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
-
-Recently, I decided to code the main algorithm (Newton-Raphson & Average-Information) in C++ which encouraged me to refactor all the machinery including special functions and specification of the models. For a more in depth explanation of how the machinery works please read the "Quick start for the sommer package" vignette by typing `vignette('sommer.start')`. Here I will focus on just making a translation of the old specification to the new specification.
+The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mmer function with the default direct inversion algorithm (mme=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the mme argument to TRUE can bring significant speed ups.
  
 The purpose of this vignette is to first show the changes in syntax for `sommer` and frequently asked question.
 
@@ -47,7 +45,15 @@ In past versions (depending how old your version) there was an argument called `
 
 `fixed= cbind(y1,y2)~x`
 
-would by default fit 2 univariate models in parallel. That is no longer the case, the `MVM` argument doesn't exist and if a model like the one above is specified it will run a true multi-trait model.
+would by default fit 2 univariate models in parallel. That is no longer the case, the `MVM` argument doesn't exist and if a model like the one above is specified it will run a true multi-trait model. Now we have opted for the long format approach and now the user has to first row bind the trait data:
+
+`DT2 <- stackTrait(DT, traits = c("trait1","trait2"))`
+
+and fit a model of the form:
+
+`valueS ~ trait, random=~vsr( dsr(trait), isr(geno) )`
+
+to fit a covariance structure for traits and genos.
 
 ### 2) The specification of multivariate unknown covariance structures
 
@@ -63,9 +69,9 @@ and an unstructured multitrait model was:
 
 Although this was easier for users familiar with asreml, it put a lot of limitations on the way constraints for variance components were specified. The same model in the new versions looks like this:
 
-`random= ~ vsr(re, Gtc=unsm(2))`
+`random= ~ vsr( usr(trait), isr(re) )`
 
-where the `Gtc` argument helps usr to indicate what type of structure this random effect represents. Here I specified an unstructured model with the function `unsm()` with a number 2 for 2 traits. The user can specify either `diag()` or `uncm()`, or any customized matrix with dimensions t x t (t being the number of traits) containing the number 0,1,2,3 that specify the constraint:
+where the `vsr` knows how to read the different variance structures for each factor. The user can specify `csr()` and provide a matrix with dimensions t x t (t being the number of traits) containing the number 0,1,2,3 that specify the constraints:
 
 + 0: not to be estimated
 + 1: estimated and constrained to be positive (i.e. variance component)
@@ -140,7 +146,7 @@ and now it would be specified as:
 
 `fixed= y1~x`
 
-`random= ~ vsr(dsr(env),id)`    or    `random= ~ vsr(usr(env),id)`
+`random= ~ vsr(dsr(env),isr(id))`    or    `random= ~ vsr(usr(env),isr(id))`
 
 where the `dsr()` and `usr()` functions specify diagonal and unstructured models respectively. Now `csr()` for a customized structure is available. The main gain from having changed the formulation is that the new specification through the `vsr()` function allows for contructing more complex moels. For example, assume individuals specified in a column called `id` tested in three environments in a column called `env` measured at two different time points specified in a column called `time`. We may want something more flexible than:
 
@@ -163,7 +169,7 @@ $$\mathbf{var(u)} = \left[\begin{array}
 $$ 
 which was not possible in previous versions of sommer and now can be specified as:
 
-`random= ~ vsr(usr(env),dsr(time),id)`
+`random= ~ vsr(usr(env),dsr(time),isr(id))`
 
 and the same logic can be extended to as many interacting factors as desired.
 
@@ -177,17 +183,17 @@ Previous versions:
 
 `random= ~ usr(trait):diag(env):units` # limit
 
-New versions (>3.7):
+New versions (>4.4):
 
-`random= ~ vsr(dsr(env),units, Gtc=mm)` ## can be extended to more interacting factors
+`random= ~ vsr(dsr(env),isr(units))` ## can be extended to more interacting factors
 
-`random= ~ vsr(usr(env),units, Gtc=mm)` ## can be extended to more interacting factors
+`random= ~ vsr(usr(env),isr(units))` ## can be extended to more interacting factors
 
-`random= ~ vsr(at(env),units, Gtc=mm)` ## can be extended to more interacting factors
+`random= ~ vsr(atr(env),isr(units))` ## can be extended to more interacting factors
 
-`random= ~ vsr(csr(env),units, Gtc=mm)` ## can be extended to more interacting factors
+`random= ~ vsr(csr(env),isr(units))` ## can be extended to more interacting factors
 
-where `mm` can be any matrix specifying the type of multi-trait model (constraints). For example we could use `unsm()` `diag()`, `uncm()` or any other customized matrix.
+where customized constraints can be specified in the `thetaC` argument of each variance structure. For example we could use `unsm()` `diag()`, `uncm()` or any other customized matrix in thetaC.
 
 ### 5) Special models
 
@@ -201,21 +207,21 @@ Previous version: limited to 2 columns and only random and no covariance structu
 
 `random= ~  x + and(y)`
 
-New versions (>3.7): in theory there are no limits. Can be extended to more interacting factors in the unknown covariance structures and can overlay as many columns as needed. Plus is fully functional with the multivariate models.
+New versions (>4.4): in theory there are no limits. Can be extended to more interacting factors in the unknown covariance structures and can overlay as many columns as needed. Plus is fully functional with the multivariate models.
 
-`random=~ vsr(..., overlay(x1,...,xn), Gtc=mm)` 
+`random=~ vsr(..., isr( overlay(x1,...,xn) ) )` 
 
 #### Random regression models
 
 Previous version: Not available before
 
-New versions (>3.7): in theory no limits. Can be extended to more interacting factors in the unknown covariance structures and only requires the use of the `leg()` function. Plus is fully functional with the multivariate models.
+New versions (>4.4): in theory no limits. Can be extended to more interacting factors in the unknown covariance structures and only requires the use of the `leg()` function. Plus is fully functional with the multivariate models.
 
-`random=~ vsr(usr(leg(v,1)),x)` 
+`random=~ vsr(usr(leg(v,1)),isr(x))` 
 
-`random=~ vsr(dsr(leg(v,1)),x)` 
+`random=~ vsr(dsr(leg(v,1)),isr(x))` 
 
-`random=~ vsr(leg(v,1),x)` 
+`random=~ vsr(dsr(leg(v,1)),isr(x))` 
 
 #### GWAS models
 
@@ -229,9 +235,9 @@ Previous version: It was called directly in the formula
 
 `random=~ spl2D(Row,Col,at=?)`
 
-New versions (>3.7): It has to be called within the `vsr()` function but now it can be combined with all the unknown covariance structures available.
+New versions (>4.4): It has to be called within the `vsr()` function but now it can be combined with all the unknown covariance structures available.
 
-`random=~ vsr(...,spl2D(Row,Col,at=?), Gtc=mm)` # being mm any multi-trait constraint-structure.
+`random=~ vsr(...,spl2Dc(Row,Col,at=?, thetaC=mm) )` # being mm any multi-trait constraint-structure.
 
 #### Customized random effects
 
@@ -241,9 +247,9 @@ Previous version: It was provided in the grouping argument
 
 `grouping=list(x=Z)`
 
-New versions (>3.7): It has to be called within the `vsr()` function but now it can be combined with all the unknown covariance structures available. 
+New versions (>4.4): It has to be called within the `vsr()` function but now it can be combined with all the unknown covariance structures available. 
 
-`random=~vsr(,..., Z, Gtc=mm)` # mm is any multi-trait constraint-structure.
+`random=~vsr(,..., isr(Z, thetaC=mm))` # mm is any multi-trait constraint-structure.
 
 ## SECTION 2: Frequently asked questions
 
@@ -261,7 +267,7 @@ Sometimes the model becomes singular when you use variance covariance matrices (
 
 ### 2) My model runs very slow
 
-Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused on problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for an experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) the direct-inversion used in mmer() will be faster than MME-based algorithms Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) the mmec() function from sommer or any other MME-based algorithms will be much faster and we recommend you to opt for those software.
+Keep in mind that sommer uses direct inversion (DI) algorithm which can be very slow for large datasets. The package is focused on problems of the type p > n (more random effect levels than observations) and models with dense covariance structures. For example, for an experiment with dense covariance structures with low-replication (i.e. 2000 records from 1000 individuals replicated  twice with a covariance structure of 1000x1000) the direct-inversion used in mmer() when the argument mme=FALSE will be faster than MME-based algorithms Also for genomic problems with large number of random effect levels, i.e. 300 individuals (n) with 100,000 genetic markers (p). For highly replicated trials with small covariance structures or n > p (i.e. 2000 records from 200 individuals replicated 10 times with covariance structure of 200x200) setting the argument mme=TRUE will be faster.
 
 ### 3) Can I run both; rrBLUP for markers and GBLUP for individuals in sommer?
 
@@ -290,22 +296,23 @@ nrow(DT2); length(levels(DT2$id))
 # we fit a model with the reduced datatset where only 100 blups will be returned since only
 # 100 levels exist in the "id" column
 mix1 <- mmer(Yield~1,
-              random=~vsr(id,Gu=A)
-                      + Rowf + Colf,
-              rcov=~units,
-              data=DT2, verbose = FALSE)
+             random=~vsr(isr(id),Gu=A)
+             + Rowf + Colf,
+             rcov=~units,
+             data=DT2, verbose = FALSE)
 summary(mix1)
-length(mix1$U$`u:id`$Yield) # only 100 levels
+length(mix1$uList$`vsr(isr(id), Gu = A`) # only 100 levels
 
 # we add additional levels to the "id" column and also provide them in the relationship matrix
 levels(DT2$id) <- c(levels(DT2$id), setdiff(levels(DT$id), levels(DT2$id)))
 mix2 <- mmer(Yield~1,
-             random=~vsr(id,Gu=A)
+             random=~vsr(isr(id),Gu=A)
              + Rowf + Colf,
              rcov=~units,
              data=DT2, verbose = FALSE)
 summary(mix2)
-length(mix2$U$`u:id`$Yield) # now 363 levels
+length(mix2$uList$`vsr(isr(id), Gu = A`) # now 363 levels
+
 ```
 As of 4.1.2 this shouldn't be a problem since internally the `mmer()` solver adds the missing levels, but we leave this for reference for people using older versions of sommer.
  
@@ -333,7 +340,7 @@ library(sommer)
 data(DT_cpdata)
 DT <- DT_cpdata
 mixAR1row <- mmer(Yield~1,
-             random=~ vsr(Rowf, Gu=AR1(Rowf, rho=0.3)) + Colf,
+             random=~ vsr(isr(Rowf), Gu=AR1(Rowf, rho=0.3)) + Colf,
              rcov=~units,
              data=DT, verbose = FALSE)
 summary(mixAR1row)$varcomp
@@ -346,7 +353,7 @@ library(sommer)
 data(DT_cpdata)
 DT <- DT_cpdata
 mixAR1col <- mmer(Yield~1,
-             random=~ Rowf + vsr(Colf, Gu=AR1(Colf, rho=0.3)),
+             random=~ Rowf + vsr(isr(Colf), Gu=AR1(Colf, rho=0.3)),
              rcov=~units,
              data=DT, verbose = FALSE)
 summary(mixAR1col)$varcomp
@@ -359,7 +366,7 @@ library(sommer)
 data(DT_cpdata)
 DT <- DT_cpdata
 mixAR1rowcol <- mmer(Yield~1,
-                  random=~ vsr(Rowf:Colf, 
+                  random=~ vsr(isr(Rowf:Colf), 
                               Gu=kronecker(AR1(Rowf, rho=0.3),AR1(Colf, rho=0.3),make.dimnames = TRUE) 
                               ),
                   rcov=~units,
@@ -377,11 +384,10 @@ Yes, please see the vignette for QG using sommer and the method of GWAS by GBLUP
 
 When using the `vsr()` function three additional arguments help to control the following:
 
-+ `Gu`: matrix for covariances among levels for the u.th random effect 
-+ `Gti`: matrix of initial values for the variance-covariance components
-+ `Gtc`: matrix of constraints for the variance-covariance components
++ `theta`: matrix for covariances among levels for the u.th random effect 
++ `thetaC`: matrix of constraints for the variance-covariance components
 
-Since each random effect can be seen as a multi-trait variance covariance structure, the univariate models are just an extension where the multi-trait variance covariance structure is a 1 x 1 matrix. When inspecting the results for the mixed models fitted by the `mmer()` function corresponding to the variance components stored in the `sigma` element, you will notice that each random effect contains a t x t matrix which corresponds to the multi-trait structure we referred to. For example:
+Since each random effect can be seen as a multi-trait variance covariance structure, the univariate models are just an extension where the multi-trait variance covariance structure is a 1 x 1 matrix. When inspecting the results for the mixed models fitted by the `mmer()` function corresponding to the variance components stored in the `theta` element, you will notice that each random effect contains a t x t matrix which corresponds to the multi-trait structure we referred to. For example:
 
 ```{r}
 data(DT_cpdata)
@@ -392,71 +398,57 @@ MP <- MP_cpdata
 A <- A.mat(GT) # additive relationship matrix
 #### look at the data and fit the model
 mix1 <- mmer(Yield~1,
-              random=~vsr(id,Gu=A),
+              random=~vsr(isr(id),Gu=A),
               rcov=~units,
               data=DT, verbose = FALSE)
-mix1$sigma$`u:id`
+mix1$theta[[1]]
 ```
 
 Here the sigma element contains the random effects for `id` and `units` (error). Each of these contains a matrix of 1 by 1, but in a multi trait model would look like this: 
 
 ```{r}
-data(DT_cpdata)
-DT <- DT_cpdata
-GT <- GT_cpdata
-MP <- MP_cpdata
-#### create the variance-covariance matrix
-A <- A.mat(GT) # additive relationship matrix
-#### look at the data and fit the model
-mix2 <- mmer(cbind(Yield,color)~1,
-              random=~vsr(id,Gu=A, Gtc=unsm(2)),
-              rcov=~vsr(units,Gtc=diag(2)),
-              data=DT, verbose = FALSE)
-mix2$sigma$`u:id`
+# head(DT)
+# DT2 <- stackTrait(DT, traits = c("color","Yield"))
+# head(DT2$long)
+# A <- A.mat(GT) # additive relationship matrix
+# # if using mme=TRUE you need to provide the inverse
+# Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# #### be patient take some time
+# ansm <- mmer( valueS ~ trait, # mme=TRUE,
+#                random=~ vsr(usr(trait), isr(id), Gu=A),
+#                rcov=~ vsr(dsr(trait), isr(units)),
+#                data=DT2$long)
+# cov2cor(ansm$theta[[1]])
 ```
 Notice that for 2 traits this becomes a 2 by 2 matrix. In order to put constraints in some of these random effect matrices you can use the `Gtc` argument as show above. For the `id` random effect we have specified that variance components should be estimated and be positive (diagonals with a 1), whereas covariance components should be estimated and unconstrained to be positive or negative (off-diagonals with a 2).
 
 ```{r}
 unsm(2)
-mix2$sigma$`u:id`
+mix2$theta[[1]]
 ```
 
 On the other hand, for the `units` (error) random effect we have specified in the `Gtc` argument that variance components should be estimated and be positive (diagonals), whereas covariance components should not be estimated (off-diagonals with a 0)
 
 ```{r}
 diag(2)
-mix2$sigma$`u:units`
+mix2$theta[[2]]
 ```
 If the user would like to constrain a value to be fixed and not change through the estimation process of other random effects the user needs to provide the initial value (scaled with respect to the error variance) of those variance-covariance components in the `Gti` argument and use a matrix with the value 3 in the `Gtc` constraint matrix.
 
 ```{r}
 
 mm <- matrix(3,1,1) ## matrix to fix the var comp
-initialVal <- mix1$sigma_scaled$`u:id`/2 # we want to fix the vc to be half of the previous uinvariate model
+initialVal <- matrix(mix1$theta_scaled[,,1]/2) # we want to fix the vc to be half of the previous uinvariate model
 
 mix3 <- mmer(Yield~1,
-              random=~vsr(id, Gu=A, Gti=initialVal, Gtc=mm), # constrained
-              rcov=~vsr(units), # unconstrained
+              random=~vsr(isr(id, theta=initialVal, thetaC = mm), 
+                          Gu=A ), # constrained
+              rcov=~units, # unconstrained
               data=DT, verbose = FALSE)
 
 # analyze variance components
 summary(mix1)$varcomp
-summary(mix3)$varcomp
-```
-
-For the vsc() function used in mmec() for the c x c problem the theta and thetaC arguments can be used directly in the covariance structures. For example to fix the residuals equal to 1:
-
-```{r}
-
-mm <- matrix(3,1,1) ## matrix to fix the var comp
-vei <- var(DT$Yield, na.rm = TRUE) # we want to fix the vc to be half of the previous uinvariate model
-
-mix3 <- mmec(Yield~1,
-              random=~Rowf, # unconstrained
-              rcov= ~ vsc(isc(units, thetaC=mm,theta=matrix(1/vei,1,1))), # constrained
-              data=DT, verbose = FALSE)
-
-# analyze variance components
 summary(mix3)$varcomp
 ```
 
@@ -473,14 +465,14 @@ Y <- mvrnorm(n,mu,Sigma); colnames(Y) <- c("y1","y2")
 ## this simulates multivariate normal rvs
 y <- as.vector(t(Y))
 df1 <- data.frame(Y)
-df2 <- data.frame(y)
+df2 <- data.frame(y, trait=sort(rep(paste0("trait",1:2), nrow(Y))), id=factor(rep(1:nrow(Y),2)))
 ```
 
 Now lets assume that we want to fit a multitrait model with an unstructured error variance structure with the built-in capacity. That would be as easy as this:
 
 ```{r}
-mix1 <- mmer(cbind(y1,y2)~1, rcov=~vsr(units, Gtc=unsm(2)), data=df1, verbose = FALSE)
-mix1$sigma
+mix1 <- mmer(y~1, random=~vsr(usr(trait),isr(id)), data=df2, verbose = FALSE)
+mix1$theta[[1]]
 ```
 
 But now assume that you would like to constrain the variance of `y1` and `y2` to be equal. This requires the user to take a different approach. The user can build externally the multitrait matrices and fit them directly. Let's do this to recreate the exact same result as using the built-in capabilities:
@@ -490,19 +482,22 @@ V1 <- matrix(c(1,0,0,0),2,2)
 V2 <- matrix(c(0,0,0,1),2,2)
 V3 <- matrix(c(0,1,1,0),2,2)
 sig1 <- kronecker(diag(1,n),V1) # variance component 1
+colnames(sig1) <- paste0("sig1_",1:ncol(sig1))
 sig2 <- kronecker(diag(1,n),V2) # variance component 2
+colnames(sig2) <- paste0("sig2_",1:ncol(sig2))
 gam <- kronecker(diag(1,n),V3) # covariance component
+colnames(gam) <- paste0("gam_",1:ncol(gam))
 # now fit the model
-mix2 <- mmer(y~X-1, rcov = ~vsr(sig1)+vsr(sig2)+vsr(gam,Gti = matrix(.15)), data=df2, verbose = FALSE)
-mix2$sigmaVector
+mix2 <- mmer(y~X-1, random = ~vsr(isr(sig1))+vsr(isr(sig2))+vsr(isr(gam)), data=df2, verbose = FALSE)
+mix2$theta
 ```
 Notice that we fitted a univariate model but we built the kernels and fitted those kernels one by one.
 
 Now we will constrain the two variance components to be equal. This is done the following way:
 ```{r}
 sig <- sig1+sig2
-mix3 <- mmer(y~X-1, rcov = ~vsr(sig)+vsr(gam,Gti = matrix(.15)), data=df2, nIters=30, verbose = FALSE)
-mix3$sigmaVector
+mix3 <- mmer(y~X-1, random = ~vsr(isr(sig))+vsr(isr(gam)), data=df2, nIters=30, verbose = FALSE)
+mix3$theta
 ```
 
 ### 9) I get an error when installing directly from github

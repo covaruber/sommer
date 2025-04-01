@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mmer function, the mmer function can be faster when working with more records than coefficients to be estimated and we highly recommend to shift to the use of the `mmer` function.
+The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mmer function with the default direct inversion algorithm (mme=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the mme argument to TRUE can bring significant speed ups.
 
 The package is focused on problems of the type p > n related to genomic prediction (hybrid prediction & genomic selection) and GWAS analysis, although any general mixed model can be fitted as well. The package provides kernels to estimate additive (`A.mat`), dominance (`D.mat`), and epistatic (`E.mat`) relationship matrices that have been shown to increase prediction accuracy under certain scenarios or simply to estimate the variance components of such. The package provides flexibility to fit other genetic models such as full and half diallel models as well.
 
@@ -31,8 +31,7 @@ The vignettes aim to provide several examples in how to use the sommer package u
     + rrBLUP
 6) Indirect genetic effects
 7) Single cross prediction (hybrid prediction)
-8) Spatial modeling (using the 2-dimensional splines)
-9) Multivariate genetic models and genetic correlations
+8) Multivariate genetic models and genetic correlations
 
 **SECTION 3: Special topics in quantitative genetics**
 
@@ -46,7 +45,7 @@ The vignettes aim to provide several examples in how to use the sommer package u
 
 ### Backgrounds in linear algebra
 
-The core of the package is the `mmer()` and `mmer` functions which solve the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information or mme-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). Since version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
+The core of the package is the `mmer()` function which solve the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information or mme-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). Since version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
 
 <br>
 
@@ -150,7 +149,7 @@ ans1 <- mmer(Yield~1,
              data=DT, verbose = FALSE)
 summary(ans1)$varcomp
 (n.env <- length(levels(DT$Env)))
-# vpredict(ans1, h2 ~ V1 / ( V1 + (V3/n.env) + (V5/(2*n.env)) ) )
+vpredict(ans1, h2 ~ V1 / ( V1 + (V3/n.env) + (V5/(2*n.env)) ) )
 ```
 That is an estimate of broad-sense heritability.
 
@@ -177,7 +176,7 @@ vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense
 vpredict(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) ) # broad-sense
 ```
 
-In this example we showed how to estimate the additive ($\sigma^2_A$) and dominance ($\sigma^2_D$) variance components based on markers and estimate broad ($H^2$) and narrow-sense heritability ($h^2$). Notice that we used the `vsr()` function which indicates that the random effect inside the parenthesis (i.e. `id`, `idd` or `ide`) has a covariance matrix (A, D, or E), that will be specified in the `Gu` argument of the `vsr()` function. Please DO NOT provide the inverse, but rather the original covariance matrix.
+In this example we showed how to estimate the additive ($\sigma^2_A$) and dominance ($\sigma^2_D$) variance components based on markers and estimate broad ($H^2$) and narrow-sense heritability ($h^2$). Notice that we used the `vsr()` function which indicates that the random effect inside the parenthesis (i.e. `id`, `idd` or `ide`) has a covariance matrix (A, D, or E), that will be specified in the `Gu` argument of the `vsr()` function. Please DO NOT provide the inverse, but rather the original covariance matrix when using mme=FALSE.
 
 ### 2) Specifying heterogeneous variances in univariate models
 
@@ -256,24 +255,24 @@ $y = X\beta + Zu_1 + Zu_2 + Zu_S + \epsilon$
 We estimate variance components for $GCA_1$, $GCA_2$ and $SCA$ and use them to estimate heritability. Additionally BLUPs for GCA and SCA effects can be used to predict crosses.
 
 ```{r}
-data(DT_cornhybrids)
-DT <- DT_cornhybrids
-DTi <- DTi_cornhybrids
-GT <- GT_cornhybrids
-
-modFD <- mmer(Yield~Location, 
-              random=~GCA1+GCA2+SCA, 
-              rcov=~units, nIters=10,
-              data=DT, verbose = FALSE)
-(suma <- summary(modFD)$varcomp)
-Vgca <- sum(suma[1:2,1])
-Vsca <- suma[3,1]
-Ve <- suma[4,1]
-Va = 4*Vgca
-Vd = 4*Vsca
-Vg <- Va + Vd
-(H2 <- Vg / (Vg + (Ve)) )
-(h2 <- Va / (Vg + (Ve)) )
+# data(DT_cornhybrids)
+# DT <- DT_cornhybrids
+# DTi <- DTi_cornhybrids
+# GT <- GT_cornhybrids
+# 
+# modFD <- mmer(Yield~Location, 
+#               random=~GCA1+GCA2+SCA, 
+#               rcov=~units, nIters=10,
+#               data=DT, verbose = FALSE)
+# (suma <- summary(modFD)$varcomp)
+# Vgca <- sum(suma[1:2,1])
+# Vsca <- suma[3,1]
+# Ve <- suma[4,1]
+# Va = 4*Vgca
+# Vd = 4*Vsca
+# Vg <- Va + Vd
+# (H2 <- Vg / (Vg + (Ve)) )
+# (h2 <- Va / (Vg + (Ve)) )
 ```
 Don't worry too much about the `h2` value, the data was simulated to be mainly dominance variance, therefore the `Va` was simulated extremely small leading to such value of narrow sense `h2`.
 
@@ -332,17 +331,15 @@ ans <- mmer(X1~1,
             random=~vsr(isr(id),Gu=K), 
             rcov=~units,nIters=10,
             data=y.trn, verbose = FALSE) # kinship based
-ans$U$`u:id`$X1 <- as.data.frame(ans$U$`u:id`$X1)
-rownames(ans$U$`u:id`$X1) <- gsub("id","",rownames(ans$U$`u:id`$X1))
-cor(ans$U$`u:id`$X1[vv,],DT[vv,"X1"], use="complete")
+cor(ans$u[vv,] ,DT[vv,"X1"], use="complete")
 
 ## rrBLUP
 ans2 <- mmer(X1~1,
              random=~vsr(isr(GT), buildGu = FALSE), 
-             rcov=~units, getPEV = FALSE, nIters=5, # you do more iterations
+             rcov=~units, getPEV = TRUE, nIters=10, # you do more iterations
              data=y.trn, verbose = FALSE) # kinship based
 
-u <- GT %*% as.matrix(ans2$U$`u:GT`$X1) # BLUPs for individuals
+u <- GT %*% as.matrix(ans2$uList$`vsr(isr(GT), buildGu = FALSE`) # BLUPs for individuals
 rownames(u) <- rownames(GT)
 cor(u[vv,],DT[vv,"X1"]) # same correlation
 # the same can be applied in multi-response models in GBLUP or rrBLUP
@@ -448,14 +445,16 @@ Ad <- A.mat(Md)
 Af <- A.mat(Mf)
 Adi <- solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad)))
 Adi <- as(as(as( Adi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(Adi, 'inverse')=TRUE
 Afi <- solve(Af + diag(1e-4,ncol(Af),ncol(Af)))
 Afi <- as(as(as( Afi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(Afi, 'inverse')=TRUE
 # RUN THE PREDICTION MODEL
 y.trn <- DT
 vv1 <- which(!is.na(DT$GY))
 vv2 <- sample(vv1, 100)
 y.trn[vv2,"GY"] <- NA
-anss2 <- mmer(GY~1, 
+anss2 <- mmer(GY~1,  mme=TRUE,
               random=~vsr(isr(dent),Gu=Adi) + vsr(isr(flint),Gu=Afi), 
               rcov=~units, nIters=15,
               data=y.trn, verbose = FALSE) 
@@ -471,39 +470,7 @@ In the previous model we only used the GCA effects (GCA1 and GCA2) for practicit
 
 A model without covariance structures would show that the SCA variance component is insignificant compared to the GCA effects. This is why including the third random effect doesn't increase the prediction accuracy.
 
-### 8) Spatial modeling: using the 2-dimensional spline
-
-We will use the CPdata to show the use of 2-dimensional splines for accomodating spatial effects in field experiments. In early generation variety trials the availability of seed is low, which makes the use of unreplicated designs a neccesity more than anything else. Experimental designs such as augmented designs and partially-replicated (p-rep) designs are becoming ever more common these days. 
-
-In order to do a good job modeling the spatial trends happening in the field, special covariance structures have been proposed to accomodate such spatial trends (i.e. autoregressive residuals; ar1). Unfortunately, some of these covariance structures make the modeling rather unstable. More recently, other research groups have proposed the use of 2-dimensional splines to overcome such issues and have a more robust modeling of the spatial terms (Lee et al. 2013; Rodríguez-Álvarez et al. 2018).
-
-In this example we assume an unreplicated population where row and range information is available which allows us to fit a 2 dimensional spline model.
-
-```{r}
-data(DT_cpdata)
-DT <- DT_cpdata
-GT <- GT_cpdata
-MP <- MP_cpdata
-### mimic two fields
-A <- A.mat(GT)
-mix <- mmer(Yield~1,
-            random=~vsr(isr(id), Gu=A) +
-              Rowf +
-              Colf +
-              spl2Dc(Row,Col), nIters=10,
-            rcov=~ units,
-            data=DT, verbose = FALSE)
-summary(mix)
-# make a plot to observe the spatial effects found by the spl2D()
-W <- with(DT,spl2Dc(Row,Col)) # 2D spline incidence matrix
-DT$spatial <- W$Z$`A:all`%*% mix$uList$`spl2Dc(Row, Col` # 2D spline BLUPs
-# lattice::levelplot(spatial~Row*Col, data=DT) # plot the spatial effect by row and column
-```
-
-Notice that the job is done by the `spl2Da()` function that takes the `Row` and `Col` information to fit a spatial kernel. 
-
-
-### 9) Multivariate genetic models and genetic correlations
+### 8) Multivariate genetic models and genetic correlations
 
 Sometimes is important to estimate genetic variance-covariance among traits--multi-reponse models are very useful for such a task. Let see an example with 3 traits (`color`, `Yield`, and `Firmness`) and a single random effect (genotype; `id`) although multiple effects can be modeled as well. We need to use a variance covariance structure for the random effect to be able to obtain the genetic covariance among traits.
 
@@ -773,43 +740,43 @@ To compare EMMAX to the approach proposed by Gualdron-Duarte et al. (2014) and B
 ###########################
 #### GWAS by RRBLUP approach
 ###########################
-Z <- GT[as.character(DT$id),]
-mixRRBLUP <- mmer(color~1,
-              random=~vsr(isr(Z)) + Rowf + Colf,
-              rcov=~units, nIters=10,
-              verbose = FALSE,
-              data=DT)
-
-a <- mixRRBLUP$uList$`vsr(isr(Z`# marker effects
-start=mixRRBLUP$partitions[[1]][1]
-end=mixRRBLUP$partitions[[1]][2]
-se.a <- sqrt( diag(kronecker(diag(ncol(Z)),mixRRBLUP$theta[[1]]) - mixRRBLUP$Ci[start:end,start:end] ) ) # SE of marker effects
-t.stat <- a/se.a # t-statistic
-pvalRRBLUP <- dt(t.stat[,1],df=n-k-1) # -log10(pval)
+# Z <- GT[as.character(DT$id),]
+# mixRRBLUP <- mmer(color~1,
+#               random=~vsr(isr(Z)) + Rowf + Colf,
+#               rcov=~units, nIters=10,
+#               verbose = FALSE,
+#               data=DT)
+# 
+# a <- mixRRBLUP$uList$`vsr(isr(Z`# marker effects
+# start=mixRRBLUP$partitions[[1]][1]
+# end=mixRRBLUP$partitions[[1]][2]
+# se.a <- sqrt( diag(kronecker(diag(ncol(Z)),mixRRBLUP$theta[[1]]) - mixRRBLUP$Ci[start:end,start:end] ) ) # SE of marker effects
+# t.stat <- a/se.a # t-statistic
+# pvalRRBLUP <- dt(t.stat[,1],df=n-k-1) # -log10(pval)
 ```
 Instead of fitting the RRBLUP/SNP-BLUP model we can fit a GBLUP model which is less computationally demanding and recover marker effects and their standard errors from the genotype effects.
 
 ```{r}
-###########################
-#### GWAS by GBLUP approach
-###########################
-M<- GT
-MMT <-tcrossprod(M) ## MM' = additive relationship matrix
-MMTinv<-solve(MMT + diag(1e-6, ncol(MMT), ncol(MMT))) ## inverse of MM'
-MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
-mixGBLUP <- mmer(color~1,
-             random=~vsr(isr(id), Gu=MMT) + Rowf + Colf,
-             rcov=~units, nIters=10,
-             verbose = FALSE,
-             data=DT)
-a.from.g <-MTMMTinv%*%matrix(mixGBLUP$uList$`vsr(isr(id), Gu = MMT`,ncol=1)
-start=mixGBLUP$partitions[[1]][1]
-end=mixGBLUP$partitions[[1]][2]
-var.g <- kronecker(MMT,mixGBLUP$theta[[1]]) - mixGBLUP$Ci[start:end,start:end]
-var.a.from.g <- t(M)%*%MMTinv%*% (var.g) %*% t(MMTinv)%*%M
-se.a.from.g <- sqrt(diag(var.a.from.g))
-t.stat.from.g <- a.from.g/se.a.from.g # t-statistic
-pvalGBLUP <- dt(t.stat.from.g,df=n-k-1) # -log10(pval)
+# ###########################
+# #### GWAS by GBLUP approach
+# ###########################
+# M<- GT
+# MMT <-tcrossprod(M) ## MM' = additive relationship matrix
+# MMTinv<-solve(MMT + diag(1e-6, ncol(MMT), ncol(MMT))) ## inverse of MM'
+# MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
+# mixGBLUP <- mmer(color~1,
+#              random=~vsr(isr(id), Gu=MMT) + Rowf + Colf,
+#              rcov=~units, nIters=10,
+#              verbose = FALSE,
+#              data=DT)
+# a.from.g <-MTMMTinv%*%matrix(mixGBLUP$uList$`vsr(isr(id), Gu = MMT`,ncol=1)
+# start=mixGBLUP$partitions[[1]][1]
+# end=mixGBLUP$partitions[[1]][2]
+# var.g <- kronecker(MMT,mixGBLUP$theta[[1]]) - mixGBLUP$Ci[start:end,start:end]
+# var.a.from.g <- t(M)%*%MMTinv%*% (var.g) %*% t(MMTinv)%*%M
+# se.a.from.g <- sqrt(diag(var.a.from.g))
+# t.stat.from.g <- a.from.g/se.a.from.g # t-statistic
+# pvalGBLUP <- dt(t.stat.from.g,df=n-k-1) # -log10(pval)
 ```
 Now we can look at the p-values coming from the 3 approaches to indeed show that results are equivalent.
 
@@ -818,8 +785,8 @@ Now we can look at the p-values coming from the 3 approaches to indeed show that
 #### Compare results
 ###########################
 # plot(mix2$scores[,1], main="GWAS")
-plot(-log(pvalRRBLUP), main="GWAS by RRBLUP/SNP-BLUP") 
-plot(-log(pvalGBLUP), main="GWAS by GBLUP")
+# plot(-log(pvalRRBLUP), main="GWAS by RRBLUP/SNP-BLUP") 
+# plot(-log(pvalGBLUP), main="GWAS by GBLUP")
 
 ```
 

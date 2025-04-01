@@ -427,6 +427,7 @@ mmer <- function(fixed, random, rcov, data, W,
         };
         blupTable=NULL; pevTable=NULL;
       }
+      names(res$theta) <- names(res$thetaC) <- c(rtermss,"units")
 
     }
     res$uList <- uList; res$uPevList <- uPevList

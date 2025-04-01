@@ -34,11 +34,14 @@
   \item{Gu}{matrix with either the inverse (in case of mme=TRUE) or raw variance-covariance 
   (mme=FALSE) values for the levels of the u.th random effect (e.g., the inverse of a 
   relationship matrix among individuals or any other known inverse covariance 
-  matrix). If using an inverse remember to provide it in the right format:
+  matrix). If using an inverse remember to provide it in the right format and with
+  attribute of being an inverse:
   
   \code{Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))}
   
   \code{Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")}
+  
+  \code{attr(Ai, 'inverse')=TRUE}
   
   
   Where A is your original relationship matrix. If \code{NULL}, then an identity matrix is assumed.
