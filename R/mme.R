@@ -358,7 +358,7 @@ mme <- function(fixed, random, rcov, data, W,
     res$partitionsX <- partitionsX
     uList <- uPevList <- vector(mode="list",length = length(thetaC)-1)
 
-    if(!missing(random)){
+    if(!missing(random)){ # mock
       names(uList) <- names(uPevList) <- rtermss
       if(henderson==FALSE){ ######## adding ulist and upevlist similar to henderson mme
         names(res$partitions) <- rtermss
