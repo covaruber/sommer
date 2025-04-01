@@ -18,7 +18,10 @@ export( unsm, fixm, # small constructors
        # special functions to create model matrices
        overlay, redmm, 
        add.diallel.vars, stackTrait,
-       vpredict)
+       vpredict,
+       usr, dsr, csr, atr, vsr, mmer# mmer DEPRECATED
+        
+       )
 
 ## FUN_spatial
 export( spl2Dc,spl2Dmats,bbasis,tpsmmbwrapper, tps)

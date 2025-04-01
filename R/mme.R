@@ -317,7 +317,7 @@ mme <- function(fixed, random, rcov, data, W,
       theta <- THETA; THETA <- NULL
       # thetaC <- THETAc;  THETAc <- NULL
       
-      res <- .Call("_sommer_MNR",PACKAGE = "sommer",
+      res <- .Call("_sommer_newton_di_sp",PACKAGE = "sommer",
                    as.matrix(yvar), 
                    list(as.matrix(X)),
                    list(matrix(1)),
