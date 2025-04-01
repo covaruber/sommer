@@ -19,7 +19,8 @@ export( unsm, fixm, # small constructors
        overlay, redmm, 
        add.diallel.vars, stackTrait,
        vpredict,
-       usr, dsr, csr, atr, vsr, mmer# mmer DEPRECATED
+       # usr, dsr, csr, atr, vsr, vcsExtract, reshap.mmer DEPRECATED
+       mmer# mmer DEPRECATED
         
        )
 
