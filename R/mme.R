@@ -16,7 +16,7 @@ mme <- function(fixed, random, rcov, data, W,
   ## if your month is greater than my month you are outdated
   if(dateWarning){
     if (your.date > my.date) {
-      cat("Version out of date. Please update sommex to the newest version using:\ninstall.packages('sommex') in a new session\n Use the 'dateWarning' argument to disable the warning message.")
+      cat("Version out of date. Please update sommer to the newest version using:\ninstall.packages('sommer') in a new session\n Use the 'dateWarning' argument to disable the warning message.")
     }
   }
   
@@ -205,7 +205,7 @@ mme <- function(fixed, random, rcov, data, W,
   ## information weights
   
   if(is.null(emWeight)){
-    if(mme==FALSE){ # p > n
+    if(henderson==FALSE){ # p > n
       emWeight <- rep(0, nIters)
     }else{ # n > p
       initialEmSteps <- logspace(round(nIters*.8), 1, 0.009) # 80% of the iterations requested are used for the logarithmic decrease
@@ -236,10 +236,10 @@ mme <- function(fixed, random, rcov, data, W,
   thetaFinput <- cbind(thetaFinput,thetaFinputSP)
   thetaFinput
   
-  if(mme){
+  if(henderson){
     nInverses <- length(unlist(lapply(Ai, function(x){attributes(x)$inverse})))
     if(nInverses != length(Ai)){
-      stop("You have selected the 'mme' algorithm which requires all relationship
+      stop("You have selected the 'henderson' algorithm which requires all relationship
       matrices to be inverted. Please make sure that you have inverted your
       matrices and set the attribute to your matrices as follows:
            attr(Gu, 'inverse')=TRUE 
@@ -260,7 +260,7 @@ mme <- function(fixed, random, rcov, data, W,
   }else{
     
     #################################################
-    if(mme == FALSE){ # p > n = DIRECT INVERSION: transform all matrices to expected format
+    if(henderson == FALSE){ # p > n = DIRECT INVERSION: transform all matrices to expected format
       # get isInvW
       isInvW=FALSE
       AI=FALSE # use newton raphson
@@ -317,7 +317,7 @@ mme <- function(fixed, random, rcov, data, W,
       theta <- THETA; THETA <- NULL
       # thetaC <- THETAc;  THETAc <- NULL
       
-      res <- .Call("_sommex_MNR",PACKAGE = "sommex",
+      res <- .Call("_sommex_MNR",PACKAGE = "sommer",
                    as.matrix(yvar), 
                    list(as.matrix(X)),
                    list(matrix(1)),
@@ -328,9 +328,9 @@ mme <- function(fixed, random, rcov, data, W,
                    nIters, tolParConvLL, tolParInv,
                    AI,getPEV,verbose, returnScaled, stepWeight, emWeight)
       
-    }else if(mme == TRUE){ # n > p HENDERSON
+    }else if(henderson == TRUE){ # n > p HENDERSON
       
-      res <- .Call("_sommex_ai_mme_sp",PACKAGE = "sommex",
+      res <- .Call("_sommex_ai_mme_sp",PACKAGE = "sommer",
                    X,Z, Zind,
                    Ai,yvar,
                    S, Spartitions, W, useH,
@@ -360,7 +360,7 @@ mme <- function(fixed, random, rcov, data, W,
 
     if(!missing(random)){
       names(uList) <- names(uPevList) <- rtermss
-      if(mme==FALSE){ ######## adding ulist and upevlist similar to mme mme
+      if(henderson==FALSE){ ######## adding ulist and upevlist similar to henderson mme
         names(res$partitions) <- rtermss
         newtheta <- list()
         for(iTheta in 1:(length(thetaC)-1)){ # iTheta=2 # each element in the list
@@ -403,7 +403,7 @@ mme <- function(fixed, random, rcov, data, W,
         }
         # move the PEV to the Cii matrix
         if(length(Z) > 0){ # there's random effects
-          res$Ci <- sommex::adiag1(res$Ci_11, do.call(sommex::adiag1, res$Ci))
+          res$Ci <- sommer::adiag1(res$Ci_11, do.call(sommer::adiag1, res$Ci))
           res$W <- XZY
         }else{
           res$Ci <- res$Ci_11
@@ -412,7 +412,7 @@ mme <- function(fixed, random, rcov, data, W,
         newtheta[[iTheta+1]] <- res$theta[residualthetas]
         res$theta <- newtheta
         res$uList0 <- NULL
-      }else if(mme==TRUE){ ######## adding ulist and upevlist in mme mme
+      }else if(henderson==TRUE){ ######## adding ulist and upevlist in mme mme
         names(res$partitions) <- rtermss
         for(i in 1:length(res$partitions)){ # i=1
           blupTable <- apply(res$partitions[[i]],1,function(x2){

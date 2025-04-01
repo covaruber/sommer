@@ -1,11 +1,11 @@
-\name{rrr}
-\alias{rrr}
+\name{rrm}
+\alias{rrm}
 \title{reduced rank covariance structure}
 \description{
-  \code{rrr} creates a reduced rank factor analytic covariance structure by selecting the n vectors of the L matrix of the Cholesky decomposition or the U vectors of the SVD decomposition (loadings or latent covariates) to create a new incidence matrix of latent covariates that can be used with the \code{\link{mme}} solver to fit random regressions on the latent covariates.
+  \code{rrm} creates a reduced rank factor analytic covariance structure by selecting the n vectors of the L matrix of the Cholesky decomposition or the U vectors of the SVD decomposition (loadings or latent covariates) to create a new incidence matrix of latent covariates that can be used with the \code{\link{mme}} solver to fit random regressions on the latent covariates.
 }
 \usage{
-  rrr(x=NULL, H=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE)
+  rrm(x=NULL, H=NULL, nPC=2, returnGamma=FALSE, cholD=TRUE)
 }
 
 \arguments{
@@ -37,7 +37,7 @@ y = Xb + Z(I Gamma)c + e = Xb + Z*c + e
 
 which is equal to the one above but assumes specific effects = 0. 
 
-\strong{The algorithm in rrr is the following:}
+\strong{The algorithm in rrm is the following:}
 
 1) uses a wide-format table of timevar (m columns) by idvar (q rows) named H to form the initial variance-covariance matrix (Sigma) which is calculated as Sigma = H'H of dimensions m x m (column dimensions, e.g., environments x environments). 
 
@@ -106,7 +106,7 @@ H0 <- ansDG$uList$`vsm(dsm(Env), ism(Name))` # GxE table
 
 # reduced rank model
 ansFA <- mme(y~Env, henderson=TRUE,
-              random=~vsm( usm(rrr(Env, H = H0, nPC = 3)) , ism(Name)) + # rr
+              random=~vsm( usm(rrm(Env, H = H0, nPC = 3)) , ism(Name)) + # rr
                 vsm(dsm(Env), ism(Name)), # diag
               rcov=~units,
               # we recommend giving more iterations to these models
@@ -118,7 +118,7 @@ ansFA <- mme(y~Env, henderson=TRUE,
 vcFA <- ansFA$theta[[1]]
 vcDG <- ansFA$theta[[2]]
 
-loadings=with(DT, rrr(Env, nPC = 3, H = H0, returnGamma = TRUE) )$Gamma
+loadings=with(DT, rrm(Env, nPC = 3, H = H0, returnGamma = TRUE) )$Gamma
 scores <- ansFA$uList[[1]]
 
 vcUS <- loadings \%*\% vcFA \%*\% t(loadings)
@@ -134,4 +134,4 @@ u <- uFA + uDG
 
 
 }
-\seealso{The function \code{\link{vsm}} to know how to use \code{rrr} in the \code{\link{mme}} solver.}
+\seealso{The function \code{\link{vsm}} to know how to use \code{rrm} in the \code{\link{mme}} solver.}

@@ -2,7 +2,7 @@
 \alias{ism}
 \title{identity covariance structure}
 \description{
-  \code{ism} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mmer}} solver. Any random effect with a special covariance structure should end with an ism() structure.
+  \code{ism} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mme}} solver. Any random effect with a special covariance structure should end with an ism() structure.
 }
 \usage{
   ism(x, thetaC=NULL, theta=NULL)
@@ -52,4 +52,4 @@ ism(x)
 # summary(ans1)$varcomp
 
 }
-\seealso{See the function \code{\link{vsr}} to know how to use \code{ism} in the \code{\link{mmer}} solver.}
+\seealso{See the function \code{\link{vsm}} to know how to use \code{ism} in the \code{\link{mme}} solver.}

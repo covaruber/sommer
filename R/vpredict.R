@@ -2,7 +2,7 @@ vpredict <- function(object, transform) {
   UseMethod("vpredict")
 }
 
-vpredict.mmer <- function (object, transform){
+vpredict.mme <- function (object, transform){
   
   pframe <- as.list(summary(object)$varcomp[,1])
   names(pframe) <- paste("V", seq(1, length(pframe)), sep = "")
@@ -38,11 +38,11 @@ vpredict.mmer <- function (object, transform){
   ## d''(x) * d'(x) * d'
   ## those var(vc.i) and covar(covar.ij) from the variance comp. come from the inverse if the second derivatives (Fisher's)
   # toreturn2 <- data.frame(row.names = tname, Estimate = tvalue, SE = se)
-  # class(toreturn2) <- "vpredict.mmer"
+  # class(toreturn2) <- "vpredict.mme"
   
   toreturn2 <- data.frame(Estimate = tvalue, SE = se)
   rownames(toreturn2 ) <- tname # seemed not to be evaluated correctly before in all cases
-  class(toreturn2) <- c("vpredict.mmer","data.frame") # allows data.frame inheritance
-  # attr(toreturn2, "class")<-c("vpredict.mmer", "data.frame")
+  class(toreturn2) <- c("vpredict.mme","data.frame") # allows data.frame inheritance
+  # attr(toreturn2, "class")<-c("vpredict.mme", "data.frame")
   return(toreturn2)
 }

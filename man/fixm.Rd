@@ -29,4 +29,5 @@
 fixm(4)
 fixm(4,2)
 }
-\seealso{The function \code{\link{vsr}} to know how to use \code{fixm} in the \code{\link{mmer}} solver.}
+
+

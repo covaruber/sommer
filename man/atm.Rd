@@ -2,7 +2,7 @@
 \alias{atm}
 \title{atm covariance structure}
 \description{
-  \code{atm} creates a diagonal covariance structure for specific levels of the random effect to be used with the \code{\link{mmex}} solver.
+  \code{atm} creates a diagonal covariance structure for specific levels of the random effect to be used with the \code{\link{mme}} solver.
 }
 \usage{
   atm(x, levs, thetaC, theta)
@@ -53,7 +53,7 @@ atm(x, c("1","2"))
 # DT <- DT_example
 # theta <- diag(2)*2; theta # initial VCs
 # thetaC <- diag(2)*3; thetaC # fixed VCs
-# ans1 <- mmex(Yield~Env,
+# ans1 <- mme(Yield~Env,
 #              random= ~ vsm( atm(Env, levs=c("CA.2013", "CA.2011"),
 #                             theta = theta,thetaC = thetaC),ism(Name) ),
 #              rcov= ~ units, nIters = 1,
