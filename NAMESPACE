@@ -20,7 +20,7 @@ export( unsm, fixm, # small constructors
        add.diallel.vars, stackTrait,
        vpredict,
        # usr, dsr, csr, atr, vcsExtract, reshap.mmer DEPRECATED
-       mmer, vsr, vs# mmer DEPRECATED
+       mmer, vsr, vs, GWAS# mmer DEPRECATED
         
        )
 
