@@ -82,7 +82,7 @@ A <- A_example
 ## ============================ ##
 ## example to without structure
 ## ============================ ##
-dsr(DT$Year)
+
 mix <- mmer(Yield~Env, 
             random= ~ vs(Name),
             rcov=~ vs(units),
