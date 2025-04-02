@@ -45,7 +45,7 @@ data(DT_rice)
 # head(DT)
 # M <- atcg1234(GT)
 # A <- A.mat(M$M)
-# mix <- mme(Protein.content~1,
+# mix <- mmes(Protein.content~1,
 #             random = ~vsm(ism(geno), Gu=A) + geno,
 #             rcov=~units,
 #             data=DT)
@@ -55,4 +55,4 @@ data(DT_rice)
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mme}} }
+\seealso{The core functions of the package \code{\link{mmes}} }

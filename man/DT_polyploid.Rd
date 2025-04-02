@@ -67,15 +67,15 @@ data(DT_polyploid)
 # ###=========================================####
 # ### run as mixed model
 # ###=========================================####
-# ans <- mme(tuber_shape~1,
+# ans <- mmes(tuber_shape~1,
 #             random=~vsm(ism(Name), Gu=A),
 #             data=DT2)
 # summary(ans)$varcomp
-# # if using mme=TRUE provide Gu as inverse
+# # if using mmes=TRUE provide Gu as inverse
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mme}} }
+\seealso{The core functions of the package \code{\link{mmes}} }

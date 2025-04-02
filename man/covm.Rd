@@ -2,7 +2,7 @@
 \alias{covm}
 \title{covariance between random effects}
 \description{
-  \code{covm} merges the incidence matrices and covariance matrices of two random effects to fit an unstructured model between 2 different random effects to be fitted with the \code{\link{mme}} solver.
+  \code{covm} merges the incidence matrices and covariance matrices of two random effects to fit an unstructured model between 2 different random effects to be fitted with the \code{\link{mmes}} solver.
 }
 \usage{
   covm(ran1, ran2, thetaC=NULL, theta=NULL)
@@ -54,4 +54,4 @@ str(covRes)
 # look at DT_ige help page to see how to fit an actual model
 
 }
-\seealso{The function \code{\link{vsm}} to know how to use \code{covm} in the \code{\link{mme}} solver.}
+\seealso{The function \code{\link{vsm}} to know how to use \code{covm} in the \code{\link{mmes}} solver.}

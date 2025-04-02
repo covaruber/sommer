@@ -13,7 +13,7 @@ r2(object, object2=NULL)
 
 \arguments{
   \item{object}{
-Model fitted with the mme function.
+Model fitted with the mmes function.
 }
 \item{object2}{
 An optional model identical to object in the first argument but fitted with the argument returnParam set to TRUE to access the relationship matrices from the fitted model.
@@ -45,10 +45,10 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 data(DT_example)
 DT <- DT_example
 head(DT)
-ans1 <- mme(Yield~Env, 
+ans1 <- mmes(Yield~Env, 
              random= ~ Name + Env:Name,
              rcov= ~ units,
              data=DT)
 rel=r2(ans1)
 }
-\seealso{\code{\link{mme}} -- the core function of the package }
+\seealso{\code{\link{mmes}} -- the core function of the package }

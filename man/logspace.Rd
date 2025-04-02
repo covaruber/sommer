@@ -32,4 +32,4 @@
 logspace(5, 1, .05)
 
 }
-\seealso{The core functions of the package \code{\link{mme}}  }
+\seealso{The core functions of the package \code{\link{mmes}}  }

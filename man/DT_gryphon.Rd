@@ -48,13 +48,13 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # #### look at the data
 # head(DT)
 # #### fit the model with no fixed effects (intercept only)
-# mix1 <- mme(BWT~1,
+# mix1 <- mmes(BWT~1,
 #              random=~vsm(ism(ANIMAL),Gu=A),
 #              rcov=~units,
 #              data=DT)
 # summary(mix1)$varcomp
 # 
-# ## mme algorithm uses the inverse of the relationship matrix
+# ## mmes algorithm uses the inverse of the relationship matrix
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # ####====================####
@@ -66,7 +66,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # head(DT2$long)
 # 
 # # #### fit the multivariate model with no fixed effects (intercept only)
-# mix2 <- mme(valueS~trait, henderson=FALSE, # using direct inversion
+# mix2 <- mmes(valueS~trait, henderson=FALSE, # using direct inversion
 #              random=~vsm(usm(trait),ism(ANIMAL),Gu=A),
 #              rcov=~vsm(dsm(trait),ism(units)),
 #              data=DT2$long)
@@ -75,4 +75,4 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mme}} }
+\seealso{The core functions of the package \code{\link{mmes}} }

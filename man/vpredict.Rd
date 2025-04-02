@@ -1,8 +1,8 @@
 \name{vpredict}
 \alias{vpredict}
-\alias{vpredict.mme}
-\title{vpredict form of a LMM fitted with mme}
-\description{\code{vpredict} method for class \code{"mme"}.
+\alias{vpredict.mmes}
+\title{vpredict form of a LMM fitted with mmes}
+\description{\code{vpredict} method for class \code{"mmes"}.
 
 Post-analysis procedure to calculate linear combinations of variance components. Its intended use is when the variance components are either simple variances or are variances and covariances in an unstructured matrix. The functions covered are linear combinations of the variance components (for example, phenotypic variance), a ratio of two components (for example, heritabilities) and the correlation based on three components (for example, genetic correlation). 
  
@@ -14,12 +14,12 @@ The transform is specified with a formula. On the left side of the formula is a 
 \usage{
 
 vpredict(object, transform)
-\method{vpredict}{mme}(object, transform)
+\method{vpredict}{mmes}(object, transform)
 
 }
 \arguments{
 
- \item{object}{a model fitted with the mme function.}
+ \item{object}{a model fitted with the mmes function.}
  
  \item{transform}{a formula to calculate the function.}
  
@@ -34,7 +34,7 @@ vpredict(object, transform)
   differentiation with \code{\link[stats]{deriv}}.
 
 Though \code{vpredict} can calculate standard errors for non-linear functions
-  of (co)variance parameters from a fitted \code{mme} model, it is limited
+  of (co)variance parameters from a fitted \code{mmes} model, it is limited
   to non-linear functions constructed by mathematical operations such as the
   arithmetic operators \code{+}, \code{-}, \code{*}, \code{/} and \code{^},
   and single-variable functions such as  \code{exp} and \code{log}. See 
@@ -55,7 +55,7 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
   
  }
 \author{Giovanny Covarrubias}
-\seealso{\code{\link{vpredict}}, \code{\link{mme}}}
+\seealso{\code{\link{vpredict}}, \code{\link{mmes}}}
 \keyword{models}
 \examples{
 
@@ -73,7 +73,7 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
 # A <- A.mat(GT)
 # #### look at the data and fit the model
 # head(DT)
-# mix1 <- mme(Yield~1,
+# mix1 <- mmes(Yield~1,
 #               random=~vsm(ism(id),Gu=A), 
 #               data=DT)
 # summary(mix1)$varcomp

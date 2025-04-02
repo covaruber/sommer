@@ -38,16 +38,16 @@ DT$genof <- as.factor(DT$geno)
 
 A <- diag(7); colnames(A) <- rownames(A) <- 1:7;A # if you want to provide a covariance matrix
 #### model using overlay
-modh <- mme(sugar~1, 
+modh <- mmes(sugar~1, 
              random=~vsm(ism(overlay(femalef,malef, sparse = FALSE)), Gu=A) 
              + genof,
              data=DT)
 summary(modh)$varcomp
 
-# if ussing mme=TRUE provide Gu with inverses
+# if ussing mmes=TRUE provide Gu with inverses
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mme}} }
+\seealso{The core functions of the package \code{\link{mmes}} }

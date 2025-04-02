@@ -2,7 +2,7 @@
 \alias{csm}
 \title{customized covariance structure}
 \description{
-  \code{csm} creates a customized covariance structure for specific levels of the random effect to be used with the \code{\link{mme}} solver.
+  \code{csm} creates a customized covariance structure for specific levels of the random effect to be used with the \code{\link{mmes}} solver.
 }
 \usage{
   csm(x, mm, thetaC, theta)
@@ -51,5 +51,5 @@
 x <- as.factor(c(1:5,1:5,1:5));x
 csm(x,matrix(1,5,5))
 }
-\seealso{The function \code{\link{vsm}} to know how to use \code{csm} in the \code{\link{mme}} solver.}
+\seealso{The function \code{\link{vsm}} to know how to use \code{csm} in the \code{\link{mmes}} solver.}
 

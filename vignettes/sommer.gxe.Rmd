@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mme() function, and 2) n > p (more observations than effects to estimate) using the mme() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mmes() function, and 2) n > p (more observations than effects to estimate) using the mmes() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
 
 The purpose of this vignette is to show how to fit different genotype by environment (GxE) models using the sommer package:  
 
@@ -36,7 +36,7 @@ data(DT_example)
 DT <- DT_example
 A <- A_example
 
-ansSingle <- mme(Yield~1,
+ansSingle <- mmes(Yield~1,
               random= ~ vsm(ism(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
@@ -57,7 +57,7 @@ A multi-environment model is the one that is fitted when the breeding program ca
 
 ```{r}
 
-ansMain <- mme(Yield~Env,
+ansMain <- mmes(Yield~Env,
               random= ~ vsm(ism(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
@@ -76,7 +76,7 @@ A multi-environment model is the one that is fitted when the breeding program ca
 
 ```{r}
 
-ansDG <- mme(Yield~Env,
+ansDG <- mmes(Yield~Env,
               random= ~ vsm(dsm(Env),ism(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
@@ -103,7 +103,7 @@ Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 EAi <- as(as(as( EAi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 attr(Ai, "inverse")=TRUE
 attr(EAi, "inverse")=TRUE
-ansCS <- mme(Yield~Env,
+ansCS <- mmes(Yield~Env,
               random= ~ vsm(ism(Name), Gu=Ai) + vsm(ism(Env:Name), Gu=EAi),
               rcov= ~ units, 
               data=DT, verbose = FALSE)
@@ -117,7 +117,7 @@ A multi-environment model is the one that is fitted when the breeding program ca
 
 ```{r}
 
-ansUS <- mme(Yield~Env,
+ansUS <- mmes(Yield~Env,
               random= ~ vsm(usm(Env),ism(Name), Gu=A),
               rcov= ~ units,
               data=DT, verbose = FALSE)
@@ -138,7 +138,7 @@ A multi-environment model is the one that is fitted when the breeding program ca
 library(orthopolynom)
 DT$EnvN <- as.numeric(as.factor(DT$Env))
 
-ansRR <- mme(Yield~Env,
+ansRR <- mmes(Yield~Env,
               random= ~ vsm(dsm(leg(EnvN,1)),ism(Name)),
               rcov= ~ units,
               data=DT, verbose = FALSE)
@@ -152,7 +152,7 @@ In addition, an unstructured, diagonal or other variance-covariance structure ca
 library(orthopolynom)
 DT$EnvN <- as.numeric(as.factor(DT$Env))
 
-ansRR <- mme(Yield~Env,
+ansRR <- mmes(Yield~Env,
               random= ~ vsm(usm(leg(EnvN,1)),ism(Name)),
               rcov= ~ units,
               data=DT, verbose = FALSE)
@@ -170,7 +170,7 @@ Although not very commonly used in GxE models, the autoregressive of order 1 (AR
 E <- AR1(DT$Env) # can be AR1() or CS(), etc.
 rownames(E) <- colnames(E) <- unique(DT$Env)
 EA <- kronecker(E,A, make.dimnames = TRUE)
-ansCS <- mme(Yield~Env,
+ansCS <- mmes(Yield~Env,
               random= ~ vsm(ism(Name), Gu=A) + vsm(ism(Env:Name), Gu=EA),
               rcov= ~ units,
               data=DT, verbose = FALSE)
@@ -197,7 +197,7 @@ DT2 <- merge(DT,ei, by="Env")
 # numeric by factor variables like envIndex:Name can't be used in the random part like this
 # they need to come with the vsm() structure
 DT2 <- DT2[with(DT2, order(Name)), ]
-mix2 <- mme(y~ envIndex, henderson=TRUE,
+mix2 <- mmes(y~ envIndex, henderson=TRUE,
              random=~ Name + vsm(dsm(envIndex),ism(Name)), data=DT2,
              rcov=~vsm(dsm(Name),ism(units)),
              tolParConvNorm = .0001,
@@ -242,7 +242,7 @@ A <- diag(length(indNames))
 rownames(A) <- colnames(A) <- indNames
 
 # fit diagonal model first to produce H matrix
-ansDG <- mme(y~Env, henderson=TRUE,
+ansDG <- mmes(y~Env, henderson=TRUE,
               random=~ vsm(dsm(Env), ism(Name)),
               rcov=~units, nIters = 100,
               # we recommend giving more EM iterations at the beggining
@@ -252,7 +252,7 @@ ansDG <- mme(y~Env, henderson=TRUE,
 H0 <- ansDG$uList$`vsm(dsm(Env), ism(Name))` # GxE table
 
 # reduced rank model
-ansFA <- mme(y~Env, henderson=TRUE,
+ansFA <- mmes(y~Env, henderson=TRUE,
               random=~vsm( usm(rrm(Env, H = H0, nPC = 3)) , ism(Name)) + # rr
                 vsm(dsm(Env), ism(Name)), # diag
               rcov=~units,
@@ -289,7 +289,7 @@ It is common then to fit a first model that accounts for the variation of random
 
 ##########
 ## stage 1
-## use mme for dense field trials
+## use mmes for dense field trials
 ##########
 data(DT_h2)
 DT <- DT_h2
@@ -298,7 +298,7 @@ envs <- unique(DT$Env)
 BLUEL <- list()
 XtXL <- list()
 for(i in 1:length(envs)){
-  ans1 <- mme(y~Name-1,
+  ans1 <- mmes(y~Name-1,
                random=~Block,
                verbose=FALSE,
                data=droplevels(DT[which(DT$Env == envs[i]),]
@@ -318,10 +318,10 @@ OM <- do.call(adiag1,XtXL)
 
 ##########
 ## stage 2
-## use mme for sparse equation
+## use mmes for sparse equation
 ##########
 m <- matrix(1/var(DT2$Estimate, na.rm = TRUE))
-ans2 <- mme(Estimate~Env, henderson=TRUE,
+ans2 <- mmes(Estimate~Env, henderson=TRUE,
              random=~ Effect + Env:Effect, 
              rcov=~vsm(ism(units,thetaC = matrix(3), theta = m)),
              W=OM, 

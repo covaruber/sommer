@@ -54,7 +54,7 @@ Md <- Md_technow
 M <- tcrossprod(Md)
 xx = with(DT, redmm(x=dent, M=M, nPC=10))
 
-# ans <- mme(GY~1,
+# ans <- mmes(GY~1,
 #             # new model matrix instead of dent
 #             random=~vsm(ism(xx$Z)),
 #             rcov=~units,
@@ -63,4 +63,4 @@ xx = with(DT, redmm(x=dent, M=M, nPC=10))
 # u = xx$Lam * ans$uList[[1]] # change * for matrix product
 
 }
-\seealso{The core functions of the package \code{\link{mme}} }
+\seealso{The core functions of the package \code{\link{mmes}} }

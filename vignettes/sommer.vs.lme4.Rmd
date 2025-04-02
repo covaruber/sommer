@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mme function with the default direct inversion algorithm (henderson=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the henderson argument to TRUE can bring significant speed ups.
+The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mmes function with the default direct inversion algorithm (henderson=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the henderson argument to TRUE can bring significant speed ups.
 
 The purpose of this vignette is to show how to translate the syntax formula from `lme4` models to `sommer` models. Feel free to remove the comment marks from the lme4 code so you can compare the results.
 
@@ -42,7 +42,7 @@ DT <- DT_sleepstudy
 ###########
 ## sommer
 ###########
-fm2 <- mme(Reaction ~ Days,
+fm2 <- mmes(Reaction ~ Days,
             random= ~ Subject, 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
@@ -69,7 +69,7 @@ This is the a model where you assume that the random effect has different interc
 ###########
 ## sommer
 ###########
-fm2 <- mme(Reaction ~ Days,
+fm2 <- mmes(Reaction ~ Days,
             random= ~ Subject + vsm(ism(Days), ism(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
@@ -97,7 +97,7 @@ This is the a model where you assume that the random effect has different interc
 ###########
 ## sommer
 ###########
-fm2 <- mme(Reaction ~ Days, # henderson=TRUE,
+fm2 <- mmes(Reaction ~ Days, # henderson=TRUE,
             random= ~ covm( vsm(ism(Subject)) , vsm(ism(Days), ism(Subject)) ), 
             nIters = 200, data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
@@ -124,7 +124,7 @@ This is the a model where you assume that the random effect has different interc
 ###########
 ## sommer
 ###########
-fm2 <- mme(Reaction ~ Days,
+fm2 <- mmes(Reaction ~ Days,
             random= ~ vsm(ism(Days), ism(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
@@ -138,22 +138,22 @@ One of the strengths of sommer is the availability of other variance covariance 
 ```{r}
 library(orthopolynom)
 ## diagonal model
-fm2 <- mme(Reaction ~ Days,
+fm2 <- mmes(Reaction ~ Days,
             random= ~ vsm(dsm(Daysf), ism(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 ## unstructured model
-fm2 <- mme(Reaction ~ Days,
+fm2 <- mmes(Reaction ~ Days,
             random= ~ vsm(usm(Daysf), ism(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 ## random regression (legendre polynomials)
-fm2 <- mme(Reaction ~ Days,
+fm2 <- mmes(Reaction ~ Days,
             random= ~ vsm(dsm(leg(Days,1)), ism(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 ## unstructured random regression (legendre)
-fm2 <- mme(Reaction ~ Days,
+fm2 <- mmes(Reaction ~ Days,
             random= ~ vsm(usm(leg(Days,1)), ism(Subject)), 
             data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp

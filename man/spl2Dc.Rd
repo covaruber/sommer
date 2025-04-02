@@ -32,7 +32,7 @@ spl2Dc(x.coord,y.coord,at.var=NULL,at.levels=NULL, type="PSANOVA",
   \item{nestorder}{numerical vector of length 2 containing the divisor of the number of segments (\code{nsegments}) to be used for the construction of the nested B-spline basis for the smooth-by-smooth interaction component. In this case, the nested B-spline basis will be constructed assuming a total of \code{nsegments}/\code{nestorder} segments. Default set to 1, which implies that nested basis are not used. See \code{SAP} for more details.}
   \item{thetaC}{an optional matrix for constraints in the variance components.}
   \item{theta}{an optional matrix for initial values of the variance components.}
-  \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mme function through the addScaleParam argument in the \code{mme} function .}
+  \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmes function through the addScaleParam argument in the \code{mmes} function .}
      
 }
 \details{
@@ -64,7 +64,7 @@ Gilmour, A.R., Cullis, B.R., and Verbyla, A.P. (1997). Accounting for Natural an
 
 }
 \seealso{
-\code{\link{mme}}
+\code{\link{mmes}}
 }
 \examples{
 ## ============================ ##
@@ -84,7 +84,7 @@ data(DT_cpdata)
 # aa$Yield <- aa$Yield + rnorm(length(aa$Yield),0,4)
 # DT2 <- rbind(aa,bb)
 # head(DT2)
-# mix <- mme(Yield~1,
+# mix <- mmes(Yield~1,
 #             random=~vsm(dsm(FIELD),ism(id), Gu=Ai) +
 #               vsm(dsm(FIELD),ism(Rowf)) +
 #               vsm(dsm(FIELD),ism(Colf)) +

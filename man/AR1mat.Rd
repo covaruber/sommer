@@ -57,7 +57,7 @@ colnames(DS) <- rownames(DS) <- paste0("u",1:nrow(DS))
 # fit the residual model
 head(DT)
 
-fm2 <- mme(Reaction ~ Days,
+fm2 <- mmes(Reaction ~ Days,
             random= ~ Subject, 
             rcov = ~vsm(ism(units), Gu=DS), # equivalent to Subject:ar1(Days)
             data=DT, tolParInv = 1e-6, verbose = FALSE)

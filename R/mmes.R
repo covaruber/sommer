@@ -1,4 +1,4 @@
-mme <- function(fixed, random, rcov, data, W,
+mmes <- function(fixed, random, rcov, data, W,
                  nIters=25, tolParConvLL = 1e-04,
                  tolParConvNorm = 1e-04, tolParInv = 1e-06,
                  naMethodX="exclude",
@@ -254,7 +254,7 @@ mme <- function(fixed, random, rcov, data, W,
                 tolParInv=tolParInv,
                 verbose=verbose, addScaleParam=addScaleParam,
                 theta=theta,thetaC=thetaC, thetaF=thetaFinput,
-                stepWeight=stepWeight,emWeight=emWeight
+                stepWeight=stepWeight,emWeight=emWeight, rtermss=rtermss, partitionsX=partitionsX
     )
     
   }else{
@@ -342,6 +342,18 @@ mme <- function(fixed, random, rcov, data, W,
                    stepWeight,
                    verbose)
       
+      # res <- ai_mme_sp(
+      #              X,Z, Zind,
+      #              Ai,yvar,
+      #              S, Spartitions, W, useH,
+      #              nIters, tolParConvLL, tolParConvNorm,
+      #              tolParInv,theta,
+      #              thetaC,thetaFinput,
+      #              addScaleParam,
+      #              emWeight,
+      #              stepWeight,
+      #              verbose)
+      
     }
     ###### add rownames and build uList
     rownames(res$b) <- colnames(X)
@@ -352,15 +364,19 @@ mme <- function(fixed, random, rcov, data, W,
     rownames(res$bu) <- c(rownames(res$b),rownames(res$u))
     # print(unlist(rTermsNames))
     rownames(res$monitor) <- unlist(rTermsNames)
-    res$sigma <- res$monitor[,which(res$llik[1,] == max(res$llik[1,]))] # we return the ones with max llik
+    # res$sigma <- res$monitor[,which(res$llik[1,] == max(res$llik[1,]))] # we return the ones with max llik
     res$data <- data
     res$y <- yvar
     res$partitionsX <- partitionsX
-    uList <- uPevList <- vector(mode="list",length = length(thetaC)-1)
+    
 
     if(!missing(random)){ # mock
-      names(uList) <- names(uPevList) <- rtermss
-      if(henderson==FALSE){ ######## adding ulist and upevlist similar to henderson mme
+      names(res$theta) <- names(res$thetaC) <- c(rtermss,"units")
+      
+      if(henderson==FALSE){ ######## adding ulist and upevlist similar to henderson mmes
+        
+        uList <- uPevList <- vector(mode="list",length = length(thetaC)-1)
+        names(uList) <- names(uPevList) <- rtermss
         names(res$partitions) <- rtermss
         newtheta <- list()
         for(iTheta in 1:(length(thetaC)-1)){ # iTheta=2 # each element in the list
@@ -412,25 +428,17 @@ mme <- function(fixed, random, rcov, data, W,
         newtheta[[iTheta+1]] <- res$theta[residualthetas]
         res$theta <- newtheta
         res$uList0 <- NULL
-      }else if(henderson==TRUE){ ######## adding ulist and upevlist in mme mme
+        res$uList <- uList; res$uPevList <- uPevList
+      }else if(henderson==TRUE){ ######## adding rownames to ulist and upevlist 
         names(res$partitions) <- rtermss
+        names(res$uList) <- names(res$uPevList) <- rtermss
         for(i in 1:length(res$partitions)){ # i=1
-          blupTable <- apply(res$partitions[[i]],1,function(x2){
-            toreturn <- res$bu[(x2[1]):(x2[2]),,drop=FALSE]
-            return(toreturn)
-          })
-          rownames(blupTable) <- rownames(res$bu)[res$partitions[[i]][1,1]:res$partitions[[i]][1,2]]
-          pevTable <- apply(res$partitions[[i]],1,function(x2){return(diag(res$Ci)[(x2[1]):(x2[2])])})
-          colnames(blupTable) <- colnames(pevTable) <- colnames(theta[[i]])
-          rownames(pevTable) <- rownames(blupTable)
-          uList[[i]] <- blupTable; uPevList[[i]] <- pevTable
-        };
-        blupTable=NULL; pevTable=NULL;
+          rownames(res$uList[[i]]) <- rownames(res$uPevList[[i]]) <- rownames(res$bu)[res$partitions[[i]][1,1]:res$partitions[[i]][1,2]]
+        }
       }
-      names(res$theta) <- names(res$thetaC) <- c(rtermss,"units")
 
-    }
-    res$uList <- uList; res$uPevList <- uPevList
+    } # enf of 'if(missing(random))'
+    ## adding D table for predictions
     if(!missing(random)){
       res$args <- list(fixed=fixed, random=random, rcov=rcov)
       res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX)),
@@ -443,7 +451,7 @@ mme <- function(fixed, random, rcov, data, W,
       res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX))),term=c(names(res$partitionsX),names(res$partitions)),include=FALSE,average=FALSE)
     }
     # 
-    class(res)<-c("mme")
+    class(res)<-c("mmes")
   }
   return(res)
 }

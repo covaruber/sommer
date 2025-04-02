@@ -65,4 +65,3 @@ H <- H.mat(A,G)
 # colfunc <- colorRampPalette(c("steelblue4","springgreen","yellow"))
 # hv <- heatmap(H[1:15,1:15], col = colfunc(100),Colv = "Rowv")
 }
-\seealso{The core functions of the package \code{\link{mme}}}

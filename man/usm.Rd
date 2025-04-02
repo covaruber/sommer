@@ -2,7 +2,8 @@
 \alias{usm}
 \title{unstructured covariance structure}
 \description{
-  \code{usm} creates an unstructured covariance structure for specific levels of the random effect to be used with the \code{\link{mme}} solver.
+  \code{usm} creates an unstructured covariance structure for specific levels of 
+  the random effect to be used with the \code{\link{mmes}} solver.
 }
 \usage{
   usm(x, thetaC, theta)
@@ -10,7 +11,10 @@
 
 \arguments{
   \item{x}{vector of observations for the random effect.}
-    \item{thetaC}{an optional symmetric matrix for constraints in the variance-covariance components. The symmetric matrix should have as many rows and columns as the number of levels in the factor 'x'. The values in the matrix define how the variance-covariance components should be estimated:
+    \item{thetaC}{an optional symmetric matrix for constraints in the 
+    variance-covariance components. The symmetric matrix should have as many
+    rows and columns as the number of levels in the factor 'x'. The values in 
+    the matrix define how the variance-covariance components should be estimated:
   
   0: component will not be estimated
   
@@ -56,7 +60,7 @@ usm(x)
 # theta[lower.tri(theta)] <- t(theta)[lower.tri(theta)] 
 # theta # initial VCs
 # thetaC <- fixm(3); thetaC # fixed VCs
-# ans1 <- mme(Yield~Env,
+# ans1 <- mmes(Yield~Env,
 #              random= ~ vsm( usm(Env,theta = theta,thetaC = thetaC),ism(Name) ),
 #              rcov= ~ units, nIters = 1,
 #              data=DT)

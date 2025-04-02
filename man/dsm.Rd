@@ -2,7 +2,7 @@
 \alias{dsm}
 \title{diagonal covariance structure}
 \description{
-  \code{dsm} creates a diagonal covariance structure for the levels of the random effect  to be used with the \code{\link{mme}} solver.
+  \code{dsm} creates a diagonal covariance structure for the levels of the random effect  to be used with the \code{\link{mmes}} solver.
 }
 \usage{
   dsm(x, thetaC=NULL, theta=NULL)
@@ -53,12 +53,12 @@ dsm(x)
 # DT <- DT_example
 # theta <- diag(3)*2; theta # initial VCs
 # thetaC <- diag(3)*3; thetaC # fixed VCs
-# ans1 <- mme(Yield~Env,
+# ans1 <- mmes(Yield~Env,
 #              random= ~ vsm( dsm(Env,theta = theta,thetaC = thetaC),ism(Name) ),
 #              rcov= ~ units,
 #              data=DT)
 # summary(ans1)$varcomp
 
 }
-\seealso{See the function \code{\link{vsm}} to know how to use \code{dsm} in the \code{\link{mme}} solver.}
+\seealso{See the function \code{\link{vsm}} to know how to use \code{dsm} in the \code{\link{mmes}} solver.}
 

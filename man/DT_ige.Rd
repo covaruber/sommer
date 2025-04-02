@@ -37,7 +37,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 data(DT_ige)
 DT <- DT_ige
 # # Indirect genetic effects model without covariance between DGE and IGE
-# modIGE <- mme(trait ~ block, dateWarning = FALSE,
+# modIGE <- mmes(trait ~ block, dateWarning = FALSE,
 #                random = ~ focal + neighbour,
 #                rcov = ~ units, nIters=100,
 #               data = DT)
@@ -45,7 +45,7 @@ DT <- DT_ige
 # pmonitor(modIGE)
 # 
 # # Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
-# modIGE <- mme(trait ~ block, dateWarning = FALSE,
+# modIGE <- mmes(trait ~ block, dateWarning = FALSE,
 #                random = ~ covm( vsm(ism(focal)), vsm(ism(neighbour)) ),
 #                rcov = ~ units, nIters=100,
 #               data = DT)
@@ -56,7 +56,7 @@ DT <- DT_ige
 # Ai <- solve(A_ige + diag(1e-5, nrow(A_ige),nrow(A_ige) ))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # # Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
-# modIGE <- mme(trait ~ block, dateWarning = FALSE,
+# modIGE <- mmes(trait ~ block, dateWarning = FALSE,
 #                random = ~ covm( vsm(ism(focal), Gu=Ai), vsm(ism(neighbour), Gu=Ai) ),
 #                rcov = ~ units, nIters=100,
 #               data = DT)
@@ -66,4 +66,4 @@ DT <- DT_ige
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mme}} }
+\seealso{The core functions of the package \code{\link{mmes}} }

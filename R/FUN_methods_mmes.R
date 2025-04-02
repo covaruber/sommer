@@ -25,10 +25,10 @@
 }
 
 #### =========== ####
-## SUMMARY FUNCTION mme #
+## SUMMARY FUNCTION mmes #
 #### =========== ####
 
-"summary.mme" <- function(object, ...) {
+"summary.mmes" <- function(object, ...) {
 
   replace.values <- function(Values,Search,Replace){
     dd0 <- data.frame(Values)
@@ -68,11 +68,11 @@
   varcomp$Constraint <- replace.values(constraints, 1:3, c("Positive","Unconstr","Fixed"))
 
   output <- list(varcomp=varcomp, betas=coef, method=method,logo=LLAIC)
-  attr(output, "class")<-c("summary.mme", "list")
+  attr(output, "class")<-c("summary.mmes", "list")
   return(output)
 }
 
-"print.summary.mme"<-function (x, digits = max(3, getOption("digits") - 3),  ...){
+"print.summary.mmes"<-function (x, digits = max(3, getOption("digits") - 3),  ...){
 
   nmaxchar0 <- max(as.vector(unlist(apply(data.frame(rownames(x$varcomp)),1,nchar))),na.rm = TRUE)
 
@@ -114,14 +114,14 @@
 ## FITTED FUNCTION ##
 #### =========== ####
 
-"fitted.mme" <- function(object,...){
+"fitted.mmes" <- function(object,...){
 
   ff <- object$W %*% object$bu
 
   return(ff)
 }
 
-"print.fitted.mme"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
+"print.fitted.mmes"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
   cat(blue(paste("\n  The fitted values are obtained by adding Xb + Zu.1 + ... + Zu.n
                  containing: \n")
   ))
@@ -134,14 +134,14 @@
 ## RESIDUALS FUNCTION #
 #### =========== ######
 
-"residuals.mme" <- function(object, ...) {
+"residuals.mmes" <- function(object, ...) {
   digits = max(3, getOption("digits") - 3)
-  ff <- fitted.mme(object)
+  ff <- fitted.mmes(object)
   e <- object$y - ff
   return(e)
 }
 
-"print.residuals.mme"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
+"print.residuals.mmes"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
   print((x))
 }
 #### =========== ######
@@ -157,11 +157,11 @@
 ## COEF FUNCTION ####
 #### =========== ####
 
-"coef.mme" <- function(object, ...){
+"coef.mmes" <- function(object, ...){
   object$b
 }
 
-"print.coef.mme"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
+"print.coef.mmes"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
   print((x))
 }
 
@@ -169,7 +169,7 @@
 ## ANOVA FUNCTION ###
 #### =========== ####
 
-anova.mme <- function(object, object2=NULL, ...) {
+anova.mmes <- function(object, object2=NULL, ...) {
   signifo <- function(x){
     if(x >= 0 & x < 0.001){y="***"}
     if(x >= 0.001 & x < 0.01){y="**"}
@@ -222,7 +222,7 @@ anova.mme <- function(object, object2=NULL, ...) {
 ## PLOTING FUNCTION #
 #### =========== ####
 
-plot.mme <- function(x, stnd=TRUE, ...) {
+plot.mmes <- function(x, stnd=TRUE, ...) {
   digits = max(3, getOption("digits") - 3)
   transp <- function (col, alpha = 0.5){
     res <- apply(col2rgb(col), 2, function(c) rgb(c[1]/255, c[2]/255,c[3]/255, alpha))
@@ -230,7 +230,7 @@ plot.mme <- function(x, stnd=TRUE, ...) {
   }
   layout(matrix(1:4,2,2))
   # ff <- fitted(x)
-  rr <- residuals.mme(x)
+  rr <- residuals.mmes(x)
   # for(i in 1:traits){
 
     plot(rr,scale(rr),pch=20, col=transp("cadetblue"), ylab="Std Residuals", xlab="Fitted values", main="Residual vs Fitted", bty="n", ...); grid()

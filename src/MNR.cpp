@@ -1973,7 +1973,19 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   for (int i = 0; i < nRRe; ++i) {
     thetaCUnlistedFinal = join_cols(thetaCUnlistedFinal,mat_to_vecCpp2(thetaC[i],thetaC[i]));
   }
-  
+  // move the effects from vector to a field with matrices
+  arma::field<arma::mat> uList(nRe), uPevList(nRe); // store indices of the random effects
+  for (int i = 0; i < nRe; ++i) {
+    arma::mat partitionsP = partitions(i); // partition of random effect i
+    arma::mat uMat( arma::as_scalar( partitionsP(0,1) - partitionsP(0,0) + 1 ), partitionsP.n_rows );
+    arma::mat eMat( arma::as_scalar( partitionsP(0,1) - partitionsP(0,0) + 1 ), partitionsP.n_rows );
+    for (int j = 0; j < partitionsP.n_rows; ++j) {
+      uMat.col(j) = bu.submat( arma::as_scalar(partitionsP(j,0)-1), 0, arma::as_scalar(partitionsP(j,1)-1), 0 );
+      eMat.col(j) = arma::diagvec(  Ci.submat( arma::as_scalar(partitionsP(j,0)-1), arma::as_scalar(partitionsP(j,0)-1), arma::as_scalar(partitionsP(j,1)-1), arma::as_scalar(partitionsP(j,1)-1) ) );
+    }
+    uList(i) = uMat;
+    uPevList(i) = eMat;
+  }
   // return results in a list form
   return Rcpp::List::create(
     Rcpp::Named("llik") = llik,
@@ -1988,6 +2000,8 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     Rcpp::Named("InfMat") = InfMat, //InfMat,
     Rcpp::Named("monitor") = monitor,
     // Rcpp::Named("constraints") = thetaCUnlistedFinal,
+    Rcpp::Named("uList") = uList,
+    Rcpp::Named("uPevList") = uPevList,
     Rcpp::Named("AIC") = AIC,
     Rcpp::Named("BIC") = BIC,
     Rcpp::Named("convergence") = convergence,
@@ -1996,6 +2010,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     Rcpp::Named("normMonitor") = normMonitor,
     Rcpp::Named("toBoundary") = toBoundary,
     Rcpp::Named("Cchol") = A
+    
     
   );
 

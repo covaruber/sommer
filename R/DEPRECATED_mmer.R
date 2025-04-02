@@ -10,7 +10,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
                  stepWeight=NULL, emWeight=NULL, 
                  contrasts=NULL){
 
-  message("This function has been deprecated. Please start using 'mme' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
+  message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
   dateWarning=FALSE
   my.date <- "2025-03-01"
   your.date <- Sys.Date()

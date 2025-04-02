@@ -2,7 +2,8 @@
 \alias{stackTrait}
 \title{Stacking traits in a dataset}
 \description{
-  \code{stackTrait} creates a dataset stacking traits in the long format to be used with the \code{\link{mme}} solver for multi-trait models.
+  \code{stackTrait} creates a dataset stacking traits in the long format to be 
+  used with the \code{\link{mmes}} solver for multi-trait models.
 }
 \usage{
   stackTrait(data, traits)

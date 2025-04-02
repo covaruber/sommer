@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mme function with the default direct inversion algorithm (henderson=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the henderson argument to TRUE can bring significant speed ups.
+The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mmes function with the default direct inversion algorithm (henderson=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the henderson argument to TRUE can bring significant speed ups.
 
 The package is focused on problems of the type p > n related to genomic prediction (hybrid prediction & genomic selection) and GWAS analysis, although any general mixed model can be fitted as well. The package provides kernels to estimate additive (`A.mat`), dominance (`D.mat`), and epistatic (`E.mat`) relationship matrices that have been shown to increase prediction accuracy under certain scenarios or simply to estimate the variance components of such. The package provides flexibility to fit other genetic models such as full and half diallel models as well.
 
@@ -45,7 +45,7 @@ The vignettes aim to provide several examples in how to use the sommer package u
 
 ### Backgrounds in linear algebra
 
-The core of the package is the `mme()` function which solve the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information or henderson-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). Since version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
+The core of the package is the `mmes()` function which solve the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information or henderson-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). Since version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
 
 <br>
 
@@ -143,7 +143,7 @@ data(DT_example)
 DT <- DT_example
 A <- A_example
 
-ans1 <- mme(Yield~1,
+ans1 <- mmes(Yield~1,
              random= ~ Name + Env + Env:Name + Env:Block,
              rcov= ~ units, nIters=10,
              data=DT, verbose = FALSE)
@@ -167,7 +167,7 @@ DT$idd <-DT$id; DT$ide <-DT$id
 A <- A.mat(GT) # additive relationship matrix
 D <- D.mat(GT) # dominance relationship matrix
 E <- E.mat(GT) # epistatic relationship matrix
-ans.ADE <- mme(color~1, 
+ans.ADE <- mmes(color~1, 
                  random=~vsm(ism(id),Gu=A) + vsm(ism(idd),Gu=D), 
                  rcov=~units, nIters=10,
                  data=DT,verbose = FALSE)
@@ -190,7 +190,7 @@ We estimate variance components for $GCA_2$ and $SCA$ specifying the variance st
 # DTi <- DTi_cornhybrids
 # GT <- GT_cornhybrids
 # ### fit the model
-# modFD <- mme(Yield~1, 
+# modFD <- mmes(Yield~1, 
 #               random=~ vsm(atr(Location,c("3","4")),ism(GCA2)), 
 #               rcov= ~ vsm(dsm(Location),ism(units)), nIters=10,
 #               returnParam = F,
@@ -198,7 +198,7 @@ We estimate variance components for $GCA_2$ and $SCA$ specifying the variance st
 # summary(modFD)
 ```
 
-In the previous example we showed how the `atr()` function is used in the `mme()` solver. By using the `atr()` function you can specify that i.e. the GCA2 has a different variance in different Locations, in this case locations 3 and 4, but also a main GCA variance. This is considered a CS + DIAG (compound symmetry + diagonal) model.
+In the previous example we showed how the `atr()` function is used in the `mmes()` solver. By using the `atr()` function you can specify that i.e. the GCA2 has a different variance in different Locations, in this case locations 3 and 4, but also a main GCA variance. This is considered a CS + DIAG (compound symmetry + diagonal) model.
 
 In addition, other functions can be added on top to fit models with covariance structures, i.e. the `Gu` argument from the `vsm()` function to indicate a covariance matrix (A, pedigree or genomic relationship matrix)
 
@@ -210,7 +210,7 @@ In addition, other functions can be added on top to fit models with covariance s
 # GT[1:4,1:4]
 # DT=DT[with(DT, order(Location)), ]
 # ### fit the model
-# modFD <- mme(Yield~1, 
+# modFD <- mmes(Yield~1, 
 #               random=~ vsm(atr(Location,c("3","4")),ism(GCA2),Gu=GT), 
 #               rcov= ~ vsm(dsm(Location),ism(units)), nIters=10,
 #               data=DT, verbose = FALSE)
@@ -230,7 +230,7 @@ GT <- GT_cpdata
 MP <- MP_cpdata
 ### look at the data
 A <- A.mat(GT) # additive relationship matrix
-ans <- mme(color~1, 
+ans <- mmes(color~1, 
                 random=~vsm(ism(id),Gu=A), 
                 rcov=~units, nIters=10,
                 data=DT, verbose = FALSE)
@@ -260,7 +260,7 @@ We estimate variance components for $GCA_1$, $GCA_2$ and $SCA$ and use them to e
 # DTi <- DTi_cornhybrids
 # GT <- GT_cornhybrids
 # 
-# modFD <- mme(Yield~Location, 
+# modFD <- mmes(Yield~Location, 
 #               random=~GCA1+GCA2+SCA, 
 #               rcov=~units, nIters=10,
 #               data=DT, verbose = FALSE)
@@ -277,7 +277,7 @@ We estimate variance components for $GCA_1$, $GCA_2$ and $SCA$ and use them to e
 Don't worry too much about the `h2` value, the data was simulated to be mainly dominance variance, therefore the `Va` was simulated extremely small leading to such value of narrow sense `h2`.
 
 
-In the second data set we show a small half diallel with 7 parents crossed in one direction. There are n(n-1)/2 possible crosses; 7(6)/2 = 21 unique crosses. Parents appear as males or females indistictly. Each with two replications in a CRD. For a half diallel design a single GCA variance component for both males and females can be estimated and an SCA as well ($\sigma^2_GCA$ and $\sigma^2_SCA$ respectively), and BLUPs for GCA and SCA of the parents can be extracted. We will show first how to do so with the `mme()` function using the `overlay()` function. The specific model here is:
+In the second data set we show a small half diallel with 7 parents crossed in one direction. There are n(n-1)/2 possible crosses; 7(6)/2 = 21 unique crosses. Parents appear as males or females indistictly. Each with two replications in a CRD. For a half diallel design a single GCA variance component for both males and females can be estimated and an SCA as well ($\sigma^2_GCA$ and $\sigma^2_SCA$ respectively), and BLUPs for GCA and SCA of the parents can be extracted. We will show first how to do so with the `mmes()` function using the `overlay()` function. The specific model here is:
 
 $y = X\beta + Zu_g + Zu_s + \epsilon$ 
 
@@ -289,7 +289,7 @@ DT$femalef <- as.factor(DT$female)
 DT$malef <- as.factor(DT$male)
 DT$genof <- as.factor(DT$geno)
 #### model using overlay
-modh <- mme(sugar~1, 
+modh <- mmes(sugar~1, 
              random=~vsm(ism(overlay(femalef,malef)) )
              + genof, nIters=10,
              data=DT, verbose = FALSE)
@@ -327,14 +327,14 @@ vv <- sample(rownames(DT),round(nrow(DT)/5))
 y.trn[vv,"X1"] <- NA
 head(y.trn)
 ## GBLUP
-ans <- mme(X1~1,
+ans <- mmes(X1~1,
             random=~vsm(ism(id),Gu=K), 
             rcov=~units,nIters=10,
             data=y.trn, verbose = FALSE) # kinship based
 cor(ans$u[vv,] ,DT[vv,"X1"], use="complete")
 
 ## rrBLUP
-ans2 <- mme(X1~1,
+ans2 <- mmes(X1~1,
              random=~vsm(ism(GT), buildGu = FALSE), 
              rcov=~units, getPEV = TRUE, nIters=10, # you do more iterations
              data=y.trn, verbose = FALSE) # kinship based
@@ -345,7 +345,7 @@ cor(u[vv,],DT[vv,"X1"]) # same correlation
 # the same can be applied in multi-response models in GBLUP or rrBLUP
 ```
 
-Please notice that when specifying the marker matrix as a random effect we used the argument 'buildGu=FALSE' to inform the 'mme' function that a covariance matrix for the levels of the random effect shouldn't be built. Imagine a model with 100,000 markers, that would imply a relationship matrix of 100,000 x 100,000. If that matrix is a diagonal it would only compromise the speed and memory of the function. By setting  'buildGu=FALSE' the mme solver will avoid the matrix multiplications using that huge diagonal matrix. If you want to specify a relationship matrix for the marker matrix then you cannot use that 'buildGu' argument.
+Please notice that when specifying the marker matrix as a random effect we used the argument 'buildGu=FALSE' to inform the 'mmes' function that a covariance matrix for the levels of the random effect shouldn't be built. Imagine a model with 100,000 markers, that would imply a relationship matrix of 100,000 x 100,000. If that matrix is a diagonal it would only compromise the speed and memory of the function. By setting  'buildGu=FALSE' the mmes solver will avoid the matrix multiplications using that huge diagonal matrix. If you want to specify a relationship matrix for the marker matrix then you cannot use that 'buildGu' argument.
 
 ### 6) Indirect genetic effects
 
@@ -359,7 +359,7 @@ We first fit a direct genetic effects model:
 # An <- A_ige
 
 ## Direct genetic effects model
-# modDGE <- mme(trait ~ block,
+# modDGE <- mmes(trait ~ block,
 #                random = ~ focal,
 #                rcov = ~ units, nIters=30,
 #                data = DT, verbose=FALSE)
@@ -375,7 +375,7 @@ We now fit the indirect genetic effects model without covariance between DGE and
 # A <- A_ige
 # 
 # ## Indirect genetic effects model
-# modIGE <- mme(trait ~ block, dateWarning = FALSE,
+# modIGE <- mmes(trait ~ block, dateWarning = FALSE,
 #                random = ~ focal + neighbour, verbose = FALSE,
 #                rcov = ~ units, nIters=100,
 #               data = DT)
@@ -388,7 +388,7 @@ We now fit the indirect genetic effects model with covariance between DGE and IG
 ```{r}
 
 # ### Indirect genetic effects model
-# modIGE <- mme(trait ~ block, dateWarning = FALSE,
+# modIGE <- mmes(trait ~ block, dateWarning = FALSE,
 #                random = ~ covm( vsm(ism(focal)), vsm(ism(neighbour)) ),
 #                rcov = ~ units, nIters=100, verbose = FALSE,
 #               data = DT)
@@ -404,7 +404,7 @@ On top of that we can include a relationship matrix for the two random effects t
 # Ai <- solve(A_ige + diag(1e-5, nrow(A_ige),nrow(A_ige) ))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # # Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
-# modIGE <- mme(trait ~ block, dateWarning = FALSE,
+# modIGE <- mmes(trait ~ block, dateWarning = FALSE,
 #                random = ~ covm( vsm(ism(focal), Gu=Ai), vsm(ism(neighbour), Gu=Ai) ),
 #                rcov = ~ units, nIters=100, verbose = FALSE,
 #               data = DT)
@@ -454,7 +454,7 @@ y.trn <- DT
 vv1 <- which(!is.na(DT$GY))
 vv2 <- sample(vv1, 100)
 y.trn[vv2,"GY"] <- NA
-anss2 <- mme(GY~1,  henderson=TRUE,
+anss2 <- mmes(GY~1,  henderson=TRUE,
               random=~vsm(ism(dent),Gu=Adi) + vsm(ism(flint),Gu=Afi), 
               rcov=~units, nIters=15,
               data=y.trn, verbose = FALSE) 
@@ -487,7 +487,7 @@ Sometimes is important to estimate genetic variance-covariance among traits--mul
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # #### be patient take some time
-# ansm <- mme( valueS ~ trait, # henderson=TRUE,
+# ansm <- mmes( valueS ~ trait, # henderson=TRUE,
 #                random=~ vsm(usm(trait), ism(id), Gu=A),
 #                rcov=~ vsm(dsm(trait), ism(units)),
 #                data=DT2$long)
@@ -512,7 +512,7 @@ M <- GT_cpdata
 ################
 # MARKER MODEL
 ################
-mix.marker <- mme(color~1,
+mix.marker <- mmes(color~1,
                    random=~Rowf+vsm(ism(M)),
                    rcov=~units,data=DT, 
                    verbose = FALSE)
@@ -528,7 +528,7 @@ MMT <-tcrossprod(M) ## MM' = additive relationship matrix
 MMTinv<-solve(MMT) ## inverse
 MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
 
-mix.part <- mme(color~1,
+mix.part <- mmes(color~1,
                  random=~Rowf+vsm(ism(id), Gu=MMT),
                  rcov=~units,data=DT,
                  verbose = FALSE)
@@ -568,7 +568,7 @@ Lee and Van der Warf (2015) proposed a decomposition of the relationship matrix 
 # DTd<-data.frame(id = rownames(G) ,UY, UX =UX[,1])
 # DTd$id<-as.character(DTd$id)
 # 
-# modeld <- mme(cbind(X1,X2) ~ UX - 1, 
+# modeld <- mmes(cbind(X1,X2) ~ UX - 1, 
 #               random = ~vsm(id,Gu=D), 
 #               rcov = ~vsm(units),
 #               data=DTd, verbose = FALSE)
@@ -577,7 +577,7 @@ Lee and Van der Warf (2015) proposed a decomposition of the relationship matrix 
 # DTn<-data.frame(id = rownames(G) , DT_wheat)
 # DTn$id<-as.character(DTn$id)
 # 
-# modeln <- mme(cbind(X1,X2) ~ 1, 
+# modeln <- mmes(cbind(X1,X2) ~ 1, 
 #               random = ~vsm(id,Gu=G), 
 #               rcov = ~vsm(units),
 #               data=DTn, verbose = FALSE)
@@ -627,7 +627,7 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 ##############################
 ## REML method
 ##############################
-mix2 <- mme(yield~ setf + setf:repf,
+mix2 <- mmes(yield~ setf + setf:repf,
             random=~femalef:malef:setf + malef:setf, nIters=10,
             data=DT, verbose = FALSE)
 vc <- summary(mix2)$varcomp; vc
@@ -688,7 +688,7 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 ## REML method
 ##############################
 
-mix2 <- mme(yield~ setf + setf:repf ,
+mix2 <- mmes(yield~ setf + setf:repf ,
             random=~femalef:malef:setf + malef:setf + femalef:setf, 
             nIters=10,
             data=DT, verbose = FALSE)
@@ -741,7 +741,7 @@ To compare EMMAX to the approach proposed by Gualdron-Duarte et al. (2014) and B
 #### GWAS by RRBLUP approach
 ###########################
 # Z <- GT[as.character(DT$id),]
-# mixRRBLUP <- mme(color~1,
+# mixRRBLUP <- mmes(color~1,
 #               random=~vsm(ism(Z)) + Rowf + Colf,
 #               rcov=~units, nIters=10,
 #               verbose = FALSE,
@@ -764,7 +764,7 @@ Instead of fitting the RRBLUP/SNP-BLUP model we can fit a GBLUP model which is l
 # MMT <-tcrossprod(M) ## MM' = additive relationship matrix
 # MMTinv<-solve(MMT + diag(1e-6, ncol(MMT), ncol(MMT))) ## inverse of MM'
 # MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
-# mixGBLUP <- mme(color~1,
+# mixGBLUP <- mmes(color~1,
 #              random=~vsm(ism(id), Gu=MMT) + Rowf + Colf,
 #              rcov=~units, nIters=10,
 #              verbose = FALSE,
@@ -792,7 +792,7 @@ Now we can look at the p-values coming from the 3 approaches to indeed show that
 
 ### Final remarks
 
-Keep in mind that mme uses a direct inversion (DI) algorithm which can be very slow for large datasets with many records. When datasets have more records than coefficients to be estimated please shift to the use of the mme function.
+Keep in mind that mmes uses a direct inversion (DI) algorithm which can be very slow for large datasets with many records. When datasets have more records than coefficients to be estimated please shift to the use of the mmes function.
 
 ## Literature
 

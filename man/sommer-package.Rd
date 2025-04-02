@@ -28,17 +28,17 @@ covariance structures, e.g., unstructured, reduced-rank, diagonal. And also to
 model relationships between levels of a random effect, e.g., additive, dominance 
 and epistatic relationship structures.  
 
-The direct inversion algorithm available in the \code{\link{mme}} function
+The direct inversion algorithm available in the \code{\link{mmes}} function
 (argument \code{henderson=FALSE}) can
 deal well with small and medium-size data sets (< 10,000 observations/records for 
 average computers given the computational burden carried by the direct-inversion 
 algorithms) since it works in the c > r problem and inverts an r x r matrix 
 (being r the number of records and c the number of coefficients). On the other hand,
-the Henderson algorithm in the \code{\link{mme}} function (argument \code{henderson=TRUE})
+the Henderson algorithm in the \code{\link{mmes}} function (argument \code{henderson=TRUE})
 can deal with greater number of records (r>250K) as long as the 
 number of coefficients to estimate is < 10,000 coefficients (c) since it works in
 the r > c problem and inverts a c x c matrix (being c the number of coefficients).
-The \code{\link{predict.mme}} function can be used to obtain adjusted means. 
+The \code{\link{predict.mmes}} function can be used to obtain adjusted means. 
 This package returns variance-covariance components, BLUPs, BLUEs, residuals, 
 fitted values, variances-covariances for fixed and random effects, etc.
 
@@ -65,19 +65,19 @@ matrix (use the `getA` function from the pedigreemm package).
 
 The \code{\link{vpredict}} function can be used to estimate standard errors for linear combinations of variance components (e.g. ratios like h2). The \code{\link{r2}} function calculates reliability. S3 methods are available for some parameter extraction such as:
 
-+ \code{\link{predict.mme}}
++ \code{\link{predict.mmes}}
 
-+ \code{\link{fitted.mme}}
++ \code{\link{fitted.mmes}}
 
-+ \code{\link{residuals.mme}}
++ \code{\link{residuals.mmes}}
 
-+ \code{\link{summary.mme}}
++ \code{\link{summary.mmes}}
 
-+ \code{\link{coef.mme}}
++ \code{\link{coef.mmes}}
 
-+ \code{\link{anova.mme}}
++ \code{\link{anova.mmes}}
 
-+ \code{\link{plot.mme}}
++ \code{\link{plot.mmes}}
 
 }
 
@@ -140,7 +140,7 @@ The package has been equiped with several datasets to learn how to use the somme
 \section{Differences of sommer >= 4.4.1 with previous versions}{
 
 Since version 4.4.1, I have unified the use of the two different solving algorithms
-into the mme function by just using the new argument \code{henderson} which by default 
+into the mmes function by just using the new argument \code{henderson} which by default 
 is set to FALSE. Other than that the rest is the same with the addition that now
 the identity terms needs to be encapsulated in the \code{\link{ism}} function. In 
 addition, now the multi-trait models need to be fitted in the long format. This are 
@@ -150,7 +150,7 @@ few but major changes to the way sommer models are fitted.
 
 \section{Differences of sommer >= 4.1.7 with previous versions}{
 
-Since version 4.1.7 I have introduced the mme-based average information function `mmec` which is much faster when dealing with the r > c problem (more records than coefficients to estimate). This introduces its own covariance structure functons such as vsc(), usc(), dsc(), atc(), csc(). Please give it a try, although is in early phase of development.
+Since version 4.1.7 I have introduced the mmes-based average information function `mmec` which is much faster when dealing with the r > c problem (more records than coefficients to estimate). This introduces its own covariance structure functons such as vsc(), usc(), dsc(), atc(), csc(). Please give it a try, although is in early phase of development.
 
 }
 
@@ -161,9 +161,9 @@ Since version 3.7 I have completly redefined the specification of the variance-c
 }
 \section{Differences of sommer >= 3.0.0 with previous versions}{
 
-Since version 3.0 I have decided to focus in developing the multivariate solver and for doing this I have decided to remove the M argument (for GWAS analysis) from the mme function and move it to it's own function GWAS.
+Since version 3.0 I have decided to focus in developing the multivariate solver and for doing this I have decided to remove the M argument (for GWAS analysis) from the mmes function and move it to it's own function GWAS.
 
-Before the mme solver had implemented the usm(trait), diag(trait), at(trait) asreml formulation for multivariate models that allow to specify the structure of the trait in multivariate models. Therefore the MVM argument was no longer needed. After version 3.7 now the multi-trait structures can be specified in the \code{Gt} and \code{Gtc} arguments of the \code{\link{vsm}} function.
+Before the mmes solver had implemented the usm(trait), diag(trait), at(trait) asreml formulation for multivariate models that allow to specify the structure of the trait in multivariate models. Therefore the MVM argument was no longer needed. After version 3.7 now the multi-trait structures can be specified in the \code{Gt} and \code{Gtc} arguments of the \code{\link{vsm}} function.
 
 The Average Information algorithm had been removed in the past from the package because of its instability to deal with very complex models without good initial values. Now after 3.7 I have brought it back after I noticed that starting with NR the first three iterations gives enough flexibility to the AI algorithm.
 
@@ -174,10 +174,10 @@ Keep in mind that sommer uses direct inversion (DI) algorithm which can be very 
 \section{Models Enabled}{
 
 
-The core of the package are the \code{\link{mme}} (formula-based) function which 
+The core of the package are the \code{\link{mmes}} (formula-based) function which 
 solve the mixed model equations. The functions are an interface to call the `NR`
 Direct-Inversion Newton-Raphson, `AI` Direct-Inversion Average Information or 
-the mme-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; 
+the mmes-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; 
 Lee et al. 2016). Since version 2.0 sommer can handle multivariate models. 
 Following Maier et al. (2015), the multivariate (and by extension the univariate)
 mixed model implemented has the form:
@@ -282,7 +282,7 @@ data(DT_example)
 # ####=========================================####
 # 
 # ## Compound simmetry (CS) model
-# ans1 <- mme(Yield~Env,
+# ans1 <- mmes(Yield~Env,
 #              random= ~ Name + Env:Name,
 #              rcov= ~ units,
 #              data=DT)
@@ -292,7 +292,7 @@ data(DT_example)
 # #### Univariate heterogeneous variance models  ####
 # ####===========================================####
 # ## Compound simmetry (CS) + Diagonal (DIAG) model
-# ans3 <- mme(Yield~Env,
+# ans3 <- mmes(Yield~Env,
 #              random= ~Name + vsm(dsm(Env),ism(Name)),
 #              rcov= ~ vsm(dsm(Env),ism(units)),
 #              data=DT)

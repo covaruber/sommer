@@ -1,13 +1,13 @@
-\name{mme}
-\alias{mme}
+\name{mmes}
+\alias{mmes}
 \title{
 
-\strong{m}ixed \strong{m}odel \strong{e}quations
+\strong{m}ixed \strong{m}odel \strong{e}quations \strong{s}olver
 
 }
 \description{
 
-The \code{mme} function uses either the direct inversion or the Henderson mixed 
+The \code{mmes} function uses either the direct inversion or the Henderson mixed 
 model equations algorithms coded in C++ using the Armadillo library to optimize matrix 
 operations common in problems with sparse data (e.g., genotype by environment models). 
 This algorithm is \strong{intended to be used for problems of the type r > c (more 
@@ -21,7 +21,7 @@ relationship matrix as an inverse.
 
 \usage{
 
-mme(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-04,
+mmes(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-04,
      tolParConvNorm = 1e-04, tolParInv = 1e-06, naMethodX="exclude",
      naMethodY="exclude", returnParam=FALSE, dateWarning=TRUE,
      verbose=TRUE,addScaleParam=NULL, stepWeight=NULL, emWeight=NULL,
@@ -146,7 +146,7 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
  
 \strong{S3 methods}
 
-S3 methods are available for some parameter extraction such as \code{\link{fitted.mme}}, \code{\link{residuals.mme}}, \code{\link{summary.mme}}, \code{\link{randef}}, \code{\link{coef.mme}}, \code{\link{anova.mme}}, \code{\link{plot.mme}}, and \code{\link{predict.mme}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (e.g., ratios like h2). The \code{\link{r2}} function calculates reliability. 
+S3 methods are available for some parameter extraction such as \code{\link{fitted.mmes}}, \code{\link{residuals.mmes}}, \code{\link{summary.mmes}}, \code{\link{randef}}, \code{\link{coef.mmes}}, \code{\link{anova.mmes}}, \code{\link{plot.mmes}}, and \code{\link{predict.mmes}} to obtain adjusted means. In addition, the \code{\link{vpredict}} function (replacement of the pin function) can be used to estimate standard errors for linear combinations of variance components (e.g., ratios like h2). The \code{\link{r2}} function calculates reliability. 
 
 
 \strong{Additional Functions}
@@ -231,7 +231,7 @@ If all parameters are correctly indicated the program will return a list with th
                 levels of the random effects and column the different factors at 
                 which the random effect is fitted. This is specially useful for 
                 diagonal and unstructured models.}
-\item{args}{the fixed, random and residual formulas from the mme model.}
+\item{args}{the fixed, random and residual formulas from the mmes model.}
 \item{constraints}{The vector of constraints.}
 
 }
@@ -269,7 +269,7 @@ head(DT)
 ####=========================================####
 
 ## Compound simmetry (CS) model
-ans1 <- mme(Yield~Env,
+ans1 <- mmes(Yield~Env,
              random= ~ Name + Env:Name,
              rcov= ~ units,
              data=DT)
@@ -280,7 +280,7 @@ summary(ans1)
 # ####===========================================####
 # DT=DT[with(DT, order(Env)), ]
 # ## Compound simmetry (CS) + Diagonal (DIAG) model
-# ans2 <- mme(Yield~Env,
+# ans2 <- mmes(Yield~Env,
 #              random= ~Name + vsm(dsm(Env),ism(Name)),
 #              rcov= ~ vsm(dsm(Env),ism(units)),
 #              data=DT)
@@ -290,7 +290,7 @@ summary(ans1)
 # ####  Univariate unstructured variance models  ####
 # ####===========================================####
 # 
-# ans3 <- mme(Yield~Env,
+# ans3 <- mmes(Yield~Env,
 #              random=~ vsm(usm(Env),ism(Name)),
 #              rcov=~vsm(dsm(Env),ism(units)),
 #              data=DT)

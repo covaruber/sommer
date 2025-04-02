@@ -45,7 +45,7 @@ Mf <- Mf_technow
 # Af <- A.mat(Mf)
 # ###=========================================####
 # ###=========================================####
-# ans2 <- mme(GY~1,
+# ans2 <- mmes(GY~1,
 #              random=~vsm(ism(dent),Gu=Ad) + vsm(ism(flint),Gu=Af),
 #              rcov=~units,
 #              data=DT)
@@ -69,7 +69,7 @@ Mf <- Mf_technow
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # DT2$long=DT2$long[with(DT2$long, order(trait)), ]
 # 
-# ans3 <- mme(valueS~trait, henderson=TRUE,
+# ans3 <- mmes(valueS~trait, henderson=TRUE,
 #              random=~vsm(usm(trait),ism(overlay(dent,flint)),Gu=Ai),
 #              rcov=~ vsm(dsm(trait), ism(units)),
 #              data=DT2$long)
@@ -77,4 +77,4 @@ Mf <- Mf_technow
 # cov2cor(ans3$theta[[1]])
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mme}} }
+\seealso{The core functions of the package \code{\link{mmes}} }

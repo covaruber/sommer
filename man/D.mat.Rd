@@ -70,4 +70,4 @@ for (i in 1:200) {
 D <- D.mat(X)
 
 }
-\seealso{The core functions of the package \code{\link{mme}}}
+

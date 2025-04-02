@@ -40,7 +40,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #
 # # GRIFFING MODEL 2 with reciprocal effects ###########################
 #
-# mod1hb <- mme(Ftime ~ 1, data=DT2,
+# mod1hb <- mmes(Ftime ~ 1, data=DT2,
 #                random = ~ Block
 #                # GCA male & female overlayed
 #                + vsm(ism(overlay(Par1, Par2)))
@@ -60,7 +60,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # ##
 # # GRIFFING MODEL 2, no reciprocal effects ##############################
 #
-# mod1h <- mme(Ftime ~ Block + is.cross, data=DT2, nIters = 50,
+# mod1h <- mmes(Ftime ~ Block + is.cross, data=DT2, nIters = 50,
 #               random = ~
 #                 # GCA effects for all (hybrids and inbreds)
 #                 vsm(ism(overlay(Par1, Par2)))
@@ -79,7 +79,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # ##
 # # GRIFFING MODEL 3, no reciprocal effects ###############################
 #
-# mod1h <- mme(Ftime ~ Block + is.cross, data=DT2, nIters = 100,
+# mod1h <- mmes(Ftime ~ Block + is.cross, data=DT2, nIters = 100,
 #               random = ~
 #                 # GCAC (only for hybrids)
 #                 vsm(ism(is.cross),ism(overlay(Par1, Par2)))
@@ -98,7 +98,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # # GRIFFING MODEL 2, with reciprocal effects #############################
 # # In Mohring: mixed model 3 reduced
 #
-# mod1h <- mme(Ftime ~ Block + is.cross, data=DT2, nIters = 100,
+# mod1h <- mmes(Ftime ~ Block + is.cross, data=DT2, nIters = 100,
 #               random = ~
 #                 # GCAC (for hybrids only)
 #                 vsm(ism(is.cross),ism(overlay(Par1, Par2)))
@@ -121,7 +121,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # # GRIFFING MODEL 3, with RGCA + RSCA ####################################
 # # In Mohring: mixed model 3
 #
-# mod1h <- mme(Ftime ~ Block + is.cross, data=DT2,nIters = 100,
+# mod1h <- mmes(Ftime ~ Block + is.cross, data=DT2,nIters = 100,
 #               random = ~
 #                 # GCAC (for hybrids only)
 #                 vsm(ism(is.cross),ism(overlay(Par1, Par2)))
@@ -148,4 +148,4 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mme}} }
+\seealso{The core functions of the package \code{\link{mmes}} }

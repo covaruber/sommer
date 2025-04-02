@@ -1,13 +1,13 @@
-\name{predict.mme}
-\alias{predict.mme}
-\title{Predict form of a LMM fitted with mme}
-\description{\code{predict} method for class \code{"mme"}.
+\name{predict.mmes}
+\alias{predict.mmes}
+\title{Predict form of a LMM fitted with mmes}
+\description{\code{predict} method for class \code{"mmes"}.
 }
 \usage{
-\method{predict}{mme}(object, Dtable=NULL, D, \dots)
+\method{predict}{mmes}(object, Dtable=NULL, D, \dots)
 }
 \arguments{
- \item{object}{a mixed model of class \code{"mme"}}
+ \item{object}{a mixed model of class \code{"mmes"}}
  \item{Dtable}{a table specifying the terms to be included or averaged.
  
   An "include" term means that the model matrices for that fixed or random effect is filled with 1's for the positions where column names and row names match.
@@ -59,13 +59,13 @@
   Welham, S., Cullis, B., Gogel, B., Gilmour, A., and Thompson, R. (2004). Prediction in linear mixed models. Australian and New Zealand Journal of Statistics, 46, 325 - 347.
  }
 \author{Giovanny Covarrubias-Pazaran}
-\seealso{\code{\link{predict}}, \code{\link{mme}}}
+\seealso{\code{\link{predict}}, \code{\link{mmes}}}
 \keyword{models}
 \examples{
 
 data(DT_yatesoats)
 DT <- DT_yatesoats
-m3 <- mme(fixed=Y ~ V + N + V:N ,
+m3 <- mmes(fixed=Y ~ V + N + V:N ,
            random = ~ B + B:MP,
            rcov=~units,
            data = DT)

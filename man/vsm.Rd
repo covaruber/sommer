@@ -2,7 +2,7 @@
 \alias{vsm}
 \title{variance structure specification}
 \description{
-  \code{vsm} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mme}} solver. 
+  \code{vsm} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmes}} solver. 
 }
 \usage{
   vsm(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
@@ -14,7 +14,7 @@
 
   \code{var(g) = G.e @ I.g}
 
-  being \code{G.e}  a matrix containing the variance covariance components for g (genotypes) in each level of e (environments), \code{I.g} is the covariance among levels of g (genotypes; i.e. relationship matrix), and @ is the kronecker product. This would be specified in the mme solver as:
+  being \code{G.e}  a matrix containing the variance covariance components for g (genotypes) in each level of e (environments), \code{I.g} is the covariance among levels of g (genotypes; i.e. relationship matrix), and @ is the kronecker product. This would be specified in the mmes solver as:
 
   \code{random=~vsm(dsm(e),g)}
 
@@ -31,8 +31,8 @@
   a combination of these). For more examples please see the vignettes 'sommer.start' 
   available in the package.}
 
-  \item{Gu}{matrix with either the inverse (in case of mme=TRUE) or raw variance-covariance 
-  (mme=FALSE) values for the levels of the u.th random effect (e.g., the inverse of a 
+  \item{Gu}{matrix with either the inverse (in case of mmes=TRUE) or raw variance-covariance 
+  (mmes=FALSE) values for the levels of the u.th random effect (e.g., the inverse of a 
   relationship matrix among individuals or any other known inverse covariance 
   matrix). If using an inverse remember to provide it in the right format and with
   attribute of being an inverse:
@@ -57,7 +57,7 @@
 
    \item{meThetaC}{constraints for the variance covariance matrix between the main effects desired. Just to be modified if the number of main effects is greater of 1 (e.g., indirect genetic effects).}
 
-   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mme function through the addScaleParam argument in the \code{mme} function .}
+   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmes function through the addScaleParam argument in the \code{mmes} function .}
    
    \item{isFixed}{a TRUE/FALSE statement to indicate if the vsm function is being used in the fixed part of the model. When TRUE, the function only returns the model matrix to avoid any error messages associated to returning all elements for a random effect. FALSE is the default since it is assumed to be used for a variance structure in a random effect.}
    
@@ -71,7 +71,7 @@
 }
 \value{
   \describe{
-    \item{$res}{a list with all neccesary elements (incidence matrices, known var-cov structures, unknown covariance structures to be estimated and constraints) to be used in the mme solver.}
+    \item{$res}{a list with all neccesary elements (incidence matrices, known var-cov structures, unknown covariance structures to be estimated and constraints) to be used in the mmes solver.}
   }
 }
 \references{
@@ -92,7 +92,7 @@ DT <- DT_example
 DT=DT[with(DT, order(Env)), ]
 A <- A_example
 
-# if using mme=TRUE remember to provide relationship as inverse in the Gu argument
+# if using mmes=TRUE remember to provide relationship as inverse in the Gu argument
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 
@@ -102,7 +102,7 @@ DT <- droplevels(DT[which(!is.na(match(DT$Name, x[1:5]))),])
 ## example without structure
 ## ============================ ##
 ism(DT$Name)
-mix <- mme(Yield~Env,
+mix <- mmes(Yield~Env,
             random= ~ vsm(ism(Name)),
             rcov=~ units,
             nIters=10,
@@ -113,7 +113,7 @@ mix <- mme(Yield~Env,
 ## using covariance among levels in the
 ## random effect Name
 ## ============================ ##
-mix <- mme(Yield~Env, 
+mix <- mmes(Yield~Env, 
             random= ~ vsm(ism(Name), Gu=A),
             rcov=~ units,
             nIters=10,
@@ -123,7 +123,7 @@ summary(mix)$varcomp
 ## example to use dsm() structure (DIAGONAL)
 ## ============================ ##
 dsm(DT$Year)
-mix <- mme(Yield~Env,
+mix <- mmes(Yield~Env,
             random= ~ vsm(dsm(Year),ism(Name)),
             rcov=~ vsm(dsm(Year),ism(units)),
             nIters=10,
@@ -133,7 +133,7 @@ summary(mix)$varcomp
 ## example to use atm() structure (level-specific)
 ## ============================ ##
 # unique(DT$Year)
-# mix <- mme(Yield~Env,
+# mix <- mmes(Yield~Env,
 #             random= ~ vsm(atm(Year,c("2011","2012")),ism(Name)),
 #             rcov=~ vsm(dsm(Year),ism(units)),
 #             data=DT)
@@ -141,7 +141,7 @@ summary(mix)$varcomp
 ## example to use usm() structure (UNSTRUCTURED)
 ## ============================ ##
 usm(DT$Year)
-mix <- mme(Yield~Env,
+mix <- mmes(Yield~Env,
             random= ~ vsm(usm(Year),ism(Name)),
             rcov=~ vsm(dsm(Year),ism(units)),
             nIters = 10,
@@ -150,10 +150,10 @@ mix <- mme(Yield~Env,
 ## example using structure in fixed effect
 ## (notice the isFixed argument)
 ## ============================ ##
-mix <- mme(Yield~ vsm(atm(Env,"CA.2011"), ism(Name), isFixed = TRUE),
+mix <- mmes(Yield~ vsm(atm(Env,"CA.2011"), ism(Name), isFixed = TRUE),
             rcov=~ units,
             nIters=10,
             data=DT)
 
 }
-\seealso{The core function of the package: \code{\link{mme}}}
+\seealso{The core function of the package: \code{\link{mmes}}}

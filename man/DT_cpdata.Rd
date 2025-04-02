@@ -47,7 +47,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # A <- A.mat(GT) # additive relationship matrix
 # #### look at the data and fit the model
 # head(DT)
-# mix1 <- mme(Yield~1, henderson=FALSE,
+# mix1 <- mmes(Yield~1, henderson=FALSE,
 #               random=~vsm(ism(id),Gu=A)
 #                       + Rowf + Colf,
 #               rcov=~units,
@@ -57,7 +57,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # ## mmec uses the inverse of the relationship matrix
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# mix2 <- mme(Yield~1, henderson=TRUE,
+# mix2 <- mmes(Yield~1, henderson=TRUE,
 #               random=~vsm(ism(id),Gu=Ai)
 #                       + Rowf + Colf,
 #               rcov=~units,
@@ -80,11 +80,11 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # DT2 <- stackTrait(DT, traits = c("color","Yield"))
 # head(DT2$long)
 # A <- A.mat(GT) # additive relationship matrix
-# # if using mme=TRUE you need to provide the inverse
+# # if using mmes=TRUE you need to provide the inverse
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # #### be patient take some time
-# ansm <- mme( valueS ~ trait, # henderson=TRUE,
+# ansm <- mmes( valueS ~ trait, # henderson=TRUE,
 #                random=~ vsm(usm(trait), ism(id), Gu=A),
 #                rcov=~ vsm(dsm(trait), ism(units)),
 #                data=DT2$long)
@@ -92,4 +92,4 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mme}}  }
+\seealso{The core functions of the package \code{\link{mmes}}  }

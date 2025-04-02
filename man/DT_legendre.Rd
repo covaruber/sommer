@@ -5,7 +5,7 @@
 Simulated data for random regression
 }
 \description{
-A data frame with 4 columns; SUBJECT, X, Xf and Y to show how to use the Legendre polynomials in the mme function using a numeric variable X and a response variable Y. 
+A data frame with 4 columns; SUBJECT, X, Xf and Y to show how to use the Legendre polynomials in the mmes function using a numeric variable X and a response variable Y. 
 
 }
 \usage{data("DT_legendre")}
@@ -32,7 +32,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # library(orthopolynom)
 # data(DT_legendre)
 # DT <- DT_legendre
-# mRR2<-mme(Y~ 1 + Xf
+# mRR2<-mmes(Y~ 1 + Xf
 #            , random=~ vsm(usm(leg(X,1)),ism(SUBJECT))
 #            , rcov=~units
 #            , data=DT)
@@ -40,4 +40,4 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 }
 \keyword{datasets}
-\seealso{The core functions of the package \code{\link{mme}} }
+\seealso{The core functions of the package \code{\link{mmes}} }

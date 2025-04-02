@@ -2,7 +2,7 @@
 \alias{ism}
 \title{identity covariance structure}
 \description{
-  \code{ism} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mme}} solver. Any random effect with a special covariance structure should end with an ism() structure.
+  \code{ism} creates an identity covariance structure for the levels of the random effect  to be used with the \code{\link{mmes}} solver. Any random effect with a special covariance structure should end with an ism() structure.
 }
 \usage{
   ism(x, thetaC=NULL, theta=NULL)
@@ -46,10 +46,10 @@ x <- as.factor(c(1:5,1:5,1:5));x
 ism(x)
 
 # data(DT_example)
-# ans1 <- mme(Yield~Env,
+# ans1 <- mmes(Yield~Env,
 #              random= ~ vsm( ism( Name ) ),
 #              data=DT_example)
 # summary(ans1)$varcomp
 
 }
-\seealso{See the function \code{\link{vsm}} to know how to use \code{ism} in the \code{\link{mme}} solver.}
+\seealso{See the function \code{\link{vsm}} to know how to use \code{ism} in the \code{\link{mmes}} solver.}
