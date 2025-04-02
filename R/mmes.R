@@ -433,6 +433,7 @@ mmes <- function(fixed, random, rcov, data, W,
         names(res$partitions) <- rtermss
         names(res$uList) <- names(res$uPevList) <- rtermss
         for(i in 1:length(res$partitions)){ # i=1
+          colnames(res$uList[[i]]) <- colnames(res$uPevList[[i]]) <- colnames(thetaC[[i]])
           rownames(res$uList[[i]]) <- rownames(res$uPevList[[i]]) <- rownames(res$bu)[res$partitions[[i]][1,1]:res$partitions[[i]][1,2]]
         }
       }

@@ -34,7 +34,7 @@ head(DT)
 #### fit the mixed model (very heavy model)
 ####=========================================####
 # DT=DT[with(DT, order(Env)), ]
-# ans1 <- mmes(y~Env, henderson=FALSE,
+# ans1 <- mmes(y~Env, henderson=TRUE,
 #               random=~vsm(dsm(Env),ism(Name)) + vsm(dsm(Env),ism(Block)),
 #               rcov=~vsm(dsm(Env),ism(units)),
 #               data=DT)
