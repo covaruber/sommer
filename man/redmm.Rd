@@ -52,7 +52,7 @@ DT <- DT_technow
 Md <- Md_technow
 
 M <- tcrossprod(Md)
-xx = with(DT, redmm(x=dent, M=M, nPC=10))
+xx = with(DT, redmm(x=dent, M=M, nPC=10, returnLam=TRUE))
 
 # ans <- mmes(GY~1,
 #             # new model matrix instead of dent

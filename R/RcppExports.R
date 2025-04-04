@@ -73,8 +73,8 @@ gwasForLoop <- function(M, Y, Z, X, Vinv, minMAF, display_progress = TRUE) {
     .Call(`_sommer_gwasForLoop`, M, Y, Z, X, Vinv, minMAF, display_progress)
 }
 
-newton_di_sp <- function(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight) {
-    .Call(`_sommer_newton_di_sp`, Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight)
+newton_di_sp <- function(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight, thetaConstOri, thetaIndex) {
+    .Call(`_sommer_newton_di_sp`, Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight, thetaConstOri, thetaIndex)
 }
 
 convertSparse <- function(mat) {

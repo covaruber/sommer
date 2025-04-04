@@ -29,7 +29,7 @@ const std::string currentDateTime() {
   // Visit http://en.cppreference.com/w/cpp/chrono/c/strftime
   // for more information about date/time format
   strftime(buf, sizeof(buf), "%Y-%m-%d.%X", &tstruct);
-
+  
   return buf;
 }
 
@@ -99,7 +99,7 @@ arma::mat vec_to_matCpp(const arma::vec & x,
 // [[Rcpp::export]]
 arma::cube vec_to_cubeCpp(const arma::vec & x,
                           const Rcpp::List & g){
-
+  
   int nge = g.size();
   arma::mat uuu = Rcpp::as<arma::mat>(g[0]);
   int ncols = uuu.n_cols;
@@ -131,14 +131,14 @@ arma::cube vec_to_cubeCpp(const arma::vec & x,
 arma::vec varCols(const arma::mat & x){
   int nrow = x.n_rows, ncol = x.n_cols;
   Rcpp::NumericVector out(ncol);
-
+  
   for (int j = 0; j < ncol; j++) {
-
+    
     double mean = 0;
     double M2 = 0;
     int n;
     double delta, xx;
-
+    
     for (int i = 0; i < nrow; i++) {
       n = i+1;
       xx = x(i,j);
@@ -153,16 +153,16 @@ arma::vec varCols(const arma::mat & x){
 
 // [[Rcpp::export]]
 arma::mat scaleCpp(const arma::mat & x) { // scale a matrix
-
+  
   arma::vec sds = 1 / sqrt(varCols(x));
   arma::mat sdsD = diagmat(sds);
-
+  
   int n = x.n_rows;
   arma::mat D = arma::eye<arma::mat>(n,n) ;
   arma::vec  v = arma::ones<arma::vec>(n);
   arma::mat vtv = ( v * v.t() ) / n;
   arma::mat xs = ((D - vtv) * x) * sdsD ;
-
+  
   return xs;
 }
 
@@ -172,7 +172,7 @@ arma::mat makeFull(const arma::mat & X) {
   arma::vec s;
   arma::mat V;
   arma::svd(U,s,V,X);
-
+  
   int ncols0 = X.n_cols;
   arma::uvec s2 = find( s > 1e-8 );
   int ncols = s2.max() + 1;
@@ -241,39 +241,39 @@ bool isDiagonal_spmat(const arma::sp_mat x){
 
 // [[Rcpp::export]]
 arma::mat amat(const arma::mat & Xo, const bool & vanraden, double minMAF) {
-
+  
   // remove min.MAF
   arma::rowvec pfreq = mean(Xo+1,0)/2; // frequency of p
   arma::mat pqfreq = arma::join_cols(pfreq,1-pfreq); // frequencies of p and q
   arma::rowvec MAF = min(pqfreq,0); // minor allele freqs
   arma::uvec indexMAF = find(MAF > minMAF); // index for good markers > minMAF
   arma::mat Xo2 = Xo.cols(indexMAF); // new X only with polymorphic markers
-
+  
   // remove monomorphic markers
   arma::rowvec xVar = var(Xo2,0); // column variance
   arma::uvec index = find(xVar > 0); // index for good markers
   arma::mat X = Xo2.cols(index); // new X only with polymorphic markers
-
+  
   // initialize A
   int p = X.n_cols;// number of markers
   int n = X.n_rows;
   arma::mat A(n,n);
-
+  
   if(vanraden == true){ //  regular vanRaden 
-
+    
     arma::rowvec ms012 = mean( X+1, 0 ); // means of columns
     arma::rowvec freq = ms012/2;
     double v = 2 * mean(freq % (1 - freq));
-
+    
     arma::mat one(n, 1, arma::fill::ones);
     arma::mat freqmat = one * freq;
     arma::mat W = (X + 1) - (2 * freqmat);
     //
     arma::mat K = W * W.t();
     A = K/v/p;
-
+    
   }else{ // Endelman (currently we have a bug here)
-
+    
     // IN R: M <- scale(X, center = TRUE, scale = FALSE)
     arma::rowvec ms = mean( X, 0 ); // means of columns
     arma::mat M = X.each_row() - ms;
@@ -282,36 +282,36 @@ arma::mat amat(const arma::mat & Xo, const bool & vanraden, double minMAF) {
     // IN R: K/mean(diag(K))   mean(K.diag())
     double v = mean(diagvec(K));
     A = K/v;
-
+    
   }
-
+  
   return A;
 }
 
 // [[Rcpp::export]]
 arma::mat dmat(const arma::mat & Xo, const bool & nishio, double minMAF) {
-
+  
   // remove min.MAF
   arma::rowvec pfreq = mean(Xo+1,0)/2; // frequency of p
   arma::mat pqfreq = arma::join_cols(pfreq,1-pfreq); // frequencies of p and q
   arma::rowvec MAF = min(pqfreq,0); // minor allele freqs
   arma::uvec indexMAF = find(MAF > minMAF); // index for good markers > minMAF
   arma::mat Xo2 = Xo.cols(indexMAF); // new X only with polymorphic markers
-
+  
   // remove monomorphic markers
   arma::rowvec xVar = var(Xo2,0); // column variance
   arma::uvec index = find(xVar > 0); // index for good markers
   arma::mat X = Xo2.cols(index); // new X only with polymorphic markers
-
+  
   // initialize A
   // int p = X.n_cols;
   int n = X.n_rows;
   arma::mat D(n,n);
-
+  
   arma::mat Xd = 1 - abs(X);
-
+  
   if(nishio == true){ //  Nishio ans Satoh. (2014)
-
+    
     // IN R: M <- scale(Xd, center = TRUE, scale = FALSE)
     arma::rowvec ms = mean( Xd, 0 ); // means of columns
     arma::mat M = Xd.each_row() - ms; // centered Xd matrix
@@ -323,9 +323,9 @@ arma::mat dmat(const arma::mat & Xo, const bool & nishio, double minMAF) {
     arma::mat K = M * M.t();
     //
     D = K/varHW;
-
+    
   }else{ // Su et al. (2012)
-
+    
     // IN R: M <- scale(X, center = TRUE, scale = FALSE)
     // arma::rowvec ms = mean( Xd, 0 ); // means of columns
     // arma::mat M = Xd.each_row() - ms; // centered Xd matrix
@@ -340,17 +340,17 @@ arma::mat dmat(const arma::mat & Xo, const bool & nishio, double minMAF) {
     // IN R: tcrossprod(M)
     arma::mat K = M * M.t();
     D = K/varHW;
-
+    
   }
-
+  
   return D;
 }
 
 // [[Rcpp::export]]
 arma::mat emat(const arma::mat & X1, const arma::mat & X2) {
-
+  
   arma::mat E = X1 % X2;
-
+  
   return E;
 }
 
@@ -358,7 +358,7 @@ arma::mat emat(const arma::mat & X1, const arma::mat & X2) {
 arma::mat hmat(const arma::mat & A, const arma::mat & G22,
                const arma::vec & index, double tolparinv,
                double tau, double omega) {
-
+  
   arma::uvec index1 = find(index == true); // index for good markers
   arma::uvec index2 = find(index == false); // index for good markers
   // A11 <- A[index, index]
@@ -404,7 +404,7 @@ arma::mat hmat(const arma::mat & A, const arma::mat & G22,
   arma::mat H22 = (H22inv - A22);
   //   H = A + cbind(rbind(H11, H21), rbind(H12, H22))
   arma::mat H = A + join_rows(join_cols(H11, H21), join_cols(H12, H22));
-
+  
   return H;
 }
 
@@ -416,14 +416,14 @@ arma::cube scorecalc(const arma::mat & Mimv,
                      const arma::mat & Vinv, // multivariate inverse of V
                      int nt, double minMAF
 ) {
-
+  
   double tolparinv = 0.00001;
-
+  
   //
   arma::rowvec pf = mean(Mimv+1)/2; // allele frequency of p
   arma::rowvec qf = 1 - pf; // allele frequency of q
   double MAF = min(arma::join_rows(pf,qf)); // calculate MAF
-
+  
   // start calculation
   double n = Ymv.n_rows;
   arma::mat ZMimv = Zmv * Mimv;
@@ -440,10 +440,10 @@ arma::cube scorecalc(const arma::mat & Mimv,
     W = W + (D*tolparinv);
     arma::inv_sympd(Winv,W);
   }
-
+  
   // Initialize result cube
   arma::cube result(Mimv.n_cols, nt, 3, arma::fill::zeros);
-
+  
   if (Winv.n_rows > 0 && MAF > minMAF) {
     // Main calculations
     arma::mat XZMimvVy = XZMimv.t() * (Vinv * Ymv); // XZM' Vi y
@@ -452,7 +452,7 @@ arma::cube scorecalc(const arma::mat & Mimv,
     arma::mat mVar = (e.t() * (Vinv * e)) / v2;     // Residual variance
     double mVarAsDouble = mVar(0, 0);
     arma::mat bVar = Winv * mVarAsDouble;           // Beta variance
-
+    
     // Extract the right fixed effect
     arma::mat bn(b.n_rows, 1); // Empty vector
     for (int i = 0; i < b.n_rows; ++i) {
@@ -464,13 +464,13 @@ arma::cube scorecalc(const arma::mat & Mimv,
     arma::vec SEMarker = arma::sqrt(diagvec(bMarkerVar));
     arma::vec fStat = arma::pow(bMarker / SEMarker, 2); // F statistic
     arma::vec x = v2 / (v2 + v1 * fStat);               // Probability scores
-
+    
     // Fill the result cube
     result.slice(0) = arma::reshape(x, Mimv.n_cols, nt);         // Scores
     result.slice(1) = arma::reshape(bMarker, Mimv.n_cols, nt);  // Beta coefficients
     result.slice(2) = arma::reshape(SEMarker, Mimv.n_cols, nt); // Standard errors
   }
-
+  
   return result;
 }
 
@@ -491,13 +491,13 @@ arma::cube gwasForLoop(const arma::mat & M, // marker matrix
   // arma::mat Ymv = Ymvt.t();
   arma::mat Zmv = arma::kron(Z,Dnt); // kronecker
   arma::mat Xmv = arma::kron(X,Dnt); // kronecker
-
+  
   // start calculation
   int n_marker = M.n_cols;
   arma::vec dummy(nt, arma::fill::ones);
   arma::uvec pos = arma::find(dummy > 0); // index for good markers
   arma::cube results(n_marker, nt, 3, arma::fill::zeros); // 3D array: markers x traits x (scores & bMarkers)
-
+  
   // start for loop for each marker
   Progress p(n_marker, display_progress);
   for (int i = 0; i < n_marker; ++i) {
@@ -508,31 +508,33 @@ arma::cube gwasForLoop(const arma::mat & M, // marker matrix
     arma::mat Mi = M.col(i); // extract marker i
     arma::mat Mimv = arma::kron(Mi,Dnt); // kronecker for multivariate
     arma::cube prov = scorecalc(Mimv, Ymv, Zmv, Xmv, Vinv, nt, minMAF);
-
+    
     // Assign slices
     results.slice(0).row(i) = prov.slice(0).t(); // Scores
     results.slice(1).row(i) = prov.slice(1).t(); // bMarkers
     results.slice(2).row(i) = prov.slice(2).t(); // SEs
   }
-
+  
   return results;
 }
 
 // [[Rcpp::export]]
 Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
-               const Rcpp::List & Gx,
-               const Rcpp::List & Z, const Rcpp::List & K,
-               const Rcpp::List & R, const Rcpp::List & Ge,
-               const Rcpp::List & GeI, const arma::mat & W, const bool & isInvW,
-               int iters, double tolpar, double tolparinv,
-               const bool & ai, const bool & pev,
-               const bool & verbose,const bool & retscaled,
-               const arma::vec & stepweight, // const arma::vec & emupdate,
-               const arma::vec & emweight) {
-
+                        const Rcpp::List & Gx,
+                        const Rcpp::List & Z, const Rcpp::List & K,
+                        const Rcpp::List & R, 
+                        const Rcpp::List & Ge, const Rcpp::List & GeI, // theta and thetaC
+                        const arma::mat & W, const bool & isInvW,
+                        int iters, double tolpar, double tolparinv,
+                        const bool & ai, const bool & pev,
+                        const bool & verbose,const bool & retscaled,
+                        const arma::vec & stepweight, // const arma::vec & emupdate,
+                        const arma::vec & emweight, const Rcpp::List & thetaConstOri,
+                        const arma::vec & thetaIndex) {
+  
   time_t before = time(0);
   localtime(&before);
-
+  
   int n_fixed = X.size(); // define nre=number of fixed effects
   int n_random = Z.size(); // define nre=number of random effects
   int n_rcov = R.size(); // define nre=number of residual effects
@@ -546,19 +548,13 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   // ****************************************************
   // calculate and concatenate ZKZ' and R
   arma::cube ZKZtR(no,no,n_re);
-  // arma::sp_mat XZYBIND;
-
+  
   for (int i = 0; i < n_re; ++i) { // for each random effect
     int irw = i - n_random;
     if(i < n_random && n_random > 0){ // if random effect (not residual)
-
+      
       arma::sp_mat zp = Rcpp::as<arma::sp_mat>(Z[i]); // transform as sparse
       n_levels(i) = zp.n_cols; // store the number of columns or levels for this random effect
-      // if(XZYBIND.n_cols==0){
-      //   XZYBIND  = arma::sp_mat( arma::kron( diagTrait , arma::mat( Rcpp::as<arma::sp_mat>(Z[i]) ) ) ); // Rcpp::as<arma::sp_mat>(Z[i]);
-      // }else{
-      //   XZYBIND  = arma::join_horiz( XZYBIND, arma::sp_mat( arma::kron( diagTrait , arma::mat(Rcpp::as<arma::sp_mat>(Z[i]) ) ) ) );
-      // }
       
       bool dcheck = isIdentity_mat(Rcpp::as<arma::mat>(K[i]));
       if(dcheck == true){ // if K[i] is diagonal
@@ -580,7 +576,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
           ZKZtR.slice(i) = zp * Rcpp::as<arma::mat>(K[i]) * zp.t();
         }
       }
-
+      
     }else{//if is an rcov term
       // bool dcheck3 = isIdentity_mat(W);
       double dcheck3 = accu(W) - W.n_cols;
@@ -604,7 +600,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   // ****************************************************
   arma::vec Ym = vectorise(Y); // multivariate Y in original scale
   int nom = Ym.n_rows; // number of observations on the vector-form of multivariate Y
-
+  
   arma::mat Xm;
   for (int i = 0; i < n_fixed; ++i) { // for each fixed effect
     if(i==0){ // build multivariate X for 1st fixed effect
@@ -613,11 +609,6 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
       Xm = arma::join_horiz( Xm , kron(Rcpp::as<arma::mat>(Gx[i]), Rcpp::as<arma::mat>(X[i])) );
     }
   }
-  // if(n_random > 0){ // if there are random effects
-  //   XZYBIND  = arma::join_horiz(  arma::sp_mat(Xm), XZYBIND, arma::sp_mat(Ym) );
-  // }else{
-  //   XZYBIND  = arma::join_horiz( arma::sp_mat(Xm), arma::sp_mat(Ym) );
-  // }
   arma::mat Ys = scaleCpp(Y); // scale Y using the scaleCpp function made
   arma::vec Ysm = vectorise(Ys); // multivariate Y in scaled form
   // ****************************************************
@@ -630,7 +621,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   // we need one for each random effect (n_re)
   arma::cube sigma(n_traits,n_traits,n_re);
   arma::cube sigma_scaled(n_traits,n_traits,n_re);
-
+  
   arma::field<arma::vec> sigma_ut(n_re); // undefined LIST to store the VC in a vector-form with length n_re (#of random effects)
   arma::field<arma::vec> constraintsL(n_re); // undefined LIST to store the constraints in a vector-form with length n_re (#of random effects)
   arma::field<arma::vec> n_levels_multi_traitL(n_re); // undefined LIST to store the n_levels in a vector form
@@ -660,11 +651,11 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   arma::vec sigmaF_ut_un = sigma_ut_un; // make a copy for fixed-value vc's when we use constraints
   arma::vec coef_ut_un = sigma_ut_un; // make a 2nd copy of the same vector for stabilization
   arma::vec coef_ut_un_explode = sigma_ut_un; // make a 3rd copy of the same vector for checking issues with vc going too early outside the parameter space
-
+  
   int  kk = sigma_ut_un.n_elem; // how many VCs are in the model?
   arma::vec llstore(iters); // container for LL
   arma::vec pos(sigma_ut_un.n_elem, arma::fill::zeros); // create an index vector with as many 0's as VCs
-
+  
   // ****************************************************
   // dummy matrices for multivariate derivatives
   // ****************************************************
@@ -675,7 +666,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   for(int i=0; i < n_re; i++){ // for each random effect
     arma::mat prov = Rcpp::as<arma::mat>(GeI[i]);
     int ncol = prov.n_cols; // traits
-
+    
     for (int k = 0; k < ncol; k++){ // go through GeI(i) and make the dummy derivatives where there's a value > 0
       for (int j = 0; j < ncol; j++){
         if (k > j){}else{
@@ -691,7 +682,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
         }
       }
     }
-
+    
   }
   // ****************************************************
   // ****************************************************
@@ -699,7 +690,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   // ****************************************************
   // ****************************************************
   // Rcpp::List PdViList(kk); // list to store the multivariate derivatives * P or PVi=P*dZKZ'/ds
-
+  
   arma::vec v(nom, arma::fill::ones); // generate enough ones for an identity matrix of dimensions nt x nt
   arma::mat Vi(nom,nom); // V or phenotypic variance matrix
   arma::mat P(nom,nom); // to fill the projection matrix
@@ -712,10 +703,10 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   arma::mat InfEM(kk,kk,arma::fill::zeros); // to store second derivatives (information matrix)
   arma::mat InfJoin(kk,kk,arma::fill::zeros); // to store second derivatives (information matrix)
   arma::mat InfJoin_inv(kk,kk,arma::fill::zeros); // to store second derivatives (information matrix)
-
+  
   arma::mat Infw(kk,kk,arma::fill::zeros); // weights for AI information matrix
   arma::mat InfEMw(kk,kk,arma::fill::zeros); // weights for EM information matrix
-
+  
   arma::vec score(kk); // vector to store first derivatives, the product Y'PViPY - tr(PVi) = dL/ds
   arma::mat Inf_inv; // to store the inverse of the information matrix
   arma::vec eigval2; // will be used for the decomposition of P, within the algorithm
@@ -723,18 +714,18 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   arma::mat sigma_store(sigma_ut_un.n_elem,iters); // to store variance comp through the different iterations
   arma::mat sigma_perc_change(sigma_ut_un.n_elem,iters); // to store percent change of variance components
   arma::mat llik_store(1,iters); // to store llik through the different iterations
-
+  
   arma::mat beta, fitted, residuals; // empty matrices for ..
   Rcpp::List VarU(n_random); // list object for the BLUP variances
   Rcpp::List PevU(n_random); // list object for the BLUP PEVs
   Rcpp::List U(n_random); // list object for the BLUPs
-
+  
   arma::vec vdD(n_traits,arma::fill::ones);
   arma::mat dD = arma::diagmat(vdD);
   arma::mat sigma_cov;
   arma::mat tXVXi; // var-cov fixed effects
   arma::mat V(nom,nom); // V or phenotypic variance matrix
-
+  
   bool convergence = false;
   bool last_iteration = false;
   int cycle, cycle2, ikk;
@@ -743,7 +734,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   // LOOP for cycles
   // ###############
   for(cycle=0; cycle < iters; cycle++){ // for each cycle
-
+    
     for (int i = 0; i < n_re; ++i) {  // for each random effect in the formula
       sigma_ut[i] = mat_to_vecCpp(sigma.slice(i),Rcpp::as<arma::mat>(GeI[i])) ; // extract upper triangular in a vector form
     } // sigma_ut is a LIST
@@ -751,7 +742,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
     for(int i=0; i < n_re ; i++){ // for each random effect
       sigmatwo = join_cols(sigmatwo,sigma_ut[i]); // column bind to make a vector of vectors
     } // sigmatwo now has all VCs in a vector
-
+    
     // multivariate ZKZ' and V
     
     int i;
@@ -768,7 +759,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
       }
     }
     // invert V and P (projection matrix)
-
+    
     arma::inv_sympd(Vi,V); // try to invert normally
     if(Vi.n_rows == 0){ // if fails try to invert with diag(1e-3)
       V = V + (D*tolparinv);
@@ -801,7 +792,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
     }
     arma::mat VX = Vi * Xm; // VX
     arma::mat tXVX = Xm.t() * VX; // X'VX
-
+    
     arma::mat tXVXVX; // X'VXVX
     tXVXVX = arma::solve(tXVX, VX.t()); // X'VXVX
     arma::solve(tXVXVX,tXVX,VX.t());
@@ -819,23 +810,23 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
         }
       }
     }
-
+    
     // projection matrix
     P = Vi - (VX*tXVXVX); // V - V(XVX)-V
-
+    
     if(last_iteration == false){
-
+      
       arma::vec rss = Ysm.t() * (P * Ysm); // yPy = scalar RSS
-
+      
       double rankXorss = arma::as_scalar(rankX/rss); // (n-p)/y'Py
       double rssorankX = arma::as_scalar(rss/rankX); // y'Py/(n-p)
-
+      
       sigmatwo = sigmatwo * rssorankX;
-
+      
       // weight the projection matrix to provide stability
       coef_ut_un(arma::find(pos == 0)) =  sigmatwo(arma::find(pos == 0)); // VC1[which(pos==0)] = VC2[which(pos==0)]
       coef_ut_un(arma::find(pos == 1)) = log(sigmatwo(arma::find(pos == 1))); // VC1[which(pos==1)] = log(VC2[which(pos==1)])
-
+      
       // calculate the log-likelihood
       P = P * rankXorss; // P * [(n-p)/y'Py]
       rss = rankX; // yPy = n-p
@@ -849,11 +840,11 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
       }
       ldet = accu(log(eigval2)); // sum(log(lambda))
       llik = ldet/2 - (arma::as_scalar(rss)/2); // llik = [sum(log(lambda))/2] - [(n-p)/2]
-
+      
       if(cycle == 0){llik0 = llik;}
       delta_llik = llik - llik0;
       llik0 = llik;
-
+      
       // use the stabilization
       arma::vec var_components(kk, arma::fill::ones); // VC = rep(0,nVC)
       double check00 = accu(pos); // accu is like sum() in R
@@ -861,9 +852,9 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
         arma::uvec ind = find(pos == 1); // which are 1's
         var_components(ind) = sigmatwo(ind); // var_components[which(pos==1)] = sigmatwo[which(pos==1)]
       }
-
+      
       // calculate first derivatives (dL/ds = score)
-
+      
       arma::cube PdViList(nom,nom,kk); // list to store the multivariate derivatives * P or PVi=P*dZKZ'/ds
       for(int i=0; i < kk; i++){
         int re = re_mapper(i);
@@ -879,10 +870,10 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
       // theta(k) * dL/ds  ..... are scalar values
       score = score % var_components; // to be used later for updating the variance components
       // if all goes well var_components is just ones
-
+      
       // calculate second derivatives (AverageInformation)
       // Fisher's Information tr(PVi * PVi) .... A*=Vi=dV/ds .... [Vi Vj'] si sj ; TT is the list of derivatives for all random effects - trait combos
-
+      
       // if(emupdate(cycle) == 0){ // if user wants an EM update (1st derivatives) . It works but it didn't speed up the algorithm when using EM. This leads to don't have information matrix and therefore SE for variance components.
       for (int i = 0; i < kk; i++){
         for (int j = 0; j < kk; j++){
@@ -897,17 +888,17 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
       }
       Inf = arma::symmatu(Inf); // copy lower in upper triangular
       Inf_inv = arma::pinv(Inf, 1.490116e-08); // Inverse of Fishers or information matrix
-
+      
       if(Inf_inv.n_rows == 0){ // if fails
         // Rcpp::Rcout << "System is singular (Inf_inv). Aborting the job. Try a bigger number of tolParInv." << arma::endl;
         // return 0;
         Rcpp::stop("System is singular (Inf_inv). Aborting the job. Try a bigger number of tolParInv.");
       }
       // }
-
+      
       // vector to store the update = F- * sigma(k) * dL/ds
       arma::vec delta(kk);
-
+      
       // if(emupdate(cycle) == 1){ // if user wants an EM update (1st derivatives)
       InfEM.diag() = (coef_ut_un % coef_ut_un) / n_levels_multi_trait;  // I.em inverse
       InfEM = arma::pinv( InfEM ,  1.490116e-08 ); // I.em
@@ -926,7 +917,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
       // }else{ // if user wants an information*score update
       //   delta = Inf_inv * score; //update for variance components where: delta = Information.inv * dL/ds
       // }
-
+      
       // ^^^^^^^^^^^^^^^^^^
       // ^^^^^^^^^^^^^^^^^^
       // parameter restrain
@@ -953,7 +944,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
         arma::vec scorenorestrain = score(no_restrain); // subset of scores (1st derivatives)
         arma::vec coef_ut_un_norestrain = coef_ut_un(no_restrain); // subset of vc
         arma::vec deltanorestrain; //  define the delta for no restrained
-
+        
         //
         arma::mat InfEM_norestrain = InfEM.submat(no_restrain,no_restrain); // subset of Information matrix
         arma::mat Infw_norestrain = Infw.submat(no_restrain,no_restrain); // subset of Information matrix
@@ -970,7 +961,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
         // }
         delta(no_restrain) = deltanorestrain;
         delta(restrain) = delta(restrain)*0;
-
+        
       }//else just keep going
       // end of parameter restrain
       // ^^^^^^^^^^^^^^^^^^
@@ -1022,7 +1013,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
             sigma.slice(i) = (sigma.slice(i)%base_var)/sc_var ;
           }
         }
-
+        
         // Fisher inverse
         arma::mat  FI = Inf/2;
         arma::vec myone(pos.n_elem,arma::fill::ones);
@@ -1035,9 +1026,9 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
           Rcpp::stop("System is singular (sigma_cov). Aborting the job. Try a bigger number of tolParInv.");
         }
       }
-
+      
     }else{// if we are in the last iteration now we calculate u, PEV, B, XB
-
+      
       arma::inv(tXVXi,tXVX);
       if(tXVXi.n_rows == 0){ // if fails try to invert with diag(1e-6)
         arma::inv(tXVXi,tXVX+(D*(tolparinv)));
@@ -1056,7 +1047,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
       }else{ // we return in normal scale
         beta = tXVXi * ((Xm.t() * Vi) * Ym);
       }
-
+      
       // beta.reshape(X.n_cols,n_traits);
       fitted = Xm * beta;
       residuals = Ym - fitted;
@@ -1066,7 +1057,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
       if(n_random > 0){
         for(i=0; i < n_random; i++){
           arma::mat Zprov = arma::mat(Rcpp::as<arma::sp_mat>(Z[i]));
-
+          
           // arma::mat Zprov2 = Rcpp::as<arma::mat>(Z[i]);
           arma::mat Ki = Rcpp::as<arma::mat>(K[i]);
           // arma::mat Ki2 = (Zprov.t() * Zprov) * 0; //
@@ -1075,7 +1066,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
           arma::mat VarK;
           arma::mat ZKfv;
           // double VarKscalar = arma::as_scalar(sigma.slice(i));
-
+          
           // IMPORTANT
           // for rrBLUP models we had to allow a K matrix to be a 1 x 1 matrix so dimensions do not match with Z
           if(Ki.n_cols == Zprov.n_cols){ // if a regular random effect
@@ -1087,10 +1078,10 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
             // VarK = arma::kron(Ki2,sigma.slice(i)); // Gu * var.u
             ZKfv = arma::kron(Zprov.t(),dD*sigma.slice(i)); // G Z'
           }
-
+          
           U(i) = ZKfv * Vie; // BLUP = Z' G Vi (Y - Xb)
           if(pev==true){
-
+            
             if(Ki.n_cols == Zprov.n_cols){ // if a regular random effect
               VarU(i) = ZKfv * (P * ZKfv.t()); // var(u) = Z' G [Vi - (VX*tXVXVX)] G Z'
               PevU(i) = VarK - Rcpp::as<arma::mat>(VarU(i)); // PEV = G - var(u)
@@ -1100,32 +1091,22 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
               // not sure how to get the PEV without constructing VarK due to high-memory requirements in rrBLUP models with potentially millions of SNPs
               PevU(i) = Rcpp::as<arma::mat>(VarU(i)); // PEV = G - var(u)
             }
-
+            
           }
         }
       }
     }
-
+    
   }
   // ****************************************************
   // end of algorithm
   // ****************************************************
   arma::vec dd,ee;
-  arma::mat u; // join blups in a single matrix format
-  arma::field<arma::mat> partitions(n_random); // store indices for each random effect
-  arma::vec end, start;
   for (int i = 0; i < n_re; ++i) {
     dd = join_cols(dd,mat_to_vecCpp(base_var,Rcpp::as<arma::mat>(GeI[i]))) ; // extract upper triangular in a vector form
     ee = join_cols(ee,mat_to_vecCpp(sc_var,Rcpp::as<arma::mat>(GeI[i]))) ; // extract upper triangular in a vector form
-    if( i < n_random ){
-      // startprov = u.n_rows;
-      u = join_cols(u, arma::mat(U[i]) ); // join blups in a single matrix
-      end = u.n_rows + beta.n_rows ; // index of where the random effect ends
-      start = end - arma::mat(U[i]).n_rows + 1;
-      partitions(i) = arma::join_rows(start,end);
-    }
   }
-  arma::mat bu = join_cols(beta, u );
+  
   arma::mat FISH = (sigma_cov % (dd*dd.t())) / (ee*ee.t()); // bring back to original scale
   // recalculate V and P with original sigma values
   double AIC = (-2 * llik) + (2 * Xm.n_cols);
@@ -1144,27 +1125,118 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   }else{
     sigma_perc_change2 = sigma_perc_change; // indicate first and last column to subset to return at the end
   }
-
-  // arma::sp_mat M = XZYBIND.t() * arma::sp_mat(V) * XZYBIND;
+  
+  // code to put variance-covariance components in original structure defined in thetaC and also blups
+  // this piece is what makes the direct inversion to return the same output than the mme algorithm from Jensen
+  arma::field<arma::mat> newTheta(thetaConstOri.size());
+  arma::field<arma::mat> uList(thetaConstOri.size()-1), uPevList(thetaConstOri.size()-1), PEVs(thetaConstOri.size()-1); // no residual effects stored
+  arma::mat u; // join blups in a single matrix format
+  arma::field<arma::mat> partitions(thetaConstOri.size()-1); // store indices for each random effect
+  arma::vec end, start;
+  int counter4 = 0;
+  int nEffs;
+  for (int i = 0; i < thetaConstOri.size(); ++i) {
+    arma::uvec effsToUse = find(thetaIndex == (i+1) ); // which thetas we should use
+    arma::mat thetaConstOriIth = thetaConstOri(i); // get effect i
+    arma::mat newThetaIth(thetaConstOriIth.n_rows,thetaConstOriIth.n_rows); // to store new thetas
+    arma::mat newThetaIthProv; // to store the sigma ith slice provisionally
+    arma::mat blupTable, pevTable, partitionsTable, pevFull; // 
+    // Rcpp::Rcout << "filling effect." << i << arma::endl;
+    for (int j = 0; j < thetaConstOriIth.n_cols; ++j) { // for each row in theta
+      for (int k = 0; k < thetaConstOriIth.n_rows; ++k) { // for each col in theta
+        if(thetaConstOriIth(j,k) != 0){ // if was estimated fill the matrix objects
+          newThetaIthProv = sigma(counter4);
+          if(j==k){ // variance components (both random or residual)
+            newThetaIth(j,k) = newThetaIthProv(0,0);
+            if( i < (thetaConstOri.size()-1) ){ // if ~random not residual
+              // Rcpp::Rcout << (thetaConstOri.size()-1) << arma::endl;
+              arma::mat provPev = arma::mat(PevU(counter4));
+              arma::mat zerosMatFill(pevFull.n_rows,provPev.n_cols,arma::fill::zeros);
+              pevFull = arma::join_cols( arma::join_rows(pevFull, zerosMatFill),arma::join_rows(zerosMatFill.t(),provPev) );
+              if( blupTable.n_cols <= j){ // not yet populated
+                blupTable = arma::join_rows(blupTable, arma::mat(U[counter4]) );
+                pevTable = arma::join_rows(pevTable, provPev.diag());
+              }else{ // the column is already populated
+                blupTable.col(j) = blupTable.col(j) + arma::mat(U[counter4]);
+                pevTable.col(j) = pevTable.col(j) + provPev.diag();
+              }
+              
+            }
+          }else{ // covariance components
+            newThetaIth(j,k) = newThetaIthProv(0,0);
+            newThetaIth(k,j) = newThetaIthProv(0,0);
+            if( i < (thetaConstOri.size()-1) ){ // if random effect
+              arma::vec indexCovJ(blupTable.n_rows, arma::fill::ones);
+              indexCovJ=indexCovJ*j;
+              arma::vec indexCovK(blupTable.n_rows, arma::fill::ones);
+              indexCovK=indexCovK*k;
+              arma::vec indexCovJK = arma::join_cols(indexCovJ,indexCovK);
+              // find which cov components belong where
+              arma::uvec isJ = arma::find(indexCovJK == j);
+              arma::uvec isK = arma::find(indexCovJK == k);
+              arma::mat provBlup = arma::mat(U[counter4]);
+              arma::mat provPev = arma::mat(PevU(counter4));
+              provPev = provPev.diag();
+              // add cov blup and cov pev 
+              if(blupTable.n_cols <= j){ // not yet populated
+                blupTable = arma::join_rows(blupTable, provBlup.rows(isJ) );
+                pevTable = arma::join_rows(pevTable, provPev(isJ) );
+              }else{ // the column is already populated
+                blupTable.col(j) = blupTable.col(j) + provBlup.rows(isJ);
+                pevTable.col(j) = pevTable.col(j) + provPev(isJ);
+              }
+              if( blupTable.n_cols <= k){ // not yet populated
+                blupTable = arma::join_rows(blupTable, provBlup.rows(isK) );
+                pevTable = arma::join_rows(pevTable, provPev(isK) );
+              }else{
+                blupTable.col(k) = blupTable.col(k) + provBlup.rows(isK);
+                pevTable.col(k) = pevTable.col(k) + provPev(isK);
+              }
+            }
+          }
+          counter4++;
+        }
+      }
+    }
+    newTheta(i) = newThetaIth;
+    if( i < (thetaConstOri.size()-1) ){
+      uList(i) = blupTable;
+      uPevList(i) = pevTable;
+      PEVs(i) = pevFull;
+      int nrbt= blupTable.n_rows;
+      for (int l = 0; l < blupTable.n_cols; ++l) {
+        start = beta.n_rows + (l*nrbt) + 1; // index of where the random effect starts
+        end = beta.n_rows + (nrbt * (l+1)) ; // index of where the random effect ends
+        partitionsTable = arma::join_cols(partitionsTable, arma::join_rows(start,end));
+      }
+      u = join_cols(u, arma::vectorise(blupTable) ); // join blups in a single matrix
+      partitions(i) = partitionsTable;
+    }
+  }
+  arma::mat bu = join_cols(beta, u );
+  arma::mat Ci(bu.n_rows,bu.n_rows, arma::fill::zeros);
+  Ci.submat(0, 0, beta.n_rows-1, beta.n_rows-1 ) = tXVXi;
+  for (int i = 0; i < partitions.size(); ++i) {//for each major random effect
+    Ci.submat(partitions(i).min()-1, partitions(i).min()-1, partitions(i).max()-1, partitions(i).max()-1 ) = PEVs(i);
+  }
   
   // ****************************************************
   // return the results
   // ****************************************************
-
+  
   return Rcpp::List::create(
     Rcpp::Named("llik") =  llik_store.cols(0, cycle2) ,
-    // Rcpp::Named("M") = M,
-    // Rcpp::Named("W") = XZYBIND,
     Rcpp::Named("b") = beta,
     Rcpp::Named("u") = u,
     Rcpp::Named("bu") = bu,
-    Rcpp::Named("Ci") = PevU,
-    Rcpp::Named("Ci_11") = tXVXi,
-    Rcpp::Named("theta") = sigma,
+    Rcpp::Named("Ci") = Ci,
+    Rcpp::Named("theta") = newTheta,
     Rcpp::Named("theta_se") = FISH, // inverse of fisher's information
-    Rcpp::Named("theta_scaled") = sigma_scaled,
+    // Rcpp::Named("theta_scaled") = sigma_scaled,
     Rcpp::Named("InfMat") = Inf, // dL2
     Rcpp::Named("monitor") = sigma_store.cols(0, cycle2),
+    Rcpp::Named("uList") = uList,
+    Rcpp::Named("uPevList") = uPevList,
     Rcpp::Named("AIC") = AIC,
     Rcpp::Named("BIC") = BIC,
     Rcpp::Named("convergence") = convergence,
@@ -1172,12 +1244,11 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
     Rcpp::Named("fitted") = fitted,
     Rcpp::Named("residuals") = residuals,
     Rcpp::Named("dL") = score, // dL
-    Rcpp::Named("percChange") = sigma_perc_change2,
-    Rcpp::Named("Vi") = Vi,
-    Rcpp::Named("uList0") = U,
-    Rcpp::Named("P") = P
-    // Rcpp::Named("u_var") = VarU
-    
+    Rcpp::Named("percChange") = sigma_perc_change2
+    // Rcpp::Named("Vi") = Vi,
+    // Rcpp::Named("P") = P,
+    // Rcpp::Named("u_var") = VarU,
+  
   );
 }
 
@@ -1191,9 +1262,9 @@ arma::sp_mat convertSparse(Rcpp::S4 mat) {
   arma::urowvec i = Rcpp::as<arma::urowvec>(mat.slot("i"));
   arma::urowvec p = Rcpp::as<arma::urowvec>(mat.slot("p"));
   arma::vec x     = Rcpp::as<arma::vec>(mat.slot("x"));
-
+  
   int nrow = dims[0], ncol = dims[1];
-
+  
   // use Armadillo sparse matrix constructor
   arma::sp_mat res(i, p, x, nrow, ncol);
   return(res);
@@ -1243,7 +1314,7 @@ arma::mat nearPDcpp(const arma::mat X0, // Rcpp::List
     arma::vec d; // values
     arma::mat Q; // vectors
     arma::eig_sym(d, Q, R);
-
+    
     arma::uvec p = arma::find(d > (eig_tol * d(0)) );
     if(p.n_elem == 0){ // if there was a negative value
       Rcpp::Rcout << "Matrix seems negative semi-definite." << arma::endl;
@@ -1277,7 +1348,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
                      const arma::vec & addScaleParam, const arma::vec & weightEmInf,
                      const arma::vec & weightInf, const bool & verbose
 ){
-
+  
   time_t before = time(0);
   localtime(&before);
   // define element sizes
@@ -1286,7 +1357,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   int nRe;
   if(nZs > 0){
     nRe = Zind.max(); // number of actual random effects specified in random
-  }
+  }else{nRe =0;}
   int nZsFake = 1; // a fake value in case there's no random effects we avoid a bad allocation error
   int nReFake = 1; // a fake value in case there's no random effects we avoid a bad allocation error
   int nRRe = thetaI.size(); // number of random + residual effects
@@ -1342,7 +1413,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       logDetA(i) =val*sign*(-1);
     }
   }
-
+  
   // define partitions (only used if random effects exist)
   int last = X.n_cols;
   arma::field<arma::mat> partitions(nReAl); // store indices of the random effects
@@ -1375,7 +1446,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       Nu = Nu + accu(Nus);
     }
   }// end of if statement when random effects exist
-
+  
   // define the number of variance components to estimate per random effect structure
   arma::vec nVc(nRRe);
   for (int i = 0; i < nRRe; ++i) {
@@ -1408,7 +1479,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   arma::mat monitor(nVcTotal,nIters); // matrix to store variance components
   arma::mat percChange(nVcTotal,nIters); // matrix to store variance components
   arma::rowvec llik(nIters); // store log likellihood values
-
+  
   int nEffects = Nu+nX;
   int nEffectsPlusY = nEffects + 1;
   arma::mat Mchol(nEffectsPlusY,nEffectsPlusY);
@@ -1436,9 +1507,9 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   // START ITERATIVE ALGORITHM
   ////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////
-
+  
   for (int iIter = 0; iIter < nIters; ++iIter) {
-
+    
     // ###########################
     // # 1) absorption of m onto y to obtain y'Py and logDetC
     // # PAPER FORMULA from Jensen and Madsen 1997, Gilmour et al., 1995
@@ -1469,7 +1540,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::field<arma::sp_mat> RijInv(nSs); // field to store sub R inverse matrices
     arma::vec thetaResidualsVec = mat_to_vecCpp2(theta(nRRe-1),thetaC[(nRRe-1)]);
     for (int i = 0; i < nSs; ++i) { // for each residual structure
-
+      
       arma::mat pSi = Rcpp::as<arma::mat>(partitionsS[i]);
       int s1 = pSi(0,0)-1;
       int s2 = pSi(0,1)-1;
@@ -1483,7 +1554,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         RijInv(i) = arma::sp_mat( arma::inv(arma::mat(Rij(i))) );
       }
       Ri.submat(s1,s1,s2,s2) = Ri.submat(s1,s1,s2,s2) + RijInv(i);
-
+      
     }
     // adjust R inverse if user provides weights
     if(useH == true){
@@ -1503,7 +1574,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       }
       Wy = arma::join_rows(W,y);
     }
-
+    
     if(nSs > 1){ // if there is more than one residual structure we have to calculate M in every iteration
       M = Wy.t() * Ri * Wy;
     }else{ // if there's only one residual structure
@@ -1517,7 +1588,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         M = M0 * (1/arma::as_scalar(thetaResidualsVec(0))) ; // always multiply by the current 1/sigma2.e
       }
     }
-
+    
     arma::field<arma::sp_mat> lambda(nReAl);
     arma::field<arma::sp_mat> GI(nReAl);
     if(nZs > 0){
@@ -1530,7 +1601,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         M.submat( ff, ff, ll, ll ) = M.submat( ff, ff, ll, ll ) + GI(i);
       }
     }
-
+    
     bool okChol = arma::chol(Mchol, arma::mat(M));
     if(okChol == false){
       if(verbose == true){
@@ -1545,7 +1616,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::vec yPy =arma::square(Mchol.submat( Mchol.n_rows-1, Mchol.n_cols-1, Mchol.n_rows-1,  Mchol.n_cols-1 ));
     arma::mat Mpp = Mchol.submat( 0,0, Mchol.n_rows-2,  Mchol.n_cols-2 ); // M without y portion (last row and column of M)
     double logDetC = 2 * accu(log(Mpp.diag()));
-
+    
     // ###########################
     // # 1.1) calculate the log-likelihood
     // # PAPER FORMULA (Lee and Van der Werf, 2006)    #
@@ -1556,7 +1627,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     // #       A.u is the pure relationship matrix for the uth random effect
     // #       theta.u is the vc matrix for the uth random effect
     // ###########################
-
+    
     double llikp=0;
     if(nZs > 0){
       for (int i = 0; i < nRe; ++i) {
@@ -1573,26 +1644,26 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     if(ok2 == false){ Rcpp::Rcout << "log determinant of R failed " << arma::endl;};
     double logDetR = nR * val * sign;
     llik(iIter) = (- 0.5) * ( llikp + logDetC + logDetR + arma::as_scalar(yPy) );
-
+    
     // ###########################
     // # 2) backsubstitute to get b and u (CORRECT)
     // # use the results from the absorption to obtain BLUE & BLUPs
     // # b = backsolve(MChol[,rest],MChol[,last])
     // ###########################
-
+    
     A = arma::sp_mat(Mchol.submat( 0,0, Mchol.n_rows-2,  Mchol.n_cols-2 )); // chol of C
     arma::vec B = Mchol.submat( 0,Mchol.n_rows-1, Mchol.n_cols-2,  Mchol.n_cols-1 );
     // arma::mat A = Mchol.submat( 0,0, Mchol.n_rows-2,  Mchol.n_cols-2 );
     // bu = arma::solve(trimatu(A), B);  // indicate that A is triangular
     arma::spsolve(bu, A, B, "lapack" );  // use LAPACK  solver
-
+    
     arma::uvec bInd = arma::regspace<arma::uvec>(0,  1,  (nX-1)); // equivalent to seq()
     b = bu(bInd);
     if(nZs > 0){
       arma::uvec uInd = arma::regspace<arma::uvec>((nX),  1,  (nX+Nu-1)); // equivalent to seq()
       u = bu(uInd);
     }
-
+    
     // ###########################
     // # 3) calculate Wu (working variates)
     // # PAPER FORMULA (Notes on Estimation of Genetic Parameters from Van der Werf)
@@ -1604,10 +1675,10 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     // # Wu.ij = Zui*USj + Zuj*USi # for covariance component
     // # Wr.j = Rj * Rinv * e  # for residual variance component
     // ###########################
-
+    
     arma::sp_mat Wu;
     arma::field<arma::sp_mat> uSinv(nReAl);
-
+    
     if(nZs > 0){ // if random effects exist
       for(int iR = 0; iR < nRe; ++iR){ // for each random effect u
         arma::mat partitionsP = partitions(iR); // access the partition
@@ -1653,7 +1724,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     } // end of condition when random effects exist
     // calculate residuals
     // Wu2=Wu;
-
+    
     arma::vec e = y - (arma::sp_mat(W.submat(0,0,W.n_rows-1,W.n_cols-1)) * bu);
     // Working variates for residual VCs
     for(int iS = 0; iS < S.size(); ++iS){
@@ -1673,7 +1744,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         }
       }
     }
-
+    
     // ###########################
     // # 4) absorption of m onto Wu (2 VAR, 1 COV) to obtain Wu' P Wu  which is the AI matrix
     // # we had to change the avInf to avInf/sigmas
@@ -1690,7 +1761,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     // # and the the part corresponding to X and Z is the coefficient matrix C
     // # AI = (M.Wu.chol)^2
     // ###########################
-
+    
     if(nSs > 1){ // if R is complex do the whole matrix product  in every iteration
       XWjxZWj = W.t() * Ri * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
       WiWj = Wu.t() * Ri * Wu ;//  wk'Riwj # C22 lower right
@@ -1710,7 +1781,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::sp_mat A2 = M.submat( 0,0, M.n_rows-2,  M.n_cols-2 );
     arma::spsolve(buWu, A2, arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
     avInf = WiWj - (buWu.t()*XWjxZWj);
-
+    
     // ##########################
     // # 5) get 1st derivatives (dL/ds2i) from MME-version
     // # PAPER FORMULA (Lee and Van der Werf, 2006)
@@ -1721,7 +1792,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     // # dL/ds2u = (q.i * lambda) - (lambda * (T + S) * lambda)  Eq. 18
     // # dL/ds2e = tr(Rij*Ri) - tr(Ci*W'*Ri*Rij*Ri*W) - (e'*Ri*Rij*Ri*e)
     // ###########################
-
+    
     // get the inverse of the coefficient matrix
     arma::vec v(Mchol.n_cols-1, arma::fill::ones);//option 1
     arma::mat D = diagmat(v); // option 1
@@ -1765,7 +1836,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::vec dLe(S.size());
     arma::sp_mat eProv = arma::sp_mat(e);
     for(int iS = 0; iS < S.size(); ++iS){ // Rij <- S[[iS]]%*%Ri
-
+      
       arma::sp_mat Sprov(nR,nR);
       arma::mat pSi = Rcpp::as<arma::mat>(partitionsS[iS]);
       int s1 = pSi(0,0)-1;
@@ -1786,19 +1857,19 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::mat thetaRUnlistedMat = diagmat(thetaRUnlisted);
     arma::mat emInfInvRProvExt = ( thetaRUnlistedMat * thetaRUnlistedMat.t() ) / arma::as_scalar(nR);
     emInfList(nRRe-1) = arma::pinv(emInfInvRProvExt, tolParInv); // we invert because this is equivalen to the inverse of the information and we need the information
-
+    
     dLu = join_cols( dLu, dLe );// join the random and residual first derivatives in a single vector
-
+    
     for(int i = 0; i < nRRe; ++i){
       emInf.submat(nVcStart(i)-1, nVcStart(i)-1, nVcEnd(i)-1, nVcEnd(i)-1 ) = emInfList(i);
     }
-
+    
     // ###########################
     // # 6) update the variance paramters using the Newton method
     // # PAPER FORMULA (Lee and Van der Werf, 2006)
     // # theta.n+1 = theta.n + (AInfi * dL/ds2)
     // ###########################
-
+    
     arma::vec thetaUnlisted, thetaCUnlisted;
     for(int i = 0; i < nRRe; ++i){
       thetaUnlisted = arma::join_cols(thetaUnlisted, mat_to_vecCpp2( theta(i),thetaC(i)) );
@@ -1816,7 +1887,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     delta = (InfMatInv * arma::as_scalar(weightInf(iIter))) * dLu; // delta = I- * dLu/dLx
     // new values for variance components theta.i+1 = theta.i + delta
     arma::vec  expectedNewTheta = thetaUnlisted - delta;
-
+    
     // #######################
     // # 7) APPLY CONSTRAINTS to VC
     // # suggestions from Madsen and Jensen (1997) and Gilmour (2019)
@@ -1890,7 +1961,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::uvec eigenFind = find(pdCheck < 0);
     if(eigenFind.n_elem > 0){
       if(verbose == true){ //
-      Rcpp::Rcout << "Updated VC is not positive definite, changing to EM step" << arma::endl;
+        Rcpp::Rcout << "Updated VC is not positive definite, changing to EM step" << arma::endl;
       }
       InfMat = (0.5 * avInf) + (0.5 * emInf);
       if(constrained.n_elem > 0){
@@ -1933,7 +2004,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     // update before time to be the now to be used in the next iteration
     time_t before = time(0);
     localtime(&before);
-
+    
     // E) stopping criteria (norms)
     normMonitor(0,iIter) = arma::norm(delta(unconstrained), 1) ; // stopping criteria 1
     normMonitor(1,iIter) = arma::norm(dLu(unconstrained),1) ; // stopping criteria 1
@@ -1941,7 +2012,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     nVcTotalv(0) = nVcTotal;
     arma::vec stopCriteria3 = (InfMatInv.diag()/arma::as_scalar(arma::sqrt(nVcTotalv)) ) % dLu;
     normMonitor(2,iIter) = arma::norm(stopCriteria3(unconstrained),1) ; // stopping criteria 1
-
+    
     arma::uvec restrained = arma::find(toBoundary.row(iIter) > 0);
     if(verbose == true){ //
       if(iIter == 0){Rcpp::Rcout << "iteration   " << " LogLik   " << "  wall    " << "cpu(sec)   " << "restrained" << arma::endl;}
@@ -1962,17 +2033,17 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         break; //
       }
     }
-
+    
   }// end of iterative optimization
-
+  
   double AIC = (-2 * llik((llik.n_cols-1))) + (2 * nX);
   double BIC = (-2 * llik((llik.n_cols-1))) + (log(nR) * nX);
-
   // move constraints to vector form binding the columns
   arma::vec thetaCUnlistedFinal;
   for (int i = 0; i < nRRe; ++i) {
     thetaCUnlistedFinal = join_cols(thetaCUnlistedFinal,mat_to_vecCpp2(thetaC[i],thetaC[i]));
   }
+  
   // move the effects from vector to a field with matrices
   arma::field<arma::mat> uList(nRe), uPevList(nRe); // store indices of the random effects
   for (int i = 0; i < nRe; ++i) {
@@ -2010,10 +2081,10 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     Rcpp::Named("normMonitor") = normMonitor,
     Rcpp::Named("toBoundary") = toBoundary,
     Rcpp::Named("Cchol") = A
-    
-    
+  
+  
   );
-
+  
 }
 
 // [[Rcpp::export]]

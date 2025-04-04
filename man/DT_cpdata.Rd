@@ -57,6 +57,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # ## mmec uses the inverse of the relationship matrix
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, 'inverse')=TRUE 
 # mix2 <- mmes(Yield~1, henderson=TRUE,
 #               random=~vsm(ism(id),Gu=Ai)
 #                       + Rowf + Colf,

@@ -253,8 +253,9 @@ mmes <- function(fixed, random, rcov, data, W,
                 nIters=nIters, tolParConvLL=tolParConvLL, tolParConvNorm=tolParConvNorm,
                 tolParInv=tolParInv,
                 verbose=verbose, addScaleParam=addScaleParam,
-                theta=theta,thetaC=thetaC, thetaF=thetaFinput,
-                stepWeight=stepWeight,emWeight=emWeight, rtermss=rtermss, partitionsX=partitionsX
+                theta=theta,thetaC=thetaC, thetaFinput=thetaFinput,
+                stepWeight=stepWeight,emWeight=emWeight, 
+                rtermss=rtermss, partitionsX=partitionsX, getPEV=getPEV
     )
     
   }else{
@@ -307,26 +308,38 @@ mmes <- function(fixed, random, rcov, data, W,
           }
         }
       }
-      # print(thetaIndex)
       
       if(!missing(random)){
-        # print(length(nonMissing))
-        XZY <- cbind(X,do.call(cbind,Z))
-      }else{XZY <- NULL}
+        XZ <- cbind(X,do.call(cbind,Z))
+      }else{XZ <- X}
       Z <- Zdi; Zdi <- NULL
       theta <- THETA; THETA <- NULL
-      # thetaC <- THETAc;  THETAc <- NULL
       
       res <- .Call("_sommer_newton_di_sp",PACKAGE = "sommer",
-                   as.matrix(yvar), 
+                   as.matrix(yvar),
                    list(as.matrix(X)),
                    list(matrix(1)),
                    Z,K,R,
-                   theta,THETAc, 
-                   as.matrix(W), 
+                   theta,THETAc,
+                   as.matrix(W),
                    isInvW,
                    nIters, tolParConvLL, tolParInv,
-                   AI,getPEV,verbose, returnScaled, stepWeight, emWeight)
+                   AI,getPEV,verbose, returnScaled,
+                   stepWeight, emWeight,
+                   thetaC, thetaIndex)
+      
+      # res <- newton_di_sp(
+      #              as.matrix(yvar),
+      #              list(as.matrix(X)),
+      #              list(matrix(1)),
+      #              Z,K,R,
+      #              theta,THETAc,
+      #              as.matrix(W),
+      #              isInvW,
+      #              nIters, tolParConvLL, tolParInv,
+      #              AI,getPEV,verbose, returnScaled,
+      #              stepWeight, emWeight,
+      #              thetaC, thetaIndex)
       
     }else if(henderson == TRUE){ # n > p HENDERSON
       
@@ -357,85 +370,28 @@ mmes <- function(fixed, random, rcov, data, W,
     }
     ###### add rownames and build uList
     rownames(res$b) <- colnames(X)
+    res$thetaC <- thetaC # also residuals
     if(!missing(random)){
       rownames(res$u) <- unlist(lapply(Z, colnames))
-      res$thetaC <- thetaC
     }
     rownames(res$bu) <- c(rownames(res$b),rownames(res$u))
-    # print(unlist(rTermsNames))
     rownames(res$monitor) <- unlist(rTermsNames)
-    # res$sigma <- res$monitor[,which(res$llik[1,] == max(res$llik[1,]))] # we return the ones with max llik
     res$data <- data
     res$y <- yvar
     res$partitionsX <- partitionsX
-    
 
     if(!missing(random)){ # mock
       names(res$theta) <- names(res$thetaC) <- c(rtermss,"units")
       
+      names(res$partitions) <- rtermss
+      names(res$uList) <- names(res$uPevList) <- rtermss
+      for(i in 1:length(res$partitions)){ # i=1
+        colnames(res$uList[[i]]) <- colnames(res$uPevList[[i]]) <- colnames(thetaC[[i]])
+        rownames(res$uList[[i]]) <- rownames(res$uPevList[[i]]) <- rownames(res$bu)[res$partitions[[i]][1,1]:res$partitions[[i]][1,2]]
+      }
+      
       if(henderson==FALSE){ ######## adding ulist and upevlist similar to henderson mmes
-        
-        uList <- uPevList <- vector(mode="list",length = length(thetaC)-1)
-        names(uList) <- names(uPevList) <- rtermss
-        names(res$partitions) <- rtermss
-        newtheta <- list()
-        for(iTheta in 1:(length(thetaC)-1)){ # iTheta=2 # each element in the list
-          effsToUse <- which(thetaIndex == iTheta)
-          nEffs <- min(unlist(lapply(res$uList0[effsToUse], nrow)))
-          blupTable <- pevTable <-  Matrix::Matrix(0, nrow=nEffs, ncol=ncol(thetaC[[iTheta]]))
-          newthetasub <- thetaC[[iTheta]]
-          counter=1
-          for(iRow in 1:nrow(thetaC[[iTheta]])){ # iRow=1
-            for(iCol in iRow:ncol(thetaC[[iTheta]])){ # iCol=2
-
-              if(thetaC[[iTheta]][iRow,iCol] != 0){ # if is to be estimated
-                newthetasub[iRow,iCol] <- newthetasub[iCol,iRow] <- res$theta[[effsToUse[counter]]]
-                if(iRow==iCol){ # variance component
-
-                  blupTable[,iRow] <- blupTable[,iRow] + res$uList0[[effsToUse[counter]]]
-                  pevTable[,iRow] <- pevTable[,iRow] + diag(res$Ci[[effsToUse[counter]]])
-                  counter=counter+1
-
-                }else{ # covariance component
-
-                  prov <- res$uList0[[effsToUse[counter]]]
-                  indexprov <- c( rep(iRow, nrow(prov)/2), rep(iCol, nrow(prov)/2) )
-                  # iRow
-                  blupTable[,iRow] <- blupTable[,iRow] +  res$uList0[[effsToUse[counter]]][which(indexprov == iRow),]
-                  pevTable[,iRow] <- pevTable[,iRow] +  diag(res$Ci[[effsToUse[counter]]])[which(indexprov == iRow)]
-                  # iCol
-                  blupTable[,iCol] <- blupTable[,iCol] +  res$uList0[[effsToUse[counter]]][which(indexprov == iCol),]
-                  pevTable[,iCol] <- pevTable[,iCol] +  diag(res$Ci[[effsToUse[counter]]])[which(indexprov == iCol)]
-                  counter=counter+1
-
-                }
-              }
-            }
-          }
-          colnames(blupTable) <- colnames(pevTable) <- colnames(thetaC[[iTheta]])
-          uList[[iTheta]] <- blupTable
-          uPevList[[iTheta]] <- pevTable
-          newtheta[[iTheta]] <- newthetasub
-        }
-        # move the PEV to the Cii matrix
-        if(length(Z) > 0){ # there's random effects
-          res$Ci <- sommer::adiag1(res$Ci_11, do.call(sommer::adiag1, res$Ci))
-          res$W <- XZY
-        }else{
-          res$Ci <- res$Ci_11
-        }
-        residualthetas <- which(thetaIndex == length(thetaC))
-        newtheta[[iTheta+1]] <- res$theta[residualthetas]
-        res$theta <- newtheta
-        res$uList0 <- NULL
-        res$uList <- uList; res$uPevList <- uPevList
-      }else if(henderson==TRUE){ ######## adding rownames to ulist and upevlist 
-        names(res$partitions) <- rtermss
-        names(res$uList) <- names(res$uPevList) <- rtermss
-        for(i in 1:length(res$partitions)){ # i=1
-          colnames(res$uList[[i]]) <- colnames(res$uPevList[[i]]) <- colnames(thetaC[[i]])
-          rownames(res$uList[[i]]) <- rownames(res$uPevList[[i]]) <- rownames(res$bu)[res$partitions[[i]][1,1]:res$partitions[[i]][1,2]]
-        }
+        res$W <- XZ
       }
 
     } # enf of 'if(missing(random))'
