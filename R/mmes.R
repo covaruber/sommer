@@ -312,14 +312,14 @@ mmes <- function(fixed, random, rcov, data, W,
       if(!missing(random)){
         XZ <- cbind(X,do.call(cbind,Z))
       }else{XZ <- X}
-      Z <- Zdi; Zdi <- NULL
+      # Z <- Zdi; Zdi <- NULL
       theta <- THETA; THETA <- NULL
       
       res <- .Call("_sommer_newton_di_sp",PACKAGE = "sommer",
                    as.matrix(yvar),
                    list(as.matrix(X)),
                    list(matrix(1)),
-                   Z,K,R,
+                   Zdi,K,R,
                    theta,THETAc,
                    as.matrix(W),
                    isInvW,
