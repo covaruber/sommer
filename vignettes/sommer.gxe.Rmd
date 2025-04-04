@@ -310,7 +310,7 @@ for(i in 1:length(envs)){
                             Estimate=ans1$b[,1], 
                             Env=factor(envs[i]))
   # to be comparable to 1/(se^2) = 1/PEV = 1/Ci = 1/[(X'X)inv]
-  XtXL[[i]] <- solve(ans1$Ci_11) 
+  XtXL[[i]] <- solve(ans1$Ci[1:nrow(ans1$b),1:nrow(ans1$b)]) 
 }
 
 DT2 <- do.call(rbind, BLUEL)
