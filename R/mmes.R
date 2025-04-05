@@ -11,7 +11,7 @@ mmes <- function(fixed, random, rcov, data, W,
                  contrasts=NULL,
                  getPEV=TRUE, henderson=FALSE){
   
-  my.date <- "2025-06-01"
+  my.date <- "2025-07-01"
   your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
   if(dateWarning){
@@ -291,14 +291,14 @@ mmes <- function(fixed, random, rcov, data, W,
               if(iTheta < length(theta)){ 
                 useZs <- which(Zind == iTheta)
                 if(iRow == iCol){ # if variance component
-                  K[[counter]] <- as.matrix(Ai[[iTheta]])
+                  K[[counter]] <- Ai[[iTheta]]
                   Zdi[[counter]] <-  Z[[useZs[iRow]]] 
                 }else{ # if covariance component
                   nrowcol <- nrow(Ai[[iTheta]])
                   Kcov <- matrix(0,nrowcol*2,nrowcol*2)
-                  Kcov[1:nrowcol,(nrowcol+1):nrow(Kcov)] = as.matrix(Ai[[iTheta]])
-                  Kcov[(nrowcol+1):nrow(Kcov),1:nrowcol] = as.matrix(Ai[[iTheta]])
-                  K[[counter]] <- as.matrix(Kcov)
+                  Kcov[1:nrowcol,(nrowcol+1):nrow(Kcov)] = Ai[[iTheta]]
+                  Kcov[(nrowcol+1):nrow(Kcov),1:nrowcol] = Ai[[iTheta]]
+                  K[[counter]] <- Kcov
                   Zdi[[counter]] <-  cbind( Z[[useZs[iRow]]], Z[[useZs[iCol]]] ) 
                 }
               }
@@ -312,16 +312,15 @@ mmes <- function(fixed, random, rcov, data, W,
       if(!missing(random)){
         XZ <- cbind(X,do.call(cbind,Z))
       }else{XZ <- X}
-      # Z <- Zdi; Zdi <- NULL
       theta <- THETA; THETA <- NULL
       
       res <- .Call("_sommer_newton_di_sp",PACKAGE = "sommer",
-                   as.matrix(yvar),
-                   list(as.matrix(X)),
+                   yvar,
+                   list(X),
                    list(matrix(1)),
                    Zdi,K,R,
                    theta,THETAc,
-                   as.matrix(W),
+                   W,
                    isInvW,
                    nIters, tolParConvLL, tolParInv,
                    AI,getPEV,verbose, returnScaled,
@@ -329,12 +328,12 @@ mmes <- function(fixed, random, rcov, data, W,
                    thetaC, thetaIndex)
       
       # res <- newton_di_sp(
-      #              as.matrix(yvar),
-      #              list(as.matrix(X)),
+      #              yvar,
+      #              list(X),
       #              list(matrix(1)),
       #              Z,K,R,
       #              theta,THETAc,
-      #              as.matrix(W),
+      #              W,
       #              isInvW,
       #              nIters, tolParConvLL, tolParInv,
       #              AI,getPEV,verbose, returnScaled,

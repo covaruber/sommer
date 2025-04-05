@@ -80,14 +80,14 @@ m3 <- mmes(fixed=Y ~ V + N + V:N-1,
            rcov=~units,
            data = DT)
 
-wald.test(b = m3$b, Sigma = m3$Ci_11, Terms = 2)
+wald.test(b = m3$b, Sigma = m3$Ci[1:nrow(m3$b),1:nrow(m3$b)], Terms = 2)
 
 LL <- matrix(0,nrow=1, ncol=12)
 LL[1,2] <- 1
 LL[1,3] <- -1
 LL
 
-wald.test(b = m3$b, Sigma = m3$Ci_11, L=LL)
+wald.test(b = m3$b, Sigma = m3$Ci[1:nrow(m3$b),1:nrow(m3$b)], L=LL)
 
 
   }

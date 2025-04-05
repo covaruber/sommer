@@ -519,12 +519,12 @@ arma::cube gwasForLoop(const arma::mat & M, // marker matrix
 }
 
 // [[Rcpp::export]]
-Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
+Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
                         const Rcpp::List & Gx,
                         const Rcpp::List & Z, const Rcpp::List & K,
                         const Rcpp::List & R, 
                         const Rcpp::List & Ge, const Rcpp::List & GeI, // theta and thetaC
-                        const arma::mat & W, const bool & isInvW,
+                        const arma::sp_mat & W, const bool & isInvW,
                         int iters, double tolpar, double tolparinv,
                         const bool & ai, const bool & pev,
                         const bool & verbose,const bool & retscaled,
@@ -556,12 +556,12 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
       arma::sp_mat zp = Rcpp::as<arma::sp_mat>(Z[i]); // transform as sparse
       n_levels(i) = zp.n_cols; // store the number of columns or levels for this random effect
       
-      bool dcheck = isIdentity_mat(Rcpp::as<arma::mat>(K[i]));
+      bool dcheck = isIdentity_mat(arma::mat(Rcpp::as<arma::sp_mat>(K[i])));
       if(dcheck == true){ // if K[i] is diagonal
         if(zp.n_rows == zp.n_cols){//is a square matrix
           bool dcheck2 = isIdentity_spmat(zp);
           if(dcheck2 == true){ // if Z[i] is diagonal
-            ZKZtR.slice(i) = Rcpp::as<arma::mat>(K[i]);
+            ZKZtR.slice(i) = arma::mat(Rcpp::as<arma::sp_mat>(K[i]));
           }else{ZKZtR.slice(i) = zp * zp.t(); }
         }else{ // is a rectangular matrix
           ZKZtR.slice(i) = zp * zp.t();
@@ -570,10 +570,10 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
         if(zp.n_rows == zp.n_cols){//is a square matrix
           bool dcheck2 = isIdentity_spmat(zp);
           if(dcheck2 == true){ // if Z[i] is diagonal
-            ZKZtR.slice(i) = Rcpp::as<arma::mat>(K[i]);
-          }else{ZKZtR.slice(i) = zp * Rcpp::as<arma::mat>(K[i]) * zp.t(); }
+            ZKZtR.slice(i) = arma::mat(Rcpp::as<arma::sp_mat>(K[i]));
+          }else{ZKZtR.slice(i) = zp * arma::mat(Rcpp::as<arma::sp_mat>(K[i])) * zp.t(); }
         }else{
-          ZKZtR.slice(i) = zp * Rcpp::as<arma::mat>(K[i]) * zp.t();
+          ZKZtR.slice(i) = zp * arma::mat(Rcpp::as<arma::sp_mat>(K[i])) * zp.t();
         }
       }
       
@@ -587,7 +587,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
         if(isInvW == true){ // user has provided a squared and inverted W already
           ZKZtR.slice(i) = W * Rcpp::as<arma::sp_mat>(R[irw]) * W;
         }else{ // user has provided only W
-          arma::mat Wis = inv(chol(W));
+          arma::mat Wis = inv(chol(arma::mat(W)));
           ZKZtR.slice(i) = Wis * Rcpp::as<arma::sp_mat>(R[irw]) * Wis.t();
         }
         // arma::vec ws2 = 1/sqrt(ws);// arma::mat Wis = diagmat(ws2); // W inverse squared  // ZKZtR.slice(i) = Wis * Rcpp::as<arma::sp_mat>(R[irw]) * Wis;
@@ -598,23 +598,23 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
   // ****************************************************
   // build multivariate versions of X and Y
   // ****************************************************
-  arma::vec Ym = vectorise(Y); // multivariate Y in original scale
+  arma::vec Ym = vectorise(arma::mat(Y)); // multivariate Y in original scale
   int nom = Ym.n_rows; // number of observations on the vector-form of multivariate Y
   
   arma::mat Xm;
   for (int i = 0; i < n_fixed; ++i) { // for each fixed effect
     if(i==0){ // build multivariate X for 1st fixed effect
-      Xm = kron(Rcpp::as<arma::mat>(Gx[i]), Rcpp::as<arma::mat>(X[i]));
+      Xm = kron(Rcpp::as<arma::mat>(Gx[i]), arma::mat(Rcpp::as<arma::sp_mat>(X[i])) );
     }else{ // build multivariate X for 2nd to nth fixed effect and column bind them
-      Xm = arma::join_horiz( Xm , kron(Rcpp::as<arma::mat>(Gx[i]), Rcpp::as<arma::mat>(X[i])) );
+      Xm = arma::join_horiz( Xm , kron(Rcpp::as<arma::mat>(Gx[i]), arma::mat(Rcpp::as<arma::sp_mat>(X[i])) ) );
     }
   }
-  arma::mat Ys = scaleCpp(Y); // scale Y using the scaleCpp function made
+  arma::mat Ys = scaleCpp(arma::mat(Y)); // scale Y using the scaleCpp function made
   arma::vec Ysm = vectorise(Ys); // multivariate Y in scaled form
   // ****************************************************
   // initial VC
   // ****************************************************
-  arma::mat base_var = cov(Y); // matrix of original variance-covariance in responses
+  arma::mat base_var = cov(arma::mat(Y)); // matrix of original variance-covariance in responses
   arma::mat sc_var = cov(Ys); // matrix of scaled variance-covariance in responses
   int rankX = Xm.n_rows - rank(Xm); // n - p.x
   // VC matrix with dimensions n_traits x n_traits (sigma)
@@ -782,9 +782,9 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
     if(last_iteration == true){
       for (int i = 0; i < n_fixed; ++i) {
         if(i==0){
-          Xm = kron(Rcpp::as<arma::mat>(X[i]), Rcpp::as<arma::mat>(Gx[i]) );
+          Xm = kron(arma::mat(Rcpp::as<arma::sp_mat>(X[i])), Rcpp::as<arma::mat>(Gx[i]) );
         }else{
-          Xm = arma::join_horiz( Xm , arma::kron( Rcpp::as<arma::mat>(X[i]), Rcpp::as<arma::mat>(Gx[i]) ) );
+          Xm = arma::join_horiz( Xm , arma::kron( arma::mat(Rcpp::as<arma::sp_mat>(X[i])), Rcpp::as<arma::mat>(Gx[i]) ) );
         }
       }
       Ym = vectorise(Y.t());
@@ -1059,7 +1059,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
           arma::mat Zprov = arma::mat(Rcpp::as<arma::sp_mat>(Z[i]));
           
           // arma::mat Zprov2 = Rcpp::as<arma::mat>(Z[i]);
-          arma::mat Ki = Rcpp::as<arma::mat>(K[i]);
+          arma::mat Ki = arma::mat(Rcpp::as<arma::sp_mat>(K[i]));
           // arma::mat Ki2 = (Zprov.t() * Zprov) * 0; //
           // Ki2.diag() = arma::ones<arma::vec>(Ki2.n_cols);
           // arma::mat Ki2 = arma::mat(arma::speye( Zprov.n_cols, Zprov.n_cols ));
@@ -1071,7 +1071,7 @@ Rcpp::List newton_di_sp(const arma::mat & Y, const Rcpp::List & X,
           // for rrBLUP models we had to allow a K matrix to be a 1 x 1 matrix so dimensions do not match with Z
           if(Ki.n_cols == Zprov.n_cols){ // if a regular random effect
             // Rcpp::Rcout << "regular" << arma::endl;
-            VarK = arma::kron(Rcpp::as<arma::mat>(K[i]),sigma.slice(i)); // Gu * var.u
+            VarK = arma::kron(arma::mat(Rcpp::as<arma::sp_mat>(K[i])),sigma.slice(i)); // Gu * var.u
             ZKfv = VarK * arma::kron(Zprov.t(),dD); // G Z'
           }else{ // if huge matrix from models like rrBLUP we need to create a diagonal to calculate VarK and BLUPs
             // Rcpp::Rcout << "rrBLUP" << arma::endl;

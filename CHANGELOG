@@ -483,17 +483,32 @@ version 4.3.7 (2025-02-01)
  + enhancing documentation
 
 ########################
-version 4.4.1 (2025-05-01)
+version 4.4.1 (2025-04-04)
 ########################
- + unified mme and di algorithms unified in mmer()
+ + unified mme and di algorithms unified in mmes()
+ + removed the first two vignettes to make sommer lighter.
+ 
+########################
+version 4.4.2 (2025-07-04)
+########################
+ + Now the direct inversion algorithm takes as input the sparse matrices to avoid overloading R memory with dense matrices. We transform them internally to dense matrices to make operations.
+ 
  
 ######################
 ## PENDINGS AND PRIORITIES 
-+ we need to find out how to solve the message 'Error: Mat::init(): requested size is too large; suggest to enable ARMA_64BIT_WORD' that shows up when we have very big models. In practice doesn't work in the compilation step. Still to be figured out.
-+ we need to recode how the C matrix is constructed, adopt linear sum instead of [W y]' R [W y], otherwise the solver is extremely slow for complex models with many effects to be estimated since we multiply every time. Build the coefficient matrix only once and never modify. Then the Gi matrix should be a linear sum of Ai * vc (* being kronecker). If R will always be a diagonal with ones we should only ignore it and multiply the C + Gi by the factor 1/Ve. Still not sure how we avoid multiplication R for heterogeneous models.
-+ internally make the ai_mme function to scale the trait first and then bring back to the original units to avoid modifying the tolParinv argument.
-+ we need to find how to do symbolic cholesky instead of computing cholesky every iteration in mmec
-+ we need to find how to avoid inverting the coeficcient matrix for the calculation of first derivatives (Meyer 1995 may have the solution but I can't understand that paper fully.).
-+ arma::inv, arma::solve, arma::chol are slower than Eigen, we need to find how to use both libraries in the same function
++ we need to recode how the C matrix is constructed, adopt linear sum instead of
+  [W y]' R [W y], otherwise the solver is extremely slow for complex models with 
+  many effects to be estimated since we multiply every time. Build the coefficient
+  matrix only once and never modify. Then the Gi matrix should be a linear sum of 
+  Ai * vc (* being kronecker). If R will always be a diagonal with ones we should 
+  only ignore it and multiply the C + Gi by the factor 1/Ve. Still not sure how 
+  we avoid multiplication R for heterogeneous models.
++ internally make the ai_mme function to scale the trait first and then bring back 
+   to the original units to avoid modifying the tolParinv argument.
++ we need to find how to do symbolic cholesky instead of computing cholesky every 
+  iteration in the henderson algorithm
++ we need to find how to avoid inverting the coeficcient matrix for the calculation 
+  of first derivatives (Meyer 1995 may have the solution but I can't understand 
+  that paper fully.).
 + Add correlation models
 + Generalized linear models...
