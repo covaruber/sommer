@@ -235,12 +235,12 @@ BEGIN_RCPP
 END_RCPP
 }
 // newton_di_sp
-Rcpp::List newton_di_sp(const arma::mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::mat& W, const bool& isInvW, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled, const arma::vec& stepweight, const arma::vec& emweight, const Rcpp::List& thetaConstOri, const arma::vec& thetaIndex);
+Rcpp::List newton_di_sp(const arma::sp_mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::sp_mat& W, const bool& isInvW, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled, const arma::vec& stepweight, const arma::vec& emweight, const Rcpp::List& thetaConstOri, const arma::vec& thetaIndex);
 RcppExport SEXP _sommer_newton_di_sp(SEXP YSEXP, SEXP XSEXP, SEXP GxSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP RSEXP, SEXP GeSEXP, SEXP GeISEXP, SEXP WSEXP, SEXP isInvWSEXP, SEXP itersSEXP, SEXP tolparSEXP, SEXP tolparinvSEXP, SEXP aiSEXP, SEXP pevSEXP, SEXP verboseSEXP, SEXP retscaledSEXP, SEXP stepweightSEXP, SEXP emweightSEXP, SEXP thetaConstOriSEXP, SEXP thetaIndexSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::mat& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type Y(YSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type X(XSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type Gx(GxSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type Z(ZSEXP);
@@ -248,7 +248,7 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const Rcpp::List& >::type R(RSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type Ge(GeSEXP);
     Rcpp::traits::input_parameter< const Rcpp::List& >::type GeI(GeISEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type W(WSEXP);
     Rcpp::traits::input_parameter< const bool& >::type isInvW(isInvWSEXP);
     Rcpp::traits::input_parameter< int >::type iters(itersSEXP);
     Rcpp::traits::input_parameter< double >::type tolpar(tolparSEXP);
