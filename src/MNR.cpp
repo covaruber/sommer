@@ -1134,7 +1134,6 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
   arma::field<arma::mat> partitions(thetaConstOri.size()-1); // store indices for each random effect
   arma::vec end, start;
   int counter4 = 0;
-  int nEffs;
   for (int i = 0; i < thetaConstOri.size(); ++i) {
     arma::uvec effsToUse = find(thetaIndex == (i+1) ); // which thetas we should use
     arma::mat thetaConstOriIth = thetaConstOri(i); // get effect i
