@@ -133,7 +133,8 @@ mmes(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-04,
   using the following code \code{logspace(nIters,1,0.05)}. }
   \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
   \item{getPEV}{a logical value indicating if PEV should be returned when the 
-  direct inversion algorithm is used.}
+  direct inversion algorithm is used. It does not apply when henderson argument is
+  TRUE.}
   \item{henderson}{a logical value indicating if the solving algorithm should 
   be direct inversion (henderson is FALSE) or Henderson's method (henderson is
   TRUE). Default is direct inversion.}
@@ -352,12 +353,18 @@ maximum likelihood estimation of (co) variance components in multivariate mixed
 linear models using average information. Journal of the Indian Society of
 Agricultural Statistics, 49, 215-236.
 
+Sanderson, C., & Curtin, R. (2025). Armadillo: An Efficient Framework for 
+Numerical Linear Algebra. arXiv preprint arXiv:2502.03000.
+
 Gilmour et al. 1995. Average Information REML: An efficient algorithm for 
 variance parameter estimation in linear mixed models. Biometrics 51(4):1440-1450.
 
 }
 \author{
-Coded by Giovanny Covarrubias-Pazaran and Christelle Fernandez Camacho 
+
+Coded by Giovanny Covarrubias-Pazaran with contributions of Christelle Fernandez 
+Camacho to the henderson algorithm.
+
 }
 \examples{
 

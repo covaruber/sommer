@@ -491,8 +491,8 @@ version 4.4.1 (2025-04-04)
 ########################
 version 4.4.2 (2025-07-04)
 ########################
- + Now the direct inversion algorithm takes as input the sparse matrices to avoid overloading R memory with dense matrices. We transform them internally to dense matrices to make operations.
- 
+ + now the direct inversion algorithm takes as input the sparse matrices to avoid overloading R memory with dense matrices. We transform them internally to dense matrices to make operations.
+ + bug in getPEV fixed. Now the argument works again.
  
 ######################
 ## PENDINGS AND PRIORITIES 

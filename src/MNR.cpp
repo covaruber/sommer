@@ -1149,15 +1149,22 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
             newThetaIth(j,k) = newThetaIthProv(0,0);
             if( i < (thetaConstOri.size()-1) ){ // if ~random not residual
               // Rcpp::Rcout << (thetaConstOri.size()-1) << arma::endl;
-              arma::mat provPev = arma::mat(PevU(counter4));
-              arma::mat zerosMatFill(pevFull.n_rows,provPev.n_cols,arma::fill::zeros);
-              pevFull = arma::join_cols( arma::join_rows(pevFull, zerosMatFill),arma::join_rows(zerosMatFill.t(),provPev) );
+              arma::mat provPev;
+              if(pev==true){
+                arma::mat provPev = arma::mat(PevU(counter4));
+                arma::mat zerosMatFill(pevFull.n_rows,provPev.n_cols,arma::fill::zeros);
+                pevFull = arma::join_cols( arma::join_rows(pevFull, zerosMatFill),arma::join_rows(zerosMatFill.t(),provPev) );
+              }
               if( blupTable.n_cols <= j){ // not yet populated
                 blupTable = arma::join_rows(blupTable, arma::mat(U[counter4]) );
-                pevTable = arma::join_rows(pevTable, provPev.diag());
+                if(pev==true){
+                  pevTable = arma::join_rows(pevTable, provPev.diag());
+                }
               }else{ // the column is already populated
                 blupTable.col(j) = blupTable.col(j) + arma::mat(U[counter4]);
-                pevTable.col(j) = pevTable.col(j) + provPev.diag();
+                if(pev==true){
+                  pevTable.col(j) = pevTable.col(j) + provPev.diag();
+                }
               }
               
             }
@@ -1174,22 +1181,33 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
               arma::uvec isJ = arma::find(indexCovJK == j);
               arma::uvec isK = arma::find(indexCovJK == k);
               arma::mat provBlup = arma::mat(U[counter4]);
-              arma::mat provPev = arma::mat(PevU(counter4));
-              provPev = provPev.diag();
+              arma::mat provPev;
+              if(pev==true){
+                arma::mat provPev = arma::mat(PevU(counter4));
+                provPev = provPev.diag();
+              }
               // add cov blup and cov pev 
               if(blupTable.n_cols <= j){ // not yet populated
                 blupTable = arma::join_rows(blupTable, provBlup.rows(isJ) );
-                pevTable = arma::join_rows(pevTable, provPev(isJ) );
+                if(pev==true){
+                  pevTable = arma::join_rows(pevTable, provPev(isJ) );
+                }
               }else{ // the column is already populated
                 blupTable.col(j) = blupTable.col(j) + provBlup.rows(isJ);
-                pevTable.col(j) = pevTable.col(j) + provPev(isJ);
+                if(pev==true){
+                  pevTable.col(j) = pevTable.col(j) + provPev(isJ);
+                }
               }
               if( blupTable.n_cols <= k){ // not yet populated
                 blupTable = arma::join_rows(blupTable, provBlup.rows(isK) );
-                pevTable = arma::join_rows(pevTable, provPev(isK) );
+                if(pev==true){
+                  pevTable = arma::join_rows(pevTable, provPev(isK) );
+                }
               }else{
                 blupTable.col(k) = blupTable.col(k) + provBlup.rows(isK);
-                pevTable.col(k) = pevTable.col(k) + provPev(isK);
+                if(pev==true){
+                  pevTable.col(k) = pevTable.col(k) + provPev(isK);
+                }
               }
             }
           }
@@ -1200,8 +1218,10 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
     newTheta(i) = newThetaIth;
     if( i < (thetaConstOri.size()-1) ){
       uList(i) = blupTable;
-      uPevList(i) = pevTable;
-      PEVs(i) = pevFull;
+      if(pev==true){
+        uPevList(i) = pevTable;
+        PEVs(i) = pevFull;
+      }
       int nrbt= blupTable.n_rows;
       for (int l = 0; l < blupTable.n_cols; ++l) {
         start = beta.n_rows + (l*nrbt) + 1; // index of where the random effect starts
@@ -1215,8 +1235,10 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
   arma::mat bu = join_cols(beta, u );
   arma::mat Ci(bu.n_rows,bu.n_rows, arma::fill::zeros);
   Ci.submat(0, 0, beta.n_rows-1, beta.n_rows-1 ) = tXVXi;
-  for (int i = 0; i < partitions.size(); ++i) {//for each major random effect
-    Ci.submat(partitions(i).min()-1, partitions(i).min()-1, partitions(i).max()-1, partitions(i).max()-1 ) = PEVs(i);
+  if(pev==true){
+    for (int i = 0; i < partitions.size(); ++i) {//for each major random effect
+      Ci.submat(partitions(i).min()-1, partitions(i).min()-1, partitions(i).max()-1, partitions(i).max()-1 ) = PEVs(i);
+    }
   }
   
   // ****************************************************
@@ -1244,9 +1266,9 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
     Rcpp::Named("residuals") = residuals,
     Rcpp::Named("dL") = score, // dL
     Rcpp::Named("percChange") = sigma_perc_change2
-    // Rcpp::Named("Vi") = Vi,
-    // Rcpp::Named("P") = P,
-    // Rcpp::Named("u_var") = VarU,
+  // Rcpp::Named("Vi") = Vi,
+  // Rcpp::Named("P") = P,
+  // Rcpp::Named("u_var") = VarU,
   
   );
 }
