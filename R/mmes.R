@@ -258,6 +258,15 @@ mmes <- function(fixed, random, rcov, data, W,
                 rtermss=rtermss, partitionsX=partitionsX, getPEV=getPEV
     )
     
+    # yvar=res$yvar; X=res$X;Z=res$Z;Zind=res$Zind;Ai=res$Ai;S=res$S;
+    # Spartitions=res$Spartitions; W=res$W; useH=res$useH;
+    # nIters=res$nIters; tolParConvLL=res$tolParConvLL; tolParConvNorm=res$tolParConvNorm;
+    # tolParInv=res$tolParInv;
+    # verbose=res$verbose; addScaleParam=res$addScaleParam;
+    # theta=res$theta;thetaC=res$thetaC; thetaFinput=res$thetaFinput;
+    # stepWeight=res$stepWeight;emWeight=res$emWeight; 
+    # rtermss=res$rtermss; partitionsX=res$partitionsX; getPEV=res$getPEV
+    
   }else{
     
     #################################################
@@ -295,7 +304,8 @@ mmes <- function(fixed, random, rcov, data, W,
                   Zdi[[counter]] <-  Z[[useZs[iRow]]] 
                 }else{ # if covariance component
                   nrowcol <- nrow(Ai[[iTheta]])
-                  Kcov <- matrix(0,nrowcol*2,nrowcol*2)
+                  Kcov <- Matrix::Matrix(0,nrowcol*2,nrowcol*2)
+                  Kcov <- as(as(as( Kcov,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
                   Kcov[1:nrowcol,(nrowcol+1):nrow(Kcov)] = Ai[[iTheta]]
                   Kcov[(nrowcol+1):nrow(Kcov),1:nrowcol] = Ai[[iTheta]]
                   K[[counter]] <- Kcov
@@ -327,21 +337,22 @@ mmes <- function(fixed, random, rcov, data, W,
                    stepWeight, emWeight,
                    thetaC, thetaIndex)
       
-      # res <- newton_di_sp(
-      #              yvar,
-      #              list(X),
-      #              list(matrix(1)),
-      #              Z,K,R,
-      #              theta,THETAc,
-      #              W,
-      #              isInvW,
-      #              nIters, tolParConvLL, tolParInv,
-      #              AI,getPEV,verbose, returnScaled,
-      #              stepWeight, emWeight,
-      #              thetaC, thetaIndex)
+      res <- newton_di_sp(
+                   yvar,
+                   list(X),
+                   list(matrix(1)),
+                   Zdi,K,R,
+                   theta,THETAc,
+                   W,
+                   isInvW,
+                   nIters, tolParConvLL, tolParInv,
+                   AI,getPEV,verbose, returnScaled,
+                   stepWeight, emWeight,
+                   thetaC, thetaIndex)
       
     }else if(henderson == TRUE){ # n > p HENDERSON
       
+      Si <- lapply(S, solve)
       res <- .Call("_sommer_ai_mme_sp",PACKAGE = "sommer",
                    X,Z, Zind,
                    Ai,yvar,
@@ -354,17 +365,17 @@ mmes <- function(fixed, random, rcov, data, W,
                    stepWeight,
                    verbose)
       
-      # res <- ai_mme_sp(
-      #              X,Z, Zind,
-      #              Ai,yvar,
-      #              S, Spartitions, W, useH,
-      #              nIters, tolParConvLL, tolParConvNorm,
-      #              tolParInv,theta,
-      #              thetaC,thetaFinput,
-      #              addScaleParam,
-      #              emWeight,
-      #              stepWeight,
-      #              verbose)
+      res <- ai_mme_sp(
+                   X,Z, Zind,
+                   Ai,yvar,
+                   Si, Spartitions, W, useH,
+                   nIters, tolParConvLL, tolParConvNorm,
+                   tolParInv,theta,
+                   thetaC,thetaFinput,
+                   addScaleParam,
+                   emWeight,
+                   stepWeight,
+                   verbose)
       
     }
     ###### add rownames and build uList
