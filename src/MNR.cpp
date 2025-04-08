@@ -1518,6 +1518,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   arma::sp_mat XWjxZWj0(nEffects,nVcTotal), WiXxWiZ0(nVcTotal,nEffects), WiWj0(nVcTotal,nVcTotal);
   arma::mat Mchol_XZ;//, Wu2;
   arma::sp_mat I = arma::speye<arma::sp_mat>(nEffectsPlusY,nEffectsPlusY);
+  arma::mat I2 = arma::eye(nEffects+nVcTotal,nEffects+nVcTotal);
   arma::vec delta(nVcTotal), delta_minus1(nVcTotal);
   // objects for constraints
   arma::mat percDelta(nVcTotal,nIters,arma::fill::zeros); // store % change of the delta with respect to the previous iteration
@@ -1795,16 +1796,17 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     }
     // // solve method !!
     // // similar to arma::spsolve(bu, arma::sp_mat(Mchol_XZ) , My, "lapack" ); but My = XZRiy and XWjxZWj = XZRi.Wu
-    // arma::spsolve(buWu, arma::sp_mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )), arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
-    // avInf = WiWj - (buWu.t()*XWjxZWj); // bu.Wu
+    arma::spsolve(buWu, arma::sp_mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )), arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
+    avInf = WiWj - (buWu.t()*XWjxZWj); // bu.Wu
     
     // cholesky method!!
-    arma::mat MWu = arma::join_cols(
-      arma::join_rows(arma::mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )),arma::mat(XWjxZWj0) ),
-      arma::join_rows(arma::mat(XWjxZWj0.t()), arma::mat(WiWj) )
-    );
-    arma::mat MWuchol = arma::chol(MWu);
-    avInf = MWuchol.submat( MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-1, MWuchol.n_cols-1);
+    // arma::mat MWu = arma::join_cols(
+    //   arma::join_rows(arma::mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )),arma::mat(XWjxZWj0) ),
+    //   arma::join_rows(arma::mat(XWjxZWj0.t()), arma::mat(WiWj) )
+    // );
+    // MWu = MWu + (I2*(tolParInv));
+    // arma::mat MWuchol = arma::chol(MWu);
+    // avInf = MWuchol.submat( MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-1, MWuchol.n_cols-1);
     
     // ##########################
     // # 5) get 1st derivatives (dL/ds2i) from MME-version

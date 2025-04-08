@@ -337,18 +337,18 @@ mmes <- function(fixed, random, rcov, data, W,
                    stepWeight, emWeight,
                    thetaC, thetaIndex)
       
-      res <- newton_di_sp(
-                   yvar,
-                   list(X),
-                   list(matrix(1)),
-                   Zdi,K,R,
-                   theta,THETAc,
-                   W,
-                   isInvW,
-                   nIters, tolParConvLL, tolParInv,
-                   AI,getPEV,verbose, returnScaled,
-                   stepWeight, emWeight,
-                   thetaC, thetaIndex)
+      # res <- newton_di_sp(
+      #              yvar,
+      #              list(X),
+      #              list(matrix(1)),
+      #              Zdi,K,R,
+      #              theta,THETAc,
+      #              W,
+      #              isInvW,
+      #              nIters, tolParConvLL, tolParInv,
+      #              AI,getPEV,verbose, returnScaled,
+      #              stepWeight, emWeight,
+      #              thetaC, thetaIndex)
       
     }else if(henderson == TRUE){ # n > p HENDERSON
       
@@ -365,17 +365,17 @@ mmes <- function(fixed, random, rcov, data, W,
                    stepWeight,
                    verbose)
       
-      res <- ai_mme_sp(
-                   X,Z, Zind,
-                   Ai,yvar,
-                   Si, Spartitions, W, useH,
-                   nIters, tolParConvLL, tolParConvNorm,
-                   tolParInv,theta,
-                   thetaC,thetaFinput,
-                   addScaleParam,
-                   emWeight,
-                   stepWeight,
-                   verbose)
+      # res <- ai_mme_sp(
+      #              X,Z, Zind,
+      #              Ai,yvar,
+      #              Si, Spartitions, W, useH,
+      #              nIters, tolParConvLL, tolParConvNorm,
+      #              tolParInv,theta,
+      #              thetaC,thetaFinput,
+      #              addScaleParam,
+      #              emWeight,
+      #              stepWeight,
+      #              verbose)
       
     }
     ###### add rownames and build uList
