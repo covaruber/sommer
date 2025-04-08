@@ -70,10 +70,10 @@ mmes <- function(fixed, random, rcov, data, W,
     })
     # print(rtermss)
     for(u in 1:length(rtermss)){ # for each random effect u=1
-      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsm","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
+      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("sommer::vsm","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
       
       if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
-        rtermss[u] <- paste("vsm( ism(",rtermss[u],") )")
+        rtermss[u] <- paste("sommer::vsm( sommer::ism(",rtermss[u],") )")
       }
       ff <- eval(parse(text = rtermss[u]),data,parent.frame()) # evaluate the variance structure
       Z <- c(Z, lapply(ff$Z, function(x){if(nrow(x) != length(nonMissing)){return(x[nonMissing,])}else{return(x)} }) )
@@ -111,7 +111,7 @@ mmes <- function(fixed, random, rcov, data, W,
     checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vsm","gvs","spl2Da","spl2Db")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
     
     if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
-      rcovtermss[u] <- paste("vsm( ism(",rcovtermss[u],") )")
+      rcovtermss[u] <- paste("sommer::vsm( sommer::ism(",rcovtermss[u],") )")
     }
     
     ff <- eval(parse(text = rcovtermss[u]),data,parent.frame()) # evalaute the variance structure
@@ -365,17 +365,17 @@ mmes <- function(fixed, random, rcov, data, W,
                    stepWeight,
                    verbose)
       
-      # res <- ai_mme_sp(
-      #              X,Z, Zind,
-      #              Ai,yvar,
-      #              Si, Spartitions, W, useH,
-      #              nIters, tolParConvLL, tolParConvNorm,
-      #              tolParInv,theta,
-      #              thetaC,thetaFinput,
-      #              addScaleParam,
-      #              emWeight,
-      #              stepWeight,
-      #              verbose)
+      res <- ai_mme_sp(
+                   X,Z, Zind,
+                   Ai,yvar,
+                   Si, Spartitions, W, useH,
+                   nIters, tolParConvLL, tolParConvNorm,
+                   tolParInv,theta,
+                   thetaC,thetaFinput,
+                   addScaleParam,
+                   emWeight,
+                   stepWeight,
+                   verbose)
       
     }
     ###### add rownames and build uList

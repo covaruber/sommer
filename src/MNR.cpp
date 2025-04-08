@@ -1799,7 +1799,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::spsolve(buWu, arma::sp_mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )), arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
     avInf = WiWj - (buWu.t()*XWjxZWj); // bu.Wu
     
-    // cholesky method!!
+    // cholesky method!! requires scaling of the response to work
     // arma::mat MWu = arma::join_cols(
     //   arma::join_rows(arma::mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )),arma::mat(XWjxZWj0) ),
     //   arma::join_rows(arma::mat(XWjxZWj0.t()), arma::mat(WiWj) )
