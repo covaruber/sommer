@@ -1353,9 +1353,6 @@ arma::mat nearPDcpp(const arma::mat X0,
       converged = true;
     }
   }
-  // return Rcpp::List::create(
-  //   Rcpp::Named("X") = X
-  // );
   return X;
 }
 
@@ -1603,10 +1600,10 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::field<arma::sp_mat> GI(nReAl); // to store kron(thetainv,Ainv) 
     if(nZs > 0){
       for (int i = 0; i < nRe; ++i) {
-        // arma::mat dddd = nearPDcpp(arma::symmatu(theta(i)), 100, 1e-06, 1e-07);
+        arma::mat bend = nearPDcpp(arma::symmatu(theta(i)), 100, 1e-06, 1e-07);
         // lambda(i) = arma::sp_mat( dddd );
-        arma::mat bend = arma::eye(theta(i).n_rows,theta(i).n_rows) * 1e-6;
-        lambda(i) = arma::sp_mat( inv( theta(i)+bend ) );
+        // arma::mat bend = arma::eye(theta(i).n_rows,theta(i).n_rows) * 1e-6;
+        lambda(i) = arma::sp_mat( inv( bend ) );
         GI(i) = kron(lambda(i), Ai(i) );
         arma::mat partitionsP = partitions(i);
         int ff = partitionsP(0,0) - 1;
@@ -1618,10 +1615,13 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     bool okChol = arma::chol(Mchol, arma::mat(M));
     if(okChol == false){
       if(verbose == true){
-        Rcpp::Rcout << "Adding a small value to the diagonal of M " << arma::endl;
+        Rcpp::Rcout << "Making M positive definite " << arma::endl;
       }
-      M = M + (I*(tolParInv));
-      Mchol = arma::chol(arma::mat(M)) ;
+      // M = M + (I*(tolParInv));
+      // Mchol = arma::chol(arma::mat(M)) ;
+      arma::mat Mp = arma::symmatu(arma::mat(M));
+      Mp = nearPDcpp(Mp, 100, 1e-06, 1e-07);
+      Mchol = arma::chol(Mp) ;
       if(verbose == true){
         Rcpp::Rcout << "Cholesky of M succeeded " << arma::endl;
       }
@@ -1797,7 +1797,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     // // solve method !!
     // // similar to arma::spsolve(bu, arma::sp_mat(Mchol_XZ) , My, "lapack" ); but My = XZRiy and XWjxZWj = XZRi.Wu
     arma::spsolve(buWu, arma::sp_mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )), arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
-    avInf = WiWj - (buWu.t()*XWjxZWj); // bu.Wu
+    avInf = WiWj - (buWu.t()*XWjxZWj); // WuWu' - bu.Wu'*W.Wu
     
     // cholesky method!! requires scaling of the response to work
     // arma::mat MWu = arma::join_cols(
@@ -2012,6 +2012,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       arma::uvec toFill = arma::regspace<arma::uvec>(nVcStart(i)-1,  1,  nVcEnd(i)-1); // equivalent to seq()
       arma::mat thetaProvNew = vec_to_matCpp(expectedNewTheta(toFill), thetaC[i] );
       arma::mat thetaProvNewPD = nearPDcpp(arma::symmatu(thetaProvNew), 100, 1e-06, 1e-07); // maxit=100, eig_tol = 1e-06, conv_tol = 1e-07
+      // arma::mat thetaProvNewPD = thetaProvNew + (arma::eye(thetaProvNew.n_rows,thetaProvNew.n_rows)*tolParInv); // nearPDcpp(arma::symmatu(thetaProvNew), 100, 1e-06, 1e-07);
       theta(i) = thetaProvNewPD; // arma::symmatu(thetaProvNew);
       //
       arma::mat thetaCProvNew = vec_to_matCpp(thetaCUnlisted(toFill), thetaC[i] );

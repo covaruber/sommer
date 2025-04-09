@@ -365,17 +365,17 @@ mmes <- function(fixed, random, rcov, data, W,
                    stepWeight,
                    verbose)
       
-      res <- ai_mme_sp(
-                   X,Z, Zind,
-                   Ai,yvar,
-                   Si, Spartitions, W, useH,
-                   nIters, tolParConvLL, tolParConvNorm,
-                   tolParInv,theta,
-                   thetaC,thetaFinput,
-                   addScaleParam,
-                   emWeight,
-                   stepWeight,
-                   verbose)
+      # res <- ai_mme_sp(
+      #              X,Z, Zind,
+      #              Ai,yvar,
+      #              Si, Spartitions, W, useH,
+      #              nIters, tolParConvLL, tolParConvNorm,
+      #              tolParInv,theta,
+      #              thetaC,thetaFinput,
+      #              addScaleParam,
+      #              emWeight,
+      #              stepWeight,
+      #              verbose)
       
     }
     ###### add rownames and build uList
