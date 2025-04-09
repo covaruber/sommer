@@ -1358,7 +1358,7 @@ arma::mat nearPDcpp(const arma::mat X0,
 
 // [[Rcpp::export]]
 Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma::vec & Zind,
-                     const Rcpp::List & AiI, const arma::sp_mat & y,
+                     const Rcpp::List & AiI, const arma::sp_mat & y0,
                      const Rcpp::List & SI, const Rcpp::List & partitionsS,
                      const arma::sp_mat & H, const bool & useH,
                      int nIters, double tolParConvLL, double tolParConvNorm,
@@ -1381,11 +1381,22 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   int nReFake = 1; // a fake value in case there's no random effects we avoid a bad allocation error
   int nRRe = thetaI.size(); // number of random + residual effects
   int nX = X.n_cols;// number of fixed effects
-  int nR = y.n_rows; // number of records
+  int nR = y0.n_rows; // number of records
+  // find variance and mean for the response
+  double vary2 = arma::mean(arma::var(arma::square(y0)));
+  double vary = arma::mean(arma::var(y0));
+  double stdy = arma::mean(arma::stddev(y0));
+  double muy = arma::mean(arma::mean(y0));
+  arma::sp_mat y = arma::sp_mat(scaleCpp(arma::mat(y0)));
+  bool intercept = false;
+  // Rcpp::Rcout << intercept << arma::endl;
+  if(arma::accu(X.col(0)) == X.n_rows){ // there's an intercept
+    intercept = true;
+  }
   // create a list to store the symmetric version of thetaC
   arma::field<arma::mat> theta(nRRe), thetaC(nRRe);
   for (int i = 0; i < nRRe; ++i) { // create a copy of thetas
-    theta[i]=Rcpp::as<arma::mat>(thetaI[i]) ; //
+    theta[i]=Rcpp::as<arma::mat>(thetaI[i])/vary ; //
     thetaC[i]=Rcpp::as<arma::mat>(thetaCI[i]) ; //
   }
   // move Z to sparse arma objects
@@ -1796,18 +1807,17 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     }
     // // solve method !!
     // // similar to arma::spsolve(bu, arma::sp_mat(Mchol_XZ) , My, "lapack" ); but My = XZRiy and XWjxZWj = XZRi.Wu
-    arma::spsolve(buWu, arma::sp_mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )), arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
-    avInf = WiWj - (buWu.t()*XWjxZWj); // WuWu' - bu.Wu'*W.Wu
+    // arma::spsolve(buWu, arma::sp_mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )), arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
+    // avInf = WiWj - (buWu.t()*XWjxZWj); // WuWu' - bu.Wu'*W.Wu
     
     // cholesky method!! requires scaling of the response to work
-    // arma::mat MWu = arma::join_cols(
-    //   arma::join_rows(arma::mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )),arma::mat(XWjxZWj0) ),
-    //   arma::join_rows(arma::mat(XWjxZWj0.t()), arma::mat(WiWj) )
-    // );
-    // MWu = MWu + (I2*(tolParInv));
-    // arma::mat MWuchol = arma::chol(MWu);
-    // avInf = MWuchol.submat( MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-1, MWuchol.n_cols-1);
-    
+    arma::mat MWu = arma::join_cols(
+      arma::join_rows(arma::mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )),arma::mat(XWjxZWj0) ),
+      arma::join_rows(arma::mat(XWjxZWj0.t()), arma::mat(WiWj) )
+    );    // MWu = MWu + (I2*(tolParInv));
+    arma::mat MWuchol = arma::chol(MWu);
+    avInf = MWuchol.submat( MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-1, MWuchol.n_cols-1);
+    avInf = avInf * avInf.t();
     // ##########################
     // # 5) get 1st derivatives (dL/ds2i) from MME-version
     // # PAPER FORMULA (Lee and Van der Werf, 2006)
@@ -2069,7 +2079,26 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   for (int i = 0; i < nRRe; ++i) {
     thetaCUnlistedFinal = join_cols(thetaCUnlistedFinal,mat_to_vecCpp2(thetaC[i],thetaC[i]));
   }
-  
+  // bring back to original scale the variance components
+  for (int i = 0; i < nRRe; ++i) {
+    theta(i) = theta(i)*vary;
+  }
+  bu = bu*stdy;
+  b = b*stdy;
+  // Rcpp::Rcout << intercept << arma::endl;
+  if(intercept==true){ // if true mu is required in the first position only
+    b(0,0) = b(0,0) + muy;
+    bu(0,0) = bu(0,0) + muy;
+  }else{ // if false mu is required all over b
+    bu.submat(0, 0, (b.n_rows-1), 0) = bu.submat(0, 0, (b.n_rows-1), 0) + muy;
+    b = b + muy;
+  }
+  Ci = Ci*vary;
+  // InfMat=InfMat/stdy;//*(1/(vary2/2));
+  InfMatInv=(InfMatInv*vary2)/10;//*(vary2/2);
+  Mchol_XZ=Mchol_XZ/stdy;
+  monitor=monitor*vary;
+  // dLuOut=dLuOut/vary;
   // move the effects from vector to a field with matrices
   arma::field<arma::mat> uList(nRe), uPevList(nRe); // store indices of the random effects
   for (int i = 0; i < nRe; ++i) {
