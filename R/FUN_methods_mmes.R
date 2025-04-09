@@ -58,7 +58,18 @@
   coef$Std.Error <- sqrt(abs(s2.beta))
   coef$t.value <- coef$Estimate/coef$Std.Error
 
-  mys2 <- object$monitor[,which(object$llik[1,] == max(object$llik[1,]))]
+  mys2 <- unlist(object$theta)
+  mys2c <- unlist(object$thetaC)
+  mys2 <- mys2[which(mys2c!=0)]
+  newnames <- list()
+  for(i in 1:length(object$thetaC)){
+    mainname <- paste(all.vars(as.formula(paste("~",names(object$thetaC)[i]))),collapse=":")
+    secondnames <- apply(expand.grid(colnames(object$thetaC[[i]]),colnames(object$thetaC[[i]])),1,function(x){paste(x,collapse=":")})
+    secondnames <-  secondnames[which(unlist(object$thetaC[[i]]) != 0)]
+    newnames[[i]] <- paste(mainname, secondnames , sep=":")
+  }
+  # mys2 <- object$monitor[,which(object$llik[1,] == max(object$llik[1,]))]
+  names(mys2) <- unlist(newnames)
   varcomp <- as.data.frame(cbind(mys2,sqrt(diag(object$theta_se))))
   varcomp[,3] <- varcomp[,1]/varcomp[,2]
   colnames(varcomp) <- c("VarComp","VarCompSE","Zratio")

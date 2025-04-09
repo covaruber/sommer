@@ -70,7 +70,7 @@ mmes <- function(fixed, random, rcov, data, W,
     })
     # print(rtermss)
     for(u in 1:length(rtermss)){ # for each random effect u=1
-      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("sommer::vsm","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
+      checkvs <- intersect(all.names(as.formula(paste0("~",rtermss[u]))),c("vsm","spl2Dc")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
       
       if(length(checkvs)==0){ ## if this term is not in a variance structure put it inside
         rtermss[u] <- paste("sommer::vsm( sommer::ism(",rtermss[u],") )")
@@ -255,7 +255,7 @@ mmes <- function(fixed, random, rcov, data, W,
                 verbose=verbose, addScaleParam=addScaleParam,
                 theta=theta,thetaC=thetaC, thetaFinput=thetaFinput,
                 stepWeight=stepWeight,emWeight=emWeight, 
-                rtermss=rtermss, partitionsX=partitionsX, getPEV=getPEV
+                rtermss=rtermss, partitionsX=partitionsX, getPEV=getPEV, rTermsNames=rTermsNames
     )
     
     # yvar=res$yvar; X=res$X;Z=res$Z;Zind=res$Zind;Ai=res$Ai;S=res$S;
@@ -287,6 +287,8 @@ mmes <- function(fixed, random, rcov, data, W,
       THETA <- THETAc <- K <- Zdi <- list(); counter=1
       vary <- var(yvar[,1])
       thetaIndex <- thetaConstIndex <- numeric()
+      
+      
       for(iTheta in 1:length(theta)){
         for(iRow in 1:nrow(theta[[iTheta]])){ # iRow=1
           for(iCol in iRow:ncol(theta[[iTheta]])){ # iCol=1
