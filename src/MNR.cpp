@@ -2105,7 +2105,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   }
   Ci = Ci*vary;
   // InfMat=InfMat/stdy;//*(1/(vary2/2));
-  InfMatInv=(InfMatInv*vary2)/10;//*(vary2/2);
+  InfMatInv=InfMatInv*vary;//*(vary2/2);
   Mchol_XZ=Mchol_XZ/stdy;
   monitor=monitor*vary;
   // dLuOut=dLuOut/vary;
@@ -2146,9 +2146,9 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     Rcpp::Named("normMonitor") = normMonitor,
     Rcpp::Named("toBoundary") = toBoundary,
     Rcpp::Named("dLu") = dLuOut,
-    Rcpp::Named("Cchol") = Mchol_XZ, 
-    Rcpp::Named("PMWu_mat") = PMWu_mat, 
-    Rcpp::Named("MWuchol") = MWuchol
+    Rcpp::Named("Cchol") = Mchol_XZ
+    // Rcpp::Named("PMWu_mat") = PMWu_mat, 
+    // Rcpp::Named("MWuchol") = MWuchol
   );
   
 }
