@@ -1513,9 +1513,9 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   int nEffects = Nu+nX;
   int nEffectsPlusY = nEffects + 1;
   arma::mat Mchol; // (nEffectsPlusY,nEffectsPlusY)
-  // arma::umat PM_mat;
+  arma::umat PM_mat;
   arma::mat MWuchol;
-  // arma::umat PMWu_mat;
+  arma::umat PMWu_mat;
   
   arma::sp_mat M0(nEffectsPlusY,nEffectsPlusY), M(nEffectsPlusY,nEffectsPlusY), W(nR,nEffects), Wy(nR,nEffectsPlusY), C(nEffects,nEffects), Ci(nEffects,nEffects);
   arma::vec u(Nu), b(nX), bu(nEffects);
@@ -1818,6 +1818,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     //   arma::join_rows(arma::mat(XWjxZWj0.t()), arma::mat(WiWj) )
     // );
     // arma::chol(MWuchol, PMWu_mat, MWu, "lower", "matrix");
+    // MWuchol = PMWu_mat.t() * MWuchol;
     // avInf = MWuchol.submat( MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-1, MWuchol.n_cols-1);
     // avInf = avInf * avInf.t();
     
@@ -2145,9 +2146,9 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     Rcpp::Named("normMonitor") = normMonitor,
     Rcpp::Named("toBoundary") = toBoundary,
     Rcpp::Named("dLu") = dLuOut,
-    Rcpp::Named("Cchol") = Mchol_XZ
-  
-  
+    Rcpp::Named("Cchol") = Mchol_XZ, 
+    Rcpp::Named("PMWu_mat") = PMWu_mat, 
+    Rcpp::Named("MWuchol") = MWuchol
   );
   
 }
