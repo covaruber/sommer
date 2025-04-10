@@ -53,6 +53,7 @@ data(DT_rice)
 # # if using henderson=TRUE provide Gu as inverse
 # Ai <- solve(A + diag(1e-6,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, 'inverse')=TRUE 
 }
 \keyword{datasets}
 \seealso{The core functions of the package \code{\link{mmes}} }

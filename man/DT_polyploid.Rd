@@ -74,6 +74,7 @@ data(DT_polyploid)
 # # if using mmes=TRUE provide Gu as inverse
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, 'inverse')=TRUE 
 
 
 }

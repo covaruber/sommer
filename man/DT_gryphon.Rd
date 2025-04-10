@@ -57,6 +57,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # ## mmes algorithm uses the inverse of the relationship matrix
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, 'inverse')=TRUE 
 # ####====================####
 # #### multivariate model ####
 # ####     2 traits       ####
@@ -66,7 +67,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # head(DT2$long)
 # 
 # # #### fit the multivariate model with no fixed effects (intercept only)
-# mix2 <- mmes(valueS~trait, henderson=FALSE, # using direct inversion
+# mix2 <- mmes(valueS~trait, henderson=FALSE, 
 #              random=~vsm(usm(trait),ism(ANIMAL),Gu=A),
 #              rcov=~vsm(dsm(trait),ism(units)),
 #              data=DT2$long)

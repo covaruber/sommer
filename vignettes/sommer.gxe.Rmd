@@ -206,7 +206,7 @@ mix2 <- mmes(y~ envIndex, henderson=TRUE,
 # summary(mix2)$varcomp
 
 b=mix2$uList$`vsm(dsm(envIndex), ism(Name))` # adaptability (b) or genotype slopes
-mu=mix2$uList$`vsm( ism( Name ) )` # general adaptation (mu) or main effect
+mu=mix2$uList$`sommer::vsm( sommer::ism( Name ) ` # general adaptation (mu) or main effect
 e=sqrt(summary(mix2)$varcomp[-c(1:2),1]) # error variance for each individual
 
 ## general adaptation (main effect) vs adaptability (response to better environments)

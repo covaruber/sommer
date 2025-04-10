@@ -1512,7 +1512,11 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   
   int nEffects = Nu+nX;
   int nEffectsPlusY = nEffects + 1;
-  arma::mat Mchol(nEffectsPlusY,nEffectsPlusY);
+  arma::mat Mchol; // (nEffectsPlusY,nEffectsPlusY)
+  // arma::umat PM_mat;
+  arma::mat MWuchol;
+  // arma::umat PMWu_mat;
+  
   arma::sp_mat M0(nEffectsPlusY,nEffectsPlusY), M(nEffectsPlusY,nEffectsPlusY), W(nR,nEffects), Wy(nR,nEffectsPlusY), C(nEffects,nEffects), Ci(nEffects,nEffects);
   arma::vec u(Nu), b(nX), bu(nEffects);
   arma::mat buWu(nEffects,nVcTotal);
@@ -1545,6 +1549,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   // START ITERATIVE ALGORITHM
   ////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////
+  
   
   for (int iIter = 0; iIter < nIters; ++iIter) {
     
@@ -1623,13 +1628,16 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       }
     }
     
+    // Rcpp::Rcout << "all good" << arma::endl;
+    // arma::chol(Mchol, PM_mat, arma::mat(M), "upper", "matrix");
+    // Rcpp::Rcout <<  Mchol.n_cols << arma::endl;
+    // Rcpp::Rcout <<  Mchol.n_rows << arma::endl;
+    
     bool okChol = arma::chol(Mchol, arma::mat(M));
     if(okChol == false){
       if(verbose == true){
         Rcpp::Rcout << "Making M positive definite " << arma::endl;
       }
-      // M = M + (I*(tolParInv));
-      // Mchol = arma::chol(arma::mat(M)) ;
       arma::mat Mp = arma::symmatu(arma::mat(M));
       Mp = nearPDcpp(Mp, 100, 1e-06, 1e-07);
       Mchol = arma::chol(Mp) ;
@@ -1641,7 +1649,6 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     Mchol_XZ = Mchol.submat( 0,0, Mchol.n_rows-2,  Mchol.n_cols-2 ); // M without y portion (last row and column of M)
     arma::vec My = Mchol.submat( 0,Mchol.n_rows-1, Mchol.n_cols-2,  Mchol.n_cols-1 );
     double logDetC = 2 * accu(log(Mchol_XZ.diag()));
-    
     // ###########################
     // # 1.1) calculate the log-likelihood
     // # PAPER FORMULA (Lee and Van der Werf, 2006)    #
@@ -1669,7 +1676,6 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     if(ok2 == false){ Rcpp::Rcout << "log determinant of R failed " << arma::endl;};
     double logDetR = nR * val * sign;
     llik(iIter) = (- 0.5) * ( llikp + logDetC + logDetR + arma::as_scalar(yPy) );
-    
     // ###########################
     // # 2) backsubstitute to get b and u (CORRECT)
     // # use the results from the absorption to obtain BLUE & BLUPs
@@ -1690,7 +1696,6 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       arma::uvec uInd = arma::regspace<arma::uvec>((nX),  1,  (nX+Nu-1)); // equivalent to seq()
       u = bu(uInd);
     }
-    
     // ###########################
     // # 3) calculate Wu (working variates)
     // # PAPER FORMULA (Notes on Estimation of Genetic Parameters from Van der Werf)
@@ -1749,8 +1754,6 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       } // end of loop for each random effect
     } // end of condition when random effects exist
     // calculate residuals
-    // Wu2=Wu;
-    
     arma::vec e = y - (arma::sp_mat(W.submat(0,0,W.n_rows-1,W.n_cols-1)) * bu);
     // Working variates for residual VCs
     for(int iS = 0; iS < Si.size(); ++iS){
@@ -1771,7 +1774,6 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         }
       }
     }
-    
     // ###########################
     // # 4) absorption of m onto Wu (2 VAR, 1 COV) to obtain Wu' P Wu  which is the AI matrix
     // # we had to change the avInf to avInf/sigmas
@@ -1807,17 +1809,18 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     }
     // // solve method !!
     // // similar to arma::spsolve(bu, arma::sp_mat(Mchol_XZ) , My, "lapack" ); but My = XZRiy and XWjxZWj = XZRi.Wu
-    // arma::spsolve(buWu, arma::sp_mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )), arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
-    // avInf = WiWj - (buWu.t()*XWjxZWj); // WuWu' - bu.Wu'*W.Wu
+    arma::spsolve(buWu, arma::sp_mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )), arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
+    avInf = WiWj - (buWu.t()*XWjxZWj); // WuWu' - bu.Wu'*W.Wu
     
     // cholesky method!! requires scaling of the response to work
-    arma::mat MWu = arma::join_cols(
-      arma::join_rows(arma::mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )),arma::mat(XWjxZWj0) ),
-      arma::join_rows(arma::mat(XWjxZWj0.t()), arma::mat(WiWj) )
-    );    // MWu = MWu + (I2*(tolParInv));
-    arma::mat MWuchol = arma::chol(MWu);
-    avInf = MWuchol.submat( MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-1, MWuchol.n_cols-1);
-    avInf = avInf * avInf.t();
+    // arma::mat MWu = arma::join_cols(
+    //   arma::join_rows(arma::mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )),arma::mat(XWjxZWj0) ),
+    //   arma::join_rows(arma::mat(XWjxZWj0.t()), arma::mat(WiWj) )
+    // );
+    // arma::chol(MWuchol, PMWu_mat, MWu, "lower", "matrix");
+    // avInf = MWuchol.submat( MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-Wu.n_cols, MWuchol.n_cols-1, MWuchol.n_cols-1);
+    // avInf = avInf * avInf.t();
+    
     // ##########################
     // # 5) get 1st derivatives (dL/ds2i) from MME-version
     // # PAPER FORMULA (Lee and Van der Werf, 2006)
@@ -1944,6 +1947,12 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
           }
         }// end of if(expectedNewTheta(i) < 1e-10)
       }// end of positive constraints
+      // any vc outide the search space should come back
+      if(expectedNewTheta(i) > .9){ // since we scale the modell we don't allow to explain more than 90%
+        // Rcpp::Rcout << "Restraining to small value" << arma::endl;
+        expectedNewTheta(i)=.5;
+        toBoundary(iIter,i)=1; // toBoundary(nIters,nVcTotal)
+      }// end of if(expectedNewTheta(i) > 1)
       if(thetaCUnlisted(i) == 3){
         arma::vec thetaUnlistedPlusAddScaleParam;
         if(iIter == 0){

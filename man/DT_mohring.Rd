@@ -48,7 +48,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #                + cross.id
 #                # SCAR reciprocal effects (remaining variance in crosses; 
 #                # if zero there's no reciprocal effects)
-#                + vsm(dsr(cross.type), ism(cross.id)) )
+#                + vsm(dsm(cross.type), ism(cross.id)) )
 # summary(mod1hb)$varcomp
 #
 # ##                                    VarComp VarCompSE   Zratio

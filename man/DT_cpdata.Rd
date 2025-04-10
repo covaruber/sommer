@@ -84,6 +84,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # # if using mmes=TRUE you need to provide the inverse
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, 'inverse')=TRUE 
 # #### be patient take some time
 # ansm <- mmes( valueS ~ trait, # henderson=TRUE,
 #                random=~ vsm(usm(trait), ism(id), Gu=A),

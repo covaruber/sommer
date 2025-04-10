@@ -82,6 +82,7 @@ A platform for meta-analysis of rice crop data. \emph{Plant Physiology} \bold{13
 # # if using mmes=TRUE provide Gu as inverse
 # Ki <- solve(K + diag(1e-4,ncol(K),ncol(K)))
 # Ki <- as(as(as( Ki,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ki, 'inverse')=TRUE 
 
 }
 \keyword{datasets}

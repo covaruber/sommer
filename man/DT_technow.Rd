@@ -53,8 +53,10 @@ Mf <- Mf_technow
 # 
 # Adi <- solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad)))
 # Adi <- as(as(as( Adi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Adi, 'inverse')=TRUE 
 # Afi <- solve(Af + diag(1e-4,ncol(Af),ncol(Af)))
 # Afi <- as(as(as( Afi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Afi, 'inverse')=TRUE 
 # ####====================####
 # #### multivariate model ####
 # ####     2 traits       ####
@@ -67,6 +69,7 @@ Mf <- Mf_technow
 # A <- A.mat(M)
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, 'inverse')=TRUE 
 # DT2$long=DT2$long[with(DT2$long, order(trait)), ]
 # 
 # ans3 <- mmes(valueS~trait, henderson=TRUE,

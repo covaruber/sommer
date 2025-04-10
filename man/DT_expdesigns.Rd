@@ -49,7 +49,7 @@
 # ## check no check indicator: "new"
 # mix1 <- mmes(yield~entryc,
 #              random=~block+trt,
-#              rcov=~units, tolpar = 1e-6,
+#              rcov=~units, 
 #              data=data1)
 # summary(mix1)$varcomp
 

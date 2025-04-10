@@ -44,9 +44,10 @@ modh <- mmes(sugar~1,
              data=DT)
 summary(modh)$varcomp
 
-# if ussing mmes=TRUE provide Gu with inverses
+# if ussing mmes=TRUE provide Gu with inverses and give more iterations
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, 'inverse')=TRUE 
 
 }
 \keyword{datasets}

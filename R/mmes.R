@@ -1,5 +1,5 @@
 mmes <- function(fixed, random, rcov, data, W,
-                 nIters=25, tolParConvLL = 1e-04,
+                 nIters=50, tolParConvLL = 1e-04,
                  tolParConvNorm = 1e-04, tolParInv = 1e-06,
                  naMethodX="exclude",
                  naMethodY="exclude",
@@ -241,9 +241,10 @@ mmes <- function(fixed, random, rcov, data, W,
     if(nInverses != length(Ai)){
       stop("You have selected the 'henderson' algorithm which requires all relationship
       matrices to be inverted. Please make sure that you have inverted your
-      matrices and set the attribute to your matrices as follows:
+      matrices and set the attributes of your matrices as follows:
+           Gu = as(as(as( Gu,  'dMatrix'), 'generalMatrix'), 'CsparseMatrix')
            attr(Gu, 'inverse')=TRUE 
-      where 'Gu' is to be replaced with your matrix name.", call. = FALSE)
+      where 'Gu' is to be replaced with the name of your matrix.", call. = FALSE)
     }
   }
   
