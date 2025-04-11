@@ -208,9 +208,9 @@ mmes <- function(fixed, random, rcov, data, W,
     if(henderson==FALSE){ # p > n
       emWeight <- rep(0, nIters)
     }else{ # n > p
-      initialEmSteps <- logspace(round(nIters*.8), 1, 0.009) # 80% of the iterations requested are used for the logarithmic decrease
-      restEmSteps <- rep(0.009, nIters - length(initialEmSteps)) # the rest we assign a very small emWeight value
-      emWeight <- c( initialEmSteps, restEmSteps) # plot(emWeight) # we bind both for the modeling
+      # initialEmSteps <- logspace(round(nIters*.8), 1, 0.009) # 80% of the iterations requested are used for the logarithmic decrease
+      # restEmSteps <- rep(0.009, nIters - length(initialEmSteps)) # the rest we assign a very small emWeight value
+      emWeight <- logspace(nIters, f=3)#c( initialEmSteps, restEmSteps) # plot(emWeight) # we bind both for the modeling
     }
     
   }
