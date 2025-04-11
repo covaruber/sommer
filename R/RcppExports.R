@@ -89,8 +89,8 @@ nearPDcpp <- function(X0, maxit, eig_tol, conv_tol) {
     .Call(`_sommer_nearPDcpp`, X0, maxit, eig_tol, conv_tol)
 }
 
-ai_mme_sp <- function(X, ZI, Zind, AiI, y, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose) {
-    .Call(`_sommer_ai_mme_sp`, X, ZI, Zind, AiI, y, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose)
+ai_mme_sp <- function(X, ZI, Zind, AiI, y0, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose) {
+    .Call(`_sommer_ai_mme_sp`, X, ZI, Zind, AiI, y0, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose)
 }
 
 MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight) {

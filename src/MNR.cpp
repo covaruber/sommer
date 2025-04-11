@@ -1949,9 +1949,9 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         }// end of if(expectedNewTheta(i) < 1e-10)
       }// end of positive constraints
       // any vc outide the search space should come back
-      if(expectedNewTheta(i) > .9){ // since we scale the modell we don't allow to explain more than 90%
+      if(expectedNewTheta(i) > 1){ // since we scale the modell we don't allow to explain more than 90%
         // Rcpp::Rcout << "Restraining to small value" << arma::endl;
-        expectedNewTheta(i)=.5;
+        expectedNewTheta(i)=1;
         toBoundary(iIter,i)=1; // toBoundary(nIters,nVcTotal)
       }// end of if(expectedNewTheta(i) > 1)
       if(thetaCUnlisted(i) == 3){
