@@ -215,7 +215,7 @@ mmes <- function(fixed, random, rcov, data, W,
     
   }
   if(is.null(stepWeight)){
-    w <- which(emWeight <= .04) # where AI starts
+    w <- which(emWeight <= .5) # where AI starts
     if(length(w) > 1){ # w has at least length = 2
       stepWeight <- rep(.9,nIters);
       if(nIters > 1){stepWeight[w[1:2]] <- c(0.5,0.7)} # .5, .7

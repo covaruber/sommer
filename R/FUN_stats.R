@@ -75,7 +75,11 @@ logspace <- function (n, start=1, end=0.01, p=1, f=1) {
     d=max(a) + (max(a)-b)
     x3=rev(d-a) ^ p
   }else if(f==3){
-    x1=logspace2(n+2,start,end,p)
+    a=logspace(n,start,end)
+    b=max(a) - min(a)
+    d=max(a) + (max(a)-b)
+    x1=rev(d-a) ^ p
+    # x1=logspace2(n+2,start,end,p)
     x2=logspace(n+2,start/2,end,p)
     x1=x1[which(x1>max(x2))]
     x3=c(x1,x2)
