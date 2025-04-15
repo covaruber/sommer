@@ -1619,7 +1619,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         arma::mat bend = nearPDcpp(arma::symmatu(theta(i)), 100, 1e-06, 1e-07);
         // lambda(i) = arma::sp_mat( dddd );
         // arma::mat bend = arma::eye(theta(i).n_rows,theta(i).n_rows) * 1e-6;
-        lambda(i) = arma::sp_mat( inv( bend ) );
+        lambda(i) = arma::sp_mat( arma::pinv( bend ) );
         GI(i) = kron(lambda(i), Ai(i) );
         arma::mat partitionsP = partitions(i);
         int ff = partitionsP(0,0) - 1;
