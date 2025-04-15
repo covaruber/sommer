@@ -42,7 +42,9 @@ mmes(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-04,
   unknown variance-covariance structures (e.g., usm,dsm,atm,csm) and the random 
   effect where such covariance structure will be used (the random effect of interest). 
   Gu is used to provide known covariance matrices among the levels of the random effect.
-  Auxiliar functions for building the variance models are:
+  Inverse matrices when the argument henderson=TRUE, and raw (non-inverse) matrices
+  when henderson=FALSE (default direct inversion). Auxiliar functions for building
+  the variance models are:
 
   ** \code{\link{dsm}(x)}, \code{\link{usm}(x)}, \code{\link{rrm}(x,y,z)} , 
   \code{\link{ism}(x)},\code{\link{csm}(x)}, and \code{\link{atm}(x,levs)} can 
@@ -94,7 +96,10 @@ mmes(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-04,
 
   }
   \item{tolParInv}{Tolerance parameter for matrix inverse used when singularities 
-  are encountered in the estimation procedure.}
+  are encountered in the estimation procedure. By default the value is 1e-06. This
+  parameter should be fairly small because the it is used to bend matrices like the
+  information matrix in the henderson algorithm or the coefficient matrix when it
+  is not positive-definite.}
    \item{naMethodX}{One of the two possible values; "include" or "exclude". If 
    "include" is selected then the function will impute the X matrices for fixed
    effects with the median value. If "exclude" is selected it will get rid of 

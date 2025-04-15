@@ -237,7 +237,7 @@ mmes <- function(fixed, random, rcov, data, W,
   thetaFinput
   
   if(henderson){
-    nInverses <- length(unlist(lapply(Ai, function(x){attributes(x)$inverse})))
+    nInverses <- length(which(unlist(lapply(Ai, function(x){attributes(x)$inverse})) == TRUE))
     if(nInverses != length(Ai)){
       stop("You have selected the 'henderson' algorithm which requires all relationship
       matrices to be inverted. Please make sure that you have inverted your
@@ -247,6 +247,17 @@ mmes <- function(fixed, random, rcov, data, W,
       where 'Gu' is to be replaced with the name of your matrix.", call. = FALSE)
     }
   }
+  # else{
+  #   nNoInverses <- length(which(unlist(lapply(Ai, function(x){attributes(x)$inverse})) == FALSE))
+  #   if(nNoInverses != length(Ai)){
+  #     stop("You have selected the 'direct-inversion' algorithm which requires all 
+  #     relationship matrices to NOT be inverted. Please make sure that you have 
+  #     provided your raw matrices and set the attributes of your matrices as follows:
+  #          Gu = as(as(as( Gu,  'dMatrix'), 'generalMatrix'), 'CsparseMatrix')
+  #          attr(Gu, 'inverse')=FALSE 
+  #     where 'Gu' is to be replaced with the name of your matrix.", call. = FALSE)
+  #   }
+  # }
   
   if(returnParam){ # if user just wants to get input matrices
     
