@@ -1554,7 +1554,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   for (int iIter = 0; iIter < nIters; ++iIter) {
     
     // ###########################
-    // # 1) absorption of m onto y to obtain y'Py and logDetC
+    // # 1) absorption of M into y to obtain y'Py and logDetC
     // # PAPER FORMULA from Jensen and Madsen 1997, Gilmour et al., 1995
     // # expand coefficient matrix (C) to have the response variable
     // # M = W' Ri W # with W = [X Z y]
@@ -1775,7 +1775,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       }
     }
     // ###########################
-    // # 4) absorption of m onto Wu (2 VAR, 1 COV) to obtain Wu' P Wu  which is the AI matrix
+    // # 4) absorption of M into Wu (2 VAR, 1 COV) to obtain Wu' P Wu  which is the AI matrix
     // # we had to change the avInf to avInf/sigmas
     // # PAPER FORMULA (Smith, 1995) Differentiation of the Cholesky Algorithm
     // # avInf.ij = ((chol(M))[n,n])^2 # the square of the last diagonal element of the cholesky factorization

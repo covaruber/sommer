@@ -389,7 +389,7 @@ atcg1234 <- function(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, silent=FA
   return(list(M=M,ref.alleles=tmp))
 }
 
-build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE, separator=":"){
+build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE, separator=":", n.batch=1000){
   # build hybrid marker matrix
   
   if(!is.null(custom.hyb)){
@@ -423,60 +423,83 @@ build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE, separato
     }
     
     if(all(checkM2 == c(1,1,0))){ # homo markers were coded correctly as -1,1
+      
     }else if(all(checkM2 == c(0,1,0)) | all(checkM2 == c(1,0,0))){ # homo markers were coded as 0 1
       cat("Either -1 or 1 alleles not detected in M2, we assume you have coded homozygotes \n       as 0 and 1 instead of -1 and 1. We'll fix it.\n")
     }else if(all(checkM2 == c(0,0,1))){ # homo markers were coded as 0 2
       cat("Either -1 or 1 alleles not detected in M2, we assume you have coded homozygotes \n       as 0 and 2 instead of -1 and 1. We'll fix it.\n")
     }
     
-    ## add markers coming from parents M1
-    Z1 <- model.matrix(~Var1-1,pheno);dim(Z1); 
-    colnames(Z1) <- gsub("Var1","",colnames(Z1))
-    M1 <- M1[colnames(Z1),]
-    #M1[1:4,1:4]; Z1[1:4,1:4]; 
-    ## add markers coming from parents M2
-    Z2 <- model.matrix(~Var2-1,pheno);dim(Z2); 
-    colnames(Z2) <- gsub("Var2","",colnames(Z2))
-    M2 <- M2[colnames(Z2),]
-    #M2[1:4,1:4]; Z2[1:4,1:4];  
-    
-    ## create the 
-    # Z3 <- model.matrix(~hybrid-1,pheno);dim(Z3);
-    # colnames(Z3) <- gsub("hybrid","",colnames(Z3))
-    # hyb.names <- colnames(Z3)[as.vector(apply(Z3,1,function(x){which(x==1)}))] # names of hybrids
-    hyb.names <- pheno$hybrid
-    ## marker matrix for hybrids one for each parent
-    cat(paste("Building hybrid marker matrix for",nrow(Z1),"hybrids\n"))
-    
-    cat("Extracting M1 contribution\n")
-    if(all(checkM1 == c(1,1,0))){ # homo markers were coded correctly as -1,1
-      Md <- Z1 %*% M1;  # was already converted to -1,1
-    }else if(all(checkM1 == c(0,1,0)) | all(checkM1 == c(1,0,0))){ # homo markers were coded as 0 1
-      Md <- 2*Z1 %*% M1 - 1;  # 2*Z.dent %*% M.dent - 1   # convert to -1,1
-    }else if(all(checkM1 == c(0,0,1))){ # homo markers were coded as 0 2
-      Md <- Z1 %*% M1 - 1;  # Z.dent %*% M.dent - 1   # convert to -1,1
+    n.batch <- min(c(n.batch,nrow(pheno)))
+                   
+    if(nrow(pheno)>0){ # if there is hybrids to build
+      ## build the marker matrix for batches of n.batch hybrids
+      batches <- sort(rep(1:1000,min(c(nrow(pheno),n.batch))))
+      pheno$batch <- batches[1:nrow(pheno)]
+      data.usedBatches <- split(pheno, pheno$batch)
+      
+      M1 <- as(M1, "CsparseMatrix")
+      M2 <- as(M2, "CsparseMatrix")
+      # start the loop
+      for(i in 1:length(data.usedBatches)){
+        
+        ## add markers coming from parents M1
+        Z1 <- Matrix::sparse.model.matrix(~Var1-1,data.usedBatches[[i]]);dim(Z1); 
+        colnames(Z1) <- gsub("Var1","",colnames(Z1))
+        M1r <- M1[colnames(Z1),,drop=FALSE]
+        
+        ## add markers coming from parents M2
+        Z2 <- Matrix::sparse.model.matrix(~Var2-1,data.usedBatches[[i]]);dim(Z2); 
+        colnames(Z2) <- gsub("Var2","",colnames(Z2))
+        M2r <- M2[colnames(Z2),, drop=FALSE]
+        
+        
+        hyb.names <- data.usedBatches[[i]]$hybrid
+        ## marker matrix for hybrids one for each parent
+        cat(paste("Building hybrid marker matrix for",nrow(Z1),"hybrids\n"))
+        
+        cat("Extracting M1 contribution\n")
+        if(all(checkM1 == c(1,1,0))){ # homo markers were coded correctly as -1,1
+          Md <- Z1 %*% M1r;  # was already converted to -1,1
+        }else if(all(checkM1 == c(0,1,0)) | all(checkM1 == c(1,0,0))){ # homo markers were coded as 0 1
+          Md <- 2*Z1 %*% M1r - 1;  # 2*Z.dent %*% M.dent - 1   # convert to -1,1
+        }else if(all(checkM1 == c(0,0,1))){ # homo markers were coded as 0 2
+          Md <- Z1 %*% M1r - 1;  # Z.dent %*% M.dent - 1   # convert to -1,1
+        }
+        
+        cat("Extracting M2 contribution\n")
+        if(all(checkM2 == c(1,1,0))){ # homo markers were coded correctly as -1,1
+          Mf <- Z2 %*% M2r;  # was already converted to -1,1
+        }else if(all(checkM2 == c(0,1,0)) | all(checkM2 == c(1,0,0))){ # homo markers were coded as 0 1
+          Mf <- 2*Z2 %*% M2r - 1;  # 2*Z.dent %*% M.dent - 1   # convert to -1,1
+        }else if(all(checkM2 == c(0,0,1))){ # homo markers were coded as 0 2
+          Mf <- Z2 %*% M2r - 1;  # Z.dent %*% M.dent - 1   # convert to -1,1
+        }
+        
+        ## marker matrix coded as additive -1,0,1
+        Mdf <- (Md + Mf)*(1/2) # normal marker matrix for the hybrids
+        rownames(Mdf) <- hyb.names
+        #hist(Mdf)
+        
+        ## dominance matrix for hybrids (0,1 coded)
+        Delta <- 1/2*(1 - Md * Mf) #performs element wise multiplication = Hadamard product
+        rownames(Delta) <- hyb.names
+        
+        if(i == 1){
+          HMM.add <- Mdf
+          HMM.dom <- Delta
+        }else{
+          HMM.add <- rbind(Mdf, HMM.add)
+          HMM.dom <- rbind(Delta, HMM.dom)
+        }
+      }
+    }else{
+      HMM.add <- HMM.dom <- Matrix::Matrix(NA, nrow=0, ncol=ncol(M1)); colnames(M) <- colnames(M1)
     }
     
-    cat("Extracting M2 contribution\n")
-    if(all(checkM2 == c(1,1,0))){ # homo markers were coded correctly as -1,1
-      Mf <- Z2 %*% M2;  # was already converted to -1,1
-    }else if(all(checkM2 == c(0,1,0)) | all(checkM2 == c(1,0,0))){ # homo markers were coded as 0 1
-      Mf <- 2*Z2 %*% M2 - 1;  # 2*Z.dent %*% M.dent - 1   # convert to -1,1
-    }else if(all(checkM2 == c(0,0,1))){ # homo markers were coded as 0 2
-      Mf <- Z2 %*% M2 - 1;  # Z.dent %*% M.dent - 1   # convert to -1,1
-    }
-    
-    ## marker matrix coded as additive -1,0,1
-    Mdf <- (Md + Mf)*(1/2) # normal marker matrix for the hybrids
-    rownames(Mdf) <- hyb.names
-    #hist(Mdf)
-    
-    ## dominance matrix for hybrids (0,1 coded)
-    Delta <- 1/2*(1 - Md * Mf) #performs element wise multiplication = Hadamard product
-    rownames(Delta) <- hyb.names
     #hist(Delta)
     cat("Done!!\n")
-    return(list(HMM.add=Mdf, HMM.dom=Delta, data.used=pheno))
+    return(list(HMM.add=HMM.add, HMM.dom=HMM.dom, data.used=pheno))
     
   }else{
     return(list(HMM.add=NA, HMM.dom=NA, data.used=pheno))
@@ -622,7 +645,7 @@ atcg1234BackTransform <- function(marks, refs){
       }else{
         gsub(pattern=" ",replacement="",
              paste(c( rep(refs["Alt",colnames(marks)[iMark]], abs(x-ploidy) ),
-                   rep(refs["Ref",colnames(marks)[iMark]], x) ), collapse = ""
+                      rep(refs["Ref",colnames(marks)[iMark]], x) ), collapse = ""
              )
         )
       }
