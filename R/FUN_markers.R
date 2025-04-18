@@ -389,7 +389,7 @@ atcg1234 <- function(data, ploidy=2, format="ATCG", maf=0, multi=TRUE, silent=FA
   return(list(M=M,ref.alleles=tmp))
 }
 
-build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE, separator=":", n.batch=1000){
+build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE, separator=":", n.batch=1000, verbose=TRUE){
   # build hybrid marker matrix
   
   if(!is.null(custom.hyb)){
@@ -417,21 +417,21 @@ build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE, separato
     
     if(all(checkM1 == c(1,1,0))){ # homo markers were coded correctly as -1,1
     }else if(all(checkM1 == c(0,1,0)) | all(checkM1 == c(1,0,0))){ # homo markers were coded as 0 1
-      cat("Either -1 or 1 alleles not detected in M1, we assume you have coded homozygotes \n       as 0 and 1 instead of -1 and 1. We'll fix it.\n")
+      message("Either -1 or 1 alleles not detected in M1, we assume you have coded homozygotes \n       as 0 and 1 instead of -1 and 1. We'll fix it.\n")
     }else if(all(checkM1 == c(0,0,1))){ # homo markers were coded as 0 2
-      cat("Either -1 or 1 alleles not detected in M1, we assume you have coded homozygotes \n       as 0 and 2 instead of -1 and 1. We'll fix it.\n")
+      message("Either -1 or 1 alleles not detected in M1, we assume you have coded homozygotes \n       as 0 and 2 instead of -1 and 1. We'll fix it.\n")
     }
     
     if(all(checkM2 == c(1,1,0))){ # homo markers were coded correctly as -1,1
       
     }else if(all(checkM2 == c(0,1,0)) | all(checkM2 == c(1,0,0))){ # homo markers were coded as 0 1
-      cat("Either -1 or 1 alleles not detected in M2, we assume you have coded homozygotes \n       as 0 and 1 instead of -1 and 1. We'll fix it.\n")
+      message("Either -1 or 1 alleles not detected in M2, we assume you have coded homozygotes \n       as 0 and 1 instead of -1 and 1. We'll fix it.\n")
     }else if(all(checkM2 == c(0,0,1))){ # homo markers were coded as 0 2
-      cat("Either -1 or 1 alleles not detected in M2, we assume you have coded homozygotes \n       as 0 and 2 instead of -1 and 1. We'll fix it.\n")
+      message("Either -1 or 1 alleles not detected in M2, we assume you have coded homozygotes \n       as 0 and 2 instead of -1 and 1. We'll fix it.\n")
     }
     
     n.batch <- min(c(n.batch,nrow(pheno)))
-                   
+    
     if(nrow(pheno)>0){ # if there is hybrids to build
       ## build the marker matrix for batches of n.batch hybrids
       batches <- sort(rep(1:1000,min(c(nrow(pheno),n.batch))))
@@ -456,9 +456,11 @@ build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE, separato
         
         hyb.names <- data.usedBatches[[i]]$hybrid
         ## marker matrix for hybrids one for each parent
-        cat(paste("Building hybrid marker matrix for",nrow(Z1),"hybrids\n"))
+        if(verbose){
+          message(paste("Building hybrid marker matrix for",nrow(Z1),"hybrids\n"))
+          message("Extracting M1 contribution\n")
+        }
         
-        cat("Extracting M1 contribution\n")
         if(all(checkM1 == c(1,1,0))){ # homo markers were coded correctly as -1,1
           Md <- Z1 %*% M1r;  # was already converted to -1,1
         }else if(all(checkM1 == c(0,1,0)) | all(checkM1 == c(1,0,0))){ # homo markers were coded as 0 1
@@ -467,7 +469,7 @@ build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE, separato
           Md <- Z1 %*% M1r - 1;  # Z.dent %*% M.dent - 1   # convert to -1,1
         }
         
-        cat("Extracting M2 contribution\n")
+        if(verbose){cat("Extracting M2 contribution\n")}
         if(all(checkM2 == c(1,1,0))){ # homo markers were coded correctly as -1,1
           Mf <- Z2 %*% M2r;  # was already converted to -1,1
         }else if(all(checkM2 == c(0,1,0)) | all(checkM2 == c(1,0,0))){ # homo markers were coded as 0 1
@@ -498,7 +500,7 @@ build.HMM <- function(M1,M2, custom.hyb=NULL, return.combos.only=FALSE, separato
     }
     
     #hist(Delta)
-    cat("Done!!\n")
+    if(verbose){cat("Done!!\n")}
     return(list(HMM.add=HMM.add, HMM.dom=HMM.dom, data.used=pheno))
     
   }else{

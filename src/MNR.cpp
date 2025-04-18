@@ -1134,7 +1134,7 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
   arma::field<arma::mat> partitions(thetaConstOri.size()-1); // store indices for each random effect
   arma::vec end, start;
   int counter4 = 0;
-  
+  int value = 0;
   for (int i = 0; i < thetaConstOri.size(); ++i) {
     arma::uvec effsToUse = find(thetaIndex == (i+1) ); // which thetas we should use
     arma::mat thetaConstOriIth = thetaConstOri(i); // get effect i
@@ -1229,7 +1229,9 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
         partitionsTable = arma::join_cols(partitionsTable, arma::join_rows(start,end));
       }
       u = join_cols(u, arma::vectorise(blupTable) ); // join blups in a single matrix
+      partitionsTable=partitionsTable + value - 1; // add the latest max value
       partitions(i) = partitionsTable;
+      value = partitionsTable.max();
     }
   }
   arma::mat bu = join_cols(beta, u );
