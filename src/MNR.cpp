@@ -1229,7 +1229,7 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
         partitionsTable = arma::join_cols(partitionsTable, arma::join_rows(start,end));
       }
       u = join_cols(u, arma::vectorise(blupTable) ); // join blups in a single matrix
-      partitionsTable=partitionsTable + value - 1; // add the latest max value
+      partitionsTable=partitionsTable + value + beta.n_rows - 1; // add the latest max value
       partitions(i) = partitionsTable;
       value = partitionsTable.max();
     }
