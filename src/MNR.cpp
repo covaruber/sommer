@@ -1224,17 +1224,19 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
       }
       int nrbt= blupTable.n_rows;
       for (int l = 0; l < blupTable.n_cols; ++l) {
-        start = beta.n_rows + (l*nrbt) + 1; // index of where the random effect starts
-        end = beta.n_rows + (nrbt * (l+1)) ; // index of where the random effect ends
+        if(i==0 & l==0){
+          start = Xm.n_cols + (l*nrbt) + 1; // index of where the random effect starts
+          end = Xm.n_cols + (nrbt * (l+1)) ; // index of where the random effect ends
+        }else{
+          start = value + 1;
+          end= start + nrbt - 1;
+        }
         partitionsTable = arma::join_cols(partitionsTable, arma::join_rows(start,end));
+        value = partitionsTable.max();
       }
       u = join_cols(u, arma::vectorise(blupTable) ); // join blups in a single matrix
-      partitionsTable=partitionsTable + value - 1; // add the latest max value
-      if(i==0){
-        partitionsTable = partitionsTable + beta.n_rows;
-      }
       partitions(i) = partitionsTable;
-      value = partitionsTable.max();
+      
     }
   }
   arma::mat bu = join_cols(beta, u );
