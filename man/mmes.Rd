@@ -135,7 +135,11 @@ mmes(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-04,
   information matrix. And the values 1 - emWeight will be applied to the AI
   information matrix to produce a joint information matrix. By default the 
   function gives a weight to the EM algorithm of a logarithmic decrease rate 
-  using the following code \code{ stan(logspace(seq(1,-1,- 2/nIters), p=3)) }. }
+  using the following code:
+  
+  \code{ stan(logspace(seq(1,-1,- 2/nIters), p=3)) }. 
+  
+  }
   \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
   \item{getPEV}{a logical value indicating if PEV should be returned when the 
   direct inversion algorithm is used. It does not apply when henderson argument is

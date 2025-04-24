@@ -31,7 +31,7 @@ export( spl2Dc,spl2Dmats,bbasis,tpsmmbwrapper, tps)
 export(atcg1234,build.HMM, neMarker)
 
 ## FUN_stats
-export(adiag1, imputev, propMissing, logspace,
+export(adiag1, imputev, propMissing, logspace, stan,
        leg, wald.test, corImputation,
        r2
        )
