@@ -84,12 +84,24 @@ data(DT_cpdata)
 # aa$Yield <- aa$Yield + rnorm(length(aa$Yield),0,4)
 # DT2 <- rbind(aa,bb)
 # head(DT2)
-# mix <- mmes(Yield~1,
-#             random=~vsm(dsm(FIELD),ism(id), Gu=Ai) +
+# mix <- mmes(Yield~1, henderson = F,
+#             random=~
 #               vsm(dsm(FIELD),ism(Rowf)) +
 #               vsm(dsm(FIELD),ism(Colf)) +
 #                 spl2Dc(Row,Col,at.var=FIELD),
 #             rcov=~vsm(dsm(FIELD),ism(units)),
 #             data=DT2)
+# 
+# # extract spatial effects
+# blup <- mix$uList$`spl2Dc(Row, Col, at.var = FIELD`
+# head(blup) # 2 fields
+# # recreate the incidence matrices
+# xx=with(DT2, spl2Dc(Row,Col,at.var=FIELD))
+# # get fitted values Zu for spatial effects and add them to the dataset
+# field1 <- xx$Z$`A:all` %*% blup[,1]
+# field2 <- xx$Z$`B:all` %*% blup[,2]
+# DT2$spat <- field1+field2
+# # plots the spatial effects
+# lattice::levelplot(spat~Row*Col|FIELD, data=DT2)
 
 }

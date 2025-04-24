@@ -606,7 +606,7 @@ DT$setf <- as.factor(DT$set)
 DT$repf <- as.factor(DT$rep)
 DT$malef <- as.factor(DT$male)
 DT$femalef <- as.factor(DT$female)
-#levelplot(yield~male*female|set, data=DT, main="NC design I")
+# lattice::levelplot(yield~male * malef:femalef|set, data=DT, main="NC design I")
 ##############################
 ## Expected Mean Square method
 ##############################

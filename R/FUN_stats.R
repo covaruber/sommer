@@ -66,29 +66,31 @@ corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
   return(list(imputed=wide, corImputed=wide2))
 }
 
-logspace <- function (n, start=1, end=0.01, p=1, f=1) {
-  if(f==1){
-    x3=exp(seq(log(start), log(end), length.out = n))^p
-  }else if(f==2){
-    a=logspace(n,start,end)
-    b=max(a) - min(a)
-    d=max(a) + (max(a)-b)
-    x3=rev(d-a) ^ p
-  }else if(f==3){
-    a=logspace(n+10,start,end)
-    b=max(a) - min(a)
-    d=max(a) + (max(a)-b)
-    x1=rev(d-a) ^ p
-    # x1=logspace2(n+2,start,end,p)
-    x2=logspace(n+10,start/2,end,p)
-    x1=x1[which(x1>max(x2))]
-    x3=c(x1,x2)
-    x3=x3[seq(1,length(x3),2)]
-    x3=x3[1:n]
-  }else{
-    stop("Not implemented", call. = FALSE)
-  }
-  return(x3)
+logspace <- function (x, p=2) {
+  
+  D=max(x) # new range
+  C=min(x) # new range
+  mysigns <- sign(x)
+  y = abs(x)^(1/p)
+  y <- y*mysigns
+  B=max(y) # current range
+  A=min(y) # current range
+  
+  scale = (D-C)/(B-A)
+  offset = -A*(D-C)/(B-A) + C
+  return(y*scale + offset)
+  
+}
+
+stan <-function (x, lb=0, ub=1) {
+  B=max(x) # current range
+  A=min(x) # current range
+  D=ub # new range
+  C=lb # new range
+  
+  scale = (D-C)/(B-A)
+  offset = -A*(D-C)/(B-A) + C
+  return(x*scale + offset)
 }
 
 
