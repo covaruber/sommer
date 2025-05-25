@@ -55,6 +55,7 @@ stackTrait <- function (data, traits)
   rownames(data2) <- NULL
   varG <- cov(data[, traits], use = "pairwise.complete.obs")
   mu <- apply(data[, traits], 2, mean, na.rm = TRUE)
+  # x
   return(list(long = data2, varG = varG, mu = mu))
 }
 
