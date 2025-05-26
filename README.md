@@ -9,13 +9,6 @@ You can install the development version of `sommer` from GitHub:
 ``` r
 devtools::install_github('covaruber/sommer')
 ```
-
-## Vignettes
-
- - [Spatial modeling in sommer](https://cran.r-project.org/web/packages/sommer/vignettes/sommer.spatial.html)
- - [Quantitative genetics using the sommer package](https://cran.r-project.org/web/packages/sommer/vignettes/sommer.qg.html)
- - [GxE models in sommer](https://cran.r-project.org/web/packages/sommer/vignettes/sommer.gxe.html)
- - [lme4 vs sommer](https://cran.r-project.org/web/packages/sommer/vignettes/sommer.vs.lme4.html)
  
 ## Development
 

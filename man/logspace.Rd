@@ -28,9 +28,9 @@
 
 \examples{
 
-plot(logspace(1:100,f=1))
-plot(logspace(1:100,f=2))
-plot(logspace(1:100,f=3))
+plot(logspace(1:100,p=1))
+plot(logspace(1:100,p=2))
+plot(logspace(1:100,p=3))
 
 }
 \seealso{The core functions of the package \code{\link{mmes}}  }

@@ -18,7 +18,7 @@ relationship matrix as an inverse (see \code{\link{vsm}()} function for details)
 
 \usage{
 
-mmes(fixed, random, rcov, data, W, nIters=25, tolParConvLL = 1e-04,
+mmes(fixed, random, rcov, data, W, nIters=50, tolParConvLL = 1e-04,
      tolParConvNorm = 1e-04, tolParInv = 1e-06, naMethodX="exclude",
      naMethodY="exclude", returnParam=FALSE, dateWarning=TRUE,
      verbose=TRUE,addScaleParam=NULL, stepWeight=NULL, emWeight=NULL,

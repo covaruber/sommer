@@ -98,8 +98,6 @@ rownames(A) <- colnames(A) <- indNames
 ansDG <- mmes(y~Env, henderson=TRUE,
               random=~ vsm(dsm(Env), ism(Name)),
               rcov=~units, nIters = 100,
-              # we recommend giving more EM iterations at the beggining
-              emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
               data=DT)
 
 H0 <- ansDG$uList$`vsm(dsm(Env), ism(Name))` # GxE table
@@ -111,8 +109,6 @@ ansFA <- mmes(y~Env, henderson=TRUE,
               rcov=~units,
               # we recommend giving more iterations to these models
               nIters = 100,
-              # we recommend giving more EM iterations at the beggining
-              emWeight = c(rep(1,10),logspace(10,1,.05), rep(.05,80)),
               data=DT)
 
 vcFA <- ansFA$theta[[1]]

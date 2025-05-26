@@ -66,7 +66,7 @@ corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
   return(list(imputed=wide, corImputed=wide2))
 }
 
-logspace <- function (x, p=2) {
+logspace <- function (x, p=1) {
   
   D=max(x) # new range
   C=min(x) # new range
