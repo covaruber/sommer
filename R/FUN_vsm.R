@@ -150,9 +150,12 @@ vsm <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
     }
   }
   Zind <- rep(1,length(Z))
+  
   # error message when units are not sorted by the factor desired
-  if(length(which(diff(unlist(partitionsR)) < 0) > 0)){
-    stop("Please sort your records according to the factor you are structuring your residual units.", call. = FALSE)
+  if(is.residual){
+    if( mean(table(unlist(lapply(partitionsR, function(x){x[1]:x[2]})))) > 1 ){
+      stop("Please sort your records according to the factor you are structuring your residual units.", call. = FALSE)
+    }
   }
   ######################################
   ## meN adjustment

@@ -1224,7 +1224,7 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
       }
       int nrbt= blupTable.n_rows;
       for (int l = 0; l < blupTable.n_cols; ++l) {
-        if( (i==0) & (l==0) ){
+        if( (i==0) && (l==0) ){
           start = Xm.n_cols + (l*nrbt) + 1; // index of where the random effect starts
           end = Xm.n_cols + (nrbt * (l+1)) ; // index of where the random effect ends
         }else{
