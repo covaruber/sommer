@@ -62,6 +62,24 @@ summary(ans1)$varcomp
 #              data=DT)
 # summary(ans2)
 
+# ####===========================================####
+# #### Multi-trait variance models               ####
+# ####===========================================####
+# 
+# # stack traits
+# DT2 <- stackTrait(DT, traits = c("Yield","Weight") )
+# DTx <- DT2$long
+# head(DTx)
+# 
+# DTx=DTx[with(DTx, order(trait, Env)), ]
+# 
+# ## model
+# ans1 <- mmes(valueS~ trait + trait:Env,
+#              random= ~ vsm(dsm(trait), dsm(Env), ism(Name)), 
+#              rcov= ~ vsm(dsm(trait), dsm(Env), ism(units)), 
+#              data=DTx)
+# summary(ans1)$varcomp
+
 }
 \keyword{datasets}
 \seealso{The core functions of the package \code{\link{mmes}}  }
