@@ -32,32 +32,45 @@ covm <- function(ran1,ran2, thetaC=NULL, theta=NULL){
   return(ran1)
 }
 
-stackTrait <- function (data, traits) 
-{
+stackTrait <- function(data, traits){
+  
   dataScaled <- data
-  traits <- intersect(traits, colnames(data))
+  traits <- intersect(traits, colnames(data) )
   idvars <- setdiff(colnames(data), traits)
-  for (iTrait in traits) {
-    dataScaled[, iTrait] <- scale(dataScaled[, iTrait])
+  for(iTrait in traits){
+    dataScaled[,iTrait] <- scale(dataScaled[,iTrait])
   }
-  columnTypes <- unlist(lapply(data[idvars], class))
-  columnTypes <- columnTypes[which(columnTypes %in% c("factor", 
-                                                      "character"))]
-  idvars <- intersect(idvars, names(columnTypes))
-  data2 <- reshape(data[, c(idvars, traits)], idvar = idvars, 
-                   varying = traits, timevar = "trait", times = traits, 
-                   v.names = "value", direction = "long")
-  data2Scaled <- reshape(dataScaled[, c(idvars, traits)], idvar = idvars, 
-                         varying = traits, timevar = "trait", times = traits, 
-                         v.names = "value", direction = "long")
+  # column classes
+  columnTypes <- unlist(lapply(data[idvars],class)) 
+  # keep only the factor ones to make a unique id
+  columnTypesFC <- columnTypes[which(columnTypes %in% c("factor","character"))]
+  idvars <- intersect(idvars,names(columnTypesFC))
+  # create a unique ID column
+  data$id <- data2$id <- apply(data[,idvars,drop=FALSE],1, function(x){paste(x,collapse ="_" )}  )
+  # what's the maximum number of levels we should expect
+  maxLevels <- length(unique(data$id))
+  # get the numeric columns (only ones that are not traits)
+  columnTypesNI <- columnTypes[which(columnTypes %in% c("integer","numeric"))]
+  columnTypesNI <- columnTypesNI[setdiff(names(columnTypesNI), traits)]
+  # check if the numeric column can be dragged in the final dataset by making sure doesn't have more levels than the unique identifier
+  checkOnNumeric <- apply(data[,names(columnTypesNI),drop=FALSE],2, function(x){if(length(unique(x))>maxLevels){return(0)}else{return(1)}})
+  idvarsN <- names(columnTypesNI)[which(checkOnNumeric==1)]
+  # reshape in the long format
+  data2 <- reshape(data[,c(idvars,idvarsN,traits)], idvar = "id", varying = traits,
+                   timevar = "trait",
+                   times = traits,v.names = "value", direction = "long")
+  data2Scaled <- reshape(dataScaled[,c(idvars,idvarsN,traits)], idvar = "id", varying = traits,
+                         timevar = "trait",
+                         times = traits,v.names = "value", direction = "long")
   data2 <- as.data.frame(data2)
   data2$valueS <- as.vector(unlist(data2Scaled$value))
   rownames(data2) <- NULL
-  varG <- cov(data[, traits], use = "pairwise.complete.obs")
-  mu <- apply(data[, traits], 2, mean, na.rm = TRUE)
-  # x
-  return(list(long = data2, varG = varG, mu = mu))
+  varG <- cov(data[,traits], use="pairwise.complete.obs")
+  # varG <- apply(data[,traits],2,var, na.rm=TRUE) 
+  mu <- apply(data[,traits],2,mean, na.rm=TRUE) 
+  return(list(long=data2, varG=varG, mu=mu))
 }
+
 
 add.diallel.vars <- function(df, par1="Par1", par2="Par2",sep.cross="-"){
   # Dummy variables for selfs, crosses, combinations
