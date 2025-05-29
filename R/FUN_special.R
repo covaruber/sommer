@@ -46,7 +46,7 @@ stackTrait <- function(data, traits){
   columnTypesFC <- columnTypes[which(columnTypes %in% c("factor","character"))]
   idvars <- intersect(idvars,names(columnTypesFC))
   # create a unique ID column
-  data$id <- data2$id <- apply(data[,idvars,drop=FALSE],1, function(x){paste(x,collapse ="_" )}  )
+  data$id <- dataScaled$id <- apply(data[,idvars,drop=FALSE],1, function(x){paste(x,collapse ="_" )}  )
   # what's the maximum number of levels we should expect
   maxLevels <- length(unique(data$id))
   # get the numeric columns (only ones that are not traits)
