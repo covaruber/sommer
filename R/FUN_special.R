@@ -42,9 +42,13 @@ stackTrait <- function(data, traits){
   }
   # column classes
   columnTypes <- unlist(lapply(data[idvars],class)) 
+  nLevels <- apply(data[,names(columnTypes),drop=FALSE],2,function(x){length(unique(x))})
+  nLevelsTrait <- apply(data[,traits,drop=FALSE],2,function(x){length(unique(x))})
+  idvars <- names(nLevels[which(nLevels < min(nLevelsTrait))])
+  
   # keep only the factor ones to make a unique id
-  columnTypesFC <- columnTypes[which(columnTypes %in% c("factor","character"))]
-  idvars <- intersect(idvars,names(columnTypesFC))
+  # columnTypesFC <- columnTypes[which(columnTypes %in% c("factor","character"))]
+  # idvars <- intersect(idvars,names(columnTypesFC))
   # create a unique ID column
   data$id <- dataScaled$id <- apply(data[,idvars,drop=FALSE],1, function(x){paste(x,collapse ="_" )}  )
   # what's the maximum number of levels we should expect
