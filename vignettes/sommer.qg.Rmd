@@ -472,29 +472,37 @@ A model without covariance structures would show that the SCA variance component
 
 ### 8) Multivariate genetic models and genetic correlations
 
-Sometimes is important to estimate genetic variance-covariance among traits--multi-reponse models are very useful for such a task. Let see an example with 3 traits (`color`, `Yield`, and `Firmness`) and a single random effect (genotype; `id`) although multiple effects can be modeled as well. We need to use a variance covariance structure for the random effect to be able to obtain the genetic covariance among traits.
+Sometimes is important to estimate genetic variance-covariance among traits--multi-reponse models are very useful for such a task. Let see an example with 2 traits (`color` and `Yield`) and a single random effect (genotype; `id`) although multiple effects can be modeled as well. First, we need to create a dataset in the long format, that is having a single column for the trait value and the traits are row-binded one over the other (here we use reshape). Then the trait converts one more factor to model. We use the following variance covariance structure for the random effect id to be able to obtain the genetic covariance among traits.
 
 ```{r}
 # data(DT_cpdata)
 # DT <- DT_cpdata
 # GT <- GT_cpdata
 # MP <- MP_cpdata
-# A <- A.mat(GT)
-# DT2 <- stackTrait(DT, traits = c("color","Yield"))
-# head(DT2$long)
+# traits <- c("color","Yield")
+# DT[,traits] <- apply(DT[,traits],2,scale)
+# DTL <- reshape(DT[,c("id", traits)],
+#                idvar = c("id"),
+#                varying = traits,
+#                v.names = "value", direction = "long",
+#                timevar = "trait", times = traits )
+# DTL <- DTL[with(DTL, order(trait)), ]
+# head(DTL)
+# 
 # A <- A.mat(GT) # additive relationship matrix
-# # if using henderson=TRUE you need to provide the inverse
+# # if using mmes=TRUE you need to provide the inverse
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, 'inverse')=TRUE
 # #### be patient take some time
-# ansm <- mmes( valueS ~ trait, # henderson=TRUE,
-#                random=~ vsm(usm(trait), ism(id), Gu=A),
+# ansm <- mmes( value ~ trait, # henderson=TRUE,
+#                random=~ vsm(usm(trait), ism(id), Gu=A), # Ai if henderson
 #                rcov=~ vsm(dsm(trait), ism(units)),
-#                data=DT2$long)
+#                data=DTL)
 # cov2cor(ansm$theta[[1]])
 ```
 
-Now you can extract the BLUPs using `randef(ans.m)` or simply `ans.m$u`. Also, genetic correlations and heritabilities can be calculated easily. 
+Other examples of multi-trait models can be found in the documentation of the rice dataset (DT_rice) and in the example dataset (DT_example). The key here is to learn how to use the reshape function from base R.
 
 
 ## SECTION 3: Special topics in Quantitative genetics

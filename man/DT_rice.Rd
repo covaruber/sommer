@@ -54,6 +54,26 @@ data(DT_rice)
 # Ai <- solve(A + diag(1e-6,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # attr(Ai, 'inverse')=TRUE 
+# 
+# 
+# 
+# ## MULTI-TRAIT MODEL
+# ## reshape in long format the dataset
+# traits <- c("Protein.content","Flag.leaf.length")
+# DTL <- reshape(DT[,c("geno", traits)], idvar = "geno", varying = traits,
+#         v.names = "value", direction = "long",
+#         timevar = "trait", times = traits )
+# DTL <- DTL[with(DTL, order(trait)), ]
+# head(DTL)
+# 
+# M <- DTLM <- atcg1234(GT)
+# A <- A.mat(M$M)
+# mix <- mmes(value~trait,
+#             random = ~vsm(usm(trait),ism(geno), Gu=A) ,
+#             rcov=~vsm(dsm(trait), ism(units)),
+#             data=DTL)
+# summary(mix)$varcomp
+# cov2cor(mix$theta$`vsm(usm(trait), ism(geno), Gu = A`)
 }
 \keyword{datasets}
 \seealso{The core functions of the package \code{\link{mmes}} }

@@ -77,19 +77,26 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # #### multivariate model ####
 # ####     2 traits       ####
 # ####====================####
-# head(DT)
-# DT2 <- stackTrait(DT, traits = c("color","Yield"))
-# head(DT2$long)
+# traits <- c("color","Yield")
+# DT[,traits] <- apply(DT[,traits],2,scale)
+# DTL <- reshape(DT[,c("id", traits)],
+#                idvar = c("id"),
+#                varying = traits,
+#                v.names = "value", direction = "long",
+#                timevar = "trait", times = traits )
+# DTL <- DTL[with(DTL, order(trait)), ]
+# head(DTL)
+# 
 # A <- A.mat(GT) # additive relationship matrix
 # # if using mmes=TRUE you need to provide the inverse
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# attr(Ai, 'inverse')=TRUE 
+# attr(Ai, 'inverse')=TRUE
 # #### be patient take some time
-# ansm <- mmes( valueS ~ trait, # henderson=TRUE,
-#                random=~ vsm(usm(trait), ism(id), Gu=A),
+# ansm <- mmes( value ~ trait, # henderson=TRUE,
+#                random=~ vsm(usm(trait), ism(id), Gu=A), # Ai if henderson
 #                rcov=~ vsm(dsm(trait), ism(units)),
-#                data=DT2$long)
+#                data=DTL)
 # cov2cor(ansm$theta[[1]])
 
 }

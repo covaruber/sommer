@@ -53,29 +53,36 @@ Mf <- Mf_technow
 # 
 # Adi <- solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad)))
 # Adi <- as(as(as( Adi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# attr(Adi, 'inverse')=TRUE 
+# attr(Adi, 'inverse')=TRUE
 # Afi <- solve(Af + diag(1e-4,ncol(Af),ncol(Af)))
 # Afi <- as(as(as( Afi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# attr(Afi, 'inverse')=TRUE 
+# attr(Afi, 'inverse')=TRUE
 # ####====================####
 # #### multivariate model ####
 # ####     2 traits       ####
 # ####====================####
 # head(DT)
-# DT2 <- stackTrait(DT, traits = c("GY","GM"))
-# head(DT2$long)
+# 
+# traits <- c("GY","GM")
+# DT[,traits] <- apply(DT[,traits],2,scale)
+# DTL <- reshape(DT[,c("hybrid","dent","flint", traits)],
+#                idvar = c("hybrid","dent","flint"),
+#                varying = traits,
+#                v.names = "value", direction = "long",
+#                timevar = "trait", times = traits )
+# DTL <- DTL[with(DTL, order(trait,hybrid)), ]
+# head(DTL)
 # 
 # M <- rbind(Md,Mf)
 # A <- A.mat(M)
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# attr(Ai, 'inverse')=TRUE 
-# DT2$long=DT2$long[with(DT2$long, order(trait)), ]
+# attr(Ai, 'inverse')=TRUE
 # 
-# ans3 <- mmes(valueS~trait, henderson=TRUE,
+# ans3 <- mmes(value~trait, henderson=TRUE,
 #              random=~vsm(usm(trait),ism(overlay(dent,flint)),Gu=Ai),
 #              rcov=~ vsm(dsm(trait), ism(units)),
-#              data=DT2$long)
+#              data=DTL)
 # summary(ans3)
 # cov2cor(ans3$theta[[1]])
 }

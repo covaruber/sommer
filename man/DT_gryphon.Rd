@@ -55,22 +55,31 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 # summary(mix1)$varcomp
 # 
 # ## mmes algorithm uses the inverse of the relationship matrix
+# ## if you select henderson=TRUE
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# attr(Ai, 'inverse')=TRUE 
+# attr(Ai, 'inverse')=TRUE
 # ####====================####
 # #### multivariate model ####
 # ####     2 traits       ####
 # ####====================####
 # head(DT)
-# DT2 <- stackTrait(DT, traits = c("BWT","TARSUS"))
-# head(DT2$long)
+# 
+# traits <- c("BWT","TARSUS")
+# DT[,traits] <- apply(DT[,traits],2,scale)
+# DTL <- reshape(DT[,c("ANIMAL","MOTHER","BYEAR","SEX", traits)],
+#                idvar = c("ANIMAL","MOTHER","BYEAR","SEX"),
+#                varying = traits,
+#                v.names = "value", direction = "long",
+#                timevar = "trait", times = traits )
+# DTL <- DTL[with(DTL, order(trait,ANIMAL)), ]
+# head(DTL)
 # 
 # # #### fit the multivariate model with no fixed effects (intercept only)
-# mix2 <- mmes(valueS~trait, henderson=FALSE, 
+# mix2 <- mmes(value~trait, # henderson=TRUE,
 #              random=~vsm(usm(trait),ism(ANIMAL),Gu=A),
 #              rcov=~vsm(dsm(trait),ism(units)),
-#              data=DT2$long)
+#              data=DTL)
 # summary(mix2)$varcomp
 # cov2cor(mix2$theta[[1]])
 
