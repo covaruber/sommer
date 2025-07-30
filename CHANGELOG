@@ -489,10 +489,15 @@ version 4.4.1 (2025-04-04)
  + removed the first two vignettes to make sommer lighter.
  
 ########################
-version 4.4.2 (2025-07-04)
+version 4.4.2 (2025-06-04)
 ########################
  + now the direct inversion algorithm takes as input the sparse matrices to avoid overloading R memory with dense matrices. We transform them internally to dense matrices to make operations.
  + bug in getPEV fixed. Now the argument works again.
+
+########################
+version 4.4.3 (2025-07-29)
+########################
+ + updated version with better documentation for multi-trait models
  
 ######################
 ## PENDINGS AND PRIORITIES 
