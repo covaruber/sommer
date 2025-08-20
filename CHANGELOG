@@ -499,6 +499,11 @@ version 4.4.3 (2025-07-29)
 ########################
  + updated version with better documentation for multi-trait models
  
+########################
+version 4.4.4 (2025-12-31)
+########################
+ + MNR function exported and documented for users wanting to specify their matrices directly
+ 
 ######################
 ## PENDINGS AND PRIORITIES 
 + we need to recode how the C matrix is constructed, adopt linear sum instead of

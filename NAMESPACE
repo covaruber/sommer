@@ -10,7 +10,7 @@ export(
        )
 
 ## FUN_main
-export(mmes)
+export(mmes, MNR)
 
 ## FUN_special and FUN_vsc and FUN_vsrgvsr
 export( unsm, fixm, # small constructors
