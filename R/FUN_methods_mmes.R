@@ -8,9 +8,9 @@
     stop("This package requires R 3.5.0 or later")
   if(interactive()) {
     packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(magenta(paste("[]   Solving Mixed Model Equations in R (sommer) 4.4.3 (2025-08-04) []",sep="")),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]   Solving Mixed Model Equations in R (sommer) 4.4.4 (2025-10-01) []",sep="")),appendLF=TRUE)
     packageStartupMessage(magenta(paste("[]   ------------- Multivariate Linear Mixed Models --------------  []")),appendLF=TRUE)
-    packageStartupMessage(paste0(magenta("[]   Author: Giovanny Covarrubias-Pazaran",paste0(bgGreen(white(" ")), bgWhite(magenta("*")), bgRed(white(" "))),"                      []")),appendLF=TRUE)
+    packageStartupMessage(paste0(magenta("[]   Author: Giovanny Covarrubias-Pazaran",paste0(bgGreen(white(" ")), bgWhite(magenta("*")), bgRed(white(" ")),"  ",bgRed(bold(yellow(" (") )),bgRed(bold(white("W"))), bgRed(bold(yellow(") "))) ),"               []")),appendLF=TRUE)
     packageStartupMessage(magenta("[]   Published: PLoS ONE 2016, 11(6):1-15                           []"),appendLF=TRUE)
     packageStartupMessage(magenta("[]   Dedicated to the University of Chapingo and UW-Madison         []"),appendLF=TRUE)
     packageStartupMessage(magenta("[]   Type 'vignette('sommer.qg')' for a short tutorial              []"),appendLF=TRUE)

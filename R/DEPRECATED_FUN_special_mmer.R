@@ -2,7 +2,7 @@
 ## SUMMARY FUNCTION mmer #
 #### =========== ####
 "summary.mmer" <- function(object, ...) {
-  message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
+  # message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
   
   replace.values <- function(Values,Search,Replace){
     dd0 <- data.frame(Values)
@@ -99,7 +99,7 @@
 
 vsr <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
   
-  message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
+  # message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
   ## Gti the multitrait structure and constraints for it
@@ -383,8 +383,8 @@ vsr <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
 }
 
 vs <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
-  
-  message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
+  #
+  # message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
   ## ... list of structures to define the random effect , e.g. init <- list(ds(M$data$FIELD),TP)
   ## Gu the known covariance matrix of the vs
   ## Gti the multitrait structure and constraints for it
@@ -789,7 +789,7 @@ reshape_mmer <- function(object, namelist){
 ##############
 ## VS structures
 atr <- function(x, levs){
-  message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
+  # message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
   
   if(is.matrix(x)){
     dummy <- x
@@ -824,7 +824,7 @@ atr <- function(x, levs){
   return(list(Z=dummy,thetaC=mm))
 }
 csr <- function(x,mm){
-  message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
+  # message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
   
   if(is.matrix(x)){
     mm <- mm
@@ -851,7 +851,7 @@ csr <- function(x,mm){
   return(list(Z=dummy,thetaC=mm))
 }
 dsr <- function(x){
-  message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
+  # message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
   
   if(is.matrix(x)){
     dummy <- x
@@ -879,7 +879,7 @@ dsr <- function(x){
   return(list(Z=dummy,thetaC=mm))
 }
 usr <- function(x){
-  message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
+  # message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
   
   # namx <- as.character(substitute(list(x)))[-1L]
   if(is.matrix(x)){

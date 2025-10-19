@@ -112,8 +112,12 @@ vsm <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
       if(is.residual){
         vv <- which(Z0[,j] != 0) # which rows belong to the ith environment
         partitionsR[[j]] <- matrix(c(vv[1],vv[length(vv)]),nrow=1)
-        Z[[counter]] <- Z1prov[vv,vv]
-        # Z[[counter]] <- Z1prov %*% Diagonal(x=Z0[,j])
+        if(is.null(Gu)){
+          Z[[counter]] <- Z1prov[vv,vv] 
+        }else{
+          provSS <- Z1prov[vv,vv] 
+          Z[[counter]] <- provSS %*% Gu[colnames(provSS),colnames(provSS)] #%*% t(provSS)
+        }
       }else{
         provZ0iCol <- Matrix(Z0[,j]) %*% Matrix(1,1,ncol(Z1prov))
         Z1provZ0iCol <- Z1prov * provZ0iCol
@@ -181,8 +185,12 @@ vsm <- function(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
   sp0 <- rep(sp0,nrow(thetaF))
   if(sp){thetaF <- thetaF*0}
   # we make sure that the A matrix is properly ordered
-  cn <- colnames(Z[[length(Z)]])
-  Gu <- Gu[cn,cn, drop=FALSE]
+  if(is.residual){
+    
+  }else{
+    cn <- colnames(Z[[length(Z)]])
+    Gu <- Gu[cn,cn, drop=FALSE]
+  }
   attributes(Gu)$inverse = myInverseAttribute
   output <- list(Z=Z, Gu=Gu, theta=theta, thetaC=thetaC, thetaF=thetaF,partitionsR=partitionsR, sp=sp0)
   if(isFixed){
