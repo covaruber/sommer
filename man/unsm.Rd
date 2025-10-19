@@ -1,5 +1,6 @@
 \name{unsm}
 \alias{unsm}
+\alias{unsm2}
 \title{unstructured indication matrix}
 \description{
   \code{unsm} creates a square matrix with ones in the diagonals and 2's in the off-diagonals to quickly specify an unstructured constraint in the Gtc argument of the \code{\link{vsm}} function.

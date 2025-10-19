@@ -8,6 +8,18 @@ unsm <- function(x, reps=NULL){
   }else{return(mm)}
 }
 
+unsm2 <- function (x, reps = NULL) {
+  mm <- matrix(1, x, x)
+  mm[upper.tri(mm)] <- 2
+  mm[lower.tri(mm)] <- 0
+  if (!is.null(reps)) {
+    return(rep(list(mm), reps))
+  }
+  else {
+    return(mm)
+  }
+}
+
 fixm <- function(x, reps=NULL){
   mm <- matrix(3,x,x)
   if(!is.null(reps)){

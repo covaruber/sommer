@@ -162,7 +162,7 @@ data(DT_cpdata)
 DT <- DT_cpdata
 
 # response matrix
-y <- matrix(imputev(DT$Yield))
+y <- cbind(imputev(DT$Yield), imputev(DT$Firmness))
 # fixed effect incidence matrix
 X <- model.matrix(~Rowf, data=DT)
 # random effect incidence matrix
@@ -172,30 +172,31 @@ colnames(Z) <- gsub("id","",colnames(Z))
 GT <- GT_cpdata
 A <- A.mat(GT) # additive relationship matrix
 A <- A[colnames(Z),colnames(Z)] # make sure of the order
-# residual effect incidence matrix
-R1 <- Matrix::Diagonal(n=length(y))
-# weights matrix
-W <- diag(length(y))
+A <- A + diag(1e-4,nrow(A), nrow(A))
+# residual effect incidence matrix (dimensions equal nrow(y))
+R1 <- Matrix::Diagonal(n=nrow(y)) 
+# weights matrix (dimensions equal nrow(y))
+W <- diag(nrow(y)) 
 # some other parameters
 maxIter=10
 stepWeight <- rep(0.9, maxIter)
 stepWeight[1:2] <- c(0.5, 0.7)
 emWeights <- rep(0,maxIter)
 # model fit
-res <- MNR( Y=matrix(y), # response
-                     X=list(X), Gx=list(matrix(1)), # fixed effects
-                     Z=list(Z), K=list(A), # random effects
-                     R=list(R1), # residual effects
-                     Ge=list(matrix(0.15),matrix(0.75)), # inital vc 
-                     GeI=list(matrix(1),matrix(1)), # vc constraints
-                     W=W, isInvW=TRUE, # weights for records
-                     iters=maxIter,
-                     tolpar=1e-4, tolparinv=1e-6, # tolerance
-                     ai=FALSE, pev=FALSE, # algorithm specifics
-                     verbose=TRUE, 
-                     retscaled=FALSE, 
-                     stepweight=stepWeight, # second derivatives weights
-                     emweight=emWeights # em update weights
+res <- MNR( Y=y, # multi-trait response
+            X=list(X), Gx=list(diag(2)), # fixed effects
+            Z=list(Z), K=list(A), # random effects
+            R=list(R1), # residual effects
+            Ge=list( (diag(2)*.3)+.15 , diag(2)*0.75 ), # inital vc 
+            GeI=list(unsm2(2),diag(2)), # vc constraints
+            W=W, isInvW=TRUE, # weights for records
+            iters=maxIter,
+            tolpar=1e-4, tolparinv=1e-6, # tolerance
+            ai=FALSE, pev=FALSE, # algorithm specifics
+            verbose=TRUE, 
+            retscaled=FALSE, 
+            stepweight=stepWeight, # second derivatives weights
+            emweight=emWeights # em update weights
 )
 res$sigma
 res$Beta
