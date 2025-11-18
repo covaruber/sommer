@@ -2,42 +2,35 @@ useDynLib(sommer, .registration=TRUE)
 importFrom(Rcpp, evalCpp)
 #exportPattern("^[[:alpha:]]+")
 
+
 export(
-       transp,jet.colors,bathy.colors,
-      LD.decay,
-      manhattan, map.plot,
-       dfToMatrix, atcg1234BackTransform
+       dfToMatrix
        )
 
 ## FUN_main
 export(mmes, MNR)
 
 ## FUN_special and FUN_vsc and FUN_vsrgvsr
-export( unsm, fixm, # small constructors
-       atm,csm,dsm,usm,vsm, ism, rrm, covm, ## mmes
+export( unsm, unsm2, fixm, # small constructors
+       atm,csm,dsm,usm,vsm, ism, covm, ## mmes
        # special functions to create model matrices
-       overlay, redmm, 
-       add.diallel.vars,
        vpredict,
-       # usr, dsr, csr, atr, vcsExtract, reshap.mmer DEPRECATED
+       usr, dsr, csr, atr, # DEPRECATED
        mmer, vsr, vs, GWAS# mmer DEPRECATED
         
        )
 
 ## FUN_spatial
-export( spl2Dc,spl2Dmats,bbasis,tpsmmbwrapper, tps)
-
-## FUN_markers
-export(atcg1234,build.HMM, neMarker)
+export( spl2Dc,spl2Dmats,tpsmmbwrapper)
 
 ## FUN_stats
-export(adiag1, imputev, propMissing, logspace, stan,
-       leg, wald.test, corImputation,
+export( 
+       corImputation,
        r2
        )
 
 ## FUN_relationships
-export(A.mat, D.mat, E.mat, H.mat, AR1, CS, ARMA, simGECorMat)
+export(A.mat, D.mat, E.mat, H.mat, AR1, CS, ARMA)
 
 ## FUN_utils
 export( 
@@ -65,8 +58,7 @@ S3method(residuals, mmes)
 S3method(summary, mmes)
 S3method(summary, mmer)
 
-# S3 METHODS other
-S3method(print, wald.test)
+
 
 ###########
 ## full imports
@@ -75,8 +67,7 @@ S3method(print, wald.test)
   import("Matrix")
   import("MASS")
   import("crayon")
- # import("data.table")
-  # import("lattice")
+  import("enhancer")
 ############
 # IMPORTS
 ############
@@ -98,7 +89,5 @@ S3method(print, wald.test)
              "nobs", "ppoints", "sd", "model.frame", "model.response", "na.pass",
              "cor", "optim", "rchisq","quantile","deriv","terms.formula",
              "aggregate","pf","terms", "reshape")
-#  importFrom("RcppArmadillo", "fastLm")
-#  importFrom("lattice", "wireframe")
-#  importFrom("data.table", "setkeyv","data.table")
+
 

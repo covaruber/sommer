@@ -1,5 +1,6 @@
 \name{csm}
 \alias{csm}
+\alias{csr}
 \title{customized covariance structure}
 \description{
   \code{csm} creates a customized covariance structure for specific levels of the random effect to be used with the \code{\link{mmes}} solver.

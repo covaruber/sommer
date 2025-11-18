@@ -1,5 +1,6 @@
 \name{usm}
 \alias{usm}
+\alias{usr}
 \title{unstructured covariance structure}
 \description{
   \code{usm} creates an unstructured covariance structure for specific levels of 
@@ -54,7 +55,7 @@
 x <- as.factor(c(1:5,1:5,1:5));x
 usm(x)
 ## how to use the theta and thetaC arguments:
-# data(DT_example)
+# data(DT_example, package="enhancer")
 # DT <- DT_example
 # theta <- matrix(9:1,3,3); 
 # theta[lower.tri(theta)] <- t(theta)[lower.tri(theta)] 

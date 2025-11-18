@@ -190,7 +190,7 @@ Giovanny Covarrubias-Pazaran
 ##### potato example
 #####========================================####
 # 
-# data(DT_polyploid)
+# data(DT_polyploid, package="enhancer")
 # DT <- DT_polyploid
 # GT <- GT_polyploid
 # MP <- MP_polyploid

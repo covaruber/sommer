@@ -10,13 +10,13 @@ is set to FALSE. Algorithm made available for users that want to avoid the user-
 and provide their matrices directly.
 }
 \usage{
-MNR(Y, 
-    X, Gx,
-    Z, K,
-    R, 
-    Ge, GeI, 
-    W, isInvW,
-    iters, tolpar, tolparinv,
+MNR(Y, # response
+    X, Gx, # fixed effects
+    Z, K, # random effects
+    R,  # residual effects
+    Ge, GeI, # initial values and constraints
+    W, isInvW, # weights matrix
+    iters, tolpar, tolparinv, # other params
     ai, pev,
     verbose, retscaled,
     stepweight, emweight
@@ -28,38 +28,38 @@ MNR(Y,
 A matrix with rows for records and columns for traits. Expected class is a 'matrix'.
 }
   \item{X}{
-Design matrices for fixed effects. Expected class is a list with as many design 
-matrices as fixed effects.
+Design matrices for fixed effects. Expected class is a 'list' with as many design 
+matrices as fixed effects. Matrices within the list should be of class 'matrix'
 }
   \item{Gx}{
-Constraints for fixed effects. Expected class is a list with as many matrices as 
+Trait multiplier matrix for fixed effects. Expected class is a 'list' with as many matrices as 
 fixed effects. Each matrix is a square matrix with as many rows and columns as
-levels of the fixed effects.
+number of traits. Each matrix is of class 'matrix'
 }
   \item{Z}{
-Design matrices for random effects. Expected class is a list with as many design 
+Design matrices for random effects. Expected class is a 'list' with as many design 
 matrices as random effects. Each element in the list should be a matrix of class
 'dgCMatrix'
 }
   \item{K}{
-Covariance matrices for design matrices of random effects. Expected class is a list with as many  
+Covariance matrices for design matrices of random effects. Expected class is a 'list' with as many  
 covariance matrices as random effects specified in Z. Each element in the list should be a matrix of class
 'dgCMatrix'
 }
   \item{R}{
-Residual matrices for residual effects. Expected class is a list with as many  
+Residual matrices for residual effects. Expected class is a 'list' with as many  
 residual matrices as residual effects. Each element in the list should be a square 
 matrix of dimensions n x n, where n is the number of records. Each matrix should be of class
 'matrix'
 }
   \item{Ge}{
-Initial values for variance components. Expected class is a list with as many  
+Initial values for variance components. Expected class is a 'list' with as many  
 variance component matrices as random effects specified in Z. Each element in the 
 list should be a matrix of dimensions t x t, where t is the number of traits and of 
 class 'matrix'. Initial values are any real values.
 }
   \item{GeI}{
-Initial constraints for variance components. Expected class is a list with as many  
+Initial constraints for variance components. Expected class is a 'list' with as many  
 variance component constraints matrices as random effects specified in Z. Each element in the 
 list should be a matrix of dimensions t x t, where t is the number of traits and of 
 class 'matrix'. Values expected are:
@@ -71,6 +71,9 @@ class 'matrix'. Values expected are:
 2: estimated and unconstrained (can be negative or positive, i.e. covariance component)
 
 3: not to be estimated but fixed (value has to be provided in the Gti argument)
+
+Please notice that lower triangular values of these matrices have to be equal to zero since
+only the values in the upper triangular are estimated.
 
 }
   \item{W}{
@@ -119,8 +122,7 @@ given to the EM update compared to the NR update.
 }
 \details{
 
-This is the Rcpp-coded Direct-Inversion LMM REML algorithm used when the 'henderson'
-argument is set to FALSE.
+This is the Rcpp-coded Direct-Inversion LMM REML algorithm used behind the mmer function.
 
 }
 \value{
@@ -158,7 +160,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 
 \examples{
 
-data(DT_cpdata)
+data(DT_cpdata, package="enhancer")
 DT <- DT_cpdata
 
 # response matrix
@@ -178,7 +180,7 @@ R1 <- Matrix::Diagonal(n=nrow(y))
 # weights matrix (dimensions equal nrow(y))
 W <- diag(nrow(y)) 
 # some other parameters
-maxIter=10
+maxIter=3
 stepWeight <- rep(0.9, maxIter)
 stepWeight[1:2] <- c(0.5, 0.7)
 emWeights <- rep(0,maxIter)

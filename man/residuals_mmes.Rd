@@ -1,5 +1,6 @@
 \name{residuals.mmes}
 \alias{residuals.mmes}
+\alias{residuals.mmer}
 \title{Residuals form a GLMM fitted with mmes}
 \description{\code{residuals} method for class \code{"mmes"}.
 }

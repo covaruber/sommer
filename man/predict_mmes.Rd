@@ -1,5 +1,6 @@
 \name{predict.mmes}
 \alias{predict.mmes}
+\alias{predict.mmer}
 \title{Predict form of a LMM fitted with mmes}
 \description{\code{predict} method for class \code{"mmes"}.
 }
@@ -63,7 +64,7 @@
 \keyword{models}
 \examples{
 
-data(DT_yatesoats)
+data(DT_yatesoats, package="enhancer")
 DT <- DT_yatesoats
 m3 <- mmes(fixed=Y ~ V + N + V:N ,
            random = ~ B + B:MP,

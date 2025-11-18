@@ -9,7 +9,7 @@ Giovanny Covarrubias-Pazaran
 \strong{So}lving \strong{M}ixed \strong{M}odel \strong{E}quations in \strong{R}
 \cr
 
-\if{html}{\figure{mai.png}{options: height="10\%" alt="Figure: mai.png"}}
+\if{html}{\figure{mai.png}{options: style="height: 10\%;" alt="Figure: mai.png"}}
 
 }
 \description{
@@ -52,10 +52,10 @@ relationship matrices for diploid and polyploid organisms. It also provides flex
 to fit other genetic models such as full and half diallel models and random regression models.
 
 A good converter from letter code to numeric format is implemented in the function 
-\code{\link{atcg1234}}, which supports higher ploidy levels than diploid. 
+\code{\link[enhancer]{atcg1234}}, which supports higher ploidy levels than diploid. 
 Additional functions for genetic analysis have been included such as build a 
-genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps
-(\code{\link{map.plot}}), creation of manhattan plots (\code{\link{manhattan}}).
+genotypic hybrid marker matrix (\code{\link[enhancer]{build.HMM}}), plot of genetic maps
+(\code{\link[enhancer]{map.plot}}), creation of manhattan plots (\code{\link[enhancer]{manhattan}}).
 If you need to use pedigree you need to convert your pedigree into a relationship 
 matrix (use the `getA` function from the pedigreemm package).
 
@@ -115,25 +115,25 @@ This is recommended if you reported a bug, was fixed and was immediately pushed 
 \section{Getting started}{
 The package has been equiped with several datasets to learn how to use the sommer package (and almost to learn all sort of quantitative genetic analysis): 
 
-* \code{\link{DT_halfdiallel}}, \code{\link{DT_fulldiallel}} and \code{\link{DT_mohring}} datasets have examples to fit half and full diallel designs. 
+* \code{\link[enhancer]{DT_halfdiallel}}, \code{\link{DT_fulldiallel}} and \code{\link{DT_mohring}} datasets have examples to fit half and full diallel designs. 
 
-* \code{\link{DT_h2}} to calculate heritability
+* \code{\link[enhancer]{DT_h2}} to calculate heritability
 
-* \code{\link{DT_cornhybrids}} and \code{\link{DT_technow}} datasets to perform genomic prediction in hybrid single crosses 
+* \code{\link[enhancer]{DT_cornhybrids}} and \code{\link{DT_technow}} datasets to perform genomic prediction in hybrid single crosses 
 
-* \code{\link{DT_wheat}} dataset to do genomic prediction in single crosses in species displaying only additive effects.
+* \code{\link[enhancer]{DT_wheat}} dataset to do genomic prediction in single crosses in species displaying only additive effects.
 
-* \code{\link{DT_cpdata}} dataset to fit genomic prediction models within a biparental population coming from 2 highly heterozygous parents including additive, dominance and epistatic effects. 
+* \code{\link[enhancer]{DT_cpdata}} dataset to fit genomic prediction models within a biparental population coming from 2 highly heterozygous parents including additive, dominance and epistatic effects. 
 
-* \code{\link{DT_polyploid}} to fit genomic prediction and GWAS analysis in polyploids. 
+* \code{\link[enhancer]{DT_polyploid}} to fit genomic prediction and GWAS analysis in polyploids. 
 
-* \code{\link{DT_gryphon}} data contains an example of an animal model including pedigree information.
+* \code{\link[enhancer]{DT_gryphon}} data contains an example of an animal model including pedigree information.
 
-* \code{\link{DT_btdata}} dataset contains an animal (birds) model.
+* \code{\link[enhancer]{DT_btdata}} dataset contains an animal (birds) model.
 
-* \code{\link{DT_legendre}} simulated dataset for random regression model.
+* \code{\link[enhancer]{DT_legendre}} simulated dataset for random regression model.
 
-* \code{\link{DT_sleepstudy}} dataset to know how to translate lme4 models to sommer models.
+* \code{\link[enhancer]{DT_sleepstudy}} dataset to know how to translate lme4 models to sommer models.
 
 }
 
@@ -185,7 +185,7 @@ mixed model implemented has the form:
 
 
 
-\if{html}{\figure{form1.png}{options: height="10\%" alt="Figure: form1.png"}}
+\if{html}{\figure{form1.png}{options: style="height: 10\%;" alt="Figure: form1.png"}}
 
 
 
@@ -194,7 +194,7 @@ where y_i is a vector of trait phenotypes, \eqn{\beta_i} is a vector of fixed ef
 
 
 
-\if{html}{\figure{form2.png}{options: height="10\%" alt="Figure: form2.png"}}
+\if{html}{\figure{form2.png}{options: style="height: 10\%;" alt="Figure: form2.png"}}
 
 
 
@@ -204,7 +204,7 @@ where K is the relationship or covariance matrix for the kth random effect (u=1,
 
 
 
-\if{html}{\figure{form3.png}{options: height="10\%" alt="Figure: form3.png"}}
+\if{html}{\figure{form3.png}{options: style="height: 10\%;" alt="Figure: form3.png"}}
 
 
 
@@ -214,7 +214,7 @@ where || is the determinant of a matrix. And the REML estimates are updated usin
 
 
 
-\if{html}{\figure{form4.png}{options: height="10\%" alt="Figure: form4.png"}}
+\if{html}{\figure{form4.png}{options: style="height: 10\%;" alt="Figure: form4.png"}}
 
 
 
@@ -273,31 +273,39 @@ Tunnicliffe W. 1989. On the use of marginal likelihood in time series model esti
 #### Different models with sommer
 ####=========================================####
 
-data(DT_example)
+data(DT_example, package="enhancer")
 
-# DT <- DT_example
-# DT=DT[with(DT, order(Env)), ]
-# head(DT)
-# 
-# ####=========================================####
-# #### Univariate homogeneous variance models  ####
-# ####=========================================####
-# 
-# ## Compound simmetry (CS) model
-# ans1 <- mmes(Yield~Env,
-#              random= ~ Name + Env:Name,
-#              rcov= ~ units,
-#              data=DT)
-# summary(ans1)
-# 
-# ####===========================================####
-# #### Univariate heterogeneous variance models  ####
-# ####===========================================####
-# ## Compound simmetry (CS) + Diagonal (DIAG) model
-# ans3 <- mmes(Yield~Env,
-#              random= ~Name + vsm(dsm(Env),ism(Name)),
-#              rcov= ~ vsm(dsm(Env),ism(units)),
-#              data=DT)
-# summary(ans3)
+\donttest{
+
+
+
+DT <- DT_example
+DT=DT[with(DT, order(Env)), ]
+head(DT)
+
+####=========================================####
+#### Univariate homogeneous variance models  ####
+####=========================================####
+
+## Compound simmetry (CS) model
+ans1 <- mmes(Yield~Env,
+             random= ~ Name + Env:Name,
+             rcov= ~ units,
+             data=DT)
+summary(ans1)
+
+####===========================================####
+#### Univariate heterogeneous variance models  ####
+####===========================================####
+## Compound simmetry (CS) + Diagonal (DIAG) model
+ans3 <- mmes(Yield~Env,
+             random= ~Name + vsm(dsm(Env),ism(Name)),
+             rcov= ~ vsm(dsm(Env),ism(units)),
+             data=DT)
+summary(ans3)
+
+
+
+}
 
 }

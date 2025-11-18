@@ -46,7 +46,7 @@ mmes(fixed, random, rcov, data, W, nIters=50, tolParConvLL = 1e-04,
   when henderson=FALSE (default direct inversion). Auxiliar functions for building
   the variance models are:
 
-  ** \code{\link{dsm}(x)}, \code{\link{usm}(x)}, \code{\link{rrm}(x,y,z)} , 
+  ** \code{\link{dsm}(x)}, \code{\link{usm}(x)}, \code{\link[enhancer]{rrm}(x,y,z)} , 
   \code{\link{ism}(x)},\code{\link{csm}(x)}, and \code{\link{atm}(x,levs)} can 
   be used to specify unknown diagonal, unstructured, reduced-rank, identity, 
   and customized unstructured and diagonal covariance structures respectively 
@@ -56,8 +56,9 @@ mmes(fixed, random, rcov, data, W, nIters=50, tolParConvLL = 1e-04,
   be used to build easily matrices to specify constraints in the Gtc argument 
   of the \code{\link{vsm}()} function.
 
-  ** \code{\link{overlay}()}, \code{\link{spl2Dc}()}, and \code{\link{leg}()},
-  \code{\link{redmm}()} functions can be used to specify overlayed of design
+  ** \code{\link[enhancer]{overlay}()}, \code{\link{spl2Dc}()},
+  and \code{\link[enhancer]{leg}()},
+  \code{\link[enhancer]{redmm}()} functions can be used to specify overlayed of design
   matrices of random effects, two dimensional spline, random regression, and 
   dimensionality-reduction models within the \code{\link{vsm}()} function.
 
@@ -191,31 +192,31 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
  for all levels of the  covariate "x", e.g., \emph{random=~vsm(usm(Location),ism(ID))}  
  fits variance and covariance components for ID at all levels of the covariate Location.
  
- \code{\link{vsm}(\link{usm}(\link{rrm}(x,y,z,nPC)),ism(y))}
+ \code{\link{vsm}(\link{usm}(\link[enhancer]{rrm}(x,y,z,nPC)),ism(y))}
 
  can be used to specify an unstructured covariance structure for the "y" effect
  for all levels of the  covariate "x", and a response variable "z", e.g., 
  \emph{random=~vsm(rrm(Location,ID,response, nPC=2),ism(ID))}  fits a reduced-rank 
  factor analytic covariance for ID at 2 principal components of the covariate Location.
 
-  \code{\link{vsm}(ism(\link{overlay}(...,rlist=NULL,prefix=NULL)))}
+  \code{\link{vsm}(ism(\link[enhancer]{overlay}(...,rlist=NULL,prefix=NULL)))}
 
  can be used to specify overlay of design matrices between consecutive random 
  effects specified, e.g., \emph{random=~vsm(ism(overlay(male,female)))} overlays
  (overlaps) the incidence matrices for the male and female random effects to obtain
  a single variance component for both effects. The `rlist` argument is a list with 
  each element being a numeric value that multiplies the incidence matrix to be 
- overlayed. See \code{\link{overlay}} for details.Can be combined with vsm().
+ overlayed. See \code{\link[enhancer]{overlay}} for details.Can be combined with vsm().
  
-   \code{\link{vsm}(ism(\link{redmm}(x,M,nPC)))}
+   \code{\link{vsm}(ism(\link[enhancer]{redmm}(x,M,nPC)))}
 
  can be used to create a reduced model matrix of an effect (x) assumed to be a 
  linear function of some feature matrix (M), e.g., \emph{random=~vsm(ism(redmm(x,M)))} 
  creates an incidence matrix from a very large set of features (M) that belong 
- to the levels of x to create a reduced model matrix. See \code{\link{redmm}} 
+ to the levels of x to create a reduced model matrix. See \code{\link[enhancer]{redmm}} 
  for details.Can be combined with vsm().
 
-  \code{\link{vsm}(\link{leg}(x,n),ism(y))}
+  \code{\link{vsm}(\link[enhancer]{leg}(x,n),ism(y))}
 
   can be used to fit a random regression model using a numerical variable \code{x} 
   that marks the trayectory for the random effect \code{y}. The leg function can 
@@ -254,9 +255,9 @@ reliability.
 
 Additional functions for genetic analysis have been included such as relationship 
 matrix building (\code{\link{A.mat}}, \code{\link{D.mat}}, \code{\link{E.mat}},
-\code{\link{H.mat}}),  build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), 
-plot of genetic maps (\code{\link{map.plot}}), and manhattan plots
-(\code{\link{manhattan}}). If you need to build a pedigree-based relationship 
+\code{\link{H.mat}}),  build a genotypic hybrid marker matrix (\code{\link[enhancer]{build.HMM}}), 
+plot of genetic maps (\code{\link[enhancer]{map.plot}}), and manhattan plots
+(\code{\link[enhancer]{manhattan}}). If you need to build a pedigree-based relationship 
 matrix use the \code{getA} function from the pedigreemm package.
 
 \strong{Bug report and contact}
@@ -272,34 +273,34 @@ carefully before sending your question.
 
 The package has been equiped with several datasets to learn how to use the sommer package:
 
-* \code{\link{DT_halfdiallel}}, \code{\link{DT_fulldiallel}} and \code{\link{DT_mohring}} 
+* \code{\link[enhancer]{DT_halfdiallel}}, \code{\link[enhancer]{DT_fulldiallel}} and \code{\link{DT_mohring}} 
 datasets have examples to fit half and full diallel designs.
 
-* \code{\link{DT_h2}} to calculate heritability
+* \code{\link[enhancer]{DT_h2}} to calculate heritability
 
-* \code{\link{DT_cornhybrids}} and \code{\link{DT_technow}} datasets to perform
+* \code{\link[enhancer]{DT_cornhybrids}} and \code{\link[enhancer]{DT_technow}} datasets to perform
 genomic prediction in hybrid single crosses
 
-* \code{\link{DT_wheat}} dataset to do genomic prediction in single crosses in 
+* \code{\link[enhancer]{DT_wheat}} dataset to do genomic prediction in single crosses in 
 species displaying only additive effects.
 
-* \code{\link{DT_cpdata}} dataset to fit genomic prediction models within a
+* \code{\link[enhancer]{DT_cpdata}} dataset to fit genomic prediction models within a
 biparental population coming from 2 highly heterozygous parents including additive, 
 dominance and epistatic effects.
 
-* \code{\link{DT_polyploid}} to fit genomic prediction and GWAS analysis in polyploids.
+* \code{\link[enhancer]{DT_polyploid}} to fit genomic prediction and GWAS analysis in polyploids.
 
-* \code{\link{DT_gryphon}} data contains an example of an animal model including 
+* \code{\link[enhancer]{DT_gryphon}} data contains an example of an animal model including 
 pedigree information.
 
-* \code{\link{DT_btdata}} dataset contains an animal (birds) model.
+* \code{\link[enhancer]{DT_btdata}} dataset contains an animal (birds) model.
 
-* \code{\link{DT_legendre}} simulated dataset for random regression model.
+* \code{\link[enhancer]{DT_legendre}} simulated dataset for random regression model.
 
-* \code{\link{DT_sleepstudy}} dataset to know how to translate lme4 models to 
+* \code{\link[enhancer]{DT_sleepstudy}} dataset to know how to translate lme4 models to 
 sommer models.
 
-* \code{\link{DT_ige}} dataset to show how to fit indirect genetic effect models.
+* \code{\link[enhancer]{DT_ige}} dataset to show how to fit indirect genetic effect models.
 
 \strong{Models Enabled}
 
@@ -383,7 +384,7 @@ Camacho to the henderson algorithm.
 #### remove them and run the examples
 ####=========================================####
 
-data(DT_example)
+data(DT_example, package="enhancer")
 DT <- DT_example
 head(DT)
 
@@ -398,25 +399,30 @@ ans1 <- mmes(Yield~Env,
              data=DT)
 summary(ans1)
 
-# ####===========================================####
-# #### Univariate heterogeneous variance models  ####
-# ####===========================================####
-# DT=DT[with(DT, order(Env)), ]
-# ## Compound simmetry (CS) + Diagonal (DIAG) model
-# ans2 <- mmes(Yield~Env,
-#              random= ~Name + vsm(dsm(Env),ism(Name)),
-#              rcov= ~ vsm(dsm(Env),ism(units)),
-#              data=DT)
-# summary(ans2)
-# 
-# ####===========================================####
-# ####  Univariate unstructured variance models  ####
-# ####===========================================####
-# 
-# ans3 <- mmes(Yield~Env,
-#              random=~ vsm(usm(Env),ism(Name)),
-#              rcov=~vsm(dsm(Env),ism(units)),
-#              data=DT)
-# summary(ans3)
+\donttest{
+
+####===========================================####
+#### Univariate heterogeneous variance models  ####
+####===========================================####
+DT=DT[with(DT, order(Env)), ]
+## Compound simmetry (CS) + Diagonal (DIAG) model
+ans2 <- mmes(Yield~Env,
+             random= ~Name + vsm(dsm(Env),ism(Name)),
+             rcov= ~ vsm(dsm(Env),ism(units)),
+             data=DT)
+summary(ans2)
+
+####===========================================####
+####  Univariate unstructured variance models  ####
+####===========================================####
+
+ans3 <- mmes(Yield~Env,
+             random=~ vsm(usm(Env),ism(Name)),
+             rcov=~vsm(dsm(Env),ism(units)),
+             data=DT)
+summary(ans3)
+
+
+}
 
 }

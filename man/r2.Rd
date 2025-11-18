@@ -42,7 +42,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 ####=========================================####
 #### Example population
 ####=========================================####
-data(DT_example)
+data(DT_example, package="enhancer")
 DT <- DT_example
 head(DT)
 ans1 <- mmes(Yield~Env, 

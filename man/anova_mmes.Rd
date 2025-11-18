@@ -1,5 +1,6 @@
 \name{anova.mmes}
 \alias{anova.mmes}
+\alias{anova.mmer}
 \title{anova form a GLMM fitted with mmes}
 \description{\code{anova} method for class \code{"mmes"}.
 }

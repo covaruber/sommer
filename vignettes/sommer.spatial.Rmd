@@ -37,7 +37,7 @@ In this example we show how to obtain the same results than using the SpATS pack
 
 ```{r}
 library(sommer)
-data(DT_yatesoats)
+data(DT_yatesoats, package="enhancer")
 DT <- DT_yatesoats
 DT$row <- as.numeric(as.character(DT$row))
 DT$col <- as.numeric(as.character(DT$col))

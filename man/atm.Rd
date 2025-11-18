@@ -1,5 +1,6 @@
 \name{atm}
 \alias{atm}
+\alias{atr}
 \title{atm covariance structure}
 \description{
   \code{atm} creates a diagonal covariance structure for specific levels of the random effect to be used with the \code{\link{mmes}} solver.
@@ -49,7 +50,7 @@
 x <- as.factor(c(1:5,1:5,1:5));x
 atm(x, c("1","2"))
 ## how to use the theta and thetaC arguments:
-# data(DT_example)
+# data(DT_example, package="enhancer")
 # DT <- DT_example
 # theta <- diag(2)*2; theta # initial VCs
 # thetaC <- diag(2)*3; thetaC # fixed VCs

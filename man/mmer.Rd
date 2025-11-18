@@ -7,7 +7,7 @@
 }
 \description{
 
-The mmer function uses the Direct-Inversion Newton-Raphson or Average Information coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic selection models. These algorithms are \strong{intended to be used for problems of the type c > r (more coefficients to estimate than records in the dataset) and/or dense matrices}. For problems with sparse data, or problems of the type r > c (more records in the dataset than coefficients to estimate), the MME-based algorithm in the \code{\link{mmec}} function is faster and we recommend to shift to use that function.
+The mmer function uses the Direct-Inversion Newton-Raphson or Average Information coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic selection models. These algorithms are \strong{intended to be used for problems of the type c > r (more coefficients to estimate than records in the dataset) and/or dense matrices}. For problems with sparse data, or problems of the type r > c (more records in the dataset than coefficients to estimate), the MME-based algorithm in the \code{\link{mmes}} function is faster and we recommend to shift to use that function.
 
 }
 
@@ -26,28 +26,50 @@ mmer(fixed, random, rcov, data, weights, W, nIters=20, tolParConvLL = 1e-03,
   
   \emph{cbind(response.i,response.j) ~ covariate} for multivariate models
   
-  The \code{\link{fcm}()} function can be used to constrain fixed effects in multi-response models.
+  The \code{fcm} function can be used to constrain fixed effects in multi-response models.
   
   }
   
-  \item{random}{A formula specifying the name of the \strong{random effects}, e.g. \emph{random= ~ genotype + year}.
+  \item{random}{A formula specifying the name of the \strong{random effects}, 
+  e.g. \emph{random= ~ genotype + year}.
   
-  Useful functions can be used to fit heterogeneous variances and other special models (\emph{see 'Special Functions' in the Details section for more information}):
+  Useful functions can be used to fit heterogeneous variances and other special
+  models (\emph{see 'Special Functions' in the Details section for more information}):
   
-  \code{\link{vsr}(...,Gu,Gti,Gtc)} is the main function to specify variance models and special structures for random effects. On the ... argument you provide the unknown variance-covariance structures (e.g., usr,dsr,atr,csr) and the random effect where such covariance structure will be used (the random effect of interest). Gu is used to provide known covariance matrices among the levels of the random effect, Gti initial values and Gtc for constraints. Auxiliar functions for building the variance models are:
+  \code{\link{vsr}(...,Gu,Gti,Gtc)} is the main function to specify variance 
+  models and special structures for random effects. On the ... argument you
+  provide the unknown variance-covariance structures (e.g., usr,dsr,atr,csr)
+  and the random effect where such covariance structure will be used (the 
+  random effect of interest). Gu is used to provide known covariance matrices 
+  among the levels of the random effect, Gti initial values and Gtc for constraints. 
+  Auxiliar functions for building the variance models are:
   
-  ** \code{\link{dsr}(x)}, \code{\link{usr}(x)}, \code{\link{csr}(x)} and \code{\link{atr}(x,levs)} can be used to specify unknown diagonal, unstructured and customized unstructured and diagonal covariance structures to be estimated by REML.
+  ** \code{\link{dsr}(x)}, \code{\link{usr}(x)}, \code{\link{csr}(x)} and
+  \code{\link{atr}(x,levs)} can be used to specify unknown diagonal, 
+  unstructured and customized unstructured and diagonal covariance structures
+  to be estimated by REML.
   
-  ** \code{\link{unsm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can be used to build easily matrices to specify constraints in the Gtc argument of the \code{\link{vsr}()} function.
+  ** \code{\link{unsm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} 
+  can be used to build easily matrices to specify constraints in the Gtc argument
+  of the \code{\link{vsr}()} function.
   
-  ** \code{\link{overlay}()}, \code{\link{spl2Da}()}, \code{\link{spl2Db}()}, and \code{\link{leg}()} functions can be used to specify overlayed of design matrices of random effects, two dimensional spline and random regression models within the \code{\link{vsr}()} function.
+  ** \code{\link{overlay}()}, \code{\link{spl2Da}()}, \code{\link{spl2Db}()},
+  and \code{\link[enhancer]{leg}()} functions can be used to specify overlayed 
+  of design matrices of random effects, two dimensional spline and random 
+  regression models within the \code{\link{vsr}()} function.
   
-    \code{\link{gvsr}(...,Gu,Guc,Gti,Gtc)} is an alternative function to specify general variance structures between different random effects. An special case in the indirect genetic effect models. Is similar to the vsr function but in the ... argument the different random effects are provided.
+    \code{gvsr(...,Gu,Guc,Gti,Gtc)} is an alternative function to specify general
+    variance structures between different random effects. An special case in the 
+    indirect genetic effect models. Is similar to the vsr function but in the ... 
+    argument the different random effects are provided.
   
   }
   \item{rcov}{A formula specifying the name of the \strong{error term}, e.g., \emph{rcov= ~ units}.
   
-  Special heterogeneous and special variance models and constraints for the residual part are the same used on the random term but the name of the random effect is always "units" which can be thought as a column with as many levels as rows in the data, e.g., \emph{rcov=~vsr(dsr(covariate),units)}
+  Special heterogeneous and special variance models and constraints for the
+  residual part are the same used on the random term but the name of the random 
+  effect is always "units" which can be thought as a column with as many levels
+  as rows in the data, e.g., \emph{rcov=~vsr(dsr(covariate),units)}
   
   }
   \item{data}{A data frame containing the variables specified in the formulas for response, fixed, and random effects.}
@@ -106,19 +128,19 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
  
  can be used to specify an unstructured covariance structure for the "y" covariate for all levels of the  covariate "x", e.g., \emph{random=~vsr(usr(Location),ID)}  fits variance and covariance components for ID at all levels of the covariate Location.
  
-  \code{\link{vsr}(\link{overlay}(...,rlist=NULL,prefix=NULL))}   
+  \code{\link{vsr}(\link[enhancer]{overlay}(...,rlist=NULL,prefix=NULL))}   
  
  can be used to specify overlay of design matrices between consecutive random effects specified, e.g., \emph{random=~vsr(overlay(male,female))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vsr().
   
-  \code{\link{vsr}(\link{leg}(x,n),y)}
+  \code{\link{vsr}(\link[enhancer]{leg}(x,n),y)}
       
   can be used to fit a random regression model using a numerical variable \code{x} that marks the trayectory for the random effect \code{y}. The leg function can be combined with the special functions \code{dsr}, \code{usr} \code{at} and \code{csr}. For example \emph{random=~vsr(leg(x,1),y)} or \emph{random=~vsr(usr(leg(x,1)),y)}.
   
-  \code{\link{vsr}(x,Gtc=\link{fcm}(v))}
+  \code{\link{vsr}(x,Gtc=fcm(v))}
       
   can be used to constrain fixed effects in the multi-response mixed models. This is a vector that specifies if the fixed effect is to be estimated for such trait. For example \emph{fixed=cbind(response.i, response.j)~vsr(Rowf, Gtc=fcm(c(1,0)))} means that the fixed effect Rowf should only be estimated for the first response and the second should only have the intercept.
   
-  \code{\link{gvsr}(x,y)}  
+  \code{gvsr(x,y)}  
   
   can be used to fit variance and covariance parameters between two or more random effects. For example, indirect genetic effect models.
   
@@ -148,27 +170,27 @@ If you have any bug report please go to https://github.com/covaruber/sommer or s
 
 The package has been equiped with several datasets to learn how to use the sommer package: 
 
-* \code{\link{DT_halfdiallel}}, \code{\link{DT_fulldiallel}} and \code{\link{DT_mohring}} datasets have examples to fit half and full diallel designs. 
+* \code{\link[enhancer]{DT_halfdiallel}}, \code{\link[enhancer]{DT_fulldiallel}} and \code{\link[enhancer]{DT_mohring}} datasets have examples to fit half and full diallel designs. 
 
-* \code{\link{DT_h2}} to calculate heritability
+* \code{\link[enhancer]{DT_h2}} to calculate heritability
 
-* \code{\link{DT_cornhybrids}} and \code{\link{DT_technow}} datasets to perform genomic prediction in hybrid single crosses 
+* \code{\link[enhancer]{DT_cornhybrids}} and \code{\link[enhancer]{DT_technow}} datasets to perform genomic prediction in hybrid single crosses 
 
-* \code{\link{DT_wheat}} dataset to do genomic prediction in single crosses in species displaying only additive effects.
+* \code{\link[enhancer]{DT_wheat}} dataset to do genomic prediction in single crosses in species displaying only additive effects.
 
-* \code{\link{DT_cpdata}} dataset to fit genomic prediction models within a biparental population coming from 2 highly heterozygous parents including additive, dominance and epistatic effects. 
+* \code{\link[enhancer]{DT_cpdata}} dataset to fit genomic prediction models within a biparental population coming from 2 highly heterozygous parents including additive, dominance and epistatic effects. 
 
-* \code{\link{DT_polyploid}} to fit genomic prediction and GWAS analysis in polyploids. 
+* \code{\link[enhancer]{DT_polyploid}} to fit genomic prediction and GWAS analysis in polyploids. 
 
-* \code{\link{DT_gryphon}} data contains an example of an animal model including pedigree information.
+* \code{\link[enhancer]{DT_gryphon}} data contains an example of an animal model including pedigree information.
 
-* \code{\link{DT_btdata}} dataset contains an animal (birds) model.
+* \code{\link[enhancer]{DT_btdata}} dataset contains an animal (birds) model.
 
-* \code{\link{DT_legendre}} simulated dataset for random regression model.
+* \code{\link[enhancer]{DT_legendre}} simulated dataset for random regression model.
 
-* \code{\link{DT_sleepstudy}} dataset to know how to translate lme4 models to sommer models.
+* \code{\link[enhancer]{DT_sleepstudy}} dataset to know how to translate lme4 models to sommer models.
 
-* \code{\link{DT_ige}} dataset to show how to fit indirect genetic effect models.
+* \code{\link[enhancer]{DT_ige}} dataset to show how to fit indirect genetic effect models.
 
 \strong{Models Enabled}
 
@@ -255,7 +277,7 @@ Giovanny Covarrubias-Pazaran
 #### Different models with sommer
 ####=========================================####
 
-data(DT_example)
+data(DT_example, package="enhancer")
 DT <- DT_example
 head(DT)
 
@@ -291,110 +313,74 @@ ans3 <- mmer(Yield~Env,
              data=DT)
 summary(ans3)
 
-# ####==========================================####
-# #### Multivariate homogeneous variance models ####
-# ####==========================================####
-# 
-# ## Multivariate Compound simmetry (CS) model
-# DT$EnvName <- paste(DT$Env,DT$Name)
-# ans4 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vsr(Name, Gtc = unsm(2)) + vsr(EnvName,Gtc = unsm(2)),
-#               rcov= ~ vsr(units, Gtc = unsm(2)),
-#               data=DT)
-# summary(ans4)
-# 
-# ####=============================================####
-# #### Multivariate heterogeneous variance models  ####
-# ####=============================================####
-# 
-# ## Multivariate Compound simmetry (CS) + Diagonal (DIAG) model
-# ans5 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vsr(Name, Gtc = unsm(2)) + vsr(dsr(Env),Name, Gtc = unsm(2)),
-#               rcov= ~ vsr(dsr(Env),units, Gtc = unsm(2)),
-#               data=DT)
-# summary(ans5)
-# 
-# ####===========================================####
-# #### Multivariate unstructured variance models ####
-# ####===========================================####
-# 
-# ans6 <- mmer(cbind(Yield, Weight) ~ Env,
-#               random= ~ vsr(usr(Env),Name, Gtc = unsm(2)),
-#               rcov= ~ vsr(dsr(Env),units, Gtc = unsm(2)),
-#               data=DT)
-# summary(ans6)
-# 
-# ####=========================================####
-# ####=========================================####
-# #### EXAMPLE SET 2
-# #### 2 variance components
-# #### one random effect with variance covariance structure
-# ####=========================================####
-# ####=========================================####
-# 
-# data("DT_cpdata")
-# DT <- DT_cpdata
-# GT <- GT_cpdata
-# MP <- MP_cpdata
-# head(DT)
-# GT[1:4,1:4]
-# #### create the variance-covariance matrix
-# A <- A.mat(GT)
-# #### look at the data and fit the model
-# mix1 <- mmer(Yield~1,
-#              random=~vsr(id, Gu=A) + Rowf,
-#              rcov=~units,
-#              data=DT)
-# summary(mix1)$varcomp
-# #### calculate heritability
-# vpredict(mix1, h1 ~ V1/(V1+V3) )
-# #### multi trait example
-# mix2 <- mmer(cbind(Yield,color)~1,
-#               random = ~ vsr(id, Gu=A, Gtc = unsm(2)) + # unstructured at trait level
-#                             vsr(Rowf, Gtc=diag(2)) + # diagonal structure at trait level
-#                                 vsr(Colf, Gtc=diag(2)), # diagonal structure at trait level
-#               rcov = ~ vsr(units, Gtc = unsm(2)), # unstructured at trait level
-#               data=DT)
-# summary(mix2)
-# 
-# ####=========================================####
-# #### EXAMPLE SET 3
-# #### comparison with lmer, install 'lme4' 
-# #### and run the code below
-# ####=========================================####
-# 
-# #### lmer cannot use var-cov matrices so we will not 
-# #### use them in this comparison example
-# 
-# library(lme4)
-# library(sommer)
-# data("DT_cornhybrids")
-# DT <- DT_cornhybrids
-# DTi <- DTi_cornhybrids
-# GT <- GT_cornhybrids
-# 
-# fm1 <- lmer(Yield ~ Location + (1|GCA1) + (1|GCA2) + (1|SCA),
-#             data=DT )
-# out <- mmer(Yield ~ Location,
-#              random = ~ GCA1 + GCA2 + SCA,
-#              rcov = ~ units,
-#              data=DT)
-# summary(fm1)
-# summary(out)
-# ### same BLUPs for GCA1, GCA2, SCA than lme4
-# plot(out$U$GCA1$Yield, ranef(fm1)$GCA1[,1])
-# plot(out$U$GCA2$Yield, ranef(fm1)$GCA2[,1])
-# vv=which(abs(out$U$SCA$Yield) > 0)
-# plot(out$U$SCA$Yield[vv], ranef(fm1)$SCA[,1])
-# 
-# ### a more complex model specifying which locations
-# head(DT)
-# out2 <- mmer(Yield ~ Location,
-#               random = ~ vsr(atr(Location,c("3","4")),GCA2) +
-#                          vsr(atr(Location,c("3","4")),SCA),
-#               rcov = ~ vsr(dsr(Location),units),
-#               data=DT)
-# summary(out2)
+\donttest{
+
+####==========================================####
+#### Multivariate homogeneous variance models ####
+####==========================================####
+
+## Multivariate Compound simmetry (CS) model
+DT$EnvName <- paste(DT$Env,DT$Name)
+ans4 <- mmer(cbind(Yield, Weight) ~ Env,
+              random= ~ vsr(Name, Gtc = unsm(2)) + vsr(EnvName,Gtc = unsm(2)),
+              rcov= ~ vsr(units, Gtc = unsm(2)),
+              data=DT)
+summary(ans4)
+
+####=============================================####
+#### Multivariate heterogeneous variance models  ####
+####=============================================####
+
+## Multivariate Compound simmetry (CS) + Diagonal (DIAG) model
+ans5 <- mmer(cbind(Yield, Weight) ~ Env,
+              random= ~ vsr(Name, Gtc = unsm(2)) + vsr(dsr(Env),Name, Gtc = unsm(2)),
+              rcov= ~ vsr(dsr(Env),units, Gtc = unsm(2)),
+              data=DT)
+summary(ans5)
+
+####===========================================####
+#### Multivariate unstructured variance models ####
+####===========================================####
+
+ans6 <- mmer(cbind(Yield, Weight) ~ Env,
+              random= ~ vsr(usr(Env),Name, Gtc = unsm(2)),
+              rcov= ~ vsr(dsr(Env),units, Gtc = unsm(2)),
+              data=DT)
+summary(ans6)
+
+####=========================================####
+####=========================================####
+#### EXAMPLE SET 2
+#### 2 variance components
+#### one random effect with variance covariance structure
+####=========================================####
+####=========================================####
+
+data("DT_cpdata", package="enhancer")
+DT <- DT_cpdata
+GT <- GT_cpdata
+MP <- MP_cpdata
+head(DT)
+GT[1:4,1:4]
+#### create the variance-covariance matrix
+A <- A.mat(GT)
+#### look at the data and fit the model
+mix1 <- mmer(Yield~1,
+             random=~vsr(id, Gu=A) + Rowf,
+             rcov=~units,
+             data=DT)
+summary(mix1)$varcomp
+
+#### multi trait example
+mix2 <- mmer(cbind(Yield,color)~1,
+              random = ~ vsr(id, Gu=A, Gtc = unsm(2)) + # unstructured at trait level
+                            vsr(Rowf, Gtc=diag(2)) + # diagonal structure at trait level
+                                vsr(Colf, Gtc=diag(2)), # diagonal structure at trait level
+              rcov = ~ vsr(units, Gtc = unsm(2)), # unstructured at trait level
+              data=DT)
+summary(mix2)
+
+}
 
 
 }

@@ -1,5 +1,6 @@
 \name{coef.mmes}
 \alias{coef.mmes}
+\alias{coef.mmer}
 \title{coef form a GLMM fitted with mmes}
 \description{\code{coef} method for class \code{"mmes"}.
 }

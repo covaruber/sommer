@@ -87,7 +87,7 @@
 
 \examples{
 
-data(DT_example)
+data(DT_example, package="enhancer")
 DT <- DT_example
 DT=DT[with(DT, order(Env)), ]
 A <- A_example

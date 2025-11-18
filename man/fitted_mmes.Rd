@@ -1,5 +1,6 @@
 \name{fitted.mmes}
 \alias{fitted.mmes}
+\alias{fitted.mmer}
 \title{fitted form a LMM fitted with mmes}
 \description{\code{fitted} method for class \code{"mmes"}.
 }
@@ -15,7 +16,7 @@
  }
 \author{Giovanny Covarrubias}
 \examples{
-# data(DT_cpdata)
+# data(DT_cpdata, package="enhancer")
 # DT <- DT_cpdata
 # GT <- GT_cpdata
 # MP <- MP_cpdata

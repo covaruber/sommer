@@ -34,7 +34,7 @@
 ####################################
 ### imputing genotype data example
 ####################################
-# data(DT_cpdata)
+# data(DT_cpdata, package="enhancer")
 # X <- GT_cpdata
 # # add missing data
 # v <- sample(1:length(X), 500)
@@ -48,7 +48,7 @@
 ####################################
 ### imputing phenotypic data example
 ####################################
-# data(DT_h2)
+# data(DT_h2, package="enhancer")
 # X <- reshape(DT_h2[,c("Name","Env","y")], direction = "wide", idvar = "Name",
 #                 timevar = "Env", v.names = "y", sep= "_")
 # rownames(X) <- X$Name

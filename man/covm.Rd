@@ -47,7 +47,7 @@ This implementation aims to fit models where covariance between random variables
 
 \examples{
 
-data(DT_ige)
+data(DT_ige, package="enhancer")
 DT <- DT_ige
 covRes <- with(DT, covm( vsm(ism(focal)) , vsm(ism(neighbour)) ) )
 str(covRes)

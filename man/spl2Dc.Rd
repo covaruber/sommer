@@ -1,5 +1,7 @@
 \name{spl2Dc}
 \alias{spl2Dc}
+\alias{spl2Da}
+\alias{spl2Db}
 \title{
 Two-dimensional penalised tensor-product of marginal B-Spline basis.
 }
@@ -70,7 +72,7 @@ Gilmour, A.R., Cullis, B.R., and Verbyla, A.P. (1997). Accounting for Natural an
 ## ============================ ##
 ## example to use spl2Dc() 
 ## ============================ ## 
-data(DT_cpdata)
+data(DT_cpdata, package="enhancer")
 # DT <- DT_cpdata
 # GT <- GT_cpdata
 # MP <- MP_cpdata

@@ -65,7 +65,7 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
 #### simple example with univariate models
 ####=========================================####
 ####=========================================####
-# data(DT_cpdata)
+# data(DT_cpdata, package="enhancer")
 # DT <- DT_cpdata
 # GT <- GT_cpdata
 # MP <- MP_cpdata

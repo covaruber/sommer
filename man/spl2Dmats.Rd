@@ -106,7 +106,7 @@ List of length 7 elements:
 }
 \examples{
 
-data("DT_cpdata")
+data("DT_cpdata", package="enhancer")
 DT <- DT_cpdata
 GT <- GT_cpdata
 MP <- MP_cpdata

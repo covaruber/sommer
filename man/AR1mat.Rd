@@ -37,7 +37,7 @@ x <- 1:4
 R1 <- AR1(x,rho=.25)
 image(R1)
 
-data(DT_sleepstudy)
+data(DT_sleepstudy, package="enhancer")
 DT <- DT_sleepstudy
 head(DT)
 

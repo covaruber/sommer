@@ -1,5 +1,6 @@
 \name{plot.mmes}
 \alias{plot.mmes}
+\alias{plot.mmer}
 \title{plot form a LMM plot with mmes}
 \description{\code{plot} method for class \code{"mmes"}.
 }
@@ -16,7 +17,7 @@
  }
 \author{Giovanny Covarrubias \email{covarrubiasp@wisc.edu}}
 \examples{
-data(DT_yatesoats)
+data(DT_yatesoats, package="enhancer")
 DT <- DT_yatesoats
 head(DT)
 m3 <- mmes(fixed=Y ~ V + N + V:N,

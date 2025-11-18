@@ -45,7 +45,7 @@
 x <- as.factor(c(1:5,1:5,1:5));x
 ism(x)
 
-# data(DT_example)
+# data(DT_example, package="enhancer")
 # ans1 <- mmes(Yield~Env,
 #              random= ~ vsm( ism( Name ) ),
 #              data=DT_example)

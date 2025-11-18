@@ -32,7 +32,7 @@ A single-environment model is the one that is fitted when the breeding program c
 
 ```{r}
 library(sommer)
-data(DT_example)
+data(DT_example, package="enhancer")
 DT <- DT_example
 A <- A_example
 
@@ -182,7 +182,7 @@ summary(ansCS)
 
 ```{r}
 
-data(DT_h2)
+data(DT_h2, package="enhancer")
 DT <- DT_h2
 
 ## build the environmental index
@@ -233,7 +233,7 @@ When the number of environments where genotypes are evaluated is big and we want
 
 ```{r}
 
-data(DT_h2)
+data(DT_h2, package="enhancer")
 DT <- DT_h2
 DT=DT[with(DT, order(Env)), ]
 head(DT)
@@ -288,7 +288,7 @@ It is common then to fit a first model that accounts for the variation of random
 ## stage 1
 ## use mmes for dense field trials
 ##########
-data(DT_h2)
+data(DT_h2, package="enhancer")
 DT <- DT_h2
 head(DT)
 envs <- unique(DT$Env)

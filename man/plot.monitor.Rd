@@ -15,7 +15,7 @@ pmonitor(object, \dots)
  }
 \author{Giovanny Covarrubias}
 \examples{
-data(DT_yatesoats)
+data(DT_yatesoats, package="enhancer")
 DT <- DT_yatesoats
 head(DT)
 m3 <- mmes(fixed=Y ~ V + N + V:N,
