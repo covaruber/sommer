@@ -2,7 +2,7 @@ Package: sommer
 Type: Package
 Title: Solving Mixed Model Equations in R
 Version: 4.4.4
-Date: 2025-12-31
+Date: 2025-11-19
 Authors@R: c(
     person("Giovanny","Covarrubias-Pazaran", email="cova_ruber@live.com.mx", role=c("aut","cre"),
 	comment=c(ORCID="0000-0002-7194-3837"))

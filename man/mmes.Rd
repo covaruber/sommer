@@ -273,7 +273,7 @@ carefully before sending your question.
 
 The package has been equiped with several datasets to learn how to use the sommer package:
 
-* \code{\link[enhancer]{DT_halfdiallel}}, \code{\link[enhancer]{DT_fulldiallel}} and \code{\link{DT_mohring}} 
+* \code{\link[enhancer]{DT_halfdiallel}}, \code{\link[enhancer]{DT_fulldiallel}} and \code{\link[enhancer]{DT_mohring}} 
 datasets have examples to fit half and full diallel designs.
 
 * \code{\link[enhancer]{DT_h2}} to calculate heritability

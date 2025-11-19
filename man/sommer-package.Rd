@@ -115,11 +115,11 @@ This is recommended if you reported a bug, was fixed and was immediately pushed 
 \section{Getting started}{
 The package has been equiped with several datasets to learn how to use the sommer package (and almost to learn all sort of quantitative genetic analysis): 
 
-* \code{\link[enhancer]{DT_halfdiallel}}, \code{\link{DT_fulldiallel}} and \code{\link{DT_mohring}} datasets have examples to fit half and full diallel designs. 
+* \code{\link[enhancer]{DT_halfdiallel}}, \code{\link[enhancer]{DT_fulldiallel}} and \code{\link[enhancer]{DT_mohring}} datasets have examples to fit half and full diallel designs. 
 
 * \code{\link[enhancer]{DT_h2}} to calculate heritability
 
-* \code{\link[enhancer]{DT_cornhybrids}} and \code{\link{DT_technow}} datasets to perform genomic prediction in hybrid single crosses 
+* \code{\link[enhancer]{DT_cornhybrids}} and \code{\link[enhancer]{DT_technow}} datasets to perform genomic prediction in hybrid single crosses 
 
 * \code{\link[enhancer]{DT_wheat}} dataset to do genomic prediction in single crosses in species displaying only additive effects.
 

@@ -54,7 +54,7 @@
  
  \code{m = x/var(y)}
  
- where \code{x} is the desired initial value and \code{y} is the response variable. You can find an example in the \code{\link{DT_cpdata}} dataset.
+ where \code{x} is the desired initial value and \code{y} is the response variable. You can find an example in the \code{\link[enhancer]{DT_cpdata}} dataset.
  
 }
 \value{

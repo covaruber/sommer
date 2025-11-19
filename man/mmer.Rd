@@ -53,7 +53,7 @@ mmer(fixed, random, rcov, data, weights, W, nIters=20, tolParConvLL = 1e-03,
   can be used to build easily matrices to specify constraints in the Gtc argument
   of the \code{\link{vsr}()} function.
   
-  ** \code{\link{overlay}()}, \code{\link{spl2Da}()}, \code{\link{spl2Db}()},
+  ** \code{\link[enhancer]{overlay}()}, \code{\link{spl2Da}()}, \code{\link{spl2Db}()},
   and \code{\link[enhancer]{leg}()} functions can be used to specify overlayed 
   of design matrices of random effects, two dimensional spline and random 
   regression models within the \code{\link{vsr}()} function.
@@ -130,7 +130,7 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
  
   \code{\link{vsr}(\link[enhancer]{overlay}(...,rlist=NULL,prefix=NULL))}   
  
- can be used to specify overlay of design matrices between consecutive random effects specified, e.g., \emph{random=~vsr(overlay(male,female))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link{overlay}} for details.Can be combined with vsr().
+ can be used to specify overlay of design matrices between consecutive random effects specified, e.g., \emph{random=~vsr(overlay(male,female))} overlays (overlaps) the incidence matrices for the male and female random effects to obtain a single variance component for both effects. The `rlist` argument is a list with each element being a numeric value that multiplies the incidence matrix to be overlayed. See \code{\link[enhancer]{overlay}} for details.Can be combined with vsr().
   
   \code{\link{vsr}(\link[enhancer]{leg}(x,n),y)}
       
@@ -158,7 +158,7 @@ S3 methods are available for some parameter extraction such as \code{\link{fitte
 
 \strong{Additional Functions}
 
-Additional functions for genetic analysis have been included such as relationship matrix building (\code{\link{A.mat}}, \code{\link{D.mat}}, \code{\link{E.mat}}, \code{\link{H.mat}}), build a genotypic hybrid marker matrix (\code{\link{build.HMM}}), plot of genetic maps (\code{\link{map.plot}}), and manhattan plots (\code{\link{manhattan}}). If you need to build a pedigree-based relationship matrix use the \code{getA} function from the pedigreemm package. 
+Additional functions for genetic analysis have been included such as relationship matrix building (\code{\link{A.mat}}, \code{\link{D.mat}}, \code{\link{E.mat}}, \code{\link{H.mat}}), build a genotypic hybrid marker matrix (\code{\link[enhancer]{build.HMM}}), plot of genetic maps (\code{\link[enhancer]{map.plot}}), and manhattan plots (\code{\link[enhancer]{manhattan}}). If you need to build a pedigree-based relationship matrix use the \code{getA} function from the pedigreemm package. 
 
 \strong{Bug report and contact}
 
