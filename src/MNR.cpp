@@ -1674,7 +1674,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
         double sign;
         bool ok1 = log_det(val, sign, theta(i));  // form 2
         if(ok1 == false){ Rcpp::Rcout << "log determinant failed " << arma::endl;};
-        llikp = llikp + (nUsTotal(i)*val*sign) + logDetA(i);
+        llikp = llikp + (nUsTotal(i)*val*sign) + (logDetA(i)*theta(i).n_rows);
       }
     }
     double val;
