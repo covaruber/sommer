@@ -163,6 +163,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 data(DT_cpdata, package="enhancer")
 DT <- DT_cpdata
 
+\donttest{
 # response matrix
 y <- cbind(imputev(DT$Yield), imputev(DT$Firmness))
 # fixed effect incidence matrix
@@ -203,6 +204,7 @@ res <- MNR( Y=y, # multi-trait response
 res$sigma
 res$Beta
 res$U[[1]]
+}
 
 }
 \seealso{\code{\link{mmes}} -- the core function of the package }

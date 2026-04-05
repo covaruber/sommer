@@ -11,7 +11,7 @@ mmes <- function(fixed, random, rcov, data, W,
                  contrasts=NULL,
                  getPEV=TRUE, henderson=FALSE){
   
-  my.date <- "2026-02-01"
+  my.date <- "2026-06-01"
   your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
   if(dateWarning){
