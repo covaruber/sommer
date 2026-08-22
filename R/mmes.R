@@ -107,6 +107,8 @@ mmes <- function(fixed, random, rcov, data, W,
   
   S <- list()
   Spartitions <- list()
+  Sind <- numeric()
+  Skeys <- list()
   for(u in 1:length(rcovtermss)){ # for each random effect
     checkvs <- intersect(all.names(as.formula(paste0("~",rcovtermss[u]))),c("vsm","gvs","spl2Da","spl2Db")) # which(all.names(as.formula(paste0("~",rtermss[u]))) %in% c("vs","spl2Da","spl2Db")) # grep("vs\\(",rtermss[u])
     
@@ -117,6 +119,20 @@ mmes <- function(fixed, random, rcov, data, W,
     ff <- eval(parse(text = rcovtermss[u]),data,parent.frame()) # evalaute the variance structure
     S <- c(S, ff$Z)
     Spartitions <- c(Spartitions, ff$partitionsR)
+    Sind <- c(Sind, rep(counter, length(ff$Z)))
+
+    residualVariables <- setdiff(all.vars(as.formula(paste("~", rcovtermss[u]))), "units")
+    pairingVariables <- setdiff(names(data), c(response, residualVariables, "units"))
+    if(length(pairingVariables) > 0){
+      pairingKey <- do.call(paste, c(data[pairingVariables], sep = "\r"))
+    }else{
+      pairingKey <- unlist(lapply(ff$partitionsR, function(x){seq_len(x[2] - x[1] + 1)}))
+    }
+    Skeys <- c(Skeys, lapply(ff$partitionsR, function(x){
+      rows <- x[1]:x[2]
+      key <- pairingKey[rows]
+      paste(key, ave(seq_along(key), key, FUN = seq_along), sep = "\r")
+    }))
     ## constraint
     residualsNonFixed <- which(ff$thetaC != 3, arr.ind = TRUE)
     if(nrow(residualsNonFixed) > 0){
@@ -259,9 +275,45 @@ mmes <- function(fixed, random, rcov, data, W,
   #   }
   # }
   
+  # one full covariance basis matrix for each estimable residual parameter
+  R <- list()
+  for(iTheta in unique(Sind)){
+    useS <- which(Sind == iTheta)
+    thetaResidual <- theta[[iTheta]]
+    if(nrow(thetaResidual) != length(useS)){
+      stop("The residual covariance dimensions do not match its residual partitions.", call. = FALSE)
+    }
+    for(iRow in seq_len(nrow(thetaResidual))){
+      for(iCol in iRow:ncol(thetaResidual)){
+        if(thetaResidual[iRow,iCol] != 0){
+          iR <- length(R) + 1
+          R[[iR]] <- Matrix::Diagonal(x = rep(0, nrow(yvar)))
+          rows <- Spartitions[[useS[iRow]]][1,1]:Spartitions[[useS[iRow]]][1,2]
+          cols <- Spartitions[[useS[iCol]]][1,1]:Spartitions[[useS[iCol]]][1,2]
+          if(iRow == iCol){
+            R[[iR]][rows, rows] <- S[[useS[iRow]]]
+          }else{
+            matched <- match(Skeys[[useS[iRow]]], Skeys[[useS[iCol]]], nomatch = 0)
+            present <- which(matched > 0)
+            if(length(present) == 0){
+              stop("An unstructured residual covariance requires observations shared across its partitions.", call. = FALSE)
+            }
+            cross <- Matrix::sparseMatrix(i = present, j = matched[present], x = 1,
+                                          dims = c(length(rows), length(cols)))
+            R[[iR]][rows, cols] <- cross
+            R[[iR]][cols, rows] <- Matrix::t(cross)
+          }
+        }
+      }
+    }
+  }
+  R <- lapply(R,function(x){as(as(as( x,  "dMatrix"), "generalMatrix"), "CsparseMatrix")})
+  Rpartitions <- rep(list(matrix(c(1, nrow(yvar)), nrow = 1)), length(R))
+
   if(returnParam){ # if user just wants to get input matrices
     
-    res <- list(yvar=yvar, X=X,Z=Z,Zind=Zind,Ai=Ai,S=S,Spartitions=Spartitions, W=W, useH=useH,
+    res <- list(yvar=yvar, X=X,Z=Z,Zind=Zind,Ai=Ai,S=S,Spartitions=Spartitions,
+                R=R,Rpartitions=Rpartitions, W=W, useH=useH,
                 nIters=nIters, tolParConvLL=tolParConvLL, tolParConvNorm=tolParConvNorm,
                 tolParInv=tolParInv,
                 verbose=verbose, addScaleParam=addScaleParam,
@@ -287,13 +339,6 @@ mmes <- function(fixed, random, rcov, data, W,
       isInvW=FALSE
       AI=FALSE # use newton raphson
       returnScaled=FALSE # return scaled variance parameters
-      # translate vsm S into vsm R
-      R <- rep(list(Matrix::Diagonal(x= rep(0, nrow(yvar)) )), length(S) )
-      for(iR in 1:length(S)){ # iR=1
-        R[[iR]][Spartitions[[iR]][1,1]:Spartitions[[iR]][1,2],
-                Spartitions[[iR]][1,1]:Spartitions[[iR]][1,2] ] = S[[iR]]
-      }
-      R <- lapply(R,function(x){as(as(as( x,  "dMatrix"), "generalMatrix"), "CsparseMatrix")})
       # translate vsm Z into vsm Z
       
       THETA <- THETAc <- K <- Zdi <- list(); counter=1
@@ -370,7 +415,7 @@ mmes <- function(fixed, random, rcov, data, W,
       res <- .Call("_sommer_ai_mme_sp",PACKAGE = "sommer",
                    X,Z, Zind,
                    Ai,yvar,
-                   S, Spartitions, W, useH,
+                   R, Rpartitions, W, useH,
                    nIters, tolParConvLL, tolParConvNorm,
                    tolParInv,theta,
                    thetaC,thetaFinput,
