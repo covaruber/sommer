@@ -12,7 +12,9 @@ mmer <- function(fixed, random, rcov, data, weights, W,
 
   # message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
   dateWarning=FALSE
-  my.date <- "2026-06-01"
+  desc <- utils::packageDescription("sommer")
+  my.date <- as.Date(desc$Date)+90
+  # my.date <- "2026-06-01"
   your.date <- Sys.Date()
   ## if your month is greater than my month you are outdated
   if(dateWarning){

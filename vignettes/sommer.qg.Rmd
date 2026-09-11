@@ -32,6 +32,7 @@ The vignettes aim to provide several examples in how to use the sommer package u
 6) Indirect genetic effects
 7) Single cross prediction (hybrid prediction)
 8) Multivariate genetic models and genetic correlations
+9) Bivariate model with repeated records
 
 **SECTION 3: Special topics in quantitative genetics**
 
@@ -510,6 +511,47 @@ Sometimes is important to estimate genetic variance-covariance among traits--mul
 ```
 
 Other examples of multi-trait models can be found in the documentation of the rice dataset (DT_rice) and in the example dataset (DT_example). The key here is to learn how to use the reshape function from base R.
+
+### 9) Bivariate model with repeated records
+
+We first mimic the availability of 2 traits (TRAIT) with repeated records across several 
+days (X) for a response variable (Y).
+
+```{r}
+data(DT_legendre)
+DT <- DT_legendre
+head(DT)
+DT$SUBJECT <- paste("s",DT$SUBJECT,sep="_")
+DT1 <- DT2 <- DT
+DT1$TRAIT <- "T1"
+DT2$TRAIT <- "T2"
+DT2$Y <- sample(DT2$Y)
+DTC <- rbind(DT1,DT2)
+```
+
+Now we fit an unstructured model for a legendre polynomial with two traits and a diagonal model for the residual.
+
+```{r}
+# library(orthopolynom)
+# 
+# Z <- with(DTC, dsm(leg(X,1)) )
+# for(i in 1:ncol(Z)){DTC[,colnames(Z)[i]] <- Z[,i]}
+# 
+# X <- with(DTC, dsm(TRAIT) )
+# for(i in 1:ncol(X)){DTC[,colnames(X)[i]] <- X[,i]}
+# 
+# A <- diag(length(unique(DTC$SUBJECT)))
+# rownames(A) <- colnames(A) <- unique(DTC$SUBJECT)
+# 
+# ## 
+# M <- model.matrix(~ T1:leg0 + T1:leg1 + T2:leg0 + T2:leg1 - 1 , data=DTC)
+# mRR2b<-mmes(Y ~ Xf, 
+#             random=~ vsm( usm( M ) ,  ism(SUBJECT) , Gu = A),
+#             rcov = ~ vsm( dsm(TRAIT), ism(units) ),
+#             nIters = 10, verbose = FALSE,
+#             data=DTC)
+# summary(mRR2b)$varcomp
+```
 
 
 ## SECTION 3: Special topics in Quantitative genetics

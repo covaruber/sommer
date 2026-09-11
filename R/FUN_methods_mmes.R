@@ -7,8 +7,9 @@
   if(!exists("getRversion", baseenv()) || (getRversion() < "3.5.0"))
     stop("This package requires R 3.5.0 or later")
   if(interactive()) {
+    desc <- utils::packageDescription(pkg)
     packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(magenta(paste("[]  Solving Mixed Model Equations in R (sommer) 4.4.5 (2026-04-01)  []",sep="")),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]  Solving Mixed Model Equations in R (sommer) ", desc$Version," (", desc$Date, ")  []",sep="")),appendLF=TRUE)
     packageStartupMessage(magenta(paste("[]  ------------- Multivariate Linear Mixed Models --------------   []")),appendLF=TRUE)
     packageStartupMessage(paste0(magenta("[]  Author: Giovanny Covarrubias-Pazaran",paste0(bgGreen
                                                                                            (white(" ")), bgWhite(magenta("M")), bgRed(white(" ")),"  ", bgRed(bold(yellow(" (") )),bgRed(bold(white("W"))), bgRed(bold(yellow(") "))) ) ,"                []")),appendLF=TRUE)
