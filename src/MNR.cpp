@@ -1524,7 +1524,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   arma::mat MWuchol;
   arma::umat PMWu_mat;
   
-  arma::sp_mat M0(nEffectsPlusY,nEffectsPlusY), M(nEffectsPlusY,nEffectsPlusY), W(nR,nEffects), Wy(nR,nEffectsPlusY), C(nEffects,nEffects), Ci(nEffects,nEffects);
+  arma::sp_mat M(nEffectsPlusY,nEffectsPlusY), W(nR,nEffects), Wy(nR,nEffectsPlusY), C(nEffects,nEffects), Ci(nEffects,nEffects);
   arma::vec u(Nu), b(nX), bu(nEffects);
   arma::mat buWu(nEffects,nVcTotal);
   arma::mat avInf(nVcTotal,nVcTotal);
@@ -1533,8 +1533,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   arma::mat InfMatInv(nVcTotal,nVcTotal);
   bool convergence = false;
   double seconds;
-  arma::sp_mat XWjxZWj(nEffects,nVcTotal), WiXxWiZ(nVcTotal,nEffects), WiWj(nVcTotal,nVcTotal);
-  arma::sp_mat XWjxZWj0(nEffects,nVcTotal), WiXxWiZ0(nVcTotal,nEffects), WiWj0(nVcTotal,nVcTotal);
+  arma::sp_mat XWjxZWj(nEffects,nVcTotal), WiWj(nVcTotal,nVcTotal);
   arma::mat Mchol_XZ;//, Wu2;
   arma::sp_mat I = arma::speye<arma::sp_mat>(nEffectsPlusY,nEffectsPlusY);
   arma::mat I2 = arma::eye(nEffects+nVcTotal,nEffects+nVcTotal);
@@ -1577,16 +1576,25 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     // # yPy = MChol[n,n] # where n is the last element of the matrix
     // # logDetC = 2 * E log(diag(MChol))
     // ###########################
-    arma::field<arma::sp_mat> Rij(nSs); // field to store sub R matrices
     arma::vec thetaResidualsVec = mat_to_vecCpp2(theta(nRRe-1),thetaC[(nRRe-1)]);
-    for (int i = 0; i < nSs; ++i) { // for each residual structure
-      arma::mat pSi = Rcpp::as<arma::mat>(partitionsS[i]);
-      int s1 = pSi(0,0)-1;
-      int s2 = pSi(0,1)-1;
-      // get ith Rinverse by multiplying Sinverse * 1/theta
-      arma::sp_mat RijInv =  Si(i) * (1/arma::as_scalar(thetaResidualsVec(i))) ;
-      Ri.submat(s1,s1,s2,s2) = RijInv;
+    if(thetaResidualsVec.n_elem != Si.size()){
+      Rcpp::stop("The number of residual parameters does not match the residual covariance bases.");
     }
+    arma::sp_mat Rmat(nR,nR);
+    for (int i = 0; i < nSs; ++i) {
+      Rmat += Si(i) * thetaResidualsVec(i);
+    }
+    arma::mat Ridense;
+    bool okR = arma::inv_sympd(Ridense, arma::mat(Rmat));
+    if(okR == false){
+      arma::mat Rpd = nearPDcpp(arma::symmatu(arma::mat(Rmat)), 100, 1e-06, 1e-07);
+      Rmat = arma::sp_mat(Rpd);
+      okR = arma::inv_sympd(Ridense, Rpd);
+      if(okR == false){
+        Rcpp::stop("Inversion of the residual covariance matrix failed.");
+      }
+    }
+    Ri = arma::sp_mat(Ridense);
     // adjust R inverse if user provides weights
     if(useH == true){
       Ri = Hs *  Ri * Hs.t();
@@ -1605,19 +1613,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
       Wy = arma::join_rows(W,y);
     }
     
-    if(nSs > 1){ // if there is more than one residual structure we have to calculate M in every iteration
-      M = Wy.t() * Ri * Wy;
-    }else{ // if there's only one residual structure
-      if(useH == true){
-        M = Wy.t() * Ri * Wy;
-      }else{
-        if(iIter == 0){ // only form M0 in the first iteration
-          M0 =  Wy.t() * Wy ; // base M matrix without G
-        }
-        // then every iteration we just multiply M0 by 1/Ve
-        M = M0 * (1/arma::as_scalar(thetaResidualsVec(0))) ; // always multiply by the current 1/sigma2.e
-      }
-    }
+    M = Wy.t() * Ri * Wy;
     
     arma::field<arma::sp_mat> lambda(nReAl); // to store theta inverses
     arma::field<arma::sp_mat> GI(nReAl); // to store kron(thetainv,Ainv) 
@@ -1679,9 +1675,9 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     }
     double val;
     double sign;
-    bool ok2 = log_det(val, sign, theta(nRRe-1));  // form 2
+    bool ok2 = log_det(val, sign, arma::mat(Rmat));
     if(ok2 == false){ Rcpp::Rcout << "log determinant of R failed " << arma::endl;};
-    double logDetR = nR * val * sign;
+    double logDetR = val * sign;
     llik(iIter) = (- 0.5) * ( llikp + logDetC + logDetR + arma::as_scalar(yPy) );
     // ###########################
     // # 2) backsubstitute to get b and u (CORRECT)
@@ -1764,22 +1760,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::vec e = y - (arma::sp_mat(W.submat(0,0,W.n_rows-1,W.n_cols-1)) * bu);
     // Working variates for residual VCs
     for(int iS = 0; iS < Si.size(); ++iS){
-      
-      arma::mat pSi = Rcpp::as<arma::mat>(partitionsS[iS]);
-      int s1 = pSi(0,0)-1;
-      int s2 = pSi(0,1)-1;
-      arma::sp_mat Sprov(nR,nR);
-      Sprov.submat(s1,s1,s2,s2)= Si(iS);
-      // Sprov = arma::sp_mat(Sprov);
-      if(nSs > 1){ // if R is complex do the whole product  (1/arma::as_scalar(thetaResidualsVec(0)))
-        Wu = arma::join_rows(Wu , Sprov * Ri * arma::sp_mat(e) );
-      }else{ // if R is not complex just use the factor
-        if(useH == true){ // if weights are used
-          Wu = arma::join_rows(Wu , Sprov * Ri * arma::sp_mat(e) );
-        }else{ // if no weights are being used
-          Wu = arma::join_rows(Wu , Sprov * (1/arma::as_scalar(thetaResidualsVec(0))) * arma::sp_mat(e) );
-        }
-      }
+      Wu = arma::join_rows(Wu , Si(iS) * Ri * arma::sp_mat(e) );
     }
     // ###########################
     // # 4) absorption of M into Wu (2 VAR, 1 COV) to obtain Wu' P Wu  which is the AI matrix
@@ -1798,22 +1779,8 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     // # AI = (M.Wu.chol)^2
     // ###########################
     
-    if(nSs > 1){ // if R is complex do the whole matrix product  in every iteration
-      XWjxZWj = W.t() * Ri * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
-      WiWj = Wu.t() * Ri * Wu ;//  wk'Riwj # C22 lower right
-    }else{ // if R is simple multiply only obtain this matrices once and in every iteration multiply by a factor
-      if(useH == true){ // use weights
-        XWjxZWj = W.t() * Ri * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
-        WiWj = Wu.t() * Ri * Wu ;//  wk'Riwj # C22 lower right
-      }else{ // no using weights
-        if(iIter == 0){
-          XWjxZWj0 = W.t() * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
-          WiWj0 = Wu.t() * Wu ;//  wk'Riwj # C22 lower right
-        }
-        XWjxZWj = XWjxZWj0 * (1/arma::as_scalar(thetaResidualsVec(0))); // [X'Riwj Z'Riwj]' # C12 upper right
-        WiWj = WiWj0 * (1/arma::as_scalar(thetaResidualsVec(0)));//  wk'Riwj # C22 lower right
-      }
-    }
+    XWjxZWj = W.t() * Ri * Wu ;// [X'Riwj Z'Riwj]' # C12 upper right
+    WiWj = Wu.t() * Ri * Wu ;//  wk'Riwj # C22 lower right
     // // solve method !!
     // // similar to arma::spsolve(bu, arma::sp_mat(Mchol_XZ) , My, "lapack" ); but My = XZRiy and XWjxZWj = XZRi.Wu
     arma::spsolve(buWu, arma::sp_mat(M.submat( 0,0, M.n_rows-2,  M.n_cols-2 )), arma::mat(XWjxZWj), "lapack" );  // use LAPACK  solver
@@ -1881,22 +1848,8 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     arma::vec dLe(Si.size());
     arma::sp_mat eProv = arma::sp_mat(e);
     for(int iS = 0; iS < Si.size(); ++iS){ // Rij <- S[[iS]]%*%Ri
-      
-      arma::sp_mat Sprov(nR,nR);
-      arma::mat pSi = Rcpp::as<arma::mat>(partitionsS[iS]);
-      int s1 = pSi(0,0)-1;
-      int s2 = pSi(0,1)-1;
-      Sprov.submat(s1,s1,s2,s2)= Si(iS);
-      Sprov = arma::sp_mat(Sprov);
-      if(nSs > 1){ // if R is complex do the whole matrix product  in every iteration
-        dLe(iS) = ( arma::trace( Sprov *Ri) - arma::trace( Ci * W.t() * Ri * Sprov * Ri * W ) ) - arma::as_scalar( eProv.t() * Ri * Sprov * Ri * eProv );
-      }else{ // if R is simple only multiply by a factor instead of the whole Ri product
-        if(useH == true){
-          dLe(iS) = ( arma::trace( Sprov *Ri) - arma::trace( Ci * W.t() * Ri * Sprov * Ri * W ) ) - arma::as_scalar( eProv.t() * Ri * Sprov * Ri * eProv );
-        }else{
-          dLe(iS) = ( arma::trace( Sprov * (1/arma::as_scalar(thetaResidualsVec(0)))) - arma::trace( Ci * W.t() * (1/arma::as_scalar(thetaResidualsVec(0))) * Sprov * (1/arma::as_scalar(thetaResidualsVec(0))) * W ) ) - arma::as_scalar( eProv.t() * (1/arma::as_scalar(thetaResidualsVec(0))) * Sprov * (1/arma::as_scalar(thetaResidualsVec(0))) * eProv );
-        }
-      }
+      arma::sp_mat Sprov = Si(iS);
+      dLe(iS) = ( arma::trace( Sprov *Ri) - arma::trace( Ci * W.t() * Ri * Sprov * Ri * W ) ) - arma::as_scalar( eProv.t() * Ri * Sprov * Ri * eProv );
     }
     arma::vec thetaRUnlisted = mat_to_vecCpp2(theta(nRRe-1),thetaC[nRRe-1]);
     arma::mat thetaRUnlistedMat = diagmat(thetaRUnlisted);
