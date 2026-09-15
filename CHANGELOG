@@ -505,10 +505,11 @@ version 4.4.4 (2025-12-31)
  + MNR function exported and documented for users wanting to specify their matrices directly
 
 ########################
-version 4.4.8 (2026-09-13)
+version 4.5.0 (2026-09-13)
 ########################
  + ai_mme_sp2 function created to solve computation issues in the henderson algorithm. 
- + now henderson=TRUE is the default for mmes to take advanatage of the computation leap
+ + both function mmes and mmer are back and trying to split the direct inversion from henderson once again
+ + now we can fit many different covariance structures using mmes 
  
 ######################
 ## PENDINGS AND PRIORITIES 

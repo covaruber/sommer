@@ -14,9 +14,7 @@ devtools::install_github('covaruber/sommer')
 
 The sommer package is under active development. If you are an expert in mixed models, statistics or programming and you know how to implement of the following:
 
-+ the minimum degree ordering algorithm 
-+ the symbolic cholesky factorization
-+ automatic differentiation
 + generalized linear models
++ ...
 
-please help us to take sommer to the next level. Drop me an email or push some changes through github :)  
+please help us to take sommer to the next level. Drop me an email or make a pull request through github :)  
