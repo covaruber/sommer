@@ -14,33 +14,42 @@ Giovanny Covarrubias-Pazaran
 }
 \description{
 
-Sommer is a structural multivariate-univariate linear mixed model solver for multiple
-random effects allowing the specification and/or estimation of variance covariance 
-structures. REML estimates can be obtained using two major methods
+Sommer is a structural univariate and multivariate linear mixed-model package
+for fitting models with multiple random effects and flexible covariance
+structures. Variance parameters are estimated by restricted maximum likelihood
+(REML). The package provides two complementary numerical formulations.
 
-Direct-Inversion (Newton-Raphson and Average Information) 
+\code{\link{mmes}} uses Henderson's mixed model equations with an Average
+Information REML algorithm. The mixed-model coefficient matrix is represented
+as a sparse system and factorized with Eigen/Armadillo routines. Sparse LDLT
+factorizations are reused throughout the REML calculations. Selected inverse
+elements required for likelihood derivatives and prediction error variances can
+be obtained with Takahashi sparse-inverse recursions, so a complete dense
+coefficient-matrix inverse is not routinely formed.
 
-Henderson's mixed model equations (Average Information) 
+\code{\link{mmer}} provides the marginal-covariance MNR formulation. Its REML
+calculations are organized around the covariance matrix of the observations and
+the corresponding REML projection matrix, with Newton-Raphson/Fisher-scoring
+and Average Information updates for variance parameters.
 
-The algorithms are coded in C++ using the Armadillo library to optimize dense 
-matrix operations common in genomic models. Sommer was designed to include complex 
-covariance structures, e.g., unstructured, reduced-rank, diagonal. And also to 
-model relationships between levels of a random effect, e.g., additive, dominance 
-and epistatic relationship structures.  
+Both formulations support multiple random effects and structured covariance
+models. Through \code{\link{vsm}}, covariance structures can be composed from
+an arbitrary number of covariance factors, including identity, diagonal,
+unstructured, autoregressive, moving-average, Toeplitz, factor-analytic,
+reduced-rank, antedependence, correlation and spatial structures, as well as
+user-defined covariance functions.
 
-The direct inversion algorithm available in the \code{\link{mmes}} function
-(argument \code{henderson=FALSE}) can
-deal well with small and medium-size data sets (< 10,000 observations/records for 
-average computers given the computational burden carried by the direct-inversion 
-algorithms) since it works in the c > r problem and inverts an r x r matrix 
-(being r the number of records and c the number of coefficients). On the other hand,
-the Henderson algorithm in the \code{\link{mmes}} function (argument \code{henderson=TRUE})
-can deal with greater number of records (r>250K) as long as the 
-number of coefficients to estimate is < 10,000 coefficients (c) since it works in
-the r > c problem and inverts a c x c matrix (being c the number of coefficients).
-The \code{\link{predict.mmes}} function can be used to obtain adjusted means. 
-This package returns variance-covariance components, BLUPs, BLUEs, residuals, 
-fitted values, variances-covariances for fixed and random effects, etc.
+The marginal formulation in \code{mmer} performs its principal REML
+calculations in observation space, whereas \code{mmes} performs them through
+the sparse mixed-model coefficient system. Their relative computational
+performance therefore depends on the number of observations, the number of
+mixed-model coefficients, sparsity, and the covariance structures in the
+fitted model.
+
+The numerical algorithms are coded primarily in C++ using Armadillo and Eigen.
+Sommer returns REML variance-covariance estimates, BLUEs, BLUPs, residuals,
+fitted values, information matrices and, when requested, prediction error
+variance information.
 
 }
 
@@ -173,54 +182,222 @@ Keep in mind that sommer uses direct inversion (DI) algorithm which can be very 
 
 \section{Models Enabled}{
 
+\strong{General linear mixed model}
 
-The core of the package are the \code{\link{mmes}} (formula-based) function which 
-solve the mixed model equations. The functions are an interface to call the `NR`
-Direct-Inversion Newton-Raphson, `AI` Direct-Inversion Average Information or 
-the mmes-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; 
-Lee et al. 2016). Since version 2.0 sommer can handle multivariate models. 
-Following Maier et al. (2015), the multivariate (and by extension the univariate)
-mixed model implemented has the form:
+Both numerical engines fit the Gaussian linear mixed-model family
 
+\deqn{y = X\beta + Zu + e,}
 
+with
 
+\deqn{u \sim N(0,G), \qquad e \sim N(0,R),}
 
-\if{html}{\figure{form1.png}{options: style="height: 10\%;" alt="Figure: form1.png"}}
+and therefore
 
+\deqn{V = \mathrm{Var}(y) = ZGZ^\prime + R.}
 
+For several independent random terms this becomes
 
-where y_i is a vector of trait phenotypes, \eqn{\beta_i} is a vector of fixed effects, u_i is a vector of random effects for individuals and e_i are residuals for trait i (i = 1,..., t). The random effects (u_1 ... u_i and e_i) are assumed to be normally distributed with mean zero. X and Z are incidence matrices for fixed and random effects respectively. The distribution of the multivariate response and the phenotypic variance covariance (V) are:
+\deqn{V = \sum_{k=1}^{q} Z_k G_k Z_k^\prime + R.}
 
+Here \eqn{y} is the response vector, \eqn{X} and \eqn{Z} are design matrices,
+\eqn{\beta} contains fixed effects, \eqn{u} contains random effects, and
+\eqn{e} contains residual effects. The same representation covers univariate
+and multivariate models after the corresponding responses, design matrices and
+covariance structures are assembled.
 
+Covariance models specified through \code{\link{vsm}} use a product-level
+variance scale and an arbitrary number of covariance-shaping factors:
 
+\deqn{\Sigma = \sigma^2(K_1 \otimes K_2 \otimes \cdots \otimes K_m).}
 
-\if{html}{\figure{form2.png}{options: style="height: 10\%;" alt="Figure: form2.png"}}
+For a random effect with known relationship covariance \eqn{A},
 
+\deqn{G = \sigma^2(K_1 \otimes K_2 \otimes \cdots \otimes K_m) \otimes A.}
 
+The CovarianceFactor interface separates evaluation of each \eqn{K_j}, its
+derivatives, parameter reporting and trust limits from the REML solver. New
+covariance structures can therefore be added without changing the core
+\code{mmes} optimization algorithm.
 
+\strong{Marginal MNR formulation in mmer}
 
-where K is the relationship or covariance matrix for the kth random effect (u=1,...,k), and R=I is an identity matrix for the residual term. The terms \eqn{\sigma^2_{g_{i}}} and \eqn{\sigma^2_{\epsilon_{i}}} denote the genetic (or any of the kth random terms) and residual variance of trait i, respectively and \eqn{\sigma_{g_{_{ij}}}} and \eqn{\sigma_{\epsilon_{_{ij}}}} the genetic (or any of the kth random terms) and residual covariance between traits i and j (i=1,...,t, and j=1,...,t). The algorithm implemented optimizes the log likelihood:
+The MNR engine used by \code{\link{mmer}} organizes the REML calculations
+around the marginal covariance \eqn{V}. Define the REML projection matrix
 
+\deqn{P = V^{-1} -
+V^{-1}X(X^\prime V^{-1}X)^{-1}X^\prime V^{-1}.}
 
+Apart from constants independent of the variance parameters, the Gaussian REML
+log-likelihood is
 
+\deqn{\ell_R(\theta) =
+-\frac{1}{2}\{\log|V|+\log|X^\prime V^{-1}X|+y^\prime P y\}.}
 
-\if{html}{\figure{form3.png}{options: style="height: 10\%;" alt="Figure: form3.png"}}
+For variance parameter \eqn{\theta_i}, let
 
+\deqn{V_i = \frac{\partial V}{\partial\theta_i}.}
 
+For covariance models linear in the fitted variance parameters, the REML score
+has the standard form
 
+\deqn{s_i =
+\frac{1}{2}\{y^\prime P V_i P y-\mathrm{tr}(P V_i)\}.}
 
-where || is the determinant of a matrix. And the REML estimates are updated using a Newton optimization algorithm of the form:
+The MNR C++ implementation forms the projected covariance derivatives
+\eqn{PV_i}. Its Average Information matrix is
 
+\deqn{AI_{ij} =
+\frac{1}{2}y^\prime P V_i P V_j P y,}
 
+while its Newton-Raphson/Fisher-scoring path uses trace products of the
+projected covariance derivatives. The resulting information system determines
+the variance-parameter search direction, and the implementation can blend the
+information calculation with an EM-type diagonal stabilization during early
+iterations.
 
+This formulation is referred to as \emph{marginal} because its principal
+covariance calculations are carried out in observation space through \eqn{V}
+and \eqn{P}. This describes the numerical formulation more accurately than
+naming it after a particular matrix operation.
 
-\if{html}{\figure{form4.png}{options: style="height: 10\%;" alt="Figure: form4.png"}}
+\strong{Sparse Henderson Average Information formulation in mmes}
 
+The \code{\link{mmes}} engine uses Henderson's mixed model equations. With
+\eqn{W=[X\;Z]}, the coefficient system is
 
+\deqn{C =
+\left[
+\begin{array}{cc}
+X^\prime R^{-1}X & X^\prime R^{-1}Z \\
+Z^\prime R^{-1}X & Z^\prime R^{-1}Z+G^{-1}
+\end{array}
+\right],}
 
+and the right-hand side is
 
-Where, theta is the vector of variance components for random effects and covariance components among traits, H^-1 is the inverse of the Hessian matrix of second derivatives for the kth cycle, dL/dsigma^2_i is the vector of first derivatives of the likelihood with respect to the variance-covariance components. The Eigen decomposition of the relationship matrix proposed by Lee and Van Der Werf (2016) was included in the Newton-Raphson algorithm to improve time efficiency. Additionally, the popular vpredict function to estimate standard errors for linear combinations of variance components (i.e. heritabilities and genetic correlations) was added to the package as well.
+\deqn{r =
+\left[
+\begin{array}{c}
+X^\prime R^{-1}y \\
+Z^\prime R^{-1}y
+\end{array}
+\right].}
 
+The BLUE and BLUP solutions satisfy
+
+\deqn{Cb=r, \qquad
+b=(\widehat{\beta}^\prime,\widehat{u}^\prime)^\prime.}
+
+The current C++ implementation stores \eqn{C} sparsely and uses an Eigen
+\code{SimplicialLDLT} factorization. Symbolic factorization information is
+reused when the sparsity pattern remains unchanged. Random-effect precision
+contributions are inserted blockwise. Structured residual covariance models
+use optimized diagonal or repeated-block/Kronecker paths when applicable and a
+generic sparse residual-factorization path otherwise.
+
+The REML criterion is evaluated from determinant contributions for the random
+covariance structures, residual covariance and mixed-model coefficient matrix,
+together with the quadratic term \eqn{y^\prime P y}. This is a
+mixed-model-equation representation of the same REML objective optimized by
+the marginal formulation.
+
+For covariance parameter \eqn{\eta_i}, the generic covariance engine supplies
+
+\deqn{\Sigma_i =
+\frac{\partial\Sigma}{\partial\eta_i}.}
+
+For
+
+\deqn{\Sigma=\sigma^2(K_1\otimes\cdots\otimes K_m),}
+
+a parameter belonging to factor \eqn{K_j} has derivative
+
+\deqn{\frac{\partial\Sigma}{\partial\eta_{jk}} =
+\sigma^2 K_1\otimes\cdots\otimes
+\frac{\partial K_j}{\partial\eta_{jk}}
+\otimes\cdots\otimes K_m.}
+
+For the working scale \eqn{\tau=\log(\sigma^2)},
+
+\deqn{\frac{\partial\Sigma}{\partial\tau}=\Sigma.}
+
+The score trace terms use selected elements associated with the sparse
+coefficient system. These are obtained from the LDLT factors with Takahashi
+sparse-inverse recursions; a complete \eqn{C^{-1}} is not required during REML
+iterations.
+
+Average Information is calculated by analytically differentiating the
+factorized mixed-model equations. Differentiating
+
+\deqn{Cb=r}
+
+with respect to \eqn{\eta_i} gives
+
+\deqn{C b_i = r_i-C_i b,}
+
+where
+
+\deqn{C_i=\frac{\partial C}{\partial\eta_i}, \qquad
+r_i=\frac{\partial r}{\partial\eta_i}.}
+
+The sensitivity systems therefore reuse the same sparse factorization of
+\eqn{C}. For covariance \eqn{\Sigma} with precision
+\eqn{\Lambda=\Sigma^{-1}} and derivative
+\eqn{B_i=\partial\Sigma/\partial\eta_i},
+
+\deqn{\Lambda_i=-\Lambda B_i\Lambda.}
+
+This factor-differentiation formulation avoids constructing an
+observation-space working variate for every random covariance parameter.
+Residual/residual and random/residual Average Information terms use the
+corresponding mixed-model/Schur-complement identities.
+
+Covariance constructors may provide analytic derivatives in C++ or R. If a
+constructor uses numerical differentiation, only its small covariance factor
+\eqn{K_j(\eta)} is differentiated by central finite differences; the REML
+likelihood and downstream score and Average Information calculations are not
+numerically differentiated.
+
+\strong{Sparse inverse subsets and prediction error variances}
+
+During optimization, \code{mmes} does not routinely materialize the complete
+\eqn{C^{-1}}. Takahashi recursions provide the selected inverse subset required
+for REML trace calculations. After convergence, \code{computeCi=1} obtains the
+diagonal information needed for prediction error variances through the sparse
+inverse subset, whereas \code{computeCi=2} requests the complete
+coefficient-matrix inverse.
+
+\strong{Parameter updates and numerical safeguards}
+
+Covariance parameters are optimized in working coordinates chosen to respect
+their parameter spaces, such as logarithms for positive scales and
+hyperbolic-tangent or bounded-logit mappings for correlations. Each
+CovarianceFactor descriptor supplies its natural-scale reporting
+transformation and parameter-specific trust limit.
+
+The information system determines a proposed REML update. In the current
+\code{mmes} implementation, the proposal is limited in working-coordinate
+space and then checked against the exact REML likelihood. If the proposed
+global step decreases the accepted likelihood beyond numerical tolerance, the
+step is geometrically reduced and reevaluated. A likelihood decrease is
+therefore not interpreted as convergence. Boundary handling and robust
+information solves are retained for difficult or weakly identified variance
+components.
+
+\strong{Choosing between the two formulations}
+
+Both engines estimate the same class of linear mixed models but organize the
+numerical work differently. \code{mmer} uses the marginal covariance
+representation and is attractive when observation-space calculations are
+moderate in size. \code{mmes} uses the sparse Henderson coefficient system and
+is particularly attractive when the mixed-model equations are sparse and
+their factorization can be reused efficiently. The best choice depends on the
+dimensions, sparsity and covariance structures of the fitted model rather than
+on a universal rule based only on the number of records or coefficients.
+
+See \code{\link{mmes}}, \code{\link{mmer}}, and \code{\link{vsm}} for the
+interfaces and available covariance structures.
 
 }
 

@@ -1,159 +1,94 @@
 \name{vsm}
 \alias{vsm}
-\title{variance structure specification}
+\title{Variance-structure model with arbitrary Kronecker covariance factors}
 \description{
-  \code{vsm} is the main function to build the variance-covariance structure for the random effects to be fitted in the \code{\link{mmes}} solver. 
+\code{vsm} constructs random-effect or residual covariance structures for
+\code{mmes}.  Covariance-shaping terms are represented by CovarianceFactor v2
+descriptors and may be combined in an arbitrary-depth Kronecker product.  A
+single product-level variance, \eqn{\sigma^2}, is owned by \code{vsm}, which
+avoids scale confounding among the individual covariance factors.
 }
 \usage{
-  vsm(..., Gu=NULL, buildGu=TRUE, meN=1, meTheta=NULL, meThetaC=NULL, 
-      sp=FALSE, isFixed=FALSE, verbose=TRUE)
+vsm(..., Gu = NULL, sigma2 = 0.15, fixedSigma2 = FALSE,
+    isFixed = FALSE, verbose = TRUE)
 }
-
 \arguments{
-  \item{...}{variance structure to be specified following the logic desired in the internal kronecker product. For example, if user wants to define a diagonal variance structure for the random effect 'genotypes'(g) with respect to a random effect 'environments'(e), this is:
-
-  \code{var(g) = G.e @ I.g}
-
-  being \code{G.e}  a matrix containing the variance covariance components for g (genotypes) in each level of e (environments), \code{I.g} is the covariance among levels of g (genotypes; i.e. relationship matrix), and @ is the kronecker product. This would be specified in the mmes solver as:
-
-  \code{random=~vsm(dsm(e),g)}
-
-  One strength of sommer is the ability to specify very complex structures with as many kronecker products as desired. For example:
-
-  \code{var(g) = G.e @ G.f @ G.h @ I.g}
-
-  is equivalent to
-
-  \code{random=~vsm(e,f,h,g)}
-
-  where different covariance structures can be applied to the levels of \code{e,f,h} 
-  (i.e. \code{\link{dsm}}, \code{\link{usm}}, \code{\link{csm}}, \code{\link{atm}}, \code{\link{ism}} or
-  a combination of these). For more examples please see the vignettes 'sommer.start' 
-  available in the package.}
-
-  \item{Gu}{matrix with either the inverse (in case of mmes=TRUE) or raw variance-covariance 
-  (mmes=FALSE) values for the levels of the u.th random effect (e.g., the inverse of a 
-  relationship matrix among individuals or any other known inverse covariance 
-  matrix). If using an inverse remember to provide it in the right format and with
-  attribute of being an inverse:
-  
-  \code{Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))}
-  
-  \code{Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")}
-  
-  \code{attr(Ai, 'inverse')=TRUE}
-  
-  
-  Where A is your original relationship matrix. If \code{NULL}, then an identity matrix is assumed.
-  The Gu matrix can have more levels than the ones present in the random effect
-  linked to it but not the other way around. Otherwise, an error message of missing
-  level in Gu will be returned.}
-
-    \item{buildGu}{a \code{TRUE/FALSE} statement to indicate if the Gu matrix should be built in R when the value for the argument \code{Gu=NULL}. Repeat, only when when the value for the argument \code{Gu} is equal to \code{NULL}. In some cases when the incidence matrix is wide (e.g. rrBLUP models) the covariance structure is a huge p x p matrix that can be avoided when performing matrix operations. By setting this argument to \code{FALSE} it allows to skip forming this covariance matrix.}
-
-   \item{meN}{number of main effects in the variance structure. Is always counted from last to first.}
-
-   \item{meTheta}{variance covariance matrix between the main effects desired. Just to be modified if the number of main effects is greater of 1 (e.g., indirect genetic effects).}
-
-   \item{meThetaC}{constraints for the variance covariance matrix between the main effects desired. Just to be modified if the number of main effects is greater of 1 (e.g., indirect genetic effects).}
-
-   \item{sp}{a TRUE/FALSE statement to indicate if the VC from this structure should be multiplied by the scale parameter added in the mmes function through the addScaleParam argument in the \code{mmes} function .}
-   
-   \item{isFixed}{a TRUE/FALSE statement to indicate if the vsm function is being used in the fixed part of the model. When TRUE, the function only returns the model matrix to avoid any error messages associated to returning all elements for a random effect. FALSE is the default since it is assumed to be used for a variance structure in a random effect.}
-   
-   \item{verbose}{a TRUE/FALSE statement to indicate if messages should be printed when special situations accur. For example, adding unphenotyped individuals to the incidence matrices when present in the relationship  matrices.}
-
+  \item{...}{One or more covariance-constructor terms.  The last term supplies
+the main-effect incidence matrix.  All preceding terms are covariance-shaping
+factors.  Examples include \code{dsm(environment)}, \code{ar1m(row)}, and
+\code{ism(genotype)}.}
+  \item{Gu}{Optional known precision matrix for the levels of the final
+main-effect term.  For the Henderson solver, \code{Gu} must have row and column
+names matching the main-effect levels and \code{attr(Gu, "inverse")} must be
+defined.  If omitted, an identity precision matrix is used.}
+  \item{sigma2}{Positive starting value for the single overall covariance
+scale of this \code{vsm} term.}
+  \item{fixedSigma2}{Logical indicating whether the product-level
+\eqn{\sigma^2} is fixed at its starting value.}
+  \item{isFixed}{Logical retained for compatibility.  If \code{TRUE}, return
+the combined design matrix instead of the structured \code{vsm} object.}
+  \item{verbose}{Logical controlling messages, including notification when
+levels present in \code{Gu} are appended to the model matrix.}
 }
 \details{
+Let \eqn{K_1,\ldots,K_m} be the dimensionless covariance shapes supplied by
+the covariance constructors.  The covariance represented by one \code{vsm}
+term is
+\deqn{\Sigma = \sigma^2(K_1 \otimes K_2 \otimes \cdots \otimes K_m).}
+For a random effect with known relationship precision \code{Gu}, the factor
+product determines the covariance among the crossed covariance coordinates and
+\code{Gu} determines the relationship structure among the levels of the final
+main effect.
 
-...
+The final argument in \code{...} is the main-effect incidence term.  Every term
+before it is a covariance-shaping factor.  Thus
+\code{vsm(dsm(location), ar1m(row), ism(genotype), Gu=Ainv)} represents a
+location-by-row covariance shape crossed with genotype.  Kronecker ordering is
+left to right: earlier factors are the slow index and later factors are the fast
+index.
 
+All optimizer coordinates are stored on unconstrained working scales.  Each
+CovarianceFactor descriptor also carries its evaluator, derivative strategy,
+reporting transformation, and trust-region caps.  Built-in high-use structures
+may use native C++ covariance primitives, while newer or user-defined
+structures can use generic R callbacks without requiring changes to
+\code{ai_mme_sp2}.
+
+For residual covariance models, the covariance-shaping factors must define
+exactly one product coordinate for each observation.  \code{mmes} combines
+that local coordinate with an independently constructed residual block index,
+so a large observation-level identity design is not materialized.
 }
 \value{
-  \describe{
-    \item{$res}{a list with all neccesary elements (incidence matrices, known var-cov structures, unknown covariance structures to be estimated and constraints) to be used in the mmes solver.}
-  }
+A list containing the random-effect design blocks in \code{Z}, the precision
+matrix in \code{Gu}, the flattened Kronecker descriptor in \code{covStruct},
+the product design, and, for residual models, the local covariance-coordinate
+index.  The \code{covStruct} object contains descriptor version 2
+CovarianceFactor objects.
 }
-\references{
-  Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744
-
-  Covarrubias-Pazaran G (2018) Software update: Moving the R package sommer to
-  multivariate mixed models for genome-assisted prediction. doi:
-  https://doi.org/10.1101/354639
-}
-\author{
-  Giovanny Covarrubias-Pazaran
-}
-
 \examples{
+
+####=========================================####
+#### For CRAN time limitations most lines in the
+#### examples are silenced with one '#' mark,
+#### remove them and run the examples
+####=========================================####
 
 data(DT_example, package="enhancer")
 DT <- DT_example
-DT=DT[with(DT, order(Env)), ]
-A <- A_example
+head(DT)
 
-# if using mmes=TRUE remember to provide relationship as inverse in the Gu argument
-# Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
-# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 
-x <- as.character(unique(DT$Name))
-DT <- droplevels(DT[which(!is.na(match(DT$Name, x[1:5]))),])
-## ============================ ##
-## example without structure
-## ============================ ##
-ism(DT$Name)
-mix <- mmes(Yield~Env,
-            random= ~ vsm(ism(Name)),
-            rcov=~ units,
-            nIters=10,
-            data=DT)
-
-## ============================ ##
-## example to without structure but
-## using covariance among levels in the
-## random effect Name
-## ============================ ##
-mix <- mmes(Yield~Env, 
-            random= ~ vsm(ism(Name), Gu=A),
-            rcov=~ units,
-            nIters=10,
-            data=DT)
-summary(mix)$varcomp
-## ============================ ##
-## example to use dsm() structure (DIAGONAL)
-## ============================ ##
-dsm(DT$Year)
-mix <- mmes(Yield~Env,
-            random= ~ vsm(dsm(Year),ism(Name)),
-            rcov=~ vsm(dsm(Year),ism(units)),
-            nIters=10,
-            data=DT)
-summary(mix)$varcomp
-## ============================ ##
-## example to use atm() structure (level-specific)
-## ============================ ##
-# unique(DT$Year)
-# mix <- mmes(Yield~Env,
-#             random= ~ vsm(atm(Year,c("2011","2012")),ism(Name)),
-#             rcov=~ vsm(dsm(Year),ism(units)),
-#             data=DT)
-## ============================ ##
-## example to use usm() structure (UNSTRUCTURED)
-## ============================ ##
-usm(DT$Year)
-mix <- mmes(Yield~Env,
-            random= ~ vsm(usm(Year),ism(Name)),
-            rcov=~ vsm(dsm(Year),ism(units)),
-            nIters = 10,
-            data=DT)
-## ============================ ##
-## example using structure in fixed effect
-## (notice the isFixed argument)
-## ============================ ##
-mix <- mmes(Yield~ vsm(atm(Env,"CA.2011"), ism(Name), isFixed = TRUE),
-            rcov=~ units,
-            nIters=10,
-            data=DT)
+str(with(DT, vsm(dsm(Env),ism(Name))))
+str(with(DT, vsm(corm(Env),ism(Name))))
+str(with(DT, vsm(toeplitzm(Env),ism(Name))))
 
 }
-\seealso{The core function of the package: \code{\link{mmes}}}
+\seealso{
+\code{\link{mmes}}, \code{\link{ism}}, \code{\link{dsm}}, \code{\link{atm}}, \code{\link{usm}},
+\code{\link{csm}}, \code{\link{ar1m}}, \code{\link{ar2m}}, \code{\link{ar3m}},
+\code{\link{mam}}, \code{\link{corm}}, \code{\link{corvm}}, \code{\link{corhm}},
+\code{\link{corgm}}, \code{\link{fam}}, \code{\link{antem}}, \code{\link{rrcm}},
+\code{\link{maternm}}, \code{\link{toeplitzm}}, \code{\link{sar}}, \code{\link{car}},
+and \code{\link{ownm}}.
+}

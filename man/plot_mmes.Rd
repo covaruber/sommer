@@ -24,7 +24,7 @@ m3 <- mmes(fixed=Y ~ V + N + V:N,
            random = ~ B + B:MP,
            rcov=~units,
            data = DT)
-plot(m3)
+
 }
 \seealso{\code{\link{plot}}, \code{\link{mmes}}}
 \keyword{models}

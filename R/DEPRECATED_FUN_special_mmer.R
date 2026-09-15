@@ -97,6 +97,9 @@
   return(output)
 }
 
+### >>>>>>>>
+### vsr compiler function
+
 vsr <- function(..., Gu=NULL, Gti=NULL, Gtc=NULL, reorderGu=TRUE, buildGu=TRUE){
   
   # message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
@@ -682,25 +685,6 @@ vcsExtract <- function(object){
   return(vcs)
 }
 
-# myformula <- function(x){
-#   expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
-#   expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=T)}
-#   yuyuf <- strsplit(as.character(x[3]), split = "[+]")[[1]]
-#   termss <- apply(data.frame(yuyuf),1,function(x){
-#     strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
-#   })
-#   newtermss <- apply(data.frame(yuyuf),1,function(y){
-#     newy <- expi(y)
-#     if(length(newy) > 0){
-#       newy <- gsub(",.*","",newy)
-#     }else{newy <- y}
-#     return(newy)
-#   })
-#   resp <- strsplit(as.character(x[2]), split = "[+]")[[1]]
-#   newx <- paste(resp, "~",paste(newtermss,collapse = "+"))
-#   return(newx)
-# }
-
 reshape_mmer <- function(object, namelist){
   
   nt <- nrow(as.matrix(object$sigma[,,1]))
@@ -785,9 +769,8 @@ reshape_mmer <- function(object, namelist){
   return(object)
 }
 
-
 ##############
-## VS structures
+## special structures for mmer > vsr
 atr <- function(x, levs){
   # message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions (e.g., 'vsm', 'usm', 'dsm', 'ism', etc.). This function will be no longer maintained.")
   

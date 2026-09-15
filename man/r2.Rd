@@ -49,6 +49,7 @@ ans1 <- mmes(Yield~Env,
              random= ~ Name + Env:Name,
              rcov= ~ units,
              data=DT)
+ans1 <- postPEV(ans1, mode = 1)
 rel=r2(ans1)
 }
 \seealso{\code{\link{mmes}} -- the core function of the package }

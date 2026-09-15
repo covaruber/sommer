@@ -8,6 +8,7 @@
 
 "predict.mmes" <- function(object, Dtable=NULL, D, ...){
   if(is.character(D)){classify <- D}else{classify="id"} # save a copy before D is overwriten
+  if(nrow(object$Ci) == 0){stop("The predict function requires Ci to be available in the object. Please use the postPEV() function to add this to your model object.")}
   # complete the Dtable withnumber of effects in each term
   xEffectN <- lapply(object$partitionsX, as.vector)
   nz <- unlist(lapply(object$uList,function(x){nrow(x)*ncol(x)}))

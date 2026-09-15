@@ -102,7 +102,7 @@ To reduce the computational burden of fitting multiple spatial kernels `sommer` 
 # SOMMER MODEL
 mix <- mmes(Y~V,
             random=~ R + C +
-              spl2Dc(row,col),
+              vsm(ism(spl2Dc(row,col)$Z$`A:all`)),
             rcov=~units, verbose=FALSE,
             data=DT)
 summary(mix)$varcomp
@@ -122,11 +122,10 @@ head(DT2)
 # SOMMER MODEL
 mix <- mmes(Y~V,
             random=~ R + C +
-              spl2Dc(row,col, at.var = trial),
+              vsm(dsm(trial),ism(spl2Dc(row,col)$Z$`A:all`)),
             rcov=~units, verbose=FALSE,
             data=DT2)
 summary(mix)$varcomp
-
 ```
 
 ## Literature

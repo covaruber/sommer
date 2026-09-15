@@ -1,39 +1,4 @@
 
-AR1 = function(x,rho=0.25) {
-  unx <- levels(as.factor(x))
-  dims <- length(unx)
-  M = diag(dims)
-  M = rho^abs(row(M)-col(M))
-  colnames(M) <- rownames(M) <- unx
-  return(M)
-}
-
-CS = function(x, rho=0.25) {
-  unx <- levels(as.factor(x))
-  dims <- length(unx)
-  M = matrix(rho,dims,dims)
-  diag(M) <- 1
-  colnames(M) <- rownames(M) <- unx
-  return(M)
-}
-
-ARMA = function(x, rho=0.25, lambda=0.25) {
-  ## for ar
-  unx <- levels(as.factor(x))
-  dimo <- length(unx)
-  M = diag(dimo)
-  M = abs(row(M)-col(M))
-  M[lower.tri(M)] <- M[lower.tri(M)]-1
-  M[upper.tri(M)] <- M[upper.tri(M)]-1
-  MM <- rho^M
-  ## for lam
-  N <- matrix(lambda,dimo,dimo)
-  diag(N) <- 1 # or 0?
-  ## final
-  MN <- MM*N
-  colnames(MN) <- rownames(MN) <- unx
-  return(MN)
-}
 
 A.mat <- function(X, min.MAF=0, return.imputed=FALSE){
   ################

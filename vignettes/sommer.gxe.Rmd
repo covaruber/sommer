@@ -9,7 +9,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users a powerful and reliable multivariate mixed model solver. The package is focused on two approaches: 1) p > n (more effects to estimate than observations) using the mmes() function, and 2) n > p (more observations than effects to estimate) using the mmes() function. The core algorithms are coded in C++ using the Armadillo library. This package allows the user to fit mixed models with the advantage of specifying the variance-covariance structure for the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. 
+The sommer package was developed to provide R users with a flexible univariate and multivariate linear mixed-model solver. The current package provides two complementary REML formulations. The `mmes()` function uses Henderson's mixed model equations and a sparse Average Information REML algorithm: the mixed-model coefficient matrix is factorized with sparse LDLT methods, selected inverse elements required by REML calculations can be obtained with Takahashi sparse-inverse recursions, and the factorization is reused for mixed-model solutions and variance-parameter derivatives. The `mmer()` function uses the marginal-covariance MNR formulation, in which REML calculations are organized around the observation covariance matrix \(V\) and the REML projection matrix \(P\). The relative efficiency of the two formulations depends on model dimensions, sparsity, and covariance structure rather than only on whether \(p>n\) or \(n>p\). The core numerical algorithms are coded in C++ using Armadillo and Eigen. The package allows users to specify flexible variance-covariance structures for random and residual effects and to obtain quantities such as REML variance-covariance estimates, BLUPs, BLUEs, residuals, fitted values, and prediction error variance information. 
 
 The purpose of this vignette is to show how to fit different genotype by environment (GxE) models using the sommer package:  
 
@@ -36,20 +36,20 @@ data(DT_example, package="enhancer")
 DT <- DT_example
 A <- A_example
 
+Ai <- solve(A)
+Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(Ai, "inverse")=TRUE
+
 ansSingle <- mmes(Yield~1,
-              random= ~ vsm(ism(Name), Gu=A),
+              random= ~ vsm(ism(Name), Gu=Ai),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansSingle)
 
-# if setting henderson=TRUE provide the inverse
-# Ai <- solve(A)
-# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# attr(Ai, "inverse")=TRUE
 
 ```
 
-In this model, the only term to be estimated is the one for the germplasm (here called `Name`). For the sake of example we have added a relationship matrix among the levels of the random effect `Name`. This is just a diagonal matrix with as many rows and columns as levels present in the random effect `Name`, but any other non-diagonal relationship matrix could be used.
+In this model, the random term is the germplasm effect (here called `Name`). For the sake of example, a relationship structure among the levels of `Name` is supplied through `Gu`. In the code above `Ai` is the sparse precision matrix corresponding to the relationship matrix `A`, and `attr(Ai, "inverse")=TRUE` tells sommer that the supplied matrix is already in precision form. More generally, a non-diagonal relationship structure can be used to model covariance among genotype levels.
 
 ## 2) MET: main effect model
 
@@ -58,40 +58,31 @@ A multi-environment model is the one that is fitted when the breeding program ca
 ```{r}
 
 ansMain <- mmes(Yield~Env,
-              random= ~ vsm(ism(Name), Gu=A),
+              random= ~ vsm(ism(Name), Gu=Ai),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansMain)
 
-# if setting henderson=TRUE provide the inverse
-# Ai <- solve(A)
-# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# attr(Ai, "inverse")=TRUE
 
 ```
 
 ## 3) MET: diagonal model (DG)
 
-A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The diagonal model assumes that GxE exists and that the genotype variation is expressed differently at each location, therefore fitting a variance component for the genotype effect at each location. The main drawback is that this model assumes no covariance among locations, as if genotypes were independent (despite the fact that is the same genotypes). The fixed effect for environment plus the location-specific BLUP is used to predict the genotype effect in each locations of interest.
+A multi-environment model is fitted when observations are available from more than one environment. The diagonal GxE model allows the genetic variance to differ among environments while constraining the genetic covariance between different environments to zero. In the current `vsm()` parameterization, `dsm(Env)` is a normalized diagonal covariance factor: one product-level variance scale is estimated by `vsm()` and the remaining diagonal parameters are relative variance ratios. Thus the model has an environment-specific genetic variance without estimating cross-environment genetic covariances. The fixed environment effect and the environment-specific genotype BLUP are then combined to predict performance in each environment.
 
 ```{r}
 
 ansDG <- mmes(Yield~Env,
-              random= ~ vsm(dsm(Env),ism(Name), Gu=A),
+              random= ~ vsm(dsm(Env),ism(Name), Gu=Ai),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansDG)
-
-# if setting henderson=TRUE provide the inverse
-# Ai <- solve(A)
-# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# attr(Ai, "inverse")=TRUE
 
 ```
 
 ## 4) MET: compund symmetry model (CS)
 
-A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The compound symmetry model assumes that GxE exists and that a main genotype variance-covariance component is expressed across all location. In addition, it assumes that a main genotype-by-environment variance is expressed across all locations. The main drawback is that the model assumes the same variance and covariance among locations. The fixed effect for environment plus the main effect for BLUP plus genotype-by-environment effect is used to predict the genotype effect in each location of interest.
+A multi-environment model is fitted when observations are available from more than one environment. In the code below, compound-symmetry-like GxE behavior is represented by two independent random terms: a genotype main effect shared across environments and an environment-by-genotype deviation. Their covariance contribution is the sum of the two random-effect covariance matrices. Under the identity structures used here this implies a common covariance between observations on the same genotype in different environments, while the GxE deviation adds environment-specific variance. The fixed environment effect, genotype main-effect BLUP, and genotype-by-environment BLUP together describe performance in each environment.
 
 ```{r}
 E <- diag(length(unique(DT$Env)));rownames(E) <- colnames(E) <- unique(DT$Env)
@@ -113,26 +104,22 @@ summary(ansCS)
 
 ## 5) MET: unstructured model (US)
 
-A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The unstructured model is the most flexible model assuming that GxE exists and that an environment-specific variance exists in addition to as many covariances for each environment-to-environment combinations. The main drawback is that is difficult to make this models converge because of the large number of variance components, the fact that some of these variance or covariance components are zero, and the difficulty in choosing good starting values. The fixed effect for environment plus the environment specific BLUP (adjusted by covariances) is used to predict the genotype effect in each location of interest.
+The unstructured GxE model allows a distinct genetic variance for each environment and a distinct genetic covariance for every pair of environments. In the current `vsm()` architecture, `usm(Env)` is represented by a normalized Cholesky covariance factor and `vsm()` supplies the single product-level variance scale. This parameterization guarantees positive definiteness for admissible working parameters while retaining the flexibility of an unstructured covariance matrix. Because the number of covariance-shape parameters grows rapidly with the number of environments, these models can still be statistically weakly identified or computationally demanding. The fixed environment effect and the correlated environment-specific genotype BLUPs are used to predict performance in each environment.
 
 ```{r}
 
 ansUS <- mmes(Yield~Env,
-              random= ~ vsm(usm(Env),ism(Name), Gu=A),
+              random= ~ vsm(usm(Env),ism(Name), Gu=Ai),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansUS)
-# if setting henderson=TRUE provide the inverse
-Ai <- solve(A)
-Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-attr(Ai, "inverse")=TRUE
 
 
 ```
 
 ## 6) MET: random regression model
 
-A multi-environment model is the one that is fitted when the breeding program can afford more than one location. The random regression model assumes that the environment can be seen as a continuous variable and therefore a variance component for the intercept and a variance component for the slope can be fitted. The number of variance components will depend on the order of the Legendre polynomial fitted.
+A random regression model represents environmental response with a continuous covariate or a set of basis functions, here Legendre polynomials of the numeric environment index. Genotype-specific coefficients on these basis functions describe reaction norms across environments. The covariance structure assigned to the basis coefficients determines how the random intercept, slopes, and higher-order coefficients vary and covary. Consequently, the number of covariance parameters depends both on the polynomial order and on the covariance structure placed on the basis coefficients.
 
 ```{r}
 library(orthopolynom)
@@ -163,18 +150,15 @@ summary(ansRR)
 
 ## 7) Other GxE covariance structures
 
-Although not very commonly used in GxE models, the autoregressive of order 1 (AR1) and other covariance structures could be used in the GxE modeling. Here we show how to do it (not recommending it).
+Many structured covariance models can be used for GxE when their assumptions are appropriate for the ordering or relationship among environments. In the example below `corm(Env)` specifies a homogeneous correlation structure for the environment covariance factor. Other available structures, such as autoregressive models for meaningfully ordered environments, can be substituted within the same `vsm()` product architecture.
 
 ```{r}
 
-E <- AR1(DT$Env) # can be AR1() or CS(), etc.
-rownames(E) <- colnames(E) <- unique(DT$Env)
-EA <- kronecker(E,A, make.dimnames = TRUE)
-ansCS <- mmes(Yield~Env,
-              random= ~ vsm(ism(Name), Gu=A) + vsm(ism(Env:Name), Gu=EA),
+ansAR1 <- mmes(Yield~Env,
+              random= ~ vsm(corm(Env),ism(Name)),
               rcov= ~ units,
               data=DT, verbose = FALSE)
-summary(ansCS)
+summary(ansAR1)
 
 ```
 
@@ -197,16 +181,15 @@ DT2 <- merge(DT,ei, by="Env")
 # numeric by factor variables like envIndex:Name can't be used in the random part like this
 # they need to come with the vsm() structure
 DT2 <- DT2[with(DT2, order(Name)), ]
-mix2 <- mmes(y~ envIndex, henderson=TRUE,
+mix2 <- mmes(y~ envIndex, 
              random=~ Name + vsm(dsm(envIndex),ism(Name)), data=DT2,
              rcov=~vsm(dsm(Name),ism(units)),
-             tolParConvNorm = .0001,
              nIters = 50, verbose = FALSE
 )
 # summary(mix2)$varcomp
 
 b=mix2$uList$`vsm(dsm(envIndex), ism(Name))` # adaptability (b) or genotype slopes
-mu=mix2$uList$`sommer::vsm( sommer::ism( Name ) ` # general adaptation (mu) or main effect
+mu=mix2$uList$`sommer::vsm(sommer::ism(Name`# general adaptation (mu) or main effect
 e=sqrt(summary(mix2)$varcomp[-c(1:2),1]) # error variance for each individual
 
 ## general adaptation (main effect) vs adaptability (response to better environments)
@@ -218,6 +201,8 @@ Dt <- mix2$Dtable
 Dt[1,"average"]=TRUE
 Dt[2,"include"]=TRUE
 Dt[3,"include"]=TRUE
+
+mix2 <- postPEV(mix2, mode=2)
 pp <- predict(mix2,Dtable = Dt, D="Name")
 preds <- pp$pvals
 # preds[with(preds, order(-predicted.value)), ]
@@ -229,7 +214,7 @@ text(y=preds[,2],x=e, labels = rownames(mu), cex=0.5, pos = 1)
 
 ## 9) Factor analytic (reduced rank) model
 
-When the number of environments where genotypes are evaluated is big and we want to consider the genetic covariance between environments and location-specific variance components we cannot fit an unstructured covariance in the model since the number of parameters is too big and the matrix can become non-full rank leading to singularities. In those cases is suggested a dimensionality reduction technique. Among those the factor analytic structures proposed by many research groups (Piepho, Smith, Cullis, Thompson, Meyer, etc.) are the way to go. Sommer has a reduced-rank factor analytic implementation available through the rrm() function. Here we show an example of how to fit the model:
+When the number of environments is large, a fully unstructured genetic covariance requires \(q(q+1)/2\) covariance parameters for \(q\) environments and can become weakly identified relative to the available information. Reduced-rank and factor-analytic representations provide a more parsimonious alternative. In the first implementation below, `rrm()` constructs a reduced environmental basis from `H0`; `usm()` estimates the covariance among the retained factor scores, and the additional `dsm(Env)` term models environment-specific diagonal variation. The commented alternative uses the newer `rrcm()` CovarianceFactor constructor directly. These representations reduce the dimension of the cross-environment covariance model while retaining major covariance patterns.
 
 ```{r}
 
@@ -274,13 +259,24 @@ uFA <- scores %*% t(loadings)
 uDG <- ansFA$uList[[2]]
 u <- uFA + uDG
 
+# option 2
+# ansFA2 <- mmes(y~Env, henderson=TRUE,
+#               random=~vsm( rrcm(Env, 3) , ism(Name)) + # rr
+#                 vsm(dsm(Env), ism(Name)), # diag
+#               rcov=~units,
+#               # we recommend giving more iterations to these models
+#               nIters = 100, verbose = FALSE,
+#               # we recommend giving more EM iterations at the beggining
+#               data=DT)
+# u2 <- ansFA2$uList$`vsm(rrcm(Env, 3), ism(Name` + ansFA2$uList$`vsm(dsm(Env), ism(Name`
+
 ```
 
-As can be seen genotype BLUPs for all environments can be recovered by multiplying the loadings (Gamma) by the factor scores. This is a parsomonious way to model an unstructured covariance.
+For the `rrm()` representation above, genotype BLUPs on the original environment scale are recovered by multiplying the retained factor scores by the transpose of the loading matrix (`Gamma`) and then adding the diagonal GxE contribution. Likewise, the reduced-rank covariance contribution is reconstructed as \(\Gamma\,\Sigma_f\,\Gamma^\prime\), where \(\Sigma_f\) is the estimated covariance among factor scores. This provides a parsimonious approximation to a general cross-environment covariance structure.
 
 ## 10) Two stage analysis
 
-It is common then to fit a first model that accounts for the variation of random design elements, e.g., locations, years, blocks, and fixed genotype effects to obtain the estimated marginal means (EMMs) or best linear unbiased estimators (BLUEs) as adjusted entry means. These adjusted entry means are then used as the phenotype or response variable in GWAS and genomic prediction studies.
+In two-stage analyses, a first-stage mixed model is commonly fitted to account for experimental-design and field variation while treating the entry effects of interest as fixed, producing adjusted entry means (BLUEs or EMMs). Their estimation-error covariance should be carried into the second stage rather than treating the adjusted means as independent observations with equal precision. In the example below, `computeCi = 2` requests the complete coefficient-matrix inverse after fitting each first-stage model; the fixed-effect block is used to construct the corresponding precision contribution for the second-stage weight matrix `W`. The second-stage mixed model then analyzes the adjusted means while retaining this first-stage precision information.
 
 ```{r}
 
@@ -298,8 +294,8 @@ for(i in 1:length(envs)){
   ans1 <- mmes(y~Name-1,
                random=~Block,
                verbose=FALSE,
-               data=droplevels(DT[which(DT$Env == envs[i]),]
-               )
+               computeCi = 2,
+               data=droplevels(DT[which(DT$Env == envs[i]),])
   )
   ans1$Beta$Env <- envs[i]
   
@@ -311,16 +307,21 @@ for(i in 1:length(envs)){
 }
 
 DT2 <- do.call(rbind, BLUEL)
-OM <- do.call(adiag1,XtXL)
+OM <- Reduce(adiag1,lapply(XtXL,as.matrix))
 
 ##########
 ## stage 2
 ## use mmes for sparse equation
 ##########
 m <- matrix(1/var(DT2$Estimate, na.rm = TRUE))
+
 ans2 <- mmes(Estimate~Env, henderson=TRUE,
              random=~ Effect + Env:Effect, 
-             rcov=~vsm(ism(units,thetaC = matrix(3), theta = m)),
+             rcov = ~ vsm(
+               ism(units),
+               sigma2 = 1,
+               fixedSigma2 = TRUE
+             ),
              W=OM, 
              verbose=FALSE,
              data=DT2

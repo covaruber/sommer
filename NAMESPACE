@@ -8,16 +8,22 @@ export(
        )
 
 ## FUN_main
-export(mmes, MNR)
+export(mmes, vsm,
+       mmer, vsr,
+       GWAS,
+       MNR)
 
 ## FUN_special and FUN_vsc and FUN_vsrgvsr
-export( unsm, unsm2, fixm, # small constructors
-       atm,csm,dsm,usm,vsm, ism, covm, ## mmes
-       # special functions to create model matrices
-       vpredict,
-       usr, dsr, csr, atr, # DEPRECATED
-       mmer, vsr, vs, GWAS# mmer DEPRECATED
-        
+export( # small matrices constructors
+       unsm, unsm2, fixm, 
+       # mmes covariance functions
+       atm,csm,dsm,usm,vsm, ism, covm, ar1m, ar2m, ar3m, 
+       mam, fam, antem, corm, corvm, corhm, corgm, ownm,
+       rrcm, maternm , toeplitzm, sar, car,
+       # mmes covariance functions
+       usr, dsr, csr, atr,  
+       # mmer DEPRECATED
+        vpredict, vs        
        )
 
 ## FUN_spatial
@@ -26,11 +32,11 @@ export( spl2Dc,spl2Dmats,tpsmmbwrapper)
 ## FUN_stats
 export( 
        corImputation,
-       r2
+       r2, postPEV
        )
 
 ## FUN_relationships
-export(A.mat, D.mat, E.mat, H.mat, AR1, CS, ARMA)
+export(A.mat, D.mat, E.mat, H.mat)
 
 ## FUN_utils
 export( 
@@ -88,6 +94,6 @@ S3method(summary, mmer)
              "model.matrix","na.omit", "p.adjust","kmeans","dist", "runif",
              "nobs", "ppoints", "sd", "model.frame", "model.response", "na.pass",
              "cor", "optim", "rchisq","quantile","deriv","terms.formula",
-             "aggregate","pf","terms", "reshape","ave")
+             "aggregate","pf","terms", "reshape","ave", "plogis", "qlogis")
 
 

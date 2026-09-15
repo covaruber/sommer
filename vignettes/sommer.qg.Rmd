@@ -9,9 +9,9 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic and non-genetic analyses in diploid and polyploid organisms. This package allows the user to estimate variance components for a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. Although the vignette shows examples using the mmes function with the default direct inversion algorithm (henderson=FALSE) the Henderson's approach can be faster when the number of records surpasses the number of coefficients to estimate and setting the henderson argument to TRUE can bring significant speed ups.
+The sommer package was developed to provide R users with flexible univariate and multivariate linear mixed-model tools for genetic and non-genetic analyses in diploid and polyploid organisms. The package can estimate variance-covariance parameters while allowing structured covariance models for random and residual effects, heterogeneous variances, and extraction of quantities such as BLUPs, BLUEs, residuals, fitted values, and prediction-error information. The current `mmes()` implementation uses Henderson's mixed model equations with a sparse Average Information REML algorithm. Its numerical core uses sparse LDLT factorization, reuses the factorization for mixed-model solutions and variance-parameter differentiation, and can compute selected inverse elements with Takahashi sparse-inverse recursions when required by the REML calculations. Covariance factors supplied through `vsm()` are handled through a generic descriptor architecture and can be combined in arbitrary Kronecker products. The package also retains the complementary marginal-covariance MNR formulation through `mmer()`. The relative computational advantage of the two formulations depends on model dimensions, sparsity, and covariance structure rather than on a single `p` versus `n` rule.
 
-The package is focused on problems of the type p > n related to genomic prediction (hybrid prediction & genomic selection) and GWAS analysis, although any general mixed model can be fitted as well. The package provides kernels to estimate additive (`A.mat`), dominance (`D.mat`), and epistatic (`E.mat`) relationship matrices that have been shown to increase prediction accuracy under certain scenarios or simply to estimate the variance components of such. The package provides flexibility to fit other genetic models such as full and half diallel models as well.
+The package supports a broad range of quantitative-genetic mixed models, including genomic prediction, hybrid prediction, GWAS-related analyses, multi-environment and multivariate models, and general mixed-model applications. It provides functions to construct additive (`A.mat`), dominance (`D.mat`), and epistatic (`E.mat`) relationship matrices, which can be incorporated as covariance or precision structures as appropriate for the solver being used. The package also provides flexibility for genetic models such as full and half diallel designs.
 
 The vignettes aim to provide several examples in how to use the sommer package under different scenarios. We will spend the rest of the space providing examples for: 
 
@@ -46,7 +46,7 @@ The vignettes aim to provide several examples in how to use the sommer package u
 
 ### Backgrounds in linear algebra
 
-The core of the package is the `mmes()` function which solve the mixed model equations. The functions are an interface to call the `NR` Direct-Inversion Newton-Raphson or Average Information or henderson-based Average Information (Tunnicliffe 1989; Gilmour et al. 1995; Lee et al. 2016). Since version 2.0, sommer can handle multivariate models. Following Maier et al. (2015), the multivariate (and by extension the univariate) mixed model implemented has the form:
+The package provides two complementary REML computational formulations. The current `mmes()` function solves Henderson's mixed model equations and estimates covariance parameters with a sparse Average Information REML algorithm. The mixed-model coefficient matrix is factorized using sparse LDLT methods, and the same factorization is reused to solve the equations and to obtain the exact forward derivatives needed by the AI calculations. The `mmer()` function provides the marginal-covariance MNR formulation, in which computations are organized around the observation covariance matrix and the REML projection matrix. Since version 2.0, sommer can handle multivariate models. Following the usual multivariate mixed-model notation, the multivariate (and, by extension, univariate) model has the form:
 
 <br>
 
@@ -104,23 +104,23 @@ $$
 
 <br>
 
-where K is the relationship or covariance matrix for the kth random effect (u=1,...,k), and R=I is an identity matrix for the residual term. The terms $\sigma^2_{g_{i}}$ and $\sigma^2_{\epsilon_{i}}$ denote the genetic (or any of the kth random terms) and residual variance of trait `i`, respectively and $\sigma_{g_{_{ij}}}$ and $\sigma_{\epsilon_{_{ij}}}$ the genetic (or any of the kth random terms) and residual covariance between traits `i` and `j` (i=1,...,t, and j=1,...,t). The algorithm implemented optimizes the log likelihood:
+where \(K\) denotes a relationship or covariance structure associated with a random effect. More generally, sommer permits several random terms and structured residual covariance, so the marginal covariance can be written as \(V=\sum_k Z_kG_kZ_k^\prime+R\). The quantities \(\sigma^2_{g_i}\) and \(\sigma^2_{\epsilon_i}\) denote trait-specific random-effect and residual variances, while the corresponding off-diagonal terms denote covariances between traits. In the current `vsm()` architecture, each covariance term can itself be constructed from one or more normalized covariance factors and a single product-level variance scale. REML estimation is based on the restricted log likelihood; ignoring constants, the usual marginal form is:
 
 <br>
 
-$logL = 1/2 * ln(|V|) + ln(X'|V|X) + Y'PY$
+$-2\ell_R = \log|V| + \log|X^\prime V^{-1}X| + Y^\prime P Y$
 
 <br>
 
-where || is the determinant of a matrix. The REML estimates are updated using a Newton optimization algorithm of the form:
+where \(P=V^{-1}-V^{-1}X(X^\prime V^{-1}X)^{-1}X^\prime V^{-1}\), and \(|\cdot|\) denotes a determinant. This expression describes the marginal REML criterion. In `mmes()`, the same REML objective is evaluated through identities associated with Henderson's mixed model equations rather than by repeatedly forming and directly inverting the full observation covariance matrix. Variance parameters are updated using an Average Information step of the general form:
 
 <br>
 
-$\theta^{k+1} = \theta^{k} + (H^{k})^{-1}*\frac{dL}{d\sigma^2_i}|\theta^k$
+$\theta^{k+1} = \theta^{k} + AI(\theta^k)^{-1}s(\theta^k)$
 
 <br>
 
-Where $\theta$ is the vector of variance components for random effects and covariance components among traits, $H^{-1}$ is the inverse of the Hessian matrix of second derivatives for the kth cycle, $\frac{dL}{d\sigma^2_i}$ is the vector of first derivatives of the likelihood with respect to the variance-covariance components. The Eigen decomposition of the relationship matrix proposed by Lee and Van Der Werf (2016) was included in the Newton-Raphson algorithm to improve time efficiency. Additionally, the popular `vpredict()` function to estimate standard errors for linear combinations of variance components (i.e. heritabilities and genetic correlations) was added to the package as well.
+Here \(\theta\) denotes the working covariance-parameter vector, \(s(\theta)\) is the REML score, and \(AI(\theta)\) is the Average Information matrix. For structured covariance factors, `mmes()` differentiates the factorized mixed-model solve analytically with respect to the covariance parameters and assembles the AI system from those derivatives. Parameters are represented in working coordinates chosen to respect covariance constraints, and the proposed update is protected by trust scaling and a global exact-likelihood backtracking procedure. For nonlinear covariance parameterizations the AI matrix uses first covariance derivatives, rather than adding second derivatives of the covariance model that belong to an observed-Hessian formulation. The `vpredict()` function can subsequently use estimated variance-covariance information and the delta method to obtain standard errors for functions such as heritabilities and genetic correlations.
 
 Please refer to the canonical papers listed in the Literature section to check how the algorithms work. We have tested widely the methods to make sure they provide the same solution when the likelihood behaves well, but for complex problems they might lead to slightly different answers. If you have any concern please contact me at cova_ruber@live.com.mx.
 
@@ -134,7 +134,7 @@ In the following section we will go in detail over several examples on how to us
 
 Heritability is one of the most popular parameters among the breeding and genetics communities because of the insight it provides in the inheritance of the trait and potential selection response. Heritability is usually estimated as narrow sense ($h^2$; only additive variance in the numerator $\sigma^2_A$), and broad sense ($H^2$; all genetic variance in the numerator $\sigma^2_G$).
 
-In a classical breeding experiment with no molecular markers, special designs are performed to estimate and dissect the additive ($\sigma^2_A$) and non-additive (e.g., dominance $\sigma^2_D$, and epistatic $\sigma^2_E$) variance along with environmental variability. Designs such as generation analysis, North Carolina designs are used to dissect $\sigma^2_A$ and $\sigma^2_D$ to estimate the narrow sense heritability ($h^2$) using only $\sigma^2_A$ in the numerator. When no special design is available we can still disect the genetic variance ($\sigma^2_G$) and estimate the broad sense heritability. In this first example we will show the broad sense estimation which doesn't use covariance matrices for the genotypic effect (e.g., genomic-additive relationship matrices). For big models with no relationship matrices, sommer's direct inversion is a bad idea to use but we will still show how to do it, but keep in mind that for very sparse models with no relationship matrices or other special covariance structures we recommend using the `lmer()` function from the lme4 package or any other package using MME-based algorithms (e.g., asreml-R).
+In a classical breeding experiment without molecular markers, mating and experimental designs can be used to partition additive (\(\sigma^2_A\)) and non-additive components such as dominance (\(\sigma^2_D\)) and epistasis, together with environmental variation. Designs such as generation analysis and the North Carolina designs can identify additive and dominance components under their corresponding assumptions. When such information is unavailable, replicated genotype effects can still be used to estimate total genetic variance and broad-sense heritability. The first example illustrates this latter case without a genomic relationship matrix. Because the current `mmes()` solver is based on sparse mixed model equations, models composed of sparse incidence matrices and simple covariance structures are now directly within its intended computational setting; the older warning about a dense direct-inversion implementation no longer applies.
 
 The following dataset has 41 potato lines evaluated in 5 locations across 3 years in an RCBD design. We show how to fit the model and extract the variance components to calculate the $h^2$.
 
@@ -146,7 +146,7 @@ A <- A_example
 
 ans1 <- mmes(Yield~1,
              random= ~ Name + Env + Env:Name + Env:Block,
-             rcov= ~ units, nIters=10,
+             rcov= ~ units, 
              data=DT, verbose = FALSE)
 summary(ans1)$varcomp
 (n.env <- length(levels(DT$Env)))
@@ -168,16 +168,26 @@ DT$idd <-DT$id; DT$ide <-DT$id
 A <- A.mat(GT) # additive relationship matrix
 D <- D.mat(GT) # dominance relationship matrix
 E <- E.mat(GT) # epistatic relationship matrix
-ans.ADE <- mmes(color~1, 
-                 random=~vsm(ism(id),Gu=A) + vsm(ism(idd),Gu=D), 
-                 rcov=~units, nIters=10,
-                 data=DT,verbose = FALSE)
-(summary(ans.ADE)$varcomp)
-vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense
-vpredict(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) ) # broad-sense
+
+Ai <- solve(A + diag(1e-5, nrow(A), nrow(A)))
+Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(Ai, "inverse")=TRUE
+
+Di <- solve(D+ diag(1e-5, nrow(A), nrow(A)))
+Di <- as(as(as( Di,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(Di, "inverse")=TRUE
+
+
+# ans.ADE <- mmes(Yield~1, 
+#                  random=~vsm(ism(id),Gu=Ai) + vsm(ism(idd),Gu=Di), 
+#                  rcov=~units, nIters=10,
+#                  data=DT,verbose = FALSE)
+# (summary(ans.ADE)$varcomp)
+# vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense
+# vpredict(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) ) # broad-sense
 ```
 
-In this example we showed how to estimate the additive ($\sigma^2_A$) and dominance ($\sigma^2_D$) variance components based on markers and estimate broad ($H^2$) and narrow-sense heritability ($h^2$). Notice that we used the `vsm()` function which indicates that the random effect inside the parenthesis (i.e. `id`, `idd` or `ide`) has a covariance matrix (A, D, or E), that will be specified in the `Gu` argument of the `vsm()` function. Please DO NOT provide the inverse, but rather the original covariance matrix when using henderson=FALSE.
+This example illustrates how marker-derived additive and dominance relationship structures can be associated with random effects and used to estimate additive and dominance variance components, from which narrow- and broad-sense heritability functions can be formed. In the current Henderson-based `mmes()` interface, `vsm()` defines the covariance structure of a random term. When a matrix supplied through `Gu` is already a precision matrix, as `Ai` and `Di` are in the code above, it is converted to sparse form and marked with `attr(..., "inverse")=TRUE`. Thus the solver can use the supplied precision directly rather than inverting it internally. This replaces the older `henderson=FALSE` direct-inversion distinction.
 
 ### 2) Specifying heterogeneous variances in univariate models
 
@@ -186,37 +196,20 @@ Very often in multi-environment trials, the assumption that genetic variance is 
 We estimate variance components for $GCA_2$ and $SCA$ specifying the variance structure.
 
 ```{r, fig.show='hold'}
-# data(DT_cornhybrids, package="enhancer")
-# DT <- DT_cornhybrids
-# DTi <- DTi_cornhybrids
-# GT <- GT_cornhybrids
-# ### fit the model
-# modFD <- mmes(Yield~1, 
-#               random=~ vsm(atr(Location,c("3","4")),ism(GCA2)), 
-#               rcov= ~ vsm(dsm(Location),ism(units)), nIters=10,
-#               returnParam = F,
-#               data=DT, verbose = FALSE)
-# summary(modFD)
+data(DT_cornhybrids, package="enhancer")
+DT <- DT_cornhybrids
+DTi <- DTi_cornhybrids
+GT <- GT_cornhybrids
+### fit the model
+modFD <- mmes(Yield~1,
+              random=~ vsm(atm(Location,c("3","4")),ism(GCA2)),
+              rcov= ~ vsm(dsm(Location),ism(units)), 
+              data=DT, verbose = FALSE)
+summary(modFD)
 ```
 
-In the previous example we showed how the `atr()` function is used in the `mmes()` solver. By using the `atr()` function you can specify that i.e. the GCA2 has a different variance in different Locations, in this case locations 3 and 4, but also a main GCA variance. This is considered a CS + DIAG (compound symmetry + diagonal) model.
+In the previous example `atm()` is used as a covariance-shaping factor inside `vsm()`. It permits selected levels of the factor—in this case Locations 3 and 4—to have their own relative diagonal variance parameters within the random-effect covariance. In the current parameterization the covariance factor is normalized and `vsm()` supplies one product-level variance scale, so the selected-level parameters describe variance ratios rather than redundant absolute scales. The residual term similarly uses `dsm(Location)` to allow location-specific residual variances.
 
-In addition, other functions can be added on top to fit models with covariance structures, i.e. the `Gu` argument from the `vsm()` function to indicate a covariance matrix (A, pedigree or genomic relationship matrix)
-
-```{r}
-# data(DT_cornhybrids, package="enhancer")
-# DT <- DT_cornhybrids
-# DTi <- DTi_cornhybrids
-# GT <- as(as(as( GT_cornhybrids,  "dMatrix"), "generalMatrix"), "CsparseMatrix") 
-# GT[1:4,1:4]
-# DT=DT[with(DT, order(Location)), ]
-# ### fit the model
-# modFD <- mmes(Yield~1, 
-#               random=~ vsm(atr(Location,c("3","4")),ism(GCA2),Gu=GT), 
-#               rcov= ~ vsm(dsm(Location),ism(units)), nIters=10,
-#               data=DT, verbose = FALSE)
-# summary(modFD)
-```
  
 ### 3) Using the vpredict calculator
 
@@ -231,11 +224,15 @@ GT <- GT_cpdata
 MP <- MP_cpdata
 ### look at the data
 A <- A.mat(GT) # additive relationship matrix
+Ai <- solve(A+ diag(1e-4, nrow(A),nrow(A))) 
+Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(Ai, "inverse")=TRUE
+
 ans <- mmes(color~1, 
-                random=~vsm(ism(id),Gu=A), 
-                rcov=~units, nIters=10,
-                data=DT, verbose = FALSE)
-(summary(ans.ADE)$varcomp)
+            random=~vsm(ism(id),Gu=Ai), 
+            rcov=~units, nIters=10,
+            data=DT, verbose = FALSE)
+summary(ans)$varcomp
 vpredict(ans, h2 ~ (V1) / ( V1+V2) )
 
 ```
@@ -256,24 +253,24 @@ $y = X\beta + Zu_1 + Zu_2 + Zu_S + \epsilon$
 We estimate variance components for $GCA_1$, $GCA_2$ and $SCA$ and use them to estimate heritability. Additionally BLUPs for GCA and SCA effects can be used to predict crosses.
 
 ```{r}
-# data(DT_cornhybrids, package="enhancer")
-# DT <- DT_cornhybrids
-# DTi <- DTi_cornhybrids
-# GT <- GT_cornhybrids
-# 
-# modFD <- mmes(Yield~Location, 
-#               random=~GCA1+GCA2+SCA, 
-#               rcov=~units, nIters=10,
-#               data=DT, verbose = FALSE)
-# (suma <- summary(modFD)$varcomp)
-# Vgca <- sum(suma[1:2,1])
-# Vsca <- suma[3,1]
-# Ve <- suma[4,1]
-# Va = 4*Vgca
-# Vd = 4*Vsca
-# Vg <- Va + Vd
-# (H2 <- Vg / (Vg + (Ve)) )
-# (h2 <- Va / (Vg + (Ve)) )
+data(DT_cornhybrids, package="enhancer")
+DT <- DT_cornhybrids
+DTi <- DTi_cornhybrids
+GT <- GT_cornhybrids
+
+modFD <- mmes(Yield~Location,
+              random=~GCA1+GCA2+SCA,
+              rcov=~units,
+              data=DT, verbose = FALSE)
+(suma <- summary(modFD)$varcomp)
+Vgca <- sum(suma[1:2,1])
+Vsca <- suma[3,1]
+Ve <- suma[4,1]
+Va = 4*Vgca
+Vd = 4*Vsca
+Vg <- Va + Vd
+(H2 <- Vg / (Vg + (Ve)) )
+(h2 <- Va / (Vg + (Ve)) )
 ```
 Don't worry too much about the `h2` value, the data was simulated to be mainly dominance variance, therefore the `Va` was simulated extremely small leading to such value of narrow sense `h2`.
 
@@ -292,8 +289,7 @@ DT$genof <- as.factor(DT$geno)
 #### model using overlay
 modh <- mmes(sugar~1, 
              random=~vsm(ism(overlay(femalef,malef)) )
-             + genof, nIters=10,
-             data=DT, verbose = FALSE)
+             + genof, data=DT, verbose = FALSE)
 summary(modh)$varcomp
 ```
 
@@ -312,6 +308,7 @@ $y = X\beta + Zu + \epsilon$
 and takes advantage of the variance covariance matrix for the genotype effect known as the additive relationship matrix (A) and calculated using the `A.mat` function to establish connections among all individuals and predict the BLUPs for individuals that were not measured. The prediction accuracy depends on several factors such as the heritability ($h^2$), training population used (TP), size of TP, etc.
 
 ```{r}
+
 data(DT_wheat, package="enhancer")
 DT <- DT_wheat
 GT <- apply(GT_wheat,2,as.numeric)
@@ -322,32 +319,39 @@ DT <- as.data.frame(DT);DT$id <- as.factor(rownames(DT))
 # select environment 1
 K <- A.mat(GT) # additive relationship matrix
 colnames(K) <- rownames(K) <- rownames(DT)
+Ki <- solve(K+ diag(1e-4, nrow(K),nrow(K))) 
+Ki <- as(as(as( Ki,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(Ki, "inverse")=TRUE
+
+
 # GBLUP pedigree-based approach
 set.seed(12345)
 y.trn <- DT
 vv <- sample(rownames(DT),round(nrow(DT)/5))
 y.trn[vv,"X1"] <- NA
 head(y.trn)
-## GBLUP
+## GBLUP with mmes
 ans <- mmes(X1~1,
-            random=~vsm(ism(id),Gu=K), 
-            rcov=~units,nIters=10,
+            random=~vsm(ism(id),Gu=Ki), 
+            rcov=~units,
             data=y.trn, verbose = FALSE) # kinship based
 cor(ans$u[vv,] ,DT[vv,"X1"], use="complete")
 
-## rrBLUP
-ans2 <- mmes(X1~1,
-             random=~vsm(ism(GT), buildGu = FALSE), 
-             rcov=~units, getPEV = TRUE, nIters=10, # you do more iterations
+## rrBLUP with mmer
+ans2 <- mmer(X1~1,
+             random=~vsr(list(GT)), 
+             rcov=~units, getPEV = TRUE,
              data=y.trn, verbose = FALSE) # kinship based
 
-u <- GT %*% as.matrix(ans2$uList$`vsm(ism(GT), buildGu = FALSE`) # BLUPs for individuals
+u <- GT %*% ans2$U$`u:GT`$X1 # BLUPs for individuals
 rownames(u) <- rownames(GT)
 cor(u[vv,],DT[vv,"X1"]) # same correlation
 # the same can be applied in multi-response models in GBLUP or rrBLUP
+
+
 ```
 
-Please notice that when specifying the marker matrix as a random effect we used the argument 'buildGu=FALSE' to inform the 'mmes' function that a covariance matrix for the levels of the random effect shouldn't be built. Imagine a model with 100,000 markers, that would imply a relationship matrix of 100,000 x 100,000. If that matrix is a diagonal it would only compromise the speed and memory of the function. By setting  'buildGu=FALSE' the mmes solver will avoid the matrix multiplications using that huge diagonal matrix. If you want to specify a relationship matrix for the marker matrix then you cannot use that 'buildGu' argument.
+The two prediction formulations shown above use different parameterizations. The GBLUP example fits genotype effects with the sparse precision matrix `Ki` through `mmes()` and `vsm()`. The rrBLUP example instead fits marker effects through `mmer()` and `vsr(list(GT))`, so a separate random effect is associated with each marker column. The older `buildGu=FALSE` explanation does not apply to the code shown here and is not part of the current `mmes()` covariance-factor interface.
 
 ### 6) Indirect genetic effects
 
@@ -355,33 +359,33 @@ General variance structures can be used to fit indirect genetic effects. Here, w
 
 We first fit a direct genetic effects model:
 ```{r}
-# data(DT_ige, package="enhancer")
-# DT <- DT_ige
-# Af <- A_ige
-# An <- A_ige
+data(DT_ige, package="enhancer")
+DT <- DT_ige
+Af <- A_ige
+An <- A_ige
 
-## Direct genetic effects model
-# modDGE <- mmes(trait ~ block,
-#                random = ~ focal,
-#                rcov = ~ units, nIters=30,
-#                data = DT, verbose=FALSE)
-# summary(modDGE)$varcomp
+# Direct genetic effects model
+modDGE <- mmes(trait ~ block,
+               random = ~ focal,
+               rcov = ~ units,
+               data = DT, verbose=FALSE)
+summary(modDGE)$varcomp
 
 ```
 
 We now fit the indirect genetic effects model without covariance between DGE and IGE:
 
 ```{r}
-# data(DT_ige, package="enhancer")
-# DT <- DT_ige
-# A <- A_ige
-# 
-# ## Indirect genetic effects model
-# modIGE <- mmes(trait ~ block, dateWarning = FALSE,
-#                random = ~ focal + neighbour, verbose = FALSE,
-#                rcov = ~ units, nIters=100,
-#               data = DT)
-# summary(modIGE)$varcomp
+data(DT_ige, package="enhancer")
+DT <- DT_ige
+A <- A_ige
+
+## Indirect genetic effects model
+modIGE <- mmes(trait ~ block, dateWarning = FALSE,
+               random = ~ focal + neighbour, verbose = FALSE,
+               rcov = ~ units, 
+              data = DT)
+summary(modIGE)$varcomp
 
 ```
 
@@ -389,7 +393,7 @@ We now fit the indirect genetic effects model with covariance between DGE and IG
 
 ```{r}
 
-# ### Indirect genetic effects model
+# ### Indirect genetic effects model (needs to be fixed)
 # modIGE <- mmes(trait ~ block, dateWarning = FALSE,
 #                random = ~ covm( vsm(ism(focal)), vsm(ism(neighbour)) ),
 #                rcov = ~ units, nIters=100, verbose = FALSE,
@@ -480,7 +484,7 @@ A model without covariance structures would show that the SCA variance component
 
 ### 8) Multivariate genetic models and genetic correlations
 
-Sometimes is important to estimate genetic variance-covariance among traits--multi-reponse models are very useful for such a task. Let see an example with 2 traits (`color` and `Yield`) and a single random effect (genotype; `id`) although multiple effects can be modeled as well. First, we need to create a dataset in the long format, that is having a single column for the trait value and the traits are row-binded one over the other (here we use reshape). Then the trait converts one more factor to model. We use the following variance covariance structure for the random effect id to be able to obtain the genetic covariance among traits.
+Multivariate mixed models are useful for estimating genetic variances and covariances among traits. The example below represents two traits (`color` and `Yield`) in long format, with a single response column and a factor identifying the trait. This makes trait a covariance dimension that can be included explicitly in `vsm()`. The random term `vsm(usm(trait), ism(id), Gu=Ai)` represents the genotype covariance as a Kronecker product of an unstructured trait covariance factor and the genotype relationship structure, while `vsm(dsm(trait), ism(units))` allows trait-specific residual variances with zero residual covariance between traits.
 
 ```{r}
 # data(DT_cpdata, package="enhancer")
@@ -502,12 +506,13 @@ Sometimes is important to estimate genetic variance-covariance among traits--mul
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # attr(Ai, 'inverse')=TRUE
-# #### be patient take some time
+# #### be patient this model is heavier
 # ansm <- mmes( value ~ trait, # henderson=TRUE,
-#                random=~ vsm(usm(trait), ism(id), Gu=A), # Ai if henderson
+#                random=~ vsm(usm(trait), ism(id), Gu=Ai), # Ai if henderson
 #                rcov=~ vsm(dsm(trait), ism(units)),
 #                data=DTL)
 # cov2cor(ansm$theta[[1]])
+
 ```
 
 Other examples of multi-trait models can be found in the documentation of the rice dataset (DT_rice) and in the example dataset (DT_example). The key here is to learn how to use the reshape function from base R.
@@ -532,21 +537,24 @@ DTC <- rbind(DT1,DT2)
 Now we fit an unstructured model for a legendre polynomial with two traits and a diagonal model for the residual.
 
 ```{r}
+# 
 # library(orthopolynom)
 # 
-# Z <- with(DTC, dsm(leg(X,1)) )
+# Z <- with(DTC, dsm(leg(X,1)) )$Z
 # for(i in 1:ncol(Z)){DTC[,colnames(Z)[i]] <- Z[,i]}
 # 
-# X <- with(DTC, dsm(TRAIT) )
+# X <- with(DTC, dsm(TRAIT) )$Z
 # for(i in 1:ncol(X)){DTC[,colnames(X)[i]] <- X[,i]}
 # 
 # A <- diag(length(unique(DTC$SUBJECT)))
 # rownames(A) <- colnames(A) <- unique(DTC$SUBJECT)
-# 
-# ## 
+# Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
+# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, 'inverse')=TRUE
+# ##
 # M <- model.matrix(~ T1:leg0 + T1:leg1 + T2:leg0 + T2:leg1 - 1 , data=DTC)
-# mRR2b<-mmes(Y ~ Xf, 
-#             random=~ vsm( usm( M ) ,  ism(SUBJECT) , Gu = A),
+# mRR2b<-mmes(Y ~ Xf,
+#             random=~ vsm( usm( M ) ,  ism(SUBJECT) , Gu = Ai),
 #             rcov = ~ vsm( dsm(TRAIT), ism(units) ),
 #             nIters = 10, verbose = FALSE,
 #             data=DTC)
@@ -558,7 +566,7 @@ Now we fit an unstructured model for a legendre polynomial with two traits and a
 
 ### 1) Partitioned model
 
-The partitioned model was popularized by () to show that marker effects can be obtained by fitting a GBLUP model to reduce the computational burden and then recover them by creating some special matrices MM' for GBLUP and  M'(M'M)- to recover marker effects. Here we show a very easy example using the DT_cpdata:
+Marker-effect BLUPs can be recovered from an equivalent GBLUP parameterization by exploiting the relationship between the marker matrix \(M\), the genomic covariance \(MM^\prime\), and the corresponding genotype BLUPs. The example below fits the marker model directly and then fits a partitioned GBLUP model based on \(MM^\prime\). Marker effects are recovered from genotype effects with the linear transformation \(M^\prime(MM^\prime)^{-1}\), using the regularized inverse constructed in the example. This illustrates the algebraic equivalence of the two parameterizations under the covariance scaling used here.
 
 ```{r}
 library(sommer)
@@ -569,41 +577,44 @@ M <- GT_cpdata
 ################
 # MARKER MODEL
 ################
-mix.marker <- mmes(color~1,
-                   random=~Rowf+vsm(ism(M)),
+mix.marker <- mmer(Yield~1,
+                   random=~Rowf+vsr(list(M)),
                    rcov=~units,data=DT, 
                    verbose = FALSE)
 
 
-me.marker <- mix.marker$uList$`vsm(ism(M`
+me.marker <- mix.marker$U$`u:M`$Yield
 
 ################
 # PARTITIONED GBLUP MODEL
 ################
 
 MMT <-tcrossprod(M) ## MM' = additive relationship matrix 
-MMTinv<-solve(MMT) ## inverse
+MMTinv<-solve(MMT + diag(1e-4, nrow(MMT), nrow(MMT))) ## inverse
 MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
+MMTinv <- as(as(as( MMTinv,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(MMTinv, 'inverse')=TRUE
 
-mix.part <- mmes(color~1,
-                 random=~Rowf+vsm(ism(id), Gu=MMT),
+mix.part <- mmes(Yield~1, nIters = 20, 
+                 random=~Rowf+vsm(ism(id), Gu=MMTinv),
                  rcov=~units,data=DT,
                  verbose = FALSE)
 
 #convert BLUPs to marker effects me=M'(M'M)- u
-me.part<-MTMMTinv%*%matrix(mix.part$uList$`vsm(ism(id), Gu = MMT`,ncol=1)
+me.part<-MTMMTinv%*%matrix(mix.part$uList$`vsm(ism(id), Gu = MMTinv`,ncol=1)
 
 # compare marker effects between both models
 plot(me.marker,me.part)
 
+
 ```
 
-As can be seen, these two models are equivalent with the exception that the partitioned model is more computationally efficient.
+Under the covariance construction and regularization used in this example, the two parameterizations produce the corresponding marker-effect predictions through the stated linear transformation. Their relative computational cost depends on the numbers of records, genotypes and markers and on the solver formulation; therefore the partitioned form should not be assumed to be universally faster.
 
 
 ### 2) UDU' decomposition
 
-Lee and Van der Warf (2015) proposed a decomposition of the relationship matrix A=UDU' together with a transformation of the response and fixed effects Uy = Ux + UZ + e, to fit a model where the phenotypic variance matrix V is a diagonal because the relationship matrix is the diagonal matrix D from the decomposition that can be inverted easily and make multitrait models more feasible.
+An eigendecomposition of a symmetric relationship matrix can be written \(A=UDU^\prime\), with orthogonal eigenvectors \(U\) and diagonal eigenvalue matrix \(D\). Premultiplying the model by \(U^\prime\) rotates the observations and design matrices into this eigenbasis, so the relationship component becomes diagonal. Under residual structures that remain diagonal after the orthogonal transformation, this can simplify marginal-covariance calculations and has historically been useful for dense direct-inversion or spectral algorithms.
 
 ```{r}
 
@@ -648,7 +659,7 @@ Lee and Van der Warf (2015) proposed a decomposition of the relationship matrix 
 
 ```
 
-As can be seen, the two models are equivalent. Despite the fact that sommer doesn't take a great advantage of this trick because it was built for dense matrices using the Armadillo library. Other software may be better using this trick.
+The transformed and untransformed formulations are algebraically equivalent when the covariance structures satisfy the assumptions of the rotation. The current `mmes()` implementation, however, is no longer a dense direct-inversion algorithm: it exploits sparse mixed model equations and sparse factorization. Consequently, an eigenspace rotation is not automatically advantageous and can destroy useful sparsity in the incidence matrices. Whether such a transformation helps therefore depends on the particular model and computational formulation.
 
 ### 3) Mating designs
 
@@ -687,7 +698,7 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 ## REML method
 ##############################
 mix2 <- mmes(yield~ setf + setf:repf,
-            random=~femalef:malef:setf + malef:setf, nIters=10,
+            random=~femalef:malef:setf + malef:setf, 
             data=DT, verbose = FALSE)
 vc <- summary(mix2)$varcomp; vc
 Vfm <- vc[1,"VarComp"]
@@ -749,7 +760,6 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 
 mix2 <- mmes(yield~ setf + setf:repf ,
             random=~femalef:malef:setf + malef:setf + femalef:setf, 
-            nIters=10,
             data=DT, verbose = FALSE)
 vc <- summary(mix2)$varcomp; vc
 Vfm <- vc[1,"VarComp"]
@@ -789,29 +799,27 @@ First we fit a regular GWAS/EMMAX using the GWAS function available in sommer th
 # mix2 <- GWAS(color~1,
 #              random=~vsm(ism(id), Gu=A) + Rowf + Colf,
 #              rcov=~units, M=GT, gTerm = "u:id",
-#              verbose = FALSE, nIters=10,
+#              verbose = FALSE, 
 #              data=DT)
 ```
 
 To compare EMMAX to the approach proposed by Gualdron-Duarte et al. (2014) and Bernal-Rubio et al. (2016) we will start fitting an RRBLUP/SNP-BLUP model to show that the estimate of the marker effect by its standard error is mathematically equivalent to fixed regression EMMAX GWAS.
 
 ```{r}
-###########################
-#### GWAS by RRBLUP approach
-###########################
+# ###########################
+# #### GWAS by RRBLUP approach
+# ###########################
 # Z <- GT[as.character(DT$id),]
-# mixRRBLUP <- mmes(color~1,
-#               random=~vsm(ism(Z)) + Rowf + Colf,
+# mixRRBLUP <- mmer(Yield~1,
+#               random=~vsr(list(Z)) + Rowf + Colf,
 #               rcov=~units, nIters=10,
 #               verbose = FALSE,
 #               data=DT)
 # 
-# a <- mixRRBLUP$uList$`vsm(ism(Z`# marker effects
-# start=mixRRBLUP$partitions[[1]][1]
-# end=mixRRBLUP$partitions[[1]][2]
-# se.a <- sqrt( diag(kronecker(diag(ncol(Z)),mixRRBLUP$theta[[1]]) - mixRRBLUP$Ci[start:end,start:end] ) ) # SE of marker effects
+# a <- mixRRBLUP$U$`u:Z`$Yield
+# se.a <- sqrt( diag(kronecker(diag(ncol(Z)),mixRRBLUP$sigma$`u:Z`) - mixRRBLUP$PevU$`u:Z`$Yield ) ) # SE of marker effects
 # t.stat <- a/se.a # t-statistic
-# pvalRRBLUP <- dt(t.stat[,1],df=n-k-1) # -log10(pval)
+# pvalRRBLUP <- dt(t.stat,df=n-k-1) # -log10(pval)
 ```
 Instead of fitting the RRBLUP/SNP-BLUP model we can fit a GBLUP model which is less computationally demanding and recover marker effects and their standard errors from the genotype effects.
 
@@ -821,14 +829,17 @@ Instead of fitting the RRBLUP/SNP-BLUP model we can fit a GBLUP model which is l
 # ###########################
 # M<- GT
 # MMT <-tcrossprod(M) ## MM' = additive relationship matrix
-# MMTinv<-solve(MMT + diag(1e-6, ncol(MMT), ncol(MMT))) ## inverse of MM'
+# MMTinv<-solve(MMT + diag(1e-4, ncol(MMT), ncol(MMT))) ## inverse of MM'
 # MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
-# mixGBLUP <- mmes(color~1,
-#              random=~vsm(ism(id), Gu=MMT) + Rowf + Colf,
-#              rcov=~units, nIters=10,
-#              verbose = FALSE,
+# MMTinv <- as(as(as( MMTinv,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(MMTinv, 'inverse')=TRUE
+# 
+# mixGBLUP <- mmes(Yield~1,
+#              random=~vsm(ism(id), Gu=MMTinv) + Rowf + Colf,
+#              rcov=~units, nIters=25,
+#              verbose = T, computeCi = 2,
 #              data=DT)
-# a.from.g <-MTMMTinv%*%matrix(mixGBLUP$uList$`vsm(ism(id), Gu = MMT`,ncol=1)
+# a.from.g <-MTMMTinv%*%matrix(mixGBLUP$uList$`vsm(ism(id), Gu = MMTinv`,ncol=1)
 # start=mixGBLUP$partitions[[1]][1]
 # end=mixGBLUP$partitions[[1]][2]
 # var.g <- kronecker(MMT,mixGBLUP$theta[[1]]) - mixGBLUP$Ci[start:end,start:end]
@@ -851,7 +862,7 @@ Now we can look at the p-values coming from the 3 approaches to indeed show that
 
 ### Final remarks
 
-Keep in mind that mmes uses a direct inversion (DI) algorithm which can be very slow for large datasets with many records. When datasets have more records than coefficients to be estimated please shift to the use of the mmes function.
+Keep in mind that the current `mmes()` solver uses Henderson's mixed model equations with sparse Average Information REML; it is not the former dense direct-inversion implementation. Its performance depends strongly on sparsity, the number and structure of random effects, fill-in in the sparse factorization, and the covariance models being fitted. The complementary `mmer()` marginal-covariance formulation remains useful for models whose dimensions or covariance representation favor observation-space calculations. Thus solver choice should be based on the structure of the particular problem rather than only on whether the number of records exceeds the number of coefficients.
 
 ## Literature
 

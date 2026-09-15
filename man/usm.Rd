@@ -1,71 +1,28 @@
 \name{usm}
 \alias{usm}
-\alias{usr}
-\title{unstructured covariance structure}
+\title{Unstructured positive-definite covariance structure}
 \description{
-  \code{usm} creates an unstructured covariance structure for specific levels of 
-  the random effect to be used with the \code{\link{mmes}} solver.
+Unstructured positive-definite covariance structure. The returned dimensionless covariance shape is intended for use inside \code{vsm}, which supplies the single overall variance scale.
 }
 \usage{
-  usm(x, thetaC, theta)
+usm(x, theta = NULL, fixed = NULL)
 }
-
 \arguments{
-  \item{x}{vector of observations for the random effect.}
-    \item{thetaC}{an optional symmetric matrix for constraints in the 
-    variance-covariance components. The symmetric matrix should have as many
-    rows and columns as the number of levels in the factor 'x'. The values in 
-    the matrix define how the variance-covariance components should be estimated:
-  
-  0: component will not be estimated
-  
-  1: component will be estimated and constrained to be positive
-  
-  2: component will be estimated and unconstrained
-  
-  3: component will be fixed to the value provided in the theta argument
-  
-  }
-  \item{theta}{an optional symmetric matrix for initial values of the variance-covariance components. When providing customized values, these values should be scaled with respect to the original variance. For example, to provide an initial value of 1 to a given variance component, theta would be built as:
-  
-  theta = matrix( 1 / var(response) )
-  
-  The symmetric matrix should have as many rows and columns as the number of levels in the factor 'x'. The values in the matrix define the initial values of the variance-covariance components that will be subject to the constraints provided in thetaC. If not provided, initial values will be calculated as:
-  
-  diag(ncol(mm))*.05 + matrix(.1,ncol(mm),ncol(mm))
-  
-  where mm is the incidence matrix for the factor 'x'.
-  
-  }
+  \item{x}{Variable or design defining q covariance levels.}
+  \item{theta}{Optional positive-definite q by q starting covariance matrix.}
+  \item{fixed}{Logical vector of length q(q+1)/2 - 1 controlling the estimable normalized-Cholesky parameters.}
+}
+\details{
+The covariance shape is parameterized as \deqn{K=LL^{\mathsf T},} with lower-triangular \eqn{L} and \eqn{L_{11}=1}.  Diagonal elements after the first are positive and represented on log scales; lower off-diagonal elements are unrestricted.  This guarantees positive definiteness without repeatedly repairing an unconstrained covariance matrix.
 }
 \value{
-  \describe{
-    
-    \item{$res}{ a list with the provided vector and the variance covariance structure expected for the levels of the random effect.}
-  }
+A list containing the incidence/design matrix in \code{Z} and a compiled CovarianceFactor v2 descriptor in \code{covFactor}, for use inside \code{vsm}.
 }
-\references{
-  Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
-}
-\author{
-  Giovanny Covarrubias-Pazaran
-}
-
 \examples{
-x <- as.factor(c(1:5,1:5,1:5));x
-usm(x)
-## how to use the theta and thetaC arguments:
-# data(DT_example, package="enhancer")
-# DT <- DT_example
-# theta <- matrix(9:1,3,3); 
-# theta[lower.tri(theta)] <- t(theta)[lower.tri(theta)] 
-# theta # initial VCs
-# thetaC <- fixm(3); thetaC # fixed VCs
-# ans1 <- mmes(Yield~Env,
-#              random= ~ vsm( usm(Env,theta = theta,thetaC = thetaC),ism(Name) ),
-#              rcov= ~ units, nIters = 1,
-#              data=DT)
-# summary(ans1)$varcomp
-
+\dontrun{
+vsm(usm(environment), ism(genotype))
 }
-
+}
+\seealso{
+\code{\link{vsm}}, \code{\link{mmes}}.
+}

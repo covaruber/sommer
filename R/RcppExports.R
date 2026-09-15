@@ -89,11 +89,19 @@ nearPDcpp <- function(X0, maxit, eig_tol, conv_tol) {
     .Call(`_sommer_nearPDcpp`, X0, maxit, eig_tol, conv_tol)
 }
 
+post_mme_Cinverse_cpp <- function(model, mode = 1L) {
+    .Call(`_sommer_post_mme_Cinverse_cpp`, model, mode)
+}
+
 ai_mme_sp <- function(X, ZI, Zind, AiI, y0, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose) {
     .Call(`_sommer_ai_mme_sp`, X, ZI, Zind, AiI, y0, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose)
 }
 
 MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight) {
     .Call(`_sommer_MNR`, Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight)
+}
+
+ai_mme_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi = 0L) {
+    .Call(`_sommer_ai_mme_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi)
 }
 

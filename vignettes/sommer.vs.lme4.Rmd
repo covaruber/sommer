@@ -98,7 +98,7 @@ This is the a model where you assume that the random effect has different interc
 ## sommer
 ###########
 fm2 <- mmes(Reaction ~ Days, # henderson=TRUE,
-            random= ~ covm( vsm(ism(Subject)) , vsm(ism(Days), ism(Subject)) ), 
+            random= ~ vsm(ism(Days), ism(Subject)) , 
             nIters = 200, data=DT, tolParInv = 1e-6, verbose = FALSE)
 summary(fm2)$varcomp
 cov2cor(fm2$theta[[1]])

@@ -7,22 +7,24 @@
 }
 \description{
 
-The \code{mmes} function uses either the direct inversion or the Henderson mixed 
-model equations algorithms coded in C++ using the Armadillo library to optimize matrix 
-operations. For problems of the type  c > r (more coefficients to estimate than records available),
-the direct inversion algorithm is faster (using the argument \code{henderson=FALSE}; default).
-For more records than coefficients set \code{henderson=TRUE} and make sure that you provide the
-relationship matrix as an inverse (see \code{\link{vsm}()} function for details).
+The \code{mmes} function uses the Henderson mixed model equations algorithm 
+coded in C++ using the Armadillo and Eigen libraries to optimize matrix 
+operations. For more records than coefficients the Henderson's formulation is
+faster. Please make sure that you provide the relationship matrix as an inverse 
+(see \code{\link{vsm}()} function for details).
+For problems of the type  c > r (more coefficients to estimate than
+records available) the direct inversion algorithm is faster (use the old \code{\link{mmer}} function).
+
 
 }
 
 \usage{
 
-mmes(fixed, random, rcov, data, W, nIters=50, tolParConvLL = 1e-04,
+mmes(fixed, random, rcov, data, W, nIters=30, tolParConvLL = 1e-04,
      tolParConvNorm = 1e-04, tolParInv = 1e-06, naMethodX="exclude",
      naMethodY="exclude", returnParam=FALSE, dateWarning=TRUE,
-     verbose=TRUE,addScaleParam=NULL, stepWeight=NULL, emWeight=NULL,
-     contrasts=NULL, getPEV=TRUE, henderson=FALSE)
+     verbose=TRUE, stepWeight=NULL, emWeight=NULL,
+     contrasts=NULL, getPEV=TRUE, henderson=TRUE, computeCi=0)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -31,49 +33,117 @@ mmes(fixed, random, rcov, data, W, nIters=50, tolParConvLL = 1e-04,
 
   }
 
-  \item{random}{A formula specifying the name of the \strong{random effects}, e.g., 
-  \emph{random= ~ genotype + year}.
+  \item{random}{A formula specifying the \strong{random effects}, e.g.,
+  \emph{random = ~ genotype + year}. A simple random term that is not wrapped
+  in \code{\link{vsm}} is treated as an identity-covariance random effect.
 
-  Useful functions can be used to fit heterogeneous variances and other special models
-  (\emph{see 'Special Functions' in the Details section for more information}):
+  The \code{\link{vsm}} function is the main interface for specifying structured
+  covariance models for random effects. Its current covariance model is
 
-  \code{\link{vsm}(...,Gu)} is the main function to specify variance models and
-  special structures for random effects. On the ... argument you provide the 
-  unknown variance-covariance structures (e.g., usm,dsm,atm,csm) and the random 
-  effect where such covariance structure will be used (the random effect of interest). 
-  Gu is used to provide known covariance matrices among the levels of the random effect.
-  Inverse matrices when the argument henderson=TRUE, and raw (non-inverse) matrices
-  when henderson=FALSE (default direct inversion). Auxiliar functions for building
-  the variance models are:
+  \deqn{G = \sigma^2 (K_1 \otimes K_2 \otimes \cdots \otimes K_m) \otimes A,}
 
-  ** \code{\link{dsm}(x)}, \code{\link{usm}(x)}, \code{\link[enhancer]{rrm}(x,y,z)} , 
-  \code{\link{ism}(x)},\code{\link{csm}(x)}, and \code{\link{atm}(x,levs)} can 
-  be used to specify unknown diagonal, unstructured, reduced-rank, identity, 
-  and customized unstructured and diagonal covariance structures respectively 
-  to be estimated by REML.
+  where \eqn{\sigma^2} is the single variance scale owned by \code{vsm()},
+  \eqn{K_1,\ldots,K_m} are covariance-shaping factors supplied by covariance
+  constructors, and \eqn{A} is the known covariance relationship for the final
+  random effect. In the Henderson implementation \code{Gu} supplies the
+  \strong{inverse} of \eqn{A}; it must have row and column names matching the
+  levels of the final random effect and \code{attr(Gu,"inverse")=TRUE}.
 
-  ** \code{\link{unsm}(x)}, \code{\link{fixm}(x)} and \code{\link{diag}(x)} can
-  be used to build easily matrices to specify constraints in the Gtc argument 
-  of the \code{\link{vsm}()} function.
+  Within \code{vsm(...)}, the \strong{last} constructor supplies the incidence
+  matrix for the main random effect, while all preceding constructors define
+  covariance-shaping factors. The number of covariance factors is not limited.
+  For example,
 
-  ** \code{\link[enhancer]{overlay}()}, \code{\link{spl2Dc}()},
-  and \code{\link[enhancer]{leg}()},
-  \code{\link[enhancer]{redmm}()} functions can be used to specify overlayed of design
-  matrices of random effects, two dimensional spline, random regression, and 
-  dimensionality-reduction models within the \code{\link{vsm}()} function.
+  \code{random = ~ vsm(dsm(Location), ism(Name))}
+
+  fits heterogeneous variances across \code{Location} for the random effect
+  \code{Name}, while
+
+  \code{random = ~ vsm(dsm(Environment), ar1m(Row), ar1m(Column),
+  ism(Name), Gu=Ainv)}
+
+  specifies an arbitrary Kronecker product of covariance structures before the
+  relationship matrix for \code{Name}.
+
+  Covariance constructors currently available include:
+
+  \code{\link{ism}} for identity covariance;
+
+  \code{\link{dsm}} and \code{\link{atm}} for diagonal and selected-level
+  diagonal covariance structures;
+
+  \code{\link{usm}} for an unstructured covariance matrix;
+
+  \code{\link{csm}}, \code{\link{corm}}, \code{\link{corvm}},
+  \code{\link{corhm}}, and \code{\link{corgm}} for correlation structures;
+
+  \code{\link{ar1m}}, \code{\link{ar2m}}, and \code{\link{ar3m}} for
+  autoregressive covariance structures;
+
+  \code{\link{mam}} (including \code{ma1m} and \code{ma2m}) for moving-average
+  covariance structures;
+
+  \code{\link{toeplitzm}} for a general positive-definite Toeplitz correlation
+  structure;
+
+  \code{\link{fam}} for factor-analytic covariance;
+
+  \code{\link{rrcm}} for the reduced-rank covariance approximation;
+
+  \code{\link{antem}} for antedependence covariance;
+
+  \code{\link{maternm}} for Matern spatial covariance;
+
+  \code{\link{sar}} and \code{\link{car}} for simultaneous and conditional
+  autoregressive spatial covariance models; and
+
+  \code{\link{ownm}} for a fixed or user-defined covariance function.
+
+  Design-matrix utilities such as \code{\link[enhancer]{overlay}},
+  \code{\link{spl2Dc}}, \code{\link[enhancer]{leg}}, and
+  \code{\link[enhancer]{redmm}} can still be combined with \code{vsm()} when
+  appropriate.
+
+  See \code{\link{vsm}} and the individual covariance-constructor help pages
+  for details on parameterizations and examples.
 
   }
-  \item{rcov}{A formula specifying the name of the \strong{error term}, e.g.,
-  \emph{rcov= ~ units}.
+  \item{rcov}{A formula specifying the \strong{residual covariance structure}.
+  The default is \emph{rcov = ~ units}, which fits a homogeneous residual
+  variance.
 
-  Special heterogeneous and special variance models and constraints for the 
-  residual part are the same used on the random term but the name of the random 
-  effect is always "units" which can be thought as a column with as many levels
-  as rows in the data, e.g., \emph{rcov=~vsm(dsm(covariate),ism(units))}
+  Structured residual covariance is specified with the same
+  \code{\link{vsm}} and CovarianceFactor constructors used for random effects.
+  The residual term should be expressed as a single \code{vsm()} term; arbitrary
+  covariance complexity is represented by placing multiple covariance factors
+  inside that term rather than by summing multiple residual terms.
 
-  When fitting structures at the level of residuals please make sure that your 
-  data is sorted based on the factors defining the structure. For example, for
-  \emph{rcov= ~ vsm(dsm(xx), ism(units))} sort the datatset by the variable xx.
+  The final term is normally \code{ism(units)}, where \code{units} is the
+  observation-level incidence generated internally by \code{mmes}. For example,
+
+  \code{rcov = ~ vsm(dsm(Environment), ism(units))}
+
+  fits heterogeneous residual variances across environments, while
+
+  \code{rcov = ~ vsm(ar1m(Row), ar1m(Column), ism(units))}
+
+  fits a separable row-by-column AR1 residual covariance. More generally,
+  structures such as \code{\link{usm}}, \code{\link{csm}},
+  \code{\link{toeplitzm}}, \code{\link{maternm}}, \code{\link{sar}},
+  \code{\link{car}}, and \code{\link{ownm}} can be used when their incidence
+  layout is appropriate for the residual model.
+
+  Residual covariance factors must identify exactly one covariance-product
+  coordinate for each observation. \code{mmes()} constructs the residual block
+  and local-coordinate indexing internally, so the data do \strong{not} need to
+  be manually sorted by the variables defining the residual structure.
+
+  As with random effects, \code{vsm()} owns one residual variance scale
+  \eqn{\sigma^2}; the preceding covariance constructors provide dimensionless
+  covariance shapes that are combined through an arbitrary Kronecker product.
+
+  See \code{\link{vsm}} and the individual covariance-constructor help pages
+  for details.
 
   }
   \item{data}{A data frame containing the variables specified in the formulas 
@@ -121,8 +191,6 @@ mmes(fixed, random, rcov, data, W, nIters=50, tolParConvLL = 1e-04,
    you when is time to update the sommer package.}
   \item{verbose}{A TRUE/FALSE value to indicate if the program should return 
   the progress of the iterative algorithm.}
-  \item{addScaleParam}{additional scale parameters for the thetaF matrix when 
-  using Henderson method (henderson=TRUE).}
   \item{stepWeight}{A vector of values (of length equal to the number of 
   iterations) indicating the weight used to multiply the update (delta) for
   variance components at each iteration. If NULL the 1st iteration will be 
@@ -142,12 +210,37 @@ mmes(fixed, random, rcov, data, W, nIters=50, tolParConvLL = 1e-04,
   
   }
   \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
-  \item{getPEV}{a logical value indicating if PEV should be returned when the 
-  direct inversion algorithm is used. It does not apply when henderson argument is
-  TRUE.}
-  \item{henderson}{a logical value indicating if the solving algorithm should 
-  be direct inversion (henderson is FALSE) or Henderson's method (henderson is
-  TRUE). Default is direct inversion.}
+  \item{getPEV}{A logical value indicating whether prediction error variance
+  results should be organized and returned when they are requested through
+  \code{computeCi}.}
+  \item{henderson}{A logical value retained for interface compatibility. The current
+  \code{mmes()} implementation is Henderson-only and therefore requires
+  \code{henderson=TRUE}. Direct-inversion/MNR fitting is handled by a separate
+  interface.}
+    \item{computeCi}{An integer indicating whether post-fit prediction error variance information
+  and/or the inverse of the mixed model coefficient matrix should be computed when the
+  Henderson algorithm is used (\code{henderson=TRUE}). The available options are:
+
+  \code{0}: no additional inverse-related computation is performed after convergence.
+  The full inverse of the coefficient matrix (\code{Ci}) is not formed and
+  \code{uPevList} is not computed. This is the fastest option and is the default.
+
+  \code{1}: prediction error variances are computed using the Takahashi sparse inverse
+  subset algorithm. This method uses the sparse LDLT factorization of the coefficient
+  matrix and recursively evaluates only those elements of the inverse that belong to
+  the sparsity pattern induced by the factorization. In particular, the diagonal
+  elements required for prediction error variances are obtained without constructing
+  the complete inverse matrix. Therefore, \code{uPevList} is returned while \code{Ci}
+  is not fully materialized.
+
+  \code{2}: the complete inverse of the coefficient matrix is computed. The prediction
+  error variances in \code{uPevList} are then extracted from the appropriate diagonal
+  elements of \code{Ci}. This option is the most computationally and memory intensive,
+  especially for large mixed model equation systems.
+
+  For large models, \code{computeCi=0} is recommended during model fitting. If prediction
+  error variances or the full inverse are needed afterwards, they can be obtained with
+  \code{\link{postPEV}} without refitting the model.}
 }
 
 \details{

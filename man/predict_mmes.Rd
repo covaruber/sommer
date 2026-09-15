@@ -71,6 +71,8 @@ m3 <- mmes(fixed=Y ~ V + N + V:N ,
            rcov=~units,
            data = DT)
 
+m3 <- postPEV(m3, mode = 2)
+ 
 #############################
 ## predict means for nitrogen
 #############################

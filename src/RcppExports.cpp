@@ -2,6 +2,7 @@
 // Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 #include <RcppArmadillo.h>
+#include <RcppEigen.h>
 #include <Rcpp.h>
 
 using namespace Rcpp;
@@ -302,6 +303,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// post_mme_Cinverse_cpp
+Rcpp::List post_mme_Cinverse_cpp(Rcpp::List model, const int mode);
+RcppExport SEXP _sommer_post_mme_Cinverse_cpp(SEXP modelSEXP, SEXP modeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< const int >::type mode(modeSEXP);
+    rcpp_result_gen = Rcpp::wrap(post_mme_Cinverse_cpp(model, mode));
+    return rcpp_result_gen;
+END_RCPP
+}
 // ai_mme_sp
 Rcpp::List ai_mme_sp(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const Rcpp::List& SI, const Rcpp::List& partitionsS, const arma::sp_mat& H, const bool& useH, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& thetaI, const Rcpp::List& thetaCI, const arma::mat& thetaF, const arma::vec& addScaleParam, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose);
 RcppExport SEXP _sommer_ai_mme_sp(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP SISEXP, SEXP partitionsSSEXP, SEXP HSEXP, SEXP useHSEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP thetaISEXP, SEXP thetaCISEXP, SEXP thetaFSEXP, SEXP addScaleParamSEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP) {
@@ -361,6 +374,34 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// ai_mme_sp2
+Rcpp::List ai_mme_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computeCi);
+RcppExport SEXP _sommer_ai_mme_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computeCiSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type ZI(ZISEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type Zind(ZindSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type y0(y0SEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type H(HSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type useH(useHSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type residualBlockI(residualBlockISEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type residualIndexI(residualIndexISEXP);
+    Rcpp::traits::input_parameter< int >::type nIters(nItersSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParConvLL(tolParConvLLSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParConvNorm(tolParConvNormSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParInv(tolParInvSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type covStructI(covStructISEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weightEmInf(weightEmInfSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weightInf(weightInfSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
+    Rcpp::traits::input_parameter< const int& >::type computeCi(computeCiSEXP);
+    rcpp_result_gen = Rcpp::wrap(ai_mme_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_sommer_currentDateTime", (DL_FUNC) &_sommer_currentDateTime, 0},
@@ -385,8 +426,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_convertSparse", (DL_FUNC) &_sommer_convertSparse, 1},
     {"_sommer_mat_to_vecCpp2", (DL_FUNC) &_sommer_mat_to_vecCpp2, 2},
     {"_sommer_nearPDcpp", (DL_FUNC) &_sommer_nearPDcpp, 4},
+    {"_sommer_post_mme_Cinverse_cpp", (DL_FUNC) &_sommer_post_mme_Cinverse_cpp, 2},
     {"_sommer_ai_mme_sp", (DL_FUNC) &_sommer_ai_mme_sp, 20},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 19},
+    {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 18},
     {NULL, NULL, 0}
 };
 

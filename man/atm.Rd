@@ -1,64 +1,29 @@
 \name{atm}
 \alias{atm}
-\alias{atr}
-\title{atm covariance structure}
+\title{Selected-level diagonal covariance structure}
 \description{
-  \code{atm} creates a diagonal covariance structure for specific levels of the random effect to be used with the \code{\link{mmes}} solver.
+Selected-level diagonal covariance structure. The returned dimensionless covariance shape is intended for use inside \code{vsm}, which supplies the single overall variance scale.
 }
 \usage{
-  atm(x, levs, thetaC, theta)
+atm(x, levs, values = NULL, fixed = NULL)
 }
-
 \arguments{
-  \item{x}{vector of observations for the random effect.}
-  \item{levs}{levels of the random effect to use for building the incidence matrices.}
-  \item{thetaC}{an optional symmetric matrix for constraints in the variance-covariance components. The symmetric matrix should have as many rows and columns as the number of levels in the factor 'x'. The values in the matrix define how the variance-covariance components should be estimated:
-  
-  0: component will not be estimated
-  
-  1: component will be estimated and constrained to be positive
-  
-  2: component will be estimated and unconstrained
-  
-  3: component will be fixed to the value provided in the theta argument
-  
-  }
-  \item{theta}{an optional symmetric matrix for initial values of the variance-covariance components. The symmetric matrix should have as many rows and columns as the number of levels in the factor 'x'. The values in the matrix define the initial values of the variance-covariance components that will be subject to the constraints provided in thetaC. If not provided, initial values will be calculated as:
-  
-  theta* = diag(ncol(mm))*.05 + matrix(.1,ncol(mm),ncol(mm))
-  
-  where mm is the incidence matrix for the factor 'x'. The values provided should be scaled by the variance of the response variable.
-  
-  theta = theta*/var(y)
-  
-  }
+  \item{x}{Variable defining all available levels.}
+  \item{levs}{Character names or numeric positions of the levels retained in this covariance factor.}
+  \item{values}{Optional positive starting variances for the selected levels.}
+  \item{fixed}{Logical vector of length length(levs)-1 controlling the selected variance ratios.}
+}
+\details{
+\code{atm} is a selected-level version of \code{dsm}.  The design is restricted to \code{levs}; observations outside those levels receive zeros for this factor.  The first selected level is the scale reference and the remaining selected levels are positive variance ratios.  This representation is most naturally used for random effects; residual factors must still assign exactly one covariance-product coordinate to every observation.
 }
 \value{
-  \describe{
-    
-    \item{$res}{ a list with the provided vector and the variance covariance structure expected.}
-  }
+A list containing the incidence/design matrix in \code{Z} and a compiled CovarianceFactor v2 descriptor in \code{covFactor}, for use inside \code{vsm}.
 }
-\references{
-  Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6): doi:10.1371/journal.pone.0156744 
-}
-\author{
-  Giovanny Covarrubias-Pazaran
-}
-
 \examples{
-x <- as.factor(c(1:5,1:5,1:5));x
-atm(x, c("1","2"))
-## how to use the theta and thetaC arguments:
-# data(DT_example, package="enhancer")
-# DT <- DT_example
-# theta <- diag(2)*2; theta # initial VCs
-# thetaC <- diag(2)*3; thetaC # fixed VCs
-# ans1 <- mmes(Yield~Env,
-#              random= ~ vsm( atm(Env, levs=c("CA.2013", "CA.2011"),
-#                             theta = theta,thetaC = thetaC),ism(Name) ),
-#              rcov= ~ units, nIters = 1,
-#              data=DT)
-# summary(ans1)$varcomp
-
+\dontrun{
+vsm(atm(environment, c("E1","E3")), ism(genotype))
+}
+}
+\seealso{
+\code{\link{dsm}}, \code{\link{vsm}}, \code{\link{mmes}}.
 }

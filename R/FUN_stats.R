@@ -1,3 +1,29 @@
+postPEV <- function(object, mode = 1L){
+  
+  if(!inherits(object, "mmes")){
+    stop("'object' must inherit from class 'mmes'.", call. = FALSE)
+  }
+  
+  mode <- as.integer(mode)
+  
+  if(length(mode) != 1L || is.na(mode) || !mode %in% 0:2){
+    stop("'mode' must be one of 0, 1, or 2.", call. = FALSE)
+  }
+  
+  object <- post_mme_Cinverse_cpp(object, mode)
+  
+  if(length(object$uPevList) && length(object$uList)){
+    names(object$uPevList) <- names(object$uList)
+    
+    for(i in seq_along(object$uPevList)){
+      if(length(object$uPevList[[i]])){
+        dimnames(object$uPevList[[i]]) <- dimnames(object$uList[[i]])
+      }
+    }
+  }
+  
+  object
+}
 
 
 corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
