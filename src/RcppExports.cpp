@@ -375,8 +375,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // ai_mme_sp2
-Rcpp::List ai_mme_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computeCi);
-RcppExport SEXP _sommer_ai_mme_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computeCiSEXP) {
+Rcpp::List ai_mme_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computeCi, const std::string& solver, const double& pcgTol, const int& pcgMaxIters, const int& pcgTraceProbes, const int& pcgLanczosSteps);
+RcppExport SEXP _sommer_ai_mme_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computeCiSEXP, SEXP solverSEXP, SEXP pcgTolSEXP, SEXP pcgMaxItersSEXP, SEXP pcgTraceProbesSEXP, SEXP pcgLanczosStepsSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -398,7 +398,12 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const arma::vec& >::type weightInf(weightInfSEXP);
     Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
     Rcpp::traits::input_parameter< const int& >::type computeCi(computeCiSEXP);
-    rcpp_result_gen = Rcpp::wrap(ai_mme_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi));
+    Rcpp::traits::input_parameter< const std::string& >::type solver(solverSEXP);
+    Rcpp::traits::input_parameter< const double& >::type pcgTol(pcgTolSEXP);
+    Rcpp::traits::input_parameter< const int& >::type pcgMaxIters(pcgMaxItersSEXP);
+    Rcpp::traits::input_parameter< const int& >::type pcgTraceProbes(pcgTraceProbesSEXP);
+    Rcpp::traits::input_parameter< const int& >::type pcgLanczosSteps(pcgLanczosStepsSEXP);
+    rcpp_result_gen = Rcpp::wrap(ai_mme_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -429,7 +434,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_post_mme_Cinverse_cpp", (DL_FUNC) &_sommer_post_mme_Cinverse_cpp, 2},
     {"_sommer_ai_mme_sp", (DL_FUNC) &_sommer_ai_mme_sp, 20},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 19},
-    {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 18},
+    {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 23},
     {NULL, NULL, 0}
 };
 

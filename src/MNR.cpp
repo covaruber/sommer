@@ -11,6 +11,9 @@
 // Eigen sparse LDLT used by ai_mme_sp()
 #include <Eigen/SparseCore>
 #include <Eigen/SparseCholesky>
+#include <Eigen/IterativeLinearSolvers>
+#include <Eigen/Eigenvalues>
+#include <cctype>
 
 // Standard C++ headers used by the new implementation
 #include <vector>
@@ -3236,7 +3239,6 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   );
 }
 
-
 // [[Rcpp::export]]
 Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const arma::vec & Zind, const Rcpp::List & AiI,
@@ -3248,7 +3250,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                      double tolParInv, const Rcpp::List & covStructI,
                      const arma::vec & weightEmInf,
                      const arma::vec & weightInf, const bool & verbose,
-                     const int & computeCi = 0
+                     const int & computeCi = 0,
+                     const std::string & solver = "ldlt",
+                     const double & pcgTol = 1.0e-10,
+                     const int & pcgMaxIters = 0,
+                     const int & pcgTraceProbes = 24,
+                     const int & pcgLanczosSteps = 40
 ){
 
   if(computeCi < 0 || computeCi > 2){
@@ -3258,6 +3265,32 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       "1 = Takahashi sparse inverse subset; "
       "2 = full C inverse."
     );
+  }
+
+  // Linear-system backend used for C x = rhs solves.
+  // In solver="pcg" mode the MME matrix C is NEVER factorised by LDLT:
+  // log|C| is estimated by deterministic-probe stochastic Lanczos quadrature
+  // and C^{-1} trace terms by Hutchinson probes solved with PCG.
+  std::string solverName = solver;
+  std::transform(solverName.begin(), solverName.end(), solverName.begin(),
+                 [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+  if(solverName != "ldlt" && solverName != "pcg"){
+    Rcpp::stop("solver must be either 'ldlt' or 'pcg'.");
+  }
+  if(!std::isfinite(pcgTol) || pcgTol <= 0.0){
+    Rcpp::stop("pcgTol must be positive and finite.");
+  }
+  if(pcgMaxIters < 0){
+    Rcpp::stop("pcgMaxIters must be >= 0; 0 selects an automatic limit.");
+  }
+  if(pcgTraceProbes < 1){
+    Rcpp::stop("pcgTraceProbes must be >= 1.");
+  }
+  if(pcgLanczosSteps < 2){
+    Rcpp::stop("pcgLanczosSteps must be >= 2.");
+  }
+  if(solverName == "pcg" && computeCi == 1){
+    Rcpp::stop("computeCi=1 requires LDLT/Takahashi. Use computeCi=0 for a genuinely factorisation-free PCG fit, or computeCi=2 for an explicit PCG full inverse (small systems only).");
   }
 
   time_t before = time(0);
@@ -4936,6 +4969,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     Eigen::AMDOrdering<int>
   > EigenLDLT;
 
+  typedef Eigen::ConjugateGradient<
+    EigenSpMat,
+    Eigen::Lower | Eigen::Upper,
+    Eigen::DiagonalPreconditioner<double>
+  > EigenPCG;
+
   struct SelectedInverseSubset {
     std::vector< std::vector<int> > rows;
     std::vector< std::vector<double> > values;
@@ -5168,11 +5207,208 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       );
     };
 
+  // ============================================================
+  // MME linear-solver module
+  //
+  // Cfactor is the exact direct backend and also supplies the LDLT factors
+  // needed by log|C| and Takahashi.  Cpcg is an optional iterative backend
+  // for the repeated C x = rhs solves (BLUE/BLUP, sensitivities and rare
+  // selected-block fallbacks).  Keeping all solve dispatch here makes future
+  // solver backends local to this module rather than the AI-REML code.
+  // ============================================================
   EigenLDLT Cfactor;
+  EigenPCG Cpcg;
   bool CsymbolicReady = false;
   bool CnumericReady = false;
+  bool CpcgReady = false;
   std::vector<int> CouterPattern;
   std::vector<int> CinnerPattern;
+
+  auto preparePCG = [&](const EigenSpMat & Ce){
+    CpcgReady = false;
+    if(solverName != "pcg"){ return; }
+    Cpcg.setTolerance(pcgTol);
+    const int automaticMax = std::max<int>(1000, static_cast<int>(Ce.rows()));
+    Cpcg.setMaxIterations(pcgMaxIters > 0 ? pcgMaxIters : automaticMax);
+    Cpcg.compute(Ce);
+    if(Cpcg.info() != Eigen::Success){
+      Rcpp::stop("PCG setup failed for the MME coefficient matrix C.");
+    }
+    CpcgReady = true;
+  };
+
+  auto solveCVector = [&](const Eigen::Ref<const Eigen::VectorXd> & rhs,
+                          const std::string & context) -> Eigen::VectorXd {
+    if(solverName == "ldlt"){
+      Eigen::VectorXd ans = Cfactor.solve(rhs);
+      if(Cfactor.info() != Eigen::Success){
+        Rcpp::stop("Sparse LDLT solve failed in " + context + ".");
+      }
+      return ans;
+    }
+    if(!CpcgReady){
+      Rcpp::stop("PCG solve requested before the PCG backend was prepared.");
+    }
+    Eigen::VectorXd ans = Cpcg.solve(rhs);
+    if(Cpcg.info() != Eigen::Success || !ans.allFinite()){
+      Rcpp::stop("PCG failed to converge in " + context + ".");
+    }
+    return ans;
+  };
+
+  auto solveCMatrix = [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs,
+                          const std::string & context) -> Eigen::MatrixXd {
+    Eigen::MatrixXd ans(rhs.rows(), rhs.cols());
+    if(solverName == "ldlt"){
+      ans = Cfactor.solve(rhs);
+      if(Cfactor.info() != Eigen::Success){
+        Rcpp::stop("Sparse LDLT multi-RHS solve failed in " + context + ".");
+      }
+      return ans;
+    }
+    if(!CpcgReady){
+      Rcpp::stop("PCG solve requested before the PCG backend was prepared.");
+    }
+    // Eigen's iterative solver is run column-by-column so convergence is
+    // checked independently for every derivative/right-hand side.
+    for(Eigen::Index j = 0; j < rhs.cols(); ++j){
+      ans.col(j) = Cpcg.solve(rhs.col(j));
+      if(Cpcg.info() != Eigen::Success || !ans.col(j).allFinite()){
+        Rcpp::stop("PCG failed to converge for RHS column " +
+                   std::to_string(static_cast<long long>(j + 1)) +
+                   " in " + context + ".");
+      }
+    }
+    return ans;
+  };
+
+
+  // ============================================================
+  // Factorisation-free PCG trace/log-determinant helpers for C
+  // ============================================================
+  // Deterministic Rademacher signs give common random numbers across REML
+  // iterations.  This is important for the likelihood line search: changes
+  // in the approximate log determinant then reflect C, not fresh Monte Carlo
+  // noise at every iteration.
+  auto pcgProbeSign = [](const unsigned long long row,
+                         const unsigned long long probe) -> double {
+    unsigned long long x = row + 0x9e3779b97f4a7c15ULL * (probe + 1ULL);
+    x ^= x >> 30;
+    x *= 0xbf58476d1ce4e5b9ULL;
+    x ^= x >> 27;
+    x *= 0x94d049bb133111ebULL;
+    x ^= x >> 31;
+    return (x & 1ULL) ? 1.0 : -1.0;
+  };
+
+  auto pcgApproxLogDet = [&](const EigenSpMat & A) -> double {
+    const Eigen::Index n = A.rows();
+    if(n <= 0){ return 0.0; }
+    const int mMax = std::min<int>(pcgLanczosSteps, static_cast<int>(n));
+    double total = 0.0;
+
+    for(int probe = 0; probe < pcgTraceProbes; ++probe){
+      Eigen::VectorXd q(n), qPrev = Eigen::VectorXd::Zero(n);
+      for(Eigen::Index i = 0; i < n; ++i){
+        q(i) = pcgProbeSign(static_cast<unsigned long long>(i),
+                           static_cast<unsigned long long>(probe));
+      }
+      const double normz = q.norm();
+      q /= normz;
+
+      std::vector<double> alpha;
+      std::vector<double> beta;
+      alpha.reserve(static_cast<std::size_t>(mMax));
+      beta.reserve(static_cast<std::size_t>(std::max(0, mMax-1)));
+      double betaPrev = 0.0;
+
+      for(int j = 0; j < mMax; ++j){
+        Eigen::VectorXd w = A * q;
+        if(j > 0){ w.noalias() -= betaPrev * qPrev; }
+        const double a = q.dot(w);
+        w.noalias() -= a * q;
+        // A small second local orthogonalisation against qPrev reduces
+        // loss of orthogonality without storing the complete Lanczos basis.
+        if(j > 0){
+          const double corr = qPrev.dot(w);
+          w.noalias() -= corr * qPrev;
+        }
+        const double b = w.norm();
+        alpha.push_back(a);
+        if(j + 1 >= mMax || b <= 1.0e-14 * std::max(1.0, std::abs(a))){ break; }
+        beta.push_back(b);
+        qPrev.swap(q);
+        q = w / b;
+        betaPrev = b;
+      }
+
+      const int m = static_cast<int>(alpha.size());
+      Eigen::MatrixXd T = Eigen::MatrixXd::Zero(m,m);
+      for(int j = 0; j < m; ++j){
+        T(j,j) = alpha[static_cast<std::size_t>(j)];
+        if(j + 1 < m){
+          const double b = beta[static_cast<std::size_t>(j)];
+          T(j,j+1) = b;
+          T(j+1,j) = b;
+        }
+      }
+      Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(T);
+      if(es.info() != Eigen::Success){
+        Rcpp::stop("Lanczos tridiagonal eigendecomposition failed while estimating log|C|.");
+      }
+      const Eigen::VectorXd eval = es.eigenvalues();
+      const Eigen::MatrixXd evec = es.eigenvectors();
+      double quad = 0.0;
+      for(int j = 0; j < m; ++j){
+        if(!std::isfinite(eval(j)) || eval(j) <= 0.0){
+          Rcpp::stop("PCG/SLQ encountered a non-positive Ritz value; C may not be positive definite or Lanczos accuracy is insufficient.");
+        }
+        const double w0 = evec(0,j);
+        quad += w0*w0*std::log(eval(j));
+      }
+      total += normz*normz*quad;
+    }
+    return total / static_cast<double>(pcgTraceProbes);
+  };
+
+  // Z and X=C^{-1}Z are allocated only in PCG mode and reused by every
+  // random/residual trace in the current REML iteration.
+  Eigen::MatrixXd pcgTraceZ;
+  Eigen::MatrixXd pcgTraceX;
+
+  auto preparePCGTraceProbes = [&](const EigenSpMat & A){
+    if(solverName != "pcg"){ return; }
+    const Eigen::Index n = A.rows();
+    pcgTraceZ.resize(n, pcgTraceProbes);
+    pcgTraceX.resize(n, pcgTraceProbes);
+    for(int p = 0; p < pcgTraceProbes; ++p){
+      for(Eigen::Index i = 0; i < n; ++i){
+        pcgTraceZ(i,p) = pcgProbeSign(static_cast<unsigned long long>(i),
+                                     static_cast<unsigned long long>(p));
+      }
+      pcgTraceX.col(p) = Cpcg.solve(pcgTraceZ.col(p));
+      if(Cpcg.info() != Eigen::Success || !pcgTraceX.col(p).allFinite()){
+        Rcpp::stop("PCG failed while preparing Hutchinson trace probes for C^{-1}.");
+      }
+    }
+  };
+
+  auto pcgTraceCInverseTimesSparse = [&](const arma::sp_mat & B) -> double {
+    if(solverName != "pcg" || pcgTraceX.cols() != pcgTraceProbes){
+      Rcpp::stop("PCG trace probes are not available.");
+    }
+    double out = 0.0;
+    for(int p = 0; p < pcgTraceProbes; ++p){
+      double one = 0.0;
+      for(arma::sp_mat::const_iterator it = B.begin(); it != B.end(); ++it){
+        one += pcgTraceZ(static_cast<Eigen::Index>(it.row()), p)
+             * (*it)
+             * pcgTraceX(static_cast<Eigen::Index>(it.col()), p);
+      }
+      out += one;
+    }
+    return out / static_cast<double>(pcgTraceProbes);
+  };
 
 
   // ============================================================
@@ -6186,164 +6422,77 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       static_cast<int>(C.n_cols)
     );
 
-    std::vector<EigenTriplet> tripletsC;
-    tripletsC.reserve(static_cast<std::size_t>(C.n_nonzero));
-
-    for(arma::sp_mat::const_iterator it = C.begin(); it != C.end(); ++it){
-      tripletsC.emplace_back(
-        static_cast<int>(it.row()),
-        static_cast<int>(it.col()),
-        (*it)
-      );
+    // Direct compressed sparse copy: avoid the former triplet staging vector,
+    // which temporarily duplicated every nonzero of C before Ce was built.
+    Ce.reserve(static_cast<Eigen::Index>(C.n_nonzero));
+    for(arma::uword col = 0; col < C.n_cols; ++col){
+      // insertBack() requires each compressed-storage column/vector to be
+      // explicitly opened with startVec().  Omitting this produced a sparse
+      // matrix with invalid outer pointers: the PCG path could still consume
+      // it in some cases, but SimplicialLDLT correctly rejected it.
+      Ce.startVec(static_cast<int>(col));
+      for(arma::sp_mat::const_col_iterator it = C.begin_col(col);
+          it != C.end_col(col); ++it){
+        Ce.insertBack(static_cast<int>(it.row()), static_cast<int>(col)) = (*it);
+      }
     }
-
-    Ce.setFromTriplets(
-      tripletsC.begin(),
-      tripletsC.end()
-    );
+    Ce.finalize();
     Ce.makeCompressed();
 
-    const bool sameCPattern =
-      CsymbolicReady
-      &&
-      eigenSparsePatternMatches(
-        Ce,
-        CouterPattern,
-        CinnerPattern
-      );
-
-    if(!sameCPattern){
-
-      Cfactor.analyzePattern(
-        Ce
-      );
-
-      if(Cfactor.info() != Eigen::Success){
-        Rcpp::stop(
-          "Sparse symbolic analysis of the MME coefficient matrix C failed."
-        );
-      }
-
-      cacheEigenSparsePattern(
-        Ce,
-        CouterPattern,
-        CinnerPattern
-      );
-
-      CsymbolicReady =
-        true;
-    }
-
-    Cfactor.factorize(
-      Ce
-    );
-
-    // Defensive recovery: if numerical factorisation fails after a
-    // reused symbolic analysis, redo the symbolic phase once.
-    if(Cfactor.info() != Eigen::Success && sameCPattern){
-
-      Cfactor.analyzePattern(
-        Ce
-      );
-
-      if(Cfactor.info() == Eigen::Success){
-        Cfactor.factorize(
-          Ce
-        );
-      }
-    }
-
-    if(Cfactor.info() != Eigen::Success){
-      Rcpp::stop(
-        "Sparse LDLT factorisation of the MME coefficient matrix C failed."
-      );
-    }
-
-    CnumericReady =
-      true;
-
-    // ------------------------------------------------------------
-    // Exact log determinant from
-    //
-    //       P C P' = L D L'
-    //
-    // L has unit diagonal and det(P)^2 = 1, therefore
-    //
-    //       log|C| = sum(log(D_j)).
-    //
-    // For a valid positive-definite C all D_j must be > 0.
-    // ------------------------------------------------------------
-
-    const Eigen::VectorXd Dldlt = Cfactor.vectorD();
-
     double logDetC = 0.0;
-    double minD = std::numeric_limits<double>::infinity();
+    // Diagnostic only: minimum LDLT pivot in direct mode; minimum diagonal
+    // entry of C in PCG mode. This must not be used by the PCG algorithm.
+    double minD = std::numeric_limits<double>::quiet_NaN();
+    SelectedInverseSubset Cselected;
 
-    for(Eigen::Index j = 0; j < Dldlt.size(); ++j){
+    if(solverName == "ldlt"){
+      const bool sameCPattern =
+        CsymbolicReady && eigenSparsePatternMatches(Ce, CouterPattern, CinnerPattern);
 
-      const double dj = Dldlt(j);
-
-      if(!std::isfinite(dj) || dj <= 0.0){
-        Rcpp::stop(
-          "Sparse LDLT produced a non-positive/non-finite pivot in C. "
-          "The current Step-2 implementation requires C to be positive definite."
-        );
-      }
-
-      if(dj < minD){
-        minD = dj;
-      }
-
-      logDetC += std::log(dj);
-    }
-
-    // if(verbose){
-    //  Rcpp::Rcout
-    //   << "Sparse LDLT factorisation succeeded; minimum D pivot = "
-    //    << minD
-    //    << arma::endl;
-    // }
-
-    // ------------------------------------------------------------
-    // Sparse inverse subset via Takahashi recursions.
-    // This computes only inverse entries in the filled LDLT pattern.
-    // These are sufficient for the dominant score-trace calculations;
-    // an exact sparse-solve fallback is retained for unusual patterns.
-    // ------------------------------------------------------------
-    SelectedInverseSubset Cselected =
-      buildSelectedInverseSubset(Cfactor, "C");
-
-    // One-time numerical validation of permutation handling and the
-    // Takahashi recursion against direct sparse solves for a few columns.
-    if(iIter == 0 && nEffects > 0){
-      std::vector<int> checkCols;
-      checkCols.push_back(0);
-      if(nEffects > 2){ checkCols.push_back(nEffects/2); }
-      if(nEffects > 1){ checkCols.push_back(nEffects-1); }
-
-      for(std::size_t cc = 0; cc < checkCols.size(); ++cc){
-        const int j = checkCols[cc];
-        Eigen::VectorXd ej = Eigen::VectorXd::Zero(nEffects);
-        ej(j) = 1.0;
-        Eigen::VectorXd xj = Cfactor.solve(ej);
+      if(!sameCPattern){
+        Cfactor.analyzePattern(Ce);
         if(Cfactor.info() != Eigen::Success){
-          Rcpp::stop("Validation solve failed for the sparse inverse subset.");
+          Rcpp::stop("Sparse symbolic analysis of the MME coefficient matrix C failed.");
         }
-        int checkedEntries = 0;
-        for(int ii = 0; ii < nEffects; ++ii){
-          double zij = 0.0;
-          if(getSelectedInverseOriginal(Cselected, ii, j, zij)){
-            const double scale = 1.0 + std::abs(xj(ii));
-            if(std::abs(zij - xj(ii)) > 1e-7 * scale){
-              Rcpp::stop("Sparse inverse subset validation failed; permutation/Takahashi mapping is inconsistent.");
-            }
-            checkedEntries++;
-          }
+        cacheEigenSparsePattern(Ce, CouterPattern, CinnerPattern);
+        CsymbolicReady = true;
+      }
+
+      Cfactor.factorize(Ce);
+      if(Cfactor.info() != Eigen::Success && sameCPattern){
+        Cfactor.analyzePattern(Ce);
+        if(Cfactor.info() == Eigen::Success){ Cfactor.factorize(Ce); }
+      }
+      if(Cfactor.info() != Eigen::Success){
+        Rcpp::stop("Sparse LDLT factorisation of the MME coefficient matrix C failed.");
+      }
+      CnumericReady = true;
+
+      const Eigen::VectorXd Dldlt = Cfactor.vectorD();
+      if(Dldlt.size() > 0){ minD = Dldlt.minCoeff(); }
+      for(Eigen::Index j = 0; j < Dldlt.size(); ++j){
+        const double dj = Dldlt(j);
+        if(!std::isfinite(dj) || dj <= 0.0){
+          Rcpp::stop("Sparse LDLT produced a non-positive/non-finite pivot in C.");
         }
-        if(checkedEntries == 0){
-          Rcpp::stop("Sparse inverse subset validation found no selected entries.");
+        logDetC += std::log(dj);
+      }
+      Cselected = buildSelectedInverseSubset(Cfactor, "C");
+    }else{
+      // Genuine factorisation-free MME path: no analyzePattern(), factorize(),
+      // vectorD(), matrixL(), or Takahashi call is made for C.
+      CnumericReady = false;
+      preparePCG(Ce);
+      // Keep the historical verbose diagnostic column defined without
+      // introducing a factorisation in PCG mode.
+      if(Ce.rows() > 0){
+        minD = std::numeric_limits<double>::infinity();
+        for(Eigen::Index jj = 0; jj < Ce.rows(); ++jj){
+          minD = std::min(minD, Ce.coeff(jj,jj));
         }
       }
+      logDetC = pcgApproxLogDet(Ce);
+      preparePCGTraceProbes(Ce);
     }
 
     // ------------------------------------------------------------
@@ -6356,13 +6505,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     );
 
     Eigen::VectorXd buEig =
-      Cfactor.solve(rhsBu);
-
-    if(Cfactor.info() != Eigen::Success){
-      Rcpp::stop(
-        "Sparse LDLT solve failed while calculating BLUEs/BLUPs."
+      solveCVector(
+        rhsBu,
+        "BLUE/BLUP calculation"
       );
-    }
 
     bu.set_size(nEffects);
 
@@ -6975,32 +7121,19 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     );
 
     Eigen::MatrixXd dBuEig =
-      Cfactor.solve(
-        sensitivityRHSEig
+      solveCMatrix(
+        sensitivityRHSEig,
+        "factor-differentiation AI sensitivity equations"
       );
 
-    if(Cfactor.info() != Eigen::Success){
-      Rcpp::stop(
-        "Sparse LDLT sensitivity solve failed in the "
-        "factor-differentiation AI engine."
-      );
-    }
-
+    // Zero-copy Armadillo view of Eigen's column-major result.  dBuEig owns
+    // the memory and remains alive for the complete AI assembly below.
     arma::mat dBu(
-      static_cast<arma::uword>(
-        dBuEig.rows()
-      ),
-      static_cast<arma::uword>(
-        dBuEig.cols()
-      )
-    );
-
-    std::copy(
       dBuEig.data(),
-      dBuEig.data()
-      +
-      dBuEig.size(),
-      dBu.memptr()
+      static_cast<arma::uword>(dBuEig.rows()),
+      static_cast<arma::uword>(dBuEig.cols()),
+      false,
+      true
     );
 
     // ------------------------------------------------------------
@@ -7309,63 +7442,71 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             const arma::uword blockHeight = rowEnd - rowStart + 1;
 
             double trAiCuu = 0.0;
-            bool subsetComplete = true;
 
-            // trace(A_i * C^{-1}_{rowBlock,colBlock})
-            // = sum_rc A_i(r,c) C^{-1}(colBlock+c,rowBlock+r)
-            for(arma::sp_mat::const_iterator ait = Ai(iR).begin();
-                ait != Ai(iR).end(); ++ait){
-
-              const arma::uword ar = ait.row();
-              const arma::uword ac = ait.col();
-              if(ar >= blockHeight || ac >= blockWidth){
-                Rcpp::stop("Random-effect inverse block dimensions are inconsistent with Ai.");
-              }
-
-              double cij = 0.0;
-              if(!getSelectedInverseOriginal(
-                   Cselected,
-                   static_cast<int>(colStart + ac),
-                   static_cast<int>(rowStart + ar),
-                   cij
-                 )){
-                subsetComplete = false;
-                break;
-              }
-              trAiCuu += (*ait) * cij;
-            }
-
-            if(!subsetComplete){
-              // Rare exact fallback: solve only this selected block of
-              // identity columns, not the complete inverse.
-              if(!fallbackBlockAvailable){
-                Eigen::MatrixXd selectedRHS = Eigen::MatrixXd::Zero(
-                  static_cast<Eigen::Index>(nEffects),
-                  static_cast<Eigen::Index>(blockWidth)
-                );
-                for(arma::uword j = 0; j < blockWidth; ++j){
-                  selectedRHS(
-                    static_cast<Eigen::Index>(colStart + j),
-                    static_cast<Eigen::Index>(j)
-                  ) = 1.0;
+            if(solverName == "pcg"){
+              // Hutchinson estimate of trace(A_i C^{-1}_{rowBlock,colBlock})
+              // using the common C^{-1}z probes prepared once per iteration.
+              for(int p = 0; p < pcgTraceProbes; ++p){
+                double one = 0.0;
+                for(arma::sp_mat::const_iterator ait = Ai(iR).begin();
+                    ait != Ai(iR).end(); ++ait){
+                  const arma::uword ar = ait.row();
+                  const arma::uword ac = ait.col();
+                  if(ar >= blockHeight || ac >= blockWidth){
+                    Rcpp::stop("Random-effect inverse block dimensions are inconsistent with Ai.");
+                  }
+                  one += (*ait)
+                    * pcgTraceZ(static_cast<Eigen::Index>(colStart + ac), p)
+                    * pcgTraceX(static_cast<Eigen::Index>(rowStart + ar), p);
                 }
-                fallbackBlockSolution = Cfactor.solve(selectedRHS);
-                if(Cfactor.info() != Eigen::Success){
-                  Rcpp::stop("Sparse LDLT selected-block fallback solve failed for a random-effect score trace.");
+                trAiCuu += one;
+              }
+              trAiCuu /= static_cast<double>(pcgTraceProbes);
+            }else{
+              bool subsetComplete = true;
+              for(arma::sp_mat::const_iterator ait = Ai(iR).begin();
+                  ait != Ai(iR).end(); ++ait){
+                const arma::uword ar = ait.row();
+                const arma::uword ac = ait.col();
+                if(ar >= blockHeight || ac >= blockWidth){
+                  Rcpp::stop("Random-effect inverse block dimensions are inconsistent with Ai.");
                 }
-                fallbackBlockAvailable = true;
+                double cij = 0.0;
+                if(!getSelectedInverseOriginal(
+                     Cselected,
+                     static_cast<int>(colStart + ac),
+                     static_cast<int>(rowStart + ar),
+                     cij)){
+                  subsetComplete = false;
+                  break;
+                }
+                trAiCuu += (*ait) * cij;
               }
 
-              arma::mat inverseBlock(blockHeight, blockWidth);
-              for(arma::uword rr = 0; rr < blockHeight; ++rr){
-                for(arma::uword cc = 0; cc < blockWidth; ++cc){
-                  inverseBlock(rr,cc) = fallbackBlockSolution(
-                    static_cast<Eigen::Index>(rowStart + rr),
-                    static_cast<Eigen::Index>(cc)
-                  );
+              if(!subsetComplete){
+                if(!fallbackBlockAvailable){
+                  Eigen::MatrixXd selectedRHS = Eigen::MatrixXd::Zero(
+                    static_cast<Eigen::Index>(nEffects),
+                    static_cast<Eigen::Index>(blockWidth));
+                  for(arma::uword j = 0; j < blockWidth; ++j){
+                    selectedRHS(static_cast<Eigen::Index>(colStart + j),
+                                static_cast<Eigen::Index>(j)) = 1.0;
+                  }
+                  fallbackBlockSolution = solveCMatrix(
+                    selectedRHS,
+                    "selected-block random-effect score-trace fallback");
+                  fallbackBlockAvailable = true;
                 }
+                arma::mat inverseBlock(blockHeight, blockWidth);
+                for(arma::uword rr = 0; rr < blockHeight; ++rr){
+                  for(arma::uword cc = 0; cc < blockWidth; ++cc){
+                    inverseBlock(rr,cc) = fallbackBlockSolution(
+                      static_cast<Eigen::Index>(rowStart + rr),
+                      static_cast<Eigen::Index>(cc));
+                  }
+                }
+                trAiCuu = arma::trace(Ai(iR) * inverseBlock);
               }
-              trAiCuu = arma::trace(Ai(iR) * inverseBlock);
             }
 
             traces(iRow, iCol) = trAiCuu;
@@ -7618,15 +7759,17 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       bool usedCTraceFallback = false;
 
       const double traceCorrection =
-        sparseTraceInverseTimes(
-          Btrace,
-          Cfactor,
-          Cselected,
-          "residual trace tr(C^{-1} W'Ri(dR/dphi)RiW)",
-          usedCTraceFallback
-        );
+        solverName == "pcg"
+        ? pcgTraceCInverseTimesSparse(Btrace)
+        : sparseTraceInverseTimes(
+            Btrace,
+            Cfactor,
+            Cselected,
+            "residual trace tr(C^{-1} W'Ri(dR/dphi)RiW)",
+            usedCTraceFallback
+          );
 
-      if(verbose && usedCTraceFallback && iIter == 0){
+      if(verbose && solverName == "ldlt" && usedCTraceFallback && iIter == 0){
         Rcpp::Rcout
           << "Residual C trace required exact sparse-solve fallback for parameter "
           << iP + 1
@@ -8827,10 +8970,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
   if(computeCi > 0){
 
-    if(!CnumericReady){
-      Rcpp::stop(
-        "No final sparse LDLT factorisation of C is available."
-      );
+    if(solverName == "ldlt" && !CnumericReady){
+      Rcpp::stop("No final sparse LDLT factorisation of C is available.");
+    }
+    if(solverName == "pcg" && !CpcgReady){
+      Rcpp::stop("No final PCG coefficient operator is available.");
     }
 
     // Reuse the numerical factorisation from the final REML iteration.
@@ -8918,13 +9062,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         );
 
       Eigen::MatrixXd finalCiEig =
-        Cfactor.solve(finalIdentity);
-
-      if(Cfactor.info() != Eigen::Success){
-        Rcpp::stop(
-          "Final sparse LDLT solve failed while computing the full inverse of C."
-        );
-      }
+        solveCMatrix(finalIdentity, "final full inverse of C");
 
       arma::mat finalCiDense(
         static_cast<arma::uword>(nEffects),
@@ -9274,6 +9412,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     Rcpp::Named("Ci") = Ci,
     Rcpp::Named("CiComputed") = (computeCi > 0),
     Rcpp::Named("CiMode") = computeCi,
+    Rcpp::Named("solver") = solverName,
+    Rcpp::Named("pcgTol") = pcgTol,
+    Rcpp::Named("pcgMaxIters") = pcgMaxIters,
     Rcpp::Named("theta") = theta,
     Rcpp::Named("covPar") = covParOut,
     Rcpp::Named("covType") = Rcpp::wrap(covType),

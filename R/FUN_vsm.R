@@ -227,7 +227,7 @@ vsm <- function(..., Gu=NULL, sigma2=0.15, fixedSigma2=FALSE,
 
 to_sparse <- function(z){
   if(!inherits(z, "dgCMatrix")){
-    z <- methods::as(z, "dgCMatrix")
+    z <- as(as(z, "generalMatrix"), "CsparseMatrix") # methods::as(z, "dgCMatrix")
   }
   z
 }

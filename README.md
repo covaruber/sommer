@@ -7,7 +7,7 @@ Structural multivariate-univariate linear mixed model solver for estimation of m
 You can install the development version of `sommer` from GitHub:
 
 ``` r
-devtools::install_github('covaruber/sommer')
+remotes::install_github('covaruber/sommer')
 ```
  
 ## Development

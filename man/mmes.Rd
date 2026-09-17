@@ -20,11 +20,17 @@ records available) the direct inversion algorithm is faster (use the old \code{\
 
 \usage{
 
-mmes(fixed, random, rcov, data, W, nIters=30, tolParConvLL = 1e-04,
-     tolParConvNorm = 1e-04, tolParInv = 1e-06, naMethodX="exclude",
-     naMethodY="exclude", returnParam=FALSE, dateWarning=TRUE,
+mmes(fixed, random, rcov, data, W,
+     nIters=30, tolParConvLL=1e-04,
+     tolParConvNorm=1e-04, tolParInv=1e-06,
+     naMethodX="exclude", naMethodY="exclude",
+     naMethodRandom="exclude", naMethodR="exclude",
+     returnParam=FALSE, dateWarning=TRUE,
      verbose=TRUE, stepWeight=NULL, emWeight=NULL,
-     contrasts=NULL, getPEV=TRUE, henderson=TRUE, computeCi=0)
+     contrasts=NULL, getPEV=TRUE, henderson=TRUE,
+     computeCi=0, solver="ldlt", pcgTol=1.0e-10,
+     pcgMaxIters=0, pcgTraceProbes=24,
+     pcgLanczosSteps=40)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -146,8 +152,18 @@ mmes(fixed, random, rcov, data, W, nIters=30, tolParConvLL = 1e-04,
   for details.
 
   }
-  \item{data}{A data frame containing the variables specified in the formulas 
-  for response, fixed, and random effects.}
+  \item{data}{Optional data frame containing variables used by the model.
+  Model expressions are evaluated using normal R scoping rules: variables are first
+  sought in \code{data} and may also be obtained from the environments associated
+  with the model formulas or from the calling environment. Consequently, auxiliary
+  objects such as relationship matrices, coordinate vectors, or grouping variables
+  do not have to be copied into \code{data}. If \code{data} is omitted, variables
+  are evaluated from the formula/calling environment.
+
+  Observation-level variables used by the response, fixed effects, random effects,
+  and residual covariance specification must nevertheless have compatible lengths.
+  Internally, \code{mmes()} constructs a common observation mask and applies it
+  consistently to all observation-level model components.}
   \item{W}{Weights matrix (e.g., when covariance among plots exist). Internally
   W is squared and inverted as Wsi = solve(chol(W)), then the residual matrix
   is calculated as R = Wsi*O*Wsi.t(), where * is the matrix product, and O 
@@ -171,19 +187,34 @@ mmes(fixed, random, rcov, data, W, nIters=30, tolParConvLL = 1e-04,
   parameter should be fairly small because the it is used to bend matrices like the
   information matrix in the henderson algorithm or the coefficient matrix when it
   is not positive-definite.}
-   \item{naMethodX}{One of the two possible values; "include" or "exclude". If 
-   "include" is selected then the function will impute the X matrices for fixed
-   effects with the median value. If "exclude" is selected it will get rid of 
-   all rows with missing values for the X (fixed) covariates. The default is 
-   "exclude". The "include" option should be used carefully.}
-   \item{naMethodY}{One of the three possible values; "include", "include2" or 
-   "exclude" (default) to treat the observations in response variable to be used 
-   in the estimation of variance components. The first option "include" will 
-   impute the response variables for all rows with the median value, whereas 
-   "include2" imputes the responses only for rows where there is observation(s)
-   for at least one of the responses (only available in the multi-response models). 
-   If "exclude" is selected (default) it will get rid of rows in response(s) 
-   where missing values are present for at least one of the responses.}
+   \item{naMethodX}{Missing-data policy for variables entering the fixed-effect
+   design matrix. The default, \code{"exclude"}, marks observations with missing
+   fixed-effect information for removal from the common observation set.
+   \code{"include"} retains the historical sommer behavior for supported cases by
+   imputing missing fixed-effect covariates. This option should be used carefully,
+   because imputation changes the fitted design matrix.}
+
+   \item{naMethodY}{Missing-data policy for the response variable(s). The default,
+   \code{"exclude"}, removes observations with missing response information from the
+   common observation set. The historical \code{"include"} and \code{"include2"}
+   behaviors are retained where supported: \code{"include"} imputes missing responses,
+   whereas \code{"include2"} is intended for multivariate-response situations in which
+   an observation may be retained when at least one response is observed.}
+
+   \item{naMethodRandom}{Missing-data policy for observation-level variables used to
+   construct random-effect terms. The default is \code{"exclude"}. Under this policy,
+   an observation for which a required random-effect classification or covariate cannot
+   be evaluated is excluded from the common observation set. Random terms are evaluated
+   before the final observation subset is applied, so the same inclusion mask is used
+   consistently for the response, fixed-effect design, and all random-effect design
+   matrices.}
+
+   \item{naMethodR}{Missing-data policy for observation-level variables used to define
+   the residual covariance structure. The default is \code{"exclude"}. Observations
+   lacking information required to assign their residual covariance-product coordinate
+   are excluded from the common observation set. The residual block and local-coordinate
+   layout are then constructed on the retained observations.}
+
    \item{returnParam}{A TRUE/FALSE value to indicate if the program should 
    return the parameters to be used for fitting the model instead of fitting
    the model.}
@@ -241,9 +272,60 @@ mmes(fixed, random, rcov, data, W, nIters=30, tolParConvLL = 1e-04,
   For large models, \code{computeCi=0} is recommended during model fitting. If prediction
   error variances or the full inverse are needed afterwards, they can be obtained with
   \code{\link{postPEV}} without refitting the model.}
+
+   \item{solver}{Linear-system solver used by the Henderson implementation.
+   \code{"ldlt"} (default) uses the sparse direct LDLT factorization path.
+   \code{"pcg"} selects the iterative preconditioned conjugate-gradient path.
+   The covariance-model specification is independent of this choice: both solvers
+   receive the same generic CovarianceFactor descriptors produced by \code{vsm()}.}
+
+   \item{pcgTol}{Convergence tolerance used by the PCG linear solver. The default is
+   \code{1e-10}. This argument is used when \code{solver="pcg"}. Smaller values request
+   more accurate iterative solves but may increase computation time.}
+
+   \item{pcgMaxIters}{Maximum number of PCG iterations for an individual linear solve.
+   A value of \code{0} lets the C++ solver choose its internal iteration limit from the
+   problem dimension. This argument is used only by the PCG path.}
+
+   \item{pcgTraceProbes}{Number of stochastic probe vectors used by the PCG-based
+   machinery for trace quantities required during REML calculations. The default is
+   \code{24}. Increasing this value can reduce stochastic approximation variability at
+   additional computational cost. This argument is relevant to \code{solver="pcg"}.}
+
+   \item{pcgLanczosSteps}{Number of Lanczos steps used by the PCG-based stochastic
+   log-determinant calculations. The default is \code{40}. Larger values can improve
+   the approximation at additional computational cost. This argument is relevant to
+   \code{solver="pcg"}.}
 }
 
 \details{
+
+\strong{Evaluation environments and observation filtering}
+
+The current interface follows R-style model evaluation. Variables referenced by
+\code{fixed}, \code{random}, and \code{rcov} may be supplied as columns of
+\code{data} or resolved from the formula/calling environment. This makes it possible,
+for example, to keep relationship matrices, external grouping variables, or spatial
+coordinates outside the analysis data frame.
+
+Missingness is handled through a common observation-selection mechanism. The response,
+fixed effects, random effects, and residual covariance specification are evaluated
+against the original observation set and their validity is combined into a single
+inclusion mask. The same retained rows are then used for the response vector,
+fixed-effect design matrix, random-effect design matrices, optional weight matrix,
+and residual covariance indexing. This avoids independently subsetting different
+parts of the mixed model.
+
+The fitted object contains \code{obsInfo}, an observation-level audit table describing
+the filtering process. It records the original row index, validity of the response,
+fixed, random, and residual components, whether the observation was retained, and,
+when applicable, the reason for exclusion. This can be useful for diagnosing model
+specifications involving missing values.
+
+Random and residual formulas are evaluated as R language objects rather than by
+splitting their textual representation at plus signs. Consequently, arithmetic or
+nested expressions inside model terms are not interpreted as separate top-level
+random or residual terms.
 
 The use of this function requires a good understanding of mixed models. 
 Please review the 'sommer.quick.start' vignette and pay attention to details 
@@ -405,7 +487,12 @@ structures please check the help page of the package (\code{\link{sommer}}).
 \value{
 If all parameters are correctly indicated the program will return a list with the following information:
 
-\item{data}{the dataset used in the model fitting.}
+\item{data}{the dataset used in model fitting after application of the common
+              observation mask.}
+\item{obsInfo}{an observation-level audit table describing the common missing-data
+               filter. It includes the original row index, validity indicators for
+               response, fixed, random, and residual model components, the final
+               inclusion indicator, and the reason for exclusion when applicable.}
 \item{Dtable}{the table to be used for the predict function to help the program
               recognize the factors available.}
 \item{llik}{the vector of log-likelihoods across iterations}
