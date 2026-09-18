@@ -8,9 +8,9 @@ mmes <- function(fixed, random, rcov, data, W,
                  returnParam=FALSE, dateWarning=TRUE,
                  verbose=TRUE, stepWeight=NULL, emWeight=NULL,
                  contrasts=NULL, getPEV=TRUE, henderson=TRUE,
-                 computeCi=0, solver="ldlt", pcgTol=1.0e-10,
-                 pcgMaxIters=0, pcgTraceProbes=24,
-                 pcgLanczosSteps=40){
+                 computeCi=0, solver="ldlt", pcgTol=1.0e-8,
+                 pcgMaxIters=0, pcgTraceProbes=8,
+                 pcgLanczosSteps=20){
 
   if(!isTRUE(henderson)){
     stop("This mmes() interface is Henderson-only. Use the separate MNR/direct-inversion mmer interface for henderson=FALSE.",

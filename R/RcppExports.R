@@ -101,7 +101,7 @@ MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv,
     .Call(`_sommer_MNR`, Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight)
 }
 
-ai_mme_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi = 0L, solver = "ldlt", pcgTol = 1.0e-10, pcgMaxIters = 0L, pcgTraceProbes = 24L, pcgLanczosSteps = 40L) {
+ai_mme_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi = 0L, solver = "ldlt", pcgTol = 1.0e-8, pcgMaxIters = 0L, pcgTraceProbes = 8L, pcgLanczosSteps = 20L) {
     .Call(`_sommer_ai_mme_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps)
 }
 

@@ -2787,14 +2787,12 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   arma::field<arma::vec> sigma_ut(n_re); // undefined LIST to store the VC in a vector-form with length n_re (#of random effects)
   arma::field<arma::vec> constraintsL(n_re); // undefined LIST to store the constraints in a vector-form with length n_re (#of random effects)
   arma::field<arma::vec> n_levels_multi_traitL(n_re); // undefined LIST to store the n_levels in a vector form
-  int no_vc = 0; // to add and find out how many VC exist in total
   for (int i = 0; i < n_re; ++i) { // for each random effect fill the cube
     sigma.slice(i) = Rcpp::as<arma::mat>(Ge[i]); // take Ge for a random effect (initial VC values) and save them in a slice
     arma::vec oo = mat_to_vecCpp(sigma.slice(i),GeI[i]) ; // extract upper triangular from that slice in a vector form, pass the constraints as 2nd argument
     sigma_ut[i] = oo; // oo is sigma2 in vector form and stored in the list sigma_ut
     constraintsL[i] = mat_to_vecCpp(GeI[i],GeI[i]) ; // who are diagonal and non-diagonal VCs, pass constraints in list form
     n_levels_multi_traitL[i] = constraintsL[i] ;
-    no_vc = no_vc + oo.n_elem; // keep adding the #of VC
   }
   // sigma_ut_un will have all VC for all random effects in a single vector
   arma::vec sigma_ut_un; // vector to unlist the LIST of VC for all random effects
@@ -2812,7 +2810,6 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   }
   arma::vec sigmaF_ut_un = sigma_ut_un; // make a copy for fixed-value vc's when we use constraints
   arma::vec coef_ut_un = sigma_ut_un; // make a 2nd copy of the same vector for stabilization
-  arma::vec coef_ut_un_explode = sigma_ut_un; // make a 3rd copy of the same vector for checking issues with vc going too early outside the parameter space
   
   int  kk = sigma_ut_un.n_elem; // how many VCs are in the model?
   arma::vec llstore(iters); // container for LL
@@ -2853,12 +2850,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   // ****************************************************
   // Rcpp::List PdViList(kk); // list to store the multivariate derivatives * P or PVi=P*dZKZ'/ds
   
-  arma::vec v(nom, arma::fill::ones); // generate enough ones for an identity matrix of dimensions nt x nt
   arma::mat Vi(nom,nom); // V or phenotypic variance matrix
   arma::mat P(nom,nom); // to fill the projection matrix
   arma::sp_mat D = arma::speye<arma::sp_mat>(nom,nom);
-  arma::vec seqrankX = seqCpp(0,rankX-1); // will be used to keep only the eigen values for indices 1 to rankX
-  arma::vec seqkk = seqCpp(0,kk-1);
   arma::vec popo = arma::vec(rankX, arma::fill::zeros);
   for(int i=0; i < rankX; i++){popo(i) = 1;}
   arma::mat Inf(kk,kk,arma::fill::zeros); // to store second derivatives (information matrix)
@@ -2870,9 +2864,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   arma::mat InfEMw(kk,kk,arma::fill::zeros); // weights for EM information matrix
   
   arma::vec score(kk); // vector to store first derivatives, the product Y'PViPY - tr(PVi) = dL/ds
-  arma::mat Inf_inv; // to store the inverse of the information matrix
   arma::vec eigval2; // will be used for the decomposition of P, within the algorithm
-  arma::mat eigvec2; // will be used for the decomposition of P
   arma::mat sigma_store(sigma_ut_un.n_elem,iters); // to store variance comp through the different iterations
   arma::mat sigma_perc_change(sigma_ut_un.n_elem,iters); // to store percent change of variance components
   arma::mat llik_store(1,iters); // to store llik through the different iterations
@@ -2955,8 +2947,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
     arma::mat tXVX = Xm.t() * VX; // X'VX
     
     arma::mat tXVXVX; // X'VXVX
-    tXVXVX = arma::solve(tXVX, VX.t()); // X'VXVX
-    arma::solve(tXVXVX,tXVX,VX.t());
+    arma::solve(tXVXVX,tXVX,VX.t()); // X'VXVX (was computed twice; the status-form call already provides tXVXVX)
     if(tXVXVX.n_rows == 0){ // if fails try to invert with diag(1e-6)
       arma::solve(tXVXVX,tXVX + (D*(tolparinv)),VX.t());
       if(tXVXVX.n_rows == 0){// if fails try to invert with diag(1e-5)
@@ -2991,7 +2982,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       // calculate the log-likelihood
       P = P * rankXorss; // P * [(n-p)/y'Py]
       rss = rankX; // yPy = n-p
-      arma::eig_sym(eigval2, eigvec2, P); // VlV
+      arma::eig_sym(eigval2, P); // VlV; eigenvectors were never used, values-only is cheaper
       eigval2 = sort(eigval2,"descend"); // sort eigen vectors
       eigval2 = eigval2(arma::find(popo == 1));//(find(seqrankX < rankX)); // only take the values from 1 to
       checkP = eigval2.min();
@@ -3015,6 +3006,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
       }
       
       // calculate first derivatives (dL/ds = score)
+      arma::vec Py = P * Ysm; // constant across the vc/AI loops below, hoisted out of them
       
       arma::cube PdViList(nom,nom,kk); // list to store the multivariate derivatives * P or PVi=P*dZKZ'/ds
       for(int i=0; i < kk; i++){
@@ -3022,9 +3014,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         arma::mat zkzp = ZKZtR.slice(re); // it repeats the same ZKZtR if is a vc for the same random effect
         arma::mat PdVi = P * kron(deriv_dummy.slice(i),zkzp); // multivariate dVi = dZKZ'/ds
         if(ai && cycle > 2){
-          score[i] = - (0.5 * arma::as_scalar(trace(PdVi))) + (0.5 * arma::as_scalar((Ysm.t() * PdVi * P * Ysm)));
+          score[i] = - (0.5 * arma::as_scalar(trace(PdVi))) + (0.5 * arma::as_scalar((Ysm.t() * PdVi * Py)));
         }else{
-          score[i] = arma::as_scalar(Ysm.t() * PdVi * P * Ysm) - accu(diagvec(PdVi));
+          score[i] = arma::as_scalar(Ysm.t() * PdVi * Py) - accu(diagvec(PdVi));
         }
         PdViList.slice(i) = PdVi;
       }
@@ -3040,7 +3032,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         for (int j = 0; j < kk; j++){
           if (i > j){}else{//only upper triangular
             if(ai && cycle > 2){ // if average information
-              Inf(i,j) = 0.5 * arma::as_scalar(Ysm.t() * PdViList.slice(i) * P * PdViList.slice(j) * P * (P * Ysm)); // j is .t() ?
+              Inf(i,j) = 0.5 * arma::as_scalar(Ysm.t() * PdViList.slice(i) * P * PdViList.slice(j) * Py); // j is .t() ?
             }else{ // if newton raphson
               Inf(i,j) = accu(PdViList.slice(i) % PdViList.slice(j).t()) * arma::as_scalar(var_components(i)) * arma::as_scalar(var_components(j));
             }
@@ -3048,14 +3040,9 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         }
       }
       Inf = arma::symmatu(Inf); // copy lower in upper triangular
-      Inf_inv = arma::pinv(Inf, 1.490116e-08); // Inverse of Fishers or information matrix
-      
-      if(Inf_inv.n_rows == 0){ // if fails
-        // Rcpp::Rcout << "System is singular (Inf_inv). Aborting the job. Try a bigger number of tolParInv." << arma::endl;
-        // return 0;
-        Rcpp::stop("System is singular (Inf_inv). Aborting the job. Try a bigger number of tolParInv.");
-      }
-      // }
+      // Note: Inf_inv (pinv of Inf) used to be computed here purely for a
+      // singularity check whose result was never used afterward (the actual
+      // update below uses InfJoin_inv) - removed as dead computation.
       
       // vector to store the update = F- * sigma(k) * dL/ds
       arma::vec delta(kk);
@@ -3095,15 +3082,10 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         // rest0 = '(';  rest1=cc.n_elem; rest2 = 'restrained)';
         arma::uvec no_restrain = find((constraints == 1 && coef_ut_unC > 0) || (constraints > 1)); // indices of columns that are OK to use (no restrain)
         arma::mat Inf_norestrain = Inf.submat(no_restrain,no_restrain); // subset of Information matrix
-        arma::mat Inf_norestrain_inv; // define the inverse of the information matrix
-        arma::inv(Inf_norestrain_inv, Inf_norestrain); // Inverse of Fishers (subset of Inf)
-        if(Inf_norestrain_inv.n_rows == 0){ // if fails
-          // Rcpp::Rcout << "System is singular (Inf_norestrain_inv). Stopping the job. Try a bigger number of tolParInv." << arma::endl;
-          // return 0;
-          Rcpp::stop("System is singular (Inf_norestrain_inv). Aborting the job. Try a bigger number of tolParInv.");
-        }
+        // Note: Inf_norestrain_inv (plain inverse, used only for a singularity
+        // check whose result was never used afterward) removed as dead
+        // computation - the actual update uses InfJoin_inv_norestrain below.
         arma::vec scorenorestrain = score(no_restrain); // subset of scores (1st derivatives)
-        arma::vec coef_ut_un_norestrain = coef_ut_un(no_restrain); // subset of vc
         arma::vec deltanorestrain; //  define the delta for no restrained
         
         //
@@ -3412,10 +3394,10 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const arma::vec & weightInf, const bool & verbose,
                      const int & computeCi = 0,
                      const std::string & solver = "ldlt",
-                     const double & pcgTol = 1.0e-10,
+                     const double & pcgTol = 1.0e-8,
                      const int & pcgMaxIters = 0,
-                     const int & pcgTraceProbes = 24,
-                     const int & pcgLanczosSteps = 40
+                     const int & pcgTraceProbes = 8,
+                     const int & pcgLanczosSteps = 20
 ){
 
   if(computeCi < 0 || computeCi > 2){
@@ -3486,7 +3468,6 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     Rcpp::stop("Residual block/index vectors must have one entry per observation.");
   }
 
-  double vary2 = arma::mean(arma::var(arma::square(y0)));
   double vary = arma::mean(arma::var(y0));
   double stdy = arma::mean(arma::stddev(y0));
   double muy = arma::mean(arma::mean(y0));
@@ -4631,19 +4612,6 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       return covarianceDerivativeCache[structureOffset][k];
     };
 
-  auto covarianceD2 =
-    [&](const int iStruct,
-        const arma::uword iPar,
-        const arma::uword jPar) -> arma::mat {
-
-      // Average Information uses first derivatives only. This placeholder is
-      // retained for future exact observed-Hessian extensions.
-      return arma::zeros<arma::mat>(
-        theta(iStruct).n_rows,
-        theta(iStruct).n_cols
-      );
-    };
-
   auto evaluateStructure =
     [&](const int iStruct,
         const arma::vec & par) -> arma::mat {
@@ -4698,10 +4666,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   // define partitions (only used if random effects exist)
   int last = X.n_cols;
   arma::field<arma::mat> partitions(nReAl); // store indices of the random effects
-  arma::vec zsAva;
   int Nu = 0;
   if(nZs > 0){ //if there's random effects (Z matrices) check where each starts and ends
-    zsAva = unique(Zind);
     for (int i = 0; i < nRe; ++i) { // for each effect
       arma::uvec indexZind = find(Zind == (i+1) ); // which Z matrices to use , +1 because of the way indeces are used in C++
       int nIndexZind = indexZind.size(); //  number of Z matrices to use
@@ -4744,15 +4710,6 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     nVcEnd(i)=arma::accu(nVc(toSum));
   }
   arma::vec nVcStart = nVcEnd - nVc + 1;
-  // move generic parameter constraints to vector form
-  arma::vec thetaCUnlisted;
-  for (int i = 0; i < nRRe; ++i) {
-    thetaCUnlisted =
-      arma::join_cols(
-        thetaCUnlisted,
-        covConstraint(i)
-      );
-  }
   // removing complex structures how many effects are really there
   arma::vec nUsTotal(nReAl);
   if(nZs > 0){ //
@@ -4763,7 +4720,6 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   }
   // define objects to store theta and llik across iterations
   arma::mat monitor(nVcTotal,nIters); // matrix to store variance components
-  arma::mat percChange(nVcTotal,nIters); // matrix to store variance components
   arma::rowvec llik(nIters); // store log likellihood values
   
   int nEffects = Nu+nX;
@@ -4780,7 +4736,6 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   arma::mat InfMatInv(nVcTotal,nVcTotal);
   bool convergence = false;
   double seconds;
-  arma::mat Mchol_XZ;//, Wu2;
   arma::vec delta(nVcTotal), delta_minus1(nVcTotal);
   // objects for constraints
   arma::mat percDelta(nVcTotal,nIters,arma::fill::zeros); // store % change of the delta with respect to the previous iteration
@@ -4845,6 +4800,17 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
     W.setFromTriplets(Wtriplets.begin(), Wtriplets.end());
     W.makeCompressed();
+  }
+
+  std::vector<Eigen::SparseMatrix<double>> AiEigenCache(
+    static_cast<std::size_t>(nRe)
+  );
+  if(solverName == "pcg"){
+    for(int iR = 0; iR < nRe; ++iR){
+      AiEigenCache[static_cast<std::size_t>(iR)] =
+        armaSparseToEigenGlobal(Ai(iR));
+      AiEigenCache[static_cast<std::size_t>(iR)].makeCompressed();
+    }
   }
 
   // Dense response vector is constant.
@@ -5888,6 +5854,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     return (x & 1ULL) ? 1.0 : -1.0;
   };
 
+  Eigen::MatrixXd pcgLanczosInverseGuess;
+
   auto pcgApproxLogDet = [&](const EigenSpMat & A) -> double {
     const Eigen::Index n = A.rows();
     if(n <= 0){ return 0.0; }
@@ -5896,6 +5864,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       static_cast<std::size_t>(pcgTraceProbes),
       0.0
     );
+    pcgLanczosInverseGuess.resize(n, pcgTraceProbes);
     std::atomic<bool> invalidProbe(false);
 
     // Each deterministic Rademacher probe is independent.  Keeping one
@@ -5910,6 +5879,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       }
       const double normz = q.norm();
       q /= normz;
+      Eigen::MatrixXd lanczosBasis(n, mMax);
 
       std::vector<double> alpha;
       std::vector<double> beta;
@@ -5918,6 +5888,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       double betaPrev = 0.0;
 
       for(int j = 0; j < mMax; ++j){
+        lanczosBasis.col(j) = q;
         Eigen::VectorXd w = A * q;
         if(j > 0){ w.noalias() -= betaPrev * qPrev; }
         const double a = q.dot(w);
@@ -5955,6 +5926,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       const Eigen::VectorXd eval = es.eigenvalues();
       const Eigen::MatrixXd evec = es.eigenvectors();
       double quad = 0.0;
+      Eigen::VectorXd inverseCoefficients = Eigen::VectorXd::Zero(m);
       for(int j = 0; j < m; ++j){
         if(!std::isfinite(eval(j)) || eval(j) <= 0.0){
           invalidProbe.store(true, std::memory_order_relaxed);
@@ -5963,8 +5935,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         }
         const double w0 = evec(0,j);
         quad += w0*w0*std::log(eval(j));
+        inverseCoefficients.noalias() +=
+          (normz * w0 / eval(j)) * evec.col(j);
       }
       probeEstimates[static_cast<std::size_t>(probe)] = normz*normz*quad;
+      pcgLanczosInverseGuess.col(probe).noalias() =
+        lanczosBasis.leftCols(m) * inverseCoefficients;
     }
 
     if(invalidProbe.load(std::memory_order_relaxed)){
@@ -5995,7 +5971,18 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         pcgTraceZ(i,p) = pcgProbeSign(static_cast<unsigned long long>(i),
                                      static_cast<unsigned long long>(p));
       }
-      pcgTraceX.col(p) = Cpcg.solve(pcgTraceZ.col(p));
+      if(
+          pcgLanczosInverseGuess.rows() == n
+          &&
+          pcgLanczosInverseGuess.cols() == pcgTraceProbes
+      ){
+        pcgTraceX.col(p) = Cpcg.solveWithGuess(
+          pcgTraceZ.col(p),
+          pcgLanczosInverseGuess.col(p)
+        );
+      }else{
+        pcgTraceX.col(p) = Cpcg.solve(pcgTraceZ.col(p));
+      }
       if(Cpcg.info() != Eigen::Success || !pcgTraceX.col(p).allFinite()){
         Rcpp::stop("PCG failed while preparing Hutchinson trace probes for C^{-1}.");
       }
@@ -7082,22 +7069,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             }
 
             for(arma::uword iRow = 0; iRow < lambdaDense.n_rows; ++iRow){
-
                 const arma::uword rowStart =
                     partitionStartCache[iCache][static_cast<std::size_t>(iRow)];
-
                 for(arma::uword iCol = 0; iCol < lambdaDense.n_cols; ++iCol){
-
-                    const double coefficient =
-                        lambdaDense(iRow,iCol);
-
-                    if(coefficient == 0.0){
-                        continue;
-                    }
-
+                    const double coefficient = lambdaDense(iRow,iCol);
+                    if(coefficient == 0.0){ continue; }
                     const arma::uword colStart =
                         partitionStartCache[iCache][static_cast<std::size_t>(iCol)];
-
                     for(arma::sp_mat::const_iterator relEntry = Ai(i).begin();
                         relEntry != Ai(i).end(); ++relEntry){
                       Gtriplets.emplace_back(
@@ -7147,6 +7125,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // Diagnostic only: minimum LDLT pivot in direct mode; minimum diagonal
     // entry of C in PCG mode. This must not be used by the PCG algorithm.
     double minD = std::numeric_limits<double>::quiet_NaN();
+    bool reuseCselectedTopology = false;
 
     if(solverName == "ldlt"){
       const bool sameCPattern =
@@ -7180,16 +7159,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
         logDetC += std::log(dj);
       }
-      // CselectedTopology is updated in place: when the LDLT fill-in
-      // pattern is unchanged from the previous iteration, only the
-      // numeric Takahashi values are recomputed (no pattern deep copy).
-      buildSelectedInverseSubset(
-        Cfactor,
-        "C",
-        CselectedTopology,
-        sameCPattern && CselectedTopologyReady
-      );
-      CselectedTopologyReady = true;
+      reuseCselectedTopology = sameCPattern && CselectedTopologyReady;
     }else if(solverName == "cholmod"){
       // Supernodal (BLAS-3) direct factorisation via R's Matrix package.
       // No Takahashi selected inverse is available for a supernodal factor
@@ -7238,7 +7208,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
       }
       logDetC = pcgApproxLogDet(C);
-      preparePCGTraceProbes(C);
     }
 
     // ------------------------------------------------------------
@@ -7507,6 +7476,19 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             << arma::endl;
         }
       }
+    }
+
+    // Trace/AI preparation is unnecessary for likelihood trials rejected above.
+    if(solverName == "ldlt"){
+      buildSelectedInverseSubset(
+        Cfactor,
+        "C",
+        CselectedTopology,
+        reuseCselectedTopology
+      );
+      CselectedTopologyReady = true;
+    }else if(solverName == "pcg"){
+      preparePCGTraceProbes(C);
     }
 
     b = bu(bInd); // move BLUEs to a different vector
@@ -8241,6 +8223,22 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
           bool fallbackBlockAvailable = false;
           Eigen::MatrixXd fallbackBlockSolution;
+          Eigen::MatrixXd pcgAiZ;
+
+          if(solverName == "pcg"){
+            const Eigen::SparseMatrix<double> & AiEigen =
+              AiEigenCache[static_cast<std::size_t>(iR)];
+            if(AiEigen.cols() != static_cast<Eigen::Index>(blockWidth)){
+              Rcpp::stop("Random-effect inverse block dimensions are inconsistent with Ai.");
+            }
+            pcgAiZ.noalias() =
+              AiEigen
+              *
+              pcgTraceZ.middleRows(
+                static_cast<Eigen::Index>(colStart),
+                static_cast<Eigen::Index>(blockWidth)
+              );
+          }
 
           for(int iRow = 0; iRow < static_cast<int>(lambda(iR).n_rows); ++iRow){
 
@@ -8277,24 +8275,20 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             double trAiCuu = 0.0;
 
             if(solverName == "pcg"){
-              // Hutchinson estimate of trace(A_i C^{-1}_{rowBlock,colBlock})
-              // using the common C^{-1}z probes prepared once per iteration.
-              for(int p = 0; p < pcgTraceProbes; ++p){
-                double one = 0.0;
-                for(arma::sp_mat::const_iterator ait = Ai(iR).begin();
-                    ait != Ai(iR).end(); ++ait){
-                  const arma::uword ar = ait.row();
-                  const arma::uword ac = ait.col();
-                  if(ar >= blockHeight || ac >= blockWidth){
-                    Rcpp::stop("Random-effect inverse block dimensions are inconsistent with Ai.");
-                  }
-                  one += (*ait)
-                    * pcgTraceZ(static_cast<Eigen::Index>(colStart + ac), p)
-                    * pcgTraceX(static_cast<Eigen::Index>(rowStart + ar), p);
-                }
-                trAiCuu += one;
+              if(pcgAiZ.rows() != static_cast<Eigen::Index>(blockHeight)){
+                Rcpp::stop("Random-effect inverse block dimensions are inconsistent with Ai.");
               }
-              trAiCuu /= static_cast<double>(pcgTraceProbes);
+              trAiCuu =
+                (
+                  pcgAiZ.array()
+                  *
+                  pcgTraceX.middleRows(
+                    static_cast<Eigen::Index>(rowStart),
+                    static_cast<Eigen::Index>(blockHeight)
+                  ).array()
+                ).sum()
+                /
+                static_cast<double>(pcgTraceProbes);
             }else{
               bool subsetComplete = true;
               for(arma::sp_mat::const_iterator ait = Ai(iR).begin();
@@ -8477,6 +8471,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     const arma::sp_mat RiWspArmaShared =
       RiWisSparse ? eigenSparseToArmaGlobal(RiWsp) : arma::sp_mat();
 
+    Eigen::MatrixXd pcgRiWZ;
+    Eigen::MatrixXd pcgRiWX;
+    if(solverName == "pcg" && Rdiag && RiWisSparse){
+      pcgRiWZ.noalias() = RiWsp * pcgTraceZ;
+      pcgRiWX.noalias() = RiWsp * pcgTraceX;
+    }
+
     for(arma::uword iP = 0; iP < nResidualPar; ++iP){
 
       const arma::sp_mat & Sprov =
@@ -8578,46 +8579,58 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
       }
 
-      // Second trace: tr(C^{-1} W' Ri (dR/dphi_i) Ri W).
-      arma::sp_mat Btrace;
+      bool usedCTraceFallback = false;
+      double traceCorrection = 0.0;
 
-      if(RiWisSparse){
-        Btrace =
-          RiWspArmaShared.t()
-          *
-          Sprov
-          *
-          RiWspArmaShared;
+      if(solverName == "pcg" && Rdiag && RiWisSparse){
+        for(arma::sp_mat::const_iterator it = Sprov.begin();
+            it != Sprov.end(); ++it){
+          if(it.row() == it.col()){
+            traceCorrection +=
+              (*it)
+              *
+              (
+                pcgRiWZ.row(static_cast<Eigen::Index>(it.row())).array()
+                *
+                pcgRiWX.row(static_cast<Eigen::Index>(it.row())).array()
+              ).sum();
+          }
+        }
+        traceCorrection /= static_cast<double>(pcgTraceProbes);
       }else{
+        arma::sp_mat Btrace;
 
-        arma::mat BtraceDense =
-          RiWdense.t()
-          *
-          arma::mat(
+        if(RiWisSparse){
+          Btrace =
+            RiWspArmaShared.t()
+            *
             Sprov
             *
-            RiWdense
-          );
+            RiWspArmaShared;
+        }else{
+          arma::mat BtraceDense =
+            RiWdense.t()
+            *
+            arma::mat(
+              Sprov
+              *
+              RiWdense
+            );
+          Btrace = arma::sp_mat(BtraceDense);
+        }
 
-        Btrace =
-          arma::sp_mat(
-            BtraceDense
-          );
+        traceCorrection =
+          solverName == "pcg"
+          ? pcgTraceCInverseTimesSparse(Btrace)
+          : sparseTraceInverseTimes(
+              Btrace,
+              Cfactor,
+              CselectedTopology,
+              "residual trace tr(C^{-1} W'Ri(dR/dphi)RiW)",
+              usedCTraceFallback,
+              solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveCMatrix) : nullptr
+            );
       }
-
-      bool usedCTraceFallback = false;
-
-      const double traceCorrection =
-        solverName == "pcg"
-        ? pcgTraceCInverseTimesSparse(Btrace)
-        : sparseTraceInverseTimes(
-            Btrace,
-            Cfactor,
-            CselectedTopology,
-            "residual trace tr(C^{-1} W'Ri(dR/dphi)RiW)",
-            usedCTraceFallback,
-            solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveCMatrix) : nullptr
-          );
 
       if(verbose && solverName == "ldlt" && usedCTraceFallback && iIter == 0){
         Rcpp::Rcout
@@ -9965,15 +9978,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     }
   }
 
-  // ------------------------------------------------------------
-  // Historical Cchol output.
-  //
-  // No separate dense Cholesky is computed after optimisation in any
-  // computeCi mode.  The return element is kept for compatibility only.
-  // ------------------------------------------------------------
-
-  Mchol_XZ.reset();
-
   // bring back to original scale the variance components
   for (int i = 0; i < nRRe; ++i) {
     theta(i) = theta(i)*vary;
@@ -10170,13 +10174,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       );
   }
 
-  if(Mchol_XZ.n_elem > 0){
-    Mchol_XZ =
-      Mchol_XZ
-      /
-      stdy;
-  }
-
   // dLuOut=dLuOut/vary;
   // move the effects from vector to a field with matrices
   arma::field<arma::mat> uList(nRe), uPevList(nRe); // store indices of the random effects
@@ -10310,7 +10307,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     Rcpp::Named("normMonitor") = normMonitor,
     Rcpp::Named("toBoundary") = toBoundary,
     Rcpp::Named("dLu") = dLuOut,
-    Rcpp::Named("Cchol") = Mchol_XZ
+    Rcpp::Named("Cchol") = arma::mat()
     // Rcpp::Named("PMWu_mat") = PMWu_mat, 
     // Rcpp::Named("MWuchol") = MWuchol
   );

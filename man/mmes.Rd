@@ -28,9 +28,9 @@ mmes(fixed, random, rcov, data, W,
      returnParam=FALSE, dateWarning=TRUE,
      verbose=TRUE, stepWeight=NULL, emWeight=NULL,
      contrasts=NULL, getPEV=TRUE, henderson=TRUE,
-     computeCi=0, solver="ldlt", pcgTol=1.0e-10,
-     pcgMaxIters=0, pcgTraceProbes=24,
-     pcgLanczosSteps=40)
+    computeCi=0, solver="ldlt", pcgTol=1.0e-8,
+    pcgMaxIters=0, pcgTraceProbes=8,
+    pcgLanczosSteps=20)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -300,7 +300,7 @@ mmes(fixed, random, rcov, data, W,
    receive the same generic CovarianceFactor descriptors produced by \code{vsm()}.}
 
    \item{pcgTol}{Convergence tolerance used by the PCG linear solver. The default is
-   \code{1e-10}. This argument is used when \code{solver="pcg"}. Smaller values request
+  \code{1e-8}. This argument is used when \code{solver="pcg"}. Smaller values request
    more accurate iterative solves but may increase computation time.}
 
    \item{pcgMaxIters}{Maximum number of PCG iterations for an individual linear solve.
@@ -309,11 +309,11 @@ mmes(fixed, random, rcov, data, W,
 
    \item{pcgTraceProbes}{Number of stochastic probe vectors used by the PCG-based
    machinery for trace quantities required during REML calculations. The default is
-   \code{24}. Increasing this value can reduce stochastic approximation variability at
+  \code{8}. Increasing this value can reduce stochastic approximation variability at
    additional computational cost. This argument is relevant to \code{solver="pcg"}.}
 
    \item{pcgLanczosSteps}{Number of Lanczos steps used by the PCG-based stochastic
-   log-determinant calculations. The default is \code{40}. Larger values can improve
+  log-determinant calculations. The default is \code{20}. Larger values can improve
    the approximation at additional computational cost. This argument is relevant to
    \code{solver="pcg"}.}
 }
