@@ -3386,23 +3386,16 @@ static inline double sparseSpdLogDet(const arma::sp_mat & A){
 // the small per-random-effect covariance matrices in ai_mme_sp2().
 static inline bool eigenSpdInverse(const arma::mat & A, arma::mat & out){
   const arma::uword n = A.n_rows;
-  Eigen::MatrixXd Ae(n, n);
-  for(arma::uword col = 0; col < n; ++col){
-    for(arma::uword row = 0; row < n; ++row){
-      Ae(row, col) = A(row, col);
-    }
-  }
+  // Armadillo and Eigen dense matrices are both column-major, so the
+  // conversion is a straight buffer copy rather than an element loop.
+  const Eigen::Map<const Eigen::MatrixXd> Ae(A.memptr(), n, n);
   Eigen::LLT<Eigen::MatrixXd> llt(Ae);
   if(llt.info() != Eigen::Success){
     return false;
   }
   const Eigen::MatrixXd inv = llt.solve(Eigen::MatrixXd::Identity(n, n));
   out.set_size(n, n);
-  for(arma::uword col = 0; col < n; ++col){
-    for(arma::uword row = 0; row < n; ++row){
-      out(row, col) = inv(row, col);
-    }
-  }
+  std::copy(inv.data(), inv.data() + inv.size(), out.memptr());
   return true;
 }
 
@@ -5150,6 +5143,42 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
   }
 
+  // Same structural check, per random-effect covariance descriptor. This is
+  // a property of the descriptor (which factors it is built from), not of
+  // the current parameter values, so it is computed once here rather than
+  // every REML iteration. Used to short-circuit the O(q^5) AI-matrix
+  // second-derivative loop and the O(q^2) score/trace loop down to their
+  // exact closed-form scalar equivalents when a random-effect covariance
+  // product is diagonal (e.g. dsm() alone, or a Kronecker product of only
+  // diagonal factors).
+  std::vector<bool> randomStructurallyDiagonal(
+    static_cast<std::size_t>(nRe),
+    true
+  );
+
+  for(int iR = 0; iR < nRe; ++iR){
+    Rcpp::List rcs =
+      covDescriptor[static_cast<std::size_t>(iR)];
+
+    Rcpp::List rfactors =
+      rcs["factors"];
+
+    bool diagonalHere = true;
+
+    for(int fidx = 0; fidx < rfactors.size(); ++fidx){
+      Rcpp::List f =
+        Rcpp::as<Rcpp::List>(rfactors[fidx]);
+
+      if(!f.containsElementNamed("structurally_diagonal") ||
+         !Rcpp::as<bool>(f["structurally_diagonal"])){
+        diagonalHere = false;
+        break;
+      }
+    }
+
+    randomStructurallyDiagonal[static_cast<std::size_t>(iR)] = diagonalHere;
+  }
+
   // Cache whether the optional H Cholesky factor is diagonal.
   bool Hdiag = true;
   arma::vec HdiagSquared(
@@ -5173,6 +5202,69 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         HdiagSquared(ii) = h*h;
       }
     }
+  }
+
+  // ------------------------------------------------------------
+  // Cache the block design matrices used by the repeated-block/Kronecker
+  // residual C-assembly path (including any diagonal-H row weighting).
+  // W, Hs, and the block/column membership are all constant across REML
+  // iterations, so this "blockW" is identical every iteration; precomputing
+  // it once avoids rescanning every active column of W (previously
+  // O(sum of active-column nnz over blocks) per iteration) inside the main
+  // loop below.
+  // ------------------------------------------------------------
+  std::vector<arma::mat> residualKronBlockWCache(
+    static_cast<std::size_t>(residualNBlocks)
+  );
+
+  // Only complete/repeated blocks (residualKronBlocks) guarantee
+  // rows.n_elem == residualDim, which the local-coordinate indexing below
+  // requires. When blocks are irregular the Rkron path is never taken at
+  // runtime, so the cache is simply left empty.
+  if(residualKronBlocks){
+  for(int block = 0; block < residualNBlocks; ++block){
+    const arma::uvec & rows =
+      residualKronRows[static_cast<std::size_t>(block)];
+    const arma::uvec & columns =
+      residualActiveColumns[static_cast<std::size_t>(block)];
+
+    if(columns.n_elem == 0){ continue; }
+
+    arma::mat blockW(
+      rows.n_elem,
+      columns.n_elem,
+      arma::fill::zeros
+    );
+
+    for(arma::uword localCol = 0;
+        localCol < columns.n_elem;
+        ++localCol){
+      for(Eigen::SparseMatrix<double>::InnerIterator designEntry(
+            W, static_cast<int>(columns(localCol)));
+          designEntry; ++designEntry){
+        const arma::uword globalRow =
+          static_cast<arma::uword>(designEntry.row());
+        if(residualBlockOfRow[static_cast<std::size_t>(globalRow)] == block){
+          const int localCoordinate = residualLocalOfRow[
+            static_cast<std::size_t>(globalRow)
+          ];
+          blockW(static_cast<arma::uword>(localCoordinate), localCol) =
+            designEntry.value();
+        }
+      }
+    }
+
+    if(useH && Hdiag){
+      arma::vec hDiagonal(rows.n_elem);
+      for(arma::uword localRow = 0; localRow < rows.n_elem; ++localRow){
+        hDiagonal(localRow) = Hs(rows(localRow), rows(localRow));
+      }
+      blockW.each_col() %= hDiagonal;
+    }
+
+    residualKronBlockWCache[static_cast<std::size_t>(block)] =
+      std::move(blockW);
+  }
   }
 
   // ------------------------------------------------------------
@@ -5343,26 +5435,30 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   auto buildSelectedInverseSubset =
     [&](const EigenLDLT & factor,
         const std::string & context,
-        const SelectedInverseSubset * cachedTopology = nullptr) -> SelectedInverseSubset {
+        SelectedInverseSubset & out,
+        const bool reuseTopology) -> void {
 
       const Eigen::VectorXd D = factor.vectorD();
       const int n = static_cast<int>(D.size());
       EigenSpMat Lmat = factor.matrixL();
       Lmat.makeCompressed();
 
-      SelectedInverseSubset out;
-      if(cachedTopology != nullptr){
-        if(static_cast<int>(cachedTopology->rows.size()) != n ||
-           static_cast<int>(cachedTopology->originalToPermuted.size()) != n){
+      // When reuseTopology is set, `out` already holds the sparsity pattern
+      // (rows/originalToPermuted) from a previous call with the same LDLT
+      // fill-in pattern, so only the numeric values need to be reset. This
+      // avoids a full deep copy of the (potentially large) pattern vectors
+      // on every REML iteration.
+      if(reuseTopology){
+        if(static_cast<int>(out.rows.size()) != n ||
+           static_cast<int>(out.originalToPermuted.size()) != n){
           Rcpp::stop("Cached selected-inverse topology is incompatible with the LDLT factor.");
         }
-        out = *cachedTopology;
         for(int col = 0; col < n; ++col){
           std::fill(out.values[col].begin(), out.values[col].end(), 0.0);
         }
       }else{
-        out.rows.resize(n);
-        out.values.resize(n);
+        out.rows.assign(n, std::vector<int>());
+        out.values.assign(n, std::vector<double>());
         out.originalToPermuted.assign(n, -1);
 
         const auto & perm = factor.permutationP();
@@ -5447,8 +5543,6 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         }
         setPermuted(i, i, (1.0 / D(i)) - diagCorrection);
       }
-
-      return out;
     };
 
   auto getSelectedInverseOriginal =
@@ -6673,11 +6767,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           logDetR += std::log(Dr(j));
         }
 
-        Rselected =
-          buildSelectedInverseSubset(
-            Rfactor,
-            "R"
-          );
+        buildSelectedInverseSubset(
+          Rfactor,
+          "R",
+          Rselected,
+          false
+        );
       }
     }
 
@@ -6813,37 +6908,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           continue;
         }
 
-        arma::mat blockW(
-          rows.n_elem,
-          columns.n_elem,
-          arma::fill::zeros
-        );
-
-        for(arma::uword localCol = 0;
-            localCol < columns.n_elem;
-            ++localCol){
-          for(Eigen::SparseMatrix<double>::InnerIterator designEntry(
-                W, static_cast<int>(columns(localCol)));
-              designEntry; ++designEntry){
-            const arma::uword globalRow =
-              static_cast<arma::uword>(designEntry.row());
-            if(residualBlockOfRow[static_cast<std::size_t>(globalRow)] == block){
-              const int localCoordinate = residualLocalOfRow[
-                static_cast<std::size_t>(globalRow)
-              ];
-              blockW(static_cast<arma::uword>(localCoordinate), localCol) =
-                designEntry.value();
-            }
-          }
-        }
-
-        if(useH){
-          arma::vec hDiagonal(rows.n_elem);
-          for(arma::uword localRow = 0; localRow < rows.n_elem; ++localRow){
-            hDiagonal(localRow) = Hs(rows(localRow), rows(localRow));
-          }
-          blockW.each_col() %= hDiagonal;
-        }
+        // blockW (including any diagonal-H weighting) is constant across
+        // REML iterations and was precomputed once before the main loop.
+        const arma::mat & blockW =
+          residualKronBlockWCache[static_cast<std::size_t>(block)];
 
         arma::mat blockRiW = RkronInv * blockW;
 
@@ -6904,7 +6972,30 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       arma::mat Wd(Wdense.data(), Wdense.rows(), Wdense.cols());
       RiWdense = applyRiDense(Wd);
       arma::mat Cdense = Wd.t() * RiWdense;
-      C = armaSparseToEigenGlobal(arma::sp_mat(Cdense));
+      // Build C directly from the dense product in a single pass, instead
+      // of round-tripping through an intermediate arma::sp_mat (which would
+      // itself scan Cdense once before a second scan converted it to Eigen
+      // triplets).
+      {
+        const arma::uword nEff = Cdense.n_rows;
+        std::vector<Eigen::Triplet<double>> Ctriplets;
+        Ctriplets.reserve(Cdense.n_elem);
+        for(arma::uword col = 0; col < Cdense.n_cols; ++col){
+          for(arma::uword row = 0; row < nEff; ++row){
+            const double v = Cdense(row, col);
+            if(v != 0.0){
+              Ctriplets.emplace_back(
+                static_cast<int>(row),
+                static_cast<int>(col),
+                v
+              );
+            }
+          }
+        }
+        C.resize(static_cast<Eigen::Index>(nEff), static_cast<Eigen::Index>(nEff));
+        C.setFromTriplets(Ctriplets.begin(), Ctriplets.end());
+        C.makeCompressed();
+      }
       rhsMME = arma::vec(Wd.t() * Riy);
     }
 
@@ -7056,7 +7147,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // Diagnostic only: minimum LDLT pivot in direct mode; minimum diagonal
     // entry of C in PCG mode. This must not be used by the PCG algorithm.
     double minD = std::numeric_limits<double>::quiet_NaN();
-    SelectedInverseSubset Cselected;
 
     if(solverName == "ldlt"){
       const bool sameCPattern =
@@ -7090,17 +7180,16 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
         logDetC += std::log(dj);
       }
-      Cselected = buildSelectedInverseSubset(
+      // CselectedTopology is updated in place: when the LDLT fill-in
+      // pattern is unchanged from the previous iteration, only the
+      // numeric Takahashi values are recomputed (no pattern deep copy).
+      buildSelectedInverseSubset(
         Cfactor,
         "C",
+        CselectedTopology,
         sameCPattern && CselectedTopologyReady
-          ? &CselectedTopology
-          : nullptr
       );
-      if(!sameCPattern || !CselectedTopologyReady){
-        CselectedTopology = Cselected;
-        CselectedTopologyReady = true;
-      }
+      CselectedTopologyReady = true;
     }else if(solverName == "cholmod"){
       // Supernodal (BLAS-3) direct factorisation via R's Matrix package.
       // No Takahashi selected inverse is available for a supernodal factor
@@ -7837,6 +7926,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       // Add 0.5 b' C_ij b for pairs of covariance parameters belonging
       // to the SAME random covariance structure.  Cross-structure second
       // derivatives are exactly zero.
+    #ifdef _OPENMP
+      #pragma omp parallel for if(nRe > 1) schedule(static)
+    #endif
       for(int iR = 0; iR < nRe; ++iR){
 
         const std::size_t iCache =
@@ -7858,12 +7950,74 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             nVcStart(iR) - 1
           );
 
+        if(randomStructurallyDiagonal[iCache]){
+          // Closed-form fast path: for a structurally diagonal covariance
+          // product, lambdaDense and every dSigma/dphi_k (Bi/Bj) are
+          // diagonal matrices, so d2Lambda collapses to
+          //   d2Lambda_kk = 2 * Bi_kk * Bj_kk * lambda_kk^3
+          // and secondCorrection = sum_k Bi_kk*Bj_kk*lambda_kk^3*quadBase_kk.
+          // This replaces localNvc^2 dense q x q matrix-chain products
+          // (O(q^3) each) with localNvc^2 O(q) dot products.
+          const arma::vec lambdaCubeDiag =
+            arma::pow(lambdaDense.diag(), 3);
+          const arma::vec quadDiag =
+            quadBase.diag();
+
+          std::vector<arma::vec> basisDiag(localNvc);
+          for(arma::uword localK = 0; localK < localNvc; ++localK){
+            basisDiag[localK] =
+              randomParameterBasis[iCache][
+                static_cast<std::size_t>(localK)
+              ].diag();
+          }
+
+#ifdef _OPENMP
+          #pragma omp parallel for if(nRe <= 1 && localNvc > 1) schedule(static)
+#endif
+          for(arma::uword localI = 0; localI < localNvc; ++localI){
+            for(arma::uword localJ = 0; localJ < localNvc; ++localJ){
+
+              const double secondCorrection =
+                arma::accu(
+                  basisDiag[localI]
+                  %
+                  basisDiag[localJ]
+                  %
+                  lambdaCubeDiag
+                  %
+                  quadDiag
+                );
+
+              avInf(
+                globalStart + localI,
+                globalStart + localJ
+              ) +=
+                secondCorrection;
+            }
+          }
+
+          continue;
+        }
+
+      #ifdef _OPENMP
+        #pragma omp parallel for if(nRe <= 1 && localNvc > 1) schedule(static)
+      #endif
         for(arma::uword localI = 0; localI < localNvc; ++localI){
 
           const arma::mat & Bi =
             randomParameterBasis[iCache][
               static_cast<std::size_t>(localI)
             ];
+
+          // lambdaDense * Bi * lambdaDense depends only on localI, so it
+          // is hoisted out of the localJ loop: this halves the dense
+          // matrix-chain work of the O(q^3) AI second-derivative term.
+          const arma::mat Mi =
+            lambdaDense
+            *
+            Bi
+            *
+            lambdaDense;
 
           for(arma::uword localJ = 0; localJ < localNvc; ++localJ){
 
@@ -7877,26 +8031,23 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             // derivatives only.  The nonlinear d2Sigma term belongs to the
             // exact observed Hessian, not to this positive AI/Gauss-Newton
             // metric.
+            //
+            // d2Lambda = lambdaDense*Bj*Mi + (lambdaDense*Bj*Mi)'
+            // is algebraically identical to the original four-term chain
+            // (lambdaDense*Bj*lambdaDense*Bi*lambdaDense +
+            //  lambdaDense*Bi*lambdaDense*Bj*lambdaDense) since Mi is
+            // symmetric and Mi*Bj*lambdaDense = (lambdaDense*Bj*Mi)'.
+            const arma::mat crossTerm =
+              lambdaDense
+              *
+              Bj
+              *
+              Mi;
+
             arma::mat d2Lambda =
-              lambdaDense
-              *
-              Bj
-              *
-              lambdaDense
-              *
-              Bi
-              *
-              lambdaDense
+              crossTerm
               +
-              lambdaDense
-              *
-              Bi
-              *
-              lambdaDense
-              *
-              Bj
-              *
-              lambdaDense;
+              crossTerm.t();
 
             d2Lambda =
               0.5
@@ -8056,13 +8207,17 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
         arma::mat thetaCprov = thetaC[iR];
 
-        arma::sp_mat traces(
+        arma::mat traces(
           lambda(iR).n_rows,
-          lambda(iR).n_cols
+          lambda(iR).n_cols,
+          arma::fill::zeros
         );
 
         arma::mat partitionsP = partitions(iR);
 
+      #ifdef _OPENMP
+        #pragma omp parallel for if(lambda(iR).n_cols > 1) schedule(static)
+      #endif
         for(int iCol = 0; iCol < static_cast<int>(lambda(iR).n_cols); ++iCol){
 
           bool columnBlockNeeded =
@@ -8093,6 +8248,22 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                 covType[static_cast<std::size_t>(iR)] == "legacy"
                 &&
                 thetaCprov(iRow, iCol) <= 0
+            ){
+              continue;
+            }
+
+            // For a structurally diagonal covariance product, lambda and
+            // every dSigma/dphi_k are diagonal matrices, so the score's
+            // lambda*traces*lambda term only ever reads traces' diagonal
+            // entries. Off-diagonal (iRow != iCol) blocks are exactly
+            // unused and skipping them avoids the expensive Ai/selected-
+            // inverse work below for q^2-q of the q^2 (row,col) pairs.
+            if(
+                covType[static_cast<std::size_t>(iR)] != "legacy"
+                &&
+                randomStructurallyDiagonal[static_cast<std::size_t>(iR)]
+                &&
+                iRow != iCol
             ){
               continue;
             }
@@ -8135,7 +8306,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                 }
                 double cij = 0.0;
                 if(!getSelectedInverseOriginal(
-                     Cselected,
+                     CselectedTopology,
                      static_cast<int>(colStart + ac),
                      static_cast<int>(rowStart + ar),
                      cij)){
@@ -8154,6 +8325,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                     selectedRHS(static_cast<Eigen::Index>(colStart + j),
                                 static_cast<Eigen::Index>(j)) = 1.0;
                   }
+#ifdef _OPENMP
+                  #pragma omp critical(sommer_factor_solve)
+#endif
                   fallbackBlockSolution = solveCMatrix(
                     selectedRHS,
                     "selected-block random-effect score-trace fallback");
@@ -8178,7 +8352,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         traces =
           arma::symmatu(traces);
 
-        arma::sp_mat dLuProv =
+        arma::mat dLuProv =
           (
             arma::as_scalar(nUsTotal(iR))
             *
@@ -8297,6 +8471,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       arma::fill::zeros
     );
 
+    // RiWsp is constant across the iP loop below; converting it to
+    // Armadillo once here avoids repeating a full triplet-based
+    // Eigen->Armadillo conversion for every residual parameter.
+    const arma::sp_mat RiWspArmaShared =
+      RiWisSparse ? eigenSparseToArmaGlobal(RiWsp) : arma::sp_mat();
+
     for(arma::uword iP = 0; iP < nResidualPar; ++iP){
 
       const arma::sp_mat & Sprov =
@@ -8339,6 +8519,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
       }else if(Rkron){
 
+        // Independent per-block extraction/accumulation: parallelize over
+        // blocks, and use trace(A*B) = accu(A % B) (valid since RkronInv is
+        // symmetric) instead of forming the full q x q product.
+        #ifdef _OPENMP
+          #pragma omp parallel for if(residualKronNBlocks > 1) schedule(static) reduction(+:traceSRi)
+        #endif
         for(int b = 0; b < residualKronNBlocks; ++b){
 
           const arma::uvec & rows =
@@ -8363,9 +8549,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           }
 
           traceSRi +=
-            arma::trace(
+            arma::accu(
               local
-              *
+              %
               RkronInv
             );
         }
@@ -8396,13 +8582,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       arma::sp_mat Btrace;
 
       if(RiWisSparse){
-        const arma::sp_mat RiWspArma = eigenSparseToArmaGlobal(RiWsp);
         Btrace =
-          RiWspArma.t()
+          RiWspArmaShared.t()
           *
           Sprov
           *
-          RiWspArma;
+          RiWspArmaShared;
       }else{
 
         arma::mat BtraceDense =
@@ -8428,7 +8613,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         : sparseTraceInverseTimes(
             Btrace,
             Cfactor,
-            Cselected,
+            CselectedTopology,
             "residual trace tr(C^{-1} W'Ri(dR/dphi)RiW)",
             usedCTraceFallback,
             solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveCMatrix) : nullptr
@@ -9671,11 +9856,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
 
       // Takahashi sparse inverse subset in the filled LDLT pattern.
-      finalCselected =
-        buildSelectedInverseSubset(
-          Cfactor,
-          "final C"
-        );
+      buildSelectedInverseSubset(
+        Cfactor,
+        "final C",
+        finalCselected,
+        false
+      );
 
       // Reconstruct the selected inverse subset as a sparse Ci in the
       // ORIGINAL MME ordering.
