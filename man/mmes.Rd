@@ -230,16 +230,16 @@ mmes(fixed, random, rcov, data, W,
   initial iterations which happens very often with the AI method but it can be 
   detected by looking at the behavior of the likelihood. In that case you may
   want to give a smaller weight.}
-  \item{emWeight}{A vector of values (of length equal to the number of iterations) 
-  indicating with values between 0 and 1 the weight assigned to the EM 
-  information matrix. And the values 1 - emWeight will be applied to the AI
-  information matrix to produce a joint information matrix. By default the 
-  function gives a weight to the EM algorithm of a logarithmic decrease rate 
-  using the following code:
-  
-  \code{ stan(logspace(seq(1,-1,- 2/nIters), p=3)) }. 
-  
-  }
+  \item{emWeight}{A vector of values (of length equal to the number of iterations)
+  indicating with values between 0 and 1 the weight assigned to the EM
+  information matrix; the values 1 - emWeight are applied to the AI information
+  matrix to produce the joint information matrix used in the variance-component
+  update. This creates an EM-heavy warm start early in the fit and gradually
+  transitions to an AI-dominated update as the optimizer approaches convergence.
+  The default schedule is a smooth decay from 1 at the first iteration to 0.05
+  by the last iteration, i.e. the fit begins in a strongly stabilized EM regime
+  and then moves toward the classical AI update. Values outside \code{[0, 1]} are
+  rejected.}
   \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
   \item{getPEV}{A logical value indicating whether prediction error variance
   results should be organized and returned when they are requested through
