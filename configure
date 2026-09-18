@@ -1,0 +1,48 @@
+#!/bin/sh
+# Optional METIS detection for nested-dissection sparse ordering in
+# ai_mme_sp2()'s Eigen LDLT factorisations (src/MNR.cpp). When METIS is not
+# found, src/Makevars is generated with empty substitutions and the package
+# falls back to Eigen's built-in AMD ordering unchanged.
+
+: "${R_HOME:=$(R RHOME)}"
+CXX=$("${R_HOME}/bin/R" CMD config CXX)
+CPPFLAGS=$("${R_HOME}/bin/R" CMD config CPPFLAGS)
+
+SOMMER_METIS_CPPFLAGS=""
+SOMMER_METIS_LIBS=""
+
+METIS_CPPFLAGS=""
+METIS_LIBS="-lmetis"
+
+if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists metis 2>/dev/null; then
+  METIS_CPPFLAGS=$(pkg-config --cflags metis)
+  METIS_LIBS=$(pkg-config --libs metis)
+fi
+
+tmpbase="${TMPDIR:-/tmp}/sommer_metis_test_$$"
+cat > "${tmpbase}.cpp" <<'EOF'
+#include <metis.h>
+int main(){ idx_t n = 0; (void)n; return 0; }
+EOF
+
+if "${CXX}" ${CPPFLAGS} ${METIS_CPPFLAGS} -c "${tmpbase}.cpp" -o "${tmpbase}.o" > "${tmpbase}.log" 2>&1; then
+  if "${CXX}" "${tmpbase}.o" -o "${tmpbase}.bin" ${METIS_LIBS} >> "${tmpbase}.log" 2>&1; then
+    SOMMER_METIS_CPPFLAGS="-DSOMMER_HAVE_METIS ${METIS_CPPFLAGS}"
+    SOMMER_METIS_LIBS="${METIS_LIBS}"
+  fi
+fi
+
+rm -f "${tmpbase}.cpp" "${tmpbase}.o" "${tmpbase}.bin" "${tmpbase}.log"
+
+if [ -n "${SOMMER_METIS_LIBS}" ]; then
+  echo "configure: METIS found - enabling nested-dissection sparse ordering in ai_mme_sp2()."
+else
+  echo "configure: METIS not found - using Eigen's built-in AMD ordering (default)."
+fi
+
+sed \
+  -e "s|@SOMMER_METIS_CPPFLAGS@|${SOMMER_METIS_CPPFLAGS}|" \
+  -e "s|@SOMMER_METIS_LIBS@|${SOMMER_METIS_LIBS}|" \
+  src/Makevars.in > src/Makevars
+
+exit 0
