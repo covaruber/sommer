@@ -202,7 +202,10 @@ vsm <- function(..., Gu=NULL, sigma2=0.15, fixedSigma2=FALSE,
     residualLocalIndex <- rep(NA_integer_, nrow(Z0))
     for(rr in seq_len(nrow(Z0))){
       hits <- byrow[[as.character(rr)]]
-      if(is.null(hits) || length(hits) != 1L || abs(ss$x[hits] - 1) > 1e-12){
+      if(is.null(hits)){
+        next
+      }
+      if(length(hits) != 1L || abs(ss$x[hits] - 1) > 1e-12){
         stop("Residual covariance factors must define exactly one covariance-product level per observation.",
              call. = FALSE)
       }
@@ -596,7 +599,13 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     }
     if(length(levs) > 1L){
       xf <- factor(x, levels=levs)
-      dummy <- Matrix::sparse.model.matrix(~xf-1, na.action=na.pass)
+      observed <- !is.na(xf)
+      # sparse.model.matrix() drops NA rows despite na.action=na.pass.
+      # Build observed rows and restore missing coordinates as zero rows so
+      # every vsm() constructor preserves the original observation layout.
+      observedDesign <- Matrix::sparse.model.matrix(~xf-1, data=data.frame(xf=xf[observed]))
+      dummy <- Matrix::Matrix(0, nrow=length(x), ncol=ncol(observedDesign), sparse=TRUE)
+      dummy[observed, ] <- observedDesign
       colnames(dummy) <- levs
     }else{
       dummy <- Matrix::Matrix(0, nrow=length(x), ncol=1, sparse=TRUE)
