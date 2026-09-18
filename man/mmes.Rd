@@ -264,19 +264,39 @@ mmes(fixed, random, rcov, data, W,
   the complete inverse matrix. Therefore, \code{uPevList} is returned while \code{Ci}
   is not fully materialized.
 
+  With \code{solver="cholmod"} (see below), the supernodal factorization used during
+  REML iterations has no Takahashi selected-inverse equivalent. In that case
+  \code{computeCi=1} automatically performs one additional sparse LDLT factorization
+  of the converged coefficient matrix after REML convergence, purely to extract the
+  selected inverse subset. This is a single one-time cost, not repeated every
+  iteration, so the iterative speed benefit of \code{solver="cholmod"} is retained.
+
   \code{2}: the complete inverse of the coefficient matrix is computed. The prediction
   error variances in \code{uPevList} are then extracted from the appropriate diagonal
   elements of \code{Ci}. This option is the most computationally and memory intensive,
-  especially for large mixed model equation systems.
+  especially for large mixed model equation systems. With \code{solver="cholmod"} the
+  full inverse is obtained directly from the supernodal factor (no extra LDLT
+  refactorization is needed for this mode).
 
   For large models, \code{computeCi=0} is recommended during model fitting. If prediction
   error variances or the full inverse are needed afterwards, they can be obtained with
   \code{\link{postPEV}} without refitting the model.}
 
    \item{solver}{Linear-system solver used by the Henderson implementation.
-   \code{"ldlt"} (default) uses the sparse direct LDLT factorization path.
+   \code{"ldlt"} (default) uses the sparse direct simplicial LDLT factorization path.
    \code{"pcg"} selects the iterative preconditioned conjugate-gradient path.
-   The covariance-model specification is independent of this choice: both solvers
+   \code{"cholmod"} uses the supernodal (blocked, BLAS-3) sparse Cholesky
+   factorization bundled with R's \code{Matrix} package (SuiteSparse CHOLMOD),
+   accessed through \code{Matrix}'s public C API - no additional system library needs
+   to be installed, since \code{Matrix} is already a dependency of \code{sommer}.
+   Supernodal factorization can be faster than the simplicial LDLT path for large
+   coefficient matrices (e.g., models built on large pedigree or genomic relationship
+   matrices), because it reorganizes the sparse factorization into dense blocks that
+   are handled with threaded BLAS-3 kernels rather than column-by-column updates; the
+   speed-up depends on the BLAS linked to the running R installation. \code{solver="cholmod"}
+   currently supports all \code{computeCi} values (see above for how \code{computeCi=1}
+   is handled for this solver).
+   The covariance-model specification is independent of this choice: all solvers
    receive the same generic CovarianceFactor descriptors produced by \code{vsm()}.}
 
    \item{pcgTol}{Convergence tolerance used by the PCG linear solver. The default is

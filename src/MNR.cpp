@@ -15,11 +15,36 @@
 #include <Eigen/Eigenvalues>
 #include <cctype>
 
+// Nested-dissection sparse ordering for ai_mme_sp2()'s LDLT factorisations,
+// enabled only when configure detected a usable METIS installation; falls
+// back to Eigen's built-in AMD ordering otherwise.
+#ifdef SOMMER_HAVE_METIS
+#include <Eigen/MetisSupport>
+typedef Eigen::MetisOrdering<int> SommerSparseOrdering;
+#else
+typedef Eigen::AMDOrdering<int> SommerSparseOrdering;
+#endif
+
+// Supernodal (BLAS-3) sparse Cholesky backend for ai_mme_sp2()'s
+// solver="cholmod" option, provided by R's Matrix package. Matrix.h declares
+// the M_cholmod_*() wrappers; stubs.c defines them via lazy R_GetCCallable()
+// lookups into the already-loaded Matrix package, so no extra link flags
+// are required beyond LinkingTo: Matrix.
+#include <Matrix/Matrix.h>
+#include <Matrix/stubs.c>
+
 // Standard C++ headers used by the new implementation
 #include <vector>
 #include <limits>
 #include <cmath>
 #include <algorithm>
+#include <atomic>
+#include <cstring>
+#include <functional>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 // via the depends attribute we tell Rcpp to create hooks for
 // RcppArmadillo so that the build process will know what to do
@@ -1164,17 +1189,17 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
               // Rcpp::Rcout << (thetaConstOri.size()-1) << arma::endl;
               arma::mat provPev;
               if(pev==true){
-                provPev = arma::mat(PevU(counter4));
+                provPev = Rcpp::as<arma::mat>(PevU(counter4));
                 arma::mat zerosMatFill(pevFull.n_rows,provPev.n_cols,arma::fill::zeros);
                 pevFull = arma::join_cols( arma::join_rows(pevFull, zerosMatFill),arma::join_rows(zerosMatFill.t(),provPev) );
               }
               if( blupTable.n_cols <= j){ // not yet populated
-                blupTable = arma::join_rows(blupTable, arma::mat(U[counter4]) );
+                blupTable = arma::join_rows(blupTable, Rcpp::as<arma::mat>(U[counter4]) );
                 if(pev==true){
                   pevTable = arma::join_rows(pevTable, provPev.diag());
                 }
               }else{ // the column is already populated
-                blupTable.col(j) = blupTable.col(j) + arma::mat(U[counter4]);
+                blupTable.col(j) = blupTable.col(j) + Rcpp::as<arma::mat>(U[counter4]);
                 if(pev==true){
                   pevTable.col(j) = pevTable.col(j) + provPev.diag();
                 }
@@ -1193,10 +1218,10 @@ Rcpp::List newton_di_sp(const arma::sp_mat & Y, const Rcpp::List & X,
               // find which cov components belong where
               arma::uvec isJ = arma::find(indexCovJK == j);
               arma::uvec isK = arma::find(indexCovJK == k);
-              arma::mat provBlup = arma::mat(U[counter4]);
+              arma::mat provBlup = Rcpp::as<arma::mat>(U[counter4]);
               arma::mat provPev;
               if(pev==true){
-                provPev = arma::mat(PevU(counter4));
+                provPev = Rcpp::as<arma::mat>(PevU(counter4));
                 provPev = provPev.diag();
               }
               // add cov blup and cov pev 
@@ -1577,7 +1602,7 @@ Rcpp::List post_mme_Cinverse_cpp(Rcpp::List model, const int mode = 1){
   typedef Eigen::SimplicialLDLT<
     EigenSpMat,
     Eigen::Lower,
-    Eigen::AMDOrdering<int>
+    SommerSparseOrdering
   > EigenLDLT;
 
   EigenSpMat Ce(nEffects, nEffects);
@@ -1939,11 +1964,60 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   arma::rowvec logDetA(nReAl);
   if(nZs > 0){ // of there's random effects
     for (int i = 0; i < nRe; ++i) { // for each random effect
-      double val;
-      double sign;
-      bool ok3 = log_det(val, sign, arma::mat(Ai[i])); // calculate the logDet of the i.th covariance matrix
-      if(ok3 == false){ Rcpp::Rcout << "log determinant of Ai failed " << arma::endl;};
-      logDetA(i) =val*sign*(-1);
+      typedef Eigen::SparseMatrix<double, Eigen::ColMajor, int> RelationshipSpMat;
+      typedef Eigen::Triplet<double, int> RelationshipTriplet;
+      typedef Eigen::SimplicialLDLT<
+        RelationshipSpMat,
+        Eigen::Lower,
+        Eigen::AMDOrdering<int>
+      > RelationshipLDLT;
+
+      if(Ai(i).n_rows > static_cast<arma::uword>(std::numeric_limits<int>::max())){
+        Rcpp::stop("Relationship inverse is too large for Eigen's sparse index type.");
+      }
+
+      RelationshipSpMat relationshipPrecision(
+        static_cast<int>(Ai(i).n_rows),
+        static_cast<int>(Ai(i).n_cols)
+      );
+      std::vector<RelationshipTriplet> relationshipEntries;
+      relationshipEntries.reserve(static_cast<std::size_t>(Ai(i).n_nonzero));
+
+      for(arma::sp_mat::const_iterator entry = Ai(i).begin();
+          entry != Ai(i).end();
+          ++entry){
+        relationshipEntries.emplace_back(
+          static_cast<int>(entry.row()),
+          static_cast<int>(entry.col()),
+          *entry
+        );
+      }
+
+      relationshipPrecision.setFromTriplets(
+        relationshipEntries.begin(),
+        relationshipEntries.end()
+      );
+      relationshipPrecision.makeCompressed();
+
+      RelationshipLDLT relationshipFactor;
+      relationshipFactor.compute(relationshipPrecision);
+      if(relationshipFactor.info() != Eigen::Success){
+        Rcpp::stop("Sparse LDLT factorisation of a relationship inverse failed.");
+      }
+
+      const Eigen::VectorXd relationshipPivots = relationshipFactor.vectorD();
+      double relationshipLogDet = 0.0;
+      for(Eigen::Index pivotIndex = 0;
+          pivotIndex < relationshipPivots.size();
+          ++pivotIndex){
+        const double pivot = relationshipPivots(pivotIndex);
+        if(!std::isfinite(pivot) || pivot <= 0.0){
+          Rcpp::stop("Relationship inverse has a non-positive LDLT pivot.");
+        }
+        relationshipLogDet += std::log(pivot);
+      }
+
+      logDetA(i) = -relationshipLogDet;
     }
   }
   
@@ -3239,6 +3313,99 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
   );
 }
 
+// Reusable arma::sp_mat <-> Eigen::SparseMatrix<double> bridges for the
+// pieces of ai_mme_sp2() that are being migrated off Armadillo incrementally.
+static inline Eigen::SparseMatrix<double> armaSparseToEigenGlobal(
+    const arma::sp_mat & src){
+  std::vector<Eigen::Triplet<double>> triplets;
+  triplets.reserve(src.n_nonzero);
+  for(arma::sp_mat::const_iterator it = src.begin(); it != src.end(); ++it){
+    triplets.emplace_back(
+      static_cast<int>(it.row()),
+      static_cast<int>(it.col()),
+      *it
+    );
+  }
+  Eigen::SparseMatrix<double> out(
+    static_cast<int>(src.n_rows),
+    static_cast<int>(src.n_cols)
+  );
+  out.setFromTriplets(triplets.begin(), triplets.end());
+  out.makeCompressed();
+  return out;
+}
+
+static inline arma::sp_mat eigenSparseToArmaGlobal(
+    const Eigen::SparseMatrix<double> & src){
+  const arma::uword nnz = static_cast<arma::uword>(src.nonZeros());
+  arma::umat locations(2, nnz);
+  arma::vec values(nnz);
+  arma::uword k = 0;
+  for(int col = 0; col < src.outerSize(); ++col){
+    for(Eigen::SparseMatrix<double>::InnerIterator it(src, col); it; ++it){
+      locations(0,k) = static_cast<arma::uword>(it.row());
+      locations(1,k) = static_cast<arma::uword>(it.col());
+      values(k) = it.value();
+      ++k;
+    }
+  }
+  return arma::sp_mat(
+    locations,
+    values,
+    static_cast<arma::uword>(src.rows()),
+    static_cast<arma::uword>(src.cols())
+  );
+}
+
+// Sparse LDLT log-determinant of a sparse SPD precision/relationship matrix,
+// avoiding the O(n^2) densification that arma::log_det() would require.
+static inline double sparseSpdLogDet(const arma::sp_mat & A){
+  const Eigen::SparseMatrix<double> Ae = armaSparseToEigenGlobal(A);
+  Eigen::SimplicialLDLT<
+    Eigen::SparseMatrix<double>,
+    Eigen::Lower,
+    SommerSparseOrdering
+  > factor;
+  factor.compute(Ae);
+  if(factor.info() != Eigen::Success){
+    Rcpp::stop("Sparse LDLT factorisation failed while computing a log-determinant.");
+  }
+  const Eigen::VectorXd pivots = factor.vectorD();
+  double logDet = 0.0;
+  for(Eigen::Index k = 0; k < pivots.size(); ++k){
+    const double pivot = pivots(k);
+    if(!std::isfinite(pivot) || pivot <= 0.0){
+      Rcpp::stop("Non-positive LDLT pivot while computing a sparse log-determinant.");
+    }
+    logDet += std::log(pivot);
+  }
+  return logDet;
+}
+
+// Dense SPD inverse via Eigen::LLT, used in place of arma::inv_sympd() for
+// the small per-random-effect covariance matrices in ai_mme_sp2().
+static inline bool eigenSpdInverse(const arma::mat & A, arma::mat & out){
+  const arma::uword n = A.n_rows;
+  Eigen::MatrixXd Ae(n, n);
+  for(arma::uword col = 0; col < n; ++col){
+    for(arma::uword row = 0; row < n; ++row){
+      Ae(row, col) = A(row, col);
+    }
+  }
+  Eigen::LLT<Eigen::MatrixXd> llt(Ae);
+  if(llt.info() != Eigen::Success){
+    return false;
+  }
+  const Eigen::MatrixXd inv = llt.solve(Eigen::MatrixXd::Identity(n, n));
+  out.set_size(n, n);
+  for(arma::uword col = 0; col < n; ++col){
+    for(arma::uword row = 0; row < n; ++row){
+      out(row, col) = inv(row, col);
+    }
+  }
+  return true;
+}
+
 // [[Rcpp::export]]
 Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const arma::vec & Zind, const Rcpp::List & AiI,
@@ -3274,8 +3441,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   std::string solverName = solver;
   std::transform(solverName.begin(), solverName.end(), solverName.begin(),
                  [](unsigned char c){ return static_cast<char>(std::tolower(c)); });
-  if(solverName != "ldlt" && solverName != "pcg"){
-    Rcpp::stop("solver must be either 'ldlt' or 'pcg'.");
+  if(solverName != "ldlt" && solverName != "pcg" && solverName != "cholmod"){
+    Rcpp::stop("solver must be 'ldlt', 'pcg', or 'cholmod'.");
   }
   if(!std::isfinite(pcgTol) || pcgTol <= 0.0){
     Rcpp::stop("pcgTol must be positive and finite.");
@@ -3291,6 +3458,20 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   }
   if(solverName == "pcg" && computeCi == 1){
     Rcpp::stop("computeCi=1 requires LDLT/Takahashi. Use computeCi=0 for a genuinely factorisation-free PCG fit, or computeCi=2 for an explicit PCG full inverse (small systems only).");
+  }
+
+  if(verbose){
+#ifdef _OPENMP
+    Rcpp::Rcout
+      << "OpenMP available: up to "
+      << omp_get_max_threads()
+      << " threads."
+      << arma::endl;
+#else
+    Rcpp::Rcout
+      << "OpenMP unavailable: this build runs solver kernels serially."
+      << arma::endl;
+#endif
   }
 
   time_t before = time(0);
@@ -3320,7 +3501,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     Rcpp::stop("Response variance must be positive and finite.");
   }
 
-  arma::sp_mat y = arma::sp_mat(scaleCpp(arma::mat(y0)));
+  arma::mat responseScaled = arma::mat(y0);
+  const arma::rowvec responseMeans = arma::mean(responseScaled, 0);
+  const arma::rowvec responseSds = arma::stddev(responseScaled, 0, 0);
+  responseScaled.each_row() -= responseMeans;
+  responseScaled.each_row() /= responseSds;
+  arma::sp_mat y = arma::sp_mat(responseScaled);
   bool intercept = false;
   if(X.n_cols > 0 && arma::accu(X.col(0)) == X.n_rows){
     intercept = true;
@@ -4428,6 +4614,30 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         );
     };
 
+  std::vector< std::vector<arma::mat> > covarianceDerivativeCache(
+    static_cast<std::size_t>(nRRe)
+  );
+
+  std::vector< std::vector<bool> > covarianceDerivativeReady(
+    static_cast<std::size_t>(nRRe)
+  );
+
+  auto cachedCovarianceD1 =
+    [&](const int iStruct,
+        const arma::uword k) -> const arma::mat & {
+
+      const std::size_t structureOffset =
+        static_cast<std::size_t>(iStruct);
+
+      if(!covarianceDerivativeReady[structureOffset][k]){
+        covarianceDerivativeCache[structureOffset][k] =
+          covarianceD1(iStruct, k);
+        covarianceDerivativeReady[structureOffset][k] = true;
+      }
+
+      return covarianceDerivativeCache[structureOffset][k];
+    };
+
   auto covarianceD2 =
     [&](const int iStruct,
         const arma::uword iPar,
@@ -4482,16 +4692,13 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       Ai(i)=convertSparse(AiI(i)); // convert the matrix to sparse and store in the field
     }
   }
-  // delete AiI;
   // calculate log determinants of Ai's
   arma::rowvec logDetA(nReAl);
   if(nZs > 0){ // of there's random effects
     for (int i = 0; i < nRe; ++i) { // for each random effect
-      double val;
-      double sign;
-      bool ok3 = log_det(val, sign, arma::mat(Ai[i])); // calculate the logDet of the i.th covariance matrix
-      if(ok3 == false){ Rcpp::Rcout << "log determinant of Ai failed " << arma::endl;};
-      logDetA(i) =val*sign*(-1);
+      // Sparse LDLT log-determinant: avoids densifying the (potentially
+      // large) relationship/pedigree precision matrix Ai.
+      logDetA(i) = -sparseSpdLogDet(Ai(i));
     }
   }
   
@@ -4567,7 +4774,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   arma::rowvec llik(nIters); // store log likellihood values
   
   int nEffects = Nu+nX;
-  arma::sp_mat W(nR,nEffects), C(nEffects,nEffects), Ci(nEffects,nEffects);
+  // Stage 2 Eigen migration: W and C are the per-iteration hot-path sparse
+  // objects (assembled every iteration and factorised every iteration).
+  // They are native Eigen sparse matrices so the LDLT/PCG solvers consume
+  // them directly, with no per-iteration Armadillo<->Eigen round trip.
+  Eigen::SparseMatrix<double> W(nR,nEffects), C(nEffects,nEffects);
+  arma::sp_mat Ci(nEffects,nEffects);
   arma::vec u(Nu), b(nX), bu(nEffects);
   arma::mat avInf(nVcTotal,nVcTotal);
   arma::mat emInf(nVcTotal,nVcTotal);
@@ -4583,9 +4795,19 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   arma::mat toBoundary(nIters,nVcTotal, arma::fill::zeros ); // store which values have been set to the boundary value
   arma::vec sumToBoundary(nVcTotal, arma::fill::zeros ); // to apply sum across iterations and if a VC goes to the boundary 3 times it is fixed to the boundary
   arma::sp_mat Hs(H.n_cols,H.n_cols); // square of H matrix
-  if(useH == true){ // do cholesky decomposition of H if user wants to use weights
+  if(useH == true){ // sparse Cholesky decomposition of H if user wants to use weights
     Rcpp::Rcout << "Using the weights matrix " << arma::endl;
-    Hs = arma::sp_mat(chol(arma::mat(H)));
+    // Stage 1 Eigen migration: factorise H directly in sparse form instead
+    // of densifying it just to call arma::chol().
+    const Eigen::SparseMatrix<double> He = armaSparseToEigenGlobal(H);
+    Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Upper> HeLLT;
+    HeLLT.compute(He);
+    if(HeLLT.info() != Eigen::Success){
+      Rcpp::stop("Sparse Cholesky factorisation of the weights matrix H failed.");
+    }
+    Eigen::SparseMatrix<double> HeU = HeLLT.matrixU();
+    HeU.makeCompressed();
+    Hs = eigenSparseToArmaGlobal(HeU);
   }
   arma::vec dLuOut;//(nVcTotal); // we will join cols
 
@@ -4594,11 +4816,42 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   // ============================================================
 
   // W = [X Z] is constant.
-  W = X;
-  if(nZs > 0){
-    for(int i = 0; i < nZs; ++i){
-      W = arma::join_rows(W, Z(i));
+  {
+    std::vector<Eigen::Triplet<double>> Wtriplets;
+    const Eigen::SparseMatrix<double> Xeig = armaSparseToEigenGlobal(X);
+    Wtriplets.reserve(
+      static_cast<std::size_t>(Xeig.nonZeros())
+    );
+    for(int col = 0; col < Xeig.outerSize(); ++col){
+      for(Eigen::SparseMatrix<double>::InnerIterator it(Xeig, col); it; ++it){
+        Wtriplets.emplace_back(
+          static_cast<int>(it.row()),
+          static_cast<int>(it.col()),
+          it.value()
+        );
+      }
     }
+    int columnOffset = static_cast<int>(Xeig.cols());
+    if(nZs > 0){
+      for(int i = 0; i < nZs; ++i){
+        const Eigen::SparseMatrix<double> Zeig = armaSparseToEigenGlobal(Z(i));
+        Wtriplets.reserve(
+          Wtriplets.size() + static_cast<std::size_t>(Zeig.nonZeros())
+        );
+        for(int col = 0; col < Zeig.outerSize(); ++col){
+          for(Eigen::SparseMatrix<double>::InnerIterator it(Zeig, col); it; ++it){
+            Wtriplets.emplace_back(
+              static_cast<int>(it.row()),
+              columnOffset + static_cast<int>(it.col()),
+              it.value()
+            );
+          }
+        }
+        columnOffset += static_cast<int>(Zeig.cols());
+      }
+    }
+    W.setFromTriplets(Wtriplets.begin(), Wtriplets.end());
+    W.makeCompressed();
   }
 
   // Dense response vector is constant.
@@ -4680,6 +4933,25 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
             static_cast<arma::uword>(1),
             lastIndex
           );
+      }
+    }
+  }
+
+  // One-time validation that Ai(iR) is dimensionally consistent with every
+  // partition block, so the per-iteration G^-1 accumulation loop does not
+  // need to repeat these checks on every REML iteration.
+  if(nZs > 0){
+    for(int iR = 0; iR < nRe; ++iR){
+      const std::size_t iCache = static_cast<std::size_t>(iR);
+      for(std::size_t j = 0; j < partitionStartCache[iCache].size(); ++j){
+        const arma::uword blockSize =
+          partitionEndCache[iCache][j] - partitionStartCache[iCache][j] + 1;
+        if(blockSize != Ai(iR).n_rows || blockSize != Ai(iR).n_cols){
+          Rcpp::stop(
+            "Relationship inverse dimensions are inconsistent with a "
+            "random-effect MME partition."
+          );
+        }
       }
     }
   }
@@ -4821,6 +5093,34 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   const int residualKronBlockSize =
     residualDim;
 
+  std::vector< std::vector<arma::uword> > residualActiveColumnsTmp(
+    static_cast<std::size_t>(residualNBlocks)
+  );
+
+  for(int wCol = 0; wCol < W.outerSize(); ++wCol){
+    for(Eigen::SparseMatrix<double>::InnerIterator entry(W, wCol); entry; ++entry){
+      const int block = residualBlockOfRow[
+        static_cast<std::size_t>(entry.row())
+      ];
+      residualActiveColumnsTmp[static_cast<std::size_t>(block)].push_back(
+        static_cast<arma::uword>(entry.col())
+      );
+    }
+  }
+
+  std::vector<arma::uvec> residualActiveColumns(
+    static_cast<std::size_t>(residualNBlocks)
+  );
+
+  for(int block = 0; block < residualNBlocks; ++block){
+    std::vector<arma::uword> & columns =
+      residualActiveColumnsTmp[static_cast<std::size_t>(block)];
+    std::sort(columns.begin(), columns.end());
+    columns.erase(std::unique(columns.begin(), columns.end()), columns.end());
+    residualActiveColumns[static_cast<std::size_t>(block)] =
+      arma::uvec(columns);
+  }
+
   // Structural diagonality is determined by the covariance factors, not by
   // current parameter values.
   bool residualStructurallyDiagonal = true;
@@ -4874,6 +5174,65 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       }
     }
   }
+
+  // ------------------------------------------------------------
+  // Persistent residual (gr,gc,lr,lc) index list.
+  //
+  // residualKronRows/residualLocalOfRow are purely data-driven (fixed for
+  // the whole optimisation), so the set of global row/col pairs feeding
+  // Rmat and every residualDerivativeBasis(k) never changes across
+  // iterations - only the numeric value read at (lr,lc) does.  Building
+  // this list once and reusing it every iteration replaces the former
+  // per-iteration index bookkeeping plus single-element arma::sp_mat
+  // insertion with one batch sparse construction from cached locations.
+  // ------------------------------------------------------------
+  arma::umat residualPatternLocations;
+  std::vector<int> residualPatternLr;
+  std::vector<int> residualPatternLc;
+
+  {
+    std::vector<arma::uword> patternRows;
+    std::vector<arma::uword> patternCols;
+
+    for(int b = 0; b < residualNBlocks; ++b){
+      const arma::uvec & rows =
+        residualKronRows[static_cast<std::size_t>(b)];
+
+      for(arma::uword aa = 0; aa < rows.n_elem; ++aa){
+        const arma::uword gr = rows(aa);
+        const int lr = residualLocalOfRow[static_cast<std::size_t>(gr)];
+
+        for(arma::uword bb = 0; bb < rows.n_elem; ++bb){
+          const arma::uword gc = rows(bb);
+          const int lc = residualLocalOfRow[static_cast<std::size_t>(gc)];
+
+          patternRows.push_back(gr);
+          patternCols.push_back(gc);
+          residualPatternLr.push_back(lr);
+          residualPatternLc.push_back(lc);
+        }
+      }
+    }
+
+    residualPatternLocations.set_size(2, patternRows.size());
+    for(std::size_t k = 0; k < patternRows.size(); ++k){
+      residualPatternLocations(0,k) = patternRows[k];
+      residualPatternLocations(1,k) = patternCols[k];
+    }
+  }
+
+  auto buildResidualSparseFromPattern =
+    [&](const arma::mat & localMat) -> arma::sp_mat {
+      const arma::uword nnz = residualPatternLr.size();
+      arma::vec values(nnz);
+      for(arma::uword k = 0; k < nnz; ++k){
+        values(k) = localMat(
+          static_cast<arma::uword>(residualPatternLr[k]),
+          static_cast<arma::uword>(residualPatternLc[k])
+        );
+      }
+      return arma::sp_mat(residualPatternLocations, values, nR, nR);
+    };
 
 
   // CHANGE 2 helper:
@@ -4966,7 +5325,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   typedef Eigen::SimplicialLDLT<
     EigenSpMat,
     Eigen::Lower,
-    Eigen::AMDOrdering<int>
+    SommerSparseOrdering
   > EigenLDLT;
 
   typedef Eigen::ConjugateGradient<
@@ -4983,7 +5342,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
 
   auto buildSelectedInverseSubset =
     [&](const EigenLDLT & factor,
-        const std::string & context) -> SelectedInverseSubset {
+        const std::string & context,
+        const SelectedInverseSubset * cachedTopology = nullptr) -> SelectedInverseSubset {
 
       const Eigen::VectorXd D = factor.vectorD();
       const int n = static_cast<int>(D.size());
@@ -4991,30 +5351,41 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       Lmat.makeCompressed();
 
       SelectedInverseSubset out;
-      out.rows.resize(n);
-      out.values.resize(n);
-      out.originalToPermuted.assign(n, -1);
-
-      const auto & perm = factor.permutationP();
-      // Eigen's convention is P e_i = e_{sigma(i)}, therefore
-      // perm.indices()(i) maps ORIGINAL index i -> PERMUTED index.
-      for(int i = 0; i < n; ++i){
-        const int permutedIndex = perm.indices()(i);
-        if(permutedIndex < 0 || permutedIndex >= n){
-          Rcpp::stop("Invalid permutation encountered while building selected inverse subset.");
+      if(cachedTopology != nullptr){
+        if(static_cast<int>(cachedTopology->rows.size()) != n ||
+           static_cast<int>(cachedTopology->originalToPermuted.size()) != n){
+          Rcpp::stop("Cached selected-inverse topology is incompatible with the LDLT factor.");
         }
-        out.originalToPermuted[i] = permutedIndex;
-      }
-
-      for(int col = 0; col < n; ++col){
-        out.rows[col].push_back(col);
-        for(EigenSpMat::InnerIterator it(Lmat, col); it; ++it){
-          const int row = it.row();
-          if(row > col){ out.rows[col].push_back(row); }
+        out = *cachedTopology;
+        for(int col = 0; col < n; ++col){
+          std::fill(out.values[col].begin(), out.values[col].end(), 0.0);
         }
-        std::sort(out.rows[col].begin(), out.rows[col].end());
-        out.rows[col].erase(std::unique(out.rows[col].begin(), out.rows[col].end()), out.rows[col].end());
-        out.values[col].assign(out.rows[col].size(), 0.0);
+      }else{
+        out.rows.resize(n);
+        out.values.resize(n);
+        out.originalToPermuted.assign(n, -1);
+
+        const auto & perm = factor.permutationP();
+        // Eigen's convention is P e_i = e_{sigma(i)}, therefore
+        // perm.indices()(i) maps ORIGINAL index i -> PERMUTED index.
+        for(int i = 0; i < n; ++i){
+          const int permutedIndex = perm.indices()(i);
+          if(permutedIndex < 0 || permutedIndex >= n){
+            Rcpp::stop("Invalid permutation encountered while building selected inverse subset.");
+          }
+          out.originalToPermuted[i] = permutedIndex;
+        }
+
+        for(int col = 0; col < n; ++col){
+          out.rows[col].push_back(col);
+          for(EigenSpMat::InnerIterator it(Lmat, col); it; ++it){
+            const int row = it.row();
+            if(row > col){ out.rows[col].push_back(row); }
+          }
+          std::sort(out.rows[col].begin(), out.rows[col].end());
+          out.rows[col].erase(std::unique(out.rows[col].begin(), out.rows[col].end()), out.rows[col].end());
+          out.values[col].assign(out.rows[col].size(), 0.0);
+        }
       }
 
       auto getPermuted = [&](int a, int b, double & value) -> bool {
@@ -5100,52 +5471,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       return true;
     };
 
-  auto sparseTraceInverseTimes =
-    [&](const arma::sp_mat & B,
-        const EigenLDLT & factor,
-        const SelectedInverseSubset & subset,
-        const std::string & context,
-        bool & usedFallback) -> double {
-      usedFallback = false;
-      double traceValue = 0.0;
-      bool allAvailable = true;
-      for(arma::sp_mat::const_iterator it = B.begin(); it != B.end(); ++it){
-        double zij = 0.0;
-        if(!getSelectedInverseOriginal(subset, static_cast<int>(it.col()), static_cast<int>(it.row()), zij)){
-          allAvailable = false;
-          break;
-        }
-        traceValue += (*it) * zij;
-      }
-      if(allAvailable){ return traceValue; }
 
-      usedFallback = true;
-      traceValue = 0.0;
-      std::vector<arma::uword> activeColumns;
-      activeColumns.reserve(static_cast<std::size_t>(B.n_cols));
-      for(arma::uword j = 0; j < B.n_cols; ++j){
-        if(B.begin_col(j) != B.end_col(j)){ activeColumns.push_back(j); }
-      }
-      const std::size_t batchSize = 32;
-      for(std::size_t batchStart = 0; batchStart < activeColumns.size(); batchStart += batchSize){
-        const std::size_t batchEnd = std::min(batchStart + batchSize, activeColumns.size());
-        const std::size_t currentBatchSize = batchEnd - batchStart;
-        Eigen::MatrixXd rhs = Eigen::MatrixXd::Zero(static_cast<Eigen::Index>(B.n_rows), static_cast<Eigen::Index>(currentBatchSize));
-        for(std::size_t k = 0; k < currentBatchSize; ++k){
-          const arma::uword sourceCol = activeColumns[batchStart + k];
-          for(arma::sp_mat::const_col_iterator it = B.begin_col(sourceCol); it != B.end_col(sourceCol); ++it){
-            rhs(static_cast<Eigen::Index>(it.row()), static_cast<Eigen::Index>(k)) = (*it);
-          }
-        }
-        Eigen::MatrixXd solution = factor.solve(rhs);
-        if(factor.info() != Eigen::Success){ Rcpp::stop("Sparse LDLT trace fallback solve failed in " + context + "."); }
-        for(std::size_t k = 0; k < currentBatchSize; ++k){
-          const arma::uword sourceCol = activeColumns[batchStart + k];
-          traceValue += solution(static_cast<Eigen::Index>(sourceCol), static_cast<Eigen::Index>(k));
-        }
-      }
-      return traceValue;
-    };
 
   // ============================================================
   // CHANGE 5: reusable symbolic factorisation for C
@@ -5223,6 +5549,110 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   bool CpcgReady = false;
   std::vector<int> CouterPattern;
   std::vector<int> CinnerPattern;
+  SelectedInverseSubset CselectedTopology;
+  bool CselectedTopologyReady = false;
+
+  // ============================================================
+  // CHOLMOD (via R's Matrix package) supernodal backend for solver="cholmod"
+  // ============================================================
+  // CholmodState owns the cholmod_common/cholmod_factor lifetime so they are
+  // released even if Rcpp::stop() unwinds out of this function.
+  struct CholmodState {
+    cholmod_common common;
+    cholmod_factor * factor = nullptr;
+    bool started = false;
+    void ensureStarted(){
+      if(!started){
+        M_cholmod_start(&common);
+        common.supernodal = CHOLMOD_SUPERNODAL;
+        started = true;
+      }
+    }
+    ~CholmodState(){
+      if(factor != nullptr){ M_cholmod_free_factor(&factor, &common); }
+      if(started){ M_cholmod_finish(&common); }
+    }
+  };
+  CholmodState cholmodState;
+  bool CholmodSymbolicReady = false;
+
+  // A cholmod_sparse VIEW over an Eigen sparse matrix's existing compressed-
+  // storage arrays (zero-copy): CHOLMOD's analyze/factorize only read A, so
+  // a const_cast to CHOLMOD's void* fields is safe.
+  auto eigenToCholmodSparseView =
+    [](const Eigen::SparseMatrix<double> & A) -> cholmod_sparse {
+      cholmod_sparse view;
+      std::memset(&view, 0, sizeof(view));
+      view.nrow = static_cast<size_t>(A.rows());
+      view.ncol = static_cast<size_t>(A.cols());
+      view.nzmax = static_cast<size_t>(A.nonZeros());
+      view.p = const_cast<int *>(A.outerIndexPtr());
+      view.i = const_cast<int *>(A.innerIndexPtr());
+      view.x = const_cast<double *>(A.valuePtr());
+      // Both matrices are symmetric with both triangles populated; stype=-1
+      // tells CHOLMOD to read only the lower triangle and assume symmetry
+      // for the rest. stype=0 ("general") would instead make CHOLMOD
+      // factorise A*A'.
+      view.stype = -1;
+      view.itype = CHOLMOD_INT;
+      view.xtype = CHOLMOD_REAL;
+      view.dtype = CHOLMOD_DOUBLE;
+      view.sorted = 1;
+      view.packed = 1;
+      return view;
+    };
+
+  auto solveCVectorCholmod =
+    [&](const Eigen::Ref<const Eigen::VectorXd> & rhs,
+        const std::string & context) -> Eigen::VectorXd {
+      cholmod_dense rhsView;
+      std::memset(&rhsView, 0, sizeof(rhsView));
+      rhsView.nrow = static_cast<size_t>(rhs.size());
+      rhsView.ncol = 1;
+      rhsView.nzmax = static_cast<size_t>(rhs.size());
+      rhsView.d = static_cast<size_t>(rhs.size());
+      rhsView.x = const_cast<double *>(rhs.data());
+      rhsView.xtype = CHOLMOD_REAL;
+      rhsView.dtype = CHOLMOD_DOUBLE;
+
+      cholmod_dense * solution =
+        M_cholmod_solve(CHOLMOD_A, cholmodState.factor, &rhsView, &cholmodState.common);
+      if(solution == nullptr){
+        Rcpp::stop("CHOLMOD solve failed in " + context + ".");
+      }
+      Eigen::VectorXd ans =
+        Eigen::Map<const Eigen::VectorXd>(static_cast<double *>(solution->x), rhs.size());
+      M_cholmod_free_dense(&solution, &cholmodState.common);
+      return ans;
+    };
+
+  auto solveCMatrixCholmod =
+    [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs,
+        const std::string & context) -> Eigen::MatrixXd {
+      cholmod_dense rhsView;
+      std::memset(&rhsView, 0, sizeof(rhsView));
+      rhsView.nrow = static_cast<size_t>(rhs.rows());
+      rhsView.ncol = static_cast<size_t>(rhs.cols());
+      rhsView.nzmax = static_cast<size_t>(rhs.size());
+      rhsView.d = static_cast<size_t>(rhs.rows());
+      // CHOLMOD dense matrices are column-major, matching Eigen's default
+      // storage order, so rhs's buffer can be handed over without copying.
+      rhsView.x = const_cast<double *>(rhs.data());
+      rhsView.xtype = CHOLMOD_REAL;
+      rhsView.dtype = CHOLMOD_DOUBLE;
+
+      cholmod_dense * solution =
+        M_cholmod_solve(CHOLMOD_A, cholmodState.factor, &rhsView, &cholmodState.common);
+      if(solution == nullptr){
+        Rcpp::stop("CHOLMOD multi-RHS solve failed in " + context + ".");
+      }
+      Eigen::MatrixXd ans =
+        Eigen::Map<const Eigen::MatrixXd>(
+          static_cast<double *>(solution->x), rhs.rows(), rhs.cols()
+        );
+      M_cholmod_free_dense(&solution, &cholmodState.common);
+      return ans;
+    };
 
   auto preparePCG = [&](const EigenSpMat & Ce){
     CpcgReady = false;
@@ -5246,6 +5676,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       }
       return ans;
     }
+    if(solverName == "cholmod"){
+      return solveCVectorCholmod(rhs, context);
+    }
     if(!CpcgReady){
       Rcpp::stop("PCG solve requested before the PCG backend was prepared.");
     }
@@ -5266,6 +5699,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       }
       return ans;
     }
+    if(solverName == "cholmod"){
+      return solveCMatrixCholmod(rhs, context);
+    }
     if(!CpcgReady){
       Rcpp::stop("PCG solve requested before the PCG backend was prepared.");
     }
@@ -5282,6 +5718,63 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     return ans;
   };
 
+  // Computes tr(B * factor^{-1}) using the selected-inverse fast path when
+  // available (LDLT only). genericSolve, when non-empty, routes the
+  // fallback through it instead of factor.solve() directly - required for
+  // a solver="cholmod" factor (its supernodal representation has no
+  // Takahashi subset, so `factor`/`subset` are never populated for it).
+  auto sparseTraceInverseTimes =
+    [&](const arma::sp_mat & B,
+        const EigenLDLT & factor,
+        const SelectedInverseSubset & subset,
+        const std::string & context,
+        bool & usedFallback,
+        const std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)> & genericSolve = nullptr) -> double {
+      usedFallback = false;
+      double traceValue = 0.0;
+      bool allAvailable = true;
+      for(arma::sp_mat::const_iterator it = B.begin(); it != B.end(); ++it){
+        double zij = 0.0;
+        if(!getSelectedInverseOriginal(subset, static_cast<int>(it.col()), static_cast<int>(it.row()), zij)){
+          allAvailable = false;
+          break;
+        }
+        traceValue += (*it) * zij;
+      }
+      if(allAvailable){ return traceValue; }
+
+      usedFallback = true;
+      traceValue = 0.0;
+      std::vector<arma::uword> activeColumns;
+      activeColumns.reserve(static_cast<std::size_t>(B.n_cols));
+      for(arma::uword j = 0; j < B.n_cols; ++j){
+        if(B.begin_col(j) != B.end_col(j)){ activeColumns.push_back(j); }
+      }
+      const std::size_t batchSize = 32;
+      for(std::size_t batchStart = 0; batchStart < activeColumns.size(); batchStart += batchSize){
+        const std::size_t batchEnd = std::min(batchStart + batchSize, activeColumns.size());
+        const std::size_t currentBatchSize = batchEnd - batchStart;
+        Eigen::MatrixXd rhs = Eigen::MatrixXd::Zero(static_cast<Eigen::Index>(B.n_rows), static_cast<Eigen::Index>(currentBatchSize));
+        for(std::size_t k = 0; k < currentBatchSize; ++k){
+          const arma::uword sourceCol = activeColumns[batchStart + k];
+          for(arma::sp_mat::const_col_iterator it = B.begin_col(sourceCol); it != B.end_col(sourceCol); ++it){
+            rhs(static_cast<Eigen::Index>(it.row()), static_cast<Eigen::Index>(k)) = (*it);
+          }
+        }
+        Eigen::MatrixXd solution;
+        if(genericSolve){
+          solution = genericSolve(rhs, context);
+        }else{
+          solution = factor.solve(rhs);
+          if(factor.info() != Eigen::Success){ Rcpp::stop("Sparse LDLT trace fallback solve failed in " + context + "."); }
+        }
+        for(std::size_t k = 0; k < currentBatchSize; ++k){
+          const arma::uword sourceCol = activeColumns[batchStart + k];
+          traceValue += solution(static_cast<Eigen::Index>(sourceCol), static_cast<Eigen::Index>(k));
+        }
+      }
+      return traceValue;
+    };
 
   // ============================================================
   // Factorisation-free PCG trace/log-determinant helpers for C
@@ -5305,8 +5798,16 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     const Eigen::Index n = A.rows();
     if(n <= 0){ return 0.0; }
     const int mMax = std::min<int>(pcgLanczosSteps, static_cast<int>(n));
-    double total = 0.0;
+    std::vector<double> probeEstimates(
+      static_cast<std::size_t>(pcgTraceProbes),
+      0.0
+    );
+    std::atomic<bool> invalidProbe(false);
 
+    // Each deterministic Rademacher probe is independent.  Keeping one
+    // accumulator per probe makes the final reduction reproducible across
+    // OpenMP schedules.
+    #pragma omp parallel for if(pcgTraceProbes > 1)
     for(int probe = 0; probe < pcgTraceProbes; ++probe){
       Eigen::VectorXd q(n), qPrev = Eigen::VectorXd::Zero(n);
       for(Eigen::Index i = 0; i < n; ++i){
@@ -5354,19 +5855,31 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       }
       Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(T);
       if(es.info() != Eigen::Success){
-        Rcpp::stop("Lanczos tridiagonal eigendecomposition failed while estimating log|C|.");
+        invalidProbe.store(true, std::memory_order_relaxed);
+        continue;
       }
       const Eigen::VectorXd eval = es.eigenvalues();
       const Eigen::MatrixXd evec = es.eigenvectors();
       double quad = 0.0;
       for(int j = 0; j < m; ++j){
         if(!std::isfinite(eval(j)) || eval(j) <= 0.0){
-          Rcpp::stop("PCG/SLQ encountered a non-positive Ritz value; C may not be positive definite or Lanczos accuracy is insufficient.");
+          invalidProbe.store(true, std::memory_order_relaxed);
+          quad = 0.0;
+          break;
         }
         const double w0 = evec(0,j);
         quad += w0*w0*std::log(eval(j));
       }
-      total += normz*normz*quad;
+      probeEstimates[static_cast<std::size_t>(probe)] = normz*normz*quad;
+    }
+
+    if(invalidProbe.load(std::memory_order_relaxed)){
+      Rcpp::stop("PCG/SLQ failed while estimating log|C|; C may not be positive definite or Lanczos accuracy is insufficient.");
+    }
+
+    double total = 0.0;
+    for(int probe = 0; probe < pcgTraceProbes; ++probe){
+      total += probeEstimates[static_cast<std::size_t>(probe)];
     }
     return total / static_cast<double>(pcgTraceProbes);
   };
@@ -5375,6 +5888,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   // random/residual trace in the current REML iteration.
   Eigen::MatrixXd pcgTraceZ;
   Eigen::MatrixXd pcgTraceX;
+  bool reportedOpenMpSlq = false;
+  bool reportedOpenMpResidualBlocks = false;
 
   auto preparePCGTraceProbes = [&](const EigenSpMat & A){
     if(solverName != "pcg"){ return; }
@@ -5393,6 +5908,21 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
   };
 
+
+    if(verbose && !reportedOpenMpSlq){
+#ifdef _OPENMP
+      Rcpp::Rcout
+        << "OpenMP active: parallel SLQ log-determinant probes ("
+        << pcgTraceProbes
+        << " probes)."
+        << arma::endl;
+#else
+      Rcpp::Rcout
+        << "OpenMP unavailable: SLQ log-determinant probes run serially."
+        << arma::endl;
+#endif
+      reportedOpenMpSlq = true;
+    }
   auto pcgTraceCInverseTimesSparse = [&](const arma::sp_mat & B) -> double {
     if(solverName != "pcg" || pcgTraceX.cols() != pcgTraceProbes){
       Rcpp::stop("PCG trace probes are not available.");
@@ -5486,8 +6016,68 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   std::vector<int> RouterPattern;
   std::vector<int> RinnerPattern;
 
+  // CHOLMOD backend for R, used when solverName=="cholmod" (Phase 2). R is
+  // usually far smaller than C (this path is only reached for irregular
+  // residual designs that are neither diagonal nor repeated-block), but the
+  // supernodal factor is reused with the same symbolic-pattern-caching
+  // discipline as C for consistency.
+  CholmodState cholmodRState;
+  bool CholmodRSymbolicReady = false;
+
+  auto solveRMatrixCholmod =
+    [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs,
+        const std::string & context) -> Eigen::MatrixXd {
+      cholmod_dense rhsView;
+      std::memset(&rhsView, 0, sizeof(rhsView));
+      rhsView.nrow = static_cast<size_t>(rhs.rows());
+      rhsView.ncol = static_cast<size_t>(rhs.cols());
+      rhsView.nzmax = static_cast<size_t>(rhs.size());
+      rhsView.d = static_cast<size_t>(rhs.rows());
+      rhsView.x = const_cast<double *>(rhs.data());
+      rhsView.xtype = CHOLMOD_REAL;
+      rhsView.dtype = CHOLMOD_DOUBLE;
+
+      cholmod_dense * solution =
+        M_cholmod_solve(CHOLMOD_A, cholmodRState.factor, &rhsView, &cholmodRState.common);
+      if(solution == nullptr){
+        Rcpp::stop("CHOLMOD solve for the residual covariance matrix R failed in " + context + ".");
+      }
+      Eigen::MatrixXd ans =
+        Eigen::Map<const Eigen::MatrixXd>(
+          static_cast<double *>(solution->x), rhs.rows(), rhs.cols()
+        );
+      M_cholmod_free_dense(&solution, &cholmodRState.common);
+      return ans;
+    };
+
   auto factorizeRWithCachedPattern =
     [&](const EigenSpMat & Re) -> bool {
+
+      if(solverName == "cholmod"){
+        cholmodRState.ensureStarted();
+        cholmod_sparse Rview = eigenToCholmodSparseView(Re);
+
+        const bool samePattern =
+          CholmodRSymbolicReady
+          &&
+          eigenSparsePatternMatches(Re, RouterPattern, RinnerPattern);
+
+        if(!samePattern || cholmodRState.factor == nullptr){
+          if(cholmodRState.factor != nullptr){
+            M_cholmod_free_factor(&cholmodRState.factor, &cholmodRState.common);
+          }
+          cholmodRState.factor = M_cholmod_analyze(&Rview, &cholmodRState.common);
+          if(cholmodRState.factor == nullptr || cholmodRState.common.status != CHOLMOD_OK){
+            return false;
+          }
+          cacheEigenSparsePattern(Re, RouterPattern, RinnerPattern);
+          CholmodRSymbolicReady = true;
+        }
+
+        const int factorizeOk =
+          M_cholmod_factorize(&Rview, cholmodRState.factor, &cholmodRState.common);
+        return factorizeOk != 0 && cholmodRState.common.status == CHOLMOD_OK;
+      }
 
       const bool sameRPattern =
         RsymbolicReady
@@ -5667,6 +6257,15 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     const arma::mat residualSigma =
       theta(residualStruct);
 
+    for(int iStruct = 0; iStruct < nRRe; ++iStruct){
+      const std::size_t structureOffset =
+        static_cast<std::size_t>(iStruct);
+      const std::size_t parameterCount =
+        static_cast<std::size_t>(covPar(iStruct).n_elem);
+      covarianceDerivativeCache[structureOffset].resize(parameterCount);
+      covarianceDerivativeReady[structureOffset].assign(parameterCount, false);
+    }
+
     if(
         residualSigma.n_rows != static_cast<arma::uword>(residualDim)
         ||
@@ -5686,58 +6285,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     for(arma::uword k = 0; k < nResidualPar; ++k){
 
       residualLocalD1(k) =
-        covarianceD1(
+        cachedCovarianceD1(
           residualStruct,
           k
         );
 
-      arma::sp_mat deriv(
-        nR,
-        nR
-      );
-
-      for(int b = 0; b < residualNBlocks; ++b){
-
-        const arma::uvec & rows =
-          residualKronRows[
-            static_cast<std::size_t>(b)
-          ];
-
-        for(arma::uword aa = 0; aa < rows.n_elem; ++aa){
-
-          const arma::uword gr =
-            rows(aa);
-
-          const int lr =
-            residualLocalOfRow[
-              static_cast<std::size_t>(gr)
-            ];
-
-          for(arma::uword bb = 0; bb < rows.n_elem; ++bb){
-
-            const arma::uword gc =
-              rows(bb);
-
-            const int lc =
-              residualLocalOfRow[
-                static_cast<std::size_t>(gc)
-              ];
-
-            const double value =
-              residualLocalD1(k)(
-                static_cast<arma::uword>(lr),
-                static_cast<arma::uword>(lc)
-              );
-
-            if(value != 0.0){
-              deriv(gr,gc) = value;
-            }
-          }
-        }
-      }
-
       residualDerivativeBasis(k) =
-        deriv;
+        buildResidualSparseFromPattern(residualLocalD1(k));
     }
 
     // ============================================================
@@ -5999,43 +6553,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     }else{
 
       // Generic sparse residual path for incomplete/unbalanced blocks.
-      Rmat.set_size(nR,nR);
-
-      for(int b = 0; b < residualNBlocks; ++b){
-
-        const arma::uvec & rows =
-          residualKronRows[
-            static_cast<std::size_t>(b)
-          ];
-
-        for(arma::uword aa = 0; aa < rows.n_elem; ++aa){
-
-          const arma::uword gr = rows(aa);
-          const int lr =
-            residualLocalOfRow[
-              static_cast<std::size_t>(gr)
-            ];
-
-          for(arma::uword bb = 0; bb < rows.n_elem; ++bb){
-
-            const arma::uword gc = rows(bb);
-            const int lc =
-              residualLocalOfRow[
-                static_cast<std::size_t>(gc)
-              ];
-
-            const double value =
-              residualSigma(
-                static_cast<arma::uword>(lr),
-                static_cast<arma::uword>(lc)
-              );
-
-            if(value != 0.0){
-              Rmat(gr,gc) = value;
-            }
-          }
-        }
-      }
+      Rmat = buildResidualSparseFromPattern(residualSigma);
 
       if(Rmat.n_rows > static_cast<arma::uword>(std::numeric_limits<int>::max())){
         Rcpp::stop("R is too large for the 32-bit Eigen sparse index type used in ai_mme_sp2().");
@@ -6132,25 +6650,35 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
       }
 
-      const Eigen::VectorXd Dr =
-        Rfactor.vectorD();
+      if(solverName == "cholmod"){
+        logDetR += M_cholmod_factor_ldetA(cholmodRState.factor);
+        if(!std::isfinite(logDetR)){
+          Rcpp::stop("CHOLMOD produced a non-finite log-determinant for R.");
+        }
+        // No Takahashi subset for a supernodal factor: Rselected stays
+        // empty, and sparseTraceInverseTimes()'s fallback is routed through
+        // solveRMatrixCholmod (see the R-trace call site below).
+      }else{
+        const Eigen::VectorXd Dr =
+          Rfactor.vectorD();
 
-      for(Eigen::Index j = 0; j < Dr.size(); ++j){
+        for(Eigen::Index j = 0; j < Dr.size(); ++j){
 
-        if(!std::isfinite(Dr(j)) || Dr(j) <= 0.0){
-          Rcpp::stop(
-            "Residual sparse LDLT produced a non-positive/non-finite pivot."
-          );
+          if(!std::isfinite(Dr(j)) || Dr(j) <= 0.0){
+            Rcpp::stop(
+              "Residual sparse LDLT produced a non-positive/non-finite pivot."
+            );
+          }
+
+          logDetR += std::log(Dr(j));
         }
 
-        logDetR += std::log(Dr(j));
+        Rselected =
+          buildSelectedInverseSubset(
+            Rfactor,
+            "R"
+          );
       }
-
-      Rselected =
-        buildSelectedInverseSubset(
-          Rfactor,
-          "R"
-        );
     }
 
     // Apply the effective residual precision Hs * R^{-1} * Hs'.
@@ -6179,7 +6707,23 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           rhs.n_cols
         );
 
+        if(verbose && !reportedOpenMpResidualBlocks){
+#ifdef _OPENMP
+          Rcpp::Rcout
+            << "OpenMP active: parallel repeated residual-block precision applications ("
+            << residualKronNBlocks
+            << " blocks)."
+            << arma::endl;
+#else
+          Rcpp::Rcout
+            << "OpenMP unavailable: repeated residual-block precision applications run serially."
+            << arma::endl;
+#endif
+          reportedOpenMpResidualBlocks = true;
+        }
+
         // Apply the same small R0^{-1} to every independent block.
+        #pragma omp parallel for if(residualKronNBlocks > 1)
         for(int b = 0;
             b < residualKronNBlocks;
             ++b){
@@ -6189,19 +6733,28 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
               static_cast<std::size_t>(b)
             ];
 
-          solved.rows(rows) =
-            RkronInv
-            *
-            rhs.rows(rows);
+          const arma::mat solvedBlock =
+            RkronInv * rhs.rows(rows);
+
+          for(arma::uword localRow = 0;
+              localRow < rows.n_elem;
+              ++localRow){
+            solved.row(rows(localRow)) = solvedBlock.row(localRow);
+          }
         }
 
       }else{
         Eigen::Map<const Eigen::Matrix<double,Eigen::Dynamic,Eigen::Dynamic,Eigen::ColMajor> > rhsEig(
           rhs.memptr(), static_cast<Eigen::Index>(rhs.n_rows), static_cast<Eigen::Index>(rhs.n_cols)
         );
-        Eigen::MatrixXd solEig = Rfactor.solve(rhsEig);
-        if(Rfactor.info() != Eigen::Success){
-          Rcpp::stop("Sparse residual LDLT solve failed.");
+        Eigen::MatrixXd solEig;
+        if(solverName == "cholmod"){
+          solEig = solveRMatrixCholmod(rhsEig, "R^{-1} application");
+        }else{
+          solEig = Rfactor.solve(rhsEig);
+          if(Rfactor.info() != Eigen::Success){
+            Rcpp::stop("Sparse residual LDLT solve failed.");
+          }
         }
         solved.set_size(rhs.n_rows, rhs.n_cols);
         std::copy(solEig.data(), solEig.data()+solEig.size(), solved.memptr());
@@ -6224,22 +6777,135 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     double yRiy = arma::dot(yDense, Riy);
     arma::vec rhsMME;
 
-    arma::sp_mat RiWsp;
+    Eigen::SparseMatrix<double> RiWsp;
     arma::mat RiWdense;
     bool RiWisSparse = (effectiveRiDiag.n_elem == static_cast<arma::uword>(nR));
 
     if(RiWisSparse){
-      arma::sp_mat Dri(nR,nR);
-      for(arma::uword rr = 0; rr < static_cast<arma::uword>(nR); ++rr){
-        Dri(rr,rr) = effectiveRiDiag(rr);
+      const Eigen::Map<const Eigen::VectorXd> effectiveRiDiagEig(
+        effectiveRiDiag.memptr(), static_cast<Eigen::Index>(effectiveRiDiag.n_elem)
+      );
+      RiWsp = effectiveRiDiagEig.asDiagonal() * W;
+      C = Eigen::SparseMatrix<double>(W.transpose()) * RiWsp;
+      C.makeCompressed();
+      const Eigen::Map<const Eigen::VectorXd> RiyEig(
+        Riy.memptr(), static_cast<Eigen::Index>(Riy.n_elem)
+      );
+      const Eigen::VectorXd rhsMMEEig = W.transpose() * RiyEig;
+      rhsMME.set_size(rhsMMEEig.size());
+      std::copy(rhsMMEEig.data(), rhsMMEEig.data() + rhsMMEEig.size(), rhsMME.memptr());
+    }else if(Rkron && (!useH || Hdiag)){
+      // A repeated residual block does not couple observations from other
+      // blocks.  Restricting each operation to the MME columns active in a
+      // block avoids the global nR x nEffects dense RiW temporary.
+      C.resize(nEffects, nEffects);
+      RiWsp.resize(nR, nEffects);
+      std::vector<Eigen::Triplet<double>> Ctriplets;
+      std::vector<Eigen::Triplet<double>> RiWspTriplets;
+
+      for(int block = 0; block < residualKronNBlocks; ++block){
+        const arma::uvec & rows =
+          residualKronRows[static_cast<std::size_t>(block)];
+        const arma::uvec & columns =
+          residualActiveColumns[static_cast<std::size_t>(block)];
+
+        if(columns.n_elem == 0){
+          continue;
+        }
+
+        arma::mat blockW(
+          rows.n_elem,
+          columns.n_elem,
+          arma::fill::zeros
+        );
+
+        for(arma::uword localCol = 0;
+            localCol < columns.n_elem;
+            ++localCol){
+          for(Eigen::SparseMatrix<double>::InnerIterator designEntry(
+                W, static_cast<int>(columns(localCol)));
+              designEntry; ++designEntry){
+            const arma::uword globalRow =
+              static_cast<arma::uword>(designEntry.row());
+            if(residualBlockOfRow[static_cast<std::size_t>(globalRow)] == block){
+              const int localCoordinate = residualLocalOfRow[
+                static_cast<std::size_t>(globalRow)
+              ];
+              blockW(static_cast<arma::uword>(localCoordinate), localCol) =
+                designEntry.value();
+            }
+          }
+        }
+
+        if(useH){
+          arma::vec hDiagonal(rows.n_elem);
+          for(arma::uword localRow = 0; localRow < rows.n_elem; ++localRow){
+            hDiagonal(localRow) = Hs(rows(localRow), rows(localRow));
+          }
+          blockW.each_col() %= hDiagonal;
+        }
+
+        arma::mat blockRiW = RkronInv * blockW;
+
+        if(useH){
+          arma::vec hDiagonal(rows.n_elem);
+          for(arma::uword localRow = 0; localRow < rows.n_elem; ++localRow){
+            hDiagonal(localRow) = Hs(rows(localRow), rows(localRow));
+          }
+          blockRiW.each_col() %= hDiagonal;
+        }
+
+        const arma::mat blockCross = blockW.t() * blockRiW;
+
+        for(arma::uword localCol = 0; localCol < columns.n_elem; ++localCol){
+          const arma::uword globalCol = columns(localCol);
+          for(arma::uword localRow = 0; localRow < columns.n_elem; ++localRow){
+            const double crossValue = blockCross(localRow, localCol);
+            if(crossValue != 0.0){
+              Ctriplets.emplace_back(
+                static_cast<int>(columns(localRow)),
+                static_cast<int>(globalCol),
+                crossValue
+              );
+            }
+          }
+        }
+
+        for(arma::uword localRow = 0; localRow < rows.n_elem; ++localRow){
+          for(arma::uword localCol = 0; localCol < columns.n_elem; ++localCol){
+            const double precisionDesignValue = blockRiW(localRow, localCol);
+            if(precisionDesignValue != 0.0){
+              RiWspTriplets.emplace_back(
+                static_cast<int>(rows(localRow)),
+                static_cast<int>(columns(localCol)),
+                precisionDesignValue
+              );
+            }
+          }
+        }
       }
-      RiWsp = Dri * W;
-      C = W.t() * RiWsp;
-      rhsMME = arma::vec(W.t() * Riy);
+
+      C.setFromTriplets(Ctriplets.begin(), Ctriplets.end());
+      C.makeCompressed();
+      RiWsp.setFromTriplets(RiWspTriplets.begin(), RiWspTriplets.end());
+      RiWsp.makeCompressed();
+
+      {
+        const Eigen::Map<const Eigen::VectorXd> RiyEig(
+          Riy.memptr(), static_cast<Eigen::Index>(Riy.n_elem)
+        );
+        const Eigen::VectorXd rhsMMEEig = W.transpose() * RiyEig;
+        rhsMME.set_size(rhsMMEEig.size());
+        std::copy(rhsMMEEig.data(), rhsMMEEig.data() + rhsMMEEig.size(), rhsMME.memptr());
+      }
+      RiWisSparse = true;
     }else{
-      RiWdense = applyRiDense(arma::mat(W));
-      C = arma::sp_mat(arma::mat(W.t()) * RiWdense);
-      rhsMME = arma::vec(arma::mat(W.t()) * Riy);
+      Eigen::MatrixXd Wdense = Eigen::MatrixXd(W);
+      arma::mat Wd(Wdense.data(), Wdense.rows(), Wdense.cols());
+      RiWdense = applyRiDense(Wd);
+      arma::mat Cdense = Wd.t() * RiWdense;
+      C = armaSparseToEigenGlobal(arma::sp_mat(Cdense));
+      rhsMME = arma::vec(Wd.t() * Riy);
     }
 
     // ------------------------------------------------------------
@@ -6252,6 +6918,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // ------------------------------------------------------------
 
     arma::field<arma::sp_mat> lambda(nReAl);
+    std::vector<Eigen::Triplet<double>> Gtriplets;
 
     if(nZs > 0){
 
@@ -6265,9 +6932,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             arma::mat lambdaDense;
 
             bool lambdaOK =
-                arma::inv_sympd(
-                    lambdaDense,
-                    thetaSym
+                eigenSpdInverse(
+                    thetaSym,
+                    lambdaDense
                 );
 
             if(!lambdaOK){
@@ -6284,9 +6951,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                     );
 
                 lambdaOK =
-                    arma::inv_sympd(
-                        lambdaDense,
-                        bend
+                    eigenSpdInverse(
+                        bend,
+                        lambdaDense
                     );
 
                 if(!lambdaOK){
@@ -6328,23 +6995,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                 const arma::uword rowStart =
                     partitionStartCache[iCache][static_cast<std::size_t>(iRow)];
 
-                const arma::uword rowEnd =
-                    partitionEndCache[iCache][static_cast<std::size_t>(iRow)];
-
-                const arma::uword blockRows =
-                    rowEnd
-                    -
-                    rowStart
-                    +
-                    1;
-
-                if(blockRows != Ai(i).n_rows){
-                    Rcpp::stop(
-                        "Relationship inverse dimensions are inconsistent "
-                        "with a random-effect MME partition."
-                    );
-                }
-
                 for(arma::uword iCol = 0; iCol < lambdaDense.n_cols; ++iCol){
 
                     const double coefficient =
@@ -6357,43 +7007,24 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                     const arma::uword colStart =
                         partitionStartCache[iCache][static_cast<std::size_t>(iCol)];
 
-                    const arma::uword colEnd =
-                        partitionEndCache[iCache][static_cast<std::size_t>(iCol)];
-
-                    const arma::uword blockCols =
-                        colEnd
-                        -
-                        colStart
-                        +
-                        1;
-
-                    if(blockCols != Ai(i).n_cols){
-                        Rcpp::stop(
-                            "Relationship inverse dimensions are inconsistent "
-                            "with a random-effect MME partition."
-                        );
+                    for(arma::sp_mat::const_iterator relEntry = Ai(i).begin();
+                        relEntry != Ai(i).end(); ++relEntry){
+                      Gtriplets.emplace_back(
+                        static_cast<int>(rowStart + relEntry.row()),
+                        static_cast<int>(colStart + relEntry.col()),
+                        coefficient * (*relEntry)
+                      );
                     }
-
-                    C.submat(
-                        rowStart,
-                        colStart,
-                        rowEnd,
-                        colEnd
-                    ) =
-                        C.submat(
-                            rowStart,
-                            colStart,
-                            rowEnd,
-                            colEnd
-                        )
-                        +
-                        (
-                            coefficient
-                            *
-                            Ai(i)
-                        );
                 }
             }
+        }
+
+        if(!Gtriplets.empty()){
+          Eigen::SparseMatrix<double> Gcontribution(nEffects, nEffects);
+          Gcontribution.setFromTriplets(Gtriplets.begin(), Gtriplets.end());
+          Gcontribution.makeCompressed();
+          C = C + Gcontribution;
+          C.makeCompressed();
         }
     }
 
@@ -6408,36 +7039,18 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // ------------------------------------------------------------
 
     if(
-        C.n_rows > static_cast<arma::uword>(std::numeric_limits<int>::max())
+        C.rows() > static_cast<Eigen::Index>(std::numeric_limits<int>::max())
         ||
-        C.n_cols > static_cast<arma::uword>(std::numeric_limits<int>::max())
+        C.cols() > static_cast<Eigen::Index>(std::numeric_limits<int>::max())
     ){
       Rcpp::stop(
         "C is too large for the 32-bit Eigen sparse index type used in ai_mme_sp()."
       );
     }
 
-    EigenSpMat Ce(
-      static_cast<int>(C.n_rows),
-      static_cast<int>(C.n_cols)
-    );
-
-    // Direct compressed sparse copy: avoid the former triplet staging vector,
-    // which temporarily duplicated every nonzero of C before Ce was built.
-    Ce.reserve(static_cast<Eigen::Index>(C.n_nonzero));
-    for(arma::uword col = 0; col < C.n_cols; ++col){
-      // insertBack() requires each compressed-storage column/vector to be
-      // explicitly opened with startVec().  Omitting this produced a sparse
-      // matrix with invalid outer pointers: the PCG path could still consume
-      // it in some cases, but SimplicialLDLT correctly rejected it.
-      Ce.startVec(static_cast<int>(col));
-      for(arma::sp_mat::const_col_iterator it = C.begin_col(col);
-          it != C.end_col(col); ++it){
-        Ce.insertBack(static_cast<int>(it.row()), static_cast<int>(col)) = (*it);
-      }
-    }
-    Ce.finalize();
-    Ce.makeCompressed();
+    // Stage 2 Eigen migration: C is already native Eigen sparse, so there is
+    // no per-iteration Armadillo<->Eigen copy left before factorisation.
+    C.makeCompressed();
 
     double logDetC = 0.0;
     // Diagnostic only: minimum LDLT pivot in direct mode; minimum diagonal
@@ -6447,21 +7060,21 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     if(solverName == "ldlt"){
       const bool sameCPattern =
-        CsymbolicReady && eigenSparsePatternMatches(Ce, CouterPattern, CinnerPattern);
+        CsymbolicReady && eigenSparsePatternMatches(C, CouterPattern, CinnerPattern);
 
       if(!sameCPattern){
-        Cfactor.analyzePattern(Ce);
+        Cfactor.analyzePattern(C);
         if(Cfactor.info() != Eigen::Success){
           Rcpp::stop("Sparse symbolic analysis of the MME coefficient matrix C failed.");
         }
-        cacheEigenSparsePattern(Ce, CouterPattern, CinnerPattern);
+        cacheEigenSparsePattern(C, CouterPattern, CinnerPattern);
         CsymbolicReady = true;
       }
 
-      Cfactor.factorize(Ce);
+      Cfactor.factorize(C);
       if(Cfactor.info() != Eigen::Success && sameCPattern){
-        Cfactor.analyzePattern(Ce);
-        if(Cfactor.info() == Eigen::Success){ Cfactor.factorize(Ce); }
+        Cfactor.analyzePattern(C);
+        if(Cfactor.info() == Eigen::Success){ Cfactor.factorize(C); }
       }
       if(Cfactor.info() != Eigen::Success){
         Rcpp::stop("Sparse LDLT factorisation of the MME coefficient matrix C failed.");
@@ -6477,22 +7090,66 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
         logDetC += std::log(dj);
       }
-      Cselected = buildSelectedInverseSubset(Cfactor, "C");
+      Cselected = buildSelectedInverseSubset(
+        Cfactor,
+        "C",
+        sameCPattern && CselectedTopologyReady
+          ? &CselectedTopology
+          : nullptr
+      );
+      if(!sameCPattern || !CselectedTopologyReady){
+        CselectedTopology = Cselected;
+        CselectedTopologyReady = true;
+      }
+    }else if(solverName == "cholmod"){
+      // Supernodal (BLAS-3) direct factorisation via R's Matrix package.
+      // No Takahashi selected inverse is available for a supernodal factor
+      // in this phase; score/AI-matrix traces instead fall back to batched
+      // direct solves (see sparseTraceInverseTimes's useGenericCSolve path).
+      cholmodState.ensureStarted();
+      cholmod_sparse Cview = eigenToCholmodSparseView(C);
+
+      const bool sameCPattern =
+        CholmodSymbolicReady && eigenSparsePatternMatches(C, CouterPattern, CinnerPattern);
+
+      if(!sameCPattern || cholmodState.factor == nullptr){
+        if(cholmodState.factor != nullptr){
+          M_cholmod_free_factor(&cholmodState.factor, &cholmodState.common);
+        }
+        cholmodState.factor = M_cholmod_analyze(&Cview, &cholmodState.common);
+        if(cholmodState.factor == nullptr || cholmodState.common.status != CHOLMOD_OK){
+          Rcpp::stop("CHOLMOD symbolic analysis of the MME coefficient matrix C failed.");
+        }
+        cacheEigenSparsePattern(C, CouterPattern, CinnerPattern);
+        CholmodSymbolicReady = true;
+      }
+
+      const int factorizeOk =
+        M_cholmod_factorize(&Cview, cholmodState.factor, &cholmodState.common);
+      if(!factorizeOk || cholmodState.common.status != CHOLMOD_OK){
+        Rcpp::stop("CHOLMOD supernodal factorisation of the MME coefficient matrix C failed.");
+      }
+      CnumericReady = true;
+
+      logDetC = M_cholmod_factor_ldetA(cholmodState.factor);
+      if(!std::isfinite(logDetC)){
+        Rcpp::stop("CHOLMOD produced a non-finite log-determinant for C.");
+      }
     }else{
       // Genuine factorisation-free MME path: no analyzePattern(), factorize(),
       // vectorD(), matrixL(), or Takahashi call is made for C.
       CnumericReady = false;
-      preparePCG(Ce);
+      preparePCG(C);
       // Keep the historical verbose diagnostic column defined without
       // introducing a factorisation in PCG mode.
-      if(Ce.rows() > 0){
+      if(C.rows() > 0){
         minD = std::numeric_limits<double>::infinity();
-        for(Eigen::Index jj = 0; jj < Ce.rows(); ++jj){
-          minD = std::min(minD, Ce.coeff(jj,jj));
+        for(Eigen::Index jj = 0; jj < C.rows(); ++jj){
+          minD = std::min(minD, C.coeff(jj,jj));
         }
       }
-      logDetC = pcgApproxLogDet(Ce);
-      preparePCGTraceProbes(Ce);
+      logDetC = pcgApproxLogDet(C);
+      preparePCGTraceProbes(C);
     }
 
     // ------------------------------------------------------------
@@ -6965,8 +7622,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           // Generic first derivative dSigma/dphi_k.  For legacy US/DIAG
           // models this is the familiar constant covariance-cell basis;
           // for AR1 it is the analytic derivative of sigma2*rho^|i-j|.
-          arma::mat Bk =
-            covarianceD1(
+          const arma::mat & Bk =
+            cachedCovarianceD1(
               iR,
               localK
             );
@@ -7043,14 +7700,14 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // ------------------------------------------------------------
     // Residual sensitivities.
     // ------------------------------------------------------------
-    arma::vec e =
-      yDense
-      -
-      arma::vec(
-        W
-        *
-        bu
+    arma::vec e;
+    {
+      const Eigen::Map<const Eigen::VectorXd> buEig(
+        bu.memptr(), static_cast<Eigen::Index>(bu.n_elem)
       );
+      const Eigen::VectorXd WbuEig = W * buEig;
+      e = yDense - arma::vec(WbuEig.data(), WbuEig.size());
+    }
 
     arma::vec Rie =
       applyRiVec(
@@ -7079,12 +7736,17 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         residualWorking
       );
 
-    arma::mat residualCrossRHS =
-      arma::mat(
-        W.t()
-        *
-        RiResidualWorking
+    arma::mat residualCrossRHS;
+    {
+      const Eigen::Map<const Eigen::MatrixXd> RiResidualWorkingEig(
+        RiResidualWorking.memptr(),
+        static_cast<Eigen::Index>(RiResidualWorking.n_rows),
+        static_cast<Eigen::Index>(RiResidualWorking.n_cols)
       );
+      const Eigen::MatrixXd residualCrossRHSEig = W.transpose() * RiResidualWorkingEig;
+      residualCrossRHS.set_size(residualCrossRHSEig.rows(), residualCrossRHSEig.cols());
+      std::copy(residualCrossRHSEig.data(), residualCrossRHSEig.data() + residualCrossRHSEig.size(), residualCrossRHS.memptr());
+    }
 
     for(arma::uword iP = 0; iP < nResidualPar; ++iP){
 
@@ -7569,8 +8231,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             );
 
           for(arma::uword k = 0; k < covPar(iR).n_elem; ++k){
-            const arma::mat dSigma =
-              covarianceD1(
+            const arma::mat & dSigma =
+              cachedCovarianceD1(
                 iR,
                 k
               );
@@ -7718,7 +8380,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             Rfactor,
             Rselected,
             "residual trace tr((dR/dphi) R^{-1})",
-            usedRTraceFallback
+            usedRTraceFallback,
+            solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveRMatrixCholmod) : nullptr
           );
 
         if(verbose && usedRTraceFallback && iIter == 0){
@@ -7733,12 +8396,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       arma::sp_mat Btrace;
 
       if(RiWisSparse){
+        const arma::sp_mat RiWspArma = eigenSparseToArmaGlobal(RiWsp);
         Btrace =
-          RiWsp.t()
+          RiWspArma.t()
           *
           Sprov
           *
-          RiWsp;
+          RiWspArma;
       }else{
 
         arma::mat BtraceDense =
@@ -7766,7 +8430,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             Cfactor,
             Cselected,
             "residual trace tr(C^{-1} W'Ri(dR/dphi)RiW)",
-            usedCTraceFallback
+            usedCTraceFallback,
+            solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveCMatrix) : nullptr
           );
 
       if(verbose && solverName == "ldlt" && usedCTraceFallback && iIter == 0){
@@ -8965,7 +9630,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
   // factorised again after the iterative optimisation.
   // ------------------------------------------------------------
 
+  // Pre-existing bug fix: arma::sp_mat::reset() clears BOTH content and
+  // dimensions (to 0x0), so it must be followed by set_size() before the
+  // computeCi>0 fill loops below index into Ci.
   Ci.reset();
+  Ci.set_size(nEffects, nEffects);
   SelectedInverseSubset finalCselected;
 
   if(computeCi > 0){
@@ -8976,11 +9645,30 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     if(solverName == "pcg" && !CpcgReady){
       Rcpp::stop("No final PCG coefficient operator is available.");
     }
+    if(solverName == "cholmod" && !CnumericReady){
+      Rcpp::stop("No final CHOLMOD factorisation of C is available.");
+    }
 
     // Reuse the numerical factorisation from the final REML iteration.
     // C has not changed since that factorisation.
 
     if(computeCi == 1){
+
+      // CHOLMOD's supernodal factor has no Takahashi selected-inverse
+      // equivalent implemented here. The REML iterations already ran with
+      // CHOLMOD for speed; refactorise the converged C ONCE with Eigen's
+      // LDLT purely for this final extraction, reusing the same
+      // buildSelectedInverseSubset() used by solver="ldlt" unmodified.
+      if(solverName == "cholmod"){
+        Cfactor.analyzePattern(C);
+        if(Cfactor.info() != Eigen::Success){
+          Rcpp::stop("Sparse LDLT symbolic analysis failed while preparing the final Takahashi extraction.");
+        }
+        Cfactor.factorize(C);
+        if(Cfactor.info() != Eigen::Success){
+          Rcpp::stop("Sparse LDLT factorisation failed while preparing the final Takahashi extraction.");
+        }
+      }
 
       // Takahashi sparse inverse subset in the filled LDLT pattern.
       finalCselected =
@@ -9400,11 +10088,15 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
   }
 
   // return results in a list form
+  // W/C are native Eigen sparse matrices internally; bridge to arma::sp_mat
+  // only here, for the R-facing Matrix output.
+  const arma::sp_mat Wout = eigenSparseToArmaGlobal(W);
+  const arma::sp_mat Cout = eigenSparseToArmaGlobal(C);
   return Rcpp::List::create(
     Rcpp::Named("llik") = llik,
     // Rcpp::Named("M") = M,
-    Rcpp::Named("W") = W,
-    Rcpp::Named("C") = C,
+    Rcpp::Named("W") = Wout,
+    Rcpp::Named("C") = Cout,
     Rcpp::Named("Cscale") = vary,
     Rcpp::Named("b") = b,
     Rcpp::Named("u") = u,
