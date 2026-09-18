@@ -294,7 +294,24 @@ mmes <- function(fixed, random, rcov, data, W,
     useH <- TRUE
   }
 
-  if(is.null(emWeight)) emWeight <- enhancer::stan(logspace(seq(1,-1,-2/nIters), p=3))
+  if(is.null(emWeight)){
+    # EM-heavy warm start: early REML iterations are intentionally more
+    # conservative and rely on the EM information block to stabilize the
+    # variance-component update; later iterations transition smoothly toward
+    # AI-dominated updates as the estimate enters the asymptotic regime.
+    if(nIters <= 1L){
+      emWeight <- 1
+    } else {
+      emWeight <- exp(seq(log(1), log(0.05), length.out = nIters))
+      emWeight[1L] <- 1
+      emWeight[length(emWeight)] <- 0.05
+    }
+  }
+  if(length(emWeight) == 1L) emWeight <- rep(emWeight, nIters)
+  if(length(emWeight) != nIters) emWeight <- rep(emWeight, length.out = nIters)
+  if(any(!is.finite(emWeight)) || any(emWeight < 0 | emWeight > 1))
+    stop("emWeight must contain finite values between 0 and 1.", call.=FALSE)
+
   if(is.null(stepWeight)){
     w <- which(emWeight <= .5)
     stepWeight <- rep(.9, nIters)
@@ -303,6 +320,10 @@ mmes <- function(fixed, random, rcov, data, W,
       else stepWeight[seq_len(min(2L,nIters))] <- c(.5,.7)[seq_len(min(2L,nIters))]
     }
   }
+  if(length(stepWeight) == 1L) stepWeight <- rep(stepWeight, nIters)
+  if(length(stepWeight) != nIters) stepWeight <- rep(stepWeight, length.out = nIters)
+  if(any(!is.finite(stepWeight)) || any(stepWeight <= 0))
+    stop("stepWeight must contain finite positive values.", call.=FALSE)
 
   if(length(Ai)){
     nInverses <- sum(vapply(Ai, function(x) isTRUE(attr(x,"inverse")), logical(1)))
