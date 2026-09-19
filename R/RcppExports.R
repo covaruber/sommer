@@ -93,6 +93,10 @@ post_mme_Cinverse_cpp <- function(model, mode = 1L) {
     .Call(`_sommer_post_mme_Cinverse_cpp`, model, mode)
 }
 
+predict_mmes_vcov_cpp <- function(model, Dmat) {
+    .Call(`_sommer_predict_mmes_vcov_cpp`, model, Dmat)
+}
+
 ai_mme_sp <- function(X, ZI, Zind, AiI, y0, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose) {
     .Call(`_sommer_ai_mme_sp`, X, ZI, Zind, AiI, y0, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose)
 }

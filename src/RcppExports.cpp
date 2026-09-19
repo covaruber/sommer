@@ -315,6 +315,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// predict_mmes_vcov_cpp
+arma::mat predict_mmes_vcov_cpp(Rcpp::List model, const arma::sp_mat& Dmat);
+RcppExport SEXP _sommer_predict_mmes_vcov_cpp(SEXP modelSEXP, SEXP DmatSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type Dmat(DmatSEXP);
+    rcpp_result_gen = Rcpp::wrap(predict_mmes_vcov_cpp(model, Dmat));
+    return rcpp_result_gen;
+END_RCPP
+}
 // ai_mme_sp
 Rcpp::List ai_mme_sp(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const Rcpp::List& SI, const Rcpp::List& partitionsS, const arma::sp_mat& H, const bool& useH, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& thetaI, const Rcpp::List& thetaCI, const arma::mat& thetaF, const arma::vec& addScaleParam, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose);
 RcppExport SEXP _sommer_ai_mme_sp(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP SISEXP, SEXP partitionsSSEXP, SEXP HSEXP, SEXP useHSEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP thetaISEXP, SEXP thetaCISEXP, SEXP thetaFSEXP, SEXP addScaleParamSEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP) {
@@ -432,6 +444,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_mat_to_vecCpp2", (DL_FUNC) &_sommer_mat_to_vecCpp2, 2},
     {"_sommer_nearPDcpp", (DL_FUNC) &_sommer_nearPDcpp, 4},
     {"_sommer_post_mme_Cinverse_cpp", (DL_FUNC) &_sommer_post_mme_Cinverse_cpp, 2},
+    {"_sommer_predict_mmes_vcov_cpp", (DL_FUNC) &_sommer_predict_mmes_vcov_cpp, 2},
     {"_sommer_ai_mme_sp", (DL_FUNC) &_sommer_ai_mme_sp, 20},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 19},
     {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 23},

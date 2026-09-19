@@ -29,7 +29,7 @@ When \code{mode = 2}, the complete inverse of the mixed model coefficient matrix
 
 When \code{mode = 0}, no matrix factorization or inverse calculation is performed and previously stored inverse-derived results are cleared.
 
-\code{\link{predict.mmes}} requires \code{mode = 2}: it computes standard errors for arbitrary linear combinations of fixed and random effects, which needs entries of the inverse outside the Takahashi selected-inverse pattern produced by \code{mode = 1}.
+\code{\link{predict.mmes}} does not require any particular \code{mode}: it computes exact standard errors for arbitrary linear combinations of fixed and random effects directly from the stored coefficient matrix \code{C}, without using \code{Ci} at all (see \code{\link{predict.mmes}} for details). \code{postPEV()} is only needed when the diagonal prediction error variances (\code{uPevList}) or the complete inverse (\code{Ci}) are wanted for their own sake.
 
 For this post-fit calculation to be available, the \code{mmes} model must have been fitted with a version of the Henderson mixed model solver that stores the final sparse coefficient matrix and its scaling factor in the fitted model object. Models can therefore be initially fitted with \code{computeCi = 0} and the PEVs or complete inverse calculated afterwards only if required.
 }

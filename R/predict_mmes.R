@@ -8,11 +8,11 @@
 
 "predict.mmes" <- function(object, Dtable=NULL, D, ...){
   if(is.character(D)){classify <- D}else{classify="id"} # save a copy before D is overwriten
-  # CiMode==1 (Takahashi selected-inverse subset) only fills entries within the
-  # LDLT fill-in pattern; D %*% Ci %*% t(D) for an arbitrary linear combination
-  # needs the complete inverse (CiMode==2), matching summary.mmes()'s gating.
-  if(is.null(object$CiMode) || object$CiMode != 2){
-    stop("The predict function requires the complete coefficient-matrix inverse. Refit with computeCi=2, or run postPEV(object, mode=2) before predicting.", call.=FALSE)
+  # Prediction variances are obtained by solving C %*% X = t(D) for the
+  # handful of rows in D (see predict_mmes_vcov_cpp), so the complete or
+  # selected-inverse Ci is not required; only the stored C/Cscale are used.
+  if(is.null(object$C) || nrow(object$C) == 0){
+    stop("The predict function requires the mixed-model coefficient matrix C to be available in the object.", call.=FALSE)
   }
   # complete the Dtable withnumber of effects in each term
   xEffectN <- lapply(object$partitionsX, as.vector)
@@ -125,7 +125,7 @@
   ## calculate predictions and standard errors
   bu <- object$bu
   predicted.value <- D %*% bu
-  vcov <- D %*% object$Ci %*% t(D)
+  vcov <- predict_mmes_vcov_cpp(object, D)
   std.error <- sqrt(diag(vcov))
   pvals <- data.frame(id=rownames(D),predicted.value=predicted.value[,1], std.error=std.error)
   if(is.character(classify)){colnames(pvals)[1] <- classify}

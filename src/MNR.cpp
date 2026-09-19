@@ -1883,6 +1883,86 @@ Rcpp::List post_mme_Cinverse_cpp(Rcpp::List model, const int mode = 1){
   return model;
 }
 
+// [[Rcpp::export]]
+arma::mat predict_mmes_vcov_cpp(Rcpp::List model, const arma::sp_mat & Dmat){
+
+  // Exact prediction-variance approach that avoids computeCi altogether:
+  // Var(D %*% bu) = D C^{-1} D' is obtained by solving C X = D' for the
+  // handful of rows actually requested (k = nrow(Dmat)), instead of either
+  // the Takahashi selected-inverse subset (computeCi=1, incomplete for
+  // arbitrary linear combinations) or a full n x n inverse (computeCi=2,
+  // wasteful when k << nEffects). Cost is k sparse triangular solves.
+  if(!model.containsElementNamed("C")){
+    Rcpp::stop("The fitted model does not contain C. Refit with ai_mme_sp2() returning C.");
+  }
+  if(!model.containsElementNamed("Cscale")){
+    Rcpp::stop("The fitted model does not contain Cscale.");
+  }
+
+  arma::sp_mat C = Rcpp::as<arma::sp_mat>(model["C"]);
+  const double Cscale = Rcpp::as<double>(model["Cscale"]);
+
+  if(C.n_rows != C.n_cols){
+    Rcpp::stop("Stored C must be square.");
+  }
+
+  const int nEffects = static_cast<int>(C.n_rows);
+
+  if(static_cast<int>(Dmat.n_cols) != nEffects){
+    Rcpp::stop("D must have one column per mixed-model effect (nrow/ncol of stored C).");
+  }
+
+  typedef Eigen::SparseMatrix<double, Eigen::ColMajor, int> EigenSpMat;
+  typedef Eigen::Triplet<double, int> EigenTriplet;
+  typedef Eigen::SimplicialLDLT<
+    EigenSpMat,
+    Eigen::Lower,
+    SommerSparseOrdering
+  > EigenLDLT;
+
+  EigenSpMat Ce(nEffects, nEffects);
+  std::vector<EigenTriplet> triplets;
+  triplets.reserve(static_cast<std::size_t>(C.n_nonzero));
+
+  for(arma::sp_mat::const_iterator it = C.begin(); it != C.end(); ++it){
+    triplets.emplace_back(
+      static_cast<int>(it.row()),
+      static_cast<int>(it.col()),
+      (*it)
+    );
+  }
+
+  Ce.setFromTriplets(triplets.begin(), triplets.end());
+  Ce.makeCompressed();
+
+  EigenLDLT Cfactor;
+  Cfactor.compute(Ce);
+
+  if(Cfactor.info() != Eigen::Success){
+    Rcpp::stop("Sparse LDLT factorisation of stored C failed.");
+  }
+
+  const int k = static_cast<int>(Dmat.n_rows);
+
+  Eigen::MatrixXd rhs = Eigen::MatrixXd::Zero(nEffects, k);
+  for(arma::sp_mat::const_iterator it = Dmat.begin(); it != Dmat.end(); ++it){
+    rhs(static_cast<Eigen::Index>(it.col()), static_cast<Eigen::Index>(it.row())) = (*it);
+  }
+
+  Eigen::MatrixXd X = Cfactor.solve(rhs);
+
+  if(Cfactor.info() != Eigen::Success){
+    Rcpp::stop("Sparse LDLT solve failed while computing prediction variances.");
+  }
+
+  const arma::mat Xarma(X.data(), static_cast<arma::uword>(nEffects), static_cast<arma::uword>(k));
+
+  arma::mat vcov = (Dmat * Xarma) * Cscale;
+  vcov = 0.5 * (vcov + vcov.t());
+
+  return vcov;
+}
+
 
 // [[Rcpp::export]]
 Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma::vec & Zind,
