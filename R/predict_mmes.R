@@ -8,7 +8,12 @@
 
 "predict.mmes" <- function(object, Dtable=NULL, D, ...){
   if(is.character(D)){classify <- D}else{classify="id"} # save a copy before D is overwriten
-  if(nrow(object$Ci) == 0){stop("The predict function requires Ci to be available in the object. Please use the postPEV() function to add this to your model object.")}
+  # CiMode==1 (Takahashi selected-inverse subset) only fills entries within the
+  # LDLT fill-in pattern; D %*% Ci %*% t(D) for an arbitrary linear combination
+  # needs the complete inverse (CiMode==2), matching summary.mmes()'s gating.
+  if(is.null(object$CiMode) || object$CiMode != 2){
+    stop("The predict function requires the complete coefficient-matrix inverse. Refit with computeCi=2, or run postPEV(object, mode=2) before predicting.", call.=FALSE)
+  }
   # complete the Dtable withnumber of effects in each term
   xEffectN <- lapply(object$partitionsX, as.vector)
   nz <- unlist(lapply(object$uList,function(x){nrow(x)*ncol(x)}))

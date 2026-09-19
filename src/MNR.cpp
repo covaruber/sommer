@@ -10285,7 +10285,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     Rcpp::Named("u") = u,
     Rcpp::Named("bu") = bu,
     Rcpp::Named("Ci") = Ci,
-    Rcpp::Named("CiComputed") = (computeCi > 0),
+    // Only mode 2 (full explicit inverse) supports arbitrary D %*% Ci %*% t(D)
+    // queries; mode 1 fills only the Takahashi selected-inverse pattern, same
+    // as post_mme_Cinverse_cpp()'s CiComputed = (mode == 2) for consistency.
+    Rcpp::Named("CiComputed") = (computeCi == 2),
     Rcpp::Named("CiMode") = computeCi,
     Rcpp::Named("solver") = solverName,
     Rcpp::Named("pcgTol") = pcgTol,

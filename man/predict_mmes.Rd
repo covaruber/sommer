@@ -28,6 +28,8 @@
 \details{
   This function allows to produce predictions specifying those variables that define the margins of the hypertable to be predicted (argument D). Predictions are obtained for each combination of values of the specified variables that is present in the data set used to fit the model. See vignettes for more details. 
   
+  This function requires the complete coefficient-matrix inverse (\code{object$CiMode == 2}), because standard errors for an arbitrary linear combination \code{D} require entries of \code{C.inv()} outside the diagonal/Takahashi selected-inverse pattern. Fit the model with \code{computeCi=2}, or call \code{postPEV(object, mode=2)} on an existing fit before predicting; \code{computeCi=1}/\code{postPEV(mode=1)} only supports the diagonal PEVs returned in \code{uPevList} and will make \code{predict.mmes} stop with an informative error.
+  
   For predicted values the pertinent design matrices X and Z together with BLUEs (b) and BLUPs (u) are multiplied and added together.
   
   predicted.value equal Xb + Zu.1 + ... + Zu.n
