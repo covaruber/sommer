@@ -7,224 +7,619 @@ vsm <- function(..., Gu=NULL, sigma2=0.15, fixedSigma2=FALSE,
   if(length(init) < 1L){
     stop("vsm() requires at least one structured term.", call. = FALSE)
   }
+  
   if(!all(vapply(init, is.list, logical(1)))){
-    stop("Every term supplied to vsm() must be wrapped in a covariance constructor returning a CovarianceFactor descriptor, such as ism(), dsm(), usm(), ar1m(), csm(), rrcm(), fam(), maternm(), toeplitzm(), sar(), car(), or ownm().",
+    stop(
+      paste0(
+        "Every term supplied to vsm() must be wrapped in a covariance ",
+        "constructor returning a CovarianceFactor descriptor, such as ",
+        "ism(), dsm(), usm(), ar1m(), csm(), rrcm(), fam(), ",
+        "maternm(), toeplitzm(), sar(), car(), or ownm()."
+      ),
+      call. = FALSE
+    )
+  }
+  
+  if(!is.finite(sigma2) || length(sigma2) != 1L || sigma2 <= 0){
+    stop("sigma2 in vsm() must be one positive finite value.",
          call. = FALSE)
   }
-  if(!is.finite(sigma2) || length(sigma2) != 1L || sigma2 <= 0){
-    stop("sigma2 in vsm() must be one positive finite value.", call. = FALSE)
-  }
+  
   if(length(fixedSigma2) != 1L){
     stop("fixedSigma2 must have length one.", call. = FALSE)
   }
   
+  
+  # ======================================================================
+  # Main-effect term and covariance-shaping factors
+  # ======================================================================
+  
   # Last term is the main-effect incidence. Every preceding term is a
   # covariance-shaping factor. This makes Kronecker depth unlimited.
   main <- init[[length(init)]]
-  if(is.null(main$Z)){
-    stop("The last vsm() term must provide a Z matrix.", call. = FALSE)
-  }
-  factor_terms <- if(length(init) > 1L) init[-length(init)] else list()
   
-  main_vars <- all.vars(as.formula(paste0("~", expr_names[length(expr_names)])))
-  all_vars <- unique(unlist(lapply(expr_names, function(z){
-    all.vars(as.formula(paste0("~", z)))
-  })))
-  is.residual <- "units" %in% main_vars || "units" %in% all_vars
+  if(is.null(main$Z)){
+    stop("The last vsm() term must provide a Z matrix.",
+         call. = FALSE)
+  }
+  
+  factor_terms <-
+    if(length(init) > 1L) init[-length(init)] else list()
+  
+  
+  main_vars <-
+    all.vars(
+      as.formula(
+        paste0("~", expr_names[length(expr_names)])
+      )
+    )
+  
+  all_vars <- unique(
+    unlist(
+      lapply(
+        expr_names,
+        function(z){
+          all.vars(as.formula(paste0("~", z)))
+        }
+      )
+    )
+  )
+  
+  is.residual <-
+    "units" %in% main_vars ||
+    "units" %in% all_vars
   
   n <- nrow(main$Z)
   
-  # Normalize all matrices to sparse matrices.
+  
+  # ======================================================================
+  # Normalize main-effect design
+  # ======================================================================
+  
   mainZ <- to_sparse(main$Z)
   
-  # Preserve the historical ability to predict Gu levels not observed in the
-  # data by appending zero columns to the main-effect design.
+  
+  # ======================================================================
+  # Relationship / known precision matrix
+  #
+  # IMPORTANT:
+  # Matrix coercion and subsetting may drop arbitrary attributes.
+  # Therefore we record the precision status BEFORE doing any operation
+  # on Gu and explicitly restore it afterwards.
+  # ======================================================================
+  
+  Gu_is_inverse <- FALSE
+  
   if(!is.null(Gu)){
-    if(is.null(attr(Gu, "inverse"))){
-      stop("Gu must have attr(Gu, 'inverse') defined for the Henderson solver.",
-           call. = FALSE)
+    
+    Gu_is_inverse <- isTRUE(attr(Gu, "inverse"))
+    
+    if(!Gu_is_inverse){
+      stop(
+        "Gu must have attr(Gu, 'inverse')=TRUE for the Henderson solver.",
+        call. = FALSE
+      )
     }
+    
+    # Conversion can drop custom attributes.
     Gu <- to_sparse(Gu)
+    
+    # Restore immediately so the invariant is maintained throughout vsm().
+    attr(Gu, "inverse") <- TRUE
+    
     if(is.null(colnames(Gu)) || is.null(rownames(Gu))){
-      stop("Gu must have row and column names matching the main-effect levels.",
+      stop(
+        "Gu must have row and column names matching the main-effect levels.",
+        call. = FALSE
+      )
+    }
+    
+    if(nrow(Gu) != ncol(Gu)){
+      stop("Gu must be a square precision matrix.",
            call. = FALSE)
     }
-    miss <- setdiff(colnames(mainZ), colnames(Gu))
-    if(length(miss)){
-      stop(paste("Levels missing from Gu:", paste(miss, collapse=", ")), call. = FALSE)
+    
+    if(!identical(rownames(Gu), colnames(Gu))){
+      stop(
+        "Gu must have identical row and column level names in the same order.",
+        call. = FALSE
+      )
     }
+    
+    miss <- setdiff(colnames(mainZ), colnames(Gu))
+    
+    if(length(miss)){
+      stop(
+        paste(
+          "Levels missing from Gu:",
+          paste(miss, collapse=", ")
+        ),
+        call. = FALSE
+      )
+    }
+    
+    # Preserve historical ability to predict levels contained in Gu that
+    # are not observed in the data by adding zero incidence columns.
     extra <- setdiff(colnames(Gu), colnames(mainZ))
+    
     if(length(extra)){
+      
       if(verbose){
-        cat("Adding additional Gu levels to the main-effect model matrix:",
-            paste(extra, collapse=", "), "\n")
+        cat(
+          "Adding additional Gu levels to the main-effect model matrix:",
+          paste(extra, collapse=", "),
+          "\n"
+        )
       }
-      add <- Matrix::Matrix(0, nrow=nrow(mainZ), ncol=length(extra), sparse=TRUE)
+      
+      add <- Matrix::Matrix(
+        0,
+        nrow=nrow(mainZ),
+        ncol=length(extra),
+        sparse=TRUE
+      )
+      
       colnames(add) <- extra
+      
       mainZ <- cbind(mainZ, add)
       mainZ <- to_sparse(mainZ)
     }
   }
   
-  # Row-wise Kronecker/Khatri-Rao product. The ordering agrees with
-  # kronecker(K1, K2, ...): earlier factors are the slow index and later
-  # factors are the fast index.
+  
+  # ======================================================================
+  # Row-wise Kronecker / Khatri-Rao product
+  #
+  # Ordering agrees with kronecker(K1,K2,...):
+  # earlier factors are slow indices and later factors are fast indices.
+  # ======================================================================
+  
   row_kron <- function(A, B){
+    
     A <- to_sparse(A)
     B <- to_sparse(B)
+    
     if(nrow(A) != nrow(B)){
-      stop("All covariance factors inside vsm() must have the same number of rows.",
-           call. = FALSE)
+      stop(
+        paste0(
+          "All covariance factors inside vsm() must have ",
+          "the same number of rows."
+        ),
+        call. = FALSE
+      )
     }
-    out <- vector("list", ncol(A) * ncol(B))
+    
+    out <- vector(
+      "list",
+      ncol(A) * ncol(B)
+    )
+    
     nm <- character(length(out))
+    
     cc <- 1L
+    
     for(i in seq_len(ncol(A))){
       for(j in seq_len(ncol(B))){
-        out[[cc]] <- A[,i,drop=FALSE] * B[,j,drop=FALSE]
-        nm[cc] <- paste(colnames(A)[i], colnames(B)[j], sep=":")
+        
+        out[[cc]] <-
+          A[,i,drop=FALSE] *
+          B[,j,drop=FALSE]
+        
+        nm[cc] <-
+          paste(
+            colnames(A)[i],
+            colnames(B)[j],
+            sep=":"
+          )
+        
         cc <- cc + 1L
       }
     }
+    
     ans <- do.call(cbind, out)
+    
     colnames(ans) <- nm
+    
     to_sparse(ans)
   }
   
+  
+  # ======================================================================
+  # Compile covariance-shaping factors
+  # ======================================================================
+  
   if(length(factor_terms) == 0L){
-    Z0 <- Matrix::Matrix(1, nrow=n, ncol=1, sparse=TRUE)
+    
+    Z0 <- Matrix::Matrix(
+      1,
+      nrow=n,
+      ncol=1,
+      sparse=TRUE
+    )
+    
     colnames(Z0) <- "1"
+    
     factors <- list()
+    
   }else{
-    if(any(vapply(factor_terms, function(z) is.null(z$covFactor), logical(1)))){
-      stop("Every covariance-shaping term in vsm() must supply a covFactor descriptor.",
-           call. = FALSE)
+    
+    if(any(
+      vapply(
+        factor_terms,
+        function(z) is.null(z$covFactor),
+        logical(1)
+      )
+    )){
+      stop(
+        paste0(
+          "Every covariance-shaping term in vsm() must ",
+          "supply a covFactor descriptor."
+        ),
+        call. = FALSE
+      )
     }
+    
     Z0 <- to_sparse(factor_terms[[1]]$Z)
+    
     if(length(factor_terms) > 1L){
+      
       for(i in 2:length(factor_terms)){
-        Z0 <- row_kron(Z0, factor_terms[[i]]$Z)
+        Z0 <- row_kron(
+          Z0,
+          factor_terms[[i]]$Z
+        )
       }
     }
-    factors <- lapply(factor_terms, function(z){
-      f <- .compile_covfactor(z$covFactor)
-      .validate_covfactor(f)
-      f
-    })
+    
+    factors <- lapply(
+      factor_terms,
+      function(z){
+        
+        f <- .compile_covfactor(z$covFactor)
+        
+        .validate_covfactor(f)
+        
+        f
+      }
+    )
   }
   
-  # Build one design block per covariance-product coordinate for RANDOM
-  # effects. Residual terms only need the product-coordinate layout and do not
-  # materialize a huge observation-identity design.
+  
+  # ======================================================================
+  # Random-effect design
+  #
+  # Build one Z block for each covariance-product coordinate.
+  #
+  # Residual structures only need the product-coordinate layout and do not
+  # materialize an observation-identity random-effect design.
+  # ======================================================================
+  
   if(is.residual){
+    
     Z <- list()
+    
   }else{
-    Z <- vector("list", ncol(Z0))
+    
+    Z <- vector(
+      "list",
+      ncol(Z0)
+    )
+    
     for(j in seq_len(ncol(Z0))){
-      mask <- Z0[,j,drop=FALSE] %*% Matrix::Matrix(1, 1, ncol(mainZ))
-      Z[[j]] <- to_sparse(mainZ * mask)
-      colnames(Z[[j]]) <- colnames(mainZ)
+      
+      mask <-
+        Z0[,j,drop=FALSE] %*%
+        Matrix::Matrix(
+          1,
+          1,
+          ncol(mainZ)
+        )
+      
+      Z[[j]] <-
+        to_sparse(
+          mainZ * mask
+        )
+      
+      colnames(Z[[j]]) <-
+        colnames(mainZ)
     }
   }
   
-  # Relationship precision is only consumed for random effects.
+  
+  # ======================================================================
+  # Final Gu normalization
+  #
+  # This section establishes an explicit invariant:
+  #
+  # Every vsm() object crossing the R/C++ or vsm()/covm() boundary has:
+  #
+  #   1. Gu represented as dgCMatrix
+  #   2. attr(Gu,"inverse") == TRUE
+  #
+  # Matrix operations above are never trusted to preserve the attribute.
+  # ======================================================================
+  
   if(is.residual){
-    Gu <- to_sparse(Matrix::Matrix(1, 1, 1, sparse=TRUE))
+    
+    Gu <- to_sparse(
+      Matrix::Matrix(
+        1,
+        1,
+        1,
+        sparse=TRUE
+      )
+    )
+    
     attr(Gu, "inverse") <- TRUE
+    
   }else if(is.null(Gu)){
-    # IMPORTANT: Matrix::Diagonal() returns a diagonal Matrix class (ddiMatrix),
-    # which does not have the @i slot expected by sommer's convertSparse()
-    # helper.  Force every Gu crossing the R/C++ boundary to dgCMatrix.
-    Gu <- to_sparse(Matrix::Diagonal(n=ncol(mainZ), x=1))
-    colnames(Gu) <- rownames(Gu) <- colnames(mainZ)
+    
+    Gu <- to_sparse(
+      Matrix::Diagonal(
+        n=ncol(mainZ),
+        x=1
+      )
+    )
+    
+    colnames(Gu) <-
+      rownames(Gu) <-
+      colnames(mainZ)
+    
     attr(Gu, "inverse") <- TRUE
+    
   }else{
-    Gu <- to_sparse(Gu[colnames(mainZ), colnames(mainZ), drop=FALSE])
+    
+    # Subsetting is required to put Gu into exactly the same ordering as
+    # mainZ. Subsetting/coercion may drop custom attributes, so restore the
+    # precision marker AFTER the operation.
+    Gu <- Gu[
+      colnames(mainZ),
+      colnames(mainZ),
+      drop=FALSE
+    ]
+    
+    Gu <- to_sparse(Gu)
+    
+    attr(Gu, "inverse") <- TRUE
   }
   
+  
+  # Final representation validation.
   if(!inherits(Gu, "dgCMatrix")){
-    stop("Internal vsm() error: Gu was not normalized to dgCMatrix.", call. = FALSE)
+    stop(
+      paste0(
+        "Internal vsm() error: Gu was not normalized ",
+        "to dgCMatrix."
+      ),
+      call. = FALSE
+    )
   }
   
-  # Flatten the product descriptor. All optimizer coordinates are
-  # unconstrained working parameters:
-  #   log(sigma2), atanh(rho), log variance ratios, normalized-Cholesky terms.
-  par <- c(log_sigma2=log(sigma2))
-  free <- c(!isTRUE(fixedSigma2))
+  if(!isTRUE(attr(Gu, "inverse"))){
+    stop(
+      paste0(
+        "Internal vsm() error: Gu lost its ",
+        "inverse/precision attribute."
+      ),
+      call. = FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Flatten covariance-product descriptor
+  #
+  # All optimizer coordinates are unconstrained working parameters:
+  #
+  #   log(sigma2)
+  #   atanh(rho)
+  #   log variance ratios
+  #   normalized-Cholesky coordinates
+  #   etc.
+  # ======================================================================
+  
+  par <- c(
+    log_sigma2=log(sigma2)
+  )
+  
+  free <- c(
+    !isTRUE(fixedSigma2)
+  )
+  
   par_names <- "sigma2"
   
+  
   if(length(factors)){
+    
     for(i in seq_along(factors)){
-      f <- .compile_covfactor(factors[[i]])
+      
+      f <- .compile_covfactor(
+        factors[[i]]
+      )
+      
       .validate_covfactor(f)
-      f$par_start <- length(par) + 1L
+      
+      f$par_start <-
+        length(par) + 1L
+      
       if(length(f$par)){
-        par <- c(par, f$par)
-        free <- c(free, f$free)
-        prefix <- if(length(expr_names) >= i) expr_names[i] else paste0("factor", i)
-        par_names <- c(par_names, paste(prefix, f$par_names, sep=":"))
+        
+        par <- c(
+          par,
+          f$par
+        )
+        
+        free <- c(
+          free,
+          f$free
+        )
+        
+        prefix <-
+          if(length(expr_names) >= i){
+            expr_names[i]
+          }else{
+            paste0("factor", i)
+          }
+        
+        par_names <- c(
+          par_names,
+          paste(
+            prefix,
+            f$par_names,
+            sep=":"
+          )
+        )
       }
+      
       f$par_end <- length(par)
+      
       factors[[i]] <- f
     }
   }
   
-  product_dim <- if(length(factors)) prod(vapply(factors, `[[`, numeric(1), "dim")) else 1L
+  
+  product_dim <-
+    if(length(factors)){
+      prod(
+        vapply(
+          factors,
+          `[[`,
+          numeric(1),
+          "dim"
+        )
+      )
+    }else{
+      1L
+    }
+  
+  
   if(product_dim != ncol(Z0)){
-    stop("Internal vsm() error: covariance product dimension does not match the combined design.",
-         call. = FALSE)
+    stop(
+      paste0(
+        "Internal vsm() error: covariance product dimension ",
+        "does not match the combined design."
+      ),
+      call. = FALSE
+    )
   }
   
+  
   covStruct <- list(
+    
     type="kron",
+    
     par=as.numeric(par),
+    
     free=as.logical(free),
+    
     par_names=par_names,
+    
     factors=factors,
+    
     dim=as.integer(product_dim),
+    
     levels=colnames(Z0),
+    
     scale_index=1L,
+    
     descriptor_version=2L,
+    
     factor_interface="CovarianceFactor",
+    
     parameterization="working",
+    
     main_levels=colnames(mainZ)
   )
-  names(covStruct$par) <- par_names
   
-  # For residual models the product-coordinate index of every observation is
-  # passed to mmes(), which combines it with a block id. Residual covariance
-  # factors must therefore be incidence factors (one active product cell per
-  # observation).
+  names(covStruct$par) <-
+    par_names
+  
+  
+  # ======================================================================
+  # Residual product-coordinate mapping
+  #
+  # Residual covariance factors must define exactly one covariance-product
+  # coordinate for every observation.
+  # ======================================================================
+  
   residualLocalIndex <- NULL
+  
   if(is.residual){
+    
     ss <- Matrix::summary(Z0)
-    byrow <- split(seq_len(nrow(ss)), ss$i)
-    residualLocalIndex <- rep(NA_integer_, nrow(Z0))
+    
+    byrow <- split(
+      seq_len(nrow(ss)),
+      ss$i
+    )
+    
+    residualLocalIndex <-
+      rep(
+        NA_integer_,
+        nrow(Z0)
+      )
+    
     for(rr in seq_len(nrow(Z0))){
-      hits <- byrow[[as.character(rr)]]
+      
+      hits <-
+        byrow[[as.character(rr)]]
+      
       if(is.null(hits)){
         next
       }
-      if(length(hits) != 1L || abs(ss$x[hits] - 1) > 1e-12){
-        stop("Residual covariance factors must define exactly one covariance-product level per observation.",
-             call. = FALSE)
+      
+      if(
+        length(hits) != 1L ||
+        abs(ss$x[hits] - 1) > 1e-12
+      ){
+        stop(
+          paste0(
+            "Residual covariance factors must define exactly ",
+            "one covariance-product level per observation."
+          ),
+          call. = FALSE
+        )
       }
-      residualLocalIndex[rr] <- ss$j[hits]
+      
+      residualLocalIndex[rr] <-
+        ss$j[hits]
     }
   }
   
+  
+  # ======================================================================
+  # Return object
+  # ======================================================================
+  
   output <- list(
+    
     Z=Z,
+    
     Gu=Gu,
+    
     covStruct=covStruct,
+    
     residualLocalIndex=residualLocalIndex,
+    
     productDesign=Z0,
+    
     partitionsR=NULL
   )
   
+  
   if(isFixed){
-    return(as.matrix(do.call(cbind, Z)))
+    
+    return(
+      as.matrix(
+        do.call(
+          cbind,
+          Z
+        )
+      )
+    )
   }
+  
+  
   output
 }
 
@@ -264,22 +659,611 @@ fixm <- function(x, reps=NULL){
   }else{return(mm)}
 }
 
-covm <- function(ran1,ran2, thetaC=NULL, theta=NULL){
-  if( ncol(ran1$Z[[1]]) != ncol(ran2$Z[[1]]) ){stop("Matrices of the two random effects should have the same dimensions",call. = FALSE)}
-  ran1$Z[[2]] <- ran2$Z[[1]]
-  if(is.null(thetaC)){
-    ran1$thetaC <- unsm(2); 
-  }else{ran1$thetaC <- thetaC}
-  ran1$thetaC[lower.tri(ran1$thetaC)] = 0 # lower.tri must be 0
-  colnames(ran1$thetaC) <- rownames(ran1$thetaC) <- c("ran1","ran2")
+# Combine two vsm() random-effect structures into one correlated random structure.
+#
+# The returned object uses exactly the same CovarianceFactor-v2 contract as vsm().
+# ai_mme_sp2() therefore does not require any covm-specific code.
+#
+# Current implementation intentionally requires SIMPLE vsm() structures
+# (one covariance-product coordinate on each side).  Thus the two effects may
+# have different incidence matrices, but they must act on the same coefficient
+# space and use the same Gu precision matrix.
+#
+# Covariance model:
+#
+#   Var([u1',u2']') = sigma2 * K_effect %x% A
+#
+# where K_effect is a normalized 2 x 2 unstructured covariance shape and
+# sigma2 is the variance of the first effect.  The normalized-Cholesky
+# parameterization guarantees positive definiteness.
+#
+covm <- function(ran1, ran2, thetaC=NULL, theta=NULL,
+                 fixed=NULL, fixedSigma2=FALSE,
+                 labels=c("ran1","ran2"), tol=1e-10){
+  
+  # ======================================================================
+  # Validate vsm() objects
+  # ======================================================================
+  
+  check_vsm <- function(x, nm){
+    
+    if(
+      !is.list(x) ||
+      is.null(x$Z) ||
+      is.null(x$Gu) ||
+      is.null(x$covStruct)
+    ){
+      stop(
+        nm,
+        " must be the result of vsm().",
+        call.=FALSE
+      )
+    }
+    
+    cs <- x$covStruct
+    
+    if(
+      !identical(cs$type, "kron") ||
+      is.null(cs$descriptor_version) ||
+      cs$descriptor_version < 2L
+    ){
+      stop(
+        nm,
+        " must use the CovarianceFactor-v2 vsm() interface.",
+        call.=FALSE
+      )
+    }
+    
+    # Current implementation intentionally handles simple random effects.
+    if(
+      length(x$Z) != 1L ||
+      cs$dim != 1L ||
+      length(cs$factors) != 0L
+    ){
+      stop(
+        paste0(
+          "The current covm() implementation combines simple vsm() ",
+          "random effects only. Each side must have one covariance-product ",
+          "coordinate, e.g. vsm(ism(effect), Gu=Ai). Shared structured ",
+          "factors can be added later without changing ai_mme_sp2()."
+        ),
+        call.=FALSE
+      )
+    }
+    
+    if(!isTRUE(attr(x$Gu, "inverse"))){
+      stop(
+        nm,
+        "$Gu must be an inverse/precision matrix with ",
+        "attr(Gu,'inverse')=TRUE.",
+        call.=FALSE
+      )
+    }
+    
+    invisible(TRUE)
+  }
+  
+  
+  check_vsm(ran1, "ran1")
+  check_vsm(ran2, "ran2")
+  
+  
+  # ======================================================================
+  # Effect labels
+  # ======================================================================
+  
+  if(
+    length(labels) != 2L ||
+    anyNA(labels) ||
+    any(!nzchar(labels)) ||
+    anyDuplicated(labels)
+  ){
+    stop(
+      "labels must contain two different non-empty names.",
+      call.=FALSE
+    )
+  }
+  
+  labels <- as.character(labels)
+  
+  
+  # ======================================================================
+  # Capture precision status BEFORE Matrix operations
+  # ======================================================================
+  
+  inv1 <- isTRUE(
+    attr(ran1$Gu, "inverse")
+  )
+  
+  inv2 <- isTRUE(
+    attr(ran2$Gu, "inverse")
+  )
+  
+  if(!inv1 || !inv2){
+    stop(
+      paste0(
+        "Both Gu matrices must be inverse/precision matrices ",
+        "for the Henderson solver."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Normalize matrices
+  #
+  # to_sparse() is not assumed to preserve arbitrary R attributes.
+  # ======================================================================
+  
+  Z1 <- to_sparse(
+    ran1$Z[[1L]]
+  )
+  
+  Z2 <- to_sparse(
+    ran2$Z[[1L]]
+  )
+  
+  G1 <- to_sparse(
+    ran1$Gu
+  )
+  
+  G2 <- to_sparse(
+    ran2$Gu
+  )
+  
+  # Explicitly restore precision metadata after coercion.
+  attr(G1, "inverse") <- TRUE
+  attr(G2, "inverse") <- TRUE
+  
+  
+  # ======================================================================
+  # Incidence compatibility
+  # ======================================================================
+  
+  if(nrow(Z1) != nrow(Z2)){
+    stop(
+      paste0(
+        "The two random-effect incidence matrices must ",
+        "have the same number of observations."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  if(ncol(Z1) != ncol(Z2)){
+    stop(
+      paste0(
+        "The two random effects must have the same ",
+        "coefficient dimension."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Main-effect level compatibility
+  # ======================================================================
+  
+  lev1 <- ran1$covStruct$main_levels
+  lev2 <- ran2$covStruct$main_levels
+  
+  if(is.null(lev1)){
+    lev1 <- colnames(Z1)
+  }
+  
+  if(is.null(lev2)){
+    lev2 <- colnames(Z2)
+  }
+  
+  lev1 <- as.character(lev1)
+  lev2 <- as.character(lev2)
+  
+  
+  if(!identical(lev1, lev2)){
+    stop(
+      paste0(
+        "The two random effects must have identical ",
+        "main-effect levels in the same order."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Gu compatibility
+  # ======================================================================
+  
+  if(
+    !all(dim(G1) == dim(G2)) ||
+    !identical(rownames(G1), rownames(G2)) ||
+    !identical(colnames(G1), colnames(G2))
+  ){
+    stop(
+      "ran1 and ran2 must use the same Gu coefficient space.",
+      call.=FALSE
+    )
+  }
+  
+  
+  DG <- Matrix::drop0(
+    G1 - G2,
+    tol=tol
+  )
+  
+  if(length(DG@x)){
+    stop(
+      "ran1 and ran2 must use the same Gu precision matrix.",
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Initial natural-scale 2 x 2 covariance
+  #
+  # Preserve the historical covm() starting covariance.
+  # ======================================================================
+  
   if(is.null(theta)){
-    ran1$theta <- diag(2) * 0.15 + matrix(0.015, 2, 2)
-  }else{ran1$theta <- theta}
-  nvc <- length(which(thetaC > 0))
-  ran1$thetaF <- diag(nvc) # n x n, where n is number of vc to estimate
-  ran1$sp <- rep(0,nvc) # rep 0 n times, where n is number of vc to estimate
-  return(ran1)
+    
+    theta <-
+      diag(2) * 0.15 +
+      matrix(
+        0.015,
+        2,
+        2
+      )
+    
+  }else{
+    
+    theta <- as.matrix(theta)
+  }
+  
+  
+  if(
+    !all(dim(theta) == c(2L,2L)) ||
+    any(!is.finite(theta))
+  ){
+    stop(
+      "theta must be a finite 2 x 2 covariance matrix.",
+      call.=FALSE
+    )
+  }
+  
+  
+  theta <-
+    (theta + t(theta)) / 2
+  
+  
+  ev <- eigen(
+    theta,
+    symmetric=TRUE,
+    only.values=TRUE
+  )$values
+  
+  
+  if(min(ev) <= tol){
+    stop(
+      "theta supplied to covm() must be positive definite.",
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Convert natural covariance to the standard vsm() representation
+  #
+  #     Sigma = sigma2 * K_effect %x% A
+  #
+  # K_effect is normalized so K[1,1] = 1.
+  # ======================================================================
+  
+  sigma2 <- theta[1L,1L]
+  
+  if(
+    !is.finite(sigma2) ||
+    sigma2 <= 0
+  ){
+    stop(
+      "theta[1,1] must be positive.",
+      call.=FALSE
+    )
+  }
+  
+  
+  K <- theta / sigma2
+  
+  
+  ch <- try(
+    chol(K),
+    silent=TRUE
+  )
+  
+  if(inherits(ch, "try-error")){
+    stop(
+      "theta supplied to covm() must be positive definite.",
+      call.=FALSE
+    )
+  }
+  
+  
+  L <- t(ch)
+  
+  # Numerical normalization guarantees L11 = 1.
+  L <- L / L[1L,1L]
+  
+  
+  # ======================================================================
+  # Normalized-Cholesky coordinates
+  #
+  # For q=2:
+  #
+  #     L = [ 1       0       ]
+  #         [ L21   exp(eta22) ]
+  #
+  # Thus there are two factor coordinates:
+  #
+  #     L21
+  #     log(L22)
+  # ======================================================================
+  
+  us_par <- c(
+    L[2L,1L],
+    log(L[2L,2L])
+  )
+  
+  
+  us_names <- c(
+    
+    paste0(
+      "chol[",
+      labels[2L],
+      ",",
+      labels[1L],
+      "]"
+    ),
+    
+    paste0(
+      "chol_diag[",
+      labels[2L],
+      "]"
+    )
+  )
+  
+  
+  # ======================================================================
+  # Fixed parameters
+  # ======================================================================
+  
+  if(is.null(fixed)){
+    fixed <- c(
+      FALSE,
+      FALSE
+    )
+  }
+  
+  
+  if(
+    length(fixed) != 2L ||
+    anyNA(fixed)
+  ){
+    stop(
+      paste0(
+        "fixed must be a logical vector of length 2 for ",
+        "the normalized-Cholesky coordinates."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  fixed <- as.logical(fixed)
+  
+  
+  # ======================================================================
+  # Legacy thetaC
+  #
+  # Cell-wise thetaC constraints cannot generally be mapped exactly onto
+  # normalized-Cholesky coordinates.
+  # ======================================================================
+  
+  if(!is.null(thetaC)){
+    
+    stop(
+      paste0(
+        "thetaC is not supported by the CovarianceFactor-v2 covm() ",
+        "parameterization. Use fixedSigma2 to fix the first-effect ",
+        "variance and fixed to fix the two normalized-Cholesky ",
+        "coordinates. Cell-wise thetaC codes cannot in general be ",
+        "translated exactly to Cholesky-coordinate constraints."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Construct generic effect covariance factor
+  #
+  # This is exactly the same generic 'us' factor consumed by the covariance
+  # engine. ai_mme_sp2() therefore has no knowledge of covm().
+  # ======================================================================
+  
+  effectFactor <- .compile_covfactor(
+    list(
+      
+      type="us",
+      
+      dim=2L,
+      
+      levels=labels,
+      
+      par=us_par,
+      
+      free=!fixed,
+      
+      par_names=us_names,
+      
+      us_row=c(
+        2L,
+        2L
+      ),
+      
+      us_col=c(
+        1L,
+        2L
+      ),
+      
+      us_diag=c(
+        FALSE,
+        TRUE
+      )
+    )
+  )
+  
+  
+  .validate_covfactor(
+    effectFactor
+  )
+  
+  
+  # ======================================================================
+  # Flatten into standard vsm() CovarianceFactor-v2 descriptor
+  # ======================================================================
+  
+  par <- c(
+    log_sigma2=log(sigma2),
+    effectFactor$par
+  )
+  
+  
+  free <- c(
+    !isTRUE(fixedSigma2),
+    effectFactor$free
+  )
+  
+  
+  par_names <- c(
+    "sigma2",
+    effectFactor$par_names
+  )
+  
+  
+  effectFactor$par_start <- 2L
+  effectFactor$par_end <- length(par)
+  
+  
+  covStruct <- list(
+    
+    type="kron",
+    
+    par=as.numeric(par),
+    
+    free=as.logical(free),
+    
+    par_names=par_names,
+    
+    factors=list(
+      effectFactor
+    ),
+    
+    dim=2L,
+    
+    levels=labels,
+    
+    scale_index=1L,
+    
+    descriptor_version=2L,
+    
+    factor_interface="CovarianceFactor",
+    
+    parameterization="working",
+    
+    main_levels=lev1
+  )
+  
+  
+  names(covStruct$par) <-
+    par_names
+  
+  
+  # ======================================================================
+  # Final Gu
+  #
+  # K_effect %x% A uses one shared precision matrix A.
+  # Explicitly preserve precision metadata in the returned object.
+  # ======================================================================
+  
+  Gu <- G1
+  
+  Gu <- to_sparse(Gu)
+  
+  attr(Gu, "inverse") <- TRUE
+  
+  
+  if(!inherits(Gu, "dgCMatrix")){
+    stop(
+      paste0(
+        "Internal covm() error: Gu was not normalized ",
+        "to dgCMatrix."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  if(!isTRUE(attr(Gu, "inverse"))){
+    stop(
+      paste0(
+        "Internal covm() error: Gu lost its ",
+        "inverse/precision attribute."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Return standard random-structure object
+  #
+  # Ordering:
+  #
+  #     effect coordinate first
+  #     coefficient level second
+  #
+  # giving
+  #
+  #     K_effect %x% A
+  #
+  # Z1 and Z2 are therefore the two covariance-product coordinates.
+  # ======================================================================
+  
+  list(
+    
+    Z=list(
+      Z1,
+      Z2
+    ),
+    
+    Gu=Gu,
+    
+    covStruct=covStruct,
+    
+    residualLocalIndex=NULL,
+    
+    productDesign=NULL,
+    
+    partitionsR=NULL,
+    
+    covm=TRUE,
+    
+    covm_labels=labels
+  )
 }
+
 
 replace.values <- function(Values,Search,Replace){
   dd0 <- data.frame(Values)

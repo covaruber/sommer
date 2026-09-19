@@ -11,12 +11,12 @@ mmes <- function(fixed, random, rcov, data, W,
                  computeCi=0, solver="ldlt", pcgTol=1.0e-8,
                  pcgMaxIters=0, pcgTraceProbes=8,
                  pcgLanczosSteps=20){
-
+  
   if(!isTRUE(henderson)){
     stop("This mmes() interface is Henderson-only. Use the separate MNR/direct-inversion mmer interface for henderson=FALSE.",
          call.=FALSE)
   }
-
+  
   desc <- utils::packageDescription("sommer")
   my.date <- as.Date(desc$Date) + 90
   if(dateWarning && Sys.Date() > my.date){
@@ -24,34 +24,34 @@ mmes <- function(fixed, random, rcov, data, W,
         "install.packages('sommer') in a new session\n",
         "Use the 'dateWarning' argument to disable the warning message.\n", sep="")
   }
-
+  
   # ---- Helpers ---------------------------------------------------------
   formula_env <- function(f, fallback){
     e <- if(inherits(f, "formula")) environment(f) else NULL
     if(is.null(e)) fallback else e
   }
-
+  
   # Split only top-level additions. '+' inside I(), vsm(), etc. is untouched.
   split_plus <- function(expr){
     if(is.call(expr) && identical(expr[[1L]], as.name("+"))){
       c(split_plus(expr[[2L]]), split_plus(expr[[3L]]))
     } else list(expr)
   }
-
+  
   expr_label <- function(x) paste(deparse(x, width.cutoff=500L), collapse="")
-
+  
   has_call <- function(expr, names){
     if(!is.call(expr)) return(FALSE)
     head <- as.character(expr[[1L]])
     if(head %in% names) return(TRUE)
     any(vapply(as.list(expr)[-1L], has_call, logical(1), names=names))
   }
-
+  
   eval_model_expr <- function(expr, data_full, enclos){
     if(is.null(data_full)) eval(expr, envir=enclos)
     else eval(expr, envir=data_full, enclos=enclos)
   }
-
+  
   # Observation-level variables are symbols resolving to vectors of length n,
   # or matrices/data.frames with n rows. Objects such as Gu/Ai are therefore
   # not mistaken for observation variables unless they actually have n rows.
@@ -73,7 +73,7 @@ mmes <- function(fixed, random, rcov, data, W,
     }
     ok
   }
-
+  
   method_keep <- function(ok, method, what){
     method <- tolower(method)
     if(method %in% c("exclude", "omit")) return(ok)
@@ -83,7 +83,7 @@ mmes <- function(fixed, random, rcov, data, W,
     if(method == "fail") return(rep(TRUE, length(ok)))
     stop("Unknown missing-data method '", method, "' for ", what, ".", call.=FALSE)
   }
-
+  
   # ---- Unified evaluation context -------------------------------------
   callEnv <- parent.frame()
   fixedEnv <- formula_env(fixed, callEnv)
@@ -93,10 +93,10 @@ mmes <- function(fixed, random, rcov, data, W,
     environment(rcov) <- fixedEnv
   }
   if(!missing(random) && is.null(environment(random))) environment(random) <- fixedEnv
-
+  
   dataSupplied <- !missing(data)
   data_full <- if(dataSupplied) as.data.frame(data) else NULL
-
+  
   # Build the fixed model frame before filtering. model.frame follows normal
   # R lookup rules: data first, then the formula environment.
   mf_full <- try(stats::model.frame(fixed, data=data_full,
@@ -111,24 +111,24 @@ mmes <- function(fixed, random, rcov, data, W,
   if(!is.null(data_full) && nrow(data_full) != nObs){
     stop("The fixed formula and 'data' do not describe the same number of observations.", call.=FALSE)
   }
-
+  
   # If data was omitted, create a row scaffold. Formula variables remain
   # available through the formula environment and are not copied unnecessarily.
   if(is.null(data_full)) data_full <- data.frame(.sommer_row=seq_len(nObs))
   data_full$.sommer_row <- seq_len(nObs)
   data_full$units <- factor(paste0("u", seq_len(nObs)),
                             levels=paste0("u", seq_len(nObs)))
-
+  
   # ---- Parse/evaluate random and residual expressions on full rows -----
   randomExprs <- if(missing(random)) list() else split_plus(random[[2L]])
   randomLabels <- vapply(randomExprs, expr_label, character(1))
   randomFits <- vector("list", length(randomExprs))
-
+  
   if(length(randomExprs)){
     randomEnv <- formula_env(random, fixedEnv)
     for(u in seq_along(randomExprs)){
       ex <- randomExprs[[u]]
-      if(!has_call(ex, c("vsm", "spl2Dc"))){
+      if(!has_call(ex, c("vsm", "covm", "spl2Dc"))){
         ex <- as.call(list(as.name("vsm"), as.call(list(as.name("ism"), ex))))
       }
       randomExprs[[u]] <- ex
@@ -142,7 +142,7 @@ mmes <- function(fixed, random, rcov, data, W,
       }
     }
   }
-
+  
   rcovExprs <- split_plus(rcov[[2L]])
   if(length(rcovExprs) != 1L){
     stop("The Henderson interface accepts one residual vsm() term. Use arbitrary Kronecker products inside that vsm() term instead of summing residual terms.",
@@ -164,43 +164,43 @@ mmes <- function(fixed, random, rcov, data, W,
   if(length(rf_full$residualLocalIndex) != nObs){
     stop("Residual local-index vector has incompatible length.", call.=FALSE)
   }
-
+  
   # ---- Centralized observation map ------------------------------------
   # Response and fixed RHS are separated so naMethodY and naMethodX retain
   # their historical meaning.
   responseMF <- mf_full[, 1L, drop=FALSE]
   responseOK <- stats::complete.cases(responseMF)
   fixedOK <- if(ncol(mf_full) > 1L) stats::complete.cases(mf_full[, -1L, drop=FALSE]) else rep(TRUE, nObs)
-
+  
   randomOK <- rep(TRUE, nObs)
   if(length(randomExprs)){
     for(ex in randomExprs) randomOK <- randomOK & observation_ok(ex, data_full, formula_env(random, fixedEnv), nObs)
   }
   residualOK <- observation_ok(residualExpr, data_full, residualEnv, nObs) & !is.na(rf_full$residualLocalIndex)
-
+  
   keepY <- method_keep(responseOK, naMethodY, "the response")
   keepX <- method_keep(fixedOK, naMethodX, "fixed-effect variables")
   keepRandom <- method_keep(randomOK, naMethodRandom, "random-effect variables")
   keepResidual <- method_keep(residualOK, naMethodR, "residual covariance variables")
   keep <- keepY & keepX & keepRandom & keepResidual
-
+  
   reason <- rep("included", nObs)
   reason[!keepY] <- "missing response"
   reason[keepY & !keepX] <- "missing fixed covariate"
   reason[keepY & keepX & !keepRandom] <- "missing random-effect variable"
   reason[keepY & keepX & keepRandom & !keepResidual] <- "missing residual coordinate"
-
+  
   obsInfo <- data.frame(originalRow=seq_len(nObs), responseOK=responseOK,
                         fixedOK=fixedOK, randomOK=randomOK,
                         residualOK=residualOK, included=keep,
                         reason=reason, stringsAsFactors=FALSE)
   if(!any(keep)) stop("No observations remain after applying the missing-data rules.", call.=FALSE)
-
+  
   # The model frame is the authoritative fixed/response representation.
   mf <- mf_full[keep, , drop=FALSE]
   data <- data_full[keep, , drop=FALSE]
   dataor <- data_full
-
+  
   # Response matrix: preserve multivariate/model.frame response behavior.
   yobj <- stats::model.response(mf)
   if(is.null(dim(yobj))) yobj <- matrix(yobj, ncol=1L)
@@ -208,11 +208,11 @@ mmes <- function(fixed, random, rcov, data, W,
   responseNames <- colnames(yobj)
   if(is.null(responseNames)) responseNames <- as.character(fixed[[2L]])
   if(ncol(yvar) == 1L) colnames(yvar) <- responseNames[1L]
-
+  
   # ---- Random structures, now subset exactly once ---------------------
   Z <- list(); Ai <- list(); covStruct <- list(); Zind <- numeric()
   rTermsNames <- list(); rtermss <- randomLabels
-
+  
   if(length(randomFits)){
     for(u in seq_along(randomFits)){
       ff <- randomFits[[u]]
@@ -232,14 +232,14 @@ mmes <- function(fixed, random, rcov, data, W,
     }
   }
   nRandomStruct <- length(covStruct)
-
+  
   # ---- Residual structure ---------------------------------------------
   rf <- rf_full
   if(isTRUE(rf$covStruct$free[1])) rf$covStruct$par[1] <- rf$covStruct$par[1] + log(5)
   residualStructIndex <- nRandomStruct + 1L
   covStruct[[residualStructIndex]] <- rf$covStruct
   localIndex <- as.integer(rf$residualLocalIndex[keep])
-
+  
   # Preserve the established residual-block pairing semantics for this
   # refactor. The important change here is that it is applied after the
   # single centralized observation mask, so R, X, Z and y see identical rows.
@@ -253,7 +253,7 @@ mmes <- function(fixed, random, rcov, data, W,
   } else {
     baseKey <- rep("all", nrow(data))
   }
-
+  
   pairLocal <- paste(baseKey, localIndex, sep="\r")
   occurrence <- ave(seq_along(pairLocal), pairLocal, FUN=seq_along)
   blockKey <- paste(baseKey, occurrence, sep="\r")
@@ -263,7 +263,7 @@ mmes <- function(fixed, random, rcov, data, W,
   }
   s2 <- paste(all.vars(residualExpr), collapse=":")
   rTermsNames[[residualStructIndex]] <- paste(s2, rf$covStruct$par_names, sep=":")
-
+  
   # ---- Fixed-effect design using terms()/assign -----------------------
   X <- Matrix::sparse.model.matrix(fixed, data=mf, contrasts.arg=contrasts)
   tt <- attr(mf, "terms")
@@ -280,7 +280,7 @@ mmes <- function(fixed, random, rcov, data, W,
     if(length(ii)) partitionsX[[fixedTerms[ix]]] <- matrix(ii, nrow=1L)
   }
   if("(Intercept)" %in% colnames(X)) colnames(X)[colnames(X) == "(Intercept)"] <- "Intercept"
-
+  
   # ---- Weights ---------------------------------------------------------
   if(missing(W)){
     W <- Matrix::Diagonal(n=nrow(yvar), x=1)
@@ -293,7 +293,7 @@ mmes <- function(fixed, random, rcov, data, W,
     W <- as(as(as(W, "dMatrix"), "generalMatrix"), "CsparseMatrix")
     useH <- TRUE
   }
-
+  
   if(is.null(emWeight)){
     # EM-heavy warm start: early REML iterations are intentionally more
     # conservative and rely on the EM information block to stabilize the
@@ -311,7 +311,7 @@ mmes <- function(fixed, random, rcov, data, W,
   if(length(emWeight) != nIters) emWeight <- rep(emWeight, length.out = nIters)
   if(any(!is.finite(emWeight)) || any(emWeight < 0 | emWeight > 1))
     stop("emWeight must contain finite values between 0 and 1.", call.=FALSE)
-
+  
   if(is.null(stepWeight)){
     w <- which(emWeight <= .5)
     stepWeight <- rep(.9, nIters)
@@ -324,14 +324,14 @@ mmes <- function(fixed, random, rcov, data, W,
   if(length(stepWeight) != nIters) stepWeight <- rep(stepWeight, length.out = nIters)
   if(any(!is.finite(stepWeight)) || any(stepWeight <= 0))
     stop("stepWeight must contain finite positive values.", call.=FALSE)
-
+  
   if(length(Ai)){
     nInverses <- sum(vapply(Ai, function(x) isTRUE(attr(x,"inverse")), logical(1)))
     if(nInverses != length(Ai)){
       stop("The Henderson algorithm requires every Gu relationship matrix to be supplied as an inverse matrix with attr(Gu,'inverse')=TRUE.", call.=FALSE)
     }
   }
-
+  
   if(returnParam){
     return(list(yvar=yvar, X=X, Z=Z, Zind=Zind, Ai=Ai,
                 W=W, useH=useH, residualBlock=residualBlock,
@@ -343,7 +343,7 @@ mmes <- function(fixed, random, rcov, data, W,
                 getPEV=getPEV, rTermsNames=rTermsNames,
                 obsInfo=obsInfo))
   }
-
+  
   res <- .Call("_sommer_ai_mme_sp2", PACKAGE="sommer",
                X, Z, Zind, Ai, yvar, W, useH,
                residualBlock, localIndex,
@@ -351,20 +351,20 @@ mmes <- function(fixed, random, rcov, data, W,
                tolParInv, covStruct, emWeight, stepWeight,
                verbose, computeCi, solver, pcgTol, pcgMaxIters,
                pcgTraceProbes, pcgLanczosSteps)
-
+  
   rownames(res$b) <- colnames(X)
   if(length(randomFits) && length(res$u)) rownames(res$u) <- unlist(lapply(Z, colnames))
   rownames(res$bu) <- c(rownames(res$b), rownames(res$u))
   rownames(res$monitor) <- unlist(rTermsNames)
   if(!is.null(res$monitorOriginalScale)) rownames(res$monitorOriginalScale) <- unlist(rTermsNames)
-
+  
   res$data <- data
   res$dataOriginal <- dataor
   res$obsInfo <- obsInfo
   res$y <- yvar
   res$partitionsX <- partitionsX
   res$covStruct <- covStruct
-
+  
   if(length(randomFits) && length(rtermss)){
     names(res$theta) <- c(rtermss, residualLabel)
     names(res$partitions) <- rtermss
@@ -389,7 +389,7 @@ mmes <- function(fixed, random, rcov, data, W,
     res$Dtable <- data.frame(type=rep("fixed",length(res$partitionsX)),
                              term=names(res$partitionsX), include=FALSE, average=FALSE)
   }
-
+  
   class(res) <- "mmes"
   res
 }
