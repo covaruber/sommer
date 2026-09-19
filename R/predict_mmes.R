@@ -8,7 +8,12 @@
 
 "predict.mmes" <- function(object, Dtable=NULL, D, ...){
   if(is.character(D)){classify <- D}else{classify="id"} # save a copy before D is overwriten
-  if(nrow(object$Ci) == 0){stop("The predict function requires Ci to be available in the object. Please use the postPEV() function to add this to your model object.")}
+  # Prediction variances are obtained by solving C %*% X = t(D) for the
+  # handful of rows in D (see predict_mmes_vcov_cpp), so the complete or
+  # selected-inverse Ci is not required; only the stored C/Cscale are used.
+  if(is.null(object$C) || nrow(object$C) == 0){
+    stop("The predict function requires the mixed-model coefficient matrix C to be available in the object.", call.=FALSE)
+  }
   # complete the Dtable withnumber of effects in each term
   xEffectN <- lapply(object$partitionsX, as.vector)
   nz <- unlist(lapply(object$uList,function(x){nrow(x)*ncol(x)}))
@@ -120,7 +125,7 @@
   ## calculate predictions and standard errors
   bu <- object$bu
   predicted.value <- D %*% bu
-  vcov <- D %*% object$Ci %*% t(D)
+  vcov <- predict_mmes_vcov_cpp(object, D)
   std.error <- sqrt(diag(vcov))
   pvals <- data.frame(id=rownames(D),predicted.value=predicted.value[,1], std.error=std.error)
   if(is.character(classify)){colnames(pvals)[1] <- classify}
