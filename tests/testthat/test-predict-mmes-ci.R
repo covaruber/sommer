@@ -33,4 +33,28 @@ test_that("predict.mmes gives exact SEs without requiring the full Ci inverse", 
   p0n <- predict(m0, D="Name")
   p2n <- predict(m2, D="Name")
   expect_equal(p0n$pvals$std.error, p2n$pvals$std.error)
+
+  envColumns <- as.vector(m0$partitionsX[["Env"]])
+  interceptColumn <- as.vector(m0$partitionsX[["1"]])
+  expect_equal(unname(as.matrix(p0n$D[, envColumns, drop=FALSE])),
+               matrix(1 / (length(envColumns) + 1L),
+                      nrow=nrow(p0n$D), ncol=length(envColumns)))
+  expect_equal(as.numeric(p0n$D[, interceptColumn]), rep(1, nrow(p0n$D)))
+})
+
+test_that("predict.mmes averages fixed interactions over their full level space", {
+  data(DT_yatesoats)
+
+  model <- mmes(Y ~ B + B:MP, random=~V, rcov=~units, nIters=1,
+                verbose=FALSE, data=DT_yatesoats)
+  prediction <- predict(model, D="V")
+
+  bColumns <- as.vector(model$partitionsX[["B"]])
+  interactionColumns <- as.vector(model$partitionsX[["B:MP"]])
+  randomRange <- model$partitions[[1L]][1L, ]
+  randomColumns <- seq.int(randomRange[1L], randomRange[2L])
+
+  expect_equal(unique(as.numeric(prediction$D[, bColumns])), 1 / 6)
+  expect_equal(unique(as.numeric(prediction$D[, interactionColumns])), 1 / 18)
+  expect_equal(unname(as.matrix(prediction$D[, randomColumns])), diag(3))
 })

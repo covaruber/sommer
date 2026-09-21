@@ -88,9 +88,17 @@
     colnames(D) <- c(rownames(object$b),rownames(object$u))
     rd <- rownames(D)
     cd <- colnames(D)
+    interceptColumn <- unique(c(grep("Intercept",rownames(object$b) ))) # ,which(rownames(object$b)=="1")
     for(jRow in 1:nrow(D)){ # for each effect add 1's where missing
       myMatch <- which(cd == rd[jRow])
       if(length(myMatch) > 0){D[jRow,myMatch]=1}
+    }
+    fixedAverageN <- rep(NA_integer_, nrow(Dtable))
+    fixedRows <- which(Dtable$type == "fixed" & Dtable$term != "1")
+    for(iRow in fixedRows){
+      fullTermMatrix <- sparse.model.matrix(reformulate(Dtable[iRow,"term"], intercept=FALSE),
+                                            data=object$data)
+      fixedAverageN[iRow] <- ncol(fullTermMatrix)
     }
     # apply rules in Dtable
     for(iRow in 1:nrow(Dtable)){
@@ -104,7 +112,9 @@
         if(Dtable[iRow,"average"]){ # set to 1
           # average the include set
           for(o in 1:nrow(subD)){
-            v <- which(subD[o,] > 0);  subD[o,v] <- subD[o,v]/length(v)
+            v <- which(subD[o,] > 0)
+            averageN <- if(is.na(fixedAverageN[iRow])) length(v) else fixedAverageN[iRow]
+            subD[o,v] <- subD[o,v]/averageN
           }
           D[,w] <- subD
         }
@@ -112,14 +122,14 @@
         if(Dtable[iRow,"average"]){ # set to 1
           subD <- D[,w,drop=FALSE] + 1
           subD <- subD/subD
-          subD[which(subD > 0, arr.ind = TRUE)] = subD[which(subD > 0, arr.ind = TRUE)]/ncol(subD)
+          averageN <- if(is.na(fixedAverageN[iRow])) ncol(subD) else fixedAverageN[iRow]
+          subD[which(subD > 0, arr.ind = TRUE)] = subD[which(subD > 0, arr.ind = TRUE)]/averageN
           D[,w] <- subD
         }else{
           D[,w] <- D[,w] * 0
         }
       }
     }
-    interceptColumn <- unique(c(grep("Intercept",rownames(object$b) ))) # ,which(rownames(object$b)=="1")
     if(length(interceptColumn) > 0){D[,interceptColumn] = 1}
   }else{ }# user has provided D as a matrix to do direct multiplication
   ## calculate predictions and standard errors
