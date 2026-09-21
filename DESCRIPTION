@@ -12,7 +12,7 @@ Description: Structural multivariate-univariate linear mixed model solver for es
 Depends: R (>= 3.5.0), Matrix (>= 1.6-2), methods, stats, MASS, crayon, enhancer
 LazyLoad: yes
 LazyData: yes
-License: GPL (>= 2)
+License: GPL-3
 Imports: Rcpp (>= 0.12.19)
 BugReports: https://github.com/covaruber/sommer/issues
 URL: https://github.com/covaruber/sommer

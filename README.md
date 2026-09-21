@@ -9,6 +9,19 @@ You can install the development version of `sommer` from GitHub:
 ``` r
 remotes::install_github('covaruber/sommer')
 ```
+
+## Using `sommer` code and the GPL license
+
+Please be aware that the `sommer` project is open-source software released under the GNU General Public License (GPL). The GPL gives you the freedom to use, study, modify, and redistribute the software, subject to the conditions of the license.
+
+In particular, if you copy, modify, or create a work based on GPL-covered `sommer` source code and **distribute that work**, the GPL imposes requirements on how the resulting work may be licensed and distributed. Among other things, recipients must retain the freedoms provided by the GPL, and when GPL-covered software is distributed in binary or other non-source form, the corresponding source code must also be made available in accordance with the GPL.
+
+Therefore, the fact that `sommer` is free and open-source does **not** mean that its source code can be copied into another software package, modified, redistributed as a proprietary product, and kept secret. If your project contains or is based on GPL-covered `sommer` code, please carefully review the GPL requirements before distributing it.
+
+The purpose of the `sommer` project is to encourage open collaboration, reproducibility, and continued improvement of statistical and quantitative-genetics software. Contributions and derivative work are welcome, but they should respect the freedoms and obligations established by the GPL.
+
+Please read the full GPL license distributed with `sommer` before incorporating `sommer` source code into another project.
+
  
 ## Development
 
