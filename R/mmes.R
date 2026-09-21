@@ -39,11 +39,22 @@ mmes <- function(fixed, random, rcov, data, W,
   }
   
   expr_label <- function(x) paste(deparse(x, width.cutoff=500L), collapse="")
+
+  call_name <- function(expr){
+    if(!is.call(expr)) return(NULL)
+    head <- expr[[1L]]
+    if(is.symbol(head)) return(as.character(head))
+    if(is.call(head) && length(head) == 3L &&
+       as.character(head[[1L]]) %in% c("::", ":::")){
+      return(as.character(head[[3L]]))
+    }
+    NULL
+  }
   
   has_call <- function(expr, names){
     if(!is.call(expr)) return(FALSE)
-    head <- as.character(expr[[1L]])
-    if(head %in% names) return(TRUE)
+    head <- call_name(expr)
+    if(length(head) == 1L && head %in% names) return(TRUE)
     any(vapply(as.list(expr)[-1L], has_call, logical(1), names=names))
   }
   
