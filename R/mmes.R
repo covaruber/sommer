@@ -378,6 +378,7 @@ mmes <- function(fixed, random, rcov, data, W,
   
   if(length(randomFits) && length(rtermss)){
     names(res$theta) <- c(rtermss, residualLabel)
+    names(res$covPar) <- c(rtermss, residualLabel)
     names(res$partitions) <- rtermss
     names(res$uList) <- rtermss
     if(getPEV && computeCi > 0) names(res$uPevList) <- rtermss

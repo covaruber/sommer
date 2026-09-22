@@ -43,6 +43,7 @@ export(
         # mmes
        summary.mmes, residuals.mmes, fitted.mmes, coef.mmes,
        anova.mmes, plot.mmes, predict.mmes, pmonitor,
+       loadings_mmes, scores_mmes,
         # others
        randef)
 
