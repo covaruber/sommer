@@ -19,7 +19,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
     verbose=FALSE
   )
 
-  term_fa <- names(fit_fa$covStruct)[1]
+  term_fa <- names(fit_fa$uList)[1]
   fa <- loadings_mmes(fit_fa, term_fa)
 
   expect_equal(dim(fa$loadings), c(6L, 2L))
@@ -47,7 +47,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
     verbose=FALSE
   )
 
-  term_rr <- names(fit_rr$covStruct)[1]
+  term_rr <- names(fit_rr$uList)[1]
   rr <- loadings_mmes(fit_rr, term_rr)
 
   expect_equal(dim(rr$loadings), c(6L, 1L))

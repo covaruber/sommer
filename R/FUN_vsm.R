@@ -1486,6 +1486,7 @@ csm <- function(x, rho=0.10, fixed=FALSE,
     par <- c(eta_rho, eta_var)
 
     if(is.null(fixed) || identical(fixed, FALSE)) fixed <- rep(FALSE, length(par))
+    if(identical(fixed, TRUE)) fixed <- rep(TRUE, length(par))
     if(length(fixed) != length(par)){
       stop("fixed in heterogeneous csm() must have length q: rho plus q-1 variance ratios.",
            call. = FALSE)
@@ -2194,6 +2195,9 @@ usm <- function(x, theta=NULL, fixed=NULL){
   par <- c(atanh(pacf), log((values / values[1])[-1]))
   if(is.null(fixed) || identical(fixed, FALSE)){
     fixed <- rep(FALSE, length(par))
+  }
+  if(identical(fixed, TRUE)){
+    fixed <- rep(TRUE, length(par))
   }
   if(length(fixed) != length(par)){
     stop("fixed in heterogeneous AR() must have length order + q - 1.",
