@@ -176,6 +176,177 @@
   print((x))
 }
 
+#### =========== ####################
+## FACTOR-ANALYTIC LOADINGS/SCORES ##
+#### =========== ####################
+
+# Locate the single fam()/rrcm()-shaped term in a fitted mmes object and
+# return its compiled factor descriptor together with the natural-scale
+# parameter slice needed to rebuild loadings/specific variances.
+#
+# object$covStruct itself carries no names, but it is built in the same
+# order as object$theta (random terms first, residual term last), which is
+# named. Term names are therefore resolved through object$theta.
+.mmes_fa_term <- function(object, term=NULL){
+
+  if(!inherits(object, "mmes")){
+    stop("object must be a fitted mmes model.", call.=FALSE)
+  }
+
+  structNames <- names(object$theta)
+  if(is.null(structNames) || length(structNames) != length(object$covStruct)){
+    stop("Internal mismatch between object$theta and object$covStruct.", call.=FALSE)
+  }
+
+  candidates <- character()
+  for(i in seq_along(object$covStruct)){
+    fs <- object$covStruct[[i]]$factors
+    if(length(fs) == 1L && isTRUE(fs[[1]]$model %in% c("fa","rr"))){
+      candidates <- c(candidates, structNames[i])
+    }
+  }
+
+  if(is.null(term)){
+    if(length(candidates) == 0L){
+      stop("No fam()/rrcm() covariance term was found in this model.", call.=FALSE)
+    }
+    if(length(candidates) > 1L){
+      stop(
+        paste0(
+          "Multiple fam()/rrcm() terms were found; please specify term as one of: ",
+          paste(candidates, collapse=", ")
+        ),
+        call.=FALSE
+      )
+    }
+    term <- candidates[1]
+  }
+
+  pos <- match(term, structNames)
+  if(is.na(pos)){
+    stop(
+      paste0(
+        "term '", term, "' was not found. Available terms: ",
+        paste(structNames, collapse=", ")
+      ),
+      call.=FALSE
+    )
+  }
+
+  factors <- object$covStruct[[pos]]$factors
+  if(length(factors) != 1L || !isTRUE(factors[[1]]$model %in% c("fa","rr"))){
+    stop(
+      paste0(
+        "term '", term, "' is not a single fam()/rrcm() covariance-shaping factor. ",
+        "Terms combining fam()/rrcm() with additional shaping factors are not yet supported."
+      ),
+      call.=FALSE
+    )
+  }
+
+  list(term=term, pos=pos, factor=factors[[1]])
+}
+
+# Reconstruct the normalized loadings (Lambda) and specific variances (Psi)
+# of a fam()/rrcm() term such that sigma2*(Lambda %*% t(Lambda) + diag(Psi))
+# reproduces object$theta[[term]] exactly (up to floating-point roundoff).
+"loadings_mmes" <- function(object, term=NULL){
+
+  located <- .mmes_fa_term(object, term)
+  term <- located$term
+  f <- located$factor
+
+  q <- f$dim
+  k <- f$order
+  levels <- f$levels
+
+  covPar <- object$covPar[[located$pos]]
+  natural <- covPar[f$par_start:f$par_end]
+
+  if(f$model == "fa"){
+    nload <- f$fa_nload
+    rows <- f$fa_row
+    cols <- f$fa_col
+  }else{
+    nload <- f$rr_nload
+    rows <- f$rr_row
+    cols <- f$rr_col
+  }
+
+  loadingsRaw <- matrix(0, q, k)
+  for(a in seq_len(nload)){
+    loadingsRaw[rows[a], cols[a]] <- natural[a]
+  }
+
+  specificRaw <- rep(1, q)
+  if(f$model == "fa" && q > 1L){
+    specificRaw[-1] <- natural[nload + seq_len(q-1L)]
+  }
+
+  scale <- loadingsRaw[1,1]^2 + specificRaw[1]
+
+  loadings <- loadingsRaw / sqrt(scale)
+  specific <- specificRaw / scale
+
+  dimnames(loadings) <- list(levels, paste0("F", seq_len(k)))
+  names(specific) <- levels
+
+  list(
+    loadings=loadings,
+    specific=specific,
+    sigma2=unname(covPar[1]),
+    model=f$model,
+    term=term
+  )
+}
+
+# Predict per-level latent factor scores for a fam()/rrcm() term from its
+# fitted loadings, covariance, and BLUPs. method="regression" (Thomson) uses
+# the full fitted covariance; method="bartlett" uses only the specific
+# (residual) variances and is the classic unbiased factor-score estimator.
+"scores_mmes" <- function(object, term=NULL, method=c("regression","bartlett")){
+
+  method <- match.arg(method)
+  fa <- loadings_mmes(object, term)
+  term <- fa$term
+
+  if(is.null(object$uList[[term]])){
+    stop(
+      paste0(
+        "term '", term, "' has no BLUPs (it is a residual covariance structure); ",
+        "scores_mmes() requires a random-effect fam()/rrcm() term."
+      ),
+      call.=FALSE
+    )
+  }
+
+  L <- fa$loadings
+  Sigma <- object$theta[[term]]
+  U <- object$uList[[term]]
+
+  if(!all(rownames(L) %in% colnames(U))){
+    stop(
+      paste0(
+        "Internal mismatch between term '", term, "' loadings levels and BLUP levels."
+      ),
+      call.=FALSE
+    )
+  }
+  U <- U[, rownames(L), drop=FALSE]
+
+  if(method == "regression"){
+    SigmaInv <- solve(Sigma)
+    scores <- U %*% SigmaInv %*% L
+  }else{
+    PsiInv <- diag(1/(fa$sigma2 * fa$specific), nrow=length(fa$specific))
+    scores <- U %*% PsiInv %*% L %*% solve(t(L) %*% PsiInv %*% L)
+  }
+
+  rownames(scores) <- rownames(U)
+  colnames(scores) <- colnames(L)
+  scores
+}
+
 #### =========== ####
 ## ANOVA FUNCTION ###
 #### =========== ####

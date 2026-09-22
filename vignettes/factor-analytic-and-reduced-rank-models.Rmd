@@ -1,0 +1,218 @@
+---
+title: "Factor analytic and reduced rank models in sommer"
+author: "Giovanny Covarrubias-Pazaran"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Factor analytic and reduced rank models in sommer}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+The sommer package was developed to provide R users with a flexible univariate and multivariate linear mixed-model solver. Multi-environment trial (MET) analyses often need a genetic covariance structure among environments. A fully unstructured covariance (`usm()`) captures every pairwise environment relationship but requires $q(q+1)/2-1$ parameters for $q$ environments, which quickly becomes difficult to estimate reliably as the number of environments grows. Factor-analytic (FA) and reduced-rank (RR) models approximate that same covariance with far fewer parameters by assuming that genotype-by-environment interaction is driven by a small number of latent factors.
+
+This vignette focuses on the `fam()` and `rrcm()` covariance-shaping factors used inside `vsm()`, and on the `loadings_mmes()`/`scores_mmes()` helper functions used to extract and visualize their fitted quantities.
+
+**SECTION 1: Theory**
+
+1) Why reduce the cross-environment covariance
+2) The factor-analytic (FA) model
+3) The reduced-rank (RR) model
+4) Choosing k and comparing to other structures
+
+**SECTION 2: Fitting factor-analytic and reduced-rank models**
+
+1) Data
+2) Factor-analytic model with `fam()`
+3) Reduced-rank model with `rrcm()`
+4) Comparing FA and RR
+
+**SECTION 3: Extracting loadings, scores, and diagnostic plots**
+
+1) Loadings and specific variances
+2) Genotype scores
+3) Percentage of variance explained
+4) Loadings plot
+5) Genotype scores biplot
+6) Heatmap of the fitted genetic correlation matrix
+
+## SECTION 1: Theory
+
+### 1) Why reduce the cross-environment covariance
+
+Let $q$ be the number of environments and $G$ the $q\times q$ genetic covariance matrix among them. An unstructured model estimates every variance and covariance directly, $q(q+1)/2-1$ working parameters after removing the single overall scale owned by `vsm()`. As $q$ grows, this saturated model becomes weakly identified relative to the available genotype replication, and its estimates become unstable. Diagonal (`dsm()`) and compound-symmetry (`csm()`) models are far more parsimonious but assume, respectively, no genetic correlation among environments or one common correlation everywhere. Factor-analytic and reduced-rank models sit between these extremes: they estimate genuine environment-specific covariance patterns while controlling the number of parameters through a rank $k \ll q$.
+
+### 2) The factor-analytic (FA) model
+
+The FA model represents the environment covariance shape as
+
+$$
+K = \Lambda\Lambda^{\mathsf T} + \Psi,
+$$
+
+where $\Lambda$ is a $q\times k$ loading matrix and $\Psi$ is a diagonal matrix of environment-specific variances. Each environment's genetic variance is split into a part explained by the $k$ common latent factors ($\Lambda\Lambda^{\mathsf T}$) and a part unique to that environment ($\Psi$). `vsm()` still owns the single overall variance scale, so `fam(x, k)` reports a normalized shape with $K_{11}=1$; the number of estimated working parameters for $k$ factors and $q$ environments is
+
+$$
+kq-\frac{k(k-1)}{2} + (q-1),
+$$
+
+the first term for the (rotationally-constrained, lower-triangular) loadings and the second for the environment-specific variance ratios.
+
+### 3) The reduced-rank (RR) model
+
+The RR model uses the same loading structure but fixes the environment-specific remainder to be homogeneous:
+
+$$
+K = \Lambda\Lambda^{\mathsf T} + I.
+$$
+
+`rrcm(x, k)` therefore has
+
+$$
+kq-\frac{k(k-1)}{2}
+$$
+
+working parameters: exactly $q-1$ fewer than `fam(x, k)`, because it does not estimate separate environment-specific variances. RR is a restricted (nested) special case of FA in which every environment is assumed to have the same residual/specific variance after accounting for the $k$ common factors. It is useful when there is not enough replication to support $q$ separate specific variances, or as a more parsimonious first approximation before fitting the full FA model.
+
+### 4) Choosing k and comparing to other structures
+
+Increasing $k$ moves the model continuously from compound symmetry-like behavior ($k=0$, not directly supported, but conceptually the limit) toward the saturated unstructured model ($k=q-1$). In practice $k$ is chosen small enough to remain identifiable and interpretable (often 1-3 factors), and increased only if it meaningfully improves the likelihood. Because RR is nested inside FA with the same $k$, `anova.mmes()` can be used to test whether the extra $q-1$ FA specific-variance parameters are supported by the data.
+
+## SECTION 2: Fitting factor-analytic and reduced-rank models
+
+### 1) Data
+
+We use the `DT_h2` multi-environment potato yield dataset, which has 15 environments (`Env`, combining location and year) and 41 genotypes (`Name`).
+
+```{r}
+library(sommer)
+data(DT_h2, package="enhancer")
+DT <- DT_h2
+DT <- DT[with(DT, order(Env)), ]
+length(unique(DT$Env))
+length(unique(DT$Name))
+head(DT)
+```
+
+### 2) Factor-analytic model with `fam()`
+
+```{r}
+fitFA <- mmes(y ~ Env,
+              random = ~ vsm(fam(Env, 2), ism(Name)),
+              rcov = ~ units,
+              nIters = 150, verbose = FALSE,
+              data = DT)
+summary(fitFA)$varcomp
+```
+
+### 3) Reduced-rank model with `rrcm()`
+
+```{r}
+fitRR <- mmes(y ~ Env,
+              random = ~ vsm(rrcm(Env, 2), ism(Name)),
+              rcov = ~ units,
+              nIters = 150, verbose = FALSE,
+              data = DT)
+summary(fitRR)$varcomp
+```
+
+### 4) Comparing FA and RR
+
+Because `rrcm(Env, 2)` is nested inside `fam(Env, 2)` (both use rank 2, but RR fixes the specific variances to be equal), we can compare them with a likelihood ratio test:
+
+```{r}
+c(AIC_FA = fitFA$AIC, AIC_RR = fitRR$AIC)
+anova.mmes(fitFA, fitRR)
+```
+
+A lower AIC/BIC and a significant likelihood ratio test favor the less restrictive FA model whenever the data support heterogeneous environment-specific variances.
+
+## SECTION 3: Extracting loadings, scores, and diagnostic plots
+
+### 1) Loadings and specific variances
+
+`loadings_mmes()` reconstructs the fitted, normalized loadings $\Lambda$ and specific variances $\Psi$ so that $\sigma^2(\Lambda\Lambda^{\mathsf T}+\Psi)$ reproduces the fitted covariance matrix exactly.
+
+```{r}
+faInfo <- loadings_mmes(fitFA)
+round(faInfo$loadings, 3)
+round(faInfo$specific, 3)
+faInfo$sigma2
+```
+
+```{r}
+rrInfo <- loadings_mmes(fitRR)
+round(rrInfo$specific, 3)
+```
+
+Notice that `rrInfo$specific` is constant across environments: this is the direct consequence of `rrcm()` fixing a homogeneous specific variance, unlike the heterogeneous values in `faInfo$specific`.
+
+### 2) Genotype scores
+
+`scores_mmes()` predicts each genotype's position on the $k$ latent factors from its BLUPs, the fitted loadings, and the fitted covariance.
+
+```{r}
+faScores <- scores_mmes(fitFA)
+head(faScores)
+```
+
+### 3) Percentage of variance explained
+
+A standard factor-analytic diagnostic is the proportion of total genetic variance attributed to each latent factor:
+
+```{r}
+varPerFactor <- colSums(faInfo$loadings^2)
+totalVar <- sum(faInfo$loadings^2) + sum(faInfo$specific)
+propExplained <- varPerFactor / totalVar
+round(100 * propExplained, 1)
+```
+
+### 4) Loadings plot
+
+Plotting the loadings by environment shows which environments are most associated with each latent factor.
+
+```{r, fig.show='hold'}
+barplot(t(faInfo$loadings), beside = TRUE,
+        col = c("steelblue4", "tomato"),
+        las = 2, cex.names = 0.7,
+        ylab = "Loading",
+        main = "Factor-analytic loadings by environment")
+legend("topright", legend = colnames(faInfo$loadings),
+       fill = c("steelblue4", "tomato"), bty = "n")
+```
+
+### 5) Genotype scores biplot
+
+```{r, fig.show='hold'}
+plot(faScores[,2] ~ faScores[,1],
+     xlab = "Factor 1 score", ylab = "Factor 2 score",
+     main = "Genotype scores")
+text(faScores[,2] ~ faScores[,1], labels = rownames(faScores),
+     cex = 0.6, pos = 1)
+abline(h = 0, v = 0, lty = 3)
+```
+
+### 6) Heatmap of the fitted genetic correlation matrix
+
+The normalized loadings and specific variances returned by `loadings_mmes()` can be combined directly into the fitted genetic covariance, and then converted to a correlation matrix for visualization.
+
+```{r, fig.show='hold'}
+Sigma <- faInfo$sigma2 * (
+  faInfo$loadings %*% t(faInfo$loadings) + diag(faInfo$specific)
+)
+corMat <- cov2cor(Sigma)
+heatmap(corMat, symm = TRUE,
+        main = "Fitted genetic correlation among environments")
+```
+
+Environments with a strong positive fitted correlation cluster together in the heatmap, while environments explained by different latent factors, or with a large specific variance, appear less correlated with the rest.
+
+## Literature
+
+Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6):1-15.
+
+Smith AB, Cullis BR, Thompson R. 2001. Analyzing variety by environment data using multiplicative mixed models and expectations of trials. Biometrics 57(4).
+
+Thompson R, Cullis B, Smith A, Gilmour A. 2003. A sparse implementation of the average information algorithm for factor analytic and reduced rank variance models. Australian & New Zealand Journal of Statistics 45(4).
+
+Gilmour AR, Thompson R, Cullis BR. 1995. Average Information REML: An efficient algorithm for variance parameter estimation in linear mixed models. Biometrics 51:1440-1450.
