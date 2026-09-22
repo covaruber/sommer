@@ -4116,6 +4116,31 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           arma::fill::zeros
         );
 
+        double referenceLogLoading = 0.0;
+
+        for(int a = 0; a < nload; ++a){
+          if(rr[a] == 1 && cc[a] == 1 && dd[a]){
+            referenceLogLoading =
+              localPar(static_cast<arma::uword>(a));
+            break;
+          }
+        }
+
+        const double twiceReferenceLogLoading =
+          2.0 * referenceLogLoading;
+
+        const double logScale =
+          twiceReferenceLogLoading > 0.0
+          ?
+          twiceReferenceLogLoading
+          +
+          std::log1p(std::exp(-twiceReferenceLogLoading))
+          :
+          std::log1p(std::exp(twiceReferenceLogLoading));
+
+        const double inverseReferenceSd =
+          std::exp(-0.5 * logScale);
+
         for(int a = 0; a < nload; ++a){
 
           const arma::uword i =
@@ -4135,11 +4160,15 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
               localPar(
                 static_cast<arma::uword>(a)
               )
+              -
+              0.5 * logScale
             )
             :
             localPar(
               static_cast<arma::uword>(a)
-            );
+            )
+            *
+            inverseReferenceSd;
 
           L(i,j) =
             value;
@@ -4147,8 +4176,11 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
 
         arma::vec psi(
           q,
-          arma::fill::ones
+          arma::fill::zeros
         );
+
+        psi(0) =
+          std::exp(-logScale);
 
         for(arma::uword i = 1; i < q; ++i){
 
@@ -4161,25 +4193,17 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                 -
                 1
               )
+              -
+              logScale
             );
         }
 
-        arma::mat M =
+        return
           L * L.t()
           +
           arma::diagmat(
             psi
           );
-
-        const double scale =
-          M(0,0);
-
-        if(!std::isfinite(scale) || scale <= 0.0){
-          Rcpp::stop("Invalid factor-analytic normalization.");
-        }
-
-        return
-          M / scale;
       }
 
       if(op == "ante"){
@@ -4701,6 +4725,37 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           covDescriptor[static_cast<std::size_t>(iStruct)],
           par
         );
+    };
+
+  auto tryEvaluateStructure =
+    [&](const int iStruct,
+        const arma::vec & par,
+        arma::mat & value) -> bool {
+
+      if(!par.is_finite()){
+        return false;
+      }
+
+      try{
+        value =
+          evaluateStructure(
+            iStruct,
+            par
+          );
+      }catch(const std::exception &){
+        return false;
+      }
+
+      return
+        value.n_rows
+        ==
+        theta(iStruct).n_rows
+        &&
+        value.n_cols
+        ==
+        theta(iStruct).n_cols
+        &&
+        value.is_finite();
     };
 
   // move Z to sparse arma objects
@@ -9144,11 +9199,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             }
           }
 
-          arma::mat m =
-            evaluateStructure(
-              iStruct,
-              localPar
-            );
+          arma::mat m;
+
+          if(!tryEvaluateStructure(iStruct, localPar, m)){
+            return false;
+          }
 
           m =
             arma::symmatu(m);
@@ -9825,14 +9880,32 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           nVcEnd(i)-1
         );
 
-      covPar(i) =
+      const arma::vec proposedParameters =
         expectedNewTheta(toFill);
 
-      theta(i) =
-        evaluateStructure(
-          i,
-          covPar(i)
-        );
+      arma::mat proposedTheta;
+
+      if(tryEvaluateStructure(i, proposedParameters, proposedTheta)){
+        covPar(i) =
+          proposedParameters;
+
+        theta(i) =
+          proposedTheta;
+      }else{
+        covPar(i) =
+          lineSearchBase(toFill);
+
+        lineSearchTarget(toFill) =
+          lineSearchBase(toFill);
+
+        if(verbose){
+          Rcpp::Rcout
+            << "Covariance structure "
+            << i + 1
+            << " became invalid after joint trust scaling; retaining its previous accepted value."
+            << arma::endl;
+        }
+      }
 
       if(covType[static_cast<std::size_t>(i)] == "legacy"){
 

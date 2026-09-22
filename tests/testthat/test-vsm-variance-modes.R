@@ -25,11 +25,14 @@ test_that("correlation variance modes create consistent covariance descriptors",
   }
 })
 
-test_that("heterogeneous variance mode validates its fixed parameters", {
+test_that("heterogeneous variance mode expands scalar FALSE fixed values", {
   levels4 <- factor(rep(1:4, each=2))
 
+  ar1 <- ar1m(levels4, variance="heterogeneous", fixed=FALSE)
+  expect_false(any(ar1$covFactor$free == FALSE))
+
   expect_error(
-    ar1m(levels4, variance="heterogeneous", fixed=FALSE),
+    ar1m(levels4, variance="heterogeneous", fixed=TRUE),
     "length order + q - 1"
   )
   expect_error(

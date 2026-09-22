@@ -2192,7 +2192,9 @@ usm <- function(x, theta=NULL, fixed=NULL){
          call. = FALSE)
   }
   par <- c(atanh(pacf), log((values / values[1])[-1]))
-  if(is.null(fixed)) fixed <- rep(FALSE, length(par))
+  if(is.null(fixed) || identical(fixed, FALSE)){
+    fixed <- rep(FALSE, length(par))
+  }
   if(length(fixed) != length(par)){
     stop("fixed in heterogeneous AR() must have length order + q - 1.",
          call. = FALSE)
