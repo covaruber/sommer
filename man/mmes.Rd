@@ -80,8 +80,7 @@ mmes(fixed, random, rcov, data, W,
 
   \code{\link{usm}} for an unstructured covariance matrix;
 
-  \code{\link{csm}}, \code{\link{corm}}, \code{\link{corvm}},
-  \code{\link{corhm}}, and \code{\link{corgm}} for correlation structures;
+  \code{\link{csm}} and \code{\link{corgm}} for correlation structures;
 
   \code{\link{ar1m}}, \code{\link{ar2m}}, and \code{\link{ar3m}} for
   autoregressive covariance structures;

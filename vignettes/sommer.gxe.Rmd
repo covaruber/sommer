@@ -150,12 +150,12 @@ summary(ansRR)
 
 ## 7) Other GxE covariance structures
 
-Many structured covariance models can be used for GxE when their assumptions are appropriate for the ordering or relationship among environments. In the example below `corm(Env)` specifies a homogeneous correlation structure for the environment covariance factor. Other available structures, such as autoregressive models for meaningfully ordered environments, can be substituted within the same `vsm()` product architecture.
+Many structured covariance models can be used for GxE when their assumptions are appropriate for the ordering or relationship among environments. In the example below `csm(Env)` specifies a homogeneous correlation structure for the environment covariance factor. Other available structures, such as autoregressive models for meaningfully ordered environments, can be substituted within the same `vsm()` product architecture.
 
 ```{r}
 
 ansAR1 <- mmes(Yield~Env,
-              random= ~ vsm(corm(Env),ism(Name)),
+              random= ~ vsm(csm(Env),ism(Name)),
               rcov= ~ units,
               data=DT, verbose = FALSE)
 summary(ansAR1)

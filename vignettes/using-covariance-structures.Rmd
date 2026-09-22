@@ -1,0 +1,334 @@
+---
+title: "Using covariance structures with sommer"
+author: "Giovanny Covarrubias-Pazaran"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Using covariance structures with sommer}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+The `sommer` package fits mixed models with structured covariance models for random effects and residuals. In `mmes()`, covariance structures are supplied through `vsm()`. This vignette explains the relation between `vsm()`, the covariance constructors, and the internal CovarianceFactor descriptor used by the Henderson mixed-model solver.
+
+**SECTION 1: Covariance structures in `vsm()`**
+
+1) The product-level variance scale
+2) Covariance-shaping factors
+3) Homogeneous and heterogeneous marginal variances
+
+**SECTION 2: Fitting structured models**
+
+1) Compound symmetry
+2) Autoregressive covariance
+3) Fixing covariance parameters
+
+**SECTION 3: CovarianceFactor descriptors**
+
+1) Complete covariance-structure catalog
+2) Combining two simple effects with `covm()`
+
+**SECTION 4: CovarianceFactor descriptors**
+
+1) Descriptor fields
+2) Working and reported parameters
+
+## SECTION 1: Covariance structures in `vsm()`
+
+### 1) The product-level variance scale
+
+Each `vsm()` term owns one overall variance parameter, `sigma2`. The covariance constructors inside `vsm()` define dimensionless covariance shapes. If the supplied factors are $K_1,\ldots,K_m$, the covariance represented by one `vsm()` term is
+
+$$
+\Sigma = \sigma^2(K_1 \otimes K_2 \otimes \cdots \otimes K_m).
+$$
+
+This convention avoids confounding several absolute variance scales in the same Kronecker product. The `sigma2` argument supplies a starting value, and `fixedSigma2 = TRUE` fixes that overall scale.
+
+### 2) Covariance-shaping factors
+
+The final argument to `vsm()` is the main-effect incidence term. All preceding arguments are covariance-shaping factors. For example, the following structure has an environment covariance factor, an AR(1) row covariance factor, and an identity covariance among genotypes:
+
+```{r, eval=FALSE}
+vsm(
+  dsm(Env),
+  ar1m(Row),
+  ism(Name)
+)
+```
+
+The factors are combined from left to right. Earlier factors index the slow dimension of the Kronecker product and later factors index the fast dimension. A known relationship precision matrix can be supplied through `Gu` for the levels of the final main-effect term.
+
+Common covariance constructors include `ism()` for an identity shape, `dsm()` for diagonal relative variances, `csm()` for compound symmetry, `ar1m()` through `ar3m()` for autoregressive correlations, `usm()` for an unstructured covariance, and `corgm()` for a general correlation matrix.
+
+### 3) Homogeneous and heterogeneous marginal variances
+
+Correlation structures support a common `variance` argument. The default is `"homogeneous"`. For compound symmetry with correlation matrix $C(\rho)$, the two modes are
+
+$$
+K = C(\rho)
+$$
+
+and
+
+$$
+K = D C(\rho) D,
+\qquad D = \mathrm{diag}(1,\sqrt{r_2},\ldots,\sqrt{r_q}).
+$$
+
+The heterogeneous mode estimates $q-1$ positive variance ratios. The first level is the reference; its absolute variance is represented by `vsm(..., sigma2 = ...)`. The same convention applies to `ar1m()`, `ar2m()`, and `ar3m()`.
+
+## SECTION 2: Fitting structured models
+
+```{r, eval=FALSE}
+library(sommer)
+data(DT_example, package="enhancer")
+DT <- DT_example
+```
+
+### 1) Compound symmetry
+
+The following model fits a homogeneous compound-symmetry covariance among environments for genotype effects:
+
+```{r, eval=FALSE}
+fit_cs <- mmes(
+  Yield ~ Env,
+  random = ~ vsm(csm(Env), ism(Name)),
+  rcov = ~ vsm(ism(units)),
+  data = DT,
+  verbose = FALSE
+)
+```
+
+To estimate environment-specific variance ratios while retaining the same common correlation, select heterogeneous variance mode. `values` supplies positive starting marginal variances:
+
+```{r, eval=FALSE}
+n_env <- nlevels(factor(DT$Env))
+
+fit_csh <- mmes(
+  Yield ~ Env,
+  random = ~ vsm(
+    csm(Env, variance="heterogeneous", values=rep(1, n_env)),
+    ism(Name)
+  ),
+  rcov = ~ vsm(ism(units)),
+  data = DT,
+  verbose = FALSE
+)
+```
+
+The homogeneous and heterogeneous models have one overall random-effect variance from `vsm()`. The heterogeneous model additionally estimates one common correlation and $q-1$ environment variance ratios.
+
+### 2) Autoregressive covariance
+
+For ordered levels, use an autoregressive correlation. The following example fits an AR(1) covariance with heterogeneous marginal variances:
+
+```{r, eval=FALSE}
+DT$EnvOrder <- factor(DT$Env, levels=unique(DT$Env), ordered=TRUE)
+n_env <- nlevels(DT$EnvOrder)
+
+fit_ar1h <- mmes(
+  Yield ~ Env,
+  random = ~ vsm(
+    ar1m(EnvOrder, rho=0.30, variance="heterogeneous",
+         values=rep(1, n_env)),
+    ism(Name)
+  ),
+  rcov = ~ vsm(ism(units)),
+  data = DT,
+  verbose = FALSE
+)
+```
+
+For AR(2) and AR(3), use `ar2m()` or `ar3m()` and provide starting partial autocorrelations through `pacf`. Their heterogeneous mode uses the same `variance` and `values` arguments.
+
+### 3) Fixing covariance parameters
+
+The `fixed` argument belongs to the covariance constructor and fixes its factor parameters. In a heterogeneous compound-symmetry model, its order is the common correlation followed by the $q-1$ variance ratios. The following keeps all environment variance ratios at one while estimating the common correlation:
+
+```{r, eval=FALSE}
+n_env <- nlevels(factor(DT$Env))
+
+environment_cs <- csm(
+  DT$Env,
+  variance="heterogeneous",
+  values=rep(1, n_env),
+  fixed=c(FALSE, rep(TRUE, n_env - 1L))
+)
+```
+
+To fix a residual variance to one, fix the product-level `vsm()` scale rather than a covariance-factor parameter:
+
+```{r, eval=FALSE}
+fit_fixed_residual <- mmes(
+  Yield ~ Env,
+  random = ~ vsm(ism(Name)),
+  rcov = ~ vsm(ism(units), sigma2=1, fixedSigma2=TRUE),
+  data = DT,
+  verbose = FALSE
+)
+```
+
+For a heterogeneous residual structure, `fixedSigma2=TRUE` fixes the reference residual variance. Fixing the associated variance-ratio entries to `TRUE` fixes the other marginal residual variances relative to that reference.
+
+## SECTION 3: Complete covariance-structure catalog
+
+The following catalog uses the same `DT_example` data throughout. It creates an ordered environment factor for time-series structures, a one-dimensional environment coordinate for the Matérn structure, and a named chain adjacency matrix for SAR and CAR structures. The code is shown with `eval=FALSE` because fitting every candidate model is illustrative rather than a recommended model-selection workflow.
+
+```{r, eval=FALSE}
+library(sommer)
+data(DT_example, package="enhancer")
+DT <- DT_example
+
+env_levels <- unique(as.character(DT$Env))
+DT$EnvOrder <- factor(DT$Env, levels=env_levels, ordered=TRUE)
+DT$EnvCoordinate <- as.numeric(DT$EnvOrder)
+n_env <- length(env_levels)
+
+# DT_example has three environments. AR(3) needs at least four ordered
+# levels, so this demonstration-only partition is used for the AR(3) rows
+# below. Replace it with a scientific time, distance, or ordered factor.
+DT$CatalogOrder <- factor(rep(seq_len(4L), length.out=nrow(DT)), ordered=TRUE)
+n_catalog <- nlevels(DT$CatalogOrder)
+
+# Named first-neighbour adjacency among ordered environments.
+W_env <- matrix(0, n_env, n_env,
+                dimnames=list(env_levels, env_levels))
+W_env[cbind(seq_len(n_env - 1L), 2:n_env)] <- 1
+W_env[cbind(2:n_env, seq_len(n_env - 1L))] <- 1
+
+# A known positive-definite covariance shape for ownm().
+K_env <- 0.40 ^ abs(outer(seq_len(n_env), seq_len(n_env), "-"))
+
+# Every object below has the same observation layout and can be used as
+# a covariance factor in vsm(shape, ism(Name)). Most use EnvOrder; AR(3)
+# uses CatalogOrder because EnvOrder has too few levels for that structure.
+environment_shapes <- list(
+  identity = ism(DT$EnvOrder),
+  diagonal = dsm(DT$EnvOrder),
+  selected_diagonal = atm(DT$EnvOrder, levs=env_levels[1:3]),
+  compound_symmetry = csm(DT$EnvOrder),
+  compound_symmetry_heterogeneous = csm(
+    DT$EnvOrder, variance="heterogeneous", values=rep(1, n_env)
+  ),
+  ar1 = ar1m(DT$EnvOrder),
+  ar1_heterogeneous = ar1m(
+    DT$EnvOrder, variance="heterogeneous", values=rep(1, n_env)
+  ),
+  ar2 = ar2m(DT$EnvOrder),
+  ar2_heterogeneous = ar2m(
+    DT$EnvOrder, variance="heterogeneous", values=rep(1, n_env)
+  ),
+  ar3 = ar3m(DT$CatalogOrder),
+  ar3_heterogeneous = ar3m(
+    DT$CatalogOrder, variance="heterogeneous", values=rep(1, n_catalog)
+  ),
+  ma1 = mam(DT$EnvOrder, order=1L),
+  ma2 = mam(DT$EnvOrder, order=2L),
+  unstructured = usm(DT$EnvOrder),
+  general_correlation = corgm(DT$EnvOrder),
+  factor_analytic = fam(DT$EnvOrder, k=1L),
+  antedependence = antem(DT$EnvOrder, order=1L),
+  user_defined = ownm(DT$EnvOrder, K=K_env),
+  reduced_rank = rrcm(DT$EnvOrder, k=1L),
+  matern = maternm(DT$EnvCoordinate),
+  toeplitz = toeplitzm(DT$EnvOrder),
+  sar = sar(DT$EnvOrder, W=W_env),
+  car = car(DT$EnvOrder, W=W_env)
+)
+```
+
+`mam(order=1L)` and `mam(order=2L)` are the canonical moving-average interfaces; `ma1m()` and `ma2m()` are convenience wrappers. `atm()` is a selected-level diagonal structure: observations outside `levs` have zero incidence in that covariance factor, so it is appropriate only when that selected-level interpretation is intended. The AR(3) entries use `CatalogOrder` only because `DT_example` has three environment levels; an AR(3) analysis requires at least four scientifically meaningful ordered levels.
+
+The common fitting pattern is identical for all entries in `environment_shapes`:
+
+```{r, eval=FALSE}
+fit_environment_shape <- function(shape){
+  mmes(
+    Yield ~ Env,
+    random = ~ vsm(shape, ism(DT$Name)),
+    rcov = ~ vsm(ism(units)),
+    data = DT,
+    verbose = FALSE
+  )
+}
+
+fit_identity <- fit_environment_shape(environment_shapes$identity)
+fit_ar1 <- fit_environment_shape(environment_shapes$ar1)
+fit_matern <- fit_environment_shape(environment_shapes$matern)
+fit_car <- fit_environment_shape(environment_shapes$car)
+```
+
+The constructors differ in their assumptions and parameters:
+
+* `ism()` has no factor parameters and specifies independent, equal-variance levels.
+* `dsm()` estimates positive relative variances; `atm()` does the same for a chosen subset of levels.
+* `csm()` estimates a common correlation, with optional heterogeneous variance ratios through `variance="heterogeneous"`.
+* `ar1m()`, `ar2m()`, and `ar3m()` use stationary ordered-level correlations. AR(2) and AR(3) use partial autocorrelations, and all AR functions offer homogeneous or heterogeneous marginal variances.
+* `mam()` specifies an MA(1) or MA(2) correlation with zero correlation beyond its order.
+* `usm()` estimates a fully unstructured positive-definite covariance, whereas `corgm()` estimates a general correlation matrix and leaves marginal scale to `vsm()`.
+* `fam()` fits a reduced factor-analytic covariance plus specific variances; `rrcm()` fits a reduced-rank covariance with an identity remainder.
+* `antem()` uses a modified-Cholesky antedependence covariance with ordered levels.
+* `ownm()` accepts either a known positive-definite matrix through `K` or a user-supplied covariance function.
+* `maternm()` uses numeric spatial coordinates and estimates range and smoothness.
+* `toeplitzm()` estimates a general stationary Toeplitz correlation using partial autocorrelations.
+* `sar()` and `car()` use a named spatial weights matrix. SAR accepts a general square weights matrix; CAR requires a symmetric, non-negative, zero-diagonal adjacency matrix with no isolated levels.
+
+The choice should be driven by the scientific design: use ordered structures only when the level order is meaningful, spatial structures only with defensible coordinates or adjacency, and flexible structures such as `usm()` or `corgm()` only when the data support their larger number of parameters.
+
+### 2) Combining two simple effects with `covm()`
+
+`covm()` is not a covariance-shaping factor. It combines two simple `vsm()` random-effect structures that use the same main-effect levels and the same relationship precision matrix. The combined effect has a normalized $2 \times 2$ unstructured covariance between the two effects and one product-level scale.
+
+```{r, eval=FALSE}
+effect_1 <- vsm(ism(DT$Name))
+effect_2 <- vsm(ism(DT$Name))
+joint_effect <- covm(effect_1, effect_2, labels=c("effect_1", "effect_2"))
+```
+
+Use `covm()` when two effects must be correlated. For crossed covariance factors such as environments by genotypes, use multiple factors directly inside `vsm()` instead.
+
+## SECTION 4: CovarianceFactor descriptors
+
+### 1) Descriptor fields
+
+Every covariance constructor returns a list containing an incidence matrix `Z` and a compiled `covFactor` descriptor. `vsm()` combines those descriptors, adds `log(sigma2)` as the first optimizer parameter, and passes the resulting structure to `mmes()`.
+
+```{r, eval=FALSE}
+structure <- csm(DT$Env, variance="heterogeneous")
+str(structure$covFactor)
+```
+
+The principal CovarianceFactor fields are:
+
+* `dim` and `levels`: covariance dimension and the matching level order.
+* `par`: starting values on an unconstrained working scale.
+* `free`: logical indicators specifying which entries of `par` are estimated.
+* `par_names`: readable names for the covariance parameters.
+* `evaluator`: the function or native operation that evaluates the covariance shape.
+* `derivative`: analytic or numerical derivative information used by the AI REML algorithm.
+* `report`: transformations used to report natural-scale parameters.
+* `trust_cap`: maximum proposal sizes for optimizer coordinates.
+* `structurally_diagonal`: whether the covariance shape is always diagonal.
+
+These fields are created and validated by the covariance constructors. They are useful for inspecting a model, but users should normally select a constructor and its documented arguments rather than edit a descriptor manually.
+
+### 2) Working and reported parameters
+
+The optimizer works on unconstrained coordinates. For example, a correlation in $(-1,1)$ is represented using `atanh(rho)`, positive variance ratios use logarithms, and compound-symmetry correlations use a bounded-logit transformation to remain in their positive-definite interval. The `report` component stores the inverse transformation so model summaries can display natural-scale correlations and variance ratios.
+
+The resulting `vsm()` object stores the flattened covariance descriptor in `covStruct`:
+
+```{r, eval=FALSE}
+random_structure <- vsm(csm(DT$Env, variance="heterogeneous"), ism(DT$Name))
+random_structure$covStruct$par_names
+random_structure$covStruct$free
+```
+
+This separation between a single product-level scale and normalized covariance factors makes homogeneous and heterogeneous structures identifiable, composable, and usable in the same `mmes()` interface.
+
+## Literature
+
+Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative traits using the R package sommer. PLoS ONE 11(6):1-15.
+
+Gilmour AR, Thompson R, and Cullis BR. 1995. Average Information REML: An efficient algorithm for variance parameter estimation in linear mixed models. Biometrics 51:1440-1450.

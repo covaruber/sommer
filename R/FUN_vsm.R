@@ -1455,10 +1455,13 @@ H <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL){
 #   K_ij = rho, i != j
 # with rho mapped from an unconstrained working coordinate to the exact
 # positive-definite interval (-1/(q-1), 1).
-csm <- function(x, rho=0.10, fixed=FALSE){
+csm <- function(x, rho=0.10, fixed=FALSE,
+                variance=c("homogeneous", "heterogeneous"), values=NULL){
   expr <- as.character(substitute(x))
   dummy <- .cov_dummy(x, expr)
   q <- ncol(dummy)
+  labs <- colnames(dummy)
+  variance <- match.arg(variance)
   
   if(q < 2L){
     stop("csm() requires at least two levels.", call. = FALSE)
@@ -1469,8 +1472,41 @@ csm <- function(x, rho=0.10, fixed=FALSE){
     stop(sprintf("rho in csm() must lie strictly between %.6g and 1.", lo),
          call. = FALSE)
   }
+  if(variance == "heterogeneous"){
+    if(is.null(values)) values <- rep(1, q)
+    if(length(values) != q || any(!is.finite(values)) || any(values <= 0)){
+      stop("values in csm() must contain one positive finite variance per level.",
+           call. = FALSE)
+    }
+
+    ratios <- values / values[1]
+    eta_var <- log(ratios[-1])
+    p <- (rho-lo)/(1-lo)
+    eta_rho <- qlogis(p)
+    par <- c(eta_rho, eta_var)
+
+    if(is.null(fixed) || identical(fixed, FALSE)) fixed <- rep(FALSE, length(par))
+    if(length(fixed) != length(par)){
+      stop("fixed in heterogeneous csm() must have length q: rho plus q-1 variance ratios.",
+           call. = FALSE)
+    }
+
+    return(list(
+      Z=dummy,
+      covFactor=.compile_covfactor(list(
+        type="csm",
+        variance="heterogeneous",
+        dim=as.integer(q),
+        levels=labs,
+        par=par,
+        free=!as.logical(fixed),
+        par_names=c("rho", paste0("variance_ratio[", labs[-1], "]"))
+      ))
+    ))
+  }
+
   if(length(fixed) != 1L){
-    stop("fixed in csm() must have length one.", call. = FALSE)
+    stop("fixed in homogeneous csm() must have length one.", call. = FALSE)
   }
   
   # inverse-logit map from (lo,1) to R
@@ -1480,9 +1516,10 @@ csm <- function(x, rho=0.10, fixed=FALSE){
   list(
     Z=dummy,
     covFactor=.compile_covfactor(list(
-      type="cor_uniform",
+        type="csm",
+        variance="homogeneous",
       dim=as.integer(q),
-      levels=colnames(dummy),
+      levels=labs,
       par=c(eta_rho=eta),
       free=c(!isTRUE(fixed)),
       par_names="rho"
@@ -1730,20 +1767,23 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     trust[dd] <- 1.0
     trust[!dd] <- 2.0
 
-  }else if(model == "cor_uniform"){
+  }else if(model == "csm"){
     lo <- -1/(q-1)
-    transform[] <- "bounded_logit"
-    lower[] <- lo
-    upper[] <- 1
-    trust[] <- 1.0
-
-  }else if(model == "corh"){
-    if(p != q) stop("Malformed CORH covariance metadata.", call. = FALSE)
-    lo <- -1/(q-1)
-    transform[1] <- "bounded_logit"
-    lower[1] <- lo
-    upper[1] <- 1
-    if(p > 1) transform[2:p] <- "exp"
+    variance <- match.arg(f$variance, c("homogeneous", "heterogeneous"))
+    if(variance == "homogeneous"){
+      if(p != 1L) stop("Malformed homogeneous CSM covariance metadata.", call. = FALSE)
+      evaluator$op <- "cor_uniform"
+      transform[] <- "bounded_logit"
+      lower[] <- lo
+      upper[] <- 1
+    }else{
+      if(p != q) stop("Malformed heterogeneous CSM covariance metadata.", call. = FALSE)
+      evaluator$op <- "corh"
+      transform[1] <- "bounded_logit"
+      lower[1] <- lo
+      upper[1] <- 1
+      if(p > 1) transform[2:p] <- "exp"
+    }
     trust[] <- 1.0
 
   }else if(model == "arp"){
@@ -1910,15 +1950,22 @@ ism <- function(x){
   )
 }
 
-ar1m <- function(x, rho=0.30, fixed=FALSE){
+ar1m <- function(x, rho=0.30, fixed=FALSE,
+                 variance=c("homogeneous", "heterogeneous"), values=NULL){
   expr <- as.character(substitute(x))
   dummy <- .cov_dummy(x, expr)
   q <- ncol(dummy)
+  variance <- match.arg(variance)
   if(q < 2L) stop("ar1m() requires at least two ordered levels.", call. = FALSE)
   if(length(rho) != 1L || !is.finite(rho) || abs(rho) >= 1){
     stop("rho in ar1m() must be finite and strictly between -1 and 1.", call. = FALSE)
   }
-  if(length(fixed) != 1L) stop("fixed in ar1m() must have length one.", call. = FALSE)
+  if(variance == "heterogeneous"){
+    ar_fixed <- if(missing(fixed)) NULL else fixed
+    return(.arp_m(dummy, order=1L, pacf=rho, fixed=ar_fixed, values=values,
+                  heterogeneous=TRUE))
+  }
+  if(length(fixed) != 1L) stop("fixed in homogeneous ar1m() must have length one.", call. = FALSE)
   list(
     Z=dummy,
     covFactor=.compile_covfactor(list(
@@ -1931,8 +1978,6 @@ ar1m <- function(x, rho=0.30, fixed=FALSE){
     ))
   )
 }
-
-arm <- ar1m
 
 dsm <- function(x, values=NULL, fixed=NULL, theta=NULL){
   expr <- as.character(substitute(x))
@@ -2060,14 +2105,55 @@ usm <- function(x, theta=NULL, fixed=NULL){
 
 # Stable AR(p), p=2 or 3, parameterized through partial autocorrelations.
 # PACF coordinates are tanh-transformed in C++, guaranteeing stationarity.
-.arp_m <- function(x, order, pacf=NULL, fixed=NULL){
-  expr <- as.character(substitute(x))
-  dummy <- .cov_dummy(x, expr)
+.ar_correlation_from_pacf <- function(pacf, q){
+  order <- length(pacf)
+  phi <- numeric()
+  for(m in seq_len(order)){
+    next_phi <- numeric(m)
+    next_phi[m] <- pacf[m]
+    if(m > 1L){
+      next_phi[-m] <- phi - pacf[m] * rev(phi)
+    }
+    phi <- next_phi
+  }
+
+  A <- matrix(0, order, order)
+  b <- numeric(order)
+  for(k in seq_len(order)){
+    A[k, k] <- A[k, k] + 1
+    for(j in seq_len(order)){
+      distance <- abs(k - j)
+      if(distance == 0L){
+        b[k] <- b[k] + phi[j]
+      }else{
+        A[k, distance] <- A[k, distance] - phi[j]
+      }
+    }
+  }
+  rho <- numeric(q)
+  rho[1] <- 1
+  rho[seq_len(order) + 1L] <- solve(A, b)
+  if(q > order + 1L){
+    for(h in (order + 1L):(q - 1L)){
+      rho[h + 1L] <- sum(phi * rev(rho[(h - order + 1L):h]))
+    }
+  }
+  rho[abs(row(matrix(0, q, q)) - col(matrix(0, q, q))) + 1L]
+}
+
+.arp_m <- function(x, order, pacf=NULL, fixed=NULL, values=NULL,
+                   heterogeneous=FALSE){
+  if(is.matrix(x) || inherits(x, "Matrix")){
+    dummy <- x
+  }else{
+    expr <- as.character(substitute(x))
+    dummy <- .cov_dummy(x, expr)
+  }
   q <- ncol(dummy)
   
   order <- as.integer(order)
-  if(length(order) != 1L || !order %in% c(2L,3L)){
-    stop("AR order must be 2 or 3.", call. = FALSE)
+  if(length(order) != 1L || !order %in% c(1L,2L,3L)){
+    stop("AR order must be 1, 2, or 3.", call. = FALSE)
   }
   if(q <= order){
     stop(sprintf("AR(%d) requires more than %d ordered levels.", order, order),
@@ -2080,31 +2166,81 @@ usm <- function(x, theta=NULL, fixed=NULL){
          call. = FALSE)
   }
   
-  if(is.null(fixed)) fixed <- rep(FALSE, order)
-  if(length(fixed) != order){
-    stop("fixed must have length equal to the AR order.", call. = FALSE)
+  if(!heterogeneous){
+    if(is.null(fixed)) fixed <- rep(FALSE, order)
+    if(length(fixed) != order){
+      stop("fixed must have length equal to the AR order.", call. = FALSE)
+    }
+
+    return(list(
+      Z=dummy,
+      covFactor=.compile_covfactor(list(
+        type="arp",
+        dim=as.integer(q),
+        levels=colnames(dummy),
+        order=order,
+        par=atanh(pacf),
+        free=!as.logical(fixed),
+        par_names=paste0("pacf[", seq_len(order), "]")
+      ))
+    ))
   }
-  
+
+  if(is.null(values)) values <- rep(1, q)
+  if(length(values) != q || any(!is.finite(values)) || any(values <= 0)){
+    stop("values in heterogeneous AR() must contain one positive finite variance per level.",
+         call. = FALSE)
+  }
+  par <- c(atanh(pacf), log((values / values[1])[-1]))
+  if(is.null(fixed)) fixed <- rep(FALSE, length(par))
+  if(length(fixed) != length(par)){
+    stop("fixed in heterogeneous AR() must have length order + q - 1.",
+         call. = FALSE)
+  }
+
+  ar_eval <- local({
+    q0 <- q
+    order0 <- order
+    function(eta){
+      C <- .ar_correlation_from_pacf(tanh(eta[seq_len(order0)]), q0)
+      variances <- c(1, exp(eta[order0 + seq_len(q0 - 1L)]))
+      tcrossprod(sqrt(variances)) * C
+    }
+  })
+
   list(
     Z=dummy,
-    covFactor=.compile_covfactor(list(
-      type="arp",
+    covFactor=.make_covfactor(
       dim=as.integer(q),
       levels=colnames(dummy),
-      order=order,
-      par=atanh(pacf),
+      par=par,
       free=!as.logical(fixed),
-      par_names=paste0("pacf[", seq_len(order), "]")
-    ))
+      par_names=c(paste0("pacf[", seq_len(order), "]"),
+                  paste0("variance_ratio[", colnames(dummy)[-1], "]")),
+      evaluator=list(backend="R", fun=ar_eval),
+      derivative=list(backend="numeric", rel_step=1e-6),
+      report=list(
+        backend="builtin",
+        transform=c(rep("tanh", order), rep("exp", q - 1L)),
+        lower=rep(NA_real_, length(par)),
+        upper=rep(NA_real_, length(par))
+      ),
+      trust_cap=rep(1, length(par)),
+      model=paste0("ar", order)
+    )
   )
 }
 
-ar2m <- function(x, pacf=c(0.20,0.10), fixed=NULL){
-  .arp_m(x, order=2L, pacf=pacf, fixed=fixed)
+ar2m <- function(x, pacf=c(0.20,0.10), fixed=NULL,
+                 variance=c("homogeneous", "heterogeneous"), values=NULL){
+  .arp_m(x, order=2L, pacf=pacf, fixed=fixed, values=values,
+         heterogeneous=match.arg(variance) == "heterogeneous")
 }
 
-ar3m <- function(x, pacf=c(0.20,0.10,0.05), fixed=NULL){
-  .arp_m(x, order=3L, pacf=pacf, fixed=fixed)
+ar3m <- function(x, pacf=c(0.20,0.10,0.05), fixed=NULL,
+                 variance=c("homogeneous", "heterogeneous"), values=NULL){
+  .arp_m(x, order=3L, pacf=pacf, fixed=fixed, values=values,
+         heterogeneous=match.arg(variance) == "heterogeneous")
 }
 
 
@@ -2159,76 +2295,6 @@ ma1m <- function(x, theta=0.15, fixed=FALSE){
 
 ma2m <- function(x, theta=c(0.15,0.05), fixed=NULL){
   mam(x, order=2L, theta=theta, fixed=fixed)
-}
-
-
-# Uniform/simple correlation.  In the arbitrary-Kronecker interface corm()
-# and corvm() have the same covariance SHAPE because the homogeneous variance
-# belongs to vsm() as sigma2.
-corm <- function(x, rho=0.10, fixed=FALSE){
-  csm(x, rho=rho, fixed=fixed)
-}
-
-corvm <- function(x, rho=0.10, fixed=FALSE){
-  ans <- csm(x, rho=rho, fixed=fixed)
-  ans$covFactor$model_label <- "corv"
-  ans
-}
-
-
-# Heterogeneous uniform correlation:
-#   K = D C(rho) D
-# where D contains relative standard deviations and K[1,1]=1.
-corhm <- function(x, rho=0.10, values=NULL, fixed=NULL){
-  expr <- as.character(substitute(x))
-  dummy <- .cov_dummy(x, expr)
-  q <- ncol(dummy)
-  labs <- colnames(dummy)
-  
-  if(q < 2L){
-    stop("corhm() requires at least two levels.", call. = FALSE)
-  }
-  
-  lo <- -1/(q-1)
-  if(length(rho) != 1L || !is.finite(rho) || rho <= lo || rho >= 1){
-    stop(sprintf("rho in corhm() must lie strictly between %.6g and 1.", lo),
-         call. = FALSE)
-  }
-  
-  if(is.null(values)) values <- rep(1, q)
-  if(length(values) != q || any(!is.finite(values)) || any(values <= 0)){
-    stop("values in corhm() must contain one positive finite variance per level.",
-         call. = FALSE)
-  }
-  
-  ratios <- values / values[1]
-  eta_var <- log(ratios[-1])
-  
-  p <- (rho-lo)/(1-lo)
-  eta_rho <- qlogis(p)
-  
-  par <- c(eta_rho, eta_var)
-  
-  if(is.null(fixed)) fixed <- rep(FALSE, length(par))
-  if(length(fixed) != length(par)){
-    stop("fixed in corhm() must have length q: rho plus q-1 variance ratios.",
-         call. = FALSE)
-  }
-  
-  list(
-    Z=dummy,
-    covFactor=.compile_covfactor(list(
-      type="corh",
-      dim=as.integer(q),
-      levels=labs,
-      par=par,
-      free=!as.logical(fixed),
-      par_names=c(
-        "rho",
-        paste0("variance_ratio[", labs[-1], "]")
-      )
-    ))
-  )
 }
 
 
