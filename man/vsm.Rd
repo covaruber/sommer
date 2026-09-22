@@ -80,14 +80,14 @@ head(DT)
 
 
 str(with(DT, vsm(dsm(Env),ism(Name))))
-str(with(DT, vsm(corm(Env),ism(Name))))
+str(with(DT, vsm(csm(Env),ism(Name))))
 str(with(DT, vsm(toeplitzm(Env),ism(Name))))
 
 }
 \seealso{
 \code{\link{mmes}}, \code{\link{ism}}, \code{\link{dsm}}, \code{\link{atm}}, \code{\link{usm}},
 \code{\link{csm}}, \code{\link{ar1m}}, \code{\link{ar2m}}, \code{\link{ar3m}},
-\code{\link{mam}}, \code{\link{corm}}, \code{\link{corvm}}, \code{\link{corhm}},
+\code{\link{mam}},
 \code{\link{corgm}}, \code{\link{fam}}, \code{\link{antem}}, \code{\link{rrcm}},
 \code{\link{maternm}}, \code{\link{toeplitzm}}, \code{\link{sar}}, \code{\link{car}},
 and \code{\link{ownm}}.

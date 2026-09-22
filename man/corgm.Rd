@@ -24,5 +24,5 @@ vsm(corgm(environment), ism(genotype))
 }
 }
 \seealso{
-\code{\link{corhm}}, \code{\link{usm}}, \code{\link{vsm}}.
+\code{\link{csm}}, \code{\link{usm}}, \code{\link{vsm}}.
 }

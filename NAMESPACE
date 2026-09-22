@@ -18,7 +18,7 @@ export( # small matrices constructors
        unsm, unsm2, fixm, 
        # mmes covariance functions
        atm,csm,dsm,usm,vsm, ism, covm, ar1m, ar2m, ar3m, 
-       mam, fam, antem, corm, corvm, corhm, corgm, ownm,
+       mam, fam, antem, corgm, ownm,
        rrcm, maternm , toeplitzm, sar, car,
        # mmes covariance functions
        usr, dsr, csr, atr,  
