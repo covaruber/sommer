@@ -20,7 +20,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
   )
 
   term_fa <- names(fit_fa$uList)[1]
-  fa <- loadings_mmes(fit_fa, term_fa)
+  fa <- loadings_mmes(fit_fa, term_fa, varianceScale = FALSE, rotation = FALSE)
 
   expect_equal(dim(fa$loadings), c(6L, 2L))
   expect_length(fa$specific, 6L)
@@ -30,11 +30,11 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
   )
   expect_equal(unname(reconstructed), unname(fit_fa$theta[[term_fa]]), tolerance=1e-6)
 
-  scores_fa <- scores_mmes(fit_fa, term_fa)
+  scores_fa <- scores_mmes(fit_fa, term_fa, varianceScale = FALSE, rotation = FALSE)
   expect_equal(dim(scores_fa), c(24L, 2L))
   expect_true(all(is.finite(scores_fa)))
 
-  scores_fa_bartlett <- scores_mmes(fit_fa, term_fa, method="bartlett")
+  scores_fa_bartlett <- scores_mmes(fit_fa, term_fa, method="bartlett", varianceScale = FALSE, rotation = FALSE)
   expect_equal(dim(scores_fa_bartlett), c(24L, 2L))
   expect_true(all(is.finite(scores_fa_bartlett)))
 
@@ -48,7 +48,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
   )
 
   term_rr <- names(fit_rr$uList)[1]
-  rr <- loadings_mmes(fit_rr, term_rr)
+  rr <- loadings_mmes(fit_rr, term_rr, varianceScale = FALSE, rotation = FALSE)
 
   expect_equal(dim(rr$loadings), c(6L, 1L))
   expect_true(all(rr$specific > 0))
@@ -58,7 +58,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
   )
   expect_equal(unname(reconstructed_rr), unname(fit_rr$theta[[term_rr]]), tolerance=1e-6)
 
-  scores_rr <- scores_mmes(fit_rr, term_rr)
+  scores_rr <- scores_mmes(fit_rr, term_rr, varianceScale = FALSE, rotation = FALSE)
   expect_equal(dim(scores_rr), c(24L, 1L))
   expect_true(all(is.finite(scores_rr)))
 })
@@ -79,5 +79,5 @@ test_that("loadings_mmes gives an informative error for unsupported terms", {
     verbose=FALSE
   )
 
-  expect_error(loadings_mmes(fit), "No fam\\(\\)/rrcm\\(\\) covariance term")
+  expect_error(loadings_mmes(fit, varianceScale = FALSE, rotation = FALSE), "No fam\\(\\)/rrcm\\(\\) covariance term")
 })
