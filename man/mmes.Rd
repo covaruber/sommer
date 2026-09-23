@@ -572,7 +572,7 @@ variance parameter estimation in linear mixed models. Biometrics 51(4):1440-1450
 \author{
 
 Coded by Giovanny Covarrubias-Pazaran with contributions of Christelle Fernandez 
-Camacho to the henderson algorithm.
+Camacho, Johan Aparicio-Arce, and Claudio Flavio 5.1 jaja (laughing in Spanish).
 
 }
 \examples{

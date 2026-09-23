@@ -250,7 +250,7 @@
 # Reconstruct the normalized loadings (Lambda) and specific variances (Psi)
 # of a fam()/rrcm() term such that sigma2*(Lambda %*% t(Lambda) + diag(Psi))
 # reproduces object$theta[[term]] exactly (up to floating-point roundoff).
-"loadings_mmes" <- function(object, term=NULL){
+"loadings_mmes" <- function(object, term=NULL, varianceScale=TRUE, rotation=TRUE){
 
   located <- .mmes_fa_term(object, term)
   term <- located$term
@@ -291,10 +291,23 @@
   dimnames(loadings) <- list(levels, paste0("F", seq_len(k)))
   names(specific) <- levels
 
+  sigma2 <- unname(covPar[1])
+  
+  if(varianceScale){
+    loadings <- loadings * sqrt(sigma2)
+    specific <- specific * sqrt(sigma2)
+  }
+  
+  if(rotation){
+    V <- svd(loadings)$v
+    loadings <- -loadings %*% V
+    dimnames(loadings) <- list(levels, paste0("F", seq_len(k)))
+  }
+  
   list(
     loadings=loadings,
     specific=specific,
-    sigma2=unname(covPar[1]),
+    sigma2=sigma2,
     model=f$model,
     term=term
   )
@@ -304,10 +317,11 @@
 # fitted loadings, covariance, and BLUPs. method="regression" (Thomson) uses
 # the full fitted covariance; method="bartlett" uses only the specific
 # (residual) variances and is the classic unbiased factor-score estimator.
-"scores_mmes" <- function(object, term=NULL, method=c("regression","bartlett")){
+"scores_mmes" <- function(object, term=NULL, method=c("regression","bartlett"),
+                          varianceScale=TRUE, rotation=TRUE){
 
   method <- match.arg(method)
-  fa <- loadings_mmes(object, term)
+  fa <- loadings_mmes(object, term, varianceScale, rotation)
   term <- fa$term
 
   if(is.null(object$uList[[term]])){

@@ -8,14 +8,20 @@ Reconstructs the normalized loadings matrix and specific variances of a
 \code{object$theta}.
 }
 \usage{
-loadings_mmes(object, term = NULL)
+loadings_mmes(object, term = NULL, varianceScale=TRUE, rotation=TRUE)
 }
 \arguments{
+
   \item{object}{a fitted model of class \code{"mmes"}.}
   \item{term}{character name of the random term (matching a name in
 \code{object$covStruct}) built with a single \code{fam()} or \code{rrcm()}
 covariance-shaping factor. If \code{NULL}, the unique such term in the model
 is used automatically; an error is raised if none or more than one exist.}
+\item{varianceScale}{a logical argument to indicate if loadings should be returned 
+in variance scale (multiplied by sqrt(sigma2)).}
+\item{rotation}{a logical value to indicate if loadings should be rotated by its
+singular vectors.}
+
 }
 \details{
 \code{fam()}/\code{rrcm()} remove their otherwise redundant internal scale so

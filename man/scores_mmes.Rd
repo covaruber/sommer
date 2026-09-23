@@ -8,7 +8,8 @@ combining the fitted loadings (see \code{\link{loadings_mmes}}), the fitted
 covariance matrix, and the BLUPs already stored in \code{object$uList}.
 }
 \usage{
-scores_mmes(object, term = NULL, method = c("regression", "bartlett"))
+scores_mmes(object, term = NULL, method = c("regression", "bartlett"), 
+            varianceScale=TRUE, rotation=TRUE)
 }
 \arguments{
   \item{object}{a fitted model of class \code{"mmes"}.}
@@ -18,6 +19,10 @@ unique such term in the model is used automatically.}
   \item{method}{\code{"regression"} (default) uses the full fitted covariance
 \eqn{\Sigma} (Thomson's method); \code{"bartlett"} uses only the specific
 (residual) variances \eqn{\Psi} (Bartlett's classic unbiased estimator).}
+\item{varianceScale}{a logical argument to indicate if loadings should be returned 
+in variance scale (multiplied by sqrt(sigma2)).}
+\item{rotation}{a logical value to indicate if loadings should be rotated by its
+singular vectors.}
 }
 \details{
 Let \eqn{U} be the levels-by-levels BLUP matrix in \code{object$uList[[term]]}
