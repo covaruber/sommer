@@ -28,7 +28,7 @@ mmes(fixed, random, rcov, data, W,
      returnParam=FALSE, dateWarning=TRUE,
      verbose=TRUE, stepWeight=NULL, emWeight=NULL,
      contrasts=NULL, getPEV=TRUE, henderson=TRUE,
-    computeCi=0, solver="ldlt", pcgTol=1.0e-8,
+    computeCi=0, solver="auto", pcgTol=1.0e-8,
     pcgMaxIters=0, pcgTraceProbes=8,
     pcgLanczosSteps=20)
 }
@@ -282,7 +282,14 @@ mmes(fixed, random, rcov, data, W,
   \code{\link{postPEV}} without refitting the model.}
 
    \item{solver}{Linear-system solver used by the Henderson implementation.
-   \code{"ldlt"} (default) uses the sparse direct simplicial LDLT factorization path.
+   \code{"auto"} (default) picks a solver automatically based on the density of the
+   random-effect relationship matrices (\code{Gu}) actually supplied: if any random
+   effect uses a dense \code{Gu} (e.g. a genomic or marker-based relationship matrix,
+   which is typically close to fully dense), \code{"cholmod"} is selected; otherwise
+   (e.g. sparse pedigree-based relationship matrices, or no \code{Gu} at all)
+   \code{"ldlt"} is selected. Passing an explicit value (\code{"ldlt"}, \code{"pcg"},
+   or \code{"cholmod"}) always overrides the automatic choice.
+   \code{"ldlt"} uses the sparse direct simplicial LDLT factorization path.
    \code{"pcg"} selects the iterative preconditioned conjugate-gradient path.
    \code{"cholmod"} uses the supernodal (blocked, BLAS-3) sparse Cholesky
    factorization bundled with R's \code{Matrix} package (SuiteSparse CHOLMOD),

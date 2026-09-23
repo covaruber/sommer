@@ -8,7 +8,7 @@ mmes <- function(fixed, random, rcov, data, W,
                  returnParam=FALSE, dateWarning=TRUE,
                  verbose=TRUE, stepWeight=NULL, emWeight=NULL,
                  contrasts=NULL, getPEV=TRUE, henderson=TRUE,
-                 computeCi=0, solver="ldlt", pcgTol=1.0e-8,
+                 computeCi=0, solver="auto", pcgTol=1.0e-8,
                  pcgMaxIters=0, pcgTraceProbes=8,
                  pcgLanczosSteps=20){
   
@@ -292,6 +292,97 @@ mmes <- function(fixed, random, rcov, data, W,
   }
   if("(Intercept)" %in% colnames(X)) colnames(X)[colnames(X) == "(Intercept)"] <- "Intercept"
   
+  # ---- Data-driven starting values for variance-component scales ------
+  # Replaces vsm()'s flat sigma2 default (0.15 random / 0.75 residual, both
+  # scale-blind) with values informed by the data. Only touches par[1]
+  # (log_sigma2) entries still flagged sigma2_is_default with free[1]=TRUE;
+  # user-supplied or fixedSigma2=TRUE values are always left untouched. Any
+  # failure here is silently ignored and the old flat defaults are kept,
+  # since this only affects the optimization starting point, never the
+  # converged answer.
+  tryCatch({
+    if(ncol(X) >= 1L && ncol(X) <= 2000L){
+      Xd <- as.matrix(X)
+      Yd <- as.matrix(yvar)
+      qrX <- qr(Xd)
+      dfResid <- nrow(Xd) - qrX$rank
+      if(dfResid >= 1L){
+        beta <- qr.coef(qrX, Yd)
+        if(!anyNA(beta)){
+          resid <- Yd - Xd %*% beta
+          varResid0 <- mean(colSums(resid^2)) / dfResid
+          if(is.finite(varResid0) && varResid0 > 0){
+            floorVar <- 1e-6 * varResid0
+            residShare <- if(nRandomStruct > 0L) 0.5 * varResid0 else varResid0
+            randomPoolShare <- 0.5 * varResid0
+            r <- rowMeans(resid)
+            
+            # Phase 2: for plain ism()-only random terms with an identity
+            # relationship matrix, use a one-way ANOVA method-of-moments
+            # variance-component estimate (classical unequal-n formula)
+            # from the fixed-effects-only residuals, instead of an
+            # arbitrary equal split.
+            anovaEst <- rep(NA_real_, nRandomStruct)
+            if(nRandomStruct > 0L){
+              for(u in seq_len(nRandomStruct)){
+                ff <- randomFits[[u]]
+                isSimpleGrouping <-
+                  length(ff$covStruct$factors) == 0L &&
+                  Matrix::isDiagonal(ff$Gu) &&
+                  isTRUE(all(Matrix::diag(ff$Gu) == 1)) &&
+                  length(all.vars(randomExprs[[u]])) == 1L
+                if(isSimpleGrouping){
+                  gvar <- all.vars(randomExprs[[u]])[1]
+                  if(gvar %in% names(data)){
+                    grp <- as.factor(data[[gvar]])
+                    k <- nlevels(grp)
+                    if(k > 1L && k < length(r)){
+                      grpMeans <- tapply(r, grp, mean)
+                      grpN <- as.numeric(table(grp))
+                      grandMean <- mean(r)
+                      msBetween <- sum(grpN * (grpMeans - grandMean)^2) / (k - 1L)
+                      dfWithin <- length(r) - k
+                      if(dfWithin > 0L){
+                        msWithin <- sum((r - grpMeans[as.character(grp)])^2) / dfWithin
+                        n0 <- (length(r) - sum(grpN^2) / length(r)) / (k - 1L)
+                        if(is.finite(n0) && n0 > 0){
+                          vcEst <- (msBetween - msWithin) / n0
+                          if(is.finite(vcEst) && vcEst > 0) anovaEst[u] <- vcEst
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            # Phase 1 fallback: split the remaining pool evenly across
+            # every random term that Phase 2 could not estimate directly.
+            nFallback <- sum(is.na(anovaEst))
+            fallbackShare <- if(nFallback > 0L) randomPoolShare / nFallback else NA_real_
+            
+            if(isTRUE(rf$covStruct$sigma2_is_default) && isTRUE(rf$covStruct$free[1])){
+              rf$covStruct$par[1] <- log(max(residShare, floorVar))
+              covStruct[[residualStructIndex]] <- rf$covStruct
+            }
+            if(nRandomStruct > 0L){
+              for(u in seq_len(nRandomStruct)){
+                cs <- covStruct[[u]]
+                if(isTRUE(cs$sigma2_is_default) && isTRUE(cs$free[1])){
+                  share <- if(!is.na(anovaEst[u])) anovaEst[u] else fallbackShare
+                  if(is.finite(share)){
+                    cs$par[1] <- log(max(share, floorVar))
+                    covStruct[[u]] <- cs
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, error=function(e) NULL)
+  
   # ---- Weights ---------------------------------------------------------
   if(missing(W)){
     W <- Matrix::Diagonal(n=nrow(yvar), x=1)
@@ -343,6 +434,29 @@ mmes <- function(fixed, random, rcov, data, W,
     }
   }
   
+  # ---- Solver selection --------------------------------------------------
+  # "auto" (the default) picks a solver based on the density of the random-
+  # effect relationship matrices actually supplied: pedigree-style Ai
+  # matrices are typically sparse (a handful of nonzeros per row), while
+  # genomic/marker-based relationship matrices are essentially fully dense.
+  # The supernodal CHOLMOD factorization amortizes dense fill-in with
+  # threaded BLAS-3 kernels and tends to outperform the simplicial LDLT path
+  # once any random effect has a dense Gu; otherwise LDLT stays the default.
+  solverChoices <- c("auto", "ldlt", "pcg", "cholmod")
+  if(length(solver) != 1L || !is.character(solver) || is.na(solver) ||
+     !(tolower(solver) %in% solverChoices)){
+    stop("solver must be one of 'auto', 'ldlt', 'pcg', or 'cholmod'.", call.=FALSE)
+  }
+  solver <- tolower(solver)
+  if(solver == "auto"){
+    hasDenseGu <- length(Ai) > 0L && any(vapply(Ai, function(a){
+      n <- nrow(a)
+      if(n <= 1L) return(FALSE)
+      (Matrix::nnzero(a) / (as.double(n) * as.double(n))) > 0.2
+    }, logical(1)))
+    solver <- if(hasDenseGu) "cholmod" else "ldlt"
+  }
+  
   if(returnParam){
     return(list(yvar=yvar, X=X, Z=Z, Zind=Zind, Ai=Ai,
                 W=W, useH=useH, residualBlock=residualBlock,
@@ -352,7 +466,7 @@ mmes <- function(fixed, random, rcov, data, W,
                 stepWeight=stepWeight, emWeight=emWeight,
                 rtermss=rtermss, partitionsX=partitionsX,
                 getPEV=getPEV, rTermsNames=rTermsNames,
-                obsInfo=obsInfo))
+                obsInfo=obsInfo, solver=solver))
   }
   
   res <- .Call("_sommer_ai_mme_sp2", PACKAGE="sommer",

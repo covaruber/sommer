@@ -9,7 +9,7 @@ single product-level variance, \eqn{\sigma^2}, is owned by \code{vsm}, which
 avoids scale confounding among the individual covariance factors.
 }
 \usage{
-vsm(..., Gu = NULL, sigma2 = 0.15, fixedSigma2 = FALSE,
+vsm(..., Gu = NULL, sigma2 = NULL, fixedSigma2 = FALSE,
     isFixed = FALSE, verbose = TRUE)
 }
 \arguments{
@@ -22,7 +22,10 @@ main-effect term.  For the Henderson solver, \code{Gu} must have row and column
 names matching the main-effect levels and \code{attr(Gu, "inverse")} must be
 defined.  If omitted, an identity precision matrix is used.}
   \item{sigma2}{Positive starting value for the single overall covariance
-scale of this \code{vsm} term.}
+scale of this \code{vsm} term. If \code{NULL} (the default), \code{mmes}
+replaces it with a data-driven starting value computed from the response
+and fixed effects; supplying a value here always takes precedence and is
+never overridden.}
   \item{fixedSigma2}{Logical indicating whether the product-level
 \eqn{\sigma^2} is fixed at its starting value.}
   \item{isFixed}{Logical retained for compatibility.  If \code{TRUE}, return

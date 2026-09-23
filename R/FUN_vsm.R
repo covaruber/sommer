@@ -1,4 +1,4 @@
-vsm <- function(..., Gu=NULL, sigma2=0.15, fixedSigma2=FALSE,
+vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
                 isFixed=FALSE, verbose=TRUE){
   
   init <- list(...)
@@ -19,6 +19,12 @@ vsm <- function(..., Gu=NULL, sigma2=0.15, fixedSigma2=FALSE,
       call. = FALSE
     )
   }
+  
+  # sigma2=NULL (the default) is a marker meaning "let mmes() replace this
+  # with a data-driven starting value"; an explicit user value is always
+  # honored as-is and never overridden.
+  sigma2IsDefault <- is.null(sigma2)
+  if(sigma2IsDefault) sigma2 <- 0.15
   
   if(!is.finite(sigma2) || length(sigma2) != 1L || sigma2 <= 0){
     stop("sigma2 in vsm() must be one positive finite value.",
@@ -528,7 +534,11 @@ vsm <- function(..., Gu=NULL, sigma2=0.15, fixedSigma2=FALSE,
     
     parameterization="working",
     
-    main_levels=colnames(mainZ)
+    main_levels=colnames(mainZ),
+    
+    # Lets mmes() know it may replace par[1] (log_sigma2) with a
+    # data-driven starting value; never set when the user supplied sigma2.
+    sigma2_is_default=sigma2IsDefault
   )
   
   names(covStruct$par) <-
@@ -1622,16 +1632,18 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     if(length(levs) > 1L){
       xf <- factor(x, levels=levs)
       observed <- !is.na(xf)
-      # sparse.model.matrix() drops NA rows despite na.action=na.pass.
-      # Build observed rows and restore missing coordinates as zero rows so
-      # every vsm() constructor preserves the original observation layout.
-      observedDesign <- Matrix::sparse.model.matrix(~xf-1, data=data.frame(xf=xf[observed]))
-      dummy <- Matrix::Matrix(0, nrow=length(x), ncol=ncol(observedDesign), sparse=TRUE)
-      dummy[observed, ] <- observedDesign
+      # Build the incidence matrix directly from (row, level) index pairs so
+      # NA rows are simply omitted from the triplet list (zero row), instead
+      # of allocating a full zero sparse matrix and using submatrix<-
+      # assignment (dummy[observed,]<-...), which forces CHOLMOD/Matrix to
+      # rebuild the whole sparse pattern and is O(n) per assigned column.
+      dummy <- Matrix::sparseMatrix(i=which(observed), j=as.integer(xf[observed]),
+                                    x=1, dims=c(length(x), length(levs)))
       colnames(dummy) <- levs
     }else{
-      dummy <- Matrix::Matrix(0, nrow=length(x), ncol=1, sparse=TRUE)
-      dummy[!is.na(x),1] <- 1
+      observed <- !is.na(x)
+      dummy <- Matrix::sparseMatrix(i=which(observed), j=rep(1L, sum(observed)),
+                                    x=1, dims=c(length(x), 1L))
       colnames(dummy) <- as.character(levs)
     }
   }

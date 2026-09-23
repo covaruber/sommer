@@ -4666,6 +4666,18 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     // Standardise only the product-level variance:
     // log(sigma2_internal) = log(sigma2_original) - log(var(y)).
     covPar(i)(0) -= std::log(vary);
+    
+    // Give the product-level log(sigma2) working parameter (always
+    // covPar(i)(0), see vsm()) the same variance floor legacy type-1
+    // parameters receive via applyVarianceBounds()/vcFloor, converted to
+    // this working/standardised scale. Without this, a boundary-approaching
+    // variance component (true value near/at zero) has no lower bound at
+    // all, so an unconstrained Newton/AI step can jump arbitrarily far
+    // past the PD-check floor in one iteration; the structure then gets
+    // flagged "not PD" and, for single-parameter structures, permanently
+    // frozen (see the covPar(iStruct).n_elem==1 fallback below).
+    covLower(i)(0) =
+      std::log(std::max(1.0e-8, tolParInv)) - std::log(vary);
 
     theta(i) =
       evaluateDescriptor(
@@ -8470,7 +8482,18 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                       static_cast<Eigen::Index>(cc));
                   }
                 }
-                trAiCuu = arma::trace(Ai(iR) * inverseBlock);
+                // trace(Ai*inverseBlock) via a full dense product is O(q^3)
+                // (q=blockHeight), dominant when Ai is a dense relationship
+                // matrix. Ai is symmetric, so trace(Ai*B) == accu(Ai % B);
+                // accumulate directly over Ai's stored entries instead,
+                // which is O(nnz(Ai)) (== O(q^2) even when Ai is dense, but
+                // avoids the extra BLAS-3 pass entirely).
+                double tsum = 0.0;
+                for(arma::sp_mat::const_iterator ait2 = Ai(iR).begin();
+                    ait2 != Ai(iR).end(); ++ait2){
+                  tsum += (*ait2) * inverseBlock(ait2.row(), ait2.col());
+                }
+                trAiCuu = tsum;
               }
             }
 
@@ -9275,18 +9298,39 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
       // ------------------------------------------------------------
       // One-dimensional descriptor structures still use log(sigma2), so the
-      // parameter itself is not a variance. If a proposal becomes non-finite,
-      // fall back to the previously accepted working parameter.
+      // parameter itself is not a variance directly. Reverting unconditionally
+      // to the previous accepted value produces zero forward progress every
+      // iteration for a boundary-approaching variance component (true value
+      // at/near zero): the identical oversized step gets proposed and
+      // rejected again next iteration, freezing the parameter permanently.
+      // Instead, backtrack along the proposed step, trying progressively
+      // smaller fractions of it until the structure is PD again - the same
+      // step-halving idea used below for multi-parameter structures. Falls
+      // through to the shared final fallback (full revert) further below
+      // only if no fraction of the step is repairable (e.g. a genuine
+      // non-finite proposal).
       // ------------------------------------------------------------
       if(theta(iStruct).n_rows == 1 && covPar(iStruct).n_elem == 1){
 
-        bestCandidate =
-          thetaUnlisted;
+        const arma::uword g0 = structIdx(0);
+        const double previousValue = thetaUnlisted(g0);
+        const double proposedValue = expectedNewTheta(g0);
 
-        repaired =
-          structureIsPD(
-            bestCandidate
-          );
+        if(std::isfinite(proposedValue)){
+
+          arma::vec candidate = expectedNewTheta;
+          double stepFraction = 1.0;
+
+          for(int halvingAttempt = 0; halvingAttempt < 10 && !repaired; ++halvingAttempt){
+            stepFraction *= 0.5;
+            candidate(g0) = previousValue + stepFraction * (proposedValue - previousValue);
+            repaired = structureIsPD(candidate);
+          }
+
+          if(repaired){
+            bestCandidate = candidate;
+          }
+        }
       }
 
       if(
