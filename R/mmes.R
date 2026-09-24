@@ -10,7 +10,7 @@ mmes <- function(fixed, random, rcov, data, W,
                  contrasts=NULL, getPEV=TRUE, henderson=TRUE,
                  computeCi=0, solver="auto", pcgTol=1.0e-8,
                  pcgMaxIters=0, pcgTraceProbes=8,
-                 pcgLanczosSteps=20){
+                 pcgLanczosSteps=20, REML=TRUE){
 
   if(!isTRUE(henderson)){
     stop("This mmes() interface is Henderson-only. Use the separate MNR/direct-inversion mmer interface for henderson=FALSE.",
@@ -457,6 +457,15 @@ mmes <- function(fixed, random, rcov, data, W,
     solver <- if(hasDenseGu) "cholmod" else "ldlt"
   }
 
+  if(length(REML) != 1L || !is.logical(REML) || is.na(REML)){
+    stop("REML must be a single TRUE/FALSE value.", call.=FALSE)
+  }
+  if(!REML && solver != "ldlt"){
+    stop("REML=FALSE (maximum likelihood) currently requires solver='ldlt' ",
+         "(or solver='auto' with a sparse/identity random-effect structure, ",
+         "which resolves to 'ldlt').", call.=FALSE)
+  }
+
   message(crayon::blue(paste("Solver selected:", solver)))
 
   if(returnParam){
@@ -468,7 +477,7 @@ mmes <- function(fixed, random, rcov, data, W,
                 stepWeight=stepWeight, emWeight=emWeight,
                 rtermss=rtermss, partitionsX=partitionsX,
                 getPEV=getPEV, rTermsNames=rTermsNames,
-                obsInfo=obsInfo, solver=solver))
+                obsInfo=obsInfo, solver=solver, REML=REML))
   }
   
   res <- .Call("_sommer_ai_mme_sp2", PACKAGE="sommer",
@@ -477,7 +486,7 @@ mmes <- function(fixed, random, rcov, data, W,
                nIters, tolParConvLL, tolParConvNorm,
                tolParInv, covStruct, emWeight, stepWeight,
                verbose, computeCi, solver, pcgTol, pcgMaxIters,
-               pcgTraceProbes, pcgLanczosSteps)
+               pcgTraceProbes, pcgLanczosSteps, REML)
   
   rownames(res$b) <- colnames(X)
   if(length(randomFits) && length(res$u)) rownames(res$u) <- unlist(lapply(Z, colnames))
@@ -491,6 +500,7 @@ mmes <- function(fixed, random, rcov, data, W,
   res$y <- yvar
   res$partitionsX <- partitionsX
   res$covStruct <- covStruct
+  res$REML <- REML
   
   if(length(randomFits) && length(rtermss)){
     names(res$theta) <- c(rtermss, residualLabel)
@@ -522,7 +532,7 @@ mmes <- function(fixed, random, rcov, data, W,
   }
   
   class(res) <- "mmes"
-  # res$covParNative <- get(".covparams_mmes", mode="function")(res)
   res$covParNative <- get(".covparams_mmes_se", mode="function")(res)
+  # res$covParNativeSE <- get(".covparams_mmes_se", mode="function")(res)
   res
 }

@@ -30,7 +30,7 @@ mmes(fixed, random, rcov, data, W,
      contrasts=NULL, getPEV=TRUE, henderson=TRUE,
     computeCi=0, solver="auto", pcgTol=1.0e-8,
     pcgMaxIters=0, pcgTraceProbes=8,
-    pcgLanczosSteps=20)
+    pcgLanczosSteps=20, REML=TRUE)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -322,6 +322,22 @@ mmes(fixed, random, rcov, data, W,
   log-determinant calculations. The default is \code{20}. Larger values can improve
    the approximation at additional computational cost. This argument is relevant to
    \code{solver="pcg"}.}
+
+   \item{REML}{Logical, \code{TRUE} (default) fits variance/covariance parameters by
+   restricted maximum likelihood (REML), the classical choice for BLUP-style variance
+   component estimation. Setting \code{REML=FALSE} fits by maximum likelihood (ML)
+   instead: the log-likelihood, score equations, and reported \code{monitor}/log-lik
+   values drop the REML "restriction" term that accounts for the degrees of freedom
+   used to estimate the fixed effects. ML estimates of variance components are known
+   to be biased downward relative to REML, but unlike REML log-likelihoods, ML
+   log-likelihoods are directly comparable (via a likelihood-ratio test) across models
+   that differ in their \strong{fixed}-effects specification - REML likelihoods are only
+   comparable across models that share the same fixed effects. \code{REML=FALSE}
+   currently requires \code{solver="ldlt"} (the default \code{solver="auto"} already
+   resolves to \code{"ldlt"} whenever every random effect's relationship matrix is
+   sparse/identity, so this is only a restriction for dense-\code{Gu} models). Prediction
+   error variances (\code{uPevList}/\code{computeCi}) are still computed from the
+   REML-style inverse regardless of \code{REML}.}
 }
 
 \details{

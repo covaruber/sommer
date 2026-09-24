@@ -1683,23 +1683,7 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
       upper=rep(NA_real_, length(par))
     )
   }
-  if(is.null(native_report)){
-    native_report <- list(
-      backend="R",
-      fun=function(scale, par, factor, absorb_scale=TRUE){
-        values <- stats::setNames(as.numeric(par), factor$par_names)
-        if(absorb_scale) c(sigma2=scale, values) else values
-      }
-    )
-  }
-  if(is.function(native_report)){
-    native_report <- list(backend="R", fun=native_report)
-  }
-  if(!is.list(native_report) || !identical(native_report$backend, "R") ||
-     !is.function(native_report$fun)){
-    stop("CovarianceFactor native_report must be a function or an R callback specification.",
-         call. = FALSE)
-  }
+  customNativeReport <- native_report
   if(is.null(trust_cap)) trust_cap <- rep(1.5, length(par))
   if(length(trust_cap) != length(par)){
     stop("CovarianceFactor trust_cap must have one value per parameter.",
@@ -1714,12 +1698,20 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     evaluator=evaluator,
     derivative=derivative,
     report=report,
-    native_report=native_report,
+    native_report=customNativeReport,
     trust_cap=as.numeric(trust_cap),
     structurally_diagonal=isTRUE(structurally_diagonal),
     descriptor_version=2L,
     model=model
   ), metadata)
+  if(is.null(out$native_report)){
+    out$native_report <- list(
+      backend="R",
+      fun=.covfactor_native_report(model, out)
+    )
+  }else if(is.function(out$native_report)){
+    out$native_report <- list(backend="R", fun=out$native_report)
+  }
   class(out) <- c("sommer_covfactor", "list")
   .validate_covfactor(out)
   out
@@ -1742,9 +1734,21 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     })
   }
 
-  if(model == "ar1"){
+  if(model %in% c("ar1", "ar2", "ar3", "arp")){
+    order <- if(model == "arp") as.integer(f$order) else
+      as.integer(sub("ar", "", model))
     return(function(scale, par, factor, absorb_scale=TRUE){
-      c(if(absorb_scale) c(variance=scale), rho=par[1])
+      dependence <- par[seq_len(order)]
+      dependenceNames <- if(order == 1L) "rho" else paste0("pacf[", seq_len(order), "]")
+      names(dependence) <- dependenceNames
+      if(length(par) == order){
+        return(c(if(absorb_scale) c(variance=scale), dependence))
+      }
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "variance" else "relative_variance"
+      variances <- multiplier * c(1, par[-seq_len(order)])
+      c(dependence,
+        stats::setNames(variances, paste0(prefix, "[", levels, "]")))
     })
   }
 
@@ -1777,21 +1781,6 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
                        paste0(if(absorb_scale) "covariance" else "relative_covariance",
                               "[", levels[idx[,1]], ",", levels[idx[,2]], "]"))
       stats::setNames(Sigma[idx], labels)
-    })
-  }
-
-  if(model == "arp"){
-    order <- as.integer(f$order)
-    return(function(scale, par, factor, absorb_scale=TRUE){
-      pacf <- par[seq_len(order)]
-      names(pacf) <- paste0("pacf[", seq_len(order), "]")
-      if(length(par) == order){
-        return(c(if(absorb_scale) c(variance=scale), pacf))
-      }
-      multiplier <- if(absorb_scale) scale else 1
-      prefix <- if(absorb_scale) "variance" else "relative_variance"
-      variances <- multiplier * c(1, par[-seq_len(order)])
-      c(pacf, stats::setNames(variances, paste0(prefix, "[", levels, "]")))
     })
   }
 
@@ -1862,6 +1851,25 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
       innovations <- stats::setNames(multiplier * c(1, ratios),
                                      paste0(prefix, "[", levels, "]"))
       c(coefficients, innovations)
+    })
+  }
+
+  if(model == "matern"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale), range=par[1], nu=par[2])
+    })
+  }
+
+  if(model == "toeplitz"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale),
+        stats::setNames(par, paste0("pacf[", seq_along(par), "]")))
+    })
+  }
+
+  if(model %in% c("sar", "car")){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale), rho=par[1])
     })
   }
 

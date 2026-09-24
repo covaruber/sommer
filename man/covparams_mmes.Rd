@@ -23,6 +23,13 @@ and internal coordinates such as log standard deviations, normalized Cholesky
 coefficients, and variance ratios are not returned where the covariance model
 provides a more direct native representation.
 
+All built-in CovarianceFactor families provide native reporters, including
+identity, diagonal, unstructured, AR(1--3), compound-symmetry, moving-average,
+general-correlation, factor-analytic, antedependence, reduced-rank, Matérn,
+Toeplitz, SAR, and CAR structures. Heterogeneous AR and compound-symmetry
+models report their dependence parameter together with level-specific
+variances rather than an overall variance plus variance ratios.
+
 Both fixed and estimated covariance parameters are included. For an arbitrary
 Kronecker product, the product-level variance scale is absorbed by the first
 covariance-shaping factor. Subsequent factors are necessarily reported on their

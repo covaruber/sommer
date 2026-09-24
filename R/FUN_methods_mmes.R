@@ -68,17 +68,31 @@
   coef$t.value <- coef$Estimate/coef$Std.Error
   
   varcomp <- object$covParNative
-  varcomp <- varcomp[,c("term","parameter","estimate","StdError","Zratio")]
 
-  output <- list(varcomp=varcomp, betas=coef, method=method,logo=LLAIC)
+  # lapply(object$covStruct, function(x){x$free})
+  # constraints <- unlist(lapply(object$thetaC, as.vector))
+  # constraints <- constraints[which(constraints != 0)]
+  # varcomp$Constraint <- replace.values(constraints, 1:3, c("Positive","Unconstr","Fixed"))
+
+  output <- list(varcomp=varcomp, betas=coef, method=method,logo=LLAIC,
+                 REML=if(is.null(object$REML)) TRUE else object$REML)
   attr(output, "class")<-c("summary.mmes", "list")
   return(output)
 }
 
 "print.summary.mmes"<-function (x, digits = max(3, getOption("digits") - 3),  ...){
 
+  desc <- utils::packageDescription("sommer")
   nmaxchar0 <- max(as.vector(unlist(apply(data.frame(rownames(x$varcomp)),1,nchar))),na.rm = TRUE)
 
+  # x$estimate <- round(x$estimate, digits = digits)
+  # x$StdError    <- round(x$StdError   , digits = digits)
+  # x$Zratio <- round(x$Zratio, digits = digits)
+  # 
+  # nmaxchar0 <- max(apply(x,1,function(y){
+  #   nchar(paste(unlist(y), collapse = ""))
+  # }) )
+  
   if(nmaxchar0 < 26){
     nmaxchar0 <- 26
   } # + 26 spaces we have nmaxchar0+26  spaces to put the title
@@ -91,8 +105,9 @@
   digits = max(3, getOption("digits") - 3)
   ################################################
   cat(paste(rep("=",nmaxchar), collapse = ""))
-  cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by REML",rlt,"\n", collapse = ""))
-  cat(paste(rlh," sommer 4.4 ",rlh, "\n", collapse = ""))
+  cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by ",
+            if(isTRUE(x$REML)) "REML" else "ML", rlt,"\n", collapse = ""))
+  cat(paste(rlh," sommer ",desc$Version,rlh, "\n", collapse = ""))
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\n")
   cat("")
@@ -610,6 +625,13 @@ anova.mmes <- function(object, object2=NULL, ...) {
     stop("The 'anova' function for the sommer package only works to compare mixed models by likelihood ratio tests (LRT), was not intended to provide regular sum of squares output.")
     # result <- sequential.fit(object,type=type)
   }else{
+    if(!is.null(object$REML) && !is.null(object2$REML) &&
+       !identical(object$REML, object2$REML)){
+      warning("Comparing a REML fit against a maximum-likelihood (REML=FALSE) fit is not a valid likelihood ratio test; refit both models with the same REML= setting.", call.=FALSE)
+    }else if(isTRUE(object$REML) && isTRUE(object2$REML) &&
+             !identical(deparse(object$args$fixed), deparse(object2$args$fixed))){
+      warning("Both models were fit with REML=TRUE but specify different fixed effects. REML log-likelihoods are only comparable across models sharing the same fixed effects; refit both models with REML=FALSE for a valid likelihood ratio test on the fixed effects.", call.=FALSE)
+    }
     dis=c(
           nrow(object$monitor)+nrow(object$b),
           nrow(object2$monitor)+nrow(object2$b)

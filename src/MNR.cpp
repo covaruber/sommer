@@ -3477,7 +3477,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const double & pcgTol = 1.0e-8,
                      const int & pcgMaxIters = 0,
                      const int & pcgTraceProbes = 8,
-                     const int & pcgLanczosSteps = 20
+                     const int & pcgLanczosSteps = 20,
+                     const bool & reml = true
 ){
 
   if(computeCi < 0 || computeCi > 2){
@@ -3513,6 +3514,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   }
   if(solverName == "pcg" && computeCi == 1){
     Rcpp::stop("computeCi=1 requires LDLT/Takahashi. Use computeCi=0 for a genuinely factorisation-free PCG fit, or computeCi=2 for an explicit PCG full inverse (small systems only).");
+  }
+  if(!reml && solverName != "ldlt"){
+    Rcpp::stop("reml=FALSE (maximum likelihood) currently requires solver='ldlt'.");
   }
 
   if(verbose){
@@ -5759,6 +5763,18 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   SelectedInverseSubset CselectedTopology;
   bool CselectedTopologyReady = false;
 
+  // ML (reml=FALSE) support: D is the random-effects-only block of C,
+  // D = Z'R^{-1}Z + G^{-1} (rows/cols nX..nEffects-1 of C, re-indexed to
+  // 0..Nu-1). log|D| and D's own Takahashi selected inverse replace
+  // log|C| and CselectedTopology in the likelihood/score computations,
+  // dropping the log|X'V^{-1}X| restriction term that makes REML
+  // "restricted". Only used when reml==false (validated solver=="ldlt"
+  // above); never touched otherwise.
+  EigenLDLT Dfactor;
+  SelectedInverseSubset DselectedTopology;
+  bool DselectedTopologyReady = false;
+
+
   // ============================================================
   // CHOLMOD (via R's Matrix package) supernodal backend for solver="cholmod"
   // ============================================================
@@ -7269,6 +7285,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     C.makeCompressed();
 
     double logDetC = 0.0;
+    double logDetD = 0.0; // only computed/used when reml==false (Nu==0 => 0)
     // Diagnostic only: minimum LDLT pivot in direct mode; minimum diagonal
     // entry of C in PCG mode. This must not be used by the PCG algorithm.
     double minD = std::numeric_limits<double>::quiet_NaN();
@@ -7307,6 +7324,46 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         logDetC += std::log(dj);
       }
       reuseCselectedTopology = sameCPattern && CselectedTopologyReady;
+
+      if(!reml){
+        // Extract D = Z'R^{-1}Z + G^{-1}, the bottom-right (nX..nEffects-1)
+        // block of C, re-indexed to 0..Nu-1. This block never involves X,
+        // so it is exactly the same matrix regardless of the fixed-effects
+        // design - a single pass over C's stored entries suffices.
+        std::vector<Eigen::Triplet<double>> Dtriplets;
+        for(int col = 0; col < static_cast<int>(C.outerSize()); ++col){
+          if(col < nX){ continue; }
+          for(EigenSpMat::InnerIterator it(C, col); it; ++it){
+            if(it.row() < nX){ continue; }
+            Dtriplets.emplace_back(
+              static_cast<int>(it.row() - nX),
+              col - nX,
+              it.value()
+            );
+          }
+        }
+        EigenSpMat Dmat(Nu, Nu);
+        Dmat.setFromTriplets(Dtriplets.begin(), Dtriplets.end());
+        Dmat.makeCompressed();
+
+        Dfactor.analyzePattern(Dmat);
+        if(Dfactor.info() != Eigen::Success){
+          Rcpp::stop("Sparse symbolic analysis of the random-effects-only matrix D failed (reml=FALSE).");
+        }
+        Dfactor.factorize(Dmat);
+        if(Dfactor.info() != Eigen::Success){
+          Rcpp::stop("Sparse LDLT factorisation of the random-effects-only matrix D failed (reml=FALSE).");
+        }
+
+        const Eigen::VectorXd DdiagLDLT = Dfactor.vectorD();
+        for(Eigen::Index j = 0; j < DdiagLDLT.size(); ++j){
+          const double dj = DdiagLDLT(j);
+          if(!std::isfinite(dj) || dj <= 0.0){
+            Rcpp::stop("Sparse LDLT produced a non-positive/non-finite pivot in D (reml=FALSE).");
+          }
+          logDetD += std::log(dj);
+        }
+      }
     }else if(solverName == "cholmod"){
       // Supernodal (BLAS-3) direct factorisation via R's Matrix package.
       // No Takahashi selected inverse is available for a supernodal factor
@@ -7451,7 +7508,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       (
         llikp
         +
-        logDetC
+        (reml ? logDetC : logDetD)
         +
         logDetR
         +
@@ -7634,6 +7691,19 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         reuseCselectedTopology
       );
       CselectedTopologyReady = true;
+
+      if(!reml && Nu > 0){
+        // ML score/trace terms need D's own selected inverse (never the
+        // REML-adjusted [C^{-1}]_uu block); rebuilt fresh every iteration
+        // (no topology-reuse fast path yet - correctness first).
+        buildSelectedInverseSubset(
+          Dfactor,
+          "D",
+          DselectedTopology,
+          false
+        );
+        DselectedTopologyReady = true;
+      }
     }else if(solverName == "pcg"){
       preparePCGTraceProbes(C);
     }
@@ -8446,11 +8516,18 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                   Rcpp::stop("Random-effect inverse block dimensions are inconsistent with Ai.");
                 }
                 double cij = 0.0;
-                if(!getSelectedInverseOriginal(
-                     CselectedTopology,
-                     static_cast<int>(colStart + ac),
-                     static_cast<int>(rowStart + ar),
-                     cij)){
+                const bool haveEntry = reml
+                  ? getSelectedInverseOriginal(
+                      CselectedTopology,
+                      static_cast<int>(colStart + ac),
+                      static_cast<int>(rowStart + ar),
+                      cij)
+                  : getSelectedInverseOriginal(
+                      DselectedTopology,
+                      static_cast<int>(colStart + ac - nX),
+                      static_cast<int>(rowStart + ar - nX),
+                      cij);
+                if(!haveEntry){
                   subsetComplete = false;
                   break;
                 }
@@ -8459,26 +8536,43 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
               if(!subsetComplete){
                 if(!fallbackBlockAvailable){
-                  Eigen::MatrixXd selectedRHS = Eigen::MatrixXd::Zero(
-                    static_cast<Eigen::Index>(nEffects),
-                    static_cast<Eigen::Index>(blockWidth));
-                  for(arma::uword j = 0; j < blockWidth; ++j){
-                    selectedRHS(static_cast<Eigen::Index>(colStart + j),
-                                static_cast<Eigen::Index>(j)) = 1.0;
-                  }
 #ifdef _OPENMP
                   #pragma omp critical(sommer_factor_solve)
 #endif
-                  fallbackBlockSolution = solveCMatrix(
-                    selectedRHS,
-                    "selected-block random-effect score-trace fallback");
+                  {
+                    if(reml){
+                      Eigen::MatrixXd selectedRHS = Eigen::MatrixXd::Zero(
+                        static_cast<Eigen::Index>(nEffects),
+                        static_cast<Eigen::Index>(blockWidth));
+                      for(arma::uword j = 0; j < blockWidth; ++j){
+                        selectedRHS(static_cast<Eigen::Index>(colStart + j),
+                                    static_cast<Eigen::Index>(j)) = 1.0;
+                      }
+                      fallbackBlockSolution = solveCMatrix(
+                        selectedRHS,
+                        "selected-block random-effect score-trace fallback");
+                    }else{
+                      Eigen::MatrixXd selectedRHS = Eigen::MatrixXd::Zero(
+                        static_cast<Eigen::Index>(Nu),
+                        static_cast<Eigen::Index>(blockWidth));
+                      for(arma::uword j = 0; j < blockWidth; ++j){
+                        selectedRHS(static_cast<Eigen::Index>(colStart + j - nX),
+                                    static_cast<Eigen::Index>(j)) = 1.0;
+                      }
+                      fallbackBlockSolution = Dfactor.solve(selectedRHS);
+                      if(Dfactor.info() != Eigen::Success){
+                        Rcpp::stop("Sparse LDLT trace fallback solve failed in selected-block random-effect score-trace fallback (reml=FALSE).");
+                      }
+                    }
+                  }
                   fallbackBlockAvailable = true;
                 }
                 arma::mat inverseBlock(blockHeight, blockWidth);
+                const arma::uword rowOffset = reml ? 0 : nX;
                 for(arma::uword rr = 0; rr < blockHeight; ++rr){
                   for(arma::uword cc = 0; cc < blockWidth; ++cc){
                     inverseBlock(rr,cc) = fallbackBlockSolution(
-                      static_cast<Eigen::Index>(rowStart + rr),
+                      static_cast<Eigen::Index>(rowStart + rr - rowOffset),
                       static_cast<Eigen::Index>(cc));
                   }
                 }
@@ -8780,13 +8874,30 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         traceCorrection =
           solverName == "pcg"
           ? pcgTraceCInverseTimesSparse(Btrace)
-          : sparseTraceInverseTimes(
-              Btrace,
-              Cfactor,
-              CselectedTopology,
-              "residual trace tr(C^{-1} W'Ri(dR/dphi)RiW)",
-              usedCTraceFallback,
-              solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveCMatrix) : nullptr
+          : (reml
+              ? sparseTraceInverseTimes(
+                  Btrace,
+                  Cfactor,
+                  CselectedTopology,
+                  "residual trace tr(C^{-1} W'Ri(dR/dphi)RiW)",
+                  usedCTraceFallback,
+                  solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveCMatrix) : nullptr
+                )
+              : (Nu > 0
+                  ? sparseTraceInverseTimes(
+                      arma::sp_mat(Btrace.submat(
+                        static_cast<arma::uword>(nX),
+                        static_cast<arma::uword>(nX),
+                        static_cast<arma::uword>(nEffects - 1),
+                        static_cast<arma::uword>(nEffects - 1)
+                      )),
+                      Dfactor,
+                      DselectedTopology,
+                      "residual trace tr(D^{-1} Z'Ri(dR/dphi)RiZ)",
+                      usedCTraceFallback,
+                      nullptr
+                    )
+                  : 0.0)
             );
       }
 

@@ -28,6 +28,10 @@ uncertainty and covariance in both the overall variance and its variance ratio.
 Likewise, \code{usm()} standard errors account for all relevant normalized
 Cholesky parameters.
 
+The transformation is available for every built-in CovarianceFactor family
+supported by \code{covparams_mmes()}; user-defined \code{ownm()} structures
+use their descriptor-provided \code{native_report} callback.
+
 Parameters marked fixed in the covariance descriptor contribute no independent
 sampling uncertainty: their rows and columns in \code{theta_se} are excluded
 before transformation. A native quantity involving both fixed and free

@@ -123,3 +123,76 @@ test_that("ownm native reporting callback is dispatched generically", {
   nativeSE <- covparams_mmes_se(fit, 1L)
   expect_true(all(is.finite(nativeSE$StdError)))
 })
+
+test_that("all covariance-factor families provide finite native reports", {
+  x3 <- factor(rep(letters[1:3], each=2))
+  x4 <- factor(rep(letters[1:4], each=2))
+  coords <- matrix(c(0,0, 1,0, 0,1), ncol=2, byrow=TRUE)
+  W <- matrix(c(0,1,1, 1,0,1, 1,1,0), 3, 3)
+  dimnames(W) <- list(letters[1:3], letters[1:3])
+
+  structures <- list(
+    ism(x3), dsm(x3), usm(x3),
+    ar1m(x3), ar1m(x3, variance="heterogeneous"),
+    ar2m(x4), ar2m(x4, variance="heterogeneous"),
+    ar3m(x4), ar3m(x4, variance="heterogeneous"),
+    csm(x3), csm(x3, variance="heterogeneous"),
+    mam(x3), corgm(x3), fam(x3, 1), antem(x3), rrcm(x3, 1),
+    maternm(coords), toeplitzm(x3), sar(x3, W), car(x3, W)
+  )
+
+  for(structure in structures){
+    factor <- structure$covFactor
+    reporter <- factor$native_report$fun
+    natural <- factor$par
+    if(length(natural)){
+      transform <- factor$report$transform
+      for(k in seq_along(natural)){
+        natural[k] <- switch(transform[k],
+          identity=natural[k], exp=exp(natural[k]), tanh=tanh(natural[k]),
+          bounded_logit={
+            p <- stats::plogis(natural[k])
+            factor$report$lower[k] +
+              (factor$report$upper[k] - factor$report$lower[k]) * p
+          })
+      }
+    }
+    values <- reporter(scale=2, par=natural, factor=factor, absorb_scale=TRUE)
+    expect_true(length(values) > 0L, info=factor$model)
+    expect_true(all(is.finite(values)), info=factor$model)
+    expect_true(all(nzchar(names(values))), info=factor$model)
+
+    factor$par_start <- 2L
+    factor$par_end <- length(natural) + 1L
+    fitted <- structure(list(
+      covStruct=stats::setNames(list(list(
+        factors=list(factor), free=c(TRUE, factor$free)
+      )), "term"),
+      covPar=stats::setNames(list(c(2, natural)), "term"),
+      theta_se=diag(length(natural) + 1L)
+    ), class="mmes")
+    publicValues <- covparams_mmes(fitted)
+    publicSE <- covparams_mmes_se(fitted)
+    expect_equal(publicValues$estimate, as.numeric(values), info=factor$model)
+    expect_true(all(is.finite(publicSE$StdError)), info=factor$model)
+  }
+})
+
+test_that("heterogeneous AR1 reports rho and environment variances", {
+  DT_example <- get("DT_example", envir=asNamespace("sommer"))
+  fit <- mmes(
+    Yield ~ Env,
+    random=~vsm(ar1m(Env, variance="heterogeneous"), ism(Name)),
+    rcov=~vsm(dsm(Env), ism(units)),
+    data=DT_example,
+    verbose=FALSE,
+    nIters=5
+  )
+  native <- covparams_mmes(fit, 1L)
+  varianceRows <- grepl("^variance\\[", native$parameter)
+  expect_equal(native$parameter[1L], "rho")
+  expect_equal(native$estimate[varianceRows], diag(fit$theta[[1]]), tolerance=1e-8)
+  expect_false(any(grepl("ratio|sigma2", native$parameter)))
+  nativeSE <- covparams_mmes_se(fit, 1L)
+  expect_true(all(is.finite(nativeSE$StdError)))
+})
