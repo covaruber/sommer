@@ -1665,7 +1665,7 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
 .make_covfactor <- function(dim, levels, par=numeric(), free=logical(),
                             par_names=character(), evaluator,
                             derivative=list(backend="numeric", rel_step=1e-6),
-                            report=NULL, trust_cap=NULL,
+                            report=NULL, native_report=NULL, trust_cap=NULL,
                             structurally_diagonal=FALSE, model=NULL,
                             metadata=list()){
   dim <- as.integer(dim)[1]
@@ -1683,6 +1683,23 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
       upper=rep(NA_real_, length(par))
     )
   }
+  if(is.null(native_report)){
+    native_report <- list(
+      backend="R",
+      fun=function(scale, par, factor, absorb_scale=TRUE){
+        values <- stats::setNames(as.numeric(par), factor$par_names)
+        if(absorb_scale) c(sigma2=scale, values) else values
+      }
+    )
+  }
+  if(is.function(native_report)){
+    native_report <- list(backend="R", fun=native_report)
+  }
+  if(!is.list(native_report) || !identical(native_report$backend, "R") ||
+     !is.function(native_report$fun)){
+    stop("CovarianceFactor native_report must be a function or an R callback specification.",
+         call. = FALSE)
+  }
   if(is.null(trust_cap)) trust_cap <- rep(1.5, length(par))
   if(length(trust_cap) != length(par)){
     stop("CovarianceFactor trust_cap must have one value per parameter.",
@@ -1697,6 +1714,7 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     evaluator=evaluator,
     derivative=derivative,
     report=report,
+    native_report=native_report,
     trust_cap=as.numeric(trust_cap),
     structurally_diagonal=isTRUE(structurally_diagonal),
     descriptor_version=2L,
@@ -1705,6 +1723,152 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
   class(out) <- c("sommer_covfactor", "list")
   .validate_covfactor(out)
   out
+}
+
+.covfactor_native_report <- function(model, f){
+  levels <- as.character(f$levels)
+
+  if(model == "identity"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      if(absorb_scale) c(sigma2=scale) else numeric()
+    })
+  }
+
+  if(model == "diag"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "variance" else "relative_variance"
+      stats::setNames(multiplier * c(1, par), paste0(prefix, "[", levels, "]"))
+    })
+  }
+
+  if(model == "ar1"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale), rho=par[1])
+    })
+  }
+
+  if(model == "csm"){
+    heterogeneous <- identical(f$variance, "heterogeneous")
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      if(!heterogeneous){
+        return(c(if(absorb_scale) c(variance=scale), rho=par[1]))
+      }
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "variance" else "relative_variance"
+      c(rho=par[1], stats::setNames(multiplier * c(1, par[-1]),
+                                    paste0(prefix, "[", levels, "]")))
+    })
+  }
+
+  if(model == "us"){
+    rows <- as.integer(f$us_row)
+    cols <- as.integer(f$us_col)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      q <- length(levels)
+      L <- matrix(0, q, q)
+      L[1,1] <- 1
+      for(k in seq_along(par)) L[rows[k], cols[k]] <- par[k]
+      Sigma <- tcrossprod(L) * if(absorb_scale) scale else 1
+      idx <- which(lower.tri(Sigma, diag=TRUE), arr.ind=TRUE)
+      labels <- ifelse(idx[,1] == idx[,2],
+                       paste0(if(absorb_scale) "variance" else "relative_variance",
+                              "[", levels[idx[,1]], "]"),
+                       paste0(if(absorb_scale) "covariance" else "relative_covariance",
+                              "[", levels[idx[,1]], ",", levels[idx[,2]], "]"))
+      stats::setNames(Sigma[idx], labels)
+    })
+  }
+
+  if(model == "arp"){
+    order <- as.integer(f$order)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      pacf <- par[seq_len(order)]
+      names(pacf) <- paste0("pacf[", seq_len(order), "]")
+      if(length(par) == order){
+        return(c(if(absorb_scale) c(variance=scale), pacf))
+      }
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "variance" else "relative_variance"
+      variances <- multiplier * c(1, par[-seq_len(order)])
+      c(pacf, stats::setNames(variances, paste0(prefix, "[", levels, "]")))
+    })
+  }
+
+  if(model == "ma"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale),
+        stats::setNames(par, factor$par_names))
+    })
+  }
+
+  if(model == "corg"){
+    rows <- as.integer(f$corg_row)
+    cols <- as.integer(f$corg_col)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      q <- length(levels)
+      A <- diag(q)
+      for(k in seq_along(par)) A[rows[k], cols[k]] <- par[k]
+      R <- stats::cov2cor(tcrossprod(A))
+      idx <- which(lower.tri(R), arr.ind=TRUE)
+      correlations <- stats::setNames(
+        R[idx], paste0("correlation[", levels[idx[,1]], ",", levels[idx[,2]], "]"))
+      c(if(absorb_scale) c(variance=scale), correlations)
+    })
+  }
+
+  if(model == "fa"){
+    rows <- as.integer(f$fa_row)
+    cols <- as.integer(f$fa_col)
+    nload <- as.integer(f$fa_nload)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      rawLoading <- par[seq_len(nload)]
+      normalization <- rawLoading[1L]^2 + 1
+      multiplier <- if(absorb_scale) sqrt(scale / normalization) else
+        1 / sqrt(normalization)
+      loading <- multiplier * rawLoading
+      names(loading) <- paste0("loading[", levels[rows], ",F", cols, "]")
+      specific <- (if(absorb_scale) scale else 1) *
+        c(1, par[-seq_len(nload)]) / normalization
+      names(specific) <- paste0(if(absorb_scale) "specific_variance" else
+                                  "relative_specific_variance", "[", levels, "]")
+      c(loading, specific)
+    })
+  }
+
+  if(model == "rr"){
+    rows <- as.integer(f$rr_row)
+    cols <- as.integer(f$rr_col)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      normalization <- par[1L]^2 + 1
+      multiplier <- if(absorb_scale) sqrt(scale / normalization) else
+        1 / sqrt(normalization)
+      loading <- multiplier * par
+      names(loading) <- paste0("loading[", levels[rows], ",F", cols, "]")
+      c(loading,
+        common_specific_variance=(if(absorb_scale) scale else 1) / normalization)
+    })
+  }
+
+  if(model == "ante"){
+    ncoef <- as.integer(f$ante_ncoef)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      coefficients <- if(ncoef) par[seq_len(ncoef)] else numeric()
+      names(coefficients) <- factor$par_names[seq_len(ncoef)]
+      ratios <- if(ncoef < length(par)) par[(ncoef+1L):length(par)] else numeric()
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "innovation_variance" else
+        "relative_innovation_variance"
+      innovations <- stats::setNames(multiplier * c(1, ratios),
+                                     paste0(prefix, "[", levels, "]"))
+      c(coefficients, innovations)
+    })
+  }
+
+  function(scale, par, factor, absorb_scale=TRUE){
+    values <- stats::setNames(as.numeric(par), factor$par_names)
+    if(absorb_scale) c(sigma2=scale, values) else values
+  }
 }
 
 # -------------------------------------------------------------------------
@@ -1717,6 +1881,7 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
 #   evaluator  : how K(eta) is evaluated
 #   derivative : how dK/deta_k is obtained
 #   report     : transformation from working to reported coordinates
+#   native_report: covariance-model interpretation on its natural scale
 #   trust_cap  : per-parameter maximum proposal size in working coordinates
 #
 # ai_mme_sp2() never needs to know the statistical model label.  Built-in
@@ -1726,7 +1891,8 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
 .compile_covfactor <- function(f){
   if(inherits(f, "sommer_covfactor") &&
      !is.null(f$evaluator) && !is.null(f$derivative) &&
-     !is.null(f$report) && !is.null(f$trust_cap)){
+  !is.null(f$report) && !is.null(f$native_report) &&
+  !is.null(f$trust_cap)){
     return(f)
   }
 
@@ -1920,6 +2086,15 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     lower=as.numeric(lower),
     upper=as.numeric(upper)
   )
+  if(is.function(f$native_report)){
+    f$native_report <- list(backend="R", fun=f$native_report)
+  }
+  if(is.null(f$native_report)){
+    f$native_report <- list(
+      backend="R",
+      fun=.covfactor_native_report(model, f)
+    )
+  }
   f$trust_cap <- as.numeric(trust)
   f$structurally_diagonal <- isTRUE(structurally_diagonal)
   f$descriptor_version <- 2L
@@ -1929,7 +2104,7 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
 
 .validate_covfactor <- function(f){
   required <- c("dim","levels","par","free","par_names","evaluator",
-                "derivative","report","trust_cap","structurally_diagonal",
+                "derivative","report","native_report","trust_cap","structurally_diagonal",
                 "descriptor_version")
   miss <- setdiff(required, names(f))
   if(length(miss)){
@@ -1941,6 +2116,11 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
   }
   if(length(f$trust_cap) != length(f$par)){
     stop("CovarianceFactor trust_cap must have one value per working parameter.",
+         call. = FALSE)
+  }
+  if(!is.list(f$native_report) || !identical(f$native_report$backend, "R") ||
+     !is.function(f$native_report$fun)){
+    stop("CovarianceFactor native_report must contain an R callback function.",
          call. = FALSE)
   }
   invisible(TRUE)
@@ -2574,7 +2754,7 @@ antem <- function(x, order=1L, beta=NULL, innovations=NULL, fixed=NULL){
 # unique overall sigma2. If dfun is omitted, ai_mme_sp2 uses a central numerical
 # derivative of the normalized user function.
 ownm <- function(x, K=NULL, fun=NULL, par=numeric(), fixed=NULL,
-                 dfun=NULL, par_names=NULL){
+                 dfun=NULL, par_names=NULL, native_report=NULL){
   expr <- as.character(substitute(x))
   dummy <- .cov_dummy(x, expr)
   q <- ncol(dummy)
@@ -2678,7 +2858,8 @@ ownm <- function(x, K=NULL, fun=NULL, par=numeric(), fixed=NULL,
       free=!as.logical(fixed),
       par_names=as.character(par_names),
       fun=wrapped_fun,
-      dfun=wrapped_dfun
+      dfun=wrapped_dfun,
+      native_report=native_report
     ))
   )
 }

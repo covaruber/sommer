@@ -30,6 +30,16 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
   )
   expect_equal(unname(reconstructed), unname(fit_fa$theta[[term_fa]]), tolerance=1e-6)
 
+  native_fa <- covparams_mmes(fit_fa, term_fa)
+  native_fa_loadings <- native_fa$estimate[grepl("^loading\\[", native_fa$parameter)]
+  native_fa_specific <- native_fa$estimate[grepl("^specific_variance\\[", native_fa$parameter)]
+  native_fa_matrix <- matrix(0, 6L, 2L)
+  native_fa_matrix[cbind(fit_fa$covStruct[[term_fa]]$factors[[1]]$fa_row,
+                         fit_fa$covStruct[[term_fa]]$factors[[1]]$fa_col)] <-
+    native_fa_loadings
+  expect_equal(unname(tcrossprod(native_fa_matrix) + diag(native_fa_specific)),
+               unname(fit_fa$theta[[term_fa]]), tolerance=1e-6)
+
   scores_fa <- scores_mmes(fit_fa, term_fa, varianceScale = FALSE, rotation = FALSE)
   expect_equal(dim(scores_fa), c(24L, 2L))
   expect_true(all(is.finite(scores_fa)))
@@ -57,6 +67,16 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
     rr$loadings %*% t(rr$loadings) + diag(rr$specific)
   )
   expect_equal(unname(reconstructed_rr), unname(fit_rr$theta[[term_rr]]), tolerance=1e-6)
+
+  native_rr <- covparams_mmes(fit_rr, term_rr)
+  native_rr_loadings <- native_rr$estimate[grepl("^loading\\[", native_rr$parameter)]
+  native_rr_specific <- native_rr$estimate[native_rr$parameter == "common_specific_variance"]
+  native_rr_matrix <- matrix(0, 6L, 1L)
+  native_rr_matrix[cbind(fit_rr$covStruct[[term_rr]]$factors[[1]]$rr_row,
+                         fit_rr$covStruct[[term_rr]]$factors[[1]]$rr_col)] <-
+    native_rr_loadings
+  expect_equal(unname(tcrossprod(native_rr_matrix) + diag(native_rr_specific, 6L)),
+               unname(fit_rr$theta[[term_rr]]), tolerance=1e-6)
 
   scores_rr <- scores_mmes(fit_rr, term_rr, varianceScale = FALSE, rotation = FALSE)
   expect_equal(dim(scores_rr), c(24L, 1L))

@@ -529,6 +529,15 @@ If all parameters are correctly indicated the program will return a list with th
 \item{Ci_11}{the inverse of the coefficient matrix pertaining to the fixed effects.}
 \item{theta}{a list of estimated variance covariance matrices. Each element of 
              the list corresponds to the different random and residual components}
+\item{covPar}{the fitted covariance parameters in their descriptor-defined
+reported coordinates.}
+\item{covParNative}{a data frame containing all fixed and estimated covariance
+parameters in the native model-facing scale defined by each CovarianceFactor.
+For example, \code{dsm()} entries are level-specific variances rather than
+variance ratios. This is the same result returned by \code{covparams_mmes()}.}
+\item{covParNativeSE}{the native-scale covariance-parameter table augmented
+with delta-method standard errors and Z ratios. This is the same result
+returned by \code{covparams_mmes_se()}.}
 \item{theta_se}{inverse of the information matrix.}
 \item{InfMat}{information matrix.}
 \item{monitor}{The values of the variance-covariance components across iterations 

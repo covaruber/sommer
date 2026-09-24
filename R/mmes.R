@@ -11,7 +11,7 @@ mmes <- function(fixed, random, rcov, data, W,
                  computeCi=0, solver="auto", pcgTol=1.0e-8,
                  pcgMaxIters=0, pcgTraceProbes=8,
                  pcgLanczosSteps=20){
-  
+
   if(!isTRUE(henderson)){
     stop("This mmes() interface is Henderson-only. Use the separate MNR/direct-inversion mmer interface for henderson=FALSE.",
          call.=FALSE)
@@ -456,7 +456,9 @@ mmes <- function(fixed, random, rcov, data, W,
     }, logical(1)))
     solver <- if(hasDenseGu) "cholmod" else "ldlt"
   }
-  
+
+  message(crayon::blue(paste("Solver selected:", solver)))
+
   if(returnParam){
     return(list(yvar=yvar, X=X, Z=Z, Zind=Zind, Ai=Ai,
                 W=W, useH=useH, residualBlock=residualBlock,
@@ -493,6 +495,7 @@ mmes <- function(fixed, random, rcov, data, W,
   if(length(randomFits) && length(rtermss)){
     names(res$theta) <- c(rtermss, residualLabel)
     names(res$covPar) <- c(rtermss, residualLabel)
+    names(res$covStruct) <- c(rtermss, residualLabel)
     names(res$partitions) <- rtermss
     names(res$uList) <- rtermss
     if(getPEV && computeCi > 0) names(res$uPevList) <- rtermss
@@ -511,11 +514,15 @@ mmes <- function(fixed, random, rcov, data, W,
                              include=FALSE, average=FALSE)
   }else{
     names(res$theta) <- residualLabel
+    names(res$covPar) <- residualLabel
+    names(res$covStruct) <- residualLabel
     res$args <- list(fixed=fixed, rcov=rcov)
     res$Dtable <- data.frame(type=rep("fixed",length(res$partitionsX)),
                              term=names(res$partitionsX), include=FALSE, average=FALSE)
   }
   
   class(res) <- "mmes"
+  # res$covParNative <- get(".covparams_mmes", mode="function")(res)
+  res$covParNative <- get(".covparams_mmes_se", mode="function")(res)
   res
 }

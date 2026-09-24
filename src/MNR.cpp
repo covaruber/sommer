@@ -9801,7 +9801,14 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           << "  wall    "
           << "cpu(sec)   "
           << "restrained   "
-          << "pivot"
+          << "EM weight";
+
+        if(solverName == "ldlt"){
+          Rcpp::Rcout
+            << "      pivot";
+        }
+
+        Rcpp::Rcout
           << arma::endl;
       }
 
@@ -9821,7 +9828,15 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         << "           "
         << restrained.n_elem
         << "      "
-        << minD
+        << arma::as_scalar(weightEmInf(iIter));
+
+      if(solverName == "ldlt"){
+        Rcpp::Rcout
+          << "      "
+          << minD;
+      }
+
+      Rcpp::Rcout
         << arma::endl;
     }
 
