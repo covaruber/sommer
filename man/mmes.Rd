@@ -333,11 +333,10 @@ mmes(fixed, random, rcov, data, W,
    log-likelihoods are directly comparable (via a likelihood-ratio test) across models
    that differ in their \strong{fixed}-effects specification - REML likelihoods are only
    comparable across models that share the same fixed effects. \code{REML=FALSE}
-   currently requires \code{solver="ldlt"} (the default \code{solver="auto"} already
-   resolves to \code{"ldlt"} whenever every random effect's relationship matrix is
-   sparse/identity, so this is only a restriction for dense-\code{Gu} models). Prediction
-   error variances (\code{uPevList}/\code{computeCi}) are still computed from the
-   REML-style inverse regardless of \code{REML}.}
+   currently requires \code{solver="ldlt"} or \code{solver="cholmod"} (\code{solver=
+   "auto"} already resolves to one of these). \code{solver="pcg"} is not yet supported
+   with \code{REML=FALSE}. Prediction error variances (\code{uPevList}/\code{computeCi})
+   are still computed from the REML-style inverse regardless of \code{REML}.}
 }
 
 \details{
@@ -363,6 +362,15 @@ the filtering process. It records the original row index, validity of the respon
 fixed, random, and residual components, whether the observation was retained, and,
 when applicable, the reason for exclusion. This can be useful for diagnosing model
 specifications involving missing values.
+
+\strong{Estimated marginal means}
+
+When the suggested \pkg{emmeans} package is installed, univariate \code{mmes}
+fits can be supplied directly to \code{emmeans::emmeans()}. The resulting means
+are population-level fixed-effect marginal means with covariance obtained from
+the mixed-model equations. Inference uses asymptotic degrees of freedom
+(\code{df = Inf}). Multivariate-response fits are not currently supported by
+this interface.
 
 Random and residual formulas are evaluated as R language objects rather than by
 splitting their textual representation at plus signs. Consequently, arithmetic or

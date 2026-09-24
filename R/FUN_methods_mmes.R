@@ -26,6 +26,12 @@
   invisible()
 }
 
+.onLoad = function(libname, pkgname)
+{
+  if(requireNamespace("emmeans", quietly=TRUE))
+    emmeans::.emm_register("mmes", pkgname)
+}
+
 #### =========== ####
 ## SUMMARY FUNCTION mmes #
 #### =========== ####
@@ -67,7 +73,7 @@
   coef$Std.Error <- sqrt(abs(s2.beta))
   coef$t.value <- coef$Estimate/coef$Std.Error
   
-  varcomp <- object$covParNative
+varcomp <- object$covParNative
 
   # lapply(object$covStruct, function(x){x$free})
   # constraints <- unlist(lapply(object$thetaC, as.vector))
@@ -82,22 +88,13 @@
 
 "print.summary.mmes"<-function (x, digits = max(3, getOption("digits") - 3),  ...){
 
-  desc <- utils::packageDescription("sommer")
   nmaxchar0 <- max(as.vector(unlist(apply(data.frame(rownames(x$varcomp)),1,nchar))),na.rm = TRUE)
 
-  # x$estimate <- round(x$estimate, digits = digits)
-  # x$StdError    <- round(x$StdError   , digits = digits)
-  # x$Zratio <- round(x$Zratio, digits = digits)
-  # 
-  # nmaxchar0 <- max(apply(x,1,function(y){
-  #   nchar(paste(unlist(y), collapse = ""))
-  # }) )
-  
   if(nmaxchar0 < 26){
     nmaxchar0 <- 26
   } # + 26 spaces we have nmaxchar0+26  spaces to put the title
 
-  nmaxchar <- nmaxchar0+44 ## add spaces from the 3 columns
+  nmaxchar <- nmaxchar0+34 ## add spaces from the 3 columns
   nmaxchar2 <- nmaxchar0+18
   nmaxchar3 <- nmaxchar0+34-46 #round(nmaxchar0/2)
   rlh <- paste(rep("*",round(nmaxchar2/2)),collapse = "")
@@ -107,7 +104,7 @@
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by ",
             if(isTRUE(x$REML)) "REML" else "ML", rlt,"\n", collapse = ""))
-  cat(paste(rlh," sommer ",desc$Version,rlh, "\n", collapse = ""))
+  cat(paste(rlh," sommer 4.4 ",rlh, "\n", collapse = ""))
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\n")
   cat("")

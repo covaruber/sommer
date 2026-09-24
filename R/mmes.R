@@ -460,10 +460,10 @@ mmes <- function(fixed, random, rcov, data, W,
   if(length(REML) != 1L || !is.logical(REML) || is.na(REML)){
     stop("REML must be a single TRUE/FALSE value.", call.=FALSE)
   }
-  if(!REML && solver != "ldlt"){
-    stop("REML=FALSE (maximum likelihood) currently requires solver='ldlt' ",
-         "(or solver='auto' with a sparse/identity random-effect structure, ",
-         "which resolves to 'ldlt').", call.=FALSE)
+  if(!REML && !(solver %in% c("ldlt", "cholmod"))){
+    stop("REML=FALSE (maximum likelihood) currently requires solver='ldlt' or ",
+         "solver='cholmod' (solver='auto' resolves to one of these already).",
+         call.=FALSE)
   }
 
   message(crayon::blue(paste("Solver selected:", solver)))
@@ -533,6 +533,5 @@ mmes <- function(fixed, random, rcov, data, W,
   
   class(res) <- "mmes"
   res$covParNative <- get(".covparams_mmes_se", mode="function")(res)
-  # res$covParNativeSE <- get(".covparams_mmes_se", mode="function")(res)
   res
 }

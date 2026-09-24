@@ -26,6 +26,8 @@ Suggests:
     orthopolynom,
     RSpectra,
     lattice,
+     emmeans (>= 1.4),
+     estimability,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3

@@ -3515,8 +3515,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   if(solverName == "pcg" && computeCi == 1){
     Rcpp::stop("computeCi=1 requires LDLT/Takahashi. Use computeCi=0 for a genuinely factorisation-free PCG fit, or computeCi=2 for an explicit PCG full inverse (small systems only).");
   }
-  if(!reml && solverName != "ldlt"){
-    Rcpp::stop("reml=FALSE (maximum likelihood) currently requires solver='ldlt'.");
+  if(!reml && solverName != "ldlt" && solverName != "cholmod"){
+    Rcpp::stop("reml=FALSE (maximum likelihood) currently requires solver='ldlt' or solver='cholmod'.");
   }
 
   if(verbose){
@@ -5877,6 +5877,42 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       return ans;
     };
 
+  // CHOLMOD backend for D (the random-effects-only block used by ML,
+  // reml==false), kept in a separate state/factor from C's - D is a
+  // different matrix (Nu x Nu, no fixed-effect rows/cols) with its own
+  // sparsity pattern, mirroring how cholmodRState is kept separate from
+  // cholmodState for R.
+  CholmodState cholmodDState;
+  bool CholmodDSymbolicReady = false;
+  std::vector<int> DouterPattern;
+  std::vector<int> DinnerPattern;
+
+  auto solveDMatrixCholmod =
+    [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs,
+        const std::string & context) -> Eigen::MatrixXd {
+      cholmod_dense rhsView;
+      std::memset(&rhsView, 0, sizeof(rhsView));
+      rhsView.nrow = static_cast<size_t>(rhs.rows());
+      rhsView.ncol = static_cast<size_t>(rhs.cols());
+      rhsView.nzmax = static_cast<size_t>(rhs.size());
+      rhsView.d = static_cast<size_t>(rhs.rows());
+      rhsView.x = const_cast<double *>(rhs.data());
+      rhsView.xtype = CHOLMOD_REAL;
+      rhsView.dtype = CHOLMOD_DOUBLE;
+
+      cholmod_dense * solution =
+        M_cholmod_solve(CHOLMOD_A, cholmodDState.factor, &rhsView, &cholmodDState.common);
+      if(solution == nullptr){
+        Rcpp::stop("CHOLMOD multi-RHS solve for the random-effects-only matrix D failed in " + context + " (reml=FALSE).");
+      }
+      Eigen::MatrixXd ans =
+        Eigen::Map<const Eigen::MatrixXd>(
+          static_cast<double *>(solution->x), rhs.rows(), rhs.cols()
+        );
+      M_cholmod_free_dense(&solution, &cholmodDState.common);
+      return ans;
+    };
+
   auto preparePCG = [&](const EigenSpMat & Ce){
     CpcgReady = false;
     if(solverName != "pcg"){ return; }
@@ -7291,6 +7327,30 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     double minD = std::numeric_limits<double>::quiet_NaN();
     bool reuseCselectedTopology = false;
 
+    // D = Z'R^{-1}Z + G^{-1}, the bottom-right (nX..nEffects-1) block of C,
+    // re-indexed to 0..Nu-1. This block never involves X, so it is exactly
+    // the same matrix regardless of the fixed-effects design - a single
+    // pass over C's stored entries suffices. Shared by both the ldlt and
+    // cholmod reml=FALSE (ML) branches below.
+    auto buildDFromC = [&]() -> EigenSpMat {
+      std::vector<Eigen::Triplet<double>> Dtriplets;
+      for(int col = 0; col < static_cast<int>(C.outerSize()); ++col){
+        if(col < nX){ continue; }
+        for(EigenSpMat::InnerIterator it(C, col); it; ++it){
+          if(it.row() < nX){ continue; }
+          Dtriplets.emplace_back(
+            static_cast<int>(it.row() - nX),
+            col - nX,
+            it.value()
+          );
+        }
+      }
+      EigenSpMat Dmat(Nu, Nu);
+      Dmat.setFromTriplets(Dtriplets.begin(), Dtriplets.end());
+      Dmat.makeCompressed();
+      return Dmat;
+    };
+
     if(solverName == "ldlt"){
       const bool sameCPattern =
         CsymbolicReady && eigenSparsePatternMatches(C, CouterPattern, CinnerPattern);
@@ -7325,26 +7385,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
       reuseCselectedTopology = sameCPattern && CselectedTopologyReady;
 
-      if(!reml){
-        // Extract D = Z'R^{-1}Z + G^{-1}, the bottom-right (nX..nEffects-1)
-        // block of C, re-indexed to 0..Nu-1. This block never involves X,
-        // so it is exactly the same matrix regardless of the fixed-effects
-        // design - a single pass over C's stored entries suffices.
-        std::vector<Eigen::Triplet<double>> Dtriplets;
-        for(int col = 0; col < static_cast<int>(C.outerSize()); ++col){
-          if(col < nX){ continue; }
-          for(EigenSpMat::InnerIterator it(C, col); it; ++it){
-            if(it.row() < nX){ continue; }
-            Dtriplets.emplace_back(
-              static_cast<int>(it.row() - nX),
-              col - nX,
-              it.value()
-            );
-          }
-        }
-        EigenSpMat Dmat(Nu, Nu);
-        Dmat.setFromTriplets(Dtriplets.begin(), Dtriplets.end());
-        Dmat.makeCompressed();
+      if(!reml && Nu > 0){
+        EigenSpMat Dmat = buildDFromC();
 
         Dfactor.analyzePattern(Dmat);
         if(Dfactor.info() != Eigen::Success){
@@ -7397,6 +7439,39 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       logDetC = M_cholmod_factor_ldetA(cholmodState.factor);
       if(!std::isfinite(logDetC)){
         Rcpp::stop("CHOLMOD produced a non-finite log-determinant for C.");
+      }
+
+      if(!reml && Nu > 0){
+        EigenSpMat Dmat = buildDFromC();
+
+        cholmodDState.ensureStarted();
+        cholmod_sparse Dview = eigenToCholmodSparseView(Dmat);
+
+        const bool sameDPattern =
+          CholmodDSymbolicReady && eigenSparsePatternMatches(Dmat, DouterPattern, DinnerPattern);
+
+        if(!sameDPattern || cholmodDState.factor == nullptr){
+          if(cholmodDState.factor != nullptr){
+            M_cholmod_free_factor(&cholmodDState.factor, &cholmodDState.common);
+          }
+          cholmodDState.factor = M_cholmod_analyze(&Dview, &cholmodDState.common);
+          if(cholmodDState.factor == nullptr || cholmodDState.common.status != CHOLMOD_OK){
+            Rcpp::stop("CHOLMOD symbolic analysis of the random-effects-only matrix D failed (reml=FALSE).");
+          }
+          cacheEigenSparsePattern(Dmat, DouterPattern, DinnerPattern);
+          CholmodDSymbolicReady = true;
+        }
+
+        const int factorizeDOk =
+          M_cholmod_factorize(&Dview, cholmodDState.factor, &cholmodDState.common);
+        if(!factorizeDOk || cholmodDState.common.status != CHOLMOD_OK){
+          Rcpp::stop("CHOLMOD supernodal factorisation of the random-effects-only matrix D failed (reml=FALSE).");
+        }
+
+        logDetD = M_cholmod_factor_ldetA(cholmodDState.factor);
+        if(!std::isfinite(logDetD)){
+          Rcpp::stop("CHOLMOD produced a non-finite log-determinant for D (reml=FALSE).");
+        }
       }
     }else{
       // Genuine factorisation-free MME path: no analyzePattern(), factorize(),
@@ -8559,9 +8634,15 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                         selectedRHS(static_cast<Eigen::Index>(colStart + j - nX),
                                     static_cast<Eigen::Index>(j)) = 1.0;
                       }
-                      fallbackBlockSolution = Dfactor.solve(selectedRHS);
-                      if(Dfactor.info() != Eigen::Success){
-                        Rcpp::stop("Sparse LDLT trace fallback solve failed in selected-block random-effect score-trace fallback (reml=FALSE).");
+                      if(solverName == "cholmod"){
+                        fallbackBlockSolution = solveDMatrixCholmod(
+                          selectedRHS,
+                          "selected-block random-effect score-trace fallback");
+                      }else{
+                        fallbackBlockSolution = Dfactor.solve(selectedRHS);
+                        if(Dfactor.info() != Eigen::Success){
+                          Rcpp::stop("Sparse LDLT trace fallback solve failed in selected-block random-effect score-trace fallback (reml=FALSE).");
+                        }
                       }
                     }
                   }
@@ -8895,7 +8976,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                       DselectedTopology,
                       "residual trace tr(D^{-1} Z'Ri(dR/dphi)RiZ)",
                       usedCTraceFallback,
-                      nullptr
+                      solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveDMatrixCholmod) : nullptr
                     )
                   : 0.0)
             );

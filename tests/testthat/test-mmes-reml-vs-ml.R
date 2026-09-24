@@ -70,4 +70,55 @@ test_that("REML=FALSE validates its inputs and the solver restriction", {
          verbose=FALSE, REML=FALSE, solver="pcg"),
     "REML=FALSE"
   )
+  # cholmod is a supported REML=FALSE backend (unlike pcg above)
+  expect_error(
+    mmes(Yield~Env, random=~Name, rcov=~units, data=DT, nIters=2,
+         verbose=FALSE, REML=FALSE, solver="cholmod"),
+    NA
+  )
+})
+
+test_that("REML=FALSE with solver='cholmod' matches solver='ldlt' exactly", {
+  data(DT_example)
+  DT <- DT_example
+  DT <- DT[!is.na(DT$Yield) & !is.na(DT$Env) & !is.na(DT$Name), ]
+
+  fLdlt <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT,
+                nIters=30, tolParConvLL=1e-10, verbose=FALSE,
+                REML=FALSE, solver="ldlt")
+  fChol <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT,
+                nIters=30, tolParConvLL=1e-10, verbose=FALSE,
+                REML=FALSE, solver="cholmod")
+
+  expect_equal(as.numeric(fLdlt$theta[[1]]), as.numeric(fChol$theta[[1]]),
+               tolerance=1e-6)
+  expect_equal(as.numeric(fLdlt$theta[[2]]), as.numeric(fChol$theta[[2]]),
+               tolerance=1e-6)
+  expect_equal(tail(fLdlt$llik, 1), tail(fChol$llik, 1), tolerance=1e-6)
+})
+
+test_that("REML=FALSE with a dense Gu (solver='cholmod') matches solver='ldlt'", {
+  set.seed(1)
+  nInd <- 40
+  M <- matrix(sample(c(-1, 0, 1), nInd * 150, replace=TRUE), nrow=nInd)
+  Gu <- tcrossprod(scale(M)) / ncol(M)
+  Gu <- Gu + diag(1e-3, nInd)
+  rownames(Gu) <- colnames(Gu) <- paste0("id", 1:nInd)
+  GuInv <- solve(Gu)
+  attr(GuInv, "inverse") <- TRUE
+
+  DTg <- data.frame(id=factor(rep(paste0("id", 1:nInd), 3)))
+  set.seed(2)
+  u <- MASS::mvrnorm(1, mu=rep(0, nInd), Sigma=5 * Gu)
+  DTg$y <- 10 + u[as.integer(DTg$id)] + rnorm(nrow(DTg), sd=2)
+
+  fLdlt <- mmes(y~1, random=~vsm(ism(id), Gu=GuInv), rcov=~units, data=DTg,
+                nIters=25, verbose=FALSE, REML=FALSE, solver="ldlt")
+  fAuto <- mmes(y~1, random=~vsm(ism(id), Gu=GuInv), rcov=~units, data=DTg,
+                nIters=25, verbose=FALSE, REML=FALSE)
+
+  expect_equal(as.numeric(fLdlt$theta[[1]]), as.numeric(fAuto$theta[[1]]),
+               tolerance=1e-6)
+  expect_equal(as.numeric(fLdlt$theta[[2]]), as.numeric(fAuto$theta[[2]]),
+               tolerance=1e-6)
 })
