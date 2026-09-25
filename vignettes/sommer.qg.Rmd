@@ -614,7 +614,7 @@ Under the covariance construction and regularization used in this example, the t
 
 ### 2) UDU' decomposition
 
-An eigendecomposition of a symmetric relationship matrix can be written \(A=UDU^\prime\), with orthogonal eigenvectors \(U\) and diagonal eigenvalue matrix \(D\). Premultiplying the model by \(U^\prime\) rotates the observations and design matrices into this eigenbasis, so the relationship component becomes diagonal. Under residual structures that remain diagonal after the orthogonal transformation, this can simplify marginal-covariance calculations and has historically been useful for dense direct-inversion or spectral algorithms.
+An eigendecomposition of a symmetric relationship matrix can be written \(A=UDU^\prime\), with orthogonal eigenvectors \(U\) and diagonal eigenvalue matrix \(D\). Premultiplying the model by \(U^\prime\) rotates the observations and design matrices into this eigenbasis, so the relationship component becomes diagonal. The `mmes()` interface performs this transformation internally when `rotation=TRUE` is supplied to the relationship `vsm()` term; users should provide the named relationship **precision** matrix through `Gu`, just as in an ordinary `mmes()` fit.
 
 ```{r}
 
@@ -622,44 +622,47 @@ An eigendecomposition of a symmetric relationship matrix can be written \(A=UDU^
 # rownames(GT_wheat) <- rownames(DT_wheat)
 # GT <- apply(GT_wheat,2,as.numeric)
 # rownames(GT) <- rownames(GT_wheat)
-# G <- A.mat(GT)
-# Y <- data.frame(DT_wheat)
+# A <- A.mat(GT)
+# Ai <- solve(A + diag(1e-5, nrow(A)))
+# Ai <- as(as(as(Ai, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+# attr(Ai, "inverse") <- TRUE
 # 
-# # make the decomposition
-# UD<-eigen(G) # get the decomposition: G = UDU'
-# U<-UD$vectors
-# D<-diag(UD$values)# This will be our new 'relationship-matrix'
-# rownames(D) <- colnames(D) <- rownames(G)
-# X<-model.matrix(~1, data=Y) # here: only one fixed effect (intercept)
-# UX<-t(U)%*%X # premultiply X and y by U' 
-# UY <- t(U) %*% as.matrix(Y) # multivariate
+# # One complete observation per relationship level gives a balanced example.
+# DTn <- data.frame(
+#   id=rownames(A),
+#   y=as.numeric(DT_wheat[,1])
+# )
 # 
-# # dataset for decomposed model
-# DTd<-data.frame(id = rownames(G) ,UY, UX =UX[,1])
-# DTd$id<-as.character(DTd$id)
+# model_regular <- mmes(
+#   y~1,
+#   random=~vsm(ism(id), Gu=Ai),
+#   rcov=~units, data=DTn, verbose=FALSE
+# )
 # 
-# modeld <- mmes(cbind(X1,X2) ~ UX - 1, 
-#               random = ~vsm(id,Gu=D), 
-#               rcov = ~vsm(units),
-#               data=DTd, verbose = FALSE)
+# # Henderson MME formulation with eigenbasis random coefficients.
+# model_rotation_h <- mmes(
+#   y~1,
+#   random=~vsm(ism(id), Gu=Ai, rotation=TRUE),
+#   rcov=~units, data=DTn, henderson=TRUE, verbose=FALSE
+# )
 # 
-# # dataset for normal model
-# DTn<-data.frame(id = rownames(G) , DT_wheat)
-# DTn$id<-as.character(DTn$id)
+# # Lee--van der Werf direct observation-covariance formulation.
+# model_rotation_d <- mmes(
+#   y~1,
+#   random=~vsm(ism(id), Gu=Ai, rotation=TRUE),
+#   rcov=~units, data=DTn, henderson=FALSE, verbose=FALSE
+# )
 # 
-# modeln <- mmes(cbind(X1,X2) ~ 1, 
-#               random = ~vsm(id,Gu=G), 
-#               rcov = ~vsm(units),
-#               data=DTn, verbose = FALSE)
-# 
-# ## compare regular and transformed blups
-# plot(x=(solve(t(U)))%*%modeld$U$`u:id`$X2[colnames(D)], 
-#      y=modeln$U$`u:id`$X2[colnames(D)], xlab="UDU blup",
-#      ylab="blup")
+# # Public BLUPs are already returned in the original relationship basis.
+# all.equal(model_regular$uList[[1]], model_rotation_h$uList[[1]])
+# all.equal(model_rotation_h$uList[[1]], model_rotation_d$uList[[1]],
+#           tolerance=1e-4)
+# all.equal(rotate_back_mmes(model_rotation_h),
+#           model_rotation_h$uList[[1]])
 
 ```
 
-The transformed and untransformed formulations are algebraically equivalent when the covariance structures satisfy the assumptions of the rotation. The current `mmes()` implementation, however, is no longer a dense direct-inversion algorithm: it exploits sparse mixed model equations and sparse factorization. Consequently, an eigenspace rotation is not automatically advantageous and can destroy useful sparsity in the incidence matrices. Whether such a transformation helps therefore depends on the particular model and computational formulation.
+The transformed and untransformed formulations are algebraically equivalent under the rotation assumptions. The current implementation accepts one rotated relationship term in a complete balanced Gaussian model with identity residual covariance, the default identity `W`, and `computeCi=0` during fitting. With `henderson=TRUE`, `mmes()` uses diagonal relationship precision in the eigen-coefficient basis. With `henderson=FALSE`, it uses the Lee--van der Werf transformed observation-covariance formulation. The relative computational benefit depends on model dimensions and sparsity.
 
 ### 3) Mating designs
 
@@ -880,7 +883,7 @@ Kang et al. 2008. Efficient control of population structure in model organism as
 
 Lee, D.-J., Durban, M., and Eilers, P.H.C. (2013). Efficient two-dimensional smoothing with P-spline ANOVA mixed models and nested bases. Computational Statistics and Data Analysis, 61, 22 - 37.
 
-Lee et al. 2015. MTG2: An efficient algorithm for multivariate linear mixed model analysis based on genomic information. Cold Spring Harbor. doi: http://dx.doi.org/10.1101/027201.
+Lee, S.H. and van der Werf, J.H.J. 2016. MTG2: An efficient algorithm for multivariate linear mixed model analysis based on genomic information. Bioinformatics 32(9):1420-1422. doi:10.1093/bioinformatics/btw012.
 
 Maier et al. 2015. Joint analysis of psychiatric disorders increases accuracy of risk prediction for schizophrenia, bipolar disorder, and major depressive disorder. Am J Hum Genet; 96(2):283-294.
 

@@ -44,6 +44,7 @@ export(
        summary.mmes, residuals.mmes, fitted.mmes, coef.mmes,
        anova.mmes, plot.mmes, predict.mmes, pmonitor,
        loadings_mmes, scores_mmes, covparams_mmes, covparams_mmes_se,
+       rotate_back_mmes,
         # others
        randef)
 

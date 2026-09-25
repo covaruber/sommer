@@ -5,6 +5,19 @@
 # averaged is used to be included in the prediction
 # ignored is not used included in the prediction
 
+.mmes_engine_contrast <- function(object, D){
+  if(is.null(object$rotation)) return(D)
+
+  term <- object$rotation$term
+  U <- object$rotation$vectors
+  ranges <- object$partitions[[term]]
+  for(j in seq_len(nrow(ranges))){
+    rr <- ranges[j,1]:ranges[j,2]
+    D[,rr] <- D[,rr,drop=FALSE] %*% U
+  }
+  D
+}
+
 
 "predict.mmes" <- function(object, Dtable=NULL, D, ...){
   if(is.character(D)){classify <- D}else{classify="id"} # save a copy before D is overwriten
@@ -135,7 +148,7 @@
   ## calculate predictions and standard errors
   bu <- object$bu
   predicted.value <- D %*% bu
-  vcov <- predict_mmes_vcov_cpp(object, D)
+  vcov <- predict_mmes_vcov_cpp(object, .mmes_engine_contrast(object, D))
   std.error <- sqrt(diag(vcov))
   pvals <- data.frame(id=rownames(D),predicted.value=predicted.value[,1], std.error=std.error)
   if(is.character(classify)){colnames(pvals)[1] <- classify}

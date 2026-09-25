@@ -387,8 +387,8 @@ BEGIN_RCPP
 END_RCPP
 }
 // ai_mme_sp2
-Rcpp::List ai_mme_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computeCi, const std::string& solver, const double& pcgTol, const int& pcgMaxIters, const int& pcgTraceProbes, const int& pcgLanczosSteps, const bool& reml);
-RcppExport SEXP _sommer_ai_mme_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computeCiSEXP, SEXP solverSEXP, SEXP pcgTolSEXP, SEXP pcgMaxItersSEXP, SEXP pcgTraceProbesSEXP, SEXP pcgLanczosStepsSEXP, SEXP remlSEXP) {
+Rcpp::List ai_mme_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computeCi, const std::string& solver, const double& pcgTol, const int& pcgMaxIters, const int& pcgTraceProbes, const int& pcgLanczosSteps, const bool& reml, const bool& responsePrepared, const double& preparedMean, const double& preparedSd, const bool& preparedIntercept);
+RcppExport SEXP _sommer_ai_mme_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computeCiSEXP, SEXP solverSEXP, SEXP pcgTolSEXP, SEXP pcgMaxItersSEXP, SEXP pcgTraceProbesSEXP, SEXP pcgLanczosStepsSEXP, SEXP remlSEXP, SEXP responsePreparedSEXP, SEXP preparedMeanSEXP, SEXP preparedSdSEXP, SEXP preparedInterceptSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -416,13 +416,17 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const int& >::type pcgTraceProbes(pcgTraceProbesSEXP);
     Rcpp::traits::input_parameter< const int& >::type pcgLanczosSteps(pcgLanczosStepsSEXP);
     Rcpp::traits::input_parameter< const bool& >::type reml(remlSEXP);
-    rcpp_result_gen = Rcpp::wrap(ai_mme_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps, reml));
+    Rcpp::traits::input_parameter< const bool& >::type responsePrepared(responsePreparedSEXP);
+    Rcpp::traits::input_parameter< const double& >::type preparedMean(preparedMeanSEXP);
+    Rcpp::traits::input_parameter< const double& >::type preparedSd(preparedSdSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type preparedIntercept(preparedInterceptSEXP);
+    rcpp_result_gen = Rcpp::wrap(ai_mme_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept));
     return rcpp_result_gen;
 END_RCPP
 }
 // ai_reml_direct_sp2
-Rcpp::List ai_reml_direct_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computePev, const bool& reml);
-RcppExport SEXP _sommer_ai_reml_direct_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computePevSEXP, SEXP remlSEXP) {
+Rcpp::List ai_reml_direct_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computePev, const bool& reml, const bool& responsePrepared, const double& preparedMean, const double& preparedSd, const bool& preparedIntercept);
+RcppExport SEXP _sommer_ai_reml_direct_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computePevSEXP, SEXP remlSEXP, SEXP responsePreparedSEXP, SEXP preparedMeanSEXP, SEXP preparedSdSEXP, SEXP preparedInterceptSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -445,7 +449,11 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
     Rcpp::traits::input_parameter< const int& >::type computePev(computePevSEXP);
     Rcpp::traits::input_parameter< const bool& >::type reml(remlSEXP);
-    rcpp_result_gen = Rcpp::wrap(ai_reml_direct_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev, reml));
+    Rcpp::traits::input_parameter< const bool& >::type responsePrepared(responsePreparedSEXP);
+    Rcpp::traits::input_parameter< const double& >::type preparedMean(preparedMeanSEXP);
+    Rcpp::traits::input_parameter< const double& >::type preparedSd(preparedSdSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type preparedIntercept(preparedInterceptSEXP);
+    rcpp_result_gen = Rcpp::wrap(ai_reml_direct_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -477,8 +485,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_predict_mmes_vcov_cpp", (DL_FUNC) &_sommer_predict_mmes_vcov_cpp, 2},
     {"_sommer_ai_mme_sp", (DL_FUNC) &_sommer_ai_mme_sp, 20},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 19},
-    {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 24},
-    {"_sommer_ai_reml_direct_sp2", (DL_FUNC) &_sommer_ai_reml_direct_sp2, 19},
+    {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 28},
+    {"_sommer_ai_reml_direct_sp2", (DL_FUNC) &_sommer_ai_reml_direct_sp2, 23},
     {NULL, NULL, 0}
 };
 

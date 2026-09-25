@@ -190,6 +190,21 @@ varcomp <- object$covParNative
   return(output)
 }
 
+rotate_back_mmes <- function(object){
+  if(!inherits(object, "mmes")){
+    stop("object must inherit from class 'mmes'.", call.=FALSE)
+  }
+  if(is.null(object$rotation) || is.null(object$uListEngine)){
+    stop("object was not fitted with rotation=TRUE.", call.=FALSE)
+  }
+
+  term <- object$rotation$term
+  out <- object$rotation$vectors %*% object$uListEngine[[term]]
+  rownames(out) <- object$rotation$levels
+  colnames(out) <- colnames(object$uListEngine[[term]])
+  out
+}
+
 #### =========== ####
 ## COEF FUNCTION ####
 #### =========== ####

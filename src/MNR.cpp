@@ -3478,7 +3478,11 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const int & pcgMaxIters = 0,
                      const int & pcgTraceProbes = 8,
                      const int & pcgLanczosSteps = 20,
-                     const bool & reml = true
+                     const bool & reml = true,
+                     const bool & responsePrepared = false,
+                     const double & preparedMean = 0.0,
+                     const double & preparedSd = 1.0,
+                     const bool & preparedIntercept = false
 ){
 
   if(computeCi < 0 || computeCi > 2){
@@ -3552,21 +3556,23 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     Rcpp::stop("Residual block/index vectors must have one entry per observation.");
   }
 
-  double vary = arma::mean(arma::var(y0));
-  double stdy = arma::mean(arma::stddev(y0));
-  double muy = arma::mean(arma::mean(y0));
+  double vary = responsePrepared ? preparedSd * preparedSd : arma::mean(arma::var(y0));
+  double stdy = responsePrepared ? preparedSd : arma::mean(arma::stddev(y0));
+  double muy = responsePrepared ? preparedMean : arma::mean(arma::mean(y0));
   if(!std::isfinite(vary) || vary <= 0.0){
     Rcpp::stop("Response variance must be positive and finite.");
   }
 
   arma::mat responseScaled = arma::mat(y0);
-  const arma::rowvec responseMeans = arma::mean(responseScaled, 0);
-  const arma::rowvec responseSds = arma::stddev(responseScaled, 0, 0);
-  responseScaled.each_row() -= responseMeans;
-  responseScaled.each_row() /= responseSds;
+  if(!responsePrepared){
+    const arma::rowvec responseMeans = arma::mean(responseScaled, 0);
+    const arma::rowvec responseSds = arma::stddev(responseScaled, 0, 0);
+    responseScaled.each_row() -= responseMeans;
+    responseScaled.each_row() /= responseSds;
+  }
   arma::sp_mat y = arma::sp_mat(responseScaled);
-  bool intercept = false;
-  if(X.n_cols > 0 && arma::accu(X.col(0)) == X.n_rows){
+  bool intercept = responsePrepared ? preparedIntercept : false;
+  if(!responsePrepared && X.n_cols > 0 && arma::accu(X.col(0)) == X.n_rows){
     intercept = true;
   }
 
@@ -11238,7 +11244,11 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
                               const arma::vec & weightInf,
                               const bool & verbose,
                               const int & computePev = 0,
-                              const bool & reml = true
+                              const bool & reml = true,
+                              const bool & responsePrepared = false,
+                              const double & preparedMean = 0.0,
+                              const double & preparedSd = 1.0,
+                              const bool & preparedIntercept = false
 ){
 
   if(computePev != 0 && computePev != 2){
@@ -11262,17 +11272,18 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     Rcpp::stop("Residual block/index vectors must have one entry per observation.");
   }
 
-  double vary = arma::var(arma::vec(arma::mat(y0).col(0)));
+  double vary = responsePrepared ? preparedSd * preparedSd : arma::var(arma::vec(arma::mat(y0).col(0)));
   if(!std::isfinite(vary) || vary <= 0.0){
     Rcpp::stop("Response variance must be positive and finite.");
   }
-  const double muy = arma::mean(arma::vec(arma::mat(y0).col(0)));
-  const double stdy = std::sqrt(vary);
+  const double muy = responsePrepared ? preparedMean : arma::mean(arma::vec(arma::mat(y0).col(0)));
+  const double stdy = responsePrepared ? preparedSd : std::sqrt(vary);
 
-  arma::vec y = (arma::vec(arma::mat(y0).col(0)) - muy) / stdy;
+  arma::vec y = arma::vec(arma::mat(y0).col(0));
+  if(!responsePrepared){ y = (y - muy) / stdy; }
 
-  bool intercept = false;
-  if(X.n_cols > 0 && arma::accu(X.col(0)) == X.n_rows){
+  bool intercept = responsePrepared ? preparedIntercept : false;
+  if(!responsePrepared && X.n_cols > 0 && arma::accu(X.col(0)) == X.n_rows){
     intercept = true;
   }
   const arma::mat Xd = arma::mat(X);

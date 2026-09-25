@@ -105,11 +105,11 @@ MNR <- function(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv,
     .Call(`_sommer_MNR`, Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight)
 }
 
-ai_mme_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi = 0L, solver = "ldlt", pcgTol = 1.0e-8, pcgMaxIters = 0L, pcgTraceProbes = 8L, pcgLanczosSteps = 20L, reml = TRUE) {
-    .Call(`_sommer_ai_mme_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps, reml)
+ai_mme_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi = 0L, solver = "ldlt", pcgTol = 1.0e-8, pcgMaxIters = 0L, pcgTraceProbes = 8L, pcgLanczosSteps = 20L, reml = TRUE, responsePrepared = FALSE, preparedMean = 0.0, preparedSd = 1.0, preparedIntercept = FALSE) {
+    .Call(`_sommer_ai_mme_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept)
 }
 
-ai_reml_direct_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev = 0L, reml = TRUE) {
-    .Call(`_sommer_ai_reml_direct_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev, reml)
+ai_reml_direct_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev = 0L, reml = TRUE, responsePrepared = FALSE, preparedMean = 0.0, preparedSd = 1.0, preparedIntercept = FALSE) {
+    .Call(`_sommer_ai_reml_direct_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept)
 }
 

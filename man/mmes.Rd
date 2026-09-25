@@ -7,14 +7,13 @@
 }
 \description{
 
-Fits generalized linear mixed models  
+The \code{mmes} function uses the Henderson mixed model equations algorithm
 coded in C++ using the Armadillo and Eigen libraries to optimize matrix 
-operations. Two solving approaches are enabled; mixed model equations derived 
-by Henderson or the direct inversion (henderson argument). Three solvers are 
-currenty enabled (ldlt, cholmod and pcg)
-to adapt to different problems. Generalized linear mixed models are activated 
-through the family argument. The special covariance structures are
-specified through the \code{\link{vsm}()} function.
+operations. For more records than coefficients the Henderson's formulation is
+faster. Please make sure that you provide the relationship matrix as an inverse
+(see \code{\link{vsm}()} function for details).
+For problems of the type  c > r (more coefficients to estimate than
+records available) the direct inversion algorithm is faster (use the old \code{\link{mmer}} function).
 
 
 }
@@ -32,7 +31,10 @@ mmes(fixed, random, rcov, data, W,
     computeCi=0, solver="auto", pcgTol=1.0e-8,
     pcgMaxIters=0, pcgTraceProbes=8,
     pcgLanczosSteps=20, REML=TRUE,
-    family=stats::gaussian(), pqlControl=list())
+    family=stats::gaussian(), pqlControl=list(),
+    .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
+    .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
+    .pqlBaseFactor=NULL)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -113,6 +115,16 @@ mmes(fixed, random, rcov, data, W,
 
   See \code{\link{vsm}} and the individual covariance-constructor help pages
   for details on parameterizations and examples.
+
+  A single relationship term may request Lee--van der Werf rotation with
+  \code{vsm(..., Gu=Gu, rotation=TRUE)}. With \code{henderson=TRUE}, random
+  coefficients are represented in the eigenbasis and the diagonal relationship
+  precision is used in the mixed model equations. With \code{henderson=FALSE},
+  the equivalent transformed observation-covariance parameterization is used.
+  Public random effects, fitted values, and residuals are returned in the
+  original basis. The current implementation requires a complete balanced
+  Gaussian layout, identity residual covariance, default identity \code{W},
+  one rotated relationship term, and \code{computeCi=0} during fitting.
 
   }
   \item{rcov}{A formula specifying the \strong{residual covariance structure}.
@@ -362,6 +374,25 @@ mmes(fixed, random, rcov, data, W,
   \item{pqlControl}{A named list controlling non-Gaussian PQL fits. Supported
   entries are \code{maxit} (outer-iteration limit, default 20) and \code{tol}
   (relative deviance convergence tolerance, default \code{1e-5}).}
+
+  \item{.pqlInner}{Internal-use logical indicating that \code{mmes()} is being
+  called for a Gaussian working-model fit within the PQL iteration. Users
+  should not set this argument directly.}
+
+  \item{.pqlFixedDispersion}{Internal-use logical indicating that the working
+  residual dispersion is fixed, as required for binomial and Poisson PQL
+  models. Users should not set this argument directly.}
+
+  \item{.pqlWorkingPrecision}{Internal-use vector containing the current IRLS
+  working precisions after observation filtering. Users should not set this
+  argument directly.}
+
+  \item{.pqlBaseW}{Internal-use base observation precision matrix supplied by
+  the outer PQL fit before combination with the IRLS working precisions. Users
+  should not set this argument directly.}
+
+  \item{.pqlBaseFactor}{Internal-use cached factor of \code{.pqlBaseW}, reused
+  across PQL iterations. Users should not set this argument directly.}
 }
 
 \details{

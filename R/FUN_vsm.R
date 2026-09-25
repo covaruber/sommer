@@ -1,5 +1,5 @@
 vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
-                isFixed=FALSE, verbose=TRUE){
+                rotation=FALSE, isFixed=FALSE, verbose=TRUE){
   
   init <- list(...)
   expr_names <- as.character(substitute(list(...)))[-1L]
@@ -33,6 +33,10 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
   
   if(length(fixedSigma2) != 1L){
     stop("fixedSigma2 must have length one.", call. = FALSE)
+  }
+
+  if(length(rotation) != 1L || !is.logical(rotation) || is.na(rotation)){
+    stop("rotation must be a single TRUE/FALSE value.", call. = FALSE)
   }
   
   
@@ -95,6 +99,7 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
   # ======================================================================
   
   Gu_is_inverse <- FALSE
+  Gu_was_supplied <- !is.null(Gu)
   
   if(!is.null(Gu)){
     
@@ -410,6 +415,51 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
       call. = FALSE
     )
   }
+
+  rotationInfo <- NULL
+  GuRot <- NULL
+
+  if(isTRUE(rotation)){
+    if(is.residual){
+      stop("rotation=TRUE is only available for random-effect vsm() terms.",
+           call. = FALSE)
+    }
+    if(!Gu_was_supplied){
+      stop("rotation=TRUE requires a supplied Gu precision matrix.",
+           call. = FALSE)
+    }
+    if(!isSymmetric(Gu, tol=1e-10)){
+      stop("rotation=TRUE requires a symmetric Gu precision matrix.",
+           call. = FALSE)
+    }
+
+    eig <- eigen(as.matrix(Gu), symmetric=TRUE)
+    if(any(!is.finite(eig$values)) || any(eig$values <= 0)){
+      stop("rotation=TRUE requires a positive-definite Gu precision matrix.",
+           call. = FALSE)
+    }
+
+    U <- eig$vectors
+    for(j in seq_len(ncol(U))){
+      pivot <- which.max(abs(U[,j]))
+      if(U[pivot,j] < 0) U[,j] <- -U[,j]
+    }
+    modeNames <- paste0(".eigen", seq_along(eig$values))
+    rownames(U) <- colnames(Gu)
+    colnames(U) <- modeNames
+
+    GuRot <- to_sparse(Matrix::Diagonal(x=eig$values))
+    rownames(GuRot) <- colnames(GuRot) <- modeNames
+    attr(GuRot, "inverse") <- TRUE
+
+    rotationInfo <- list(
+      vectors=U,
+      precision=eig$values,
+      covariance=1/eig$values,
+      levels=colnames(Gu),
+      modes=modeNames
+    )
+  }
   
   
   # ======================================================================
@@ -606,6 +656,10 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
     Z=Z,
     
     Gu=Gu,
+
+    GuRot=GuRot,
+
+    rotation=rotationInfo,
     
     covStruct=covStruct,
     

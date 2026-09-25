@@ -16,6 +16,8 @@ mmes <- function(fixed, random, rcov, data, W,
                  .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
                  .pqlBaseFactor=NULL){
 
+  WWasMissing <- missing(W)
+
   if(length(henderson) != 1L || !is.logical(henderson) || is.na(henderson)){
     stop("henderson must be a single TRUE/FALSE value.", call.=FALSE)
   }
@@ -328,6 +330,147 @@ mmes <- function(fixed, random, rcov, data, W,
     if(length(ii)) partitionsX[[fixedTerms[ix]]] <- matrix(ii, nrow=1L)
   }
   if("(Intercept)" %in% colnames(X)) colnames(X)[colnames(X) == "(Intercept)"] <- "Intercept"
+
+  # ---- Optional Lee-van der Werf observation rotation -----------------
+  rotationTerms <- which(vapply(
+    randomFits,
+    function(z) !is.null(z$rotation),
+    logical(1)
+  ))
+  rotationInfo <- NULL
+  responsePrepared <- FALSE
+  preparedMean <- 0
+  preparedSd <- 1
+  preparedIntercept <- FALSE
+
+  if(length(rotationTerms)){
+    if(length(rotationTerms) != 1L){
+      stop("Only one random-effect term may request rotation.", call.=FALSE)
+    }
+    if(!isGaussianIdentity || isTRUE(.pqlInner)){
+      stop("rotation=TRUE currently requires a Gaussian identity-link model.",
+           call.=FALSE)
+    }
+    if(!isTRUE(henderson) && ncol(yvar) != 1L){
+      stop("The direct rotation path currently requires one response column.",
+           call.=FALSE)
+    }
+    if(!WWasMissing || !is.null(.pqlWorkingPrecision) ||
+       !is.null(.pqlBaseW) || !is.null(.pqlBaseFactor)){
+      stop("rotation=TRUE currently requires the default identity W matrix.",
+           call.=FALSE)
+    }
+    if(rf$covStruct$dim != 1L || any(localIndex != 1L)){
+      stop("rotation=TRUE currently requires an identity residual structure (rcov=~units).",
+           call.=FALSE)
+    }
+    if(computeCi != 0L){
+      stop("rotation=TRUE currently requires computeCi=0; rotated PEV support is not yet available.",
+           call.=FALSE)
+    }
+
+    rotationTerm <- rotationTerms[[1L]]
+    focal <- randomFits[[rotationTerm]]$rotation
+    U <- focal$vectors
+    focalBlocks <- which(Zind == rotationTerm)
+    focalZ <- Z[focalBlocks]
+    nLevels <- nrow(U)
+
+    if(!length(focalZ) || any(vapply(focalZ, ncol, integer(1)) != nLevels)){
+      stop("The rotated random term has incompatible incidence dimensions.",
+           call.=FALSE)
+    }
+
+    rowsByLevelList <- list()
+    observationBlockTerm <- integer()
+    for(j in seq_along(focalZ)){
+      ss <- Matrix::summary(focalZ[[j]])
+      counts <- tabulate(ss$j, nbins=nLevels)
+      if(!nrow(ss) || any(abs(ss$x - 1) > 1e-12) ||
+         any(counts == 0L) || length(unique(counts)) != 1L){
+        stop(
+          paste0(
+            "rotation=TRUE requires each covariance coordinate to contain ",
+            "every Gu level equally often with unit incidence."
+          ),
+          call.=FALSE
+        )
+      }
+      rows <- split(ss$i, factor(ss$j, levels=seq_len(nLevels)))
+      rowsByLevelList[[j]] <- do.call(rbind, rows)
+      observationBlockTerm <- c(
+        observationBlockTerm,
+        rep(j, counts[[1L]])
+      )
+    }
+    rowsByLevel <- do.call(cbind, rowsByLevelList)
+    if(length(rowsByLevel) != nrow(yvar) ||
+       !identical(sort(as.integer(rowsByLevel)), seq_len(nrow(yvar)))){
+      stop(
+        paste0(
+          "rotation=TRUE requires a complete balanced layout: every retained ",
+          "observation must belong to exactly one relationship-level block."
+        ),
+        call.=FALSE
+      )
+    }
+
+    rotateRows <- function(M){
+      out <- as.matrix(M)
+      for(j in seq_len(ncol(rowsByLevel))){
+        rr <- rowsByLevel[,j]
+        out[rr,] <- crossprod(U, out[rr,,drop=FALSE])
+      }
+      to_sparse(Matrix::Matrix(out, sparse=TRUE))
+    }
+
+    yOriginal <- yvar
+    XOriginal <- X
+    ZOriginal <- Z
+
+    yvar <- rotateRows(yvar)
+    X <- rotateRows(X)
+    for(j in seq_along(Z)){
+      if(!j %in% focalBlocks) Z[[j]] <- rotateRows(Z[[j]])
+    }
+    for(j in seq_along(focalBlocks)){
+      blockColumns <- which(observationBlockTerm == j)
+      selectedRows <- as.integer(rowsByLevel[,blockColumns,drop=FALSE])
+      selectedModes <- rep(seq_len(nLevels), length(blockColumns))
+      Z[[focalBlocks[j]]] <- Matrix::sparseMatrix(
+        i=selectedRows,
+        j=selectedModes,
+        x=1,
+        dims=c(nrow(yvar), nLevels),
+        dimnames=list(NULL, focal$modes)
+      )
+    }
+    Ai[[rotationTerm]] <- randomFits[[rotationTerm]]$GuRot
+    attr(Ai[[rotationTerm]], "inverse") <- TRUE
+
+    rotationInfo <- list(
+      term=rotationTerm,
+      termName=rtermss[[rotationTerm]],
+      vectors=U,
+      precision=focal$precision,
+      covariance=focal$covariance,
+      levels=focal$levels,
+      modes=focal$modes,
+      rowsByLevel=rowsByLevel,
+      formulation=if(isTRUE(henderson)) "henderson-eigen-coefficients" else "direct-observation-covariance",
+      yOriginal=yOriginal,
+      XOriginal=XOriginal,
+      ZOriginal=ZOriginal
+    )
+    responsePrepared <- TRUE
+    preparedMean <- mean(as.numeric(yOriginal))
+    preparedSd <- stats::sd(as.numeric(yOriginal))
+    preparedIntercept <- "Intercept" %in% colnames(XOriginal)
+    if(!is.finite(preparedSd) || preparedSd <= 0){
+      stop("rotation=TRUE requires a response with positive finite variance.",
+           call.=FALSE)
+    }
+  }
   
   # ---- Data-driven starting values for variance-component scales ------
   # Replaces vsm()'s flat sigma2 default (0.15 random / 0.75 residual, both
@@ -419,6 +562,11 @@ mmes <- function(fixed, random, rcov, data, W,
       }
     }
   }, error=function(e) NULL)
+
+  if(responsePrepared){
+    standardizedResponse <- (rotationInfo$yOriginal - preparedMean) / preparedSd
+    yvar <- rotateRows(standardizedResponse)
+  }
   
   # ---- Weights ---------------------------------------------------------
   if(!is.null(.pqlWorkingPrecision)){
@@ -564,7 +712,7 @@ mmes <- function(fixed, random, rcov, data, W,
                 rtermss=rtermss, partitionsX=partitionsX,
                 getPEV=getPEV, rTermsNames=rTermsNames,
                 obsInfo=obsInfo, solver=solver, REML=REML,
-                henderson=henderson))
+                henderson=henderson, rotation=rotationInfo))
   }
 
   if(isTRUE(henderson)){
@@ -574,14 +722,19 @@ mmes <- function(fixed, random, rcov, data, W,
                  nIters, tolParConvLL, tolParConvNorm,
                  tolParInv, covStruct, emWeight, stepWeight,
                  verbose, computeCi, solver, pcgTol, pcgMaxIters,
-                 pcgTraceProbes, pcgLanczosSteps, REML)
+                 pcgTraceProbes, pcgLanczosSteps, REML,
+                 responsePrepared, preparedMean, preparedSd,
+                 preparedIntercept)
+
   }else{
     res <- .Call("_sommer_ai_reml_direct_sp2", PACKAGE="sommer",
                  X, Z, Zind, Ai, yvar, W, useH,
                  residualBlock, localIndex,
                  nIters, tolParConvLL, tolParConvNorm,
                  tolParInv, covStruct, emWeight, stepWeight,
-                 verbose, computeCi, REML)
+                 verbose, computeCi, REML,
+                 responsePrepared, preparedMean, preparedSd,
+                 preparedIntercept)
   }
   res$engine <- if(isTRUE(henderson)) "henderson" else "direct"
 
@@ -627,8 +780,29 @@ mmes <- function(fixed, random, rcov, data, W,
     res$Dtable <- data.frame(type=rep("fixed",length(res$partitionsX)),
                              term=names(res$partitionsX), include=FALSE, average=FALSE)
   }
+
+  if(!is.null(rotationInfo)){
+    res$buEngine <- res$bu
+    res$uEngine <- res$u
+    res$uListEngine <- res$uList
+
+    rotationTerm <- rotationInfo$term
+    rotated <- rotationInfo$vectors %*% res$uList[[rotationTerm]]
+    rownames(rotated) <- rotationInfo$levels
+    colnames(rotated) <- colnames(res$uList[[rotationTerm]])
+    res$uList[[rotationTerm]] <- rotated
+
+    publicUNames <- unlist(lapply(rotationInfo$ZOriginal, colnames))
+    publicU <- unlist(lapply(res$uList, as.vector), use.names=FALSE)
+    res$u <- matrix(publicU, ncol=1L, dimnames=list(publicUNames, NULL))
+    res$bu <- rbind(res$b, res$u)
+    res$W <- do.call(cbind, c(list(rotationInfo$XOriginal), rotationInfo$ZOriginal))
+    res$y <- rotationInfo$yOriginal
+    res$rotation <- rotationInfo
+  }
   
   class(res) <- "mmes"
-  res$covParNative <- get(".covparams_mmes_se", mode="function")(res)
+  res$covParNative <- get(".covparams_mmes", mode="function")(res)
+  res$covParNativeSE <- get(".covparams_mmes_se", mode="function")(res)
   res
 }

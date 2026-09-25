@@ -10,7 +10,7 @@ avoids scale confounding among the individual covariance factors.
 }
 \usage{
 vsm(..., Gu = NULL, sigma2 = NULL, fixedSigma2 = FALSE,
-    isFixed = FALSE, verbose = TRUE)
+  rotation = FALSE, isFixed = FALSE, verbose = TRUE)
 }
 \arguments{
   \item{...}{One or more covariance-constructor terms.  The last term supplies
@@ -18,9 +18,9 @@ the main-effect incidence matrix.  All preceding terms are covariance-shaping
 factors.  Examples include \code{dsm(environment)}, \code{ar1m(row)}, and
 \code{ism(genotype)}.}
   \item{Gu}{Optional known precision matrix for the levels of the final
-main-effect term.  For the Henderson solver, \code{Gu} must have row and column
+main-effect term. For \code{mmes}, \code{Gu} must have row and column
 names matching the main-effect levels and \code{attr(Gu, "inverse")} must be
-defined.  If omitted, an identity precision matrix is used.}
+\code{TRUE}. If omitted, an identity precision matrix is used.}
   \item{sigma2}{Positive starting value for the single overall covariance
 scale of this \code{vsm} term. If \code{NULL} (the default), \code{mmes}
 replaces it with a data-driven starting value computed from the response
@@ -28,6 +28,10 @@ and fixed effects; supplying a value here always takes precedence and is
 never overridden.}
   \item{fixedSigma2}{Logical indicating whether the product-level
 \eqn{\sigma^2} is fixed at its starting value.}
+  \item{rotation}{Logical indicating whether the supplied \code{Gu} precision
+matrix should be eigen-decomposed for Lee--van der Werf rotation in
+\code{mmes}. Rotation is opt-in and currently requires a balanced Gaussian
+random-effect term.}
   \item{isFixed}{Logical retained for compatibility.  If \code{TRUE}, return
 the combined design matrix instead of the structured \code{vsm} object.}
   \item{verbose}{Logical controlling messages, including notification when
@@ -61,12 +65,21 @@ For residual covariance models, the covariance-shaping factors must define
 exactly one product coordinate for each observation.  \code{mmes} combines
 that local coordinate with an independently constructed residual block index,
 so a large observation-level identity design is not materialized.
+
+When \code{rotation=TRUE}, \code{Gu} is decomposed as
+\deqn{Gu=U\Lambda U',}
+where \eqn{\Lambda} is diagonal. The aligned original precision, diagonal
+precision, and eigenvectors are retained in the returned descriptor. The
+\code{mmes} front end validates the observation layout and applies the
+engine-specific rotation after observation filtering.
 }
 \value{
 A list containing the random-effect design blocks in \code{Z}, the precision
 matrix in \code{Gu}, the flattened Kronecker descriptor in \code{covStruct},
 the product design, and, for residual models, the local covariance-coordinate
-index.  The \code{covStruct} object contains descriptor version 2
+index. When rotation is requested, \code{GuRot} contains the diagonal
+precision and \code{rotation} contains its eigen metadata. The
+\code{covStruct} object contains descriptor version 2
 CovarianceFactor objects.
 }
 \examples{
