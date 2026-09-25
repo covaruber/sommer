@@ -263,9 +263,9 @@ modFD <- mmes(Yield~Location,
               rcov=~units,
               data=DT, verbose = FALSE)
 (suma <- summary(modFD)$varcomp)
-Vgca <- sum(suma[1:2,1])
-Vsca <- suma[3,1]
-Ve <- suma[4,1]
+Vgca <- sum(suma[1:2,"estimate"])
+Vsca <- suma[3,"estimate"]
+Ve <- suma[4,"estimate"]
 Va = 4*Vgca
 Vd = 4*Vsca
 Vg <- Va + Vd
@@ -701,8 +701,8 @@ mix2 <- mmes(yield~ setf + setf:repf,
             random=~femalef:malef:setf + malef:setf, 
             data=DT, verbose = FALSE)
 vc <- summary(mix2)$varcomp; vc
-Vfm <- vc[1,"VarComp"]
-Vm <- vc[2,"VarComp"]
+Vfm <- vc[1,"estimate"]
+Vm <- vc[2,"estimate"]
 
 ## Calculate Va and Vd
 Va=4*Vm # assuming no inbreeding (4/(1+F))
@@ -762,9 +762,9 @@ mix2 <- mmes(yield~ setf + setf:repf ,
             random=~femalef:malef:setf + malef:setf + femalef:setf, 
             data=DT, verbose = FALSE)
 vc <- summary(mix2)$varcomp; vc
-Vfm <- vc[1,"VarComp"]
-Vm <- vc[2,"VarComp"]
-Vf <- vc[3,"VarComp"]
+Vfm <- vc[1,"estimate"]
+Vm <- vc[2,"estimate"]
+Vf <- vc[3,"estimate"]
 
 Va=4*Vm; # assuming no inbreeding (4/(1+F))
 Va=4*Vf; # assuming no inbreeding (4/(1+F))

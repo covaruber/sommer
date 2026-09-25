@@ -4,7 +4,7 @@ vpredict <- function(object, transform) {
 
 vpredict.mmes <- function (object, transform){
   
-  pframe <- as.list(summary(object)$varcomp[,1])
+  pframe <- as.list(summary(object)$varcomp[,"estimate"])
   names(pframe) <- paste("V", seq(1, length(pframe)), sep = "")
   ## deriv creates a derivative for a simple expression
   # i.e. dx2x <- deriv(~ x^2, "x") ; dx2x

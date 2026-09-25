@@ -182,15 +182,15 @@ DT2 <- merge(DT,ei, by="Env")
 # they need to come with the vsm() structure
 DT2 <- DT2[with(DT2, order(Name)), ]
 mix2 <- mmes(y~ envIndex, 
-             random=~ Name + vsm(dsm(envIndex),ism(Name)), data=DT2,
+             random=~ Name + vsm(ism(envIndex),ism(Name)), data=DT2,
              rcov=~vsm(dsm(Name),ism(units)),
              nIters = 50, verbose = FALSE
 )
 # summary(mix2)$varcomp
 
-b=mix2$uList$`vsm(dsm(envIndex), ism(Name` # adaptability (b) or genotype slopes
+b=mix2$uList$`vsm(ism(envIndex), ism(Name` # adaptability (b) or genotype slopes
 mu=mix2$uList$`vsm(ism(Name`# general adaptation (mu) or main effect
-e=sqrt(summary(mix2)$varcomp[-c(1:2),1]) # error variance for each individual
+e=sqrt(summary(mix2)$varcomp[-c(1:2),"estimate"]) # error variance for each individual
 
 ## general adaptation (main effect) vs adaptability (response to better environments)
 plot(mu[,1]~b[,1], ylab="general adaptation", xlab="adaptability")
