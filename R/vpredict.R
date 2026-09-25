@@ -24,7 +24,7 @@ vpredict.mmes <- function (object, transform){
   i <- rep(1:n, 1:n) ## repeat each parameter by its own
   j <- sequence(1:n) ## makes a sequence from 1 to the number provided, i.e. if sequence(1:2) = 1 1 2, because it makes the sequence for 1:1 and then 1:2
   k <- 1 + (i > j) # all where i <= j get a 1, all i > j get a 2
-  Vmat <- object$theta_se
+  Vmat <- attr(object$covParNative, "vcov")  # object$theta_se
   toext <- upper.tri(Vmat)
   diag(toext) <- TRUE
   Vmat <- Vmat[which(toext,arr.ind = TRUE)] ## extract the upper triangular

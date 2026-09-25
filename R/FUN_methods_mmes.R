@@ -20,7 +20,7 @@
     packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
     packageStartupMessage(magenta("sommer is updated on CRAN every 3-months due to CRAN policies"),appendLF=TRUE)
     packageStartupMessage(magenta("Current source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
-    packageStartupMessage(magenta("If needed, install as: devtools::install_github('covaruber/sommer')"),appendLF=TRUE)
+    packageStartupMessage(magenta("If needed, install as: remotes::install_github('covaruber/sommer')"),appendLF=TRUE)
     
   }
   invisible()
@@ -567,9 +567,13 @@ varcomp <- object$covParNative
     output[[outputIndex]] <- base
   }
 
+  vcovs <- lapply(output, function(x){attributes(x)$vcov})
+  vcovs <- do.call(enhancer::adiag1, vcovs)
+  
   out <- do.call(rbind, output)
   rownames(out) <- NULL
-  attr(out, "vcov") <- NULL
+  attr(out, "vcov") <- vcovs
+  
   out
 }
 
