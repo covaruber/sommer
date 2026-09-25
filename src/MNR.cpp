@@ -10721,5 +10721,1122 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
   
 }
 
+// ====================================================================
+// Direct-inversion (observation-space) REML/ML engine.
+//
+// ai_mme_sp2() solves the Henderson mixed-model equations in
+// coefficient space: efficient when there are many more records than
+// coefficients (e.g. pedigree BLUP). ai_reml_direct_sp2() instead
+// inverts the n x n phenotypic covariance V directly, which is
+// efficient when there are many more coefficients than records (e.g.
+// marker/SNP-BLUP models with p >> n). It consumes the SAME covStruct
+// CovarianceFactor-v2 descriptor contract produced by vsm(), so the
+// same covariance-model parameterizations (identity/diag/us/ar1/fa/
+// rr/custom ownm(), etc.) are available in both engines.
+//
+// Derivatives of each small covariance-shaping factor are obtained by
+// central finite differences instead of duplicating every native
+// analytic derivative formula from ai_mme_sp2(): factors are always
+// small (their dimension is the number of levels/traits/lags in a
+// Kronecker term, never the number of records or marker coefficients),
+// so this is computationally negligible and keeps this engine compact
+// and independently auditable.
+// ====================================================================
+
+static arma::mat directEvalNativeFactor(const Rcpp::List & f,
+                                        const arma::vec & localPar,
+                                        const std::string & op){
+
+  const arma::uword q =
+    static_cast<arma::uword>(Rcpp::as<int>(f["dim"]));
+
+  if(op == "identity"){
+    return arma::eye<arma::mat>(q,q);
+  }
+
+  if(op == "diag"){
+    if(localPar.n_elem + 1 != q){
+      Rcpp::stop("Malformed diagonal covariance factor.");
+    }
+    arma::vec d(q, arma::fill::ones);
+    for(arma::uword k = 0; k < localPar.n_elem; ++k){
+      d(k+1) = std::exp(localPar(k));
+    }
+    return arma::diagmat(d);
+  }
+
+  if(op == "ar1"){
+    if(localPar.n_elem != 1){
+      Rcpp::stop("Malformed AR1 covariance factor.");
+    }
+    const double rho = std::tanh(localPar(0));
+    arma::mat K(q,q,arma::fill::zeros);
+    for(arma::uword i = 0; i < q; ++i){
+      for(arma::uword j = 0; j < q; ++j){
+        const arma::uword d = (i > j ? i-j : j-i);
+        K(i,j) = std::pow(rho, static_cast<double>(d));
+      }
+    }
+    return K;
+  }
+
+  if(op == "us"){
+    Rcpp::IntegerVector rr = f["us_row"];
+    Rcpp::IntegerVector cc = f["us_col"];
+    Rcpp::LogicalVector dd = f["us_diag"];
+
+    if(localPar.n_elem != static_cast<arma::uword>(rr.size()) ||
+       rr.size() != cc.size() || rr.size() != dd.size()){
+      Rcpp::stop("Malformed unstructured covariance factor.");
+    }
+
+    arma::mat L(q,q,arma::fill::zeros);
+    L(0,0) = 1.0;
+
+    for(arma::uword k = 0; k < localPar.n_elem; ++k){
+      const arma::uword i =
+        static_cast<arma::uword>(rr[static_cast<int>(k)] - 1);
+      const arma::uword j =
+        static_cast<arma::uword>(cc[static_cast<int>(k)] - 1);
+      if(dd[static_cast<int>(k)]){
+        L(i,j) = std::exp(localPar(k));
+      }else{
+        L(i,j) = localPar(k);
+      }
+    }
+
+    return L * L.t();
+  }
+
+  if(op == "cor_uniform"){
+    if(q < 2 || localPar.n_elem != 1){
+      Rcpp::stop("Malformed compound-symmetry/uniform-correlation factor.");
+    }
+    const double lo = -1.0 / static_cast<double>(q - 1);
+    const double eta = localPar(0);
+    const double s = eta >= 0.0 ? 1.0/(1.0+std::exp(-eta)) : std::exp(eta)/(1.0+std::exp(eta));
+    const double rho = lo + (1.0-lo)*s;
+    arma::mat K(q, q, arma::fill::value(rho));
+    K.diag().ones();
+    return K;
+  }
+
+  if(op == "corh"){
+    if(q < 2 || localPar.n_elem != q){
+      Rcpp::stop("Malformed heterogeneous uniform-correlation factor.");
+    }
+    const double lo = -1.0 / static_cast<double>(q - 1);
+    const double eta = localPar(0);
+    const double s = eta >= 0.0 ? 1.0/(1.0+std::exp(-eta)) : std::exp(eta)/(1.0+std::exp(eta));
+    const double rho = lo + (1.0-lo)*s;
+    arma::mat C(q, q, arma::fill::value(rho));
+    C.diag().ones();
+    arma::vec variances(q, arma::fill::ones);
+    for(arma::uword k = 1; k < q; ++k){
+      variances(k) = std::exp(localPar(k));
+    }
+    arma::vec sd = arma::sqrt(variances);
+    return arma::diagmat(sd) * C * arma::diagmat(sd);
+  }
+
+  if(op == "arp"){
+    const int order = Rcpp::as<int>(f["order"]);
+    if(order < 1 || localPar.n_elem != static_cast<arma::uword>(order) ||
+       q <= static_cast<arma::uword>(order)){
+      Rcpp::stop("Malformed AR(p) covariance factor.");
+    }
+    arma::vec pacf(static_cast<arma::uword>(order), arma::fill::zeros);
+    for(int j = 0; j < order; ++j){
+      pacf(static_cast<arma::uword>(j)) = std::tanh(localPar(static_cast<arma::uword>(j)));
+    }
+    arma::vec phi;
+    for(int m = 1; m <= order; ++m){
+      arma::vec next(static_cast<arma::uword>(m), arma::fill::zeros);
+      next(static_cast<arma::uword>(m-1)) = pacf(static_cast<arma::uword>(m-1));
+      if(m > 1){
+        for(int j = 0; j < m-1; ++j){
+          next(static_cast<arma::uword>(j)) =
+            phi(static_cast<arma::uword>(j)) -
+            pacf(static_cast<arma::uword>(m-1)) * phi(static_cast<arma::uword>(m-2-j));
+        }
+      }
+      phi = next;
+    }
+    arma::mat A(static_cast<arma::uword>(order), static_cast<arma::uword>(order), arma::fill::zeros);
+    arma::vec b(static_cast<arma::uword>(order), arma::fill::zeros);
+    for(int kk = 1; kk <= order; ++kk){
+      A(static_cast<arma::uword>(kk-1), static_cast<arma::uword>(kk-1)) += 1.0;
+      for(int jj = 1; jj <= order; ++jj){
+        const int d = std::abs(kk - jj);
+        const double pj = phi(static_cast<arma::uword>(jj-1));
+        if(d == 0){
+          b(static_cast<arma::uword>(kk-1)) += pj;
+        }else{
+          A(static_cast<arma::uword>(kk-1), static_cast<arma::uword>(d-1)) -= pj;
+        }
+      }
+    }
+    arma::vec rInitial;
+    bool ok = arma::solve(rInitial, A, b);
+    if(!ok || !rInitial.is_finite()){
+      Rcpp::stop("Unable to solve Yule-Walker equations for AR(p) factor.");
+    }
+    arma::vec rho(q, arma::fill::zeros);
+    rho(0) = 1.0;
+    for(int h = 1; h <= order; ++h){
+      rho(static_cast<arma::uword>(h)) = rInitial(static_cast<arma::uword>(h-1));
+    }
+    for(arma::uword h = static_cast<arma::uword>(order+1); h < q; ++h){
+      double value = 0.0;
+      for(int jj = 1; jj <= order; ++jj){
+        value += phi(static_cast<arma::uword>(jj-1)) * rho(h - static_cast<arma::uword>(jj));
+      }
+      rho(h) = value;
+    }
+    arma::mat K(q, q, arma::fill::zeros);
+    for(arma::uword i = 0; i < q; ++i){
+      for(arma::uword j = 0; j < q; ++j){
+        const arma::uword d = i > j ? i-j : j-i;
+        K(i,j) = rho(d);
+      }
+    }
+    return K;
+  }
+
+  if(op == "ma"){
+    const int order = Rcpp::as<int>(f["order"]);
+    if(order < 1 || localPar.n_elem != static_cast<arma::uword>(order) ||
+       q <= static_cast<arma::uword>(order)){
+      Rcpp::stop("Malformed MA(q) covariance factor.");
+    }
+    arma::vec coef(static_cast<arma::uword>(order + 1), arma::fill::zeros);
+    coef(0) = 1.0;
+    for(int j = 1; j <= order; ++j){
+      coef(static_cast<arma::uword>(j)) = localPar(static_cast<arma::uword>(j-1));
+    }
+    arma::vec rho(q, arma::fill::zeros);
+    double gamma0 = 0.0;
+    for(int j = 0; j <= order; ++j){
+      const double c = coef(static_cast<arma::uword>(j));
+      gamma0 += c*c;
+    }
+    if(!std::isfinite(gamma0) || gamma0 <= 0.0){
+      Rcpp::stop("Invalid MA covariance normalization.");
+    }
+    rho(0) = 1.0;
+    for(int h = 1; h <= order; ++h){
+      double gamma = 0.0;
+      for(int j = 0; j <= order-h; ++j){
+        gamma += coef(static_cast<arma::uword>(j)) * coef(static_cast<arma::uword>(j+h));
+      }
+      rho(static_cast<arma::uword>(h)) = gamma / gamma0;
+    }
+    arma::mat K(q, q, arma::fill::zeros);
+    for(arma::uword i = 0; i < q; ++i){
+      for(arma::uword j = 0; j < q; ++j){
+        const arma::uword d = i > j ? i-j : j-i;
+        K(i,j) = d <= static_cast<arma::uword>(order) ? rho(d) : 0.0;
+      }
+    }
+    return K;
+  }
+
+  if(op == "corg"){
+    Rcpp::IntegerVector rr = f["corg_row"];
+    Rcpp::IntegerVector cc = f["corg_col"];
+    if(localPar.n_elem != static_cast<arma::uword>(rr.size()) || rr.size() != cc.size()){
+      Rcpp::stop("Malformed general-correlation factor.");
+    }
+    arma::mat A(q, q, arma::fill::eye);
+    for(arma::uword k = 0; k < localPar.n_elem; ++k){
+      const arma::uword i = static_cast<arma::uword>(rr[static_cast<int>(k)] - 1);
+      const arma::uword j = static_cast<arma::uword>(cc[static_cast<int>(k)] - 1);
+      A(i,j) = localPar(k);
+    }
+    arma::mat S = A * A.t();
+    arma::vec sd = arma::sqrt(S.diag());
+    arma::mat denom = sd * sd.t();
+    arma::mat K = S % arma::pow(denom, -1.0);
+    K.diag().ones();
+    return 0.5 * (K + K.t());
+  }
+
+  if(op == "fa"){
+    const int order = Rcpp::as<int>(f["order"]);
+    const int nload = Rcpp::as<int>(f["fa_nload"]);
+    Rcpp::IntegerVector rr = f["fa_row"];
+    Rcpp::IntegerVector cc = f["fa_col"];
+    Rcpp::LogicalVector dd = f["fa_diag"];
+    if(order < 1 || nload < 1 || rr.size() != nload || cc.size() != nload ||
+       dd.size() != nload ||
+       localPar.n_elem != static_cast<arma::uword>(nload + static_cast<int>(q) - 1)){
+      Rcpp::stop("Malformed factor-analytic covariance factor.");
+    }
+    arma::mat L(q, static_cast<arma::uword>(order), arma::fill::zeros);
+    double referenceLogLoading = 0.0;
+    for(int a = 0; a < nload; ++a){
+      if(rr[a] == 1 && cc[a] == 1 && dd[a]){
+        referenceLogLoading = localPar(static_cast<arma::uword>(a));
+        break;
+      }
+    }
+    const double twiceReferenceLogLoading = 2.0 * referenceLogLoading;
+    const double logScale =
+      twiceReferenceLogLoading > 0.0
+      ? twiceReferenceLogLoading + std::log1p(std::exp(-twiceReferenceLogLoading))
+      : std::log1p(std::exp(twiceReferenceLogLoading));
+    const double inverseReferenceSd = std::exp(-0.5 * logScale);
+    for(int a = 0; a < nload; ++a){
+      const arma::uword i = static_cast<arma::uword>(rr[a] - 1);
+      const arma::uword j = static_cast<arma::uword>(cc[a] - 1);
+      const double value =
+        dd[a]
+        ? std::exp(localPar(static_cast<arma::uword>(a)) - 0.5 * logScale)
+        : localPar(static_cast<arma::uword>(a)) * inverseReferenceSd;
+      L(i,j) = value;
+    }
+    arma::vec psi(q, arma::fill::zeros);
+    psi(0) = std::exp(-logScale);
+    for(arma::uword i = 1; i < q; ++i){
+      psi(i) = std::exp(localPar(static_cast<arma::uword>(nload) + i - 1) - logScale);
+    }
+    return L * L.t() + arma::diagmat(psi);
+  }
+
+  if(op == "ante"){
+    const int ncoef = Rcpp::as<int>(f["ante_ncoef"]);
+    Rcpp::IntegerVector rr = f["ante_row"];
+    Rcpp::IntegerVector cc = f["ante_col"];
+    if(ncoef < 1 || rr.size() != ncoef || cc.size() != ncoef ||
+       localPar.n_elem != static_cast<arma::uword>(ncoef + static_cast<int>(q) - 1)){
+      Rcpp::stop("Malformed antedependence covariance factor.");
+    }
+    arma::mat T(q, q, arma::fill::eye);
+    for(int a = 0; a < ncoef; ++a){
+      const arma::uword i = static_cast<arma::uword>(rr[a] - 1);
+      const arma::uword j = static_cast<arma::uword>(cc[a] - 1);
+      T(i,j) = -localPar(static_cast<arma::uword>(a));
+    }
+    arma::vec innovation(q, arma::fill::ones);
+    for(arma::uword i = 1; i < q; ++i){
+      innovation(i) = std::exp(localPar(static_cast<arma::uword>(ncoef) + i - 1));
+    }
+    arma::mat Ti = arma::inv(arma::trimatl(T));
+    arma::mat M = Ti * arma::diagmat(innovation) * Ti.t();
+    const double scale = M(0,0);
+    return M / scale;
+  }
+
+  Rcpp::stop("Unsupported native covariance evaluator opcode: " + op);
+  return arma::mat();
+}
+
+static arma::mat directEvalFactor(const Rcpp::List & f, const arma::vec & localPar){
+
+  if(!f.containsElementNamed("evaluator")){
+    Rcpp::stop("CovarianceFactor is missing evaluator specification.");
+  }
+  Rcpp::List spec = Rcpp::as<Rcpp::List>(f["evaluator"]);
+  const std::string backend = Rcpp::as<std::string>(spec["backend"]);
+  const arma::uword q = static_cast<arma::uword>(Rcpp::as<int>(f["dim"]));
+
+  arma::mat K;
+
+  if(backend == "native"){
+    if(!spec.containsElementNamed("op")){
+      Rcpp::stop("Native CovarianceFactor evaluator is missing op.");
+    }
+    K = directEvalNativeFactor(f, localPar, Rcpp::as<std::string>(spec["op"]));
+  }else if(backend == "fixed"){
+    if(!spec.containsElementNamed("matrix")){
+      Rcpp::stop("Fixed CovarianceFactor evaluator is missing matrix.");
+    }
+    K = Rcpp::as<arma::mat>(spec["matrix"]);
+  }else if(backend == "R"){
+    if(!spec.containsElementNamed("fun") || Rf_isNull(spec["fun"])){
+      Rcpp::stop("R CovarianceFactor evaluator is missing fun(par).");
+    }
+    Rcpp::Function fun = spec["fun"];
+    SEXP ans = fun(Rcpp::wrap(localPar));
+    K = Rcpp::as<arma::mat>(ans);
+  }else{
+    Rcpp::stop("Unknown CovarianceFactor evaluator backend: " + backend);
+  }
+
+  if(K.n_rows != q || K.n_cols != q || !K.is_finite()){
+    Rcpp::stop("CovarianceFactor evaluator returned an invalid matrix.");
+  }
+  return 0.5 * (K + K.t());
+}
+
+// Central finite-difference derivative. Covariance-shaping factors are
+// always small (levels/traits/lags, never records or coefficients), so
+// re-evaluating the factor twice per free parameter is negligible.
+static arma::mat directFactorD1(const Rcpp::List & f, const arma::vec & localPar,
+                                const arma::uword k, const double relStep = 1.0e-6){
+
+  if(k >= localPar.n_elem){
+    Rcpp::stop("Invalid CovarianceFactor derivative parameter index.");
+  }
+  if(!f.containsElementNamed("derivative")){
+    Rcpp::stop("CovarianceFactor is missing derivative specification.");
+  }
+  Rcpp::List spec = Rcpp::as<Rcpp::List>(f["derivative"]);
+  const std::string backend = Rcpp::as<std::string>(spec["backend"]);
+
+  if(backend == "none"){
+    Rcpp::stop("Derivative requested for a CovarianceFactor with no parameters.");
+  }
+  if(backend == "R"){
+    if(!spec.containsElementNamed("fun") || Rf_isNull(spec["fun"])){
+      Rcpp::stop("R derivative specification is missing fun(par,k).");
+    }
+    Rcpp::Function dfun = spec["fun"];
+    SEXP ans = dfun(Rcpp::wrap(localPar), static_cast<int>(k + 1));
+    arma::mat D = Rcpp::as<arma::mat>(ans);
+    return 0.5 * (D + D.t());
+  }
+
+  const double h = relStep * (1.0 + std::abs(localPar(k)));
+  arma::vec plus = localPar;
+  arma::vec minus = localPar;
+  plus(k) += h;
+  minus(k) -= h;
+  return (directEvalFactor(f, plus) - directEvalFactor(f, minus)) / (2.0*h);
+}
+
+static arma::mat directEvaluateDescriptor(const Rcpp::List & cs, const arma::vec & par){
+
+  if(par.n_elem < 1){
+    Rcpp::stop("Covariance descriptor must contain log_sigma2.");
+  }
+  Rcpp::List factors = cs["factors"];
+  arma::mat K(1,1,arma::fill::ones);
+
+  for(int fidx = 0; fidx < factors.size(); ++fidx){
+    Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+    const int start1 = f.containsElementNamed("par_start") ? Rcpp::as<int>(f["par_start"]) : 1;
+    const int end1 = f.containsElementNamed("par_end") ? Rcpp::as<int>(f["par_end"]) : 0;
+    arma::vec localPar;
+    if(end1 >= start1){
+      localPar = par.subvec(static_cast<arma::uword>(start1-1), static_cast<arma::uword>(end1-1));
+    }
+    K = arma::kron(K, directEvalFactor(f, localPar));
+  }
+  return std::exp(par(0)) * K;
+}
+
+static arma::mat directDescriptorD1(const Rcpp::List & cs, const arma::vec & par,
+                                    const arma::uword k){
+
+  if(k == 0){
+    return directEvaluateDescriptor(cs, par);
+  }
+  Rcpp::List factors = cs["factors"];
+  arma::mat K(1,1,arma::fill::ones);
+  bool found = false;
+
+  for(int fidx = 0; fidx < factors.size(); ++fidx){
+    Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+    const int start1 = f.containsElementNamed("par_start") ? Rcpp::as<int>(f["par_start"]) : 1;
+    const int end1 = f.containsElementNamed("par_end") ? Rcpp::as<int>(f["par_end"]) : 0;
+    arma::vec localPar;
+    if(end1 >= start1){
+      localPar = par.subvec(static_cast<arma::uword>(start1-1), static_cast<arma::uword>(end1-1));
+    }
+    arma::mat piece;
+    const int k1 = static_cast<int>(k) + 1;
+    if(end1 >= start1 && k1 >= start1 && k1 <= end1){
+      piece = directFactorD1(f, localPar, static_cast<arma::uword>(k1-start1));
+      found = true;
+    }else{
+      piece = directEvalFactor(f, localPar);
+    }
+    K = arma::kron(K, piece);
+  }
+  if(!found){
+    Rcpp::stop("Covariance derivative parameter does not belong to any factor.");
+  }
+  return std::exp(par(0)) * K;
+}
+
+// Transforms unconstrained working parameters (log_sigma2, atanh(rho), ...)
+// to reported natural-scale values, with the elementwise Jacobian used for
+// the delta-method transform of the parameter covariance matrix.
+static arma::vec directReportParameters(const Rcpp::List & cs, const arma::vec & work,
+                                        const double vary, arma::vec & jacobianOut){
+
+  arma::vec out = work;
+  arma::vec jac(work.n_elem, arma::fill::ones);
+
+  out(0) = std::exp(work(0)) * vary;
+  jac(0) = out(0);
+
+  Rcpp::List factors = cs["factors"];
+  for(int fidx = 0; fidx < factors.size(); ++fidx){
+    Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+    const int start1 = Rcpp::as<int>(f["par_start"]);
+    const int end1 = Rcpp::as<int>(f["par_end"]);
+    if(end1 < start1){ continue; }
+    if(!f.containsElementNamed("report")){
+      Rcpp::stop("CovarianceFactor is missing report specification.");
+    }
+    Rcpp::List report = Rcpp::as<Rcpp::List>(f["report"]);
+    const std::string backend = Rcpp::as<std::string>(report["backend"]);
+    const int nFactorPar = end1 - start1 + 1;
+
+    if(backend != "builtin"){
+      Rcpp::stop("Unknown CovarianceFactor reporting backend: " + backend);
+    }
+    Rcpp::CharacterVector tr = report["transform"];
+    Rcpp::NumericVector lo = report["lower"];
+    Rcpp::NumericVector hi = report["upper"];
+    if(tr.size() != nFactorPar || lo.size() != nFactorPar || hi.size() != nFactorPar){
+      Rcpp::stop("CovarianceFactor report specification has incompatible length.");
+    }
+    for(int local = 0; local < nFactorPar; ++local){
+      const arma::uword k = static_cast<arma::uword>(start1 - 1 + local);
+      const std::string code = Rcpp::as<std::string>(tr[local]);
+      const double eta = work(k);
+      if(code == "identity"){
+        out(k) = eta; jac(k) = 1.0;
+      }else if(code == "exp"){
+        out(k) = std::exp(eta); jac(k) = out(k);
+      }else if(code == "tanh"){
+        out(k) = std::tanh(eta); jac(k) = 1.0 - out(k)*out(k);
+      }else if(code == "bounded_logit"){
+        const double lower = lo[local], upper = hi[local];
+        if(!std::isfinite(lower) || !std::isfinite(upper) || !(lower < upper)){
+          Rcpp::stop("Invalid bounded-logit reporting interval.");
+        }
+        const double logistic = eta >= 0.0 ? 1.0/(1.0+std::exp(-eta)) : std::exp(eta)/(1.0+std::exp(eta));
+        out(k) = lower + (upper-lower)*logistic;
+        jac(k) = (upper-lower)*logistic*(1.0-logistic);
+      }else{
+        Rcpp::stop("Unknown CovarianceFactor reporting transform: " + code);
+      }
+    }
+  }
+  jacobianOut = jac;
+  return out;
+}
+
+// [[Rcpp::export]]
+Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
+                              const Rcpp::List & ZI,
+                              const arma::vec & Zind,
+                              const Rcpp::List & AiI,
+                              const arma::sp_mat & y0,
+                              const arma::sp_mat & H,
+                              const bool & useH,
+                              const arma::uvec & residualBlockI,
+                              const arma::uvec & residualIndexI,
+                              int nIters, double tolParConvLL,
+                              double tolParConvNorm, double tolParInv,
+                              const Rcpp::List & covStructI,
+                              const arma::vec & weightEmInf,
+                              const arma::vec & weightInf,
+                              const bool & verbose,
+                              const int & computePev = 0,
+                              const bool & reml = true
+){
+
+  if(computePev != 0 && computePev != 2){
+    Rcpp::stop("computePev must be 0 (no PEV) or 2 (full PEV, small models only).");
+  }
+
+  const int nRRe = covStructI.size();
+  if(nRRe < 1){
+    Rcpp::stop("At least one covariance descriptor (the residual structure) is required.");
+  }
+  const int nRe = nRRe - 1;
+  const int residualStruct = nRe;
+  const int nX = X.n_cols;
+  const int nR = y0.n_rows;
+
+  if(y0.n_cols != 1){
+    Rcpp::stop("ai_reml_direct_sp2() currently supports a single response column; use the long-format vsm(usm(trait), ...) convention for multi-trait models, exactly as with the Henderson engine.");
+  }
+  if(residualBlockI.n_elem != static_cast<arma::uword>(nR) ||
+     residualIndexI.n_elem != static_cast<arma::uword>(nR)){
+    Rcpp::stop("Residual block/index vectors must have one entry per observation.");
+  }
+
+  double vary = arma::var(arma::vec(arma::mat(y0).col(0)));
+  if(!std::isfinite(vary) || vary <= 0.0){
+    Rcpp::stop("Response variance must be positive and finite.");
+  }
+  const double muy = arma::mean(arma::vec(arma::mat(y0).col(0)));
+  const double stdy = std::sqrt(vary);
+
+  arma::vec y = (arma::vec(arma::mat(y0).col(0)) - muy) / stdy;
+
+  bool intercept = false;
+  if(X.n_cols > 0 && arma::accu(X.col(0)) == X.n_rows){
+    intercept = true;
+  }
+  const arma::mat Xd = arma::mat(X);
+  arma::uword rankX = arma::rank(Xd);
+
+  // ------------------------------------------------------------
+  // Parse covariance descriptors (identical contract to ai_mme_sp2).
+  // ------------------------------------------------------------
+  std::vector<Rcpp::List> covDescriptor(nRRe);
+  arma::field<arma::vec> covPar(nRRe);
+  arma::field<arma::vec> covFree(nRRe);
+  arma::field<arma::vec> covLower(nRRe);
+  arma::field<arma::vec> covUpper(nRRe);
+  arma::field<arma::mat> theta(nRRe);
+
+  for(int i = 0; i < nRRe; ++i){
+    if(Rf_isNull(covStructI[i])){
+      Rcpp::stop("NULL covariance descriptor supplied to ai_reml_direct_sp2().");
+    }
+    Rcpp::List cs = Rcpp::as<Rcpp::List>(covStructI[i]);
+    if(!cs.containsElementNamed("type") || Rcpp::as<std::string>(cs["type"]) != "kron"){
+      Rcpp::stop("ai_reml_direct_sp2() accepts only the generic type='kron' covariance descriptor.");
+    }
+    if(!cs.containsElementNamed("descriptor_version") || Rcpp::as<int>(cs["descriptor_version"]) < 2){
+      Rcpp::stop("ai_reml_direct_sp2() requires CovarianceFactor descriptor_version >= 2.");
+    }
+    covDescriptor[i] = cs;
+    covPar(i) = Rcpp::as<arma::vec>(cs["par"]);
+    Rcpp::LogicalVector freeR = cs["free"];
+    if(freeR.size() != static_cast<int>(covPar(i).n_elem)){
+      Rcpp::stop("covStruct$free and covStruct$par have inconsistent lengths.");
+    }
+    covFree(i).set_size(covPar(i).n_elem);
+    for(arma::uword k = 0; k < covPar(i).n_elem; ++k){
+      covFree(i)(k) = freeR[static_cast<int>(k)] ? 1.0 : 0.0;
+    }
+    covLower(i) = arma::vec(covPar(i).n_elem, arma::fill::value(-std::numeric_limits<double>::infinity()));
+    covUpper(i) = arma::vec(covPar(i).n_elem, arma::fill::value(std::numeric_limits<double>::infinity()));
+
+    covPar(i)(0) -= std::log(vary);
+    covLower(i)(0) = std::log(std::max(1.0e-8, tolParInv)) - std::log(vary);
+
+    theta(i) = directEvaluateDescriptor(cs, covPar(i));
+  }
+
+  arma::vec nVc(nRRe);
+  for(int i = 0; i < nRRe; ++i){ nVc(i) = static_cast<double>(covPar(i).n_elem); }
+  const int nVcTotal = static_cast<int>(arma::accu(nVc));
+  arma::vec nVcEnd = nVc;
+  for(int i = 0; i < nRRe; ++i){
+    arma::uvec toSum = arma::regspace<arma::uvec>(0, 1, i);
+    nVcEnd(i) = arma::accu(nVc(toSum));
+  }
+  arma::vec nVcStart = nVcEnd - nVc + 1;
+
+  // ------------------------------------------------------------
+  // Build and cache Z_a K Z_b' blocks per random structure, once.
+  // Constant across REML iterations: only the small Sigma_i(a,b)
+  // scalars change, never these n x n record-space blocks.
+  // ------------------------------------------------------------
+  std::vector<arma::field<arma::mat>> Bcache(nRe);
+  std::vector<std::vector<arma::mat>> Zdense(nRe);
+  std::vector<arma::uword> qOf(nRe);
+  std::vector<arma::uvec> levelStart(nRe), levelEnd(nRe); // per-block coefficient offsets within u
+
+  int lastOffset = nX;
+  arma::field<arma::mat> partitions(nRe);
+
+  for(int i = 0; i < nRe; ++i){
+    arma::uvec zidx = arma::find(Zind == (i+1));
+    const arma::uword q = zidx.n_elem;
+    qOf[i] = q;
+    if(q != theta(i).n_rows){
+      Rcpp::stop("Number of Z design blocks does not match the covariance descriptor dimension for a random structure.");
+    }
+
+    Zdense[i].resize(q);
+    arma::vec starts(q), ends(q);
+    for(arma::uword a = 0; a < q; ++a){
+      Zdense[i][a] = arma::mat(Rcpp::as<arma::sp_mat>(ZI[static_cast<int>(zidx(a))]));
+      const int levels = Zdense[i][a].n_cols;
+      starts(a) = lastOffset + 1;
+      ends(a) = lastOffset + levels;
+      lastOffset += levels;
+    }
+    partitions(i) = arma::join_rows(starts, ends);
+
+    arma::sp_mat AiSp = convertSparse(AiI(i));
+    const bool aiIsIdentity = isIdentity_spmat(AiSp);
+    arma::mat Kdense;
+    if(!aiIsIdentity){
+      arma::mat Adense = arma::mat(AiSp);
+      bool ok = eigenSpdInverse(Adense, Kdense);
+      if(!ok){
+        arma::mat bend = nearPDcpp(Adense, 100, 1.0e-6, 1.0e-7);
+        ok = eigenSpdInverse(bend, Kdense);
+        if(!ok){
+          Rcpp::stop("Unable to invert a random-effect relationship (precision) matrix for the direct-inversion engine.");
+        }
+      }
+    }
+
+    std::vector<arma::mat> ZK(q);
+    for(arma::uword a = 0; a < q; ++a){
+      ZK[a] = aiIsIdentity ? Zdense[i][a] : (Zdense[i][a] * Kdense);
+    }
+
+    Bcache[i].set_size(q, q);
+    for(arma::uword a = 0; a < q; ++a){
+      for(arma::uword b = 0; b < q; ++b){
+        Bcache[i](a,b) = ZK[a] * Zdense[i][b].t();
+      }
+    }
+  }
+  const int Nu = lastOffset - nX;
+  const int nEffects = nX + Nu;
+
+  // ------------------------------------------------------------
+  // Residual block/local-index cache (same generic mapping as
+  // ai_mme_sp2, but here it directly assembles record-space R).
+  // ------------------------------------------------------------
+  const int residualDim = static_cast<int>(theta(residualStruct).n_rows);
+  if(residualDim < 1){
+    Rcpp::stop("Residual covariance dimension must be positive.");
+  }
+  int nBlocksR = 0;
+  for(int rr = 0; rr < nR; ++rr){
+    if(residualBlockI(rr) < 1 || residualIndexI(rr) < 1 || static_cast<int>(residualIndexI(rr)) > residualDim){
+      Rcpp::stop("Residual block/local indices are out of range.");
+    }
+    nBlocksR = std::max(nBlocksR, static_cast<int>(residualBlockI(rr)));
+  }
+  std::vector<std::vector<std::pair<int,int>>> blockRows(nBlocksR);
+  for(int rr = 0; rr < nR; ++rr){
+    blockRows[residualBlockI(rr)-1].push_back({rr, static_cast<int>(residualIndexI(rr))-1});
+  }
+
+  arma::mat HsInv;
+  if(useH){
+    arma::mat Hd = arma::mat(H);
+    arma::mat Hs = arma::chol(Hd, "upper");
+    HsInv = arma::inv(arma::trimatu(Hs));
+  }
+
+  auto buildR = [&](const arma::mat & thetaR) -> arma::mat {
+    arma::mat R0(nR, nR, arma::fill::zeros);
+    for(int b = 0; b < nBlocksR; ++b){
+      const std::vector<std::pair<int,int>> & rows = blockRows[b];
+      for(std::size_t p1 = 0; p1 < rows.size(); ++p1){
+        for(std::size_t p2 = 0; p2 < rows.size(); ++p2){
+          R0(rows[p1].first, rows[p2].first) = thetaR(rows[p1].second, rows[p2].second);
+        }
+      }
+    }
+    if(useH){ return HsInv.t() * R0 * HsInv; }
+    return R0;
+  };
+
+  // ------------------------------------------------------------
+  // Main covariance assembly: V(par) and its derivatives.
+  // ------------------------------------------------------------
+  auto buildV = [&](const arma::field<arma::vec> & par) -> arma::mat {
+    arma::mat V = buildR(directEvaluateDescriptor(covDescriptor[residualStruct], par(residualStruct)));
+    for(int i = 0; i < nRe; ++i){
+      arma::mat Sigma = directEvaluateDescriptor(covDescriptor[i], par(i));
+      const arma::uword q = qOf[i];
+      for(arma::uword a = 0; a < q; ++a){
+        for(arma::uword b = 0; b < q; ++b){
+          if(Sigma(a,b) != 0.0){ V += Sigma(a,b) * Bcache[i](a,b); }
+        }
+      }
+    }
+    return V;
+  };
+
+  auto buildD = [&](const arma::field<arma::vec> & par, const int iStruct, const arma::uword k) -> arma::mat {
+    if(iStruct == residualStruct){
+      return buildR(directDescriptorD1(covDescriptor[residualStruct], par(residualStruct), k));
+    }
+    arma::mat dSigma = directDescriptorD1(covDescriptor[iStruct], par(iStruct), k);
+    const arma::uword q = qOf[iStruct];
+    arma::mat D(nR, nR, arma::fill::zeros);
+    for(arma::uword a = 0; a < q; ++a){
+      for(arma::uword b = 0; b < q; ++b){
+        if(dSigma(a,b) != 0.0){ D += dSigma(a,b) * Bcache[iStruct](a,b); }
+      }
+    }
+    return D;
+  };
+
+  auto structureIsPD = [&](int iStruct, const arma::vec & par) -> bool {
+    arma::mat Th = directEvaluateDescriptor(covDescriptor[iStruct], par);
+    arma::vec eigval;
+    bool ok = arma::eig_sym(eigval, arma::symmatu(Th));
+    return ok && eigval.n_elem > 0 && eigval.min() > tolParInv;
+  };
+
+  time_t before = time(0);
+  localtime(&before);
+
+  // Constant across iterations: only free (non-fixed) parameters are
+  // updated, and their bounds never change.
+  arma::vec freeUnlisted(nVcTotal), lowerUnlisted(nVcTotal), upperUnlisted(nVcTotal);
+  for(int i = 0; i < nRRe; ++i){
+    freeUnlisted.subvec(nVcStart(i)-1, nVcEnd(i)-1) = covFree(i);
+    lowerUnlisted.subvec(nVcStart(i)-1, nVcEnd(i)-1) = covLower(i);
+    upperUnlisted.subvec(nVcStart(i)-1, nVcEnd(i)-1) = covUpper(i);
+  }
+  arma::uvec freeIdx = arma::find(freeUnlisted > 0.5);
+
+  // Standardizing y by stdy shifts log|V| and log|Q| by constants that
+  // cancel in yPy but not in the reported likelihood; add the Jacobian
+  // correction back so llik/AIC/BIC are reported on the original scale.
+  const double llikScaleCorrection =
+    -(reml ? (static_cast<double>(nR) - static_cast<double>(rankX)) : static_cast<double>(nR)) * std::log(stdy);
+
+  arma::mat monitor(nVcTotal, nIters, arma::fill::zeros);
+  arma::vec llik(nIters, arma::fill::zeros);
+  arma::mat InfMatInvWorking(nVcTotal, nVcTotal, arma::fill::eye);
+  bool convergence = false;
+  int lastIter = 0;
+  arma::vec beta(nX, arma::fill::zeros);
+  arma::mat VarBeta(nX, nX, arma::fill::zeros);
+  arma::vec Py(nR, arma::fill::zeros);
+
+  for(int iIter = 0; iIter < nIters; ++iIter){
+    lastIter = iIter;
+
+    arma::mat V = buildV(covPar);
+    V = arma::symmatu(V);
+
+    arma::mat Vi;
+    bool okV = arma::inv_sympd(Vi, V);
+    arma::mat D = arma::eye<arma::mat>(nR, nR);
+    for(int jit = 0; !okV && jit < 4; ++jit){
+      V = V + D * (tolParInv * std::pow(10.0, jit));
+      okV = arma::inv_sympd(Vi, V);
+    }
+    if(!okV){
+      Rcpp::stop("V is numerically singular. Try a larger tolParInv or check the supplied covariance structures.");
+    }
+
+    arma::mat VX = Vi * Xd;
+    arma::mat Q = Xd.t() * VX;
+    arma::mat Qinv;
+    bool okQ = arma::inv_sympd(Qinv, Q);
+    arma::mat Dx = arma::eye<arma::mat>(nX, nX);
+    for(int jit = 0; !okQ && jit < 4; ++jit){
+      Q = Q + Dx * (tolParInv * std::pow(10.0, jit));
+      okQ = arma::inv_sympd(Qinv, Q);
+    }
+    if(!okQ){
+      Rcpp::stop("X'V^{-1}X is numerically singular. Try a larger tolParInv or check the fixed-effects design for collinearity.");
+    }
+
+    arma::mat P = Vi - VX * Qinv * VX.t();
+    P = arma::symmatu(P);
+    Py = P * y;
+
+    double valV, signV, valQ, signQ;
+    arma::log_det(valV, signV, V);
+    const double logDetV = valV;
+    double logDetQ = 0.0;
+    if(reml){
+      arma::log_det(valQ, signQ, Q);
+      logDetQ = valQ;
+    }
+    const double yPy = arma::as_scalar(y.t() * Py);
+    const double n = static_cast<double>(nR);
+    const double constTerm = reml ? (n - static_cast<double>(rankX)) * std::log(2.0*arma::datum::pi)
+                                  : n * std::log(2.0*arma::datum::pi);
+    llik(iIter) = -0.5 * (logDetV + logDetQ + yPy + constTerm) + llikScaleCorrection;
+
+    if(iIter > 0){
+      const double deltaLL = llik(iIter) - llik(iIter-1);
+      if(deltaLL < tolParConvLL){
+        convergence = true;
+        monitor.col(iIter) = monitor.col(iIter-1);
+        break;
+      }
+    }
+
+    // Score and average information.
+    arma::vec score(nVcTotal, arma::fill::zeros);
+    arma::mat AI(nVcTotal, nVcTotal, arma::fill::zeros);
+    std::vector<arma::vec> vList(nVcTotal), PvList(nVcTotal);
+
+    int g = 0;
+    for(int i = 0; i < nRRe; ++i){
+      for(arma::uword k = 0; k < covPar(i).n_elem; ++k){
+        arma::mat Dk = buildD(covPar, i, k);
+        arma::vec vk = Dk * Py;
+        const double traceTerm = arma::accu(P % Dk);
+        score(g) = 0.5 * (arma::dot(Py, vk) - traceTerm);
+        vList[g] = vk;
+        PvList[g] = P * vk;
+        g++;
+      }
+    }
+    for(int a = 0; a < nVcTotal; ++a){
+      for(int b = a; b < nVcTotal; ++b){
+        AI(a,b) = 0.5 * arma::dot(vList[a], PvList[b]);
+        AI(b,a) = AI(a,b);
+      }
+    }
+
+    arma::vec emDiag = arma::diagvec(AI);
+    for(int k = 0; k < nVcTotal; ++k){
+      if(!std::isfinite(emDiag(k)) || emDiag(k) <= tolParInv){ emDiag(k) = 1.0; }
+    }
+    arma::mat InfMat = (1.0 - weightEmInf(iIter)) * AI + weightEmInf(iIter) * arma::diagmat(emDiag);
+
+    arma::vec thetaUnlisted(nVcTotal);
+    for(int i = 0; i < nRRe; ++i){
+      thetaUnlisted.subvec(nVcStart(i)-1, nVcEnd(i)-1) = covPar(i);
+    }
+
+    arma::vec delta(nVcTotal, arma::fill::zeros);
+    arma::vec weightedScore = weightInf(iIter) * score;
+    if(freeIdx.n_elem > 0){
+      arma::mat InfFree = InfMat.submat(freeIdx, freeIdx);
+      arma::vec scoreFree = weightedScore(freeIdx);
+      arma::vec deltaFree;
+      bool solvedOK = arma::solve(deltaFree, InfFree, scoreFree, arma::solve_opts::likely_sympd);
+      if(!solvedOK){ solvedOK = arma::solve(deltaFree, arma::pinv(InfFree), scoreFree); }
+      if(!solvedOK){
+        Rcpp::stop("Unable to solve the variance-component information system.");
+      }
+      delta(freeIdx) = deltaFree;
+    }
+
+    arma::vec candidate = thetaUnlisted + delta;
+    for(int k = 0; k < nVcTotal; ++k){
+      if(freeUnlisted(k) < 0.5){ candidate(k) = thetaUnlisted(k); continue; }
+      if(candidate(k) < lowerUnlisted(k)){ candidate(k) = lowerUnlisted(k); }
+      if(candidate(k) > upperUnlisted(k)){ candidate(k) = upperUnlisted(k); }
+    }
+
+    for(int halving = 0; halving < 10; ++halving){
+      bool allPD = true;
+      for(int i = 0; i < nRRe && allPD; ++i){
+        arma::vec parCandidate = candidate.subvec(nVcStart(i)-1, nVcEnd(i)-1);
+        if(!structureIsPD(i, parCandidate)){ allPD = false; }
+      }
+      if(allPD){ break; }
+      candidate = thetaUnlisted + 0.5 * (candidate - thetaUnlisted);
+      if(halving == 9){ candidate = thetaUnlisted; }
+    }
+
+    for(int i = 0; i < nRRe; ++i){
+      covPar(i) = candidate.subvec(nVcStart(i)-1, nVcEnd(i)-1);
+      theta(i) = directEvaluateDescriptor(covDescriptor[i], covPar(i));
+    }
+    monitor.col(iIter) = candidate;
+
+    if(verbose){
+      time_t now = time(0);
+      tm *ltm = localtime(&now);
+      double seconds = difftime(now, before);
+      before = time(0);
+      if(iIter == 0){ Rcpp::Rcout << "iteration   LogLik   wall     cpu(sec)" << arma::endl; }
+      Rcpp::Rcout << "    " << iIter+1 << "      " << llik(iIter) << "   "
+                  << ltm->tm_hour << ":" << ltm->tm_min << ":" << ltm->tm_sec
+                  << "      " << seconds << arma::endl;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // Final BLUE/BLUP/PEV computation at the converged (or last) point.
+  // ------------------------------------------------------------
+  arma::mat V = buildV(covPar);
+  V = arma::symmatu(V);
+  arma::mat Vi;
+  bool okV = arma::inv_sympd(Vi, V);
+  arma::mat Djit = arma::eye<arma::mat>(nR, nR);
+  for(int jit = 0; !okV && jit < 4; ++jit){
+    V = V + Djit * (tolParInv * std::pow(10.0, jit));
+    okV = arma::inv_sympd(Vi, V);
+  }
+  if(!okV){ Rcpp::stop("Final V is numerically singular."); }
+
+  arma::mat VX = Vi * Xd;
+  arma::mat Q = Xd.t() * VX;
+  arma::mat Qinv;
+  bool okQ = arma::inv_sympd(Qinv, Q);
+  arma::mat Dxj = arma::eye<arma::mat>(nX, nX);
+  for(int jit = 0; !okQ && jit < 4; ++jit){
+    Q = Q + Dxj * (tolParInv * std::pow(10.0, jit));
+    okQ = arma::inv_sympd(Qinv, Q);
+  }
+  if(!okQ){ Rcpp::stop("Final X'V^{-1}X is numerically singular."); }
+
+  arma::mat P = arma::symmatu(Vi - VX * Qinv * VX.t());
+  Py = P * y;
+  beta = Qinv * (Xd.t() * (Vi * y));
+  VarBeta = Qinv;
+
+  // Clean (non-EM-blended) average information at the converged point, used
+  // only for theta_se: the per-iteration InfMat blends in a diagonal EM
+  // stabilizer for optimizer robustness, which must not leak into reported
+  // standard errors.
+  {
+    arma::mat AIFinal(nVcTotal, nVcTotal, arma::fill::zeros);
+    std::vector<arma::vec> vListFinal(nVcTotal), PvListFinal(nVcTotal);
+    int g = 0;
+    for(int i = 0; i < nRRe; ++i){
+      for(arma::uword k = 0; k < covPar(i).n_elem; ++k){
+        arma::mat Dk = buildD(covPar, i, k);
+        arma::vec vk = Dk * Py;
+        vListFinal[g] = vk;
+        PvListFinal[g] = P * vk;
+        g++;
+      }
+    }
+    for(int a = 0; a < nVcTotal; ++a){
+      for(int b = a; b < nVcTotal; ++b){
+        AIFinal(a,b) = 0.5 * arma::dot(vListFinal[a], PvListFinal[b]);
+        AIFinal(b,a) = AIFinal(a,b);
+      }
+    }
+    InfMatInvWorking.zeros();
+    if(freeIdx.n_elem > 0){
+      InfMatInvWorking.submat(freeIdx, freeIdx) = arma::pinv(AIFinal.submat(freeIdx, freeIdx));
+    }
+  }
+
+  arma::field<arma::mat> uList(nRe), uPevList(nRe);
+  arma::vec u(Nu, arma::fill::zeros);
+
+  for(int i = 0; i < nRe; ++i){
+    arma::mat Sigma = theta(i);
+    const arma::uword q = qOf[i];
+    arma::sp_mat AiSp = convertSparse(AiI(i));
+    const bool aiIsIdentity = isIdentity_spmat(AiSp);
+    arma::mat Kdense;
+    if(!aiIsIdentity){
+      arma::mat Adense = arma::mat(AiSp);
+      bool ok = eigenSpdInverse(Adense, Kdense);
+      if(!ok){
+        arma::mat bend = nearPDcpp(Adense, 100, 1.0e-6, 1.0e-7);
+        ok = eigenSpdInverse(bend, Kdense);
+      }
+    }
+    const int levels = Zdense[i][0].n_cols;
+    arma::mat uMat(levels, q, arma::fill::zeros);
+    std::vector<arma::vec> ZtPy(q);
+    for(arma::uword b = 0; b < q; ++b){ ZtPy[b] = Zdense[i][b].t() * Py; }
+    for(arma::uword a = 0; a < q; ++a){
+      arma::vec acc(levels, arma::fill::zeros);
+      for(arma::uword b = 0; b < q; ++b){
+        acc += Sigma(a,b) * ZtPy[b];
+      }
+      uMat.col(a) = aiIsIdentity ? acc : (Kdense * acc);
+    }
+    uList(i) = uMat;
+    for(arma::uword a = 0; a < q; ++a){
+      u.subvec(static_cast<arma::uword>(partitions(i)(a,0)-1-nX), static_cast<arma::uword>(partitions(i)(a,1)-1-nX)) = uMat.col(a);
+    }
+    uPevList(i) = arma::mat();
+  }
+
+  if(computePev == 2){
+    if(Nu > 5000){
+      Rcpp::stop("computePev=2 (full PEV) requires Nu <= 5000 coefficients in this engine; use computePev=0 for larger marker/coefficient models.");
+    }
+    arma::mat Zfull(nR, Nu, arma::fill::zeros);
+    arma::mat Gfull(Nu, Nu, arma::fill::zeros);
+    for(int i = 0; i < nRe; ++i){
+      arma::mat Sigma = theta(i);
+      const arma::uword q = qOf[i];
+      arma::sp_mat AiSp = convertSparse(AiI(i));
+      const bool aiIsIdentity = isIdentity_spmat(AiSp);
+      arma::mat Kdense;
+      if(!aiIsIdentity){
+        arma::mat Adense = arma::mat(AiSp);
+        bool ok = eigenSpdInverse(Adense, Kdense);
+        if(!ok){
+          arma::mat bend = nearPDcpp(Adense, 100, 1.0e-6, 1.0e-7);
+          ok = eigenSpdInverse(bend, Kdense);
+        }
+      }else{
+        Kdense = arma::eye<arma::mat>(Zdense[i][0].n_cols, Zdense[i][0].n_cols);
+      }
+      for(arma::uword a = 0; a < q; ++a){
+        const int startA = static_cast<int>(partitions(i)(a,0)) - 1;
+        const int endA = static_cast<int>(partitions(i)(a,1)) - 1;
+        Zfull.cols(startA, endA) = Zdense[i][a];
+        for(arma::uword b = 0; b < q; ++b){
+          const int startB = static_cast<int>(partitions(i)(b,0)) - 1;
+          const int endB = static_cast<int>(partitions(i)(b,1)) - 1;
+          Gfull.submat(startA, startB, endA, endB) = Sigma(a,b) * Kdense;
+        }
+      }
+    }
+    arma::mat GZt = Gfull * Zfull.t();
+    arma::mat VarU = GZt * P * GZt.t();
+    arma::mat PevFull = Gfull - VarU;
+    for(int i = 0; i < nRe; ++i){
+      const arma::uword q = qOf[i];
+      const int levels = Zdense[i][0].n_cols;
+      arma::mat eMat(levels, q, arma::fill::zeros);
+      for(arma::uword a = 0; a < q; ++a){
+        const int startA = static_cast<int>(partitions(i)(a,0)) - 1;
+        const int endA = static_cast<int>(partitions(i)(a,1)) - 1;
+        eMat.col(a) = arma::diagvec(PevFull.submat(startA, startA, endA, endA)) * vary;
+      }
+      uPevList(i) = eMat;
+    }
+  }
+
+  // ------------------------------------------------------------
+  // Rescale to the original response scale and report natural-scale
+  // covariance parameters + delta-method SE, identical convention to
+  // ai_mme_sp2().
+  // ------------------------------------------------------------
+  for(int i = 0; i < nRRe; ++i){ theta(i) = theta(i) * vary; }
+  beta = beta * stdy;
+  if(intercept){ beta(0) += muy; }
+  VarBeta = VarBeta * vary;
+  u = u * stdy;
+  for(int i = 0; i < nRe; ++i){ uList(i) = uList(i) * stdy; }
+
+  arma::field<arma::vec> covParOut(nRRe);
+  arma::vec finalJacobian(nVcTotal, arma::fill::ones);
+  arma::mat monitorOut = monitor;
+  for(int i = 0; i < nRRe; ++i){
+    arma::vec localJac;
+    covParOut(i) = directReportParameters(covDescriptor[i], covPar(i), vary, localJac);
+    finalJacobian.subvec(nVcStart(i)-1, nVcEnd(i)-1) = localJac;
+    for(int iter = 0; iter <= lastIter; ++iter){
+      arma::vec localWork = monitor.submat(nVcStart(i)-1, iter, nVcEnd(i)-1, iter);
+      arma::vec dummyJac;
+      monitorOut.submat(nVcStart(i)-1, iter, nVcEnd(i)-1, iter) =
+        directReportParameters(covDescriptor[i], localWork, vary, dummyJac);
+    }
+  }
+  arma::mat theta_se = arma::diagmat(finalJacobian) * InfMatInvWorking * arma::diagmat(finalJacobian);
+
+  const double AIC = (-2.0 * llik(lastIter)) + (2.0 * nX);
+  const double BIC = (-2.0 * llik(lastIter)) + (std::log(static_cast<double>(nR)) * nX);
+
+  arma::vec bu(nEffects, arma::fill::zeros);
+  bu.subvec(0, nX-1) = beta;
+  if(Nu > 0){ bu.subvec(nX, nEffects-1) = u; }
+
+  return Rcpp::List::create(
+    Rcpp::Named("llik") = llik.subvec(0, lastIter),
+    Rcpp::Named("b") = beta,
+    Rcpp::Named("u") = u,
+    Rcpp::Named("bu") = bu,
+    Rcpp::Named("VarBeta") = VarBeta,
+    Rcpp::Named("theta") = theta,
+    Rcpp::Named("covPar") = covParOut,
+    Rcpp::Named("theta_se") = theta_se,
+    Rcpp::Named("monitor") = monitorOut.cols(0, lastIter),
+    Rcpp::Named("uList") = uList,
+    Rcpp::Named("uPevList") = uPevList,
+    Rcpp::Named("AIC") = AIC,
+    Rcpp::Named("BIC") = BIC,
+    Rcpp::Named("convergence") = convergence,
+    Rcpp::Named("partitions") = partitions,
+    Rcpp::Named("CiMode") = 0,
+    Rcpp::Named("Ci") = arma::sp_mat()
+  );
+}
 
 

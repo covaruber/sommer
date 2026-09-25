@@ -1,0 +1,286 @@
+---
+title: "Generalized linear mixed models with sommer"
+author: "sommer development team"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Generalized linear mixed models with sommer}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, message=FALSE}
+library(sommer)
+```
+
+# Overview
+
+`mmes()` fits generalized linear mixed models (GLMMs) when given a
+non-Gaussian `stats::family()` object. The model has conditional mean
+
+$$
+\operatorname{E}(y_i \mid u) = \mu_i,
+\qquad
+\eta_i = g(\mu_i) = o_i + x_i^\mathsf{T}\beta + z_i^\mathsf{T}u,
+$$
+
+where $g$ is the link function, $o_i$ is an optional offset, and the random
+effects retain sommer's usual structured Gaussian covariance model,
+$u \sim N(0, G)$. Thus, `random`, `rcov`, `vsm()`, relationship precision
+matrices, and covariance structures are specified exactly as for a Gaussian
+mixed model.
+
+The default `family = gaussian()` with its identity link takes the ordinary
+linear mixed-model path. Supply another family explicitly for a GLMM:
+
+```{r basic-call, eval=FALSE}
+fit <- mmes(
+  fixed = outcome ~ treatment,
+  random = ~ subject,
+  rcov = ~ units,
+  data = dat,
+  family = binomial()
+)
+```
+
+The initial implementation accepts one numeric response. Binomial responses
+may be a zero/one numeric vector; grouped-binomial matrix responses are not
+yet supported.
+
+# How the fit works
+
+## PQL and IRLS
+
+Sommer uses penalized quasi-likelihood (PQL). At outer iteration $t$, it
+linearizes the GLMM at the current link-scale predictor $\eta^{(t)}$. With
+
+$$
+\mu^{(t)} = g^{-1}(\eta^{(t)}),
+\qquad
+h_i^{(t)} = \frac{d\mu_i}{d\eta_i},
+\qquad
+V_i^{(t)} = \operatorname{Var}(y_i \mid u),
+$$
+
+the working response and diagonal IRLS precision are
+
+$$
+z_i^{(t)} = \eta_i^{(t)} +
+\frac{y_i - \mu_i^{(t)}}{h_i^{(t)}} - o_i,
+\qquad
+D_{ii}^{(t)} = \frac{\left(h_i^{(t)}\right)^2}{V_i^{(t)}}.
+$$
+
+Sommer then calls its existing weighted Gaussian Henderson/AI-REML solver on
+$z^{(t)}$. This updates fixed effects, BLUPs, and covariance parameters; the
+new predictor is $\eta^{(t+1)} = o + X\hat\beta + Z\hat u$. The outer loop
+stops when the deviance change is sufficiently small.
+
+This approach deliberately reuses `ai_mme_sp2()` as the weighted Gaussian
+inner optimizer. It does not maximize an exact marginal GLMM likelihood.
+PQL is practical for structured and large random-effect models, but can be
+biased for binary or sparse count responses, particularly with large
+random-effect variances. Treat standard errors and variance components as
+quasi-likelihood approximations in those settings.
+
+## Dispersion and covariance structures
+
+For `binomial()` and `poisson()`, the working residual dispersion is fixed to
+one. For other families, sommer estimates the Gaussian working-scale residual
+covariance using the supplied `rcov` structure. All existing random-effect
+structures remain available. For example:
+
+```{r structured-random, eval=FALSE}
+fit <- mmes(
+  y ~ environment,
+  random = ~ vsm(usm(environment), ism(genotype)),
+  rcov = ~ units,
+  data = dat,
+  family = poisson()
+)
+```
+
+## Offsets and precision weights
+
+Use `offset()` in the fixed formula as in `glm()`. A common Poisson rate model
+uses the logarithm of an exposure:
+
+```{r offset, eval=FALSE}
+fit <- mmes(
+  events ~ treatment + offset(log(exposure)),
+  random = ~ site,
+  rcov = ~ units,
+  data = dat,
+  family = poisson()
+)
+```
+
+`W` is an optional symmetric positive-definite observation precision matrix.
+It may be sparse and non-diagonal. If $W = U^\mathsf{T}U$, sommer combines it
+at each PQL iteration with IRLS precision as
+
+$$
+W_*^{(t)} = U^\mathsf{T}D^{(t)}U.
+$$
+
+This preserves both the user-supplied correlation/precision structure and the
+family-dependent working precision. The sparse Cholesky factor $U$ is reused
+across outer iterations. Missing observations are filtered before this
+factorization, so `W` may be supplied either for all original rows or for the
+retained rows.
+
+# Families and examples
+
+The interface uses standard `stats` family objects. The following examples
+use a random intercept to show the shared GLMM syntax. They are illustrative
+and therefore not run while building this vignette.
+
+```{r family-data, eval=FALSE}
+set.seed(2026)
+n_group <- 30
+n_per_group <- 8
+dat <- data.frame(
+  group = factor(rep(seq_len(n_group), each = n_per_group)),
+  x = rep(c(0, 1), length.out = n_group * n_per_group),
+  exposure = runif(n_group * n_per_group, 0.5, 2)
+)
+```
+
+## Gaussian
+
+The Gaussian identity model is the ordinary `mmes()` linear mixed model.
+
+```{r gaussian-example, eval=FALSE}
+dat$y_gaussian <- 2 + 0.7 * dat$x + rnorm(nrow(dat), sd = 1)
+fit_gaussian <- mmes(
+  y_gaussian ~ x, random = ~ group, rcov = ~ units, data = dat,
+  family = gaussian()
+)
+```
+
+A non-identity Gaussian link can also be requested, for example
+`gaussian(link = "log")`, provided its domain is appropriate for the response.
+
+## Binomial
+
+```{r binomial-example, eval=FALSE}
+probability <- plogis(-0.7 + 1.1 * dat$x)
+dat$y_binomial <- rbinom(nrow(dat), size = 1, prob = probability)
+fit_binomial <- mmes(
+  y_binomial ~ x, random = ~ group, rcov = ~ units, data = dat,
+  family = binomial()
+)
+```
+
+## Poisson
+
+```{r poisson-example, eval=FALSE}
+rate <- dat$exposure * exp(0.2 + 0.4 * dat$x)
+dat$y_poisson <- rpois(nrow(dat), lambda = rate)
+fit_poisson <- mmes(
+  y_poisson ~ x + offset(log(exposure)),
+  random = ~ group, rcov = ~ units, data = dat,
+  family = poisson()
+)
+```
+
+## Gamma
+
+The Gamma family requires a strictly positive response.
+
+```{r gamma-example, eval=FALSE}
+mean_gamma <- exp(0.3 + 0.25 * dat$x)
+dat$y_gamma <- rgamma(nrow(dat), shape = 4, scale = mean_gamma / 4)
+fit_gamma <- mmes(
+  y_gamma ~ x, random = ~ group, rcov = ~ units, data = dat,
+  family = Gamma(link = "log")
+)
+```
+
+## Inverse Gaussian
+
+The inverse-Gaussian family also requires a strictly positive response. The
+response below is positive synthetic data for demonstrating the interface.
+
+```{r inverse-gaussian-example, eval=FALSE}
+dat$y_inverse_gaussian <- exp(0.2 + 0.3 * dat$x + rnorm(nrow(dat), sd = 0.2))
+fit_inverse_gaussian <- mmes(
+  y_inverse_gaussian ~ x, random = ~ group, rcov = ~ units, data = dat,
+  family = inverse.gaussian(link = "log")
+)
+```
+
+## Quasi families
+
+Quasi families use the same mean/link and variance definitions as their
+corresponding GLM families, but do not define a likelihood. Consequently,
+devience is useful for PQL convergence, while likelihood-based comparisons
+such as AIC or likelihood-ratio tests are not appropriate.
+
+```{r quasi-example, eval=FALSE}
+dat$y_quasi <- 1 + 0.5 * dat$x + rnorm(nrow(dat), sd = 0.5)
+fit_quasi <- mmes(
+  y_quasi ~ x, random = ~ group, rcov = ~ units, data = dat,
+  family = quasi(link = "identity", variance = "constant")
+)
+
+fit_quasibinomial <- mmes(
+  y_binomial ~ x, random = ~ group, rcov = ~ units, data = dat,
+  family = quasibinomial()
+)
+
+fit_quasipoisson <- mmes(
+  y_poisson ~ x + offset(log(exposure)),
+  random = ~ group, rcov = ~ units, data = dat,
+  family = quasipoisson()
+)
+```
+
+# Extracting results and controlling PQL
+
+For a GLMM, `fitted()` returns conditional fitted means on the response scale.
+Use `type = "link"` for $\eta$, including any offset. Residuals can be
+requested on response, signed-deviance, or final working scales.
+
+```{r extract, eval=FALSE}
+fitted(fit_poisson)
+fitted(fit_poisson, type = "link")
+residuals(fit_poisson, type = "deviance")
+residuals(fit_poisson, type = "working")
+
+fit_poisson$pqlMonitor
+fit_poisson$pqlConverged
+fit_poisson$family
+```
+
+Use `pqlControl` to set the outer PQL maximum iterations and relative
+devience tolerance. The usual `nIters`, `tolParConvLL`, `stepWeight`,
+`emWeight`, and solver arguments continue to control the Gaussian
+variance-component fit inside each outer iteration.
+
+```{r pql-control, eval=FALSE}
+fit <- mmes(
+  y_poisson ~ x + offset(log(exposure)),
+  random = ~ group,
+  rcov = ~ units,
+  data = dat,
+  family = poisson(),
+  pqlControl = list(maxit = 30, tol = 1e-6),
+  nIters = 20,
+  solver = "auto"
+)
+```
+
+# Practical guidance
+
+- Begin with a simple random-intercept GLMM and inspect `pqlMonitor` before
+  adding complex covariance structures.
+- Check `pqlConverged`; reaching `pqlControl$maxit` indicates that the outer
+  PQL criterion was not met.
+- Keep binomial responses away from complete separation where possible; very
+  small derivatives can create unstable IRLS weights.
+- For binary outcomes with few observations per random-effect level or large
+  random-effect variances, compare conclusions with a method based on a
+  Laplace approximation or Bayesian posterior simulation when feasible.
+- Use response-scale fitted values for prediction and link-scale fitted values
+  when interpreting additive fixed and random effects.

@@ -10,11 +10,44 @@ mmes <- function(fixed, random, rcov, data, W,
                  contrasts=NULL, getPEV=TRUE, henderson=TRUE,
                  computeCi=0, solver="auto", pcgTol=1.0e-8,
                  pcgMaxIters=0, pcgTraceProbes=8,
-                 pcgLanczosSteps=20, REML=TRUE){
+                 pcgLanczosSteps=20, REML=TRUE,
+                 family=stats::gaussian(), pqlControl=list(),
+                 .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
+                 .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
+                 .pqlBaseFactor=NULL){
 
-  if(!isTRUE(henderson)){
-    stop("This mmes() interface is Henderson-only. Use the separate MNR/direct-inversion mmer interface for henderson=FALSE.",
+  if(length(henderson) != 1L || !is.logical(henderson) || is.na(henderson)){
+    stop("henderson must be a single TRUE/FALSE value.", call.=FALSE)
+  }
+
+  if(!inherits(family, "family")){
+    stop("family must be a family object, such as stats::binomial() or stats::poisson().",
          call.=FALSE)
+  }
+  isGaussianIdentity <- identical(family$family, "gaussian") &&
+    identical(family$link, "identity")
+  if(!.pqlInner && !isGaussianIdentity){
+    return(get(".mmes_pql", mode="function")(
+      fixed=fixed,
+      random=if(missing(random)) NULL else random,
+      rcov=if(missing(rcov)) NULL else rcov,
+      data=if(missing(data)) NULL else data,
+      W=if(missing(W)) NULL else W,
+      family=family,
+      pqlControl=pqlControl,
+      mmesArgs=list(
+        nIters=nIters, tolParConvLL=tolParConvLL,
+        tolParConvNorm=tolParConvNorm, tolParInv=tolParInv,
+        naMethodX=naMethodX, naMethodY=naMethodY,
+        naMethodRandom=naMethodRandom, naMethodR=naMethodR,
+        dateWarning=dateWarning, verbose=verbose, stepWeight=stepWeight,
+        emWeight=emWeight, contrasts=contrasts, getPEV=getPEV,
+        henderson=henderson, computeCi=computeCi, solver=solver,
+        pcgTol=pcgTol, pcgMaxIters=pcgMaxIters,
+        pcgTraceProbes=pcgTraceProbes, pcgLanczosSteps=pcgLanczosSteps,
+        REML=REML
+      )
+    ))
   }
   
   desc <- utils::packageDescription("sommer")
@@ -247,6 +280,10 @@ mmes <- function(fixed, random, rcov, data, W,
   # ---- Residual structure ---------------------------------------------
   rf <- rf_full
   if(isTRUE(rf$covStruct$free[1])) rf$covStruct$par[1] <- rf$covStruct$par[1] + log(5)
+  if(isTRUE(.pqlFixedDispersion)){
+    rf$covStruct$par[1L] <- 0
+    rf$covStruct$free[1L] <- FALSE
+  }
   residualStructIndex <- nRandomStruct + 1L
   covStruct[[residualStructIndex]] <- rf$covStruct
   localIndex <- as.integer(rf$residualLocalIndex[keep])
@@ -384,7 +421,51 @@ mmes <- function(fixed, random, rcov, data, W,
   }, error=function(e) NULL)
   
   # ---- Weights ---------------------------------------------------------
-  if(missing(W)){
+  if(!is.null(.pqlWorkingPrecision)){
+    if(length(.pqlWorkingPrecision) == nObs){
+      workingPrecision <- .pqlWorkingPrecision[keep]
+    }else if(length(.pqlWorkingPrecision) == sum(keep)){
+      workingPrecision <- .pqlWorkingPrecision
+    }else{
+      stop("PQL working precision must have one value per original or retained observation.",
+           call.=FALSE)
+    }
+    if(any(!is.finite(workingPrecision)) || any(workingPrecision <= 0)){
+      stop("PQL working precision must be finite and positive.", call.=FALSE)
+    }
+
+    if(!is.null(.pqlBaseFactor)){
+      if(nrow(.pqlBaseFactor) != length(workingPrecision) ||
+         ncol(.pqlBaseFactor) != length(workingPrecision)){
+        stop("Cached PQL base factor has incompatible dimensions.", call.=FALSE)
+      }
+      baseFactor <- .pqlBaseFactor
+    }else if(is.null(.pqlBaseW)){
+      baseW <- Matrix::Diagonal(n=length(workingPrecision), x=1)
+    }else if(nrow(.pqlBaseW) == nObs && ncol(.pqlBaseW) == nObs){
+      baseW <- .pqlBaseW[keep, keep, drop=FALSE]
+    }else if(nrow(.pqlBaseW) == sum(keep) && ncol(.pqlBaseW) == sum(keep)){
+      baseW <- .pqlBaseW
+    }else{
+      stop("PQL base W must have dimensions equal to either the original or retained number of observations.",
+           call.=FALSE)
+    }
+    if(is.null(.pqlBaseFactor)){
+      baseW <- as(as(as(baseW, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+      if(!isSymmetric(baseW)){
+        stop("PQL base W must be symmetric positive definite.", call.=FALSE)
+      }
+      baseFactor <- tryCatch(Matrix::chol(baseW), error=function(e) NULL)
+      if(is.null(baseFactor)){
+        stop("PQL base W must be positive definite.", call.=FALSE)
+      }
+    }
+    weightedFactor <- Matrix::Diagonal(n=length(workingPrecision),
+                                       x=sqrt(workingPrecision)) %*% baseFactor
+    W <- Matrix::crossprod(weightedFactor)
+    W <- as(as(as(W, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+    useH <- TRUE
+  }else if(missing(W)){
     W <- Matrix::Diagonal(n=nrow(yvar), x=1)
     useH <- FALSE
   }else{
@@ -396,21 +477,16 @@ mmes <- function(fixed, random, rcov, data, W,
     useH <- TRUE
   }
   
-  if(is.null(emWeight)){
-    # EM-heavy warm start: early REML iterations are intentionally more
-    # conservative and rely on the EM information block to stabilize the
-    # variance-component update; later iterations transition smoothly toward
-    # AI-dominated updates as the estimate enters the asymptotic regime.
-    if(nIters <= 1L){
+  if (is.null(emWeight)) {
+    taperIters <- min(nIters, 18L)
+
+    if (taperIters <= 1L) {
       emWeight <- 1
     } else {
-      emWeight <- exp(seq(log(1), log(0.05), length.out = nIters))
-      emWeight[1L] <- 1
-      emWeight[length(emWeight)] <- 0.05
+      emWeight <- rep(0.03, nIters)
+      emWeight[seq_len(taperIters)] <- exp(seq(log(1), log(0.03), length.out = taperIters))
     }
   }
-  if(length(emWeight) == 1L) emWeight <- rep(emWeight, nIters)
-  if(length(emWeight) != nIters) emWeight <- rep(emWeight, length.out = nIters)
   if(any(!is.finite(emWeight)) || any(emWeight < 0 | emWeight > 1))
     stop("emWeight must contain finite values between 0 and 1.", call.=FALSE)
   
@@ -433,40 +509,50 @@ mmes <- function(fixed, random, rcov, data, W,
       stop("The Henderson algorithm requires every Gu relationship matrix to be supplied as an inverse matrix with attr(Gu,'inverse')=TRUE.", call.=FALSE)
     }
   }
-  
-  # ---- Solver selection --------------------------------------------------
-  # "auto" (the default) picks a solver based on the density of the random-
-  # effect relationship matrices actually supplied: pedigree-style Ai
-  # matrices are typically sparse (a handful of nonzeros per row), while
-  # genomic/marker-based relationship matrices are essentially fully dense.
-  # The supernodal CHOLMOD factorization amortizes dense fill-in with
-  # threaded BLAS-3 kernels and tends to outperform the simplicial LDLT path
-  # once any random effect has a dense Gu; otherwise LDLT stays the default.
-  solverChoices <- c("auto", "ldlt", "pcg", "cholmod")
-  if(length(solver) != 1L || !is.character(solver) || is.na(solver) ||
-     !(tolower(solver) %in% solverChoices)){
-    stop("solver must be one of 'auto', 'ldlt', 'pcg', or 'cholmod'.", call.=FALSE)
-  }
-  solver <- tolower(solver)
-  if(solver == "auto"){
-    hasDenseGu <- length(Ai) > 0L && any(vapply(Ai, function(a){
-      n <- nrow(a)
-      if(n <= 1L) return(FALSE)
-      (Matrix::nnzero(a) / (as.double(n) * as.double(n))) > 0.2
-    }, logical(1)))
-    solver <- if(hasDenseGu) "cholmod" else "ldlt"
-  }
 
   if(length(REML) != 1L || !is.logical(REML) || is.na(REML)){
     stop("REML must be a single TRUE/FALSE value.", call.=FALSE)
   }
-  if(!REML && !(solver %in% c("ldlt", "cholmod"))){
-    stop("REML=FALSE (maximum likelihood) currently requires solver='ldlt' or ",
-         "solver='cholmod' (solver='auto' resolves to one of these already).",
-         call.=FALSE)
-  }
 
-  message(crayon::blue(paste("Solver selected:", solver)))
+  if(isTRUE(henderson)){
+    # ---- Solver selection ------------------------------------------------
+    # "auto" (the default) picks a solver based on the density of the random-
+    # effect relationship matrices actually supplied: pedigree-style Ai
+    # matrices are typically sparse (a handful of nonzeros per row), while
+    # genomic/marker-based relationship matrices are essentially fully dense.
+    # The supernodal CHOLMOD factorization amortizes dense fill-in with
+    # threaded BLAS-3 kernels and tends to outperform the simplicial LDLT path
+    # once any random effect has a dense Gu; otherwise LDLT stays the default.
+    solverChoices <- c("auto", "ldlt", "pcg", "cholmod")
+    if(length(solver) != 1L || !is.character(solver) || is.na(solver) ||
+       !(tolower(solver) %in% solverChoices)){
+      stop("solver must be one of 'auto', 'ldlt', 'pcg', or 'cholmod'.", call.=FALSE)
+    }
+    solver <- tolower(solver)
+    if(solver == "auto"){
+      hasDenseGu <- length(Ai) > 0L && any(vapply(Ai, function(a){
+        n <- nrow(a)
+        if(n <= 1L) return(FALSE)
+        (Matrix::nnzero(a) / (as.double(n) * as.double(n))) > 0.2
+      }, logical(1)))
+      solver <- if(hasDenseGu) "cholmod" else "ldlt"
+    }
+    if(!REML && !(solver %in% c("ldlt", "cholmod"))){
+      stop("REML=FALSE (maximum likelihood) currently requires solver='ldlt' or ",
+           "solver='cholmod' (solver='auto' resolves to one of these already).",
+           call.=FALSE)
+    }
+    message(crayon::blue(paste("Solver selected:", solver)))
+  }else{
+    # The direct-inversion engine has no Henderson-style sparse solver
+    # choice; it always inverts the n x n phenotypic covariance directly.
+    solver <- "direct"
+    if(!(computeCi %in% c(0L, 2L))){
+      stop("With henderson=FALSE (the direct-inversion engine), computeCi must be 0 (no PEV) or 2 (full PEV, small models only); computeCi=1 (Takahashi selected inverse) is Henderson-only.",
+           call.=FALSE)
+    }
+    message(crayon::blue("Engine selected: direct inversion (henderson=FALSE)"))
+  }
 
   if(returnParam){
     return(list(yvar=yvar, X=X, Z=Z, Zind=Zind, Ai=Ai,
@@ -477,17 +563,28 @@ mmes <- function(fixed, random, rcov, data, W,
                 stepWeight=stepWeight, emWeight=emWeight,
                 rtermss=rtermss, partitionsX=partitionsX,
                 getPEV=getPEV, rTermsNames=rTermsNames,
-                obsInfo=obsInfo, solver=solver, REML=REML))
+                obsInfo=obsInfo, solver=solver, REML=REML,
+                henderson=henderson))
   }
-  
-  res <- .Call("_sommer_ai_mme_sp2", PACKAGE="sommer",
-               X, Z, Zind, Ai, yvar, W, useH,
-               residualBlock, localIndex,
-               nIters, tolParConvLL, tolParConvNorm,
-               tolParInv, covStruct, emWeight, stepWeight,
-               verbose, computeCi, solver, pcgTol, pcgMaxIters,
-               pcgTraceProbes, pcgLanczosSteps, REML)
-  
+
+  if(isTRUE(henderson)){
+    res <- .Call("_sommer_ai_mme_sp2", PACKAGE="sommer",
+                 X, Z, Zind, Ai, yvar, W, useH,
+                 residualBlock, localIndex,
+                 nIters, tolParConvLL, tolParConvNorm,
+                 tolParInv, covStruct, emWeight, stepWeight,
+                 verbose, computeCi, solver, pcgTol, pcgMaxIters,
+                 pcgTraceProbes, pcgLanczosSteps, REML)
+  }else{
+    res <- .Call("_sommer_ai_reml_direct_sp2", PACKAGE="sommer",
+                 X, Z, Zind, Ai, yvar, W, useH,
+                 residualBlock, localIndex,
+                 nIters, tolParConvLL, tolParConvNorm,
+                 tolParInv, covStruct, emWeight, stepWeight,
+                 verbose, computeCi, REML)
+  }
+  res$engine <- if(isTRUE(henderson)) "henderson" else "direct"
+
   rownames(res$b) <- colnames(X)
   if(length(randomFits) && length(res$u)) rownames(res$u) <- unlist(lapply(Z, colnames))
   rownames(res$bu) <- c(rownames(res$b), rownames(res$u))

@@ -5,14 +5,18 @@
 \description{\code{fitted} method for class \code{"mmes"}.
 }
 \usage{
-\method{fitted}{mmes}(object, \dots)
+\method{fitted}{mmes}(object, type=c("response", "link"), \dots)
 }
 \arguments{
  \item{object}{an object of class \code{"mmes"}}
+ \item{type}{For a non-Gaussian PQL fit, return fitted means on the response
+ scale (default) or linear predictors on the link scale.}
  \item{\dots}{Further arguments to be passed to the mmes function}
 }
 \value{
-  vector of fitted values of the form y.hat = Xb + Zu including all terms of the model.
+  For Gaussian fits, fitted values of the form y.hat = Xb + Zu. For non-Gaussian
+  PQL fits, response-scale conditional means by default, or Xb + Zu with
+  \code{type="link"}.
  }
 \author{Giovanny Covarrubias}
 \examples{

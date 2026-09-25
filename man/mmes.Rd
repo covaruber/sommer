@@ -7,13 +7,14 @@
 }
 \description{
 
-The \code{mmes} function uses the Henderson mixed model equations algorithm 
+Fits generalized linear mixed models  
 coded in C++ using the Armadillo and Eigen libraries to optimize matrix 
-operations. For more records than coefficients the Henderson's formulation is
-faster. Please make sure that you provide the relationship matrix as an inverse 
-(see \code{\link{vsm}()} function for details).
-For problems of the type  c > r (more coefficients to estimate than
-records available) the direct inversion algorithm is faster (use the old \code{\link{mmer}} function).
+operations. Two solving approaches are enabled; mixed model equations derived 
+by Henderson or the direct inversion (henderson argument). Three solvers are 
+currenty enabled (ldlt, cholmod and pcg)
+to adapt to different problems. Generalized linear mixed models are activated 
+through the family argument. The special covariance structures are
+specified through the \code{\link{vsm}()} function.
 
 
 }
@@ -30,7 +31,8 @@ mmes(fixed, random, rcov, data, W,
      contrasts=NULL, getPEV=TRUE, henderson=TRUE,
     computeCi=0, solver="auto", pcgTol=1.0e-8,
     pcgMaxIters=0, pcgTraceProbes=8,
-    pcgLanczosSteps=20, REML=TRUE)
+    pcgLanczosSteps=20, REML=TRUE,
+    family=stats::gaussian(), pqlControl=list())
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -243,10 +245,19 @@ mmes(fixed, random, rcov, data, W,
   \item{getPEV}{A logical value indicating whether prediction error variance
   results should be organized and returned when they are requested through
   \code{computeCi}.}
-  \item{henderson}{A logical value retained for interface compatibility. The current
-  \code{mmes()} implementation is Henderson-only and therefore requires
-  \code{henderson=TRUE}. Direct-inversion/MNR fitting is handled by a separate
-  interface.}
+  \item{henderson}{A logical value indicating which REML engine to use. \code{TRUE}
+  (the default) uses the Henderson mixed-model-equations algorithm, efficient when
+  there are many more records than coefficients to estimate. \code{FALSE} uses a
+  direct-inversion engine that inverts the phenotypic covariance matrix in
+  observation space instead; it is less efficient than \code{henderson=TRUE} when
+  there are many more records than coefficients, but can be more efficient when
+  there are many more coefficients to estimate than records available (e.g.,
+  marker/SNP-BLUP-style models). Both engines share the same \code{vsm()}
+  covariance-structure parameterization. The direct-inversion engine currently
+  supports \code{computeCi} values \code{0} and \code{2} only (no Takahashi
+  selected-inverse mode), has no \code{solver}/PCG/CHOLMOD options, and requires a
+  single response column (use the long-format \code{vsm(usm(trait), ...)}
+  convention for multi-trait models, as with the Henderson engine).}
     \item{computeCi}{An integer indicating whether post-fit prediction error variance information
   and/or the inverse of the mixed model coefficient matrix should be computed when the
   Henderson algorithm is used (\code{henderson=TRUE}). The available options are:
@@ -337,6 +348,20 @@ mmes(fixed, random, rcov, data, W,
    "auto"} already resolves to one of these). \code{solver="pcg"} is not yet supported
    with \code{REML=FALSE}. Prediction error variances (\code{uPevList}/\code{computeCi})
    are still computed from the REML-style inverse regardless of \code{REML}.}
+
+  \item{family}{A \code{stats::family()} object. The default Gaussian identity
+  family uses the ordinary linear mixed-model implementation. Other families are
+  fitted by penalized quasi-likelihood (PQL): each outer iteration forms an IRLS
+  working response and weights, then fits the resulting weighted Gaussian mixed
+  model with the Henderson solver. The initial implementation supports one numeric
+  response. Binomial and Poisson working residual dispersions are fixed to one.
+  Formula offsets are included on the link scale. A supplied symmetric positive
+  definite \code{W} is combined with the IRLS precision after observation filtering,
+  and may be sparse and non-diagonal.}
+
+  \item{pqlControl}{A named list controlling non-Gaussian PQL fits. Supported
+  entries are \code{maxit} (outer-iteration limit, default 20) and \code{tol}
+  (relative deviance convergence tolerance, default \code{1e-5}).}
 }
 
 \details{

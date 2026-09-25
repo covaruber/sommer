@@ -61,7 +61,10 @@
 
   ## se and t values for fixed effects
   nX <- length(object$b)
-  if(object$CiMode == 0){
+  if(identical(object$engine, "direct")){
+    VarBeta <- object$VarBeta
+    s2.beta <- if(is.null(VarBeta)) rep(NA, nX) else diag(as.matrix(VarBeta))
+  }else if(object$CiMode == 0){
     s2.beta <- rep(NA, length(1:nX))
   }else if(object$CiMode == 1){
     s2.beta <- rep(NA, length(1:nX))
@@ -81,7 +84,9 @@ varcomp <- object$covParNative
   # varcomp$Constraint <- replace.values(constraints, 1:3, c("Positive","Unconstr","Fixed"))
 
   output <- list(varcomp=varcomp, betas=coef, method=method,logo=LLAIC,
-                 REML=if(is.null(object$REML)) TRUE else object$REML)
+                 REML=if(is.null(object$REML)) TRUE else object$REML,
+                 family=object$family,
+                 pqlConverged=object$pqlConverged)
   attr(output, "class")<-c("summary.mmes", "list")
   return(output)
 }
@@ -129,7 +134,13 @@ varcomp <- object$covParNative
 ## FITTED FUNCTION ##
 #### =========== ####
 
-"fitted.mmes" <- function(object,...){
+"fitted.mmes" <- function(object, type=c("response", "link"), ...){
+
+  if(inherits(object, "mmes.glmm")){
+    type <- match.arg(type)
+    if(type == "link") return(object$linear.predictors)
+    return(object$fitted.values)
+  }
 
   ff <- object$W %*% object$bu
 
@@ -149,7 +160,18 @@ varcomp <- object$covParNative
 ## RESIDUALS FUNCTION #
 #### =========== ######
 
-"residuals.mmes" <- function(object, ...) {
+"residuals.mmes" <- function(object,
+                               type=c("response", "deviance", "working"), ...) {
+  if(inherits(object, "mmes.glmm")){
+    type <- match.arg(type)
+    y <- as.numeric(object$y)
+    if(type == "response") return(y - object$fitted.values)
+    if(type == "working") return(as.numeric(object$workingResponse) -
+                    object$linear.predictorsNoOffset)
+    contribution <- object$family$dev.resids(y, object$fitted.values,
+                                             rep(1, length(y)))
+    return(sign(y - object$fitted.values) * sqrt(pmax(contribution, 0)))
+  }
   digits = max(3, getOption("digits") - 3)
   ff <- fitted.mmes(object)
   e <- object$y - ff
@@ -683,6 +705,9 @@ plot.mmes <- function(x, stnd=TRUE, ...) {
 
     qqnorm(scale(rr), pch=20, col=transp("tomato1"), ylab="Std Residuals", bty="n",...); grid()
     # hat <- Xm%*%solve(t(Xm)%*%x$Vi%*%Xm)%*%t(Xm)%*%x$Vi # leverage including variance from random effects H= X(X'V-X)X'V-
+    if(is.null(x$Ci)){
+      stop("plot.mmes() currently requires the Henderson engine's coefficient-matrix inverse (Ci); it is not available for the direct-inversion engine (henderson=FALSE).", call.=FALSE)
+    }
     hat = x$W %*% x$Ci %*% t(x$W)
     plot(diag(hat), scale(rr), pch=20, col=transp("blue"), ylab="Std Residuals", xlab="Leverage", main="Residual vs Leverage", bty="n", ...); grid()
   # }
