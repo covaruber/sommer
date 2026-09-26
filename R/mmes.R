@@ -802,7 +802,6 @@ mmes <- function(fixed, random, rcov, data, W,
   }
   
   class(res) <- "mmes"
-  res$covParNative <- get(".covparams_mmes", mode="function")(res)
-  res$covParNativeSE <- get(".covparams_mmes_se", mode="function")(res)
+  res$covParNative <- get(".covparams_mmes_se", mode="function")(res)
   res
 }

@@ -7,13 +7,12 @@
 }
 \description{
 
-The \code{mmes} function uses the Henderson mixed model equations algorithm
+Fits a generalized linear mixed model
 coded in C++ using the Armadillo and Eigen libraries to optimize matrix 
-operations. For more records than coefficients the Henderson's formulation is
-faster. Please make sure that you provide the relationship matrix as an inverse
-(see \code{\link{vsm}()} function for details).
-For problems of the type  c > r (more coefficients to estimate than
-records available) the direct inversion algorithm is faster (use the old \code{\link{mmer}} function).
+operations. Special covariance structures can be specified with the \code{\link{vsm}()}
+function. Two engines are available; henderson formulation and direct reml (henderson argument) and 
+three solvers in each; ldlt, cholmod and pcg (solver argument) to adjust to the
+modeling situation.
 
 
 }
