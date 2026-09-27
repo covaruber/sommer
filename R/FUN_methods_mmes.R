@@ -21,7 +21,7 @@
     packageStartupMessage(magenta("sommer is updated on CRAN every 3-months due to CRAN policies"),appendLF=TRUE)
     packageStartupMessage(magenta("Current source is available at https://github.com/covaruber/sommer"),appendLF=TRUE)
     packageStartupMessage(magenta("If needed, install as: remotes::install_github('covaruber/sommer')"),appendLF=TRUE)
-    
+    packageStartupMessage(magenta("Visit https://covaruber.github.io/sommer/ for more information"),appendLF=TRUE)
   }
   invisible()
 }
