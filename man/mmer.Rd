@@ -7,7 +7,15 @@
 }
 \description{
 
-The mmer function uses the Direct-Inversion Newton-Raphson or Average Information coded in C++ using the Armadillo library to optimize dense matrix operations common in genomic selection models. These algorithms are \strong{intended to be used for problems of the type c > r (more coefficients to estimate than records in the dataset) and/or dense matrices}. For problems with sparse data, or problems of the type r > c (more records in the dataset than coefficients to estimate), the MME-based algorithm in the \code{\link{mmes}} function is faster and we recommend to shift to use that function.
+THIS FUNCTION HAS BEEN DEPRECATD PLEASE EXPLORE \code{\link{mmes}}. The mmer 
+function uses the Direct-Inversion Newton-Raphson or Average Information coded in 
+C++ using the Armadillo library to optimize dense matrix operations common in
+genomic selection models. These algorithms are \strong{intended to be used for
+problems of the type c > r (more coefficients to estimate than records in the
+dataset) and/or dense matrices}. For problems with sparse data, or problems of 
+the type r > c (more records in the dataset than coefficients to estimate), the 
+MME-based algorithm in the \code{\link{mmes}} function is faster and we recommend 
+to shift to use that function.
 
 }
 

@@ -543,11 +543,13 @@ matrix use the \code{getA} function from the pedigreemm package.
 \strong{Bug report and contact}
 
 If you have any technical questions or suggestions please post it in
-https://stackoverflow.com or https://stats.stackexchange.com
+https://stackoverflow.com or https://stats.stackexchange.com for the community
+to help you.
 
 If you have any bug report please go to https://github.com/covaruber/sommer or 
 send me an email to address it asap, just make sure you have read the vignettes 
-carefully before sending your question.
+carefully before sending your question. If you need professional consulting 
+support visit https://covaruber.github.io/sommer/
 
 \strong{Example Datasets}
 
