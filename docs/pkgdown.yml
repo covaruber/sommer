@@ -1,0 +1,16 @@
+pandoc: 3.6.2
+pkgdown: 2.2.0
+pkgdown_sha: ~
+articles:
+  sommer.covariance.structures: sommer.covariance.structures.html
+  sommer.fa.and.rr.models: sommer.fa.and.rr.models.html
+  sommer.glmm: sommer.glmm.html
+  sommer.gxe: sommer.gxe.html
+  sommer.qg: sommer.qg.html
+  sommer.spatial: sommer.spatial.html
+  sommer.theory: sommer.theory.html
+  sommer.vs.lme4: sommer.vs.lme4.html
+last_built: 2026-09-27T04:17Z
+urls:
+  reference: https://covaruber.github.io/sommer/reference
+  article: https://covaruber.github.io/sommer/articles
