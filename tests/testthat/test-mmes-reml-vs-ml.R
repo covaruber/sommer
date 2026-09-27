@@ -122,3 +122,44 @@ test_that("REML=FALSE with a dense Gu (solver='cholmod') matches solver='ldlt'",
   expect_equal(as.numeric(fLdlt$theta[[2]]), as.numeric(fAuto$theta[[2]]),
                tolerance=1e-6)
 })
+
+test_that("matrix-free PCG handles multi-factor Kronecker random precision", {
+  set.seed(17)
+  dat <- expand.grid(
+    environment=factor(seq_len(3)),
+    trait=factor(seq_len(3)),
+    id=factor(seq_len(8))
+  )
+  dat$y <- rnorm(nrow(dat))
+
+  fit <- function(solver, nIters=5){
+    mmes(
+      y ~ 1,
+      random=~vsm(csm(environment, rho=0.15), dsm(trait), ism(id)),
+      rcov=~units,
+      data=dat,
+      nIters=nIters,
+      verbose=FALSE,
+      getPEV=FALSE,
+      computeCi=0,
+      solver=solver,
+      pcgTol=1e-10,
+      pcgTraceProbes=24,
+      pcgLanczosSteps=30
+    )
+  }
+
+  pcg1 <- fit("pcg")
+  pcg2 <- fit("pcg")
+  pcgOne <- fit("pcg", nIters=1)
+  ldltOne <- fit("ldlt", nIters=1)
+
+  expect_equal(pcg1$covPar, pcg2$covPar, tolerance=1e-12)
+  expect_equal(pcg1$bu, pcg2$bu, tolerance=1e-12)
+  expect_true(pcg1$pcgMatrixFree)
+  expect_false(ldltOne$pcgMatrixFree)
+  expect_equal(pcgOne$bu, ldltOne$bu, tolerance=1e-7)
+  expect_true(inherits(pcg1$C, "sparseMatrix"))
+  expect_equal(dim(pcg1$C), c(length(pcg1$bu), length(pcg1$bu)))
+  expect_gt(Matrix::nnzero(pcg1$C), Matrix::nnzero(Matrix::crossprod(pcg1$W)))
+})

@@ -313,6 +313,12 @@ mmes(fixed, random, rcov, data, W,
    or \code{"cholmod"}) always overrides the automatic choice.
    \code{"ldlt"} uses the sparse direct simplicial LDLT factorization path.
    \code{"pcg"} selects the iterative preconditioned conjugate-gradient path.
+  For REML fits with \code{computeCi=0}, random-effect precisions produced by
+  \code{vsm()} are applied matrix-free using their Kronecker factors, avoiding
+  explicit assembly of \eqn{K^{-1} \otimes A^{-1}} during optimization. The
+   complete coefficient matrix is materialized once after convergence for
+   compatibility with prediction and post-fit methods. Other PCG configurations
+   transparently use the assembled sparse path.
    \code{"cholmod"} uses the supernodal (blocked, BLAS-3) sparse Cholesky
    factorization bundled with R's \code{Matrix} package (SuiteSparse CHOLMOD),
    accessed through \code{Matrix}'s public C API - no additional system library needs
@@ -612,6 +618,8 @@ If all parameters are correctly indicated the program will return a list with th
              the list corresponds to the different random and residual components}
 \item{covPar}{the fitted covariance parameters in their descriptor-defined
 reported coordinates.}
+\item{pcgMatrixFree}{logical indicating whether the matrix-free Kronecker PCG
+path was used during optimization.}
 \item{covParNative}{a data frame containing all fixed and estimated covariance
 parameters in the native model-facing scale defined by each CovarianceFactor.
 For example, \code{dsm()} entries are level-specific variances rather than

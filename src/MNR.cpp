@@ -2205,8 +2205,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
   // START ITERATIVE ALGORITHM
   ////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////
-  
-  
+
   for (int iIter = 0; iIter < nIters; ++iIter) {
     
     // ###########################
@@ -2690,8 +2689,7 @@ Rcpp::List ai_mme_sp(const arma::sp_mat & X, const Rcpp::List & ZI,  const arma:
     }
     dLuOut = dLu;
   }// end of iterative optimization
-  
-  
+
   double AIC = (-2 * llik((llik.n_cols-1))) + (2 * nX);
   double BIC = (-2 * llik((llik.n_cols-1))) + (log(nR) * nX);
   // move constraints to vector form binding the columns
@@ -3446,7 +3444,8 @@ static inline double sparseSpdLogDet(const arma::sp_mat & A){
 
 // Dense SPD inverse via Eigen::LLT, used in place of arma::inv_sympd() for
 // the small per-random-effect covariance matrices in ai_mme_sp2().
-static inline bool eigenSpdInverse(const arma::mat & A, arma::mat & out){
+static inline bool eigenSpdInverse(const arma::mat & A, arma::mat & out,
+                                   double * logDet = nullptr){
   const arma::uword n = A.n_rows;
   // Armadillo and Eigen dense matrices are both column-major, so the
   // conversion is a straight buffer copy rather than an element loop.
@@ -3454,6 +3453,18 @@ static inline bool eigenSpdInverse(const arma::mat & A, arma::mat & out){
   Eigen::LLT<Eigen::MatrixXd> llt(Ae);
   if(llt.info() != Eigen::Success){
     return false;
+  }
+  if(logDet != nullptr){
+    const Eigen::MatrixXd L = llt.matrixL();
+    double value = 0.0;
+    for(Eigen::Index k = 0; k < L.rows(); ++k){
+      const double diagonal = L(k,k);
+      if(!std::isfinite(diagonal) || diagonal <= 0.0){
+        return false;
+      }
+      value += 2.0 * std::log(diagonal);
+    }
+    *logDet = value;
   }
   const Eigen::MatrixXd inv = llt.solve(Eigen::MatrixXd::Identity(n, n));
   out.set_size(n, n);
@@ -4605,6 +4616,599 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       }
 
       return std::exp(par(0)) * K;
+    };
+
+  struct DescriptorPrecisionState {
+    arma::mat precision;
+    std::vector<arma::mat> precisionD1;
+    std::vector<double> logDetD1;
+    std::vector<arma::mat> factorCovariance;
+    std::vector<arma::mat> factorPrecision;
+    std::vector<arma::vec> factorPar;
+    std::vector<int> factorStart1;
+    std::vector<int> factorEnd1;
+    std::vector<arma::mat> localPrecisionD1;
+    std::vector<int> derivativeFactor;
+    double inverseScale = 1.0;
+    double logDet = 0.0;
+    bool factorWise = false;
+  };
+
+  auto buildDescriptorPrecision =
+    [&](const Rcpp::List & cs,
+        const arma::vec & par,
+        DescriptorPrecisionState & out,
+        const bool buildDerivatives) -> bool {
+
+      if(par.n_elem < 1){
+        Rcpp::stop("Covariance descriptor must contain log_sigma2.");
+      }
+
+      Rcpp::List factors = cs["factors"];
+      const std::size_t nFactors =
+        static_cast<std::size_t>(factors.size());
+
+      std::vector<arma::mat> factorPrecision(nFactors);
+      std::vector<arma::mat> factorCovariance(nFactors);
+      std::vector<arma::vec> factorPar(nFactors);
+      std::vector<int> factorStart1(nFactors, 1);
+      std::vector<int> factorEnd1(nFactors, 0);
+      std::vector<double> factorLogDet(nFactors, 0.0);
+
+      arma::mat precision(1,1,arma::fill::ones);
+
+      for(int fidx = 0; fidx < factors.size(); ++fidx){
+        const std::size_t factorOffset =
+          static_cast<std::size_t>(fidx);
+        Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+
+        const int start1 =
+          f.containsElementNamed("par_start")
+          ? Rcpp::as<int>(f["par_start"])
+          : 1;
+        const int end1 =
+          f.containsElementNamed("par_end")
+          ? Rcpp::as<int>(f["par_end"])
+          : 0;
+
+        factorStart1[factorOffset] = start1;
+        factorEnd1[factorOffset] = end1;
+
+        if(end1 >= start1){
+          factorPar[factorOffset] =
+            par.subvec(
+              static_cast<arma::uword>(start1 - 1),
+              static_cast<arma::uword>(end1 - 1)
+            );
+        }
+
+        const arma::mat covariance =
+          evalFactor(f, factorPar[factorOffset]);
+        factorCovariance[factorOffset] = covariance;
+
+        bool inverseOK = false;
+        if(f.containsElementNamed("evaluator")){
+          Rcpp::List evaluator = Rcpp::as<Rcpp::List>(f["evaluator"]);
+          const std::string backend =
+            Rcpp::as<std::string>(evaluator["backend"]);
+          if(backend == "native" && evaluator.containsElementNamed("op")){
+            const std::string op =
+              Rcpp::as<std::string>(evaluator["op"]);
+            const arma::uword q = covariance.n_rows;
+
+            if(op == "ar1" && q >= 2){
+              const double rho = covariance(0,1);
+              const double denominator = 1.0 - rho*rho;
+              if(std::isfinite(denominator) && denominator > 0.0){
+                arma::mat direct(q,q,arma::fill::zeros);
+                direct(0,0) = 1.0 / denominator;
+                direct(q-1,q-1) = 1.0 / denominator;
+                for(arma::uword row = 1; row + 1 < q; ++row){
+                  direct(row,row) = (1.0 + rho*rho) / denominator;
+                }
+                for(arma::uword row = 0; row + 1 < q; ++row){
+                  direct(row,row+1) = -rho / denominator;
+                  direct(row+1,row) = direct(row,row+1);
+                }
+                factorPrecision[factorOffset] = std::move(direct);
+                factorLogDet[factorOffset] =
+                  static_cast<double>(q - 1) * std::log(denominator);
+                inverseOK = true;
+              }
+
+            }else if((op == "cor_uniform" || op == "corh") && q >= 2){
+              const arma::vec standardDeviation =
+                arma::sqrt(covariance.diag());
+              const double rho =
+                covariance(0,1)
+                /
+                (standardDeviation(0) * standardDeviation(1));
+              const double independent = 1.0 - rho;
+              const double common = 1.0 + static_cast<double>(q - 1) * rho;
+              if(standardDeviation.is_finite() &&
+                 standardDeviation.min() > 0.0 &&
+                 independent > 0.0 && common > 0.0){
+                arma::mat correlationPrecision =
+                  arma::eye<arma::mat>(q,q) / independent;
+                correlationPrecision -=
+                  arma::ones<arma::mat>(q,q)
+                  *
+                  (rho / (independent * common));
+                const arma::vec inverseSd = 1.0 / standardDeviation;
+                factorPrecision[factorOffset] =
+                  arma::diagmat(inverseSd)
+                  *
+                  correlationPrecision
+                  *
+                  arma::diagmat(inverseSd);
+                factorLogDet[factorOffset] =
+                  2.0 * arma::accu(arma::log(standardDeviation))
+                  +
+                  static_cast<double>(q - 1) * std::log(independent)
+                  +
+                  std::log(common);
+                inverseOK = true;
+              }
+
+            }else if(op == "ante"){
+              const int ncoef = Rcpp::as<int>(f["ante_ncoef"]);
+              Rcpp::IntegerVector rr = f["ante_row"];
+              Rcpp::IntegerVector cc = f["ante_col"];
+              if(ncoef >= 1 &&
+                 factorPar[factorOffset].n_elem ==
+                   static_cast<arma::uword>(ncoef) + q - 1){
+                arma::mat T(q,q,arma::fill::eye);
+                for(int coefficient = 0; coefficient < ncoef; ++coefficient){
+                  T(
+                    static_cast<arma::uword>(rr[coefficient] - 1),
+                    static_cast<arma::uword>(cc[coefficient] - 1)
+                  ) = -factorPar[factorOffset](
+                    static_cast<arma::uword>(coefficient)
+                  );
+                }
+                arma::vec inverseInnovation(q,arma::fill::ones);
+                double innovationLogDet = 0.0;
+                for(arma::uword row = 1; row < q; ++row){
+                  const double logInnovation =
+                    factorPar[factorOffset](
+                      static_cast<arma::uword>(ncoef) + row - 1
+                    );
+                  inverseInnovation(row) = std::exp(-logInnovation);
+                  innovationLogDet += logInnovation;
+                }
+                factorPrecision[factorOffset] =
+                  T.t() * arma::diagmat(inverseInnovation) * T;
+                factorLogDet[factorOffset] = innovationLogDet;
+                inverseOK =
+                  factorPrecision[factorOffset].is_finite()
+                  &&
+                  std::isfinite(innovationLogDet);
+              }
+            }
+          }
+        }
+
+        if(f.containsElementNamed("structurally_diagonal") &&
+           !inverseOK &&
+           Rcpp::as<bool>(f["structurally_diagonal"])){
+          arma::mat offDiagonal = covariance;
+          offDiagonal.diag().zeros();
+          const arma::vec diagonal = covariance.diag();
+          if(arma::accu(arma::abs(offDiagonal)) == 0.0 &&
+             diagonal.is_finite() && diagonal.min() > 0.0){
+            factorPrecision[factorOffset] =
+              arma::diagmat(1.0 / diagonal);
+            factorLogDet[factorOffset] =
+              arma::accu(arma::log(diagonal));
+            inverseOK = true;
+          }
+        }
+
+        if(!inverseOK){
+          inverseOK =
+            eigenSpdInverse(
+              covariance,
+              factorPrecision[factorOffset],
+              &factorLogDet[factorOffset]
+            );
+        }
+
+        if(!inverseOK){
+          return false;
+        }
+
+        precision =
+          arma::kron(
+            precision,
+            factorPrecision[factorOffset]
+          );
+      }
+
+      const double inverseScale = std::exp(-par(0));
+      if(!std::isfinite(inverseScale)){
+        return false;
+      }
+
+      precision *= inverseScale;
+      precision = 0.5 * (precision + precision.t());
+      if(!precision.is_finite()){
+        return false;
+      }
+
+      const arma::uword totalDim = precision.n_rows;
+      double logDet = static_cast<double>(totalDim) * par(0);
+      for(std::size_t fidx = 0; fidx < nFactors; ++fidx){
+        const arma::uword factorDim = factorPrecision[fidx].n_rows;
+        logDet +=
+          (
+            static_cast<double>(totalDim)
+            /
+            static_cast<double>(factorDim)
+          )
+          *
+          factorLogDet[fidx];
+      }
+      if(!std::isfinite(logDet)){
+        return false;
+      }
+
+      std::vector<arma::mat> precisionD1;
+      std::vector<double> logDetD1;
+      std::vector<arma::mat> localPrecisionD1;
+      std::vector<int> derivativeFactor;
+
+      if(buildDerivatives){
+        precisionD1.resize(static_cast<std::size_t>(par.n_elem));
+        logDetD1.assign(static_cast<std::size_t>(par.n_elem), 0.0);
+        localPrecisionD1.resize(static_cast<std::size_t>(par.n_elem));
+        derivativeFactor.assign(static_cast<std::size_t>(par.n_elem), -2);
+        std::vector<bool> derivativeAssigned(
+          static_cast<std::size_t>(par.n_elem),
+          false
+        );
+
+        precisionD1[0] = -precision;
+        logDetD1[0] = static_cast<double>(totalDim);
+        derivativeFactor[0] = -1;
+        derivativeAssigned[0] = true;
+
+        for(int fidx = 0; fidx < factors.size(); ++fidx){
+          const std::size_t factorOffset =
+            static_cast<std::size_t>(fidx);
+          const int start1 = factorStart1[factorOffset];
+          const int end1 = factorEnd1[factorOffset];
+          if(end1 < start1){
+            continue;
+          }
+
+          Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+          for(int k1 = start1; k1 <= end1; ++k1){
+            const arma::uword localK =
+              static_cast<arma::uword>(k1 - start1);
+            const arma::mat factorCovarianceD1 =
+              factorD1(f, factorPar[factorOffset], localK);
+            arma::mat factorPrecisionD1 =
+              -factorPrecision[factorOffset]
+              *
+              factorCovarianceD1
+              *
+              factorPrecision[factorOffset];
+
+            arma::mat derivative(1,1,arma::fill::ones);
+            for(std::size_t piece = 0; piece < nFactors; ++piece){
+              derivative =
+                arma::kron(
+                  derivative,
+                  piece == factorOffset
+                  ? factorPrecisionD1
+                  : factorPrecision[piece]
+                );
+            }
+            derivative *= inverseScale;
+            derivative = 0.5 * (derivative + derivative.t());
+
+            const std::size_t globalK =
+              static_cast<std::size_t>(k1 - 1);
+            if(globalK >= precisionD1.size() || derivativeAssigned[globalK]){
+              Rcpp::stop("CovarianceFactor parameter ranges overlap or are invalid.");
+            }
+            precisionD1[globalK] = derivative;
+            localPrecisionD1[globalK] = factorPrecisionD1;
+            derivativeFactor[globalK] = fidx;
+            logDetD1[globalK] =
+              (
+                static_cast<double>(totalDim)
+                /
+                static_cast<double>(factorPrecision[factorOffset].n_rows)
+              )
+              *
+              arma::accu(
+                factorPrecision[factorOffset]
+                %
+                factorCovarianceD1.t()
+              );
+            derivativeAssigned[globalK] = true;
+          }
+        }
+
+        for(std::size_t k = 0; k < derivativeAssigned.size(); ++k){
+          if(!derivativeAssigned[k] ||
+             !precisionD1[k].is_finite() ||
+             !std::isfinite(logDetD1[k])){
+            Rcpp::stop("CovarianceFactor parameter ranges do not cover the descriptor parameters.");
+          }
+        }
+      }
+
+      out.precision = precision;
+      out.precisionD1 = std::move(precisionD1);
+      out.logDetD1 = std::move(logDetD1);
+      out.factorCovariance = std::move(factorCovariance);
+      out.factorPrecision = std::move(factorPrecision);
+      out.factorPar = std::move(factorPar);
+      out.factorStart1 = std::move(factorStart1);
+      out.factorEnd1 = std::move(factorEnd1);
+      out.localPrecisionD1 = std::move(localPrecisionD1);
+      out.derivativeFactor = std::move(derivativeFactor);
+      out.inverseScale = inverseScale;
+      out.logDet = logDet;
+      out.factorWise = true;
+      return true;
+    };
+
+  auto buildDescriptorPrecisionDerivatives =
+    [&](const Rcpp::List & cs,
+        const arma::vec & par,
+        DescriptorPrecisionState & state) -> void {
+
+      if(!state.factorWise){
+        return;
+      }
+
+      Rcpp::List factors = cs["factors"];
+      const arma::uword totalDim = state.precision.n_rows;
+
+      state.precisionD1.clear();
+      state.logDetD1.assign(static_cast<std::size_t>(par.n_elem), 0.0);
+      state.localPrecisionD1.resize(static_cast<std::size_t>(par.n_elem));
+      state.derivativeFactor.assign(static_cast<std::size_t>(par.n_elem), -2);
+      std::vector<bool> derivativeAssigned(
+        static_cast<std::size_t>(par.n_elem),
+        false
+      );
+
+      state.logDetD1[0] = static_cast<double>(totalDim);
+      state.derivativeFactor[0] = -1;
+      derivativeAssigned[0] = true;
+
+      for(int fidx = 0; fidx < factors.size(); ++fidx){
+        const std::size_t factorOffset = static_cast<std::size_t>(fidx);
+        const int start1 = state.factorStart1[factorOffset];
+        const int end1 = state.factorEnd1[factorOffset];
+        if(end1 < start1){
+          continue;
+        }
+
+        Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+        for(int k1 = start1; k1 <= end1; ++k1){
+          const arma::uword localK =
+            static_cast<arma::uword>(k1 - start1);
+          const arma::mat factorCovarianceD1 =
+            factorD1(f, state.factorPar[factorOffset], localK);
+          arma::mat factorPrecisionD1 =
+            -state.factorPrecision[factorOffset]
+            *
+            factorCovarianceD1
+            *
+            state.factorPrecision[factorOffset];
+
+          const std::size_t globalK = static_cast<std::size_t>(k1 - 1);
+          if(globalK >= state.localPrecisionD1.size() || derivativeAssigned[globalK]){
+            Rcpp::stop("CovarianceFactor parameter ranges overlap or are invalid.");
+          }
+          state.localPrecisionD1[globalK] = factorPrecisionD1;
+          state.derivativeFactor[globalK] = fidx;
+          state.logDetD1[globalK] =
+            (
+              static_cast<double>(totalDim)
+              /
+              static_cast<double>(state.factorPrecision[factorOffset].n_rows)
+            )
+            *
+            arma::accu(
+              state.factorPrecision[factorOffset]
+              %
+              factorCovarianceD1.t()
+            );
+          derivativeAssigned[globalK] = true;
+        }
+      }
+
+      for(std::size_t k = 0; k < derivativeAssigned.size(); ++k){
+        if(!derivativeAssigned[k] ||
+           !std::isfinite(state.logDetD1[k])){
+          Rcpp::stop("CovarianceFactor parameter ranges do not cover the descriptor parameters.");
+        }
+      }
+    };
+
+  auto applyKroneckerRight =
+    [&](const arma::mat & input,
+        const std::vector<arma::mat> & factors,
+        const double scale) -> arma::mat {
+
+      arma::uword totalDim = 1;
+      for(const arma::mat & factor : factors){
+        if(factor.n_rows != factor.n_cols){
+          Rcpp::stop("Kronecker application requires square factors.");
+        }
+        totalDim *= factor.n_rows;
+      }
+      if(input.n_cols != totalDim){
+        Rcpp::stop("Kronecker application received an incompatible input width.");
+      }
+
+      arma::mat current = input;
+      arma::mat next(input.n_rows, input.n_cols, arma::fill::zeros);
+
+      arma::uword trailing = totalDim;
+      for(const arma::mat & factor : factors){
+        const arma::uword dim = factor.n_rows;
+        trailing /= dim;
+        const arma::uword leading = totalDim / (dim * trailing);
+        next.zeros();
+
+        for(arma::uword row = 0; row < current.n_rows; ++row){
+          for(arma::uword lead = 0; lead < leading; ++lead){
+            const arma::uword blockStart = lead * dim * trailing;
+            for(arma::uword tail = 0; tail < trailing; ++tail){
+              for(arma::uword outIndex = 0; outIndex < dim; ++outIndex){
+                double value = 0.0;
+                for(arma::uword inIndex = 0; inIndex < dim; ++inIndex){
+                  value +=
+                    current(row, blockStart + inIndex * trailing + tail)
+                    *
+                    factor(outIndex, inIndex);
+                }
+                next(row, blockStart + outIndex * trailing + tail) = value;
+              }
+            }
+          }
+        }
+        current.swap(next);
+      }
+
+      current *= scale;
+      return current;
+    };
+
+  auto descriptorPrecisionD1Factors =
+    [&](const DescriptorPrecisionState & state,
+        const arma::uword k,
+        std::vector<arma::mat> & factors,
+        double & scale) -> void {
+
+      if(!state.factorWise || k >= state.derivativeFactor.size()){
+        Rcpp::stop("Factor-wise precision derivative is unavailable.");
+      }
+
+      factors = state.factorPrecision;
+      scale = state.inverseScale;
+      const int derivativeFactor = state.derivativeFactor[k];
+      if(derivativeFactor < 0){
+        scale = -scale;
+      }else{
+        factors[static_cast<std::size_t>(derivativeFactor)] =
+          state.localPrecisionD1[k];
+      }
+    };
+
+  auto contractKronecker =
+    [&](const arma::mat & matrix,
+        const std::vector<arma::mat> & factors,
+        const double scale) -> double {
+
+      arma::uword totalDim = 1;
+      for(const arma::mat & factor : factors){
+        totalDim *= factor.n_rows;
+      }
+      if(matrix.n_rows != totalDim || matrix.n_cols != totalDim){
+        Rcpp::stop("Kronecker contraction received incompatible dimensions.");
+      }
+
+      double result = 0.0;
+      for(arma::uword row = 0; row < totalDim; ++row){
+        for(arma::uword col = 0; col < totalDim; ++col){
+          double value = scale;
+          arma::uword trailing = totalDim;
+          for(const arma::mat & factor : factors){
+            const arma::uword dim = factor.n_rows;
+            trailing /= dim;
+            const arma::uword factorRow = (row / trailing) % dim;
+            const arma::uword factorCol = (col / trailing) % dim;
+            value *= factor(factorRow, factorCol);
+          }
+          result += matrix(row,col) * value;
+        }
+      }
+      return result;
+    };
+
+  auto kroneckerDiagonal =
+    [&](const std::vector<arma::mat> & factors,
+        const double scale) -> arma::vec {
+
+      arma::vec diagonal(1, arma::fill::ones);
+      for(const arma::mat & factor : factors){
+        diagonal = arma::kron(diagonal, factor.diag());
+      }
+      diagonal *= scale;
+      return diagonal;
+    };
+
+  auto applyDescriptorPrecisionD1Right =
+    [&](const arma::mat & input,
+        const DescriptorPrecisionState & state,
+        const arma::uword k) -> arma::mat {
+
+      if(!state.factorWise || k >= state.derivativeFactor.size()){
+        Rcpp::stop("Factor-wise precision derivative is unavailable.");
+      }
+
+      std::vector<arma::mat> factors;
+      double scale = 1.0;
+      descriptorPrecisionD1Factors(state, k, factors, scale);
+
+      return applyKroneckerRight(input, factors, scale);
+    };
+
+  auto descriptorIsPositiveDefinite =
+    [&](const Rcpp::List & cs,
+        const arma::vec & par,
+        const double floor) -> bool {
+
+      if(par.n_elem < 1 || !par.is_finite()){
+        return false;
+      }
+
+      Rcpp::List factors = cs["factors"];
+      double logMinimumEigenvalue = par(0);
+
+      for(int fidx = 0; fidx < factors.size(); ++fidx){
+        Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+        const int start1 = Rcpp::as<int>(f["par_start"]);
+        const int end1 = Rcpp::as<int>(f["par_end"]);
+
+        arma::vec localPar;
+        if(end1 >= start1){
+          localPar =
+            par.subvec(
+              static_cast<arma::uword>(start1 - 1),
+              static_cast<arma::uword>(end1 - 1)
+            );
+        }
+
+        arma::mat covariance;
+        try{
+          covariance = evalFactor(f, localPar);
+        }catch(...){
+          return false;
+        }
+
+        arma::vec eigenvalues;
+        if(!arma::eig_sym(eigenvalues, covariance) ||
+           eigenvalues.n_elem == 0 ||
+           !eigenvalues.is_finite() ||
+           eigenvalues.min() <= 0.0){
+          return false;
+        }
+        logMinimumEigenvalue += std::log(eigenvalues.min());
+      }
+
+      return
+        std::isfinite(logMinimumEigenvalue)
+        &&
+        logMinimumEigenvalue > std::log(floor);
     };
 
   for(int i = 0; i < nRRe; ++i){
@@ -5764,6 +6368,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   bool CsymbolicReady = false;
   bool CnumericReady = false;
   bool CpcgReady = false;
+  bool matrixFreePCGReady = false;
+  std::function<Eigen::VectorXd(const Eigen::VectorXd &)> matrixFreeApplyC;
+  Eigen::VectorXd matrixFreePCGDiagonal;
   std::vector<int> CouterPattern;
   std::vector<int> CinnerPattern;
   SelectedInverseSubset CselectedTopology;
@@ -5920,6 +6527,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     };
 
   auto preparePCG = [&](const EigenSpMat & Ce){
+    matrixFreePCGReady = false;
     CpcgReady = false;
     if(solverName != "pcg"){ return; }
     Cpcg.setTolerance(pcgTol);
@@ -5932,6 +6540,78 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     CpcgReady = true;
   };
 
+  auto solveMatrixFreePCG =
+    [&](const Eigen::VectorXd & rhs,
+        const Eigen::VectorXd * initialGuess,
+        const std::string & context) -> Eigen::VectorXd {
+
+      if(!matrixFreePCGReady || !matrixFreeApplyC){
+        Rcpp::stop("Matrix-free PCG solve requested before operator setup.");
+      }
+      if(rhs.size() != matrixFreePCGDiagonal.size()){
+        Rcpp::stop("Matrix-free PCG RHS has incompatible dimensions.");
+      }
+
+      const double rhsNorm = rhs.norm();
+      if(rhsNorm == 0.0){
+        return Eigen::VectorXd::Zero(rhs.size());
+      }
+
+      Eigen::VectorXd solution =
+        initialGuess != nullptr && initialGuess->size() == rhs.size()
+        ? *initialGuess
+        : Eigen::VectorXd::Zero(rhs.size());
+      Eigen::VectorXd residual = rhs - matrixFreeApplyC(solution);
+      Eigen::VectorXd preconditioned =
+        residual.cwiseQuotient(matrixFreePCGDiagonal);
+      Eigen::VectorXd direction = preconditioned;
+      double residualDotPreconditioned = residual.dot(preconditioned);
+      if(!std::isfinite(residualDotPreconditioned) ||
+         residualDotPreconditioned <= 0.0){
+        Rcpp::stop("Matrix-free PCG encountered a non-positive preconditioned residual in " + context + ".");
+      }
+
+      const int maximumIterations =
+        pcgMaxIters > 0
+        ? pcgMaxIters
+        : std::max<int>(1000, static_cast<int>(rhs.size()));
+
+      for(int iteration = 0; iteration < maximumIterations; ++iteration){
+        const Eigen::VectorXd operatorDirection = matrixFreeApplyC(direction);
+        const double curvature = direction.dot(operatorDirection);
+        if(!std::isfinite(curvature) || curvature <= 0.0){
+          Rcpp::stop("Matrix-free PCG encountered non-positive curvature in " + context + ".");
+        }
+
+        const double alpha = residualDotPreconditioned / curvature;
+        solution.noalias() += alpha * direction;
+        residual.noalias() -= alpha * operatorDirection;
+
+        if(residual.norm() / rhsNorm <= pcgTol){
+          const Eigen::VectorXd trueResidual = rhs - matrixFreeApplyC(solution);
+          if(trueResidual.allFinite() && trueResidual.norm() / rhsNorm <= pcgTol){
+            return solution;
+          }
+          residual = trueResidual;
+        }
+
+        preconditioned = residual.cwiseQuotient(matrixFreePCGDiagonal);
+        const double nextResidualDotPreconditioned =
+          residual.dot(preconditioned);
+        if(!std::isfinite(nextResidualDotPreconditioned) ||
+           nextResidualDotPreconditioned <= 0.0){
+          Rcpp::stop("Matrix-free PCG encountered a non-positive residual update in " + context + ".");
+        }
+        const double beta =
+          nextResidualDotPreconditioned / residualDotPreconditioned;
+        direction = preconditioned + beta * direction;
+        residualDotPreconditioned = nextResidualDotPreconditioned;
+      }
+
+      Rcpp::stop("Matrix-free PCG failed to converge in " + context + ".");
+      return Eigen::VectorXd();
+    };
+
   auto solveCVector = [&](const Eigen::Ref<const Eigen::VectorXd> & rhs,
                           const std::string & context) -> Eigen::VectorXd {
     if(solverName == "ldlt"){
@@ -5943,6 +6623,10 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
     if(solverName == "cholmod"){
       return solveCVectorCholmod(rhs, context);
+    }
+    if(matrixFreePCGReady){
+      const Eigen::VectorXd rhsCopy = rhs;
+      return solveMatrixFreePCG(rhsCopy, nullptr, context);
     }
     if(!CpcgReady){
       Rcpp::stop("PCG solve requested before the PCG backend was prepared.");
@@ -5966,6 +6650,13 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
     if(solverName == "cholmod"){
       return solveCMatrixCholmod(rhs, context);
+    }
+    if(matrixFreePCGReady){
+      for(Eigen::Index j = 0; j < rhs.cols(); ++j){
+        const Eigen::VectorXd rhsColumn = rhs.col(j);
+        ans.col(j) = solveMatrixFreePCG(rhsColumn, nullptr, context);
+      }
+      return ans;
     }
     if(!CpcgReady){
       Rcpp::stop("PCG solve requested before the PCG backend was prepared.");
@@ -6061,8 +6752,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
 
   Eigen::MatrixXd pcgLanczosInverseGuess;
 
-  auto pcgApproxLogDet = [&](const EigenSpMat & A) -> double {
-    const Eigen::Index n = A.rows();
+  auto pcgApproxLogDet =
+    [&](const Eigen::Index n,
+        const std::function<Eigen::VectorXd(const Eigen::VectorXd &)> & applyC) -> double {
     if(n <= 0){ return 0.0; }
     const int mMax = std::min<int>(pcgLanczosSteps, static_cast<int>(n));
     std::vector<double> probeEstimates(
@@ -6094,7 +6786,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
 
       for(int j = 0; j < mMax; ++j){
         lanczosBasis.col(j) = q;
-        Eigen::VectorXd w = A * q;
+        Eigen::VectorXd w = applyC(q);
         if(j > 0){ w.noalias() -= betaPrev * qPrev; }
         const double a = q.dot(w);
         w.noalias() -= a * q;
@@ -6166,9 +6858,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   bool reportedOpenMpSlq = false;
   bool reportedOpenMpResidualBlocks = false;
 
-  auto preparePCGTraceProbes = [&](const EigenSpMat & A){
+  auto preparePCGTraceProbes = [&](const Eigen::Index n){
     if(solverName != "pcg"){ return; }
-    const Eigen::Index n = A.rows();
     pcgTraceZ.resize(n, pcgTraceProbes);
     pcgTraceX.resize(n, pcgTraceProbes);
     for(int p = 0; p < pcgTraceProbes; ++p){
@@ -6181,14 +6872,30 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           &&
           pcgLanczosInverseGuess.cols() == pcgTraceProbes
       ){
-        pcgTraceX.col(p) = Cpcg.solveWithGuess(
-          pcgTraceZ.col(p),
-          pcgLanczosInverseGuess.col(p)
-        );
+        if(matrixFreePCGReady){
+          const Eigen::VectorXd rhs = pcgTraceZ.col(p);
+          const Eigen::VectorXd guess = pcgLanczosInverseGuess.col(p);
+          pcgTraceX.col(p) =
+            solveMatrixFreePCG(
+              rhs,
+              &guess,
+              "Hutchinson trace probe"
+            );
+        }else{
+          pcgTraceX.col(p) = Cpcg.solveWithGuess(
+            pcgTraceZ.col(p),
+            pcgLanczosInverseGuess.col(p)
+          );
+        }
       }else{
-        pcgTraceX.col(p) = Cpcg.solve(pcgTraceZ.col(p));
+        const Eigen::VectorXd rhs = pcgTraceZ.col(p);
+        pcgTraceX.col(p) =
+          matrixFreePCGReady
+          ? solveMatrixFreePCG(rhs, nullptr, "Hutchinson trace probe")
+          : Cpcg.solve(rhs);
       }
-      if(Cpcg.info() != Eigen::Success || !pcgTraceX.col(p).allFinite()){
+      if((!matrixFreePCGReady && Cpcg.info() != Eigen::Success) ||
+         !pcgTraceX.col(p).allFinite()){
         Rcpp::stop("PCG failed while preparing Hutchinson trace probes for C^{-1}.");
       }
     }
@@ -6520,6 +7227,10 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
   }
 
+  std::vector<arma::mat> lastEvaluatedRandomPrecision(
+    static_cast<std::size_t>(nRe)
+  );
+
   ////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////
   // START ITERATIVE ALGORITHM
@@ -6542,6 +7253,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     const arma::mat residualSigma =
       theta(residualStruct);
+
+    std::vector<DescriptorPrecisionState> randomPrecisionState(
+      static_cast<std::size_t>(nRe)
+    );
 
     for(int iStruct = 0; iStruct < nRRe; ++iStruct){
       const std::size_t structureOffset =
@@ -6567,18 +7282,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     arma::field<arma::sp_mat> residualDerivativeBasis(
       nResidualPar
     );
-
-    for(arma::uword k = 0; k < nResidualPar; ++k){
-
-      residualLocalD1(k) =
-        cachedCovarianceD1(
-          residualStruct,
-          k
-        );
-
-      residualDerivativeBasis(k) =
-        buildResidualSparseFromPattern(residualLocalD1(k));
-    }
 
     // ============================================================
     // STRUCTURED R HANDLING
@@ -6607,6 +7310,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     double logDetR = 0.0;
     SelectedInverseSubset Rselected;
     arma::mat RkronInv;
+    DescriptorPrecisionState residualPrecisionState;
 
     if(Rdiag){
 
@@ -6645,6 +7349,26 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
 
     }else if(Rkron){
+
+      const bool residualPrecisionOK =
+        buildDescriptorPrecision(
+          covDescriptor[static_cast<std::size_t>(residualStruct)],
+          covPar(residualStruct),
+          residualPrecisionState,
+          false
+        )
+        &&
+        residualPrecisionState.precision.n_rows
+          == static_cast<arma::uword>(residualKronBlockSize);
+
+      if(residualPrecisionOK){
+        RkronInv = residualPrecisionState.precision;
+        logDetR =
+          static_cast<double>(residualKronNBlocks)
+          *
+          residualPrecisionState.logDet;
+
+      }else{
 
       arma::sp_mat R0 =
         arma::sp_mat(
@@ -6825,6 +7549,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           +
           RkronInv.t()
         );
+
+      }
 
       if(verbose && iIter == 0){
         Rcpp::Rcout
@@ -7020,8 +7746,16 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
               static_cast<std::size_t>(b)
             ];
 
-          const arma::mat solvedBlock =
-            RkronInv * rhs.rows(rows);
+          arma::mat solvedBlock;
+          if(residualPrecisionState.factorWise){
+            solvedBlock = applyKroneckerRight(
+                rhs.rows(rows).t(),
+                residualPrecisionState.factorPrecision,
+                residualPrecisionState.inverseScale
+              ).t();
+          }else{
+            solvedBlock = RkronInv * rhs.rows(rows);
+          }
 
           for(arma::uword localRow = 0;
               localRow < rows.n_elem;
@@ -7067,6 +7801,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     Eigen::SparseMatrix<double> RiWsp;
     arma::mat RiWdense;
     bool RiWisSparse = (effectiveRiDiag.n_elem == static_cast<arma::uword>(nR));
+    std::vector<arma::mat> residualKronBlockRiW(
+      static_cast<std::size_t>(residualKronNBlocks)
+    );
 
     if(RiWisSparse){
       const Eigen::Map<const Eigen::VectorXd> effectiveRiDiagEig(
@@ -7105,7 +7842,16 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         const arma::mat & blockW =
           residualKronBlockWCache[static_cast<std::size_t>(block)];
 
-        arma::mat blockRiW = RkronInv * blockW;
+        arma::mat blockRiW;
+        if(residualPrecisionState.factorWise){
+          blockRiW = applyKroneckerRight(
+              blockW.t(),
+              residualPrecisionState.factorPrecision,
+              residualPrecisionState.inverseScale
+            ).t();
+        }else{
+          blockRiW = RkronInv * blockW;
+        }
 
         if(useH){
           arma::vec hDiagonal(rows.n_elem);
@@ -7114,6 +7860,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           }
           blockRiW.each_col() %= hDiagonal;
         }
+        residualKronBlockRiW[static_cast<std::size_t>(block)] = blockRiW;
 
         const arma::mat blockCross = blockW.t() * blockRiW;
 
@@ -7212,15 +7959,22 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                     theta(i)
                 );
 
-            arma::mat lambdaDense;
+            DescriptorPrecisionState & precisionState =
+              randomPrecisionState[static_cast<std::size_t>(i)];
 
             bool lambdaOK =
-                eigenSpdInverse(
-                    thetaSym,
-                    lambdaDense
-                );
+              buildDescriptorPrecision(
+                covDescriptor[static_cast<std::size_t>(i)],
+                covPar(i),
+                precisionState,
+                false
+              );
+
+            arma::mat lambdaDense = precisionState.precision;
 
             if(!lambdaOK){
+
+              precisionState.factorWise = false;
 
                 // The covariance update machinery normally guarantees
                 // positive definiteness.  Repair only when the fast
@@ -7252,9 +8006,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                     lambdaDense
                 );
 
-            // Add G_i^{-1} = lambda_i \kron A_i directly by blocks.
-            // This avoids materialising the potentially very large
-            // Kronecker product GI.
+            lastEvaluatedRandomPrecision[
+              static_cast<std::size_t>(i)
+            ] = lambdaDense;
+
             const std::size_t iCache =
                 static_cast<std::size_t>(i);
 
@@ -7273,27 +8028,125 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                 );
             }
 
-            for(arma::uword iRow = 0; iRow < lambdaDense.n_rows; ++iRow){
-                const arma::uword rowStart =
-                    partitionStartCache[iCache][static_cast<std::size_t>(iRow)];
-                for(arma::uword iCol = 0; iCol < lambdaDense.n_cols; ++iCol){
-                    const double coefficient = lambdaDense(iRow,iCol);
-                    if(coefficient == 0.0){ continue; }
-                    const arma::uword colStart =
-                        partitionStartCache[iCache][static_cast<std::size_t>(iCol)];
-                    for(arma::sp_mat::const_iterator relEntry = Ai(i).begin();
-                        relEntry != Ai(i).end(); ++relEntry){
-                      Gtriplets.emplace_back(
-                        static_cast<int>(rowStart + relEntry.row()),
-                        static_cast<int>(colStart + relEntry.col()),
-                        coefficient * (*relEntry)
-                      );
-                    }
-                }
-            }
         }
 
-        if(!Gtriplets.empty()){
+        bool useMatrixFreePCG =
+          solverName == "pcg"
+          &&
+          reml
+          &&
+          computeCi == 0;
+
+        for(int i = 0; i < nRe && useMatrixFreePCG; ++i){
+          useMatrixFreePCG =
+            randomPrecisionState[static_cast<std::size_t>(i)].factorWise;
+        }
+
+        if(useMatrixFreePCG){
+          matrixFreePCGReady = true;
+          CpcgReady = false;
+
+          matrixFreeApplyC =
+            [&](const Eigen::VectorXd & value) -> Eigen::VectorXd {
+              if(value.size() != nEffects){
+                Rcpp::stop("Matrix-free C application received an incompatible vector.");
+              }
+
+              Eigen::VectorXd result = C * value;
+              for(int iR = 0; iR < nRe; ++iR){
+                const std::size_t iCache = static_cast<std::size_t>(iR);
+                const arma::uword q =
+                  randomPrecisionState[iCache].precision.n_rows;
+                const arma::uword nLevels = Ai(iR).n_rows;
+                arma::mat coefficients(nLevels, q, arma::fill::zeros);
+
+                for(arma::uword coordinate = 0; coordinate < q; ++coordinate){
+                  const arma::uvec & indices =
+                    partitionIndexCache[iCache][static_cast<std::size_t>(coordinate)];
+                  for(arma::uword level = 0; level < nLevels; ++level){
+                    coefficients(level,coordinate) =
+                      value(static_cast<Eigen::Index>(indices(level)));
+                  }
+                }
+
+                const arma::mat related = arma::mat(Ai(iR) * coefficients);
+                const arma::mat priorApplied =
+                  applyKroneckerRight(
+                    related,
+                    randomPrecisionState[iCache].factorPrecision,
+                    randomPrecisionState[iCache].inverseScale
+                  );
+
+                for(arma::uword coordinate = 0; coordinate < q; ++coordinate){
+                  const arma::uvec & indices =
+                    partitionIndexCache[iCache][static_cast<std::size_t>(coordinate)];
+                  for(arma::uword level = 0; level < nLevels; ++level){
+                    result(static_cast<Eigen::Index>(indices(level))) +=
+                      priorApplied(level,coordinate);
+                  }
+                }
+              }
+              return result;
+            };
+
+          matrixFreePCGDiagonal.resize(nEffects);
+          for(int effect = 0; effect < nEffects; ++effect){
+            matrixFreePCGDiagonal(effect) = C.coeff(effect,effect);
+          }
+          for(int iR = 0; iR < nRe; ++iR){
+            const std::size_t iCache = static_cast<std::size_t>(iR);
+            const arma::vec precisionDiagonal =
+              randomPrecisionState[iCache].precision.diag();
+            const arma::vec relationshipDiagonal =
+              arma::vec(Ai(iR).diag());
+            for(arma::uword coordinate = 0;
+                coordinate < precisionDiagonal.n_elem;
+                ++coordinate){
+              const arma::uvec & indices =
+                partitionIndexCache[iCache][static_cast<std::size_t>(coordinate)];
+              for(arma::uword level = 0; level < relationshipDiagonal.n_elem; ++level){
+                matrixFreePCGDiagonal(
+                  static_cast<Eigen::Index>(indices(level))
+                ) += precisionDiagonal(coordinate) * relationshipDiagonal(level);
+              }
+            }
+          }
+
+          if(!matrixFreePCGDiagonal.allFinite() ||
+             matrixFreePCGDiagonal.minCoeff() <= 0.0){
+            Rcpp::stop("Matrix-free PCG produced a non-positive/non-finite Jacobi diagonal.");
+          }
+
+        }else{
+          matrixFreePCGReady = false;
+          matrixFreeApplyC = nullptr;
+
+          // Add G_i^{-1} = lambda_i \kron A_i directly by blocks.
+          for(int i = 0; i < nRe; ++i){
+            const arma::mat lambdaDense = arma::mat(lambda(i));
+            const std::size_t iCache = static_cast<std::size_t>(i);
+            for(arma::uword iRow = 0; iRow < lambdaDense.n_rows; ++iRow){
+              const arma::uword rowStart =
+                partitionStartCache[iCache][static_cast<std::size_t>(iRow)];
+              for(arma::uword iCol = 0; iCol < lambdaDense.n_cols; ++iCol){
+                const double coefficient = lambdaDense(iRow,iCol);
+                if(coefficient == 0.0){ continue; }
+                const arma::uword colStart =
+                  partitionStartCache[iCache][static_cast<std::size_t>(iCol)];
+                for(arma::sp_mat::const_iterator relEntry = Ai(i).begin();
+                    relEntry != Ai(i).end(); ++relEntry){
+                  Gtriplets.emplace_back(
+                    static_cast<int>(rowStart + relEntry.row()),
+                    static_cast<int>(colStart + relEntry.col()),
+                    coefficient * (*relEntry)
+                  );
+                }
+              }
+            }
+          }
+        }
+
+        if(!useMatrixFreePCG && !Gtriplets.empty()){
           Eigen::SparseMatrix<double> Gcontribution(nEffects, nEffects);
           Gcontribution.setFromTriplets(Gtriplets.begin(), Gtriplets.end());
           Gcontribution.makeCompressed();
@@ -7483,16 +8336,26 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       // Genuine factorisation-free MME path: no analyzePattern(), factorize(),
       // vectorD(), matrixL(), or Takahashi call is made for C.
       CnumericReady = false;
-      preparePCG(C);
+      if(!matrixFreePCGReady){
+        preparePCG(C);
+      }
       // Keep the historical verbose diagnostic column defined without
       // introducing a factorisation in PCG mode.
-      if(C.rows() > 0){
+      if(matrixFreePCGReady){
+        minD = matrixFreePCGDiagonal.minCoeff();
+      }else if(C.rows() > 0){
         minD = std::numeric_limits<double>::infinity();
         for(Eigen::Index jj = 0; jj < C.rows(); ++jj){
           minD = std::min(minD, C.coeff(jj,jj));
         }
       }
-      logDetC = pcgApproxLogDet(C);
+      logDetC =
+        pcgApproxLogDet(
+          C.rows(),
+          [&](const Eigen::VectorXd & value) -> Eigen::VectorXd {
+            return matrixFreePCGReady ? matrixFreeApplyC(value) : C * value;
+          }
+        );
     }
 
     // ------------------------------------------------------------
@@ -7548,20 +8411,26 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     if(nZs > 0){
       for(int i = 0; i < nRe; ++i){
 
-        double val;
-        double sign;
+        double covarianceLogDet =
+          randomPrecisionState[static_cast<std::size_t>(i)].logDet;
 
-        bool ok1 =
-          arma::log_det(
-            val,
-            sign,
-            theta(i)
-          );
+        if(!randomPrecisionState[static_cast<std::size_t>(i)].factorWise){
+          double val;
+          double sign;
 
-        if(ok1 == false){
-          Rcpp::Rcout
-            << "log determinant failed "
-            << arma::endl;
+          bool ok1 =
+            arma::log_det(
+              val,
+              sign,
+              theta(i)
+            );
+
+          if(ok1 == false){
+            Rcpp::Rcout
+              << "log determinant failed "
+              << arma::endl;
+          }
+          covarianceLogDet = val * sign;
         }
 
         llikp =
@@ -7570,9 +8439,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           (
             nUsTotal(i)
             *
-            val
-            *
-            sign
+            covarianceLogDet
           )
           +
           (
@@ -7763,7 +8630,44 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
     }
 
-    // Trace/AI preparation is unnecessary for likelihood trials rejected above.
+    // Derivatives and trace/AI preparation are unnecessary for likelihood
+    // trials rejected above. Reuse the factor covariance/precision state
+    // already evaluated for the accepted likelihood rather than evaluating
+    // descriptor factors again.
+    for(int iR = 0; iR < nRe; ++iR){
+      DescriptorPrecisionState & precisionState =
+        randomPrecisionState[static_cast<std::size_t>(iR)];
+      if(precisionState.factorWise){
+        buildDescriptorPrecisionDerivatives(
+          covDescriptor[static_cast<std::size_t>(iR)],
+          covPar(iR),
+          precisionState
+        );
+      }
+    }
+
+    if(Rkron && residualPrecisionState.factorWise){
+      buildDescriptorPrecisionDerivatives(
+        covDescriptor[static_cast<std::size_t>(residualStruct)],
+        covPar(residualStruct),
+        residualPrecisionState
+      );
+    }
+
+    const bool residualDerivativesBlockLocal = Rkron && !useH;
+
+    for(arma::uword k = 0; k < nResidualPar; ++k){
+      residualLocalD1(k) =
+        cachedCovarianceD1(
+          residualStruct,
+          k
+        );
+      if(!residualDerivativesBlockLocal){
+        residualDerivativeBasis(k) =
+          buildResidualSparseFromPattern(residualLocalD1(k));
+      }
+    }
+
     if(solverName == "ldlt"){
       buildSelectedInverseSubset(
         Cfactor,
@@ -7786,7 +8690,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         DselectedTopologyReady = true;
       }
     }else if(solverName == "pcg"){
-      preparePCGTraceProbes(C);
+      preparePCGTraceProbes(static_cast<Eigen::Index>(nEffects));
     }
 
     b = bu(bInd); // move BLUEs to a different vector
@@ -7843,8 +8747,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // are used.
     // ============================================================
 
-    arma::field<arma::sp_mat> uSinv(nReAl);
-
     // Number/index at which residual variance components begin.
     const arma::uword residualVcStart =
       static_cast<arma::uword>(
@@ -7875,15 +8777,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // d2 Lambda_ij =
     //     Lambda B_j Lambda B_i Lambda
     //   + Lambda B_i Lambda B_j Lambda.
-    std::vector<arma::mat> randomLambda(
-      static_cast<std::size_t>(nRe)
-    );
-
     std::vector<arma::mat> randomQuadraticBase(
-      static_cast<std::size_t>(nRe)
-    );
-
-    std::vector< std::vector<arma::mat> > randomParameterBasis(
       static_cast<std::size_t>(nRe)
     );
 
@@ -7946,20 +8840,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             lambda(iR)
           );
 
-        randomLambda[iCache] =
-          lambdaDense;
-
-        // Keep u * Lambda for the existing score calculation below.
-        arma::mat uSinvDense =
-          U
-          *
-          lambdaDense;
-
-        uSinv(iR) =
-          arma::sp_mat(
-            uSinvDense
-          );
-
         // A * U is reused for every local covariance derivative.
         arma::mat AU =
           arma::mat(
@@ -7978,50 +8858,53 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             nVc(iR)
           );
 
-        randomParameterBasis[iCache].resize(
-          static_cast<std::size_t>(localNvc)
-        );
-
         randomDLambda[iCache].resize(
           static_cast<std::size_t>(localNvc)
         );
 
+        DescriptorPrecisionState & precisionState =
+          randomPrecisionState[iCache];
+
+        if(!precisionState.factorWise){
+          precisionState.precisionD1.resize(
+            static_cast<std::size_t>(localNvc)
+          );
+          precisionState.logDetD1.resize(
+            static_cast<std::size_t>(localNvc)
+          );
+        }
+
         for(arma::uword localK = 0; localK < localNvc; ++localK){
 
-          // Generic first derivative dSigma/dphi_k.  For legacy US/DIAG
-          // models this is the familiar constant covariance-cell basis;
-          // for AR1 it is the analytic derivative of sigma2*rho^|i-j|.
-          const arma::mat & Bk =
-            cachedCovarianceD1(
-              iR,
-              localK
-            );
-
-          randomParameterBasis[iCache][
-            static_cast<std::size_t>(localK)
-          ] =
-            Bk;
-
-          arma::mat dLambda =
-            -lambdaDense
-            *
-            Bk
-            *
-            lambdaDense;
-
-          dLambda =
-            0.5
-            *
-            (
-              dLambda
-              +
-              dLambda.t()
-            );
-
-          randomDLambda[iCache][
-            static_cast<std::size_t>(localK)
-          ] =
-            dLambda;
+          arma::mat dLambda;
+          if(!precisionState.factorWise){
+            const arma::mat & Bk =
+              cachedCovarianceD1(
+                iR,
+                localK
+              );
+            dLambda =
+              -lambdaDense
+              *
+              Bk
+              *
+              lambdaDense;
+            precisionState.precisionD1[
+              static_cast<std::size_t>(localK)
+            ] = dLambda;
+            precisionState.logDetD1[
+              static_cast<std::size_t>(localK)
+            ] =
+              arma::accu(
+                lambdaDense
+                %
+                Bk.t()
+              );
+            dLambda = 0.5 * (dLambda + dLambda.t());
+            randomDLambda[iCache][
+              static_cast<std::size_t>(localK)
+            ] = dLambda;
+          }
 
           // (dC_k) b for this random covariance structure is
           //
@@ -8031,9 +8914,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           //
           //      (A U) dLambda_k'.
           arma::mat dCbuLocal =
-            AU
-            *
-            dLambda.t();
+            precisionState.factorWise
+            ? applyDescriptorPrecisionD1Right(
+                AU,
+                precisionState,
+                localK
+              )
+            : AU * dLambda.t();
 
           const arma::uword globalK =
             static_cast<arma::uword>(
@@ -8092,12 +8979,24 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     );
 
     for(arma::uword iP = 0; iP < nResidualPar; ++iP){
-      residualWorking.col(iP) =
-        arma::vec(
-          residualDerivativeBasis(iP)
-          *
-          Rie
-        );
+      if(residualDerivativesBlockLocal){
+        for(int block = 0; block < residualKronNBlocks; ++block){
+          const arma::uvec & rows =
+            residualKronRows[static_cast<std::size_t>(block)];
+          const arma::vec localWorking =
+            residualLocalD1(iP) * Rie.elem(rows);
+          for(arma::uword localRow = 0; localRow < rows.n_elem; ++localRow){
+            residualWorking(rows(localRow), iP) = localWorking(localRow);
+          }
+        }
+      }else{
+        residualWorking.col(iP) =
+          arma::vec(
+            residualDerivativeBasis(iP)
+            *
+            Rie
+          );
+      }
     }
 
     arma::mat RiResidualWorking =
@@ -8214,9 +9113,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         const std::size_t iCache =
           static_cast<std::size_t>(iR);
 
-        const arma::mat & lambdaDense =
-          randomLambda[iCache];
-
         const arma::mat & quadBase =
           randomQuadraticBase[iCache];
 
@@ -8232,23 +9128,37 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
         if(randomStructurallyDiagonal[iCache]){
           // Closed-form fast path: for a structurally diagonal covariance
-          // product, lambdaDense and every dSigma/dphi_k (Bi/Bj) are
-          // diagonal matrices, so d2Lambda collapses to
-          //   d2Lambda_kk = 2 * Bi_kk * Bj_kk * lambda_kk^3
-          // and secondCorrection = sum_k Bi_kk*Bj_kk*lambda_kk^3*quadBase_kk.
+          // product, Sigma and every dLambda/dphi_k are diagonal, so
+          //   0.5 d2Lambda_ij = dLambda_i Sigma dLambda_j
+          // is an elementwise product.
           // This replaces localNvc^2 dense q x q matrix-chain products
           // (O(q^3) each) with localNvc^2 O(q) dot products.
-          const arma::vec lambdaCubeDiag =
-            arma::pow(lambdaDense.diag(), 3);
+          const arma::vec covarianceDiag =
+            theta(iR).diag();
           const arma::vec quadDiag =
             quadBase.diag();
 
-          std::vector<arma::vec> basisDiag(localNvc);
+          std::vector<arma::vec> dLambdaDiag(localNvc);
+          const DescriptorPrecisionState & precisionState =
+            randomPrecisionState[iCache];
           for(arma::uword localK = 0; localK < localNvc; ++localK){
-            basisDiag[localK] =
-              randomParameterBasis[iCache][
-                static_cast<std::size_t>(localK)
-              ].diag();
+            if(precisionState.factorWise){
+              std::vector<arma::mat> derivativeFactors;
+              double derivativeScale = 1.0;
+              descriptorPrecisionD1Factors(
+                precisionState,
+                localK,
+                derivativeFactors,
+                derivativeScale
+              );
+              dLambdaDiag[localK] =
+                kroneckerDiagonal(derivativeFactors, derivativeScale);
+            }else{
+              dLambdaDiag[localK] =
+                randomDLambda[iCache][
+                  static_cast<std::size_t>(localK)
+                ].diag();
+            }
           }
 
 #ifdef _OPENMP
@@ -8259,11 +9169,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
               const double secondCorrection =
                 arma::accu(
-                  basisDiag[localI]
+                  dLambdaDiag[localI]
                   %
-                  basisDiag[localJ]
+                  dLambdaDiag[localJ]
                   %
-                  lambdaCubeDiag
+                  covarianceDiag
                   %
                   quadDiag
                 );
@@ -8284,68 +9194,113 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       #endif
         for(arma::uword localI = 0; localI < localNvc; ++localI){
 
-          const arma::mat & Bi =
-            randomParameterBasis[iCache][
-              static_cast<std::size_t>(localI)
-            ];
-
-          // lambdaDense * Bi * lambdaDense depends only on localI, so it
-          // is hoisted out of the localJ loop: this halves the dense
-          // matrix-chain work of the O(q^3) AI second-derivative term.
-          const arma::mat Mi =
-            lambdaDense
-            *
-            Bi
-            *
-            lambdaDense;
-
           for(arma::uword localJ = 0; localJ < localNvc; ++localJ){
 
-            const arma::mat & Bj =
-              randomParameterBasis[iCache][
-                static_cast<std::size_t>(localJ)
-              ];
-
             // Average-information metric in generic coordinates:
-            // J' AI(Sigma) J.  We intentionally use first covariance
-            // derivatives only.  The nonlinear d2Sigma term belongs to the
-            // exact observed Hessian, not to this positive AI/Gauss-Newton
-            // metric.
-            //
-            // d2Lambda = lambdaDense*Bj*Mi + (lambdaDense*Bj*Mi)'
-            // is algebraically identical to the original four-term chain
-            // (lambdaDense*Bj*lambdaDense*Bi*lambdaDense +
-            //  lambdaDense*Bi*lambdaDense*Bj*lambdaDense) since Mi is
-            // symmetric and Mi*Bj*lambdaDense = (lambdaDense*Bj*Mi)'.
-            const arma::mat crossTerm =
-              lambdaDense
-              *
-              Bj
-              *
-              Mi;
+            // J' AI(Sigma) J.  Build dLambda_j Sigma dLambda_i from
+            // factor-level products when the descriptor precision path is
+            // available, avoiding a full q x q dense matrix chain.
+            const DescriptorPrecisionState & precisionState =
+              randomPrecisionState[iCache];
 
-            arma::mat d2Lambda =
-              crossTerm
-              +
-              crossTerm.t();
+            double secondCorrection = 0.0;
 
-            d2Lambda =
-              0.5
-              *
-              (
-                d2Lambda
-                +
-                d2Lambda.t()
-              );
+            if(precisionState.factorWise){
+              const int factorI =
+                precisionState.derivativeFactor[
+                  static_cast<std::size_t>(localI)
+                ];
+              const int factorJ =
+                precisionState.derivativeFactor[
+                  static_cast<std::size_t>(localJ)
+                ];
 
-            const double secondCorrection =
-              0.5
-              *
-              arma::accu(
-                d2Lambda
-                %
-                quadBase
-              );
+              std::vector<arma::mat> crossFactors;
+              double crossScale = precisionState.inverseScale;
+
+              if(factorI < 0 && factorJ < 0){
+                crossFactors = precisionState.factorPrecision;
+              }else if(factorI < 0){
+                descriptorPrecisionD1Factors(
+                  precisionState,
+                  localJ,
+                  crossFactors,
+                  crossScale
+                );
+                crossScale = -crossScale;
+              }else if(factorJ < 0){
+                descriptorPrecisionD1Factors(
+                  precisionState,
+                  localI,
+                  crossFactors,
+                  crossScale
+                );
+                crossScale = -crossScale;
+              }else{
+                crossFactors = precisionState.factorPrecision;
+                for(std::size_t factor = 0;
+                    factor < precisionState.factorPrecision.size();
+                    ++factor){
+                  arma::mat piece;
+                  if(static_cast<int>(factor) == factorI &&
+                     static_cast<int>(factor) == factorJ){
+                    piece =
+                      precisionState.localPrecisionD1[
+                        static_cast<std::size_t>(localJ)
+                      ]
+                      *
+                      precisionState.factorCovariance[factor]
+                      *
+                      precisionState.localPrecisionD1[
+                        static_cast<std::size_t>(localI)
+                      ];
+                  }else if(static_cast<int>(factor) == factorI){
+                    piece =
+                      precisionState.localPrecisionD1[
+                        static_cast<std::size_t>(localI)
+                      ];
+                  }else if(static_cast<int>(factor) == factorJ){
+                    piece =
+                      precisionState.localPrecisionD1[
+                        static_cast<std::size_t>(localJ)
+                      ];
+                  }else{
+                    piece = precisionState.factorPrecision[factor];
+                  }
+                  crossFactors[factor] = std::move(piece);
+                }
+              }
+
+              secondCorrection =
+                contractKronecker(
+                  quadBase,
+                  crossFactors,
+                  crossScale
+                );
+            }else{
+              const arma::mat & dLambdaI =
+                randomDLambda[iCache][
+                  static_cast<std::size_t>(localI)
+                ];
+              const arma::mat & dLambdaJ =
+                randomDLambda[iCache][
+                  static_cast<std::size_t>(localJ)
+                ];
+              const arma::mat crossTerm =
+                dLambdaJ
+                *
+                theta(iR)
+                *
+                dLambdaI;
+              secondCorrection =
+                0.5
+                *
+                arma::accu(
+                  (crossTerm + crossTerm.t())
+                  %
+                  quadBase
+                );
+            }
 
             avInf(
               globalStart + localI,
@@ -8538,7 +9493,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
               );
           }
 
-          for(int iRow = 0; iRow < static_cast<int>(lambda(iR).n_rows); ++iRow){
+          // traces is symmetric and symmatu() below copies this upper
+          // triangle into the lower triangle.
+          for(int iRow = 0; iRow <= iCol; ++iRow){
 
             if(
                 covType[static_cast<std::size_t>(iR)] == "legacy"
@@ -8685,30 +9642,27 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         traces =
           arma::symmatu(traces);
 
-        arma::mat dLuProv =
-          (
-            arma::as_scalar(nUsTotal(iR))
-            *
-            lambda(iR)
-          )
-          -
-          (
-            uSinv(iR).t()
-            *
-            Ai(iR)
-            *
-            uSinv(iR)
-          )
-          -
-          (
-            lambda(iR)
-            *
-            traces
-            *
-            lambda(iR)
-          );
-
         if(covType[static_cast<std::size_t>(iR)] == "legacy"){
+
+          const arma::mat lambdaDense = arma::mat(lambda(iR));
+          const arma::mat dLuProv =
+            (
+              arma::as_scalar(nUsTotal(iR))
+              *
+              lambdaDense
+            )
+            -
+            (
+              lambdaDense
+              *
+              (
+                randomQuadraticBase[static_cast<std::size_t>(iR)]
+                +
+                traces
+              )
+              *
+              lambdaDense
+            );
 
           emInfList(iR) =
             buildEmInformationDiagonal(
@@ -8732,24 +9686,46 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             arma::fill::zeros
           );
 
-          const arma::mat scoreMatrix =
-            arma::mat(
-              dLuProv
-            );
+          const DescriptorPrecisionState & precisionState =
+            randomPrecisionState[static_cast<std::size_t>(iR)];
+
+          const arma::mat scoreQuadratic =
+            randomQuadraticBase[static_cast<std::size_t>(iR)]
+            +
+            traces;
 
           for(arma::uword k = 0; k < covPar(iR).n_elem; ++k){
-            const arma::mat & dSigma =
-              cachedCovarianceD1(
-                iR,
-                k
+            double precisionContraction = 0.0;
+            if(precisionState.factorWise){
+              std::vector<arma::mat> derivativeFactors;
+              double derivativeScale = 1.0;
+              descriptorPrecisionD1Factors(
+                precisionState,
+                k,
+                derivativeFactors,
+                derivativeScale
               );
+              precisionContraction =
+                contractKronecker(
+                  scoreQuadratic,
+                  derivativeFactors,
+                  derivativeScale
+                );
+            }else{
+              precisionContraction =
+                arma::accu(
+                  scoreQuadratic
+                  %
+                  precisionState.precisionD1[static_cast<std::size_t>(k)]
+                );
+            }
 
             structuredScore(k) =
-              arma::accu(
-                scoreMatrix
-                %
-                dSigma
-              );
+              arma::as_scalar(nUsTotal(iR))
+              *
+              precisionState.logDetD1[static_cast<std::size_t>(k)]
+              +
+              precisionContraction;
           }
 
           dLu =
@@ -8859,6 +9835,15 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
       }else if(Rkron){
 
+        if(!useH && residualPrecisionState.factorWise){
+          traceSRi =
+            static_cast<double>(residualKronNBlocks)
+            *
+            residualPrecisionState.logDetD1[
+              static_cast<std::size_t>(iP)
+            ];
+        }else{
+
         // Independent per-block extraction/accumulation: parallelize over
         // blocks, and use trace(A*B) = accu(A % B) (valid since RkronInv is
         // symmetric) instead of forming the full q x q product.
@@ -8894,6 +9879,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
               %
               RkronInv
             );
+        }
+
         }
 
       }else{
@@ -8939,7 +9926,46 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }else{
         arma::sp_mat Btrace;
 
-        if(RiWisSparse){
+        if(residualDerivativesBlockLocal){
+          std::vector<EigenTriplet> derivativeTrips;
+          for(int block = 0; block < residualKronNBlocks; ++block){
+            const arma::uvec & columns =
+              residualActiveColumns[static_cast<std::size_t>(block)];
+            if(columns.n_elem == 0){
+              continue;
+            }
+            const arma::mat & blockRiW =
+              residualKronBlockRiW[static_cast<std::size_t>(block)];
+            const arma::mat localBasis =
+              blockRiW.t()
+              *
+              residualLocalD1(iP)
+              *
+              blockRiW;
+
+            for(arma::uword localCol = 0; localCol < columns.n_elem; ++localCol){
+              for(arma::uword localRow = 0; localRow < columns.n_elem; ++localRow){
+                const double value = localBasis(localRow, localCol);
+                if(value != 0.0){
+                  derivativeTrips.emplace_back(
+                    static_cast<int>(columns(localRow)),
+                    static_cast<int>(columns(localCol)),
+                    value
+                  );
+                }
+              }
+            }
+          }
+
+          EigenSpMat localBtrace(nEffects, nEffects);
+          localBtrace.setFromTriplets(
+            derivativeTrips.begin(),
+            derivativeTrips.end()
+          );
+          localBtrace.makeCompressed();
+          Btrace = eigenSparseToArmaGlobal(localBtrace);
+
+        }else if(RiWisSparse){
           Btrace =
             RiWspArmaShared.t()
             *
@@ -8995,15 +10021,29 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           << arma::endl;
       }
 
-      const double residualQuadratic =
-        arma::dot(
-          Rie,
-          arma::vec(
-            Sprov
-            *
-            Rie
-          )
-        );
+      double residualQuadratic = 0.0;
+      if(residualDerivativesBlockLocal){
+        for(int block = 0; block < residualKronNBlocks; ++block){
+          const arma::uvec & rows =
+            residualKronRows[static_cast<std::size_t>(block)];
+          const arma::vec localRie = Rie.elem(rows);
+          residualQuadratic +=
+            arma::dot(
+              localRie,
+              residualLocalD1(iP) * localRie
+            );
+        }
+      }else{
+        residualQuadratic =
+          arma::dot(
+            Rie,
+            arma::vec(
+              Sprov
+              *
+              Rie
+            )
+          );
+      }
 
       dLe(iP) =
         traceSRi
@@ -9420,37 +10460,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             }
           }
 
-          arma::mat m;
-
-          if(!tryEvaluateStructure(iStruct, localPar, m)){
-            return false;
-          }
-
-          m =
-            arma::symmatu(m);
-
-          arma::vec ev;
-
-          const bool ok =
-            arma::eig_sym(
-              ev,
-              m
-            );
-
-          if(
-              !ok
-              ||
-              ev.n_elem == 0
-              ||
-              !ev.is_finite()
-          ){
-            return false;
-          }
-
           return
-            ev.min()
-            >
-            pdCheckFloor;
+            descriptorIsPositiveDefinite(
+              covDescriptor[static_cast<std::size_t>(iStruct)],
+              localPar,
+              pdCheckFloor
+            );
         };
 
       if(structureIsPD(expectedNewTheta)){
@@ -10177,6 +11192,50 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
     }
   }// end of iterative optimization
+
+  // Matrix-free PCG omits random-prior entries from C during REML
+  // iterations. Materialize them once at convergence because C is part of
+  // the fitted-object contract used by prediction and PEV methods.
+  if(matrixFreePCGReady && nZs > 0){
+    std::vector<EigenTriplet> finalPriorTriplets;
+
+    for(int iR = 0; iR < nRe; ++iR){
+      const arma::mat & finalPrecision =
+        lastEvaluatedRandomPrecision[static_cast<std::size_t>(iR)];
+      if(finalPrecision.n_rows == 0 || !finalPrecision.is_finite()){
+        Rcpp::stop("Unable to materialize the final random-effect precision after matrix-free PCG.");
+      }
+
+      const std::size_t iCache = static_cast<std::size_t>(iR);
+      for(arma::uword iRow = 0; iRow < finalPrecision.n_rows; ++iRow){
+        const arma::uword rowStart =
+          partitionStartCache[iCache][static_cast<std::size_t>(iRow)];
+        for(arma::uword iCol = 0; iCol < finalPrecision.n_cols; ++iCol){
+          const double coefficient = finalPrecision(iRow,iCol);
+          if(coefficient == 0.0){ continue; }
+          const arma::uword colStart =
+            partitionStartCache[iCache][static_cast<std::size_t>(iCol)];
+          for(arma::sp_mat::const_iterator relEntry = Ai(iR).begin();
+              relEntry != Ai(iR).end(); ++relEntry){
+            finalPriorTriplets.emplace_back(
+              static_cast<int>(rowStart + relEntry.row()),
+              static_cast<int>(colStart + relEntry.col()),
+              coefficient * (*relEntry)
+            );
+          }
+        }
+      }
+    }
+
+    EigenSpMat finalPrior(nEffects, nEffects);
+    finalPrior.setFromTriplets(
+      finalPriorTriplets.begin(),
+      finalPriorTriplets.end()
+    );
+    finalPrior.makeCompressed();
+    C = C + finalPrior;
+    C.makeCompressed();
+  }
   
   
   double AIC = (-2 * llik((llik.n_cols-1))) + (2 * nX);
@@ -10572,16 +11631,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       InfMatInv.n_cols == finalJacobian.n_elem
   ){
 
-    InfMatInv =
-      arma::diagmat(
-        finalJacobian
-      )
+    InfMatInv %=
+      finalJacobian
       *
-      InfMatInv
-      *
-      arma::diagmat(
-        finalJacobian
-      );
+      finalJacobian.t();
   }
 
   // dLuOut=dLuOut/vary;
@@ -10701,6 +11754,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     Rcpp::Named("CiComputed") = (computeCi == 2),
     Rcpp::Named("CiMode") = computeCi,
     Rcpp::Named("solver") = solverName,
+    Rcpp::Named("pcgMatrixFree") = matrixFreePCGReady,
     Rcpp::Named("pcgTol") = pcgTol,
     Rcpp::Named("pcgMaxIters") = pcgMaxIters,
     Rcpp::Named("theta") = theta,
