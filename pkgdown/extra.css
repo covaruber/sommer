@@ -1,0 +1,94 @@
+/* Only the homepage uses the uploaded design; reference pages keep pkgdown navigation. */
+body:has(.sommer-home) { padding-top: 0 !important; background: #f7f8f3; }
+body:has(.sommer-home) > nav.navbar,
+body:has(.sommer-home) > .navbar,
+body:has(.sommer-home) > .container.template-home > footer { display: none !important; }
+body:has(.sommer-home) > .container.template-home {
+  width: 100%; max-width: none; padding: 0; margin: 0;
+}
+
+.sommer-home {
+  --ink: #14251f; --muted: #5f706a; --paper: #f7f8f3;
+  --card: #fff; --line: #dce3dd; --accent: #0f5b48;
+  --accent2: #dceee6; --warm: #e8ddc7; --max: 1120px;
+  color: var(--ink); background: var(--paper);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.6;
+}
+.sommer-home *, .sommer-home *::before, .sommer-home *::after { box-sizing: border-box; }
+.sommer-home .site-container { width: min(calc(100% - 40px), var(--max)); max-width: none; margin: auto; }
+.sommer-home .site-header { position: sticky; top: 0; z-index: 10; background: rgba(247,248,243,.92); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(220,227,221,.8); }
+.sommer-home .site-nav { min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.sommer-home .site-brand { color: var(--ink); text-decoration: none; display: flex; flex-direction: column; font-weight: 800; font-size: 1.2rem; line-height: 1.35; }
+.sommer-home .site-brand small { font-size: .64rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.sommer-home .site-nav-links { display: flex; gap: 24px; align-items: center; }
+.sommer-home .site-nav-links a { color: var(--ink); text-decoration: none; font-size: .9rem; white-space: nowrap; }
+.sommer-home .site-nav-links a:hover, .sommer-home .site-footer a:hover, .sommer-home .link-list a:hover { color: var(--accent); text-decoration: underline; }
+.sommer-home .site-nav-button { padding: 9px 15px; border: 1px solid var(--ink); border-radius: 999px; }
+.sommer-home .site-hero { padding: 110px 0 95px; background: radial-gradient(circle at 85% 20%, #e3efe9 0, transparent 32%), linear-gradient(180deg, var(--paper), #eef2ec); }
+.sommer-home .hero-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 70px; align-items: center; }
+.sommer-home .eyebrow { font-size: .72rem; letter-spacing: .16em; font-weight: 800; color: var(--accent); margin: 0 0 15px; }
+.sommer-home h1 { font-size: clamp(3.2rem, 5.8rem, 6.4rem); line-height: .93; margin: 0 0 28px; font-weight: 700; }
+.sommer-home h1 em { font-family: Georgia, serif; font-weight: 400; }
+.sommer-home .lead { font-size: 1.25rem; max-width: 680px; color: var(--muted); }
+.sommer-home .actions { display: flex; gap: 12px; margin: 30px 0 15px; flex-wrap: wrap; }
+.sommer-home .site-button { display: inline-block; text-decoration: none; padding: 13px 20px; border-radius: 999px; font-weight: 750; }
+.sommer-home .primary { background: var(--accent); color: white; }
+.sommer-home .secondary { border: 1px solid #aebbb4; color: var(--ink); background: transparent; }
+.sommer-home .site-button:hover { filter: brightness(.9); text-decoration: none; }
+.sommer-home .note { font-size: .85rem; color: var(--muted); }
+.sommer-home .equation-card { background: var(--card); border: 1px solid var(--line); border-radius: 28px; padding: 34px; box-shadow: 0 25px 70px rgba(20,37,31,.08); }
+.sommer-home .card-label { font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); font-weight: 700; }
+.sommer-home .equation { font: 3rem Georgia, serif; margin: 42px 0; color: var(--accent); white-space: nowrap; }
+.sommer-home .matrix { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.sommer-home .matrix span { background: var(--accent2); border-radius: 10px; padding: 11px; text-align: center; font-weight: 700; }
+.sommer-home .equation-card p { color: var(--muted); margin: 22px 0 0; }
+.sommer-home .site-section { padding: 105px 0; }
+.sommer-home h2 { font-size: clamp(2.2rem, 3.4rem, 3.7rem); line-height: 1; margin: 0 0 24px; font-weight: 700; }
+.sommer-home .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 45px; }
+.sommer-home .cards article, .sommer-home .service-grid article { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 28px; }
+.sommer-home .feature-icon { width: 42px; height: 42px; border-radius: 12px; background: var(--accent2); display: grid; place-items: center; color: var(--accent); font-weight: 800; margin-bottom: 30px; }
+.sommer-home h3 { margin: 0 0 8px; font-size: 1.12rem; font-weight: 700; }
+.sommer-home .cards p, .sommer-home .service-grid p { margin: 0; color: var(--muted); }
+.sommer-home .alt { background: #e9eee9; }
+.sommer-home .split { display: grid; grid-template-columns: 1fr 1fr; gap: 100px; align-items: start; }
+.sommer-home .split p { max-width: 620px; color: var(--muted); font-size: 1.1rem; }
+.sommer-home .split .eyebrow { color: var(--accent); font-size: .72rem; }
+.sommer-home .link-list { border-top: 1px solid #bdc9c2; }
+.sommer-home .link-list a { display: flex; justify-content: space-between; padding: 18px 0; border-bottom: 1px solid #bdc9c2; color: var(--ink); text-decoration: none; }
+.sommer-home .services { background: var(--ink); color: white; }
+.sommer-home .services .eyebrow { color: #9bd5c2; }
+.sommer-home .service-head { display: grid; grid-template-columns: 1fr 1fr; gap: 90px; align-items: end; }
+.sommer-home .service-intro { color: #bdc9c2; font-size: 1.08rem; }
+.sommer-home .service-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 50px; }
+.sommer-home .service-grid article { background: #1c342c; border-color: #315046; }
+.sommer-home .service-grid p, .sommer-home .contact-box p { color: #b9c9c1; }
+.sommer-home .contact-box { margin-top: 55px; border: 1px solid #38584d; border-radius: 22px; padding: 28px; display: flex; align-items: center; justify-content: space-between; gap: 30px; }
+.sommer-home .contact-box p { margin: .35rem 0 0; }
+.sommer-home .cite { background: var(--warm); }
+.sommer-home .narrow { max-width: 760px; margin-left: max(20px, calc((100% - var(--max))/2)); margin-right: auto; }
+.sommer-home .text-link { color: var(--accent); font-weight: 750; }
+.sommer-home .license { background: #fff; }
+.sommer-home .license-inner { display: flex; justify-content: space-between; align-items: center; gap: 50px; }
+.sommer-home .license-inner p { max-width: 720px; color: var(--muted); }
+.sommer-home .site-footer { border-top: 1px solid var(--line); background: var(--paper); }
+.sommer-home .footer-inner { min-height: 80px; display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: .82rem; }
+.sommer-home .site-footer a { color: var(--ink); }
+@media (max-width: 800px) {
+  .sommer-home .site-nav-links a:not(.site-nav-button) { display: none; }
+  .sommer-home .site-hero { padding: 75px 0; }
+  .sommer-home .hero-grid, .sommer-home .split, .sommer-home .service-head { grid-template-columns: 1fr; gap: 40px; }
+  .sommer-home .cards, .sommer-home .service-grid { grid-template-columns: 1fr; }
+  .sommer-home .site-section { padding: 75px 0; }
+  .sommer-home .license-inner, .sommer-home .contact-box, .sommer-home .footer-inner { align-items: flex-start; flex-direction: column; }
+  .sommer-home .narrow { margin-left: auto; margin-right: auto; }
+  .sommer-home .equation { font-size: 2.2rem; }
+  .sommer-home .matrix { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 420px) {
+  .sommer-home .site-brand small { font-size: .55rem; }
+  .sommer-home .site-nav-links { gap: 8px; }
+  .sommer-home h1 { font-size: 3.2rem; }
+  .sommer-home .equation { font-size: 1.8rem; }
+  .sommer-home .equation-card { padding: 22px; }
+}

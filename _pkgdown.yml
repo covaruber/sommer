@@ -1,0 +1,12 @@
+url: https://covaruber.github.io/sommer/
+destination: docs
+template:
+  bootstrap: 5
+  includes:
+    in_header: '<meta name="theme-color" content="#f7f8f3">'
+home:
+  title: sommer - Mixed Models for Quantitative Genetics
+navbar:
+  structure:
+    left: [reference, articles, news]
+    right: [search, github]
