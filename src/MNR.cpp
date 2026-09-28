@@ -6473,8 +6473,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     return out;
   };
 
-  // Exact block-Schur engine for C = [Cxx Cxu; Cux blockdiag(D_g)]:
-  // log|C| = sum log|D_g| + log|S|, S = Cxx - sum Cxg D_g^{-1} Cgx.
+  // Exact block-Schur engine for C = [Cbb Cbu; Cub blockdiag(D_g)], where the
+  // border b holds the fixed effects plus any random groups that couple other
+  // groups: log|C| = sum log|D_g| + log|S|, S = Cbb - sum Cbg D_g^{-1} Cgb.
   struct BlockSchurEngine {
     bool active = false;
     bool patternChecked = false;
@@ -6482,8 +6483,10 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     std::vector<int> outerPattern;
     std::vector<int> innerPattern;
     std::vector< std::vector<int> > groups;
-    std::vector<int> groupOfU;
-    std::vector<int> localOfU;
+    std::vector<int> borderCols;
+    std::vector<int> borderPos;
+    std::vector<int> groupOf;
+    std::vector<int> localOf;
     std::vector<arma::mat> Lg;
     std::vector<arma::mat> Fg;
     std::vector<arma::mat> Cgx;
@@ -6491,7 +6494,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     double logDet = 0.0;
   };
   BlockSchurEngine blockEngine;
-  const int blockEngineMaxFixed = 2000;
+  const int blockEngineMaxBorder = 2000;
 
   auto blockEngineCheckPattern = [&](const EigenSpMat & A) -> bool {
     if(blockEngine.patternChecked &&
@@ -6501,44 +6504,97 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     cacheEigenSparsePattern(A, blockEngine.outerPattern, blockEngine.innerPattern);
     blockEngine.patternChecked = true;
     blockEngine.eligible = false;
-    blockEngine.groups = buildRandomInverseGroups();
-    if(nX > blockEngineMaxFixed || Nu == 0 || blockEngine.groups.empty()){ return false; }
+    std::vector< std::vector<int> > candidates = buildRandomInverseGroups();
+    if(Nu == 0 || candidates.empty()){ return false; }
 
-    blockEngine.groupOfU.assign(static_cast<std::size_t>(Nu), -1);
-    blockEngine.localOfU.assign(static_cast<std::size_t>(Nu), -1);
-    double totalDoubles = 0.0;
+    std::vector<int> candidateOf(static_cast<std::size_t>(nEffects), -1);
+    for(std::size_t g = 0; g < candidates.size(); ++g){
+      for(const int c : candidates[g]){
+        if(c < nX || c >= nEffects || candidateOf[static_cast<std::size_t>(c)] != -1){ return false; }
+        candidateOf[static_cast<std::size_t>(c)] = static_cast<int>(g);
+      }
+    }
+    for(int c = nX; c < nEffects; ++c){
+      if(candidateOf[static_cast<std::size_t>(c)] < 0){ return false; }
+    }
+
+    std::vector< std::pair<int,int> > couplings;
+    std::vector<double> nnzInGroup(candidates.size(), 0.0);
+    for(int j = nX; j < nEffects; ++j){
+      const int g = candidateOf[static_cast<std::size_t>(j)];
+      for(EigenSpMat::InnerIterator it(A, j); it; ++it){
+        const int i = static_cast<int>(it.row());
+        if(i < nX){ continue; }
+        const int h = candidateOf[static_cast<std::size_t>(i)];
+        if(h == g){
+          nnzInGroup[static_cast<std::size_t>(g)] += 1.0;
+        }else if(g < h){
+          couplings.emplace_back(g, h);
+        }
+      }
+    }
+    std::sort(couplings.begin(), couplings.end());
+    couplings.erase(std::unique(couplings.begin(), couplings.end()), couplings.end());
+
+    // Greedy vertex cover of the group coupling graph: the smaller group of
+    // each still-uncovered coupled pair joins the border.
+    std::vector<char> inBorder(candidates.size(), 0);
+    std::vector<int> degree(candidates.size(), 0);
+    for(const auto & pr : couplings){ ++degree[pr.first]; ++degree[pr.second]; }
+    std::vector<std::size_t> order(couplings.size());
+    for(std::size_t k = 0; k < order.size(); ++k){ order[k] = k; }
+    std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b){
+      const auto & pa = couplings[a];
+      const auto & pb = couplings[b];
+      const std::size_t sa = std::min(candidates[pa.first].size(), candidates[pa.second].size());
+      const std::size_t sb = std::min(candidates[pb.first].size(), candidates[pb.second].size());
+      return sa != sb ? sa < sb : a < b;
+    });
+    for(const std::size_t k : order){
+      const int g = couplings[k].first;
+      const int h = couplings[k].second;
+      if(inBorder[g] || inBorder[h]){ continue; }
+      const std::size_t sg = candidates[g].size();
+      const std::size_t sh = candidates[h].size();
+      const bool pickG = sg != sh ? sg < sh : degree[g] >= degree[h];
+      inBorder[pickG ? g : h] = 1;
+    }
+
+    blockEngine.groups.clear();
+    blockEngine.borderCols.clear();
+    for(int c = 0; c < nX; ++c){ blockEngine.borderCols.push_back(c); }
+    std::vector<std::size_t> keptCandidate;
+    for(std::size_t g = 0; g < candidates.size(); ++g){
+      if(inBorder[g]){
+        blockEngine.borderCols.insert(blockEngine.borderCols.end(), candidates[g].begin(), candidates[g].end());
+      }else{
+        blockEngine.groups.push_back(candidates[g]);
+        keptCandidate.push_back(g);
+      }
+    }
+    const std::size_t nB = blockEngine.borderCols.size();
+    if(nB > static_cast<std::size_t>(blockEngineMaxBorder) || blockEngine.groups.empty()){ return false; }
+
+    blockEngine.borderPos.assign(static_cast<std::size_t>(nEffects), -1);
+    blockEngine.groupOf.assign(static_cast<std::size_t>(nEffects), -1);
+    blockEngine.localOf.assign(static_cast<std::size_t>(nEffects), -1);
+    for(std::size_t b = 0; b < nB; ++b){
+      blockEngine.borderPos[static_cast<std::size_t>(blockEngine.borderCols[b])] = static_cast<int>(b);
+    }
+    double totalDoubles = 2.0 * static_cast<double>(nB) * static_cast<double>(nB);
     for(std::size_t g = 0; g < blockEngine.groups.size(); ++g){
       const std::vector<int> & cols = blockEngine.groups[g];
       const double m = static_cast<double>(cols.size());
       if(cols.size() > static_cast<std::size_t>(cholmodInvCacheMaxGroup)){ return false; }
-      totalDoubles += 2.0 * m * m + 3.0 * m * static_cast<double>(nX);
+      // Dense Cholesky must beat the sparse factorisation on this block.
+      if(m > 64.0 && nnzInGroup[keptCandidate[g]] < 0.1 * m * m){ return false; }
+      totalDoubles += 2.0 * m * m + 3.0 * m * static_cast<double>(nB);
       for(std::size_t j = 0; j < cols.size(); ++j){
-        const int u = cols[j] - nX;
-        if(u < 0 || u >= Nu || blockEngine.groupOfU[static_cast<std::size_t>(u)] != -1){ return false; }
-        blockEngine.groupOfU[static_cast<std::size_t>(u)] = static_cast<int>(g);
-        blockEngine.localOfU[static_cast<std::size_t>(u)] = static_cast<int>(j);
+        blockEngine.groupOf[static_cast<std::size_t>(cols[j])] = static_cast<int>(g);
+        blockEngine.localOf[static_cast<std::size_t>(cols[j])] = static_cast<int>(j);
       }
     }
     if(totalDoubles > cholmodInvCacheMaxDoubles){ return false; }
-    for(int u = 0; u < Nu; ++u){
-      if(blockEngine.groupOfU[static_cast<std::size_t>(u)] < 0){ return false; }
-    }
-
-    // Random blocks must be uncoupled and dense enough for dense Cholesky to win.
-    std::vector<double> nnzInGroup(blockEngine.groups.size(), 0.0);
-    for(int j = nX; j < nEffects; ++j){
-      const int g = blockEngine.groupOfU[static_cast<std::size_t>(j - nX)];
-      for(EigenSpMat::InnerIterator it(A, j); it; ++it){
-        const int i = static_cast<int>(it.row());
-        if(i < nX){ continue; }
-        if(blockEngine.groupOfU[static_cast<std::size_t>(i - nX)] != g){ return false; }
-        nnzInGroup[static_cast<std::size_t>(g)] += 1.0;
-      }
-    }
-    for(std::size_t g = 0; g < blockEngine.groups.size(); ++g){
-      const double m = static_cast<double>(blockEngine.groups[g].size());
-      if(m > 64.0 && nnzInGroup[g] < 0.1 * m * m){ return false; }
-    }
     blockEngine.eligible = true;
     return true;
   };
@@ -6559,11 +6615,13 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     blockEngine.Fg.resize(nG);
     blockEngine.Cgx.resize(nG);
     blockEngine.logDet = 0.0;
+    const arma::uword nB = static_cast<arma::uword>(blockEngine.borderCols.size());
 
-    arma::mat S(static_cast<arma::uword>(nX), static_cast<arma::uword>(nX), arma::fill::zeros);
-    for(int j = 0; j < nX; ++j){
-      for(EigenSpMat::InnerIterator it(A, j); it; ++it){
-        if(it.row() < nX){ S(static_cast<arma::uword>(it.row()), static_cast<arma::uword>(j)) = it.value(); }
+    arma::mat S(nB, nB, arma::fill::zeros);
+    for(arma::uword jb = 0; jb < nB; ++jb){
+      for(EigenSpMat::InnerIterator it(A, blockEngine.borderCols[jb]); it; ++it){
+        const int ib = blockEngine.borderPos[static_cast<std::size_t>(it.row())];
+        if(ib >= 0){ S(static_cast<arma::uword>(ib), jb) = it.value(); }
       }
     }
 
@@ -6572,14 +6630,15 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       const arma::uword m = static_cast<arma::uword>(cols.size());
       arma::mat D(m, m, arma::fill::zeros);
       arma::mat & Cx = blockEngine.Cgx[g];
-      Cx.zeros(m, static_cast<arma::uword>(nX));
+      Cx.zeros(m, nB);
       for(arma::uword jj = 0; jj < m; ++jj){
         for(EigenSpMat::InnerIterator it(A, cols[jj]); it; ++it){
-          const int i = static_cast<int>(it.row());
-          if(i < nX){
-            Cx(jj, static_cast<arma::uword>(i)) = it.value();
+          const std::size_t i = static_cast<std::size_t>(it.row());
+          const int ib = blockEngine.borderPos[i];
+          if(ib >= 0){
+            Cx(jj, static_cast<arma::uword>(ib)) = it.value();
           }else{
-            D(static_cast<arma::uword>(blockEngine.localOfU[static_cast<std::size_t>(i - nX)]), jj) = it.value();
+            D(static_cast<arma::uword>(blockEngine.localOf[i]), jj) = it.value();
           }
         }
       }
@@ -6587,7 +6646,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         Rcpp::stop("Dense block Cholesky of the MME coefficient matrix C failed (matrix not positive definite).");
       }
       blockEngine.logDet += 2.0 * arma::accu(arma::log(blockEngine.Lg[g].diag()));
-      if(nX > 0){
+      if(nB > 0){
         blockEngine.Fg[g] = blockEngineSolveD(g, Cx);
         S -= Cx.t() * blockEngine.Fg[g];
       }else{
@@ -6595,7 +6654,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       }
     }
 
-    if(nX > 0){
+    if(nB > 0){
       S = 0.5 * (S + S.t());
       if(!arma::chol(blockEngine.Ls, S, "lower")){
         Rcpp::stop("Dense block-Schur complement of the fixed effects is not positive definite.");
@@ -6611,10 +6670,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     const std::size_t nG = blockEngine.groups.size();
     const arma::uword k = static_cast<arma::uword>(rhs.cols());
     Eigen::MatrixXd out(rhs.rows(), rhs.cols());
+    const std::vector<int> & border = blockEngine.borderCols;
+    const arma::uword nB = static_cast<arma::uword>(border.size());
 
-    arma::mat Rx(static_cast<arma::uword>(nX), k);
+    arma::mat Rx(nB, k);
     for(arma::uword c = 0; c < k; ++c){
-      for(int i = 0; i < nX; ++i){ Rx(static_cast<arma::uword>(i), c) = rhs(i, static_cast<Eigen::Index>(c)); }
+      for(arma::uword i = 0; i < nB; ++i){ Rx(i, c) = rhs(border[i], static_cast<Eigen::Index>(c)); }
     }
     std::vector<arma::mat> Tg(nG);
     for(std::size_t g = 0; g < nG; ++g){
@@ -6626,22 +6687,22 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         }
       }
       Tg[g] = blockEngineSolveD(g, Rg);
-      if(nX > 0){ Rx -= blockEngine.Cgx[g].t() * Tg[g]; }
+      if(nB > 0){ Rx -= blockEngine.Cgx[g].t() * Tg[g]; }
     }
 
     arma::mat B;
-    if(nX > 0){
+    if(nB > 0){
       arma::mat tmp;
       const bool ok =
         arma::solve(tmp, arma::trimatl(blockEngine.Ls), Rx, arma::solve_opts::fast) &&
         arma::solve(B, arma::trimatu(blockEngine.Ls.t()), tmp, arma::solve_opts::fast);
-      if(!ok){ Rcpp::stop("Dense block-Schur fixed-effect solve failed."); }
+      if(!ok){ Rcpp::stop("Dense block-Schur border solve failed."); }
       for(arma::uword c = 0; c < k; ++c){
-        for(int i = 0; i < nX; ++i){ out(i, static_cast<Eigen::Index>(c)) = B(static_cast<arma::uword>(i), c); }
+        for(arma::uword i = 0; i < nB; ++i){ out(border[i], static_cast<Eigen::Index>(c)) = B(i, c); }
       }
     }
     for(std::size_t g = 0; g < nG; ++g){
-      if(nX > 0){ Tg[g] -= blockEngine.Fg[g] * B; }
+      if(nB > 0){ Tg[g] -= blockEngine.Fg[g] * B; }
       const std::vector<int> & cols = blockEngine.groups[g];
       for(arma::uword c = 0; c < k; ++c){
         for(std::size_t jj = 0; jj < cols.size(); ++jj){
@@ -6746,15 +6807,17 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       return ans;
     };
 
-  // Exact dense blocks of C^{-1} (X-X, X-u_g, u_g-u_g) from CHOLMOD's
-  // supernodal LL' factor, shared by the random and residual score traces.
+  // Exact dense blocks of C^{-1} (border-border, border-u_g, u_g-u_g), shared
+  // by the random and residual score traces. The border is X for the CHOLMOD
+  // factor path and blockEngine.borderCols for the block-Schur engine.
   struct CholmodInverseBlockCache {
     bool ready = false;
     arma::mat Cxx;
     std::vector<arma::mat> Cuu;
     std::vector<arma::mat> Cxu;
-    std::vector<int> groupOfU;
-    std::vector<int> localOfU;
+    std::vector<int> borderPos;
+    std::vector<int> groupOf;
+    std::vector<int> localOf;
     std::vector<arma::mat> FS;
     bool crossAvailable = false;
   };
@@ -6844,12 +6907,13 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     cholmodInvCache.crossAvailable = false;
 
     if(blockEngine.active){
-      // C^{-1}_xx = S^{-1}, C^{-1}_xg = -S^{-1} F_g', C^{-1}_gh = [g==h] D_g^{-1} + F_g S^{-1} F_h'.
+      // C^{-1}_bb = S^{-1}, C^{-1}_bg = -S^{-1} F_g', C^{-1}_gh = [g==h] D_g^{-1} + F_g S^{-1} F_h'.
+      const bool haveBorder = !blockEngine.borderCols.empty();
       arma::mat Sinv;
-      if(nX > 0){
+      if(haveBorder){
         arma::mat LsInv;
         if(!arma::inv(LsInv, arma::trimatl(blockEngine.Ls))){
-          Rcpp::stop("Dense block-Schur inverse of the fixed-effect Schur complement failed.");
+          Rcpp::stop("Dense block-Schur inverse of the border Schur complement failed.");
         }
         Sinv = LsInv.t() * LsInv;
         cholmodInvCache.Cxx = Sinv;
@@ -6864,15 +6928,16 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           Rcpp::stop("Dense block-Schur inverse of a random-effect block failed.");
         }
         cholmodInvCache.Cuu[g] = LgInv.t() * LgInv;
-        if(nX > 0){
+        if(haveBorder){
           cholmodInvCache.FS[g] = blockEngine.Fg[g] * Sinv;
           cholmodInvCache.Cuu[g] += cholmodInvCache.FS[g] * blockEngine.Fg[g].t();
           cholmodInvCache.Cxu[g] = -cholmodInvCache.FS[g].t();
         }
       }
-      cholmodInvCache.groupOfU = blockEngine.groupOfU;
-      cholmodInvCache.localOfU = blockEngine.localOfU;
-      cholmodInvCache.crossAvailable = nX > 0;
+      cholmodInvCache.borderPos = blockEngine.borderPos;
+      cholmodInvCache.groupOf = blockEngine.groupOf;
+      cholmodInvCache.localOf = blockEngine.localOf;
+      cholmodInvCache.crossAvailable = haveBorder;
       cholmodInvCache.ready = true;
       return;
     }
@@ -6890,8 +6955,10 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       iperm[static_cast<std::size_t>(perm[k])] = k;
     }
 
-    cholmodInvCache.groupOfU.assign(static_cast<std::size_t>(Nu), -1);
-    cholmodInvCache.localOfU.assign(static_cast<std::size_t>(Nu), -1);
+    cholmodInvCache.borderPos.assign(static_cast<std::size_t>(nEffects), -1);
+    cholmodInvCache.groupOf.assign(static_cast<std::size_t>(nEffects), -1);
+    cholmodInvCache.localOf.assign(static_cast<std::size_t>(nEffects), -1);
+    for(int j = 0; j < nX; ++j){ cholmodInvCache.borderPos[static_cast<std::size_t>(j)] = j; }
 
     arma::mat YX;
     if(nX > 0){
@@ -6922,9 +6989,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         cholmodInvCache.Cxu.emplace_back();
       }
       for(int j = 0; j < m; ++j){
-        const std::size_t u = static_cast<std::size_t>(cols[static_cast<std::size_t>(j)] - nX);
-        cholmodInvCache.groupOfU[u] = g;
-        cholmodInvCache.localOfU[u] = j;
+        const std::size_t c = static_cast<std::size_t>(cols[static_cast<std::size_t>(j)]);
+        cholmodInvCache.groupOf[c] = g;
+        cholmodInvCache.localOf[c] = j;
       }
     }
     cholmodInvCache.ready = true;
@@ -6935,35 +7002,37 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     if(!cholmodInvCache.ready || i < 0 || j < 0 || i >= nEffects || j >= nEffects){
       return false;
     }
-    if(i < nX && j < nX){
-      value = cholmodInvCache.Cxx(static_cast<arma::uword>(i), static_cast<arma::uword>(j));
+    const std::size_t si = static_cast<std::size_t>(i);
+    const std::size_t sj = static_cast<std::size_t>(j);
+    const int bi = cholmodInvCache.borderPos[si];
+    const int bj = cholmodInvCache.borderPos[sj];
+    if(bi >= 0 && bj >= 0){
+      value = cholmodInvCache.Cxx(static_cast<arma::uword>(bi), static_cast<arma::uword>(bj));
       return true;
     }
-    if(i < nX || j < nX){
-      const int x = i < nX ? i : j;
-      const std::size_t u = static_cast<std::size_t>((i < nX ? j : i) - nX);
-      const int g = cholmodInvCache.groupOfU[u];
+    if(bi >= 0 || bj >= 0){
+      const int b = bi >= 0 ? bi : bj;
+      const std::size_t u = bi >= 0 ? sj : si;
+      const int g = cholmodInvCache.groupOf[u];
       if(g < 0){ return false; }
       value = cholmodInvCache.Cxu[static_cast<std::size_t>(g)](
-        static_cast<arma::uword>(x),
-        static_cast<arma::uword>(cholmodInvCache.localOfU[u]));
+        static_cast<arma::uword>(b),
+        static_cast<arma::uword>(cholmodInvCache.localOf[u]));
       return true;
     }
-    const std::size_t ui = static_cast<std::size_t>(i - nX);
-    const std::size_t uj = static_cast<std::size_t>(j - nX);
-    const int g = cholmodInvCache.groupOfU[ui];
-    const int h = cholmodInvCache.groupOfU[uj];
+    const int g = cholmodInvCache.groupOf[si];
+    const int h = cholmodInvCache.groupOf[sj];
     if(g < 0 || h < 0){ return false; }
     if(g != h){
       if(!cholmodInvCache.crossAvailable){ return false; }
       value = arma::dot(
-        cholmodInvCache.FS[static_cast<std::size_t>(g)].row(static_cast<arma::uword>(cholmodInvCache.localOfU[ui])),
-        blockEngine.Fg[static_cast<std::size_t>(h)].row(static_cast<arma::uword>(cholmodInvCache.localOfU[uj])));
+        cholmodInvCache.FS[static_cast<std::size_t>(g)].row(static_cast<arma::uword>(cholmodInvCache.localOf[si])),
+        blockEngine.Fg[static_cast<std::size_t>(h)].row(static_cast<arma::uword>(cholmodInvCache.localOf[sj])));
       return true;
     }
     value = cholmodInvCache.Cuu[static_cast<std::size_t>(g)](
-      static_cast<arma::uword>(cholmodInvCache.localOfU[ui]),
-      static_cast<arma::uword>(cholmodInvCache.localOfU[uj]));
+      static_cast<arma::uword>(cholmodInvCache.localOf[si]),
+      static_cast<arma::uword>(cholmodInvCache.localOf[sj]));
     return true;
   };
 
@@ -8728,7 +8797,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           Rcpp::Rcout
             << "Dense block-Schur engine active ("
             << blockEngine.groups.size()
-            << " random-effect blocks)."
+            << " random-effect blocks, "
+            << blockEngine.borderCols.size()
+            << " border effects)."
             << arma::endl;
           reportedBlockEngine = true;
         }
