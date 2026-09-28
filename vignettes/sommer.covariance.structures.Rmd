@@ -230,7 +230,7 @@ environment_shapes <- list(
   factor_analytic = fam(DT$EnvOrder, k=1L),
   antedependence = antem(DT$EnvOrder, order=1L),
   user_defined = ownm(DT$EnvOrder, K=K_env),
-  reduced_rank = rrcm(DT$EnvOrder, k=1L),
+  reduced_rank = rrm(DT$EnvOrder, k=1L),
   matern = maternm(DT$EnvCoordinate),
   toeplitz = toeplitzm(DT$EnvOrder),
   sar = sar(DT$EnvOrder, W=W_env),
@@ -267,7 +267,7 @@ The constructors differ in their assumptions and parameters:
 * `ar1m()`, `ar2m()`, and `ar3m()` use stationary ordered-level correlations. AR(2) and AR(3) use partial autocorrelations, and all AR functions offer homogeneous or heterogeneous marginal variances.
 * `mam()` specifies an MA(1) or MA(2) correlation with zero correlation beyond its order.
 * `usm()` estimates a fully unstructured positive-definite covariance, whereas `corgm()` estimates a general correlation matrix and leaves marginal scale to `vsm()`.
-* `fam()` fits a reduced factor-analytic covariance plus specific variances; `rrcm()` fits a reduced-rank covariance with an identity remainder.
+* `fam()` fits a reduced factor-analytic covariance plus specific variances; `rrm()` fits a reduced-rank covariance with an identity remainder.
 * `antem()` uses a modified-Cholesky antedependence covariance with ordered levels.
 * `ownm()` accepts either a known positive-definite matrix through `K` or a user-supplied covariance function.
 * `maternm()` uses numeric spatial coordinates and estimates range and smoothness.

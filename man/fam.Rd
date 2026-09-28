@@ -26,5 +26,5 @@ vsm(fam(environment, k=2), ism(genotype))
 }
 }
 \seealso{
-\code{\link{rrcm}}, \code{\link{usm}}, \code{\link{vsm}}.
+\code{\link{rrm}}, \code{\link{usm}}, \code{\link{vsm}}.
 }

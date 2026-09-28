@@ -3,7 +3,7 @@
 \title{Predict factor-analytic scores from a fitted mmes model}
 \description{
 Predicts latent factor scores for each level of the main random-effect term
-crossed with a \code{fam()} or \code{rrcm()} covariance-shaping factor,
+crossed with a \code{fam()} or \code{rrm()} covariance-shaping factor,
 combining the fitted loadings (see \code{\link{loadings_mmes}}), the fitted
 covariance matrix, and the BLUPs already stored in \code{object$uList}.
 }
@@ -14,7 +14,7 @@ scores_mmes(object, term = NULL, method = c("regression", "bartlett"),
 \arguments{
   \item{object}{a fitted model of class \code{"mmes"}.}
   \item{term}{character name of the random term built with a single
-\code{fam()} or \code{rrcm()} covariance-shaping factor. If \code{NULL}, the
+\code{fam()} or \code{rrm()} covariance-shaping factor. If \code{NULL}, the
 unique such term in the model is used automatically.}
   \item{method}{\code{"regression"} (default) uses the full fitted covariance
 \eqn{\Sigma} (Thomson's method); \code{"bartlett"} uses only the specific
@@ -47,5 +47,5 @@ scores_mmes(mix)
 }
 }
 \seealso{
-\code{\link{loadings_mmes}}, \code{\link{fam}}, \code{\link{rrcm}}, \code{\link{vsm}}, \code{\link{mmes}}.
+\code{\link{loadings_mmes}}, \code{\link{fam}}, \code{\link{rrm}}, \code{\link{vsm}}, \code{\link{mmes}}.
 }

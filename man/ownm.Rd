@@ -42,5 +42,5 @@ vsm(ownm(group, fun=cfun, par=0, native_report=native), ism(id))
 }
 }
 \seealso{
-\code{\link{vsm}}, \code{\link{covparams_mmes}}, \code{\link{rrcm}}, \code{\link{maternm}}, \code{\link{sar}}, \code{\link{car}}.
+\code{\link{vsm}}, \code{\link{covparams_mmes}}, \code{\link{rrm}}, \code{\link{maternm}}, \code{\link{sar}}, \code{\link{car}}.
 }

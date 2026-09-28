@@ -96,7 +96,7 @@ mmes(fixed, random, rcov, data, W,
 
   \code{\link{fam}} for factor-analytic covariance;
 
-  \code{\link{rrcm}} for the reduced-rank covariance approximation;
+  \code{\link{rrm}} for the reduced-rank covariance approximation;
 
   \code{\link{antem}} for antedependence covariance;
 
@@ -478,11 +478,11 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
  for all levels of the  covariate "x", e.g., \emph{random=~vsm(usm(Location),ism(ID))}  
  fits variance and covariance components for ID at all levels of the covariate Location.
  
- \code{\link{vsm}(\link{usm}(\link[enhancer]{rrm}(x,y,z,nPC)),ism(y))}
+ \code{\link{vsm}(\link{usm}(rrmat(x,y,z,nPC)),ism(y))}
 
  can be used to specify an unstructured covariance structure for the "y" effect
  for all levels of the  covariate "x", and a response variable "z", e.g., 
- \emph{random=~vsm(rrm(Location,ID,response, nPC=2),ism(ID))}  fits a reduced-rank 
+ \emph{random=~vsm(rrmat(Location,ID,response, nPC=2),ism(ID))}  fits a reduced-rank 
  factor analytic covariance for ID at 2 principal components of the covariate Location.
 
   \code{\link{vsm}(ism(\link[enhancer]{overlay}(...,rlist=NULL,prefix=NULL)))}

@@ -50,7 +50,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
 
   fit_rr <- mmes(
     BLUEs ~ trial,
-    random=~vsm(rrcm(trial, 1), ism(genotype)),
+    random=~vsm(rrm(trial, 1), ism(genotype)),
     rcov=~units,
     data=data,
     nIters=20,
@@ -99,5 +99,5 @@ test_that("loadings_mmes gives an informative error for unsupported terms", {
     verbose=FALSE
   )
 
-  expect_error(loadings_mmes(fit, varianceScale = FALSE, rotation = FALSE), "No fam\\(\\)/rrcm\\(\\) covariance term")
+  expect_error(loadings_mmes(fit, varianceScale = FALSE, rotation = FALSE), "No fam\\(\\)/rrm\\(\\) covariance term")
 })

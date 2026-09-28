@@ -11,7 +11,7 @@ vignette: >
 
 The sommer package was developed to provide R users with a flexible univariate and multivariate linear mixed-model solver. Multi-environment trial (MET) analyses often need a genetic covariance structure among environments. A fully unstructured covariance (`usm()`) captures every pairwise environment relationship but requires $q(q+1)/2-1$ parameters for $q$ environments, which quickly becomes difficult to estimate reliably as the number of environments grows. Factor-analytic (FA) and reduced-rank (RR) models approximate that same covariance with far fewer parameters by assuming that genotype-by-environment interaction is driven by a small number of latent factors.
 
-This vignette focuses on the `fam()` and `rrcm()` covariance-shaping factors used inside `vsm()`, and on the `loadings_mmes()`/`scores_mmes()` helper functions used to extract and visualize their fitted quantities.
+This vignette focuses on the `fam()` and `rrm()` covariance-shaping factors used inside `vsm()`, and on the `loadings_mmes()`/`scores_mmes()` helper functions used to extract and visualize their fitted quantities.
 
 **SECTION 1: Theory**
 
@@ -24,7 +24,7 @@ This vignette focuses on the `fam()` and `rrcm()` covariance-shaping factors use
 
 1) Data
 2) Factor-analytic model with `fam()`
-3) Reduced-rank model with `rrcm()`
+3) Reduced-rank model with `rrm()`
 4) Comparing FA and RR
 
 **SECTION 3: Extracting loadings, scores, and diagnostic plots**
@@ -66,7 +66,7 @@ $$
 K = \Lambda\Lambda^{\mathsf T} + I.
 $$
 
-`rrcm(x, k)` therefore has
+`rrm(x, k)` therefore has
 
 $$
 kq-\frac{k(k-1)}{2}
@@ -105,11 +105,11 @@ fitFA <- mmes(y ~ Env,
 summary(fitFA)$varcomp
 ```
 
-### 3) Reduced-rank model with `rrcm()`
+### 3) Reduced-rank model with `rrm()`
 
 ```{r}
 fitRR <- mmes(y ~ Env,
-              random = ~ vsm(rrcm(Env, 2), ism(Name)),
+              random = ~ vsm(rrm(Env, 2), ism(Name)),
               rcov = ~ units,
               nIters = 150, verbose = FALSE,
               data = DT)
@@ -118,7 +118,7 @@ summary(fitRR)$varcomp
 
 ### 4) Comparing FA and RR
 
-Because `rrcm(Env, 2)` is nested inside `fam(Env, 2)` (both use rank 2, but RR fixes the specific variances to be equal), we can compare them with a likelihood ratio test:
+Because `rrm(Env, 2)` is nested inside `fam(Env, 2)` (both use rank 2, but RR fixes the specific variances to be equal), we can compare them with a likelihood ratio test:
 
 ```{r}
 c(AIC_FA = fitFA$AIC, AIC_RR = fitRR$AIC)
@@ -145,7 +145,7 @@ rrInfo <- loadings_mmes(fitRR)
 round(rrInfo$specific, 3)
 ```
 
-Notice that `rrInfo$specific` is constant across environments: this is the direct consequence of `rrcm()` fixing a homogeneous specific variance, unlike the heterogeneous values in `faInfo$specific`.
+Notice that `rrInfo$specific` is constant across environments: this is the direct consequence of `rrm()` fixing a homogeneous specific variance, unlike the heterogeneous values in `faInfo$specific`.
 
 ### 2) Genotype scores
 

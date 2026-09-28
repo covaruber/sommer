@@ -212,9 +212,9 @@ text(y=preds[,2],x=e, labels = rownames(mu), cex=0.5, pos = 1)
 
 ```
 
-## 9) Factor analytic (reduced rank) model
+## 9) Factor analytic and reduced rank models
 
-When the number of environments is large, a fully unstructured genetic covariance requires \(q(q+1)/2\) covariance parameters for \(q\) environments and can become weakly identified relative to the available information. Reduced-rank and factor-analytic representations provide a more parsimonious alternative. In the first implementation below, `rrm()` constructs a reduced environmental basis from `H0`; `usm()` estimates the covariance among the retained factor scores, and the additional `dsm(Env)` term models environment-specific diagonal variation. The commented alternative uses the newer `rrcm()` CovarianceFactor constructor directly. These representations reduce the dimension of the cross-environment covariance model while retaining major covariance patterns.
+When the number of environments is large, a fully unstructured genetic covariance requires \(q(q+1)/2\) covariance parameters for \(q\) environments and can become weakly identified relative to the available information. Reduced-rank and factor-analytic representations provide a more parsimonious alternative. In the first implementation below, we show the use of the factor analytic structure `fam()` where loadings and specific variances are estimated through REML and produce predictions.
 
 ```{r}
 
@@ -226,6 +226,51 @@ indNames <- na.omit(unique(DT$Name))
 A <- diag(length(indNames))
 rownames(A) <- colnames(A) <- indNames
 
+# factor analytic model with 2 factors
+ansFA2 <- mmes(y~Env, 
+               random=~vsm( fam(Env, 2) , ism(Name)) ,
+               rcov=~units,
+               nIters = 100, verbose = FALSE,
+               data=DT)
+
+Dt <- ansFA2$Dtable; Dt
+Dt[1:2,"average"]=TRUE
+Dt[3,c("average","include")]=TRUE
+
+ppfa <- predict(ansFA2, D="Env:Name", Dtable = Dt)
+head(ppfa$pvals)
+
+```
+
+If needed, loadings and factor scores can be extracted with the `loadings_mmes()` and `scores_mmes()` functions. The second implementation below uses the reduced rank implementation available with the `rrm()` function to estimate loadings through REML and we use a diagonal term (dsm) to fit the environment specific variances.
+
+```{r}
+
+# reduced rank model with 2 factors
+ansRR2 <- mmes(y~Env, henderson=TRUE,
+              random=~vsm( rrm(Env, 2) , ism(Name)) + # rr
+                vsm(dsm(Env), ism(Name)), # diag
+              rcov=~units,
+              nIters = 100, verbose = FALSE,
+              data=DT)
+
+
+Dt <- ansRR2$Dtable; Dt
+Dt[1:2,"average"]=TRUE
+Dt[3:4,c("average","include")]=TRUE
+
+pprr <- predict(ansRR2, D="Env:Name", Dtable = Dt)
+head(pprr$pvals)
+
+# compare 
+plot(ppfa$pvals[,"predicted.value"],pprr$pvals[,"predicted.value"])
+
+```
+
+Last but not least, it is possible to avoid the estimation of loadings by defining fixed loadings as covariates of a random regression coming from a diagonal model that uses the GxE predictions to derive Sigma and the fixed loadings.
+
+```{r}
+
 # fit diagonal model first to produce H matrix
 ansDG <- mmes(y~Env, henderson=TRUE,
               random=~ vsm(dsm(Env), ism(Name)),
@@ -234,45 +279,35 @@ ansDG <- mmes(y~Env, henderson=TRUE,
 
 H0 <- ansDG$uList$`vsm(dsm(Env), ism(Name))` # GxE table
 
-# reduced rank model
-ansFA <- mmes(y~Env, henderson=TRUE,
-              random=~vsm( usm(rrm(Env, H = H0, nPC = 3)) , ism(Name)) + # rr
-                vsm(dsm(Env), ism(Name)), # diag
-              rcov=~units,
-              # we recommend giving more iterations to these models
-              nIters = 100, verbose = FALSE,
-              # we recommend giving more EM iterations at the beggining
-              data=DT)
-
-vcFA <- ansFA$theta[[1]]
-vcDG <- ansFA$theta[[2]]
-
-loadings=with(DT, rrm(Env, nPC = 3, H = H0, returnGamma = TRUE) )$Gamma
-scores <- ansFA$uList[[1]]
-
-vcUS <- loadings %*% vcFA %*% t(loadings)
-G <- vcUS + vcDG
-# colfunc <- colorRampPalette(c("steelblue4","springgreen","yellow"))
-# hv <- heatmap(cov2cor(G), col = colfunc(100), symm = TRUE)
-
-uFA <- scores %*% t(loadings)
-uDG <- ansFA$uList[[2]]
-u <- uFA + uDG
-
-# option 2
-# ansFA2 <- mmes(y~Env, henderson=TRUE,
-#               random=~vsm( rrcm(Env, 3) , ism(Name)) + # rr
+# # reduced rank model
+# ansFA <- mmes(y~Env, henderson=TRUE,
+#               random=~vsm( usm(rrmat(Env, H = H0, nPC = 2)) , ism(Name)) + # rr
 #                 vsm(dsm(Env), ism(Name)), # diag
 #               rcov=~units,
 #               # we recommend giving more iterations to these models
 #               nIters = 100, verbose = FALSE,
 #               # we recommend giving more EM iterations at the beggining
 #               data=DT)
-# u2 <- ansFA2$uList$`vsm(rrcm(Env, 3), ism(Name` + ansFA2$uList$`vsm(dsm(Env), ism(Name`
+# 
+# vcFA <- ansFA$theta[[1]]
+# vcDG <- ansFA$theta[[2]]
+# 
+# loadings=with(DT, rrmat(Env, nPC = 2, H = H0, returnGamma = TRUE) )$Gamma
+# scores <- ansFA$uList[[1]]
+# 
+# vcUS <- loadings %*% vcFA %*% t(loadings)
+# G <- vcUS + vcDG
+# # colfunc <- colorRampPalette(c("steelblue4","springgreen","yellow"))
+# # hv <- heatmap(cov2cor(G), col = colfunc(100), symm = TRUE)
+# 
+# uFA <- scores %*% t(loadings)
+# uDG <- ansFA$uList[[2]]
+# u <- uFA + uDG
+# 
+# plot(ppfa$pvals[,"predicted.value"],as.vector(t(u)))
+# plot(as.vector(t(u)),pprr$pvals[,"predicted.value"])
 
 ```
-
-For the `rrm()` representation above, genotype BLUPs on the original environment scale are recovered by multiplying the retained factor scores by the transpose of the loading matrix (`Gamma`) and then adding the diagonal GxE contribution. Likewise, the reduced-rank covariance contribution is reconstructed as \(\Gamma\,\Sigma_f\,\Gamma^\prime\), where \(\Sigma_f\) is the estimated covariance among factor scores. This provides a parsimonious approximation to a general cross-environment covariance structure.
 
 ## 10) Two stage analysis
 

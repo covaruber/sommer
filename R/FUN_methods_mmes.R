@@ -221,7 +221,7 @@ rotate_back_mmes <- function(object){
 ## FACTOR-ANALYTIC LOADINGS/SCORES ##
 #### =========== ####################
 
-# Locate the single fam()/rrcm()-shaped term in a fitted mmes object and
+# Locate the single fam()/rrm()-shaped term in a fitted mmes object and
 # return its compiled factor descriptor together with the natural-scale
 # parameter slice needed to rebuild loadings/specific variances.
 #
@@ -249,12 +249,12 @@ rotate_back_mmes <- function(object){
 
   if(is.null(term)){
     if(length(candidates) == 0L){
-      stop("No fam()/rrcm() covariance term was found in this model.", call.=FALSE)
+      stop("No fam()/rrm() covariance term was found in this model.", call.=FALSE)
     }
     if(length(candidates) > 1L){
       stop(
         paste0(
-          "Multiple fam()/rrcm() terms were found; please specify term as one of: ",
+          "Multiple fam()/rrm() terms were found; please specify term as one of: ",
           paste(candidates, collapse=", ")
         ),
         call.=FALSE
@@ -278,8 +278,8 @@ rotate_back_mmes <- function(object){
   if(length(factors) != 1L || !isTRUE(factors[[1]]$model %in% c("fa","rr"))){
     stop(
       paste0(
-        "term '", term, "' is not a single fam()/rrcm() covariance-shaping factor. ",
-        "Terms combining fam()/rrcm() with additional shaping factors are not yet supported."
+        "term '", term, "' is not a single fam()/rrm() covariance-shaping factor. ",
+        "Terms combining fam()/rrm() with additional shaping factors are not yet supported."
       ),
       call.=FALSE
     )
@@ -289,7 +289,7 @@ rotate_back_mmes <- function(object){
 }
 
 # Reconstruct the normalized loadings (Lambda) and specific variances (Psi)
-# of a fam()/rrcm() term such that sigma2*(Lambda %*% t(Lambda) + diag(Psi))
+# of a fam()/rrm() term such that sigma2*(Lambda %*% t(Lambda) + diag(Psi))
 # reproduces object$theta[[term]] exactly (up to floating-point roundoff).
 "loadings_mmes" <- function(object, term=NULL, varianceScale=TRUE, rotation=TRUE){
 
@@ -596,7 +596,7 @@ rotate_back_mmes <- function(object){
   .covparams_mmes_se(object, term, rel_step)
 }
 
-# Predict per-level latent factor scores for a fam()/rrcm() term from its
+# Predict per-level latent factor scores for a fam()/rrm() term from its
 # fitted loadings, covariance, and BLUPs. method="regression" (Thomson) uses
 # the full fitted covariance; method="bartlett" uses only the specific
 # (residual) variances and is the classic unbiased factor-score estimator.
@@ -611,7 +611,7 @@ rotate_back_mmes <- function(object){
     stop(
       paste0(
         "term '", term, "' has no BLUPs (it is a residual covariance structure); ",
-        "scores_mmes() requires a random-effect fam()/rrcm() term."
+        "scores_mmes() requires a random-effect fam()/rrm() term."
       ),
       call.=FALSE
     )

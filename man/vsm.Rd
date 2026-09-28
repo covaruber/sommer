@@ -104,7 +104,7 @@ str(with(DT, vsm(toeplitzm(Env),ism(Name))))
 \code{\link{mmes}}, \code{\link{ism}}, \code{\link{dsm}}, \code{\link{atm}}, \code{\link{usm}},
 \code{\link{csm}}, \code{\link{ar1m}}, \code{\link{ar2m}}, \code{\link{ar3m}},
 \code{\link{mam}},
-\code{\link{corgm}}, \code{\link{fam}}, \code{\link{antem}}, \code{\link{rrcm}},
+\code{\link{corgm}}, \code{\link{fam}}, \code{\link{antem}}, \code{\link{rrm}},
 \code{\link{maternm}}, \code{\link{toeplitzm}}, \code{\link{sar}}, \code{\link{car}},
 and \code{\link{ownm}}.
 }

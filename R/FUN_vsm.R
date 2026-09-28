@@ -13,7 +13,7 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
       paste0(
         "Every term supplied to vsm() must be wrapped in a covariance ",
         "constructor returning a CovarianceFactor descriptor, such as ",
-        "ism(), dsm(), usm(), ar1m(), csm(), rrcm(), fam(), ",
+        "ism(), dsm(), usm(), ar1m(), csm(), rrm(), fam(), ",
         "maternm(), toeplitzm(), sar(), car(), or ownm()."
       ),
       call. = FALSE
@@ -2086,7 +2086,7 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
   }else if(model == "rr"){
     # Reduced-rank is intentionally compiled to the generic callback backend.
     # This is the proof-of-concept for future covariance structures: adding
-    # rrcm() requires no native C++ evaluator or solver-specific branch.
+    # rrm() requires no native C++ evaluator or solver-specific branch.
     order <- as.integer(f$order)
     rows <- as.integer(f$rr_row)
     cols <- as.integer(f$rr_col)
@@ -2938,7 +2938,7 @@ ownm <- function(x, K=NULL, fun=NULL, par=numeric(), fixed=NULL,
 # Henderson precision-based implementation.  The leading k x k block of Lambda
 # is lower triangular for rotational identification and its diagonal entries are
 # positive through a log parameterization.
-rrcm <- function(x, k=1L, loadings=NULL, fixed=NULL){
+rrm <- function(x, k=1L, loadings=NULL, fixed=NULL){
   expr <- as.character(substitute(x))
   dummy <- .cov_dummy(x, expr)
   q <- ncol(dummy)
@@ -2946,7 +2946,7 @@ rrcm <- function(x, k=1L, loadings=NULL, fixed=NULL){
   
   k <- as.integer(k)
   if(length(k) != 1L || k < 1L || k >= q){
-    stop("k in rrcm() must satisfy 1 <= k < number of levels.", call. = FALSE)
+    stop("k in rrm() must satisfy 1 <= k < number of levels.", call. = FALSE)
   }
   
   rows <- integer()
@@ -2972,12 +2972,12 @@ rrcm <- function(x, k=1L, loadings=NULL, fixed=NULL){
   }else{
     L <- as.matrix(loadings)
     if(!all(dim(L) == c(q,k)) || any(!is.finite(L))){
-      stop("loadings in rrcm() must be a finite q x k matrix.", call. = FALSE)
+      stop("loadings in rrm() must be a finite q x k matrix.", call. = FALSE)
     }
     for(j in seq_len(k)){
       if(j > 1L) L[seq_len(j-1L),j] <- 0
       if(L[j,j] <= 0){
-        stop("Leading diagonal loadings in rrcm() must be positive.", call. = FALSE)
+        stop("Leading diagonal loadings in rrm() must be positive.", call. = FALSE)
       }
     }
   }
@@ -2998,7 +2998,7 @@ rrcm <- function(x, k=1L, loadings=NULL, fixed=NULL){
   
   if(is.null(fixed)) fixed <- rep(FALSE, length(vals))
   if(length(fixed) != length(vals)){
-    stop("fixed in rrcm() must match the number of loading parameters.", call. = FALSE)
+    stop("fixed in rrm() must match the number of loading parameters.", call. = FALSE)
   }
   
   list(

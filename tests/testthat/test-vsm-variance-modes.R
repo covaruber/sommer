@@ -131,7 +131,7 @@ test_that("all covariance-factor families provide finite native reports", {
     ar2m(x4), ar2m(x4, variance="heterogeneous"),
     ar3m(x4), ar3m(x4, variance="heterogeneous"),
     csm(x3), csm(x3, variance="heterogeneous"),
-    mam(x3), corgm(x3), fam(x3, 1), antem(x3), rrcm(x3, 1),
+    mam(x3), corgm(x3), fam(x3, 1), antem(x3), rrm(x3, 1),
     maternm(coords), toeplitzm(x3), sar(x3, W), car(x3, W)
   )
 
