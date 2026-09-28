@@ -6438,9 +6438,226 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       return view;
     };
 
+  const double cholmodInvCacheMaxDoubles = 1.25e8;
+  const int cholmodInvCacheMaxGroup = 8000;
+
+  // Original C column indices of each random-effect inverse group: one group
+  // per covariance block when the random covariance is diagonal, otherwise
+  // one group spanning every block of the random term.
+  auto buildRandomInverseGroups = [&]() -> std::vector< std::vector<int> > {
+    std::vector< std::vector<int> > out;
+    for(int iR = 0; iR < nRe && nZs > 0; ++iR){
+      const arma::mat partitionsP = partitions(iR);
+
+      bool blockDiagonal;
+      if(covType[static_cast<std::size_t>(iR)] == "legacy"){
+        const arma::mat thetaCprov = thetaC[iR];
+        blockDiagonal = true;
+        for(arma::uword a = 0; a < thetaCprov.n_rows && blockDiagonal; ++a){
+          for(arma::uword c = 0; c < thetaCprov.n_cols; ++c){
+            if(a != c && thetaCprov(a, c) > 0){ blockDiagonal = false; break; }
+          }
+        }
+      }else{
+        blockDiagonal = randomStructurallyDiagonal[static_cast<std::size_t>(iR)];
+      }
+
+      const std::size_t firstGroup = out.size();
+      for(arma::uword blk = 0; blk < partitionsP.n_rows; ++blk){
+        if(blockDiagonal || out.size() == firstGroup){ out.emplace_back(); }
+        const int c0 = static_cast<int>(partitionsP(blk, 0)) - 1;
+        const int c1 = static_cast<int>(partitionsP(blk, 1)) - 1;
+        for(int c = c0; c <= c1; ++c){ out.back().push_back(c); }
+      }
+    }
+    return out;
+  };
+
+  // Exact block-Schur engine for C = [Cxx Cxu; Cux blockdiag(D_g)]:
+  // log|C| = sum log|D_g| + log|S|, S = Cxx - sum Cxg D_g^{-1} Cgx.
+  struct BlockSchurEngine {
+    bool active = false;
+    bool patternChecked = false;
+    bool eligible = false;
+    std::vector<int> outerPattern;
+    std::vector<int> innerPattern;
+    std::vector< std::vector<int> > groups;
+    std::vector<int> groupOfU;
+    std::vector<int> localOfU;
+    std::vector<arma::mat> Lg;
+    std::vector<arma::mat> Fg;
+    std::vector<arma::mat> Cgx;
+    arma::mat Ls;
+    double logDet = 0.0;
+  };
+  BlockSchurEngine blockEngine;
+  const int blockEngineMaxFixed = 2000;
+
+  auto blockEngineCheckPattern = [&](const EigenSpMat & A) -> bool {
+    if(blockEngine.patternChecked &&
+       eigenSparsePatternMatches(A, blockEngine.outerPattern, blockEngine.innerPattern)){
+      return blockEngine.eligible;
+    }
+    cacheEigenSparsePattern(A, blockEngine.outerPattern, blockEngine.innerPattern);
+    blockEngine.patternChecked = true;
+    blockEngine.eligible = false;
+    blockEngine.groups = buildRandomInverseGroups();
+    if(nX > blockEngineMaxFixed || Nu == 0 || blockEngine.groups.empty()){ return false; }
+
+    blockEngine.groupOfU.assign(static_cast<std::size_t>(Nu), -1);
+    blockEngine.localOfU.assign(static_cast<std::size_t>(Nu), -1);
+    double totalDoubles = 0.0;
+    for(std::size_t g = 0; g < blockEngine.groups.size(); ++g){
+      const std::vector<int> & cols = blockEngine.groups[g];
+      const double m = static_cast<double>(cols.size());
+      if(cols.size() > static_cast<std::size_t>(cholmodInvCacheMaxGroup)){ return false; }
+      totalDoubles += 2.0 * m * m + 3.0 * m * static_cast<double>(nX);
+      for(std::size_t j = 0; j < cols.size(); ++j){
+        const int u = cols[j] - nX;
+        if(u < 0 || u >= Nu || blockEngine.groupOfU[static_cast<std::size_t>(u)] != -1){ return false; }
+        blockEngine.groupOfU[static_cast<std::size_t>(u)] = static_cast<int>(g);
+        blockEngine.localOfU[static_cast<std::size_t>(u)] = static_cast<int>(j);
+      }
+    }
+    if(totalDoubles > cholmodInvCacheMaxDoubles){ return false; }
+    for(int u = 0; u < Nu; ++u){
+      if(blockEngine.groupOfU[static_cast<std::size_t>(u)] < 0){ return false; }
+    }
+
+    // Random blocks must be uncoupled and dense enough for dense Cholesky to win.
+    std::vector<double> nnzInGroup(blockEngine.groups.size(), 0.0);
+    for(int j = nX; j < nEffects; ++j){
+      const int g = blockEngine.groupOfU[static_cast<std::size_t>(j - nX)];
+      for(EigenSpMat::InnerIterator it(A, j); it; ++it){
+        const int i = static_cast<int>(it.row());
+        if(i < nX){ continue; }
+        if(blockEngine.groupOfU[static_cast<std::size_t>(i - nX)] != g){ return false; }
+        nnzInGroup[static_cast<std::size_t>(g)] += 1.0;
+      }
+    }
+    for(std::size_t g = 0; g < blockEngine.groups.size(); ++g){
+      const double m = static_cast<double>(blockEngine.groups[g].size());
+      if(m > 64.0 && nnzInGroup[g] < 0.1 * m * m){ return false; }
+    }
+    blockEngine.eligible = true;
+    return true;
+  };
+
+  auto blockEngineSolveD = [&](const std::size_t g, const arma::mat & rhs) -> arma::mat {
+    const arma::mat & L = blockEngine.Lg[g];
+    arma::mat tmp;
+    arma::mat out;
+    const bool ok1 = arma::solve(tmp, arma::trimatl(L), rhs, arma::solve_opts::fast);
+    const bool ok2 = ok1 && arma::solve(out, arma::trimatu(L.t()), tmp, arma::solve_opts::fast);
+    if(!ok2){ Rcpp::stop("Dense block-Schur triangular solve failed."); }
+    return out;
+  };
+
+  auto blockEngineFactorize = [&](const EigenSpMat & A) -> void {
+    const std::size_t nG = blockEngine.groups.size();
+    blockEngine.Lg.resize(nG);
+    blockEngine.Fg.resize(nG);
+    blockEngine.Cgx.resize(nG);
+    blockEngine.logDet = 0.0;
+
+    arma::mat S(static_cast<arma::uword>(nX), static_cast<arma::uword>(nX), arma::fill::zeros);
+    for(int j = 0; j < nX; ++j){
+      for(EigenSpMat::InnerIterator it(A, j); it; ++it){
+        if(it.row() < nX){ S(static_cast<arma::uword>(it.row()), static_cast<arma::uword>(j)) = it.value(); }
+      }
+    }
+
+    for(std::size_t g = 0; g < nG; ++g){
+      const std::vector<int> & cols = blockEngine.groups[g];
+      const arma::uword m = static_cast<arma::uword>(cols.size());
+      arma::mat D(m, m, arma::fill::zeros);
+      arma::mat & Cx = blockEngine.Cgx[g];
+      Cx.zeros(m, static_cast<arma::uword>(nX));
+      for(arma::uword jj = 0; jj < m; ++jj){
+        for(EigenSpMat::InnerIterator it(A, cols[jj]); it; ++it){
+          const int i = static_cast<int>(it.row());
+          if(i < nX){
+            Cx(jj, static_cast<arma::uword>(i)) = it.value();
+          }else{
+            D(static_cast<arma::uword>(blockEngine.localOfU[static_cast<std::size_t>(i - nX)]), jj) = it.value();
+          }
+        }
+      }
+      if(!arma::chol(blockEngine.Lg[g], D, "lower")){
+        Rcpp::stop("Dense block Cholesky of the MME coefficient matrix C failed (matrix not positive definite).");
+      }
+      blockEngine.logDet += 2.0 * arma::accu(arma::log(blockEngine.Lg[g].diag()));
+      if(nX > 0){
+        blockEngine.Fg[g] = blockEngineSolveD(g, Cx);
+        S -= Cx.t() * blockEngine.Fg[g];
+      }else{
+        blockEngine.Fg[g].reset();
+      }
+    }
+
+    if(nX > 0){
+      S = 0.5 * (S + S.t());
+      if(!arma::chol(blockEngine.Ls, S, "lower")){
+        Rcpp::stop("Dense block-Schur complement of the fixed effects is not positive definite.");
+      }
+      blockEngine.logDet += 2.0 * arma::accu(arma::log(blockEngine.Ls.diag()));
+    }else{
+      blockEngine.Ls.reset();
+    }
+    blockEngine.active = true;
+  };
+
+  auto blockEngineSolve = [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs) -> Eigen::MatrixXd {
+    const std::size_t nG = blockEngine.groups.size();
+    const arma::uword k = static_cast<arma::uword>(rhs.cols());
+    Eigen::MatrixXd out(rhs.rows(), rhs.cols());
+
+    arma::mat Rx(static_cast<arma::uword>(nX), k);
+    for(arma::uword c = 0; c < k; ++c){
+      for(int i = 0; i < nX; ++i){ Rx(static_cast<arma::uword>(i), c) = rhs(i, static_cast<Eigen::Index>(c)); }
+    }
+    std::vector<arma::mat> Tg(nG);
+    for(std::size_t g = 0; g < nG; ++g){
+      const std::vector<int> & cols = blockEngine.groups[g];
+      arma::mat Rg(static_cast<arma::uword>(cols.size()), k);
+      for(arma::uword c = 0; c < k; ++c){
+        for(std::size_t jj = 0; jj < cols.size(); ++jj){
+          Rg(static_cast<arma::uword>(jj), c) = rhs(cols[jj], static_cast<Eigen::Index>(c));
+        }
+      }
+      Tg[g] = blockEngineSolveD(g, Rg);
+      if(nX > 0){ Rx -= blockEngine.Cgx[g].t() * Tg[g]; }
+    }
+
+    arma::mat B;
+    if(nX > 0){
+      arma::mat tmp;
+      const bool ok =
+        arma::solve(tmp, arma::trimatl(blockEngine.Ls), Rx, arma::solve_opts::fast) &&
+        arma::solve(B, arma::trimatu(blockEngine.Ls.t()), tmp, arma::solve_opts::fast);
+      if(!ok){ Rcpp::stop("Dense block-Schur fixed-effect solve failed."); }
+      for(arma::uword c = 0; c < k; ++c){
+        for(int i = 0; i < nX; ++i){ out(i, static_cast<Eigen::Index>(c)) = B(static_cast<arma::uword>(i), c); }
+      }
+    }
+    for(std::size_t g = 0; g < nG; ++g){
+      if(nX > 0){ Tg[g] -= blockEngine.Fg[g] * B; }
+      const std::vector<int> & cols = blockEngine.groups[g];
+      for(arma::uword c = 0; c < k; ++c){
+        for(std::size_t jj = 0; jj < cols.size(); ++jj){
+          out(cols[jj], static_cast<Eigen::Index>(c)) = Tg[g](static_cast<arma::uword>(jj), c);
+        }
+      }
+    }
+    return out;
+  };
+
   auto solveCVectorCholmod =
     [&](const Eigen::Ref<const Eigen::VectorXd> & rhs,
         const std::string & context) -> Eigen::VectorXd {
+      if(blockEngine.active){
+        return blockEngineSolve(rhs).col(0);
+      }
       cholmod_dense rhsView;
       std::memset(&rhsView, 0, sizeof(rhsView));
       rhsView.nrow = static_cast<size_t>(rhs.size());
@@ -6465,6 +6682,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   auto solveCMatrixCholmod =
     [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs,
         const std::string & context) -> Eigen::MatrixXd {
+      if(blockEngine.active){
+        return blockEngineSolve(rhs);
+      }
       cholmod_dense rhsView;
       std::memset(&rhsView, 0, sizeof(rhsView));
       rhsView.nrow = static_cast<size_t>(rhs.rows());
@@ -6525,6 +6745,227 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       M_cholmod_free_dense(&solution, &cholmodDState.common);
       return ans;
     };
+
+  // Exact dense blocks of C^{-1} (X-X, X-u_g, u_g-u_g) from CHOLMOD's
+  // supernodal LL' factor, shared by the random and residual score traces.
+  struct CholmodInverseBlockCache {
+    bool ready = false;
+    arma::mat Cxx;
+    std::vector<arma::mat> Cuu;
+    std::vector<arma::mat> Cxu;
+    std::vector<int> groupOfU;
+    std::vector<int> localOfU;
+    std::vector<arma::mat> FS;
+    bool crossAvailable = false;
+  };
+  CholmodInverseBlockCache cholmodInvCache;
+
+  // Y = L^{-1} P E_cols; supernodes whose RHS rows are still zero are skipped,
+  // so only the elimination-tree reach of `cols` is processed.
+  auto cholmodForwardSolveUnit =
+    [&](const cholmod_factor * L,
+        const std::vector<int> & iperm,
+        const std::vector<int> & cols,
+        arma::mat & Y,
+        arma::uvec & touchedRows) -> void {
+      const int n = static_cast<int>(L->n);
+      const int m = static_cast<int>(cols.size());
+      Y.zeros(n, m);
+      std::vector<char> touched(static_cast<std::size_t>(n), 0);
+      for(int j = 0; j < m; ++j){
+        Y(static_cast<arma::uword>(iperm[static_cast<std::size_t>(cols[static_cast<std::size_t>(j)])]),
+          static_cast<arma::uword>(j)) = 1.0;
+      }
+      const int * super = static_cast<const int *>(L->super);
+      const int * pi = static_cast<const int *>(L->pi);
+      const int * px = static_cast<const int *>(L->px);
+      const int * srows = static_cast<const int *>(L->s);
+      const double * Lx = static_cast<const double *>(L->x);
+
+      for(std::size_t sn = 0; sn < L->nsuper; ++sn){
+        const int k1 = super[sn];
+        const int k2 = super[sn + 1];
+        const int nscol = k2 - k1;
+        const int psi = pi[sn];
+        const int nsrow = pi[sn + 1] - psi;
+
+        bool active = false;
+        for(int j = 0; j < m && !active; ++j){
+          const double * column = Y.colptr(static_cast<arma::uword>(j)) + k1;
+          for(int r = 0; r < nscol; ++r){
+            if(column[r] != 0.0){ active = true; break; }
+          }
+        }
+        if(!active){ continue; }
+        std::fill(touched.begin() + k1, touched.begin() + k2, 1);
+
+        const arma::mat Ls(
+          const_cast<double *>(Lx + static_cast<std::ptrdiff_t>(px[sn])),
+          static_cast<arma::uword>(nsrow),
+          static_cast<arma::uword>(nscol),
+          false,
+          true
+        );
+        const arma::mat Yin = Y.rows(static_cast<arma::uword>(k1), static_cast<arma::uword>(k2 - 1));
+        const arma::mat L11 = arma::trimatl(Ls.head_rows(static_cast<arma::uword>(nscol)));
+        arma::mat Yk;
+        if(!arma::solve(Yk, arma::trimatl(L11), Yin, arma::solve_opts::fast)){
+          Rcpp::stop("Triangular solve failed while forming CHOLMOD inverse blocks.");
+        }
+        Y.rows(static_cast<arma::uword>(k1), static_cast<arma::uword>(k2 - 1)) = Yk;
+
+        const int nrest = nsrow - nscol;
+        if(nrest > 0){
+          const arma::mat U = Ls.tail_rows(static_cast<arma::uword>(nrest)) * Yk;
+          const int * rest = srows + psi + nscol;
+          for(int j = 0; j < m; ++j){
+            double * yc = Y.colptr(static_cast<arma::uword>(j));
+            const double * uc = U.colptr(static_cast<arma::uword>(j));
+            for(int ii = 0; ii < nrest; ++ii){
+              yc[rest[ii]] -= uc[ii];
+            }
+          }
+        }
+      }
+
+      std::vector<arma::uword> rowsOut;
+      for(int r = 0; r < n; ++r){
+        if(touched[static_cast<std::size_t>(r)]){ rowsOut.push_back(static_cast<arma::uword>(r)); }
+      }
+      touchedRows = arma::uvec(rowsOut);
+    };
+
+  auto buildCholmodInverseBlockCache = [&]() -> void {
+    cholmodInvCache.ready = false;
+    cholmodInvCache.Cuu.clear();
+    cholmodInvCache.Cxu.clear();
+    cholmodInvCache.FS.clear();
+    cholmodInvCache.Cxx.reset();
+    cholmodInvCache.crossAvailable = false;
+
+    if(blockEngine.active){
+      // C^{-1}_xx = S^{-1}, C^{-1}_xg = -S^{-1} F_g', C^{-1}_gh = [g==h] D_g^{-1} + F_g S^{-1} F_h'.
+      arma::mat Sinv;
+      if(nX > 0){
+        arma::mat LsInv;
+        if(!arma::inv(LsInv, arma::trimatl(blockEngine.Ls))){
+          Rcpp::stop("Dense block-Schur inverse of the fixed-effect Schur complement failed.");
+        }
+        Sinv = LsInv.t() * LsInv;
+        cholmodInvCache.Cxx = Sinv;
+      }
+      const std::size_t nG = blockEngine.groups.size();
+      cholmodInvCache.Cuu.resize(nG);
+      cholmodInvCache.Cxu.resize(nG);
+      cholmodInvCache.FS.resize(nG);
+      for(std::size_t g = 0; g < nG; ++g){
+        arma::mat LgInv;
+        if(!arma::inv(LgInv, arma::trimatl(blockEngine.Lg[g]))){
+          Rcpp::stop("Dense block-Schur inverse of a random-effect block failed.");
+        }
+        cholmodInvCache.Cuu[g] = LgInv.t() * LgInv;
+        if(nX > 0){
+          cholmodInvCache.FS[g] = blockEngine.Fg[g] * Sinv;
+          cholmodInvCache.Cuu[g] += cholmodInvCache.FS[g] * blockEngine.Fg[g].t();
+          cholmodInvCache.Cxu[g] = -cholmodInvCache.FS[g].t();
+        }
+      }
+      cholmodInvCache.groupOfU = blockEngine.groupOfU;
+      cholmodInvCache.localOfU = blockEngine.localOfU;
+      cholmodInvCache.crossAvailable = nX > 0;
+      cholmodInvCache.ready = true;
+      return;
+    }
+
+    const cholmod_factor * L = cholmodState.factor;
+    if(L == nullptr || !L->is_super || !L->is_ll ||
+       L->xtype != CHOLMOD_REAL || L->dtype != CHOLMOD_DOUBLE ||
+       L->itype != CHOLMOD_INT || static_cast<int>(L->n) != nEffects){
+      return;
+    }
+    const int n = nEffects;
+    const int * perm = static_cast<const int *>(L->Perm);
+    std::vector<int> iperm(static_cast<std::size_t>(n));
+    for(int k = 0; k < n; ++k){
+      iperm[static_cast<std::size_t>(perm[k])] = k;
+    }
+
+    cholmodInvCache.groupOfU.assign(static_cast<std::size_t>(Nu), -1);
+    cholmodInvCache.localOfU.assign(static_cast<std::size_t>(Nu), -1);
+
+    arma::mat YX;
+    if(nX > 0){
+      std::vector<int> xcols(static_cast<std::size_t>(nX));
+      for(int j = 0; j < nX; ++j){ xcols[static_cast<std::size_t>(j)] = j; }
+      arma::uvec rowsX;
+      cholmodForwardSolveUnit(L, iperm, xcols, YX, rowsX);
+      const arma::mat YXT = YX.rows(rowsX);
+      cholmodInvCache.Cxx = YXT.t() * YXT;
+    }
+
+    for(const std::vector<int> & cols : buildRandomInverseGroups()){
+      const int m = static_cast<int>(cols.size());
+      if(m == 0 || m > cholmodInvCacheMaxGroup ||
+         static_cast<double>(n) * static_cast<double>(m) > cholmodInvCacheMaxDoubles){
+        continue;
+      }
+      arma::mat Y;
+      arma::uvec rowsT;
+      cholmodForwardSolveUnit(L, iperm, cols, Y, rowsT);
+      const arma::mat YT = Y.rows(rowsT);
+      Y.reset();
+      const int g = static_cast<int>(cholmodInvCache.Cuu.size());
+      cholmodInvCache.Cuu.push_back(YT.t() * YT);
+      if(nX > 0){
+        cholmodInvCache.Cxu.push_back(arma::mat(YX.rows(rowsT).t() * YT));
+      }else{
+        cholmodInvCache.Cxu.emplace_back();
+      }
+      for(int j = 0; j < m; ++j){
+        const std::size_t u = static_cast<std::size_t>(cols[static_cast<std::size_t>(j)] - nX);
+        cholmodInvCache.groupOfU[u] = g;
+        cholmodInvCache.localOfU[u] = j;
+      }
+    }
+    cholmodInvCache.ready = true;
+  };
+
+  // Original-index lookup of C^{-1}(i,j); false if the entry is not cached.
+  auto cholmodInverseLookup = [&](int i, int j, double & value) -> bool {
+    if(!cholmodInvCache.ready || i < 0 || j < 0 || i >= nEffects || j >= nEffects){
+      return false;
+    }
+    if(i < nX && j < nX){
+      value = cholmodInvCache.Cxx(static_cast<arma::uword>(i), static_cast<arma::uword>(j));
+      return true;
+    }
+    if(i < nX || j < nX){
+      const int x = i < nX ? i : j;
+      const std::size_t u = static_cast<std::size_t>((i < nX ? j : i) - nX);
+      const int g = cholmodInvCache.groupOfU[u];
+      if(g < 0){ return false; }
+      value = cholmodInvCache.Cxu[static_cast<std::size_t>(g)](
+        static_cast<arma::uword>(x),
+        static_cast<arma::uword>(cholmodInvCache.localOfU[u]));
+      return true;
+    }
+    const std::size_t ui = static_cast<std::size_t>(i - nX);
+    const std::size_t uj = static_cast<std::size_t>(j - nX);
+    const int g = cholmodInvCache.groupOfU[ui];
+    const int h = cholmodInvCache.groupOfU[uj];
+    if(g < 0 || h < 0){ return false; }
+    if(g != h){
+      if(!cholmodInvCache.crossAvailable){ return false; }
+      value = arma::dot(
+        cholmodInvCache.FS[static_cast<std::size_t>(g)].row(static_cast<arma::uword>(cholmodInvCache.localOfU[ui])),
+        blockEngine.Fg[static_cast<std::size_t>(h)].row(static_cast<arma::uword>(cholmodInvCache.localOfU[uj])));
+      return true;
+    }
+    value = cholmodInvCache.Cuu[static_cast<std::size_t>(g)](
+      static_cast<arma::uword>(cholmodInvCache.localOfU[ui]),
+      static_cast<arma::uword>(cholmodInvCache.localOfU[uj]));
+    return true;
+  };
 
   auto preparePCG = [&](const EigenSpMat & Ce){
     matrixFreePCGReady = false;
@@ -6685,13 +7126,17 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         const SelectedInverseSubset & subset,
         const std::string & context,
         bool & usedFallback,
-        const std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)> & genericSolve = nullptr) -> double {
+        const std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)> & genericSolve = nullptr,
+        const bool useCholmodInverseCache = false) -> double {
       usedFallback = false;
       double traceValue = 0.0;
       bool allAvailable = true;
       for(arma::sp_mat::const_iterator it = B.begin(); it != B.end(); ++it){
         double zij = 0.0;
-        if(!getSelectedInverseOriginal(subset, static_cast<int>(it.col()), static_cast<int>(it.row()), zij)){
+        const bool have = useCholmodInverseCache
+          ? cholmodInverseLookup(static_cast<int>(it.row()), static_cast<int>(it.col()), zij)
+          : getSelectedInverseOriginal(subset, static_cast<int>(it.col()), static_cast<int>(it.row()), zij);
+        if(!have){
           allAvailable = false;
           break;
         }
@@ -6856,6 +7301,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   Eigen::MatrixXd pcgTraceZ;
   Eigen::MatrixXd pcgTraceX;
   bool reportedOpenMpSlq = false;
+  bool reportedBlockEngine = false;
   bool reportedOpenMpResidualBlocks = false;
 
   auto preparePCGTraceProbes = [&](const Eigen::Index n){
@@ -6902,7 +7348,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   };
 
 
-    if(verbose && !reportedOpenMpSlq){
+    if(verbose && !reportedOpenMpSlq && solverName == "pcg"){
 #ifdef _OPENMP
       Rcpp::Rcout
         << "OpenMP active: parallel SLQ log-determinant probes ("
@@ -8266,38 +8712,56 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
       }
     }else if(solverName == "cholmod"){
-      // Supernodal (BLAS-3) direct factorisation via R's Matrix package.
-      // No Takahashi selected inverse is available for a supernodal factor
-      // in this phase; score/AI-matrix traces instead fall back to batched
-      // direct solves (see sparseTraceInverseTimes's useGenericCSolve path).
-      cholmodState.ensureStarted();
-      cholmod_sparse Cview = eigenToCholmodSparseView(C);
-
-      const bool sameCPattern =
-        CholmodSymbolicReady && eigenSparsePatternMatches(C, CouterPattern, CinnerPattern);
-
-      if(!sameCPattern || cholmodState.factor == nullptr){
-        if(cholmodState.factor != nullptr){
-          M_cholmod_free_factor(&cholmodState.factor, &cholmodState.common);
+      // Supernodal (BLAS-3) direct factorisation via R's Matrix package, or
+      // the exact dense block-Schur engine when C's random block is
+      // block-diagonal with dense blocks (e.g. diag(env) x dense Gu).
+      cholmodInvCache.ready = false;
+      blockEngine.active = false;
+      if(reml && blockEngineCheckPattern(C)){
+        blockEngineFactorize(C);
+        logDetC = blockEngine.logDet;
+        if(!std::isfinite(logDetC)){
+          Rcpp::stop("Dense block-Schur engine produced a non-finite log-determinant for C.");
         }
-        cholmodState.factor = M_cholmod_analyze(&Cview, &cholmodState.common);
-        if(cholmodState.factor == nullptr || cholmodState.common.status != CHOLMOD_OK){
-          Rcpp::stop("CHOLMOD symbolic analysis of the MME coefficient matrix C failed.");
+        CnumericReady = true;
+        if(verbose && !reportedBlockEngine){
+          Rcpp::Rcout
+            << "Dense block-Schur engine active ("
+            << blockEngine.groups.size()
+            << " random-effect blocks)."
+            << arma::endl;
+          reportedBlockEngine = true;
         }
-        cacheEigenSparsePattern(C, CouterPattern, CinnerPattern);
-        CholmodSymbolicReady = true;
-      }
+      }else{
+        cholmodState.ensureStarted();
+        cholmod_sparse Cview = eigenToCholmodSparseView(C);
 
-      const int factorizeOk =
-        M_cholmod_factorize(&Cview, cholmodState.factor, &cholmodState.common);
-      if(!factorizeOk || cholmodState.common.status != CHOLMOD_OK){
-        Rcpp::stop("CHOLMOD supernodal factorisation of the MME coefficient matrix C failed.");
-      }
-      CnumericReady = true;
+        const bool sameCPattern =
+          CholmodSymbolicReady && eigenSparsePatternMatches(C, CouterPattern, CinnerPattern);
 
-      logDetC = M_cholmod_factor_ldetA(cholmodState.factor);
-      if(!std::isfinite(logDetC)){
-        Rcpp::stop("CHOLMOD produced a non-finite log-determinant for C.");
+        if(!sameCPattern || cholmodState.factor == nullptr){
+          if(cholmodState.factor != nullptr){
+            M_cholmod_free_factor(&cholmodState.factor, &cholmodState.common);
+          }
+          cholmodState.factor = M_cholmod_analyze(&Cview, &cholmodState.common);
+          if(cholmodState.factor == nullptr || cholmodState.common.status != CHOLMOD_OK){
+            Rcpp::stop("CHOLMOD symbolic analysis of the MME coefficient matrix C failed.");
+          }
+          cacheEigenSparsePattern(C, CouterPattern, CinnerPattern);
+          CholmodSymbolicReady = true;
+        }
+
+        const int factorizeOk =
+          M_cholmod_factorize(&Cview, cholmodState.factor, &cholmodState.common);
+        if(!factorizeOk || cholmodState.common.status != CHOLMOD_OK){
+          Rcpp::stop("CHOLMOD supernodal factorisation of the MME coefficient matrix C failed.");
+        }
+        CnumericReady = true;
+
+        logDetC = M_cholmod_factor_ldetA(cholmodState.factor);
+        if(!std::isfinite(logDetC)){
+          Rcpp::stop("CHOLMOD produced a non-finite log-determinant for C.");
+        }
       }
 
       if(!reml && Nu > 0){
@@ -8689,6 +9153,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         );
         DselectedTopologyReady = true;
       }
+    }else if(solverName == "cholmod" && reml){
+      buildCholmodInverseBlockCache();
     }else if(solverName == "pcg"){
       preparePCGTraceProbes(static_cast<Eigen::Index>(nEffects));
     }
@@ -9554,7 +10020,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                   Rcpp::stop("Random-effect inverse block dimensions are inconsistent with Ai.");
                 }
                 double cij = 0.0;
-                const bool haveEntry = reml
+                const bool haveEntry = solverName == "cholmod"
+                  ? (reml && cholmodInverseLookup(
+                      static_cast<int>(rowStart + ar),
+                      static_cast<int>(colStart + ac),
+                      cij))
+                  : reml
                   ? getSelectedInverseOriginal(
                       CselectedTopology,
                       static_cast<int>(colStart + ac),
@@ -9994,7 +10465,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                   CselectedTopology,
                   "residual trace tr(C^{-1} W'Ri(dR/dphi)RiW)",
                   usedCTraceFallback,
-                  solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveCMatrix) : nullptr
+                  solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveCMatrix) : nullptr,
+                  solverName == "cholmod"
                 )
               : (Nu > 0
                   ? sparseTraceInverseTimes(
