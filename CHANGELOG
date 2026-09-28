@@ -514,8 +514,6 @@ version 4.4.8 (2026-09-23)
  
 ######################
 ## PENDINGS AND PRIORITIES 
-+ Generalized linear models in mmes
-+ covariance structures in MNR direct inversion (new function MNR2)
-+ function to detect if we use di or mme
-+ MNR2 called inside mmes when possible (p > n)
++ cholmod solver only used looking at the Gu not to the entire model
++ rotation enabled for structured residuals
 + Fix plot.mmes
