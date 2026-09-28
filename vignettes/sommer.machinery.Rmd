@@ -1,0 +1,1065 @@
+---
+title: "Inside sommer: the ai_mme_sp2 engine"
+author: "sommer development team"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Inside sommer: the ai_mme_sp2 engine}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+This vignette is a technical tour of `ai_mme_sp2()`, the C++ engine used by
+`mmes()` for Henderson-based mixed-model fitting. It explains the equations
+the engine solves, how covariance parameters are represented and estimated,
+why there are three sparse-system solvers, and where the major computational
+savings come from. Small examples connect the equations to actual R output.
+
+The discussion is specific to the Henderson engine (`mmes(...,
+henderson=TRUE)`, the default). `henderson=FALSE` selects a different,
+direct-inversion engine and is outside the solver comparisons below. Some
+implementation details evolve; the source comments in `src/MNR.cpp` are the
+authoritative record of the current implementation.
+
+**Reading map**
+
+1. The problem `ai_mme_sp2()` solves
+2. Henderson equations and the restricted likelihood
+3. Covariance parameters: legal coordinates for optimization
+4. How AI-REML proposes and accepts updates
+5. Three solvers for the MME system
+6. Structure-aware shortcuts and where the speed comes from
+7. The C++ numerical libraries
+8. Two small numerical examples
+9. Choosing settings and interpreting results
+
+```{r setup, include=FALSE}
+library(sommer)
+```
+
+# 1. The problem the engine solves
+
+## 1.1 A structured linear mixed model
+
+For one response, write the model as
+
+$$
+y = X\beta + \sum_{i=1}^m Z_i u_i + e,
+\qquad u_i\sim N(0,G_i),\qquad e\sim N(0,R).
+$$
+
+Here $X$ and $Z_i$ describe how observations connect to fixed and random
+effects. The unknown covariance matrices are not arbitrary dense matrices.
+They are generated from a small parameter vector: for example, a random
+intercept has one variance, while an unstructured $q$-trait covariance has
+$q(q+1)/2$ covariance coordinates. `vsm()` and its covariance constructors
+describe those structures to the engine.
+
+The marginal covariance of the observations is
+
+$$
+V = \sum_i Z_iG_iZ_i' + R.
+$$
+
+One possible fitting strategy forms and factors $V$, whose dimension is the
+number of observations. `ai_mme_sp2()` instead uses Henderson's equations,
+whose dimension is the total number of fixed- and random-effect
+coefficients. In grouped-data problems that coefficient system can be
+substantially smaller and sparser than $V$.
+
+## 1.2 What is and is not estimated here
+
+The regression coefficients and random-effect predictions are solved as
+linear-system quantities at each covariance-parameter iterate. The iterative
+optimization estimates the covariance parameters: the scale parameters,
+variance ratios, correlations, loadings, and any other free coordinates in
+the supplied covariance descriptors. Fixed covariance parameters are held
+at their specified values and omitted from the free update.
+
+For REML, the target is the restricted likelihood, which accounts for the
+fixed-effect design while estimating covariance. For ML, it is the ordinary
+likelihood. `REML=TRUE` is the default. `REML=FALSE` is supported by the
+`ldlt` and `cholmod` solvers; the current `pcg` path is REML-only.
+
+# 2. Henderson equations and the restricted likelihood
+
+## 2.1 The coefficient matrix
+
+Stack all design matrices as $W=[X\ Z]$, and stack all coefficients as
+$b=(\beta',u')'$. Let $G$ denote the block-diagonal covariance of the random
+effects. Henderson's mixed-model equations are
+
+$$
+C b = r,
+\qquad
+C = W'R^{-1}W +
+\begin{pmatrix}0&0\\0&G^{-1}\end{pmatrix},
+\qquad
+r=W'R^{-1}y.
+$$
+
+The solution gives the generalized least-squares estimate $\hat\beta$ and
+the best linear unbiased predictions (BLUPs) $\hat u$. In code, the random
+prior contribution is assembled as structured precision blocks; if a
+relationship inverse $A_i$ is supplied, the corresponding contribution has
+the form $K_i^{-1}\otimes A_i$, with the exact factor order determined by the
+`vsm()` descriptor.
+
+The fitted-data quadratic can be computed without constructing the dense
+projection matrix $P$:
+
+$$
+y'Py = y'R^{-1}y - r'C^{-1}r.
+$$
+
+This identity is central to the Henderson route. The engine solves for $b$
+and obtains the quadratic from a scalar correction, rather than forming the
+observation-sized $P=V^{-1}-V^{-1}X(X'V^{-1}X)^{-1}X'V^{-1}$.
+
+## 2.2 The REML objective in Henderson form
+
+Ignoring constants that do not depend on covariance parameters, the
+restricted log likelihood has the schematic form
+
+$$
+\ell_R = -\frac12\left[
+  \log|C| + \log|R| + y'Py
+  + \sum_i \left\{a_i\log|G_i| + b_i\log|A_i|\right\}
+\right].
+$$
+
+The multipliers $a_i,b_i$ depend on the dimensions of the structured random
+term and its relationship precision. They account for the covariance
+determinants represented by the descriptors. The expression emphasizes the
+three numerical ingredients that matter on each iteration:
+
+- log determinants of the MME system and covariance structures;
+- solves with the MME system and residual precision;
+- derivatives of those terms with respect to free covariance parameters.
+
+The code evaluates $y'Py$ using the Henderson identity above and computes
+log determinants from factorizations or structure-specific formulas. It
+does not generally build $P$ or an inverse of the full observation
+covariance.
+
+For ML, the fixed effects are not removed by a restricted-likelihood
+determinant. The objective replaces $\log|C|$ by $\log|D|$, where $D$ is the
+random-effects-only block of $C$:
+
+$$
+D=Z'R^{-1}Z+G^{-1}.
+$$
+
+The quadratic form is unchanged. This is why the ML and REML paths share
+most of the work but differ in the determinant term and corresponding score
+traces.
+
+## 2.3 A useful connection to the textbook score
+
+If $V_j=\partial V/\partial\phi_j$ is the derivative of the marginal
+covariance with respect to a covariance parameter $\phi_j$, the familiar
+REML score can be written
+
+$$
+U_j = \frac12\left[y'PV_jPy-\operatorname{tr}(PV_j)\right].
+$$
+
+The average-information (AI) matrix is commonly written
+
+$$
+\mathcal I_{ij}^{AI}
+=\frac12 y'PV_iPV_jPy.
+$$
+
+These formulas are useful for understanding the statistics, but they are
+not a recipe the C++ implementation follows literally. `ai_mme_sp2()` uses
+equivalent Henderson-system identities, structured precision derivatives,
+selected inverse entries, and linear solves. Avoiding explicit $P$ and dense
+$V_j$ matrices is a major part of the speed advantage.
+
+# 3. Covariance parameters: legal coordinates for optimization
+
+## 3.1 Natural values and working values
+
+An optimizer that takes arbitrary real steps can propose a negative
+variance, a correlation outside its valid interval, or a non-positive
+definite covariance. The covariance descriptors solve this by optimizing
+working coordinates $\eta$ and mapping them to legal natural parameters
+$\theta=g(\eta)$.
+
+Examples include:
+
+| Quantity | Working coordinate | Natural value |
+|---|---|---|
+| Positive scale or variance ratio | $\eta\in\mathbb R$ | $\exp(\eta)>0$ |
+| AR(1) correlation | $\eta\in\mathbb R$ | $\rho=\tanh(\eta)$ |
+| Uniform correlation for $q$ levels | $\eta\in\mathbb R$ | logistic map into $(-1/(q-1),1)$ |
+| Unstructured covariance | Cholesky-factor coordinates | $K=LL'$ |
+
+The product scale for a `vsm()` term is kept separate from covariance
+shape. Schematically,
+
+$$
+G = \sigma^2(K_1\otimes\cdots\otimes K_s),
+$$
+
+with one overall scale and dimensionless factor shapes. This avoids
+confounding multiple free scales inside one product. Internally, the overall
+scale is represented on a log scale and scaled relative to the response
+variance; results are transformed back to the data scale for reporting.
+
+## 3.2 Derivatives belong to the covariance descriptor
+
+Each compiled covariance descriptor supplies the factor evaluator and
+derivative information needed by the optimizer. For built-in structures,
+these derivatives are computed natively. A user-defined structure can also
+provide a derivative callback; if it does not, the small factor matrix can
+be centrally finite-differenced.
+
+The statistical optimizer therefore does not need a separate branch for
+every named covariance model. It requests a covariance, precision, log
+determinant, and derivatives from the descriptor interface. This is both a
+software design choice and a computational one: derivatives can be
+calculated at the compact factor level before any full coefficient-space
+work is attempted.
+
+## 3.3 Fixed parameters and covariance validity
+
+An explicitly fixed parameter is never included as an unknown in the
+information-system solve. Positive scales have lower bounds, and structured
+factors use their own valid working ranges. The engine also checks that
+proposed covariance matrices remain positive definite where required.
+
+The coordinate transforms make many invalid values unreachable, but they do
+not guarantee that every numerical step is useful. A very large working
+step can produce an ill-conditioned covariance or reduce the likelihood.
+That is handled separately by trust caps, positive-definiteness repairs,
+and likelihood backtracking (Chapter 4).
+
+# 4. How AI-REML proposes and accepts updates
+
+## 4.1 Score, information, and an update
+
+At the current covariance parameter vector, the engine computes a score
+vector and an information matrix. The score measures the local direction in
+which the likelihood changes. The information matrix scales that direction
+according to the curvature of the likelihood surface. An information
+system is solved for a parameter correction; conceptually,
+
+$$
+\text{information}\times\text{correction}\approx\text{score}.
+$$
+
+In `ai_mme_sp2()`, the information calculation uses the Henderson equations
+and derivatives of the covariance precision. The AI terms require
+sensitivity solves of the form
+
+$$
+C\,\frac{\partial b}{\partial\phi_j}
+=-\frac{\partial C}{\partial\phi_j}b
+-\frac{\partial r}{\partial\phi_j}.
+$$
+
+Those solutions feed the AI curvature without numerically differentiating
+the complete likelihood. Cross-derivatives between distinct covariance
+structures are zero where the structures are parameter-independent; within
+a structure, second derivative corrections are included as needed.
+
+## 4.2 Why blend AI with EM information?
+
+AI steps are usually much faster than expectation-maximization (EM) near the
+optimum, but can be aggressive when a parameter is near a boundary or when
+the local curvature is poorly behaved. EM-style information tends to give
+more conservative, stable movement for simple variance parameters. The
+implementation combines them:
+
+$$
+\mathcal I_{used}
+= (1-w_{EM})\mathcal I_{AI}+w_{EM}\mathcal I_{EM}.
+$$
+
+`emWeight` controls $w_{EM}$ by iteration. By default it starts relatively
+conservatively and tapers toward a small value, so early updates get more
+stabilization and later updates rely more heavily on AI. `stepWeight`
+separately scales the score step. They are distinct controls: one blends
+information matrices; the other damps the proposed correction.
+
+## 4.3 Safeguards around the proposed step
+
+The candidate update is not accepted merely because the information system
+was solvable. The engine applies several layers of protection:
+
+1. Fixed parameters are held exactly fixed, and bounded parameters are
+   returned to their legal search ranges.
+2. Per-parameter trust caps limit movement in working coordinates. The
+   overall log scale has a tighter cap than most generic factor coordinates.
+3. Covariance structures are checked for positive definiteness. When a
+   proposed structure fails, local repairs or a shortened move are tried.
+4. The candidate likelihood is evaluated. If it decreases beyond numerical
+   tolerance, a global geometric line search halves the step, up to the
+   implementation's retry limit.
+
+This distinction matters: a valid covariance is not necessarily a
+likelihood-improving update, and an improving update is not necessarily a
+well-conditioned one. The protections address both issues.
+
+Convergence is assessed using likelihood and parameter-change criteria. A
+signed likelihood decrease is not interpreted as convergence; it triggers
+backtracking. Iteration counts describe accepted optimization iterations,
+not every internal line-search retry.
+
+# 5. Three solvers for the MME system
+
+All three choices solve the same statistical model. The difference is how
+they handle the coefficient matrix $C$ and the traces/log determinants
+needed for covariance estimation.
+
+## 5.1 `solver="ldlt"`: sparse direct factorization
+
+The default for the usual sparse MME is Eigen's simplicial sparse LDLT
+factorization:
+
+$$
+C = LDL',
+\qquad \log|C|=\sum_k\log(D_{kk}).
+$$
+
+The factor supports accurate solves for the BLUP, fixed effects, and
+parameter sensitivities. If the sparsity pattern is unchanged between
+iterations, the symbolic analysis (ordering and fill structure) is reused;
+the numerical factorization is redone because covariance values change.
+
+For score traces, the code can use a selected subset of $C^{-1}$ instead of
+forming all of $C^{-1}$. In the LDLT case, a Takahashi recursion computes the
+inverse entries associated with the factor's nonzero pattern. If a needed
+entry is outside the selected subset, the code falls back to batched solves.
+`computeCi=1` uses this sparse selected-inverse route for requested
+uncertainty calculations.
+
+**Strengths:** deterministic direct solves and log determinants; useful
+selected-inverse structure; generally effective when $C$ remains sparse.
+
+**Cost:** a direct factorization can become expensive when a dense
+relationship precision causes extensive fill-in. Sparse input does not
+guarantee a sparse factor.
+
+## 5.2 `solver="cholmod"`: supernodal direct factorization
+
+CHOLMOD is accessed through the `Matrix` package's registered CHOLMOD
+callables. Its supernodal sparse Cholesky factorization groups dense parts
+of the factor into supernodes and uses matrix-matrix kernels. In broad terms,
+this spends more arithmetic on dense blocks to use cache-friendly,
+BLAS-3 operations effectively. That can be a better fit than simplicial
+LDLT when the MME has substantial fill-in, particularly with dense
+relationship matrices.
+
+The fitted model and likelihood remain exact up to floating-point
+round-off. For the score traces, CHOLMOD's factor representation is not
+converted to the LDLT/Takahashi selected-inverse representation in this
+implementation. It uses cached inverse blocks when available and otherwise
+batched factor solves. If `computeCi=1` is requested, a final LDLT
+factorization is used to obtain the selected inverse subset.
+
+There is also an exact block-Schur engine for eligible REML patterns. When
+random-effect blocks are uncoupled except through a relatively small
+border, each block is factored separately and the border is eliminated via
+a Schur complement. For disjoint blocks $D_g$ and border Schur complement
+$S$, the determinant identity is
+
+$$
+\log|C|=\sum_g\log|D_g|+\log|S|.
+$$
+
+This changes the size of the expensive dense factorizations without
+approximating the answer. Eligibility is structural; it is not a guarantee
+that every model using `cholmod` activates this engine.
+
+**Strengths:** often strong when dense fill makes a supernodal factorization
+more efficient; may activate the exact block-Schur path.
+
+**Cost:** still a direct factorization in the general case. Dense factors
+need memory, and trace calculations may require solves when the inverse
+cache does not cover a requested entry.
+
+## 5.3 `solver="pcg"`: iterative solves and stochastic traces
+
+Preconditioned conjugate gradients (PCG) solves $Cx=b$ using products with
+$C$ rather than a sparse direct factorization. The current preconditioner
+is diagonal. This avoids storing a large fill-heavy factor and is attractive
+when a matrix-vector product is cheaper than factorization.
+
+REML also needs $\log|C|$ and inverse traces, not just a BLUP solve. PCG
+approximates them as follows:
+
+- **Log determinant:** stochastic Lanczos quadrature (SLQ) approximates
+  $\log|C|$ from a set of probe vectors and short Lanczos recurrences.
+- **Inverse traces:** Hutchinson's identity estimates
+  $\operatorname{tr}(BC^{-1})$ by averaging probe expressions involving
+  solutions to $Cx=z$.
+- **Linear solves:** each right-hand side is solved iteratively to the
+  requested tolerance. The Lanczos calculation can also supply initial
+  guesses for some trace-probe solves.
+
+The probes are deterministic Rademacher vectors in this implementation.
+Reusing them at successive parameter values gives common random numbers:
+likelihood changes are less confounded by fresh Monte Carlo variation at
+every iteration. The estimates are still approximations, so probe count,
+Lanczos steps, and solve tolerance influence the speed-accuracy tradeoff.
+
+Current defaults are `pcgTol=1e-8`, `pcgTraceProbes=8`, and
+`pcgLanczosSteps=20`; `pcgMaxIters=0` chooses an automatic iteration limit.
+The defaults are practical settings, not a universal error bound.
+
+`solver="pcg"` currently requires `REML=TRUE`. `computeCi=1` is not
+available because it requests the LDLT/Takahashi selected inverse. Use
+`computeCi=0` for the factorization-free fit, or request
+`computeCi=2` only when an explicit full inverse is genuinely needed and
+the system is small enough.
+
+**Strengths:** can avoid direct factorization and its fill/memory cost;
+often benefits from parallel SLQ probes.
+
+**Cost:** log determinants and traces are stochastic approximations, and
+the iteration may need many matrix-vector products or PCG solves. It is not
+automatically faster for small systems, poorly conditioned systems, or
+matrices for which the preconditioner is weak.
+
+## 5.4 At-a-glance comparison
+
+| Feature | `ldlt` | `cholmod` | `pcg` |
+|---|---|---|---|
+| Main system method | Sparse simplicial LDLT | Supernodal sparse Cholesky | Iterative PCG |
+| $\log|C|$ | Factor pivots | Direct factor or exact block-Schur | SLQ estimate |
+| Trace strategy | Selected inverse, then solve fallback | Cached inverse blocks, then solves | Hutchinson probes and solves |
+| Exact likelihood calculations | Yes, up to round-off | Yes, up to round-off | Approximate determinant/traces |
+| ML (`REML=FALSE`) | Yes | Yes | No |
+| Selected inverse (`computeCi=1`) | Native Takahashi subset | Final LDLT subset | Not supported |
+| Typical fit | Sparse pedigree-like precision | Dense/fill-heavy precision | Very large systems where solves dominate |
+
+The default `solver="auto"` in `mmes()` selects `cholmod` if any supplied
+random-effect relationship inverse has density greater than 0.2, and
+otherwise selects `ldlt`. This is a heuristic for separating dense genomic
+relationship matrices from sparse pedigree-style matrices. An explicit
+solver choice always overrides it. `pcg` must be requested explicitly.
+
+# 6. Structure-aware shortcuts and where the speed comes from
+
+There is no single trick that makes every model fast. `ai_mme_sp2()` first
+recognizes algebraic structure, then tries to perform the same statistical
+calculation with smaller factors, fewer entries, or fewer repeated passes.
+
+## 6.1 Kronecker products: invert the factors, not the product
+
+For a structured covariance
+
+$$
+G=s(K_1\otimes K_2\otimes\cdots\otimes K_d),
+$$
+
+the inverse and determinant obey
+
+$$
+G^{-1}=s^{-1}(K_1^{-1}\otimes\cdots\otimes K_d^{-1}),
+$$
+
+and
+
+$$
+\log|G|=q\log s+
+\sum_{j=1}^d\frac{q}{q_j}\log|K_j|,
+\qquad q=\prod_jq_j.
+$$
+
+Computing and retaining each small factor inverse can be much cheaper than
+assembling and factoring the full product. The same factor-wise strategy is
+used for first derivatives and log-determinant derivatives. Selected second
+derivative contractions are also evaluated factor by factor.
+
+This is exact algebra, not an approximation. Generic factors that do not
+have a specialized formula use a small dense factorization. Some structures
+have additional native formulas; for example, AR(1), compound symmetry, and
+antedependence can avoid a generic factorization for their precision or
+determinant.
+
+## 6.2 Diagonal and repeated-block residuals
+
+If residual covariance is diagonal, applying $R^{-1}$ is elementwise and
+its log determinant is the sum of log diagonal entries. No sparse residual
+factorization is needed.
+
+If observations form complete repeated blocks with a common Kronecker
+residual covariance, the engine can factor the small block once and reuse
+its inverse and log determinant across blocks. Trace contributions are
+accumulated block by block. Where the derivative and inverse blocks are
+symmetric, a trace can be computed as an elementwise inner product,
+$\operatorname{tr}(AB)=\sum_{ij}A_{ij}B_{ij}$, rather than forming $AB$.
+
+Missing cells or irregular observation blocks can break the repeated
+Kronecker pattern. The code then uses sparse residual factorization or a
+more general path; it does not pretend that an incomplete block has the
+complete-block inverse.
+
+## 6.3 Selected inverse instead of full inverse
+
+Most score traces need only entries of $C^{-1}$ corresponding to nonzeros
+of a sparse derivative matrix. For LDLT, the Takahashi recursion computes
+the inverse entries associated with the factor sparsity. The trace is then
+an accumulation over derivative nonzeros. This avoids the $O(n^2)$ storage
+of a dense inverse when only a sparse subset is needed.
+
+If a requested inverse entry is unavailable from the selected subset, the
+implementation solves for batches of right-hand sides rather than
+immediately materializing all of $C^{-1}$. A full inverse is reserved for
+the explicit `computeCi=2` request.
+
+## 6.4 Reuse what does not change across iterations
+
+Covariance values change at every accepted parameter update, but many
+structural objects do not. When the sparse pattern is unchanged, LDLT and
+CHOLMOD reuse symbolic analysis and repeat only the numeric factorization.
+Other examples include cached residual block mappings, reusable derivative
+topology, and cached inverse blocks for repeated trace access. This is a
+common sparse-optimization pattern: distinguish the graph/pattern from the
+numeric values stored on that graph.
+
+## 6.5 Matrix-free PCG for compatible REML models
+
+For a subset of REML models with compatible factor-wise random covariance
+precision and `computeCi=0`, the PCG iteration can apply the random prior
+through Kronecker/tensor operations. It does not need to assemble the full
+random precision contribution into $C$ on each iteration. The full $C$ is
+materialized once at the end when needed for the fitted-object interface.
+
+This path is intentionally narrower than PCG itself. It does not currently
+cover ML or `computeCi>0`; direct LDLT and CHOLMOD use an explicit coefficient
+matrix. Compatibility depends on the model's covariance structure, not only
+on its size.
+
+## 6.6 Why dense relationship matrices are a different regime
+
+A dense relationship precision can make every random-effect block dense.
+That raises both assembly work and factor fill. `cholmod` often helps because
+its supernodal factorization can exploit dense blocks efficiently; eligible
+models may also use the exact block-Schur engine. PCG can avoid factor
+storage, but then each iteration's repeated matrix-vector products and
+stochastic trace calculations matter.
+
+The best solver depends on the whole system: number of effects, sparsity,
+fill pattern, conditioning, covariance structure, requested uncertainty
+outputs, and available numerical-library threading. Solver labels alone do
+not predict elapsed time.
+
+# 7. The C++ numerical libraries
+
+The speed comes from both the algebra above and the numerical kernels that
+execute it. The main components are:
+
+| Component | Role in the engine | Performance relevance |
+|---|---|---|
+| **Eigen** (`RcppEigen`) | Sparse LDLT, PCG, sparse matrix operations, dense factor kernels | The main sparse-system machinery for `ldlt` and iterative solves; supports reusable symbolic analysis and ordering choices. |
+| **CHOLMOD**, through **Matrix** | Supernodal sparse Cholesky and solves for `solver="cholmod"` | Dense supernodes use efficient matrix-matrix kernels; runtime access is through Matrix's registered C callables rather than a separate package link. |
+| **Armadillo** (`RcppArmadillo`) | Dense covariance-factor arithmetic and much of the descriptor/derivative work | Compact factor matrices are small enough for dense linear algebra; interfaces with R data and Eigen-backed sparse work. |
+| **BLAS/LAPACK** | Dense matrix and factorization kernels selected by the R build | Can have a major impact on supernodal/dense blocks and dense covariance factors. Actual implementation and threading depend on the R installation. |
+| **METIS** (optional) | Nested-dissection ordering for some sparse factorizations | Can reduce fill for suitable large sparse graphs. If not detected at build time, Eigen AMD ordering is used instead. |
+| **OpenMP** (when enabled in R) | Parallel independent probes and selected block/trace loops | Helps tasks with independent blocks or probes; availability depends on how R/package was built. |
+
+`DESCRIPTION` declares `Rcpp`, `RcppArmadillo`, `RcppEigen`, and `Matrix`;
+`Matrix` is also a package dependency. CHOLMOD is provided by the Matrix
+installation, so a separate direct SuiteSparse link is not required by this
+package. METIS is optional and detected at configure time. OpenMP and BLAS
+threading are build/runtime properties; having a parallel-capable library
+does not mean every loop is parallel or that increasing thread counts always
+helps.
+
+overhead can dominate and solver timing is not informative.
+
+# 8. A complete small Henderson solve: two environments and three entries
+
+This section follows one covariance-parameter iterate of the model
+
+$$
+	{yield ~ env},\qquad
+	{random = vsm(usm(env), ism(id), Gu = Ai)},
+$$
+
+with Henderson's equations and the CHOLMOD direct solver. The purpose is to
+show the numerical mechanics of one likelihood evaluation and one MME solve,
+not to claim that the parameter values chosen below are the converged REML
+estimates. During fitting, `ai_mme_sp2()` repeats these calculations at
+successive parameter values and uses the likelihood score and information
+to update them.
+
+The usual `rcov = ~ units` residual model is assumed. There is one record in
+each environment-by-entry cell, so the residual covariance at the worked
+iterate is $R=I_6$. `henderson=TRUE` is the `mmes()` default; the solver choice
+is explicitly `cholmod`.
+
+## 8.1 Data, ordering, and design matrices
+
+Use the observation order
+
+$$
+(A,X),(A,Y),(A,Z),(B,X),(B,Y),(B,Z).
+$$
+
+The response vector is
+
+$$
+y=\begin{pmatrix}10&11&12&20&19&21\end{pmatrix}'.
+$$
+
+With treatment contrasts and A as the reference environment, the fixed
+effects are an intercept and the B-versus-A contrast:
+
+$$
+X=\begin{pmatrix}
+1&0\\1&0\\1&0\\1&1\\1&1\\1&1
+\end{pmatrix},
+\qquad
+\beta=\begin{pmatrix}\beta_0\\\beta_B\end{pmatrix}.
+$$
+
+Each environment-entry pair occurs once. In the stated random-effect
+ordering
+
+$$
+u=(u_{A,X},u_{A,Y},u_{A,Z},u_{B,X},u_{B,Y},u_{B,Z})',
+$$
+
+the random design is consequently $Z=I_6$. This makes the example
+especially transparent: every observation has its own random coefficient,
+but those coefficients are correlated according to the environment and
+entry relationship structures.
+
+## 8.2 The entry relationship and the supplied `Ai`
+
+Let the entry relationship covariance be
+
+$$
+A=\begin{pmatrix}
+1&0.5&0.25\\
+0.5&1&0.25\\
+0.25&0.25&1
+\end{pmatrix},
+$$
+
+so X and Y have relationship 0.5, while X and Z and Y and Z each have
+relationship 0.25. This matrix is positive definite. Its inverse is
+
+$$
+Ai=A^{-1}=\frac1{11}
+\begin{pmatrix}
+15&-7&-2\\
+-7&15&-2\\
+-2&-2&12
+\end{pmatrix}
+=\begin{pmatrix}
+1.363636&-0.636364&-0.181818\\
+-0.636364&1.363636&-0.181818\\
+-0.181818&-0.181818&1.090909
+\end{pmatrix}.
+$$
+
+The distinction is important in this API: `Gu` in `vsm(..., Gu=Ai)` is the
+relationship **inverse/precision** for the final main-effect levels, not
+the covariance $A$ itself. The model description may naturally start from
+$A$, but Henderson's equations add its inverse to the random-effect
+precision block.
+
+## 8.3 The environment covariance and the full random covariance
+
+To make one iteration numerically concrete, set the current product scale
+to $\sigma_g^2=1$ and the current environment covariance shape to
+
+$$
+K_{env}=\begin{pmatrix}1&0.5\\0.5&1\end{pmatrix}.
+$$
+
+This is a valid two-level `usm(env)` shape: its first diagonal is fixed to
+one, and its off-diagonal is 0.5. With `ism(id)` and the supplied entry
+relationship, the random-effect covariance is
+
+$$
+G=\sigma_g^2(K_{env}\otimes A)=K_{env}\otimes A.
+$$
+
+The first Kronecker factor is the slow index and the second is the fast
+index, so the coefficient order is environment first, then entry. Expanded,
+
+$$
+G=\begin{pmatrix}
+1&0.5&0.25&0.5&0.25&0.125\\
+0.5&1&0.25&0.25&0.5&0.125\\
+0.25&0.25&1&0.125&0.125&0.5\\
+0.5&0.25&0.125&1&0.5&0.25\\
+0.25&0.5&0.125&0.5&1&0.25\\
+0.125&0.125&0.5&0.25&0.25&1
+\end{pmatrix}.
+$$
+
+The first $3\times3$ block is the entry relationship within environment A;
+the second diagonal block is the same covariance within B. Cross-environment
+covariance blocks are $0.5A$. For example,
+$\operatorname{cov}(u_{A,X},u_{B,X})=0.5$, while
+$\operatorname{cov}(u_{A,X},u_{B,Z})=0.125$.
+
+At this iterate, the random precision is
+
+$$
+G^{-1}=K_{env}^{-1}\otimes A^{-1},\qquad
+K_{env}^{-1}=\begin{pmatrix}4/3&-2/3\\-2/3&4/3\end{pmatrix},
+$$
+
+or numerically
+
+$$
+G^{-1}=\begin{pmatrix}
+1.818182&-0.848485&-0.242424&-0.909091&0.424242&0.121212\\
+-0.848485&1.818182&-0.242424&0.424242&-0.909091&0.121212\\
+-0.242424&-0.242424&1.454545&0.121212&0.121212&-0.727273\\
+-0.909091&0.424242&0.121212&1.818182&-0.848485&-0.242424\\
+0.424242&-0.909091&0.121212&-0.848485&1.818182&-0.242424\\
+0.121212&0.121212&-0.727273&-0.242424&-0.242424&1.454545
+\end{pmatrix}.
+$$
+
+Notice the negative off-diagonal entries in the precision. They do not mean
+negative relationships: the covariance is $G$, whose corresponding
+cross-environment and cross-entry covariances above are positive. Precision
+encodes conditional coupling, and its signs need not match covariance signs.
+
+The `usm` working coordinates at this exact shape are also easy to see.
+Its lower Cholesky factor is
+
+$$
+L=\begin{pmatrix}1&0\\0.5&\sqrt{0.75}\end{pmatrix},
+\qquad K_{env}=LL'.
+$$
+
+Thus the two free shape coordinates are the unconstrained lower entry
+$L_{21}=0.5$ and the log diagonal coordinate
+$\log(L_{22})=\log(\sqrt{0.75})\approx-0.143841$. Together with
+$\log(\sigma_g^2)$ and the residual log variance, this example has four
+free covariance working coordinates at an ordinary unconstrained iterate.
+The optimizer updates these coordinates, not the entries of $G$ directly.
+
+## 8.4 Assemble Henderson's equations
+
+At the selected iterate $R=I_6$, so $R^{-1}=I_6$. Since $Z=I_6$, the
+Henderson matrix and right-hand side simplify to
+
+$$
+C=\begin{pmatrix}
+X'X&X'\\
+X&I_6+G^{-1}
+\end{pmatrix},
+\qquad
+r=\begin{pmatrix}X'y\\y\end{pmatrix}.
+$$
+
+The fixed-effect crossproducts are
+
+$$
+X'X=\begin{pmatrix}6&3\\3&3\end{pmatrix},\qquad
+X'y=\begin{pmatrix}93\\60\end{pmatrix}.
+$$
+
+Consequently,
+
+$$
+r=\begin{pmatrix}93&60&10&11&12&20&19&21\end{pmatrix}'.
+$$
+
+Substituting the precision matrix from the preceding section gives this
+8-by-8 symmetric positive-definite coefficient matrix (rounded to six
+decimal places):
+
+$$
+C=\begin{pmatrix}
+6&3&1&1&1&1&1&1\\
+3&3&0&0&0&1&1&1\\
+1&0&2.818182&-0.848485&-0.242424&-0.909091&0.424242&0.121212\\
+1&0&-0.848485&2.818182&-0.242424&0.424242&-0.909091&0.121212\\
+1&0&-0.242424&-0.242424&2.454545&0.121212&0.121212&-0.727273\\
+1&1&-0.909091&0.424242&0.121212&2.818182&-0.848485&-0.242424\\
+1&1&0.424242&-0.909091&0.121212&-0.848485&2.818182&-0.242424\\
+1&1&0.121212&0.121212&-0.727273&-0.242424&-0.242424&2.454545
+\end{pmatrix}.
+$$
+
+The upper-left $2\times2$ block comes entirely from the fixed-effect design.
+The upper-right block records which observations belong to each random
+coefficient. The lower-right block combines the observation information
+$Z'R^{-1}Z=I_6$ with the prior precision $G^{-1}$. This is the key
+regularization: without $G^{-1}$, the six cell effects would simply reproduce
+the six observations and would not be shrunk toward their covariance model.
+
+## 8.5 What the CHOLMOD solve returns
+
+CHOLMOD first applies a fill-reducing permutation $P$ and computes a sparse
+Cholesky factorization of the permuted system,
+
+$$
+PCP'=LL'.
+$$
+
+It then solves, in order, the triangular systems
+
+$$
+Lq=Pr,\qquad L't=q,
+$$
+
+and unpermutes $t$ to obtain $\hat b=(\hat\beta',\hat u')'$. On this
+small example the matrix is dense enough that sparse storage has little
+advantage; the same procedure is shown because it is the production solver
+path requested here. CHOLMOD obtains the log determinant from its factor,
+without constructing $C^{-1}$:
+
+$$
+\log|C|=2\sum_j\log(L_{jj})
+$$
+
+for the permuted Cholesky factor (permutation does not change the
+determinant). Numerically, for this iterate,
+$\log|C|\approx5.751654$.
+
+Solving the displayed system gives
+
+$$
+\hat\beta_0=11.055556,\qquad
+\hat\beta_B=9.000000,
+$$
+
+and
+
+$$
+\hat u=\begin{pmatrix}
+-0.433333&-0.233333&0.500000&-0.233333&-0.433333&0.500000
+\end{pmatrix}'.
+$$
+
+Thus the fitted fixed means are $11.055556$ for A and $20.055556$ for B.
+The six fitted values after adding random effects are approximately
+
+$$
+\hat y=\begin{pmatrix}
+10.622222&10.822222&11.555556&19.822222&19.622222&20.555556
+\end{pmatrix}',
+$$
+
+with residuals
+
+$$
+y-\hat y=\begin{pmatrix}
+-0.622222&0.177778&0.444444&0.177778&-0.622222&0.444444
+\end{pmatrix}'.
+$$
+
+The fixed effects absorb the broad environment difference. The random
+effects then account for entry-specific deviations, while their covariance
+structure borrows information both among entries and across environments.
+For instance, the estimated effect for entry X in B is informed not only by
+the B-X observation but also by the A-X effect through the 0.5 environment
+covariance and by Y/Z effects through $A$.
+
+## 8.6 Quadratic form and one likelihood evaluation
+
+The engine does not need to construct the full projection matrix $P$. It
+uses
+
+$$
+y'Py=y'R^{-1}y-r'C^{-1}r.
+$$
+
+Here $y'R^{-1}y=y'y=1436$, and the solved correction is
+$r'C^{-1}r\approx1433.866667$. Therefore
+
+$$
+y'Py\approx2.133333.
+$$
+
+The random covariance determinant is computed factor-wise:
+
+$$
+\log|G|
+=3\log|K_{env}|+2\log|A|
+=3\log(0.75)+2\log(0.6875)
+\approx-1.612433.
+$$
+
+The multipliers are the opposite factor dimensions: each environment
+covariance determinant is repeated for the three entries, and each entry
+relationship determinant is repeated for the two environments. Since
+$R=I_6$, $\log|R|=0$. Omitting the Gaussian constant that is independent
+of covariance parameters, the restricted log likelihood contribution at
+this iterate is
+
+$$
+\ell_R
+=-\frac12\left(\log|C|+\log|G|+\log|R|+y'Py\right)
+\approx-3.136277.
+$$
+
+This is one evaluated point on the likelihood surface, not the answer to
+the optimization. During fitting, the score asks how this objective changes
+as the overall random scale, the two `usm` coordinates, and the residual
+scale move.
+
+## 8.7 How the four covariance coordinates affect this example
+
+For the chosen `usm` shape, write
+
+$$
+L=\begin{pmatrix}1&0\\a&e^d\end{pmatrix},\qquad
+K=LL'=\begin{pmatrix}1&a\\a&a^2+e^{2d}\end{pmatrix}.
+$$
+
+At the current point, $a=0.5$ and $d=\log(\sqrt{0.75})$. The shape
+derivative matrices are
+
+$$
+\frac{\partial K}{\partial a}
+=\begin{pmatrix}0&1\\1&2a\end{pmatrix}
+=\begin{pmatrix}0&1\\1&1\end{pmatrix},
+\qquad
+\frac{\partial K}{\partial d}
+=\begin{pmatrix}0&0\\0&2e^{2d}\end{pmatrix}
+=\begin{pmatrix}0&0\\0&1.5\end{pmatrix}.
+$$
+
+Consequently, the covariance derivatives for the full random effect are
+
+$$
+\frac{\partial G}{\partial a}
+=\sigma_g^2\left(\frac{\partial K}{\partial a}\otimes A\right),
+\qquad
+\frac{\partial G}{\partial d}
+=\sigma_g^2\left(\frac{\partial K}{\partial d}\otimes A\right),
+\qquad
+\frac{\partial G}{\partial\log\sigma_g^2}=G.
+$$
+
+The precision derivatives follow from differentiating an inverse:
+
+$$
+\frac{\partial G^{-1}}{\partial\phi}
+=-G^{-1}\frac{\partial G}{\partial\phi}G^{-1}.
+$$
+
+The determinant derivatives can also be computed without finite-differencing
+the full six-dimensional covariance:
+
+$$
+\frac{\partial\log|G|}{\partial\phi}
+=\operatorname{tr}\left(G^{-1}\frac{\partial G}{\partial\phi}\right).
+$$
+
+The descriptor works on the 2-by-2 environment factor and then lifts the
+result through the Kronecker product. The residual log-scale derivative is
+similarly simple because $R=\sigma_e^2I_6$. These derivatives feed the
+likelihood score and the AI/EM information calculation described earlier.
+
+The optimizer then solves its small covariance-parameter information
+system, applies working-coordinate step caps and covariance-validity checks,
+and evaluates the trial likelihood. A likelihood-decreasing proposal is
+shortened. The next accepted parameter point rebuilds or rescales the
+necessary numeric matrix values and repeats the solve. The fixed design,
+incidence pattern, and symbolic factorization structure can be reused when
+their sparsity pattern remains unchanged.
+
+## 8.8 The converged fit is a different point
+
+For comparison with the deliberately chosen iterate above, fitting the
+specified six observations with `solver="cholmod"` and
+`henderson=TRUE` (using the usual independent `units` residual) gives the
+following native-scale covariance estimates on this run:
+
+$$
+\widehat{\operatorname{var}}(u_{A,\cdot})=0.664395,\qquad
+\widehat{\operatorname{cov}}(u_{A,\cdot},u_{B,\cdot})=0.683457,
+\qquad
+\widehat{\operatorname{var}}(u_{B,\cdot})=0.706016,
+\qquad
+\widehat{\sigma}_e^2=0.482605.
+$$
+
+Here the three random-effect quantities describe the environment covariance
+factor; the entry relationship $A$ still multiplies it by the Kronecker
+construction. The fitted environment covariance is approximately
+
+$$
+\widehat{\Sigma}_{env}=
+\begin{pmatrix}
+0.664395&0.683457\\
+0.683457&0.706016
+\end{pmatrix}.
+$$
+
+Its correlation is about $0.998$ and its determinant is only about
+$0.00196$. This is a near-boundary covariance estimate from a deliberately
+tiny dataset, not a recommendation to infer a stable two-environment
+covariance from six records. It also illustrates why positive-definiteness
+checks, transformed coordinates, AI/EM blending, and likelihood step
+acceptance matter: covariance estimates can be weakly identified even when
+the linear MME solve itself is straightforward.
+
+These converged values are not the values used to assemble the 8-by-8
+matrix earlier. That matrix used the simple illustrative point
+$\sigma_g^2=1$, $K_{env,AB}=0.5$, and $\sigma_e^2=1$ so each intermediate
+calculation could be inspected by hand. A real fit evaluates many such
+systems while moving from its initialized covariance parameters toward the
+accepted likelihood optimum.
+
+## 8.9 What this six-observation example teaches
+
+Even at this tiny size, the fitting work has distinct layers:
+
+1. The R-side model description becomes $X$, $Z$, the covariance
+   descriptors, and the supplied relationship precision $Ai$.
+2. The descriptor maps unconstrained working coordinates to a valid
+   covariance shape and computes factor-level covariance/precision
+   derivatives.
+3. Henderson assembly combines $X'R^{-1}X$, $X'R^{-1}Z$,
+   $Z'R^{-1}Z$, and $K^{-1}\otimes Ai$ into $C$.
+4. CHOLMOD factors $C$ and solves for fixed effects, random effects, and
+   derivative sensitivities; factor diagonals provide $\log|C|$.
+5. The engine combines determinant terms and the Henderson quadratic to
+   evaluate likelihood, then computes the score and blended AI/EM
+   information for the next covariance update.
+6. Safeguards check the proposed parameter step and its likelihood before
+   it is accepted.
+
+The example is deliberately small enough that every matrix can be written
+down. In a large model, the same statistical steps remain, but sparse
+ordering, fill, selected/cached inverse information, repeated-block
+structure, Kronecker identities, and numerical-library kernels determine
+whether those steps are affordable.
+
+# 9. Choosing settings and interpreting results
+
+- Start with `solver="auto"` or `solver="ldlt"` for sparse pedigree-like
+  relationship precision. Try `solver="cholmod"` when supplied relationship
+  precision is dense or the LDLT factor has substantial fill.
+- Consider `solver="pcg"` when factor memory or direct factorization is the
+  bottleneck and approximate log determinants/traces are acceptable. Check
+  convergence and sensitivity to `pcgTol`, `pcgTraceProbes`, and
+  `pcgLanczosSteps`; do not assume solver agreement from BLUP convergence
+  alone.
+- Use `computeCi=0` when inverse-based prediction-error output is not
+  required. `computeCi=1` requests a sparse selected inverse and is a natural
+  choice with LDLT. `computeCi=2` requests the full inverse and can be very
+  expensive in both time and memory.
+- The number of covariance parameters matters. Unstructured covariance
+  factors can make the AI information solve grow quadratically in the number
+  of free parameters, even if the MME solve itself is fast.
+- Irregular residual patterns can remove complete-block shortcuts. Model
+  structure and missingness pattern affect speed as well as record count.
+- For benchmarking, hold the model, convergence tolerances, requested PEV
+  output, thread settings, and number of iterations constant. Separate data
+  preparation time from native fitting time.
+
+The central design principle is simple: `ai_mme_sp2()` tries to preserve the
+statistical calculation while changing the linear algebra representation.
+It uses Henderson's equations to avoid observation-space dense matrices,
+descriptor-level formulas to exploit covariance structure, and a solver
+chosen for the sparsity and scale of the resulting coefficient system.
