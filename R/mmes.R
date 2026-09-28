@@ -355,13 +355,9 @@ mmes <- function(fixed, random, rcov, data, W,
       stop("The direct rotation path currently requires one response column.",
            call.=FALSE)
     }
-    if(!WWasMissing || !is.null(.pqlWorkingPrecision) ||
+    if(!is.null(.pqlWorkingPrecision) ||
        !is.null(.pqlBaseW) || !is.null(.pqlBaseFactor)){
-      stop("rotation=TRUE currently requires the default identity W matrix.",
-           call.=FALSE)
-    }
-    if(rf$covStruct$dim != 1L || any(localIndex != 1L)){
-      stop("rotation=TRUE currently requires an identity residual structure (rcov=~units).",
+      stop("rotation=TRUE is not available with PQL working weights.",
            call.=FALSE)
     }
     if(computeCi != 0L){
@@ -397,6 +393,7 @@ mmes <- function(fixed, random, rcov, data, W,
         )
       }
       rows <- split(ss$i, factor(ss$j, levels=seq_len(nLevels)))
+      rows <- lapply(rows, function(r) r[order(localIndex[r], r)])
       rowsByLevelList[[j]] <- do.call(rbind, rows)
       observationBlockTerm <- c(
         observationBlockTerm,
@@ -414,6 +411,83 @@ mmes <- function(fixed, random, rcov, data, W,
         call.=FALSE
       )
     }
+
+    # Rotation is exact only when R[(i,a),(l,b)] = c_ab * delta_il.
+    levelOfRow <- integer(nrow(yvar))
+    levelOfRow[as.vector(rowsByLevel)] <- as.vector(row(rowsByLevel))
+    levelsPerBlock <- tapply(levelOfRow, residualBlock,
+                             function(x) length(unique(x)))
+    if(any(levelsPerBlock > 1L)){
+      stop(
+        paste0(
+          "rotation=TRUE requires residuals of different relationship levels ",
+          "to be independent. Residual structures that correlate observations ",
+          "of different levels (e.g., ar1m(), maternm(), sar(), car() over ",
+          "plots) are not rotation invariant."
+        ),
+        call.=FALSE
+      )
+    }
+    for(a in seq_len(ncol(rowsByLevel))){
+      if(length(unique(localIndex[rowsByLevel[,a]])) != 1L){
+        stop(
+          paste0(
+            "rotation=TRUE requires every relationship level to share the ",
+            "same residual covariance coordinate within each rotation block. ",
+            "Residual variances or covariances that differ among levels are ",
+            "not rotation invariant."
+          ),
+          call.=FALSE
+        )
+      }
+    }
+    residualGroups <- t(vapply(
+      seq_len(nLevels),
+      function(k){
+        b <- residualBlock[rowsByLevel[k,]]
+        match(b, unique(b))
+      },
+      integer(ncol(rowsByLevel))
+    ))
+    if(ncol(rowsByLevel) == 1L) residualGroups <- t(residualGroups)
+    if(any(sweep(residualGroups, 2, residualGroups[1,], "!="))){
+      stop(
+        paste0(
+          "rotation=TRUE requires the same residual covariance pattern for ",
+          "every relationship level."
+        ),
+        call.=FALSE
+      )
+    }
+
+    if(!WWasMissing){
+      Wcheck <- W
+      if(nrow(Wcheck) == nObs && ncol(Wcheck) == nObs){
+        Wcheck <- Wcheck[keep, keep, drop=FALSE]
+      }
+      Wcheck <- Matrix::Matrix(Wcheck)
+      weightsConstant <- nrow(Wcheck) == nrow(yvar) &&
+        Matrix::isDiagonal(Wcheck) &&
+        all(apply(rowsByLevel, 2, function(rr){
+          w <- Matrix::diag(Wcheck)[rr]
+          max(abs(w - w[1L])) <= 1e-12 * max(1, abs(w[1L]))
+        }))
+      if(!weightsConstant){
+        stop(
+          paste0(
+            "rotation=TRUE requires W to be diagonal with a constant weight ",
+            "within each rotation block."
+          ),
+          call.=FALSE
+        )
+      }
+    }
+
+    residualBlockOriginal <- residualBlock
+    residualBlock[as.vector(rowsByLevel)] <-
+      (as.vector(row(rowsByLevel)) - 1L) * max(residualGroups[1,]) +
+      rep(residualGroups[1,], each=nLevels)
+    residualBlock <- match(residualBlock, unique(residualBlock))
 
     rotateRows <- function(M){
       out <- as.matrix(M)
@@ -457,6 +531,8 @@ mmes <- function(fixed, random, rcov, data, W,
       levels=focal$levels,
       modes=focal$modes,
       rowsByLevel=rowsByLevel,
+      residualBlockOriginal=residualBlockOriginal,
+      residualBlock=residualBlock,
       formulation=if(isTRUE(henderson)) "henderson-eigen-coefficients" else "direct-observation-covariance",
       yOriginal=yOriginal,
       XOriginal=XOriginal,

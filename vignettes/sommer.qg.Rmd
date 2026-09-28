@@ -170,6 +170,7 @@ D <- D.mat(GT) # dominance relationship matrix
 E <- E.mat(GT) # epistatic relationship matrix
 
 Ai <- solve(A + diag(1e-5, nrow(A), nrow(A)))
+Ai[lower.tri(Ai)] <- t(Ai)[lower.tri(Ai)] # fill the lower triangular
 Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 attr(Ai, "inverse")=TRUE
 
@@ -225,6 +226,7 @@ MP <- MP_cpdata
 ### look at the data
 A <- A.mat(GT) # additive relationship matrix
 Ai <- solve(A+ diag(1e-4, nrow(A),nrow(A))) 
+Ai[lower.tri(Ai)] <- t(Ai)[lower.tri(Ai)] # fill the lower triangular
 Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 attr(Ai, "inverse")=TRUE
 
@@ -320,6 +322,7 @@ DT <- as.data.frame(DT);DT$id <- as.factor(rownames(DT))
 K <- A.mat(GT) # additive relationship matrix
 colnames(K) <- rownames(K) <- rownames(DT)
 Ki <- solve(K+ diag(1e-4, nrow(K),nrow(K))) 
+Ki[lower.tri(Ki)] <- t(Ki)[lower.tri(Ki)] # fill the lower triangular
 Ki <- as(as(as( Ki,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 attr(Ki, "inverse")=TRUE
 
@@ -456,9 +459,11 @@ Mf <- (Mf*2) - 1
 Ad <- A.mat(Md)
 Af <- A.mat(Mf)
 Adi <- solve(Ad + diag(1e-4,ncol(Ad),ncol(Ad)))
+Adi[lower.tri(Adi)] <- t(Adi)[lower.tri(Adi)] # fill the lower triangular
 Adi <- as(as(as( Adi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 attr(Adi, 'inverse')=TRUE
 Afi <- solve(Af + diag(1e-4,ncol(Af),ncol(Af)))
+Afi[lower.tri(Afi)] <- t(Afi)[lower.tri(Afi)] # fill the lower triangular
 Afi <- as(as(as( Afi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 attr(Afi, 'inverse')=TRUE
 # RUN THE PREDICTION MODEL
@@ -504,6 +509,7 @@ Multivariate mixed models are useful for estimating genetic variances and covari
 # A <- A.mat(GT) # additive relationship matrix
 # # if using mmes=TRUE you need to provide the inverse
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
+# Ai[lower.tri(Ai)] <- t(Ai)[lower.tri(Ai)] # fill the lower triangular
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # attr(Ai, 'inverse')=TRUE
 # #### be patient this model is heavier
@@ -549,6 +555,7 @@ Now we fit an unstructured model for a legendre polynomial with two traits and a
 # A <- diag(length(unique(DTC$SUBJECT)))
 # rownames(A) <- colnames(A) <- unique(DTC$SUBJECT)
 # Ai <- solve(A + diag(1e-4,ncol(A),ncol(A)))
+# Ai[lower.tri(Ai)] <- t(Ai)[lower.tri(Ai)] # fill the lower triangular
 # Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
 # attr(Ai, 'inverse')=TRUE
 # ##
@@ -618,83 +625,85 @@ An eigendecomposition of a symmetric relationship matrix can be written \(A=UDU^
 
 ```{r}
 
-# data("DT_wheat", package="enhancer")
-# rownames(GT_wheat) <- rownames(DT_wheat)
-# GT <- apply(GT_wheat,2,as.numeric)
-# rownames(GT) <- rownames(GT_wheat)
-# A <- A.mat(GT)
-# Ai <- solve(A + diag(1e-5, nrow(A)))
-# Ai <- as(as(as(Ai, "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# attr(Ai, "inverse") <- TRUE
-# 
-# # One complete observation per relationship level gives a balanced example.
-# DTn <- data.frame(
-#   id=rownames(A),
-#   y=as.numeric(DT_wheat[,1])
-# )
-# 
-# model_regular <- mmes(
-#   y~1,
-#   random=~vsm(ism(id), Gu=Ai),
-#   rcov=~units, data=DTn, verbose=FALSE
-# )
-# 
-# # Henderson MME formulation with eigenbasis random coefficients.
-# model_rotation_h <- mmes(
-#   y~1,
-#   random=~vsm(ism(id), Gu=Ai, rotation=TRUE),
-#   rcov=~units, data=DTn, henderson=TRUE, verbose=FALSE
-# )
-# 
-# # Lee--van der Werf direct observation-covariance formulation.
-# model_rotation_d <- mmes(
-#   y~1,
-#   random=~vsm(ism(id), Gu=Ai, rotation=TRUE),
-#   rcov=~units, data=DTn, henderson=FALSE, verbose=FALSE
-# )
-# 
-# model_regular$covParNative
-# model_rotation_h$covParNative
-# model_rotation_d$covParNative
-# 
-# plot(model_rotation_h$bu[,1], model_regular$bu[,1])
-# plot(model_rotation_d$bu[,1], model_regular$bu[,1])
+data("DT_wheat", package="enhancer")
+rownames(GT_wheat) <- rownames(DT_wheat)
+GT <- apply(GT_wheat,2,as.numeric)
+rownames(GT) <- rownames(GT_wheat)
+A <- A.mat(GT)
+Ai <- solve(A + diag(1e-5, nrow(A)))
+Ai[lower.tri(Ai)] <- t(Ai)[lower.tri(Ai)] # fill the lower triangular
+Ai <- as(as(as(Ai, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(Ai, "inverse") <- TRUE
+isSymmetric(Ai)
+# One complete observation per relationship level gives a balanced example.
+DTn <- data.frame(
+  id=rownames(A),
+  y=as.numeric(DT_wheat[,1])
+)
+
+model_regular <- mmes(
+  y~1,
+  random=~vsm(ism(id), Gu=Ai),
+  rcov=~units, data=DTn, verbose=FALSE
+)
+
+# Henderson MME formulation with eigenbasis random coefficients.
+model_rotation_h <- mmes(
+  y~1,
+  random=~vsm(ism(id), Gu=Ai, rotation=TRUE),
+  rcov=~units, data=DTn, henderson=TRUE, verbose=FALSE
+)
+
+# Lee--van der Werf direct observation-covariance formulation.
+model_rotation_d <- mmes(
+  y~1,
+  random=~vsm(ism(id), Gu=Ai, rotation=TRUE),
+  rcov=~units, data=DTn, henderson=FALSE, verbose=FALSE
+)
+
+model_regular$covParNative
+model_rotation_h$covParNative
+model_rotation_d$covParNative
+
+plot(model_rotation_h$bu[,1], model_regular$bu[,1])
+plot(model_rotation_d$bu[,1], model_regular$bu[,1])
 
 ```
 
-The transformed and untransformed formulations are algebraically equivalent under the rotation assumptions. The current implementation accepts one rotated relationship term in a complete balanced Gaussian model with identity residual covariance, the default identity `W`, and `computeCi=0` during fitting. With `henderson=TRUE`, `mmes()` uses diagonal relationship precision in the eigen-coefficient basis. With `henderson=FALSE`, it uses the Lee--van der Werf transformed observation-covariance formulation. The relative computational benefit depends on model dimensions and sparsity.
+The transformed and untransformed formulations are algebraically equivalent under the rotation assumptions. The current implementation accepts one rotated relationship term in a complete balanced Gaussian model and `computeCi=0` during fitting. Residual structures are supported when they are rotation invariant, i.e. when residuals may covary across rotation blocks such as traits or environments but are independent and identically structured across the levels of the rotated term: \(R=\Sigma_e\otimes I\). Examples are `rcov=~units`, `rcov=~vsm(dsm(env), ism(units))`, and `rcov=~vsm(usm(trait), ism(units))`. Residual structures correlating observations of different levels (e.g., `ar1m()` or `maternm()` over plots), residual variances differing among levels, and `W` matrices that are not diagonal with a constant weight within each rotation block are not invariant and are rejected. With `henderson=TRUE`, `mmes()` uses diagonal relationship precision in the eigen-coefficient basis. With `henderson=FALSE`, it uses the Lee--van der Werf transformed observation-covariance formulation. The relative computational benefit depends on model dimensions and sparsity.
 
 Another example of how usefult this can be is in the multi-trait models:
 
 ```{r}
 
-# data("DT_wheat", package="enhancer")
-# rownames(GT_wheat) <- rownames(DT_wheat)
-# GT <- apply(GT_wheat,2,as.numeric)
-# rownames(GT) <- rownames(GT_wheat)
-# A <- A.mat(GT)
-# Ai <- solve(A + diag(1e-5, nrow(A)))
-# Ai <- as(as(as(Ai, "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# attr(Ai, "inverse") <- TRUE
-# 
-# # One complete observation per relationship level gives a balanced example.
-# data(DT_wheat)
-# DT <- DT_wheat
-# GT <- apply(GT_wheat,2,as.numeric)
-# rownames(GT) <- rownames(GT_wheat)
-# DT <- data.frame(pheno=as.vector(DT),
-#                  env=as.factor(paste0("e", sort(rep(1:4,nrow(DT))))),
-#                  id=rep(rownames(DT),4))
-# 
-# # Henderson MME formulation with eigenbasis random coefficients.
-# model_rotation_h <- mmes(
-#   pheno~1,
-#   random=~vsm(usm(env),ism(id), Gu=Ai, rotation=TRUE),
-#   rcov=~units, data=DT, henderson=TRUE, verbose=FALSE
-# )
-# 
-# # genetic correlation
-# cov2cor(model_rotation_h$theta[[1]])
+data("DT_wheat", package="enhancer")
+rownames(GT_wheat) <- rownames(DT_wheat)
+GT <- apply(GT_wheat,2,as.numeric)
+rownames(GT) <- rownames(GT_wheat)
+A <- A.mat(GT)
+Ai <- solve(A + diag(1e-5, nrow(A)))
+Ai[lower.tri(Ai)] <- t(Ai)[lower.tri(Ai)] # fill the lower triangular
+Ai <- as(as(as(Ai, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(Ai, "inverse") <- TRUE
+isSymmetric(Ai)
+# One complete observation per relationship level gives a balanced example.
+data(DT_wheat)
+DT <- DT_wheat
+GT <- apply(GT_wheat,2,as.numeric)
+rownames(GT) <- rownames(GT_wheat)
+DT <- data.frame(pheno=as.vector(DT),
+                 env=as.factor(paste0("e", sort(rep(1:4,nrow(DT))))),
+                 id=rep(rownames(DT),4))
+
+# Henderson MME formulation with eigenbasis random coefficients.
+model_rotation_h <- mmes(
+  pheno~1,
+  random=~vsm(usm(env),ism(id), Gu=Ai, rotation=TRUE),
+  rcov=~vsm(dsm(env),ism(units)), data=DT, henderson=TRUE, verbose=FALSE
+)
+
+# genetic correlation
+cov2cor(model_rotation_h$theta[[1]])
 
 ```
 

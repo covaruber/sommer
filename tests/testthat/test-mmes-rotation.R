@@ -111,6 +111,89 @@ test_that("rotation respects covariance-coordinate blocks and shuffled rows", {
   expect_equal(ordinary$uList[[1]], rotated$uList[[1]], tolerance=1e-6)
 })
 
+expect_rotation_equivalent <- function(common, randomOrdinary, randomRotated,
+                                       tolerance=1e-6){
+  ordinary <- do.call(mmes, c(common, list(random=randomOrdinary)))
+  rotated <- do.call(mmes, c(common, list(random=randomRotated)))
+  expect_equal(tail(ordinary$llik, 1), tail(rotated$llik, 1), tolerance=tolerance)
+  expect_equal(unname(ordinary$theta), unname(rotated$theta), tolerance=tolerance)
+  expect_equal(as.numeric(fitted(ordinary)), as.numeric(fitted(rotated)),
+               tolerance=tolerance)
+  expect_equal(ordinary$uList[[1]], rotated$uList[[1]], tolerance=tolerance)
+  invisible(rotated)
+}
+
+test_that("rotation supports multi-trait Kronecker residuals", {
+  fixture <- rotation_fixture()
+  set.seed(33)
+  ids <- rownames(fixture$Gu)
+  data <- expand.grid(id=ids, trait=c("t1", "t2"), KEEP.OUT.ATTRS=FALSE)
+  genetic <- drop(chol(solve(as.matrix(fixture$Gu))) %*% rnorm(length(ids)))
+  data$y <- 3 + (data$trait == "t2") * 0.5 +
+    rep(genetic, 2) * rep(c(1, 0.6), each=length(ids)) +
+    rnorm(nrow(data), sd=0.4)
+  data <- data[sample(nrow(data)), , drop=FALSE]
+  common <- list(fixed=y~trait, rcov=~vsm(usm(trait), ism(units)), data=data,
+                 nIters=15, verbose=FALSE, dateWarning=FALSE, computeCi=0)
+  for(henderson in c(TRUE, FALSE)){
+    ordinary <- do.call(mmes, c(common, list(
+      random=~vsm(usm(trait), ism(id), Gu=fixture$Gu), henderson=henderson
+    )))
+    rotated <- do.call(mmes, c(common, list(
+      random=~vsm(usm(trait), ism(id), Gu=fixture$Gu, rotation=TRUE),
+      henderson=henderson
+    )))
+    expect_equal(tail(ordinary$llik, 1), tail(rotated$llik, 1), tolerance=1e-6)
+    expect_equal(unname(ordinary$theta), unname(rotated$theta), tolerance=1e-6)
+    expect_equal(ordinary$uList[[1]], rotated$uList[[1]], tolerance=1e-6)
+    if(henderson){
+      expect_equal(as.numeric(fitted(ordinary)), as.numeric(fitted(rotated)),
+                   tolerance=1e-6)
+    }
+  }
+  expect_true(length(unique(rotated$rotation$residualBlock)) == 6L)
+})
+
+test_that("rotation supports heterogeneous residuals across rotation blocks", {
+  fixture <- rotation_fixture()
+  expect_rotation_equivalent(
+    list(fixed=y~env, rcov=~vsm(dsm(env), ism(units)), data=fixture$data,
+         nIters=15, verbose=FALSE, dateWarning=FALSE, computeCi=0,
+         henderson=TRUE),
+    ~vsm(ism(id), Gu=fixture$Gu),
+    ~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE)
+  )
+})
+
+test_that("rotation supports weights that are constant within rotation blocks", {
+  fixture <- rotation_fixture()
+  W <- diag(ifelse(fixture$data$env == "e1", 1, 2))
+  expect_rotation_equivalent(
+    list(fixed=y~env, rcov=~units, data=fixture$data, W=W,
+         nIters=15, verbose=FALSE, dateWarning=FALSE, computeCi=0,
+         henderson=TRUE),
+    ~vsm(ism(id), Gu=fixture$Gu),
+    ~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE)
+  )
+})
+
+test_that("rotation rejects residual structures that are not invariant", {
+  fixture <- rotation_fixture()
+  data <- fixture$data
+  data$grp <- factor(ifelse(data$id %in% c("g1", "g2", "g3"), "a", "b"))
+  fit <- function(rcov, W=NULL){
+    args <- list(y~env,
+                 random=~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE),
+                 rcov=rcov, data=data, nIters=1,
+                 verbose=FALSE, dateWarning=FALSE)
+    if(!is.null(W)) args$W <- W
+    do.call(mmes, args)
+  }
+  expect_error(fit(~vsm(ar1m(id), ism(units))), "different relationship levels")
+  expect_error(fit(~vsm(dsm(grp), ism(units))), "same residual covariance coordinate")
+  expect_error(fit(~units, W=diag(seq_len(nrow(data)))), "constant weight")
+})
+
 test_that("rotation rejects unsupported or incomplete models", {
   fixture <- rotation_fixture()
   expect_error(

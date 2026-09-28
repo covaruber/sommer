@@ -31,7 +31,8 @@ never overridden.}
   \item{rotation}{Logical indicating whether the supplied \code{Gu} precision
 matrix should be eigen-decomposed for Lee--van der Werf rotation in
 \code{mmes}. Rotation is opt-in and currently requires a balanced Gaussian
-random-effect term.}
+random-effect term and a rotation-invariant residual structure (see
+\code{\link{mmes}}).}
   \item{isFixed}{Logical retained for compatibility.  If \code{TRUE}, return
 the combined design matrix instead of the structured \code{vsm} object.}
   \item{verbose}{Logical controlling messages, including notification when
@@ -71,7 +72,10 @@ When \code{rotation=TRUE}, \code{Gu} is decomposed as
 where \eqn{\Lambda} is diagonal. The aligned original precision, diagonal
 precision, and eigenvectors are retained in the returned descriptor. The
 \code{mmes} front end validates the observation layout and applies the
-engine-specific rotation after observation filtering.
+engine-specific rotation after observation filtering. Residual covariance
+must satisfy \eqn{R_{(i,a),(l,b)} = c_{ab}\delta_{il}}, where \eqn{i,l} index
+relationship levels and \eqn{a,b} index rotation blocks, so that
+\eqn{U'RU = R}; otherwise \code{mmes} stops with an error.
 }
 \value{
 A list containing the random-effect design blocks in \code{Z}, the precision

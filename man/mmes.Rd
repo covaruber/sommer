@@ -122,8 +122,17 @@ mmes(fixed, random, rcov, data, W,
   the equivalent transformed observation-covariance parameterization is used.
   Public random effects, fitted values, and residuals are returned in the
   original basis. The current implementation requires a complete balanced
-  Gaussian layout, identity residual covariance, default identity \code{W},
-  one rotated relationship term, and \code{computeCi=0} during fitting.
+  Gaussian layout, one rotated relationship term, and \code{computeCi=0} during
+  fitting. Residual structures are allowed when they are rotation invariant:
+  residuals may be structured across rotation blocks (e.g.,
+  \code{rcov=~vsm(usm(trait), ism(units))} or
+  \code{rcov=~vsm(dsm(Env), ism(units))}), but must be independent and
+  identically structured across the levels of the rotated relationship term.
+  Residual structures that correlate observations of different levels (e.g.,
+  \code{ar1m()}, \code{maternm()}, \code{sar()}, or \code{car()} over plots),
+  residual variances that differ among levels within a rotation block, and
+  \code{W} matrices that are not diagonal with a constant weight within each
+  rotation block are rejected, as are non-Gaussian PQL fits.
 
   }
   \item{rcov}{A formula specifying the \strong{residual covariance structure}.
