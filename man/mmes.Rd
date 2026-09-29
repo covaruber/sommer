@@ -154,7 +154,13 @@ mmes(fixed, random, rcov, data, W,
 
   \code{rcov = ~ vsm(ar1m(Row), ar1m(Column), ism(units))}
 
-  fits a separable row-by-column AR1 residual covariance. More generally,
+  fits a separable row-by-column AR1 residual covariance, with one correlation
+  per direction shared by every other Kronecker factor. For section-specific
+  variances and correlations (ASReml \code{dsum}), use
+
+  \code{rcov = ~ dsumm(vsm(ar1m(Row), ar1m(Column), ism(units)), by = Trial)}
+
+  (see \code{\link{dsumm}}). More generally,
   structures such as \code{\link{usm}}, \code{\link{csm}},
   \code{\link{toeplitzm}}, \code{\link{maternm}}, \code{\link{sar}},
   \code{\link{car}}, and \code{\link{ownm}} can be used when their incidence
@@ -629,6 +635,11 @@ If all parameters are correctly indicated the program will return a list with th
 reported coordinates.}
 \item{pcgMatrixFree}{logical indicating whether the matrix-free Kronecker PCG
 path was used during optimization.}
+\item{residualCovarianceCompact}{logical indicating that a complete, unweighted,
+non-diagonal Kronecker residual covariance was evaluated directly from its
+factors without materializing the full covariance matrix. In this case the
+residual element of \code{theta} is a \eqn{0 \\times 0} matrix; use
+\code{covparams_mmes()} for fitted residual covariance parameters.}
 \item{covParNative}{a data frame containing all fixed and estimated covariance
 parameters in the native model-facing scale defined by each CovarianceFactor.
 For example, \code{dsm()} entries are level-specific variances rather than

@@ -110,5 +110,6 @@ str(with(DT, vsm(toeplitzm(Env),ism(Name))))
 \code{\link{mam}},
 \code{\link{corgm}}, \code{\link{fam}}, \code{\link{antem}}, \code{\link{rrm}},
 \code{\link{maternm}}, \code{\link{toeplitzm}}, \code{\link{sar}}, \code{\link{car}},
-and \code{\link{ownm}}.
+and \code{\link{ownm}}. See \code{\link{dsumm}} for section-specific (direct-sum)
+residual structures.
 }

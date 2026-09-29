@@ -9,31 +9,188 @@ vignette: >
   %\VignetteEncoding{UTF-8}
 ---
 
-The sommer package was developed to provide R users with a powerful and reliable multivariate mixed model solver for different genetic (in diploid and polyploid organisms) and non-genetic analyses. This package allows the user to estimate variance components in a mixed model with the advantages of specifying the variance-covariance structure of the random effects, specifying heterogeneous variances, and obtaining other parameters such as BLUPs, BLUEs, residuals, fitted values, variances for fixed and random effects, etc. The core algorithms of the package are coded in C++ using the Armadillo library to optimize dense matrix operations common in the derect-inversion algorithms. 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, fig.width=7, fig.height=3.4)
+if(capabilities("cairo")) options(bitmapType="cairo")
+```
 
-This vignette is focused on showing the capabilities of sommer to fit spatial models using the two dimensional splines models.
+Field experiments are never perfectly uniform. Soil depth, water, previous crops, or a slope can make neighbouring plots more alike than distant ones, whatever genotypes are planted in them. If the statistical model ignores this, the spatial "noise" leaks into the genotype effects: good genotypes that landed in a poor corner look worse than they are, and vice versa. Spatial models describe this neighbourhood similarity explicitly, so that genotype effects are estimated more accurately.
 
-**SECTION 1: Introduction **
+This vignette introduces spatial modelling with `mmes()` for readers who already know what a linear mixed model is, but are new to spatial analysis. It covers:
 
-1) Background in tensor products
+1. Why spatial models are needed, and where the spatial part can live in a mixed model.
+2. The autoregressive (AR1) correlation, the most common building block.
+3. A single trial: row/column effects, 2D splines, and AR1 models, compared on data where the truth is known.
+4. Several trials at once: shared versus trial-specific spatial parameters with `dsumm()`.
+5. Practical advice and a translation table for ASReml users.
 
-**SECTION 2: Spatial models**
+## 1. Where does the spatial part go?
 
-1) Two dimensional splines (multiple spatial components)
-2) Two dimensional splines (single spatial component)
-3) Spatial models in multiple trials at once
+For a trial with $n$ plots, a typical genetic mixed model is
 
-## SECTION 1: Introduction 
+$$
+y = X\beta + Zg + e, \qquad g \sim N(0, \sigma^2_g I), \qquad e \sim N(0, R),
+$$
 
-### Backgrounds in tensor products
+so the phenotypes have covariance
 
-TBD
+$$
+\operatorname{Var}(y) = V = \sigma^2_g ZZ^\top + R .
+$$
 
-## SECTION 2: Spatial models
+The textbook choice $R = \sigma^2_e I$ assumes every plot is independent of every other plot. A spatial model relaxes this assumption in one of two places, which in `mmes()` correspond to its two covariance arguments:
 
-### 1) Two dimensional splines (multiple spatial components)
+* **`random`** (the G side): add random effects that are shared by neighbouring plots, for example row and column effects, a smooth 2D surface (splines), or a correlated "spatial field" with one effect per plot position.
+* **`rcov`** (the R side): let the residuals themselves be correlated, so $R$ is no longer diagonal.
 
-In this example we show how to obtain the same results than using the SpATS package. This is achieved by using the `spl2Db` function which is a wrapper of the `tpsmmb` function. 
+Both are valid and often combined. A classic and very successful model (Gilmour et al., 1997) uses correlated residuals plus independent random row and column effects.
+
+## 2. The building block: AR1 correlation
+
+Think of the plots along one direction of the field, say the ranges $1, 2, \ldots, r$. A first-order autoregressive (AR1) correlation says that two plots $d$ steps apart have correlation $\rho^{d}$:
+
+$$
+K(\rho)_{ij} = \rho^{|i-j|}, \qquad -1 < \rho < 1 .
+$$
+
+Neighbours ($d=1$) have correlation $\rho$, plots two apart have $\rho^2$, and so on, so the correlation fades with distance.
+
+```{r}
+ar1 <- function(n, rho) rho^abs(outer(seq_len(n), seq_len(n), "-"))
+round(ar1(5, 0.6), 3)
+```
+
+A field has two directions. The standard **separable** model assumes the correlation between two plots is the product of a range correlation and a row correlation:
+
+$$
+\operatorname{Cor}(\text{plot}_{a}, \text{plot}_{b}) = \rho_{\text{range}}^{|\Delta \text{range}|} \, \rho_{\text{row}}^{|\Delta \text{row}|},
+\qquad K = K(\rho_{\text{range}}) \otimes K(\rho_{\text{row}}),
+$$
+
+where $\otimes$ is the Kronecker product. This is exactly what `vsm()` builds: it multiplies its covariance factors with a Kronecker product and adds one overall variance $\sigma^2$. The final argument of `vsm()` names the effect the covariance is attached to:
+
+* `rcov = ~ vsm(ar1m(range), ar1m(row), ism(units))` gives residuals with covariance $\sigma^2 K(\rho_\text{range})\otimes K(\rho_\text{row})$; `units` means "one residual per plot".
+* `random = ~ vsm(ar1m(range), ar1m(row), ism(site))`, with `site` a factor with a single level, gives a random **spatial field**: one effect for every range-by-row position of the field, correlated in the same way. The residual `rcov = ~units` then plays the role of an independent plot-level "nugget" (measurement error, plot-to-plot noise).
+
+Two practical notes before we start:
+
+* `ar1m()` needs **factors whose levels are in field order** (1, 2, 3, ...), because lags are taken from the level order. `ar1m()` warns if numeric-looking levels are out of numeric order (for example `"1", "10", "2"`).
+* You do **not** need a complete grid. Missing plots (or plots with a missing response) are handled exactly, and the dense plot-by-plot covariance matrix is never formed, so large trials remain fast.
+
+## 3. A single trial
+
+### 3.1 A field where we know the truth
+
+To see what each model does, we simulate a field of 16 ranges by 24 rows (384 plots) with 96 genotypes in four replicates. The yield of a plot is
+
+$$
+\text{yield} = 50 + g_{\text{genotype}} + \xi_{\text{range,row}} + \varepsilon ,
+$$
+
+with genetic values $g \sim N(0, 9)$, a separable AR1 spatial field $\xi$ with variance 8, $\rho_\text{range}=0.7$ and $\rho_\text{row}=0.4$, and an independent nugget $\varepsilon \sim N(0,1)$. Fifteen plots are then deleted to mimic missing data.
+
+```{r}
+library(sommer)
+set.seed(3)
+nRange <- 16; nRow <- 24; nGeno <- 96
+g <- setNames(rnorm(nGeno, sd=3), sprintf("G%02d", seq_len(nGeno)))
+
+field <- expand.grid(range=seq_len(nRange), row=seq_len(nRow))
+field$geno <- sample(rep(names(g), each=4))
+trueField <- as.vector(t(chol(8 * kronecker(ar1(nRow, 0.4), ar1(nRange, 0.7)))) %*%
+                         rnorm(nrow(field)))
+field$yield <- 50 + g[field$geno] + trueField + rnorm(nrow(field), sd=1)
+field <- field[-sample(nrow(field), 15), ]
+
+field$geno <- factor(field$geno)
+field$rangef <- factor(field$range, levels=seq_len(nRange))
+field$rowf <- factor(field$row, levels=seq_len(nRow))
+field$site <- factor("F1")
+head(field)
+```
+
+A heatmap of the raw yields already shows the patchy spatial pattern. White cells are the missing plots.
+
+```{r}
+fieldImage <- function(range, row, value, main){
+  z <- matrix(NA_real_, nRange, nRow)
+  z[cbind(range, row)] <- value
+  image(seq_len(nRange), seq_len(nRow), z, col=hcl.colors(30, "YlGn", rev=TRUE),
+        xlab="range", ylab="row", main=main)
+}
+fieldImage(field$range, field$row, field$yield, "Observed yield")
+```
+
+### 3.2 Five candidate models
+
+All models share the same fixed effects (an intercept) and a random genotype effect; they differ only in how the field is described.
+
+```{r}
+fits <- list(
+  # M0: no spatial model
+  iid    = mmes(yield ~ 1, random=~geno, data=field, verbose=FALSE),
+  # M1: independent random range and row effects (large-scale strips)
+  rowcol = mmes(yield ~ 1, random=~geno + rangef + rowf, data=field, verbose=FALSE),
+  # M2: a smooth 2D surface built from tensor-product P-splines
+  spline = mmes(yield ~ 1, random=~geno + vsm(ism(spl2Dc(row, range)$Z$`A:all`)),
+                data=field, verbose=FALSE),
+  # M3: correlated residuals (R side)
+  ar1Res = mmes(yield ~ 1, random=~geno,
+                rcov=~vsm(ar1m(rangef), ar1m(rowf), ism(units)),
+                data=field, verbose=FALSE),
+  # M4: a random AR1 x AR1 spatial field (G side) plus an iid nugget
+  ar1Fld = mmes(yield ~ 1, random=~geno + vsm(ar1m(rangef), ar1m(rowf), ism(site)),
+                rcov=~units, data=field, verbose=FALSE)
+)
+```
+
+### 3.3 Comparing the models
+
+Because all models have the same fixed effects, their REML log-likelihoods (and AIC) can be compared directly; higher log-likelihood and lower AIC are better. Since we simulated the data, we can also compute how well each model ranks the genotypes: the correlation between the estimated genotype effects (BLUPs) and the true genetic values.
+
+```{r}
+compare <- t(sapply(fits, function(m){
+  blup <- m$uList[[1]][, 1]
+  c(logLik = tail(as.numeric(m$llik), 1),
+    AIC = m$AIC,
+    genVar = covparams_mmes(m)$estimate[1],
+    accuracy = cor(blup[names(g)], g))
+}))
+knitr::kable(round(compare, 3))
+```
+
+The pattern is typical of real trials. Ignoring the field (M0) gives the worst fit and the least accurate ranking. Row and column effects (M1) capture strips; splines (M2) capture a smooth trend; the AR1 models (M3, M4) capture the local, patchy variation and fit best. Better spatial modelling translates directly into more accurate genotype rankings, which is the reason to do it.
+
+### 3.4 Reading the estimated parameters
+
+`covparams_mmes()` reports every covariance parameter on its natural scale.
+
+```{r}
+knitr::kable(covparams_mmes(fits$ar1Fld)[, c("factor", "parameter", "estimate")], digits=3)
+```
+
+Compare with the truth: genetic variance 9 (the 96 values actually drawn have variance 6.7, which is what the model can recover), spatial variance 8, $\rho_\text{range}=0.7$, $\rho_\text{row}=0.4$, nugget 1. Note that in a Kronecker product the single variance is reported once, on the first factor (`ar1m(rangef)`); the second factor only contributes its correlation.
+
+The difference between M3 and M4 is the nugget. M3 assumes that plot-level noise is perfectly correlated with the spatial pattern, while M4 separates a smooth-ish correlated field from independent plot error. With real data both are worth trying; the likelihood tells you which describes your field better.
+
+### 3.5 Seeing what the model learned
+
+The random spatial field in M4 has one BLUP per field position, including the positions of the missing plots. Plotting it next to the true simulated field shows that the model has recovered the pattern; the estimate is smoother, because BLUPs shrink towards zero.
+
+```{r, fig.height=3.2}
+estField <- fits$ar1Fld$uList[[2]]
+pos <- do.call(rbind, strsplit(colnames(estField), ":"))
+op <- par(mfrow=c(1, 2), mar=c(4, 4, 2, 1))
+fieldImage(rep(seq_len(nRange), nRow), rep(seq_len(nRow), each=nRange), trueField,
+           "True spatial field")
+fieldImage(as.integer(pos[, 1]), as.integer(pos[, 2]), estField[1, ],
+           "Estimated spatial field (M4)")
+par(op)
+```
+
+### 3.6 Reproducing SpATS with P-spline ANOVA
+
+The single-kernel spline used in M2 (`spl2Dc()`) fits the whole 2D surface with one variance component. The SpATS package (Rodriguez-Alvarez et al., 2018) instead splits the surface into five components (smooth trends along each direction and their interactions), each with its own variance. `spl2Dmats()` builds the same design matrices, so `mmes()` reproduces the SpATS fit. The classic Yates oats trial is used here, with SpATS output shown for reference. 
 
 ```{r}
 library(sommer)
@@ -93,40 +250,152 @@ summary(mix)$varcomp
 
 ```
 
-### 2) Two dimensional splines in single field (single spatial component)
+The five spline variances together describe the surface; when several of them shrink to zero, the simpler single-kernel `spl2Dc()` model of M2 is usually adequate.
 
-To reduce the computational burden of fitting multiple spatial kernels `sommer` provides a single spatial kernel method through the `spl2Da` function. This as will be shown, can produce similar results to the more flexible model. Use the one that fits better your needs.
+## 4. Several trials at once
 
-```{r, fig.show='hold'}
+Breeding programmes rarely analyse one field. When trials are analysed together, we want to share information about genotypes across trials, while each field keeps its own spatial pattern. The key modelling question is: **which spatial parameters are shared between trials, and which are trial-specific?**
 
-# SOMMER MODEL
-mix <- mmes(Y~V,
-            random=~ R + C +
-              vsm(ism(spl2Dc(row,col)$Z$`A:all`)),
-            rcov=~units, verbose=FALSE,
-            data=DT)
-summary(mix)$varcomp
+### 4.1 Three simulated trials
 
+We simulate three trials of different sizes, testing the same 80 genotypes, each with its own residual variance and its own range and row correlations:
+
+| trial | size (range x row) | variance | $\rho_\text{range}$ | $\rho_\text{row}$ |
+|:------|:------------------:|:--------:|:-------------------:|:-----------------:|
+| T1    | 16 x 20            | 9        | 0.8                 | 0.2               |
+| T2    | 12 x 24            | 16       | 0.1                 | 0.7               |
+| T3    | 14 x 18            | 4        | 0.5                 | 0.5               |
+
+```{r}
+simTrial <- function(trial, nRange, nRow, rhoRange, rhoRow, sigma2, g){
+  plots <- expand.grid(range=seq_len(nRange), row=seq_len(nRow))
+  plots$geno <- sample(rep(names(g), length.out=nrow(plots)))
+  K <- sigma2 * kronecker(ar1(nRow, rhoRow), ar1(nRange, rhoRange))
+  plots$yield <- 50 + g[plots$geno] + as.vector(t(chol(K)) %*% rnorm(nrow(plots)))
+  plots$trial <- trial
+  plots[-sample(nrow(plots), round(0.05 * nrow(plots))), ]
+}
+
+set.seed(2026)
+gMET <- setNames(rnorm(80, sd=3), sprintf("G%02d", 1:80))
+MET <- rbind(simTrial("T1", 16, 20, 0.8, 0.2,  9, gMET),
+             simTrial("T2", 12, 24, 0.1, 0.7, 16, gMET),
+             simTrial("T3", 14, 18, 0.5, 0.5,  4, gMET))
+MET$trial <- factor(MET$trial)
+MET$geno <- factor(MET$geno)
+MET$range <- factor(MET$range, levels=1:16)
+MET$row <- factor(MET$row, levels=1:24)
+table(MET$trial)
 ```
 
-### 3) Spatial models in multiple trials at once
+Note that the `range` and `row` factors use the same levels in all trials. Each trial only uses the levels it needs; that is fine, because trials are modelled as independent fields.
 
-Sometimes we want to fit heterogeneous variance components when e.g., have multiple trials or different locations. The spatial models can also be fitted that way using the `at.var` and `at.levels` arguments. The first argument expects a variable that will define the levels at which the variance components will be fitted. The second argument is a way for the user to specify the levels at which the spatial kernels should be fitted if the user doesn't want to fit it for all levels (e.g., trials or fields).
+### 4.2 Shared correlations: a Kronecker product with `vsm()`
 
-```{r, fig.show='hold'}
+Adding a diagonal trial factor `dsm(trial)` to the residual `vsm()` gives each trial its own residual variance, and makes plots in different trials independent (the off-diagonal elements of `dsm()` are zero):
 
-DT2 <- rbind(DT,DT)
-DT2$Y <- DT2$Y + rnorm(length(DT2$Y))
-DT2$trial <- c(rep("A",nrow(DT)),rep("B",nrow(DT)))
-head(DT2)
-# SOMMER MODEL
-mix <- mmes(Y~V,
-            random=~ R + C +
-              vsm(dsm(trial),ism(spl2Dc(row,col)$Z$`A:all`)),
-            rcov=~units, verbose=FALSE,
-            data=DT2)
-summary(mix)$varcomp
+$$
+R = \sigma^2 \, D_\text{trial} \otimes K(\rho_\text{range}) \otimes K(\rho_\text{row}) .
+$$
+
+Because this is a Kronecker product, each factor appears **once**: there is a single $\rho_\text{range}$ and a single $\rho_\text{row}$, shared by all trials.
+
+```{r}
+mShared <- mmes(yield ~ trial, random=~geno,
+                rcov=~vsm(dsm(trial), ar1m(range), ar1m(row), ism(units)),
+                data=MET, verbose=FALSE)
+knitr::kable(covparams_mmes(mShared)[, c("factor", "parameter", "estimate")], digits=3)
 ```
+
+The trial variances are sensible, but the correlations are a compromise between very different fields (the truth for $\rho_\text{range}$ ranges from 0.1 to 0.8).
+
+### 4.3 Trial-specific correlations: a direct sum with `dsumm()`
+
+To give every trial its own variance **and** its own correlations, the residual must be a *direct sum*, a block-diagonal matrix with one independent block per trial:
+
+$$
+R = \bigoplus_{t} \sigma^2_t\, K(\rho_{\text{range},t}) \otimes K(\rho_{\text{row},t})
+  = \begin{pmatrix} R_{T1} & 0 & 0 \\ 0 & R_{T2} & 0 \\ 0 & 0 & R_{T3} \end{pmatrix}.
+$$
+
+`dsumm()` takes a residual `vsm()` term describing *one* trial and replicates it, with all its parameters, for every level of `by`. The trial-specific variances come from the scale of each copy, so `dsm(trial)` is not needed.
+
+```{r}
+mDsum <- mmes(yield ~ trial, random=~geno,
+              rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
+              data=MET, verbose=FALSE)
+knitr::kable(covparams_mmes(mDsum)[, c("factor", "section", "parameter", "estimate")],
+             digits=3)
+```
+
+The `section` column tells which trial each parameter belongs to, and the estimates now track the truth in every trial. The first row (`sigma2`) is the internal overall scale; the trial variances are the `variance` rows.
+
+### 4.4 Which model should I use?
+
+The shared model is nested in the `dsumm()` model: it is the special case in which all trials have the same correlations. The two can therefore be compared with a likelihood-ratio test, with degrees of freedom equal to the number of extra parameters, here $2 \times (3 - 1) = 4$ correlations. Both models have the same fixed and random effects, so their REML likelihoods are comparable.
+
+```{r}
+logLikShared <- tail(as.numeric(mShared$llik), 1)
+logLikDsum <- tail(as.numeric(mDsum$llik), 1)
+LR <- 2 * (logLikDsum - logLikShared)
+c(LR = LR, df = 4, p.value = pchisq(LR, df=4, lower.tail=FALSE))
+```
+
+As a rule of thumb:
+
+* Use the **shared** model when trials are small (few plots give noisy correlation estimates), similar in layout and management, or when a simpler model is preferred.
+* Use **`dsumm()`** when trials differ in size, orientation, or environment, which is common in multi-location programmes. With $T$ trials and two AR1 factors, `dsumm()` estimates $3T$ residual parameters instead of $T + 2$.
+
+(Test statistics for variance parameters on the boundary of the parameter space, such as variances near zero, need more care; correlations inside $(-1, 1)$ are not affected.)
+
+### 4.5 Trials without spatial information: `levels=`
+
+Sometimes only some trials have row and range coordinates, or some trials are too small for a spatial model. The `levels` argument restricts the spatial structure to the listed trials; every other trial gets an independent residual with its own variance ($\sigma^2_t I$). Those trials are kept in the analysis even when their coordinates are missing.
+
+```{r}
+MET2 <- MET
+MET2$range[MET2$trial == "T3"] <- NA  # T3 has no field coordinates
+MET2$row[MET2$trial == "T3"] <- NA
+
+mLevels <- mmes(yield ~ trial, random=~geno,
+                rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)),
+                            by=trial, levels=c("T1", "T2")),
+                data=MET2, verbose=FALSE)
+knitr::kable(covparams_mmes(mLevels)[, c("factor", "section", "parameter", "estimate")],
+             digits=3)
+c(used = nrow(mLevels$y), available = nrow(MET2))
+```
+
+### 4.6 Spatial effects on the G side for several trials
+
+The random-effect route from section 3 also extends to several trials. A diagonal trial factor in `random` gives each trial its own spatial field variance while sharing the correlations, for example
+
+```{r, eval=FALSE}
+random = ~ geno + vsm(dsm(trial), ar1m(range), ar1m(row), ism(site))
+```
+
+and trial-specific spline surfaces are obtained with `` vsm(dsm(trial), ism(spl2Dc(row, range)$Z$`A:all`)) ``. Residual structures and random spatial effects can be combined freely, for example `dsumm()` residuals plus random row and column effects within trials (`vsm(dsm(trial), ism(rowf))`).
+
+## 5. Practical advice
+
+* **Start simple and add structure.** Fit the model without spatial terms, add row and column effects, then AR1 structures, and compare log-likelihoods or AIC for models with the same fixed effects.
+* **Look at the data.** Heatmaps of the raw data and of the residuals (`residuals(fit)` against range and row) show whether spatial patterns remain.
+* **Watch for boundary estimates.** A correlation estimated very close to 1 (e.g. 0.99) often means a smooth trend across the whole field. Adding a linear trend in that direction as a fixed effect, random row/column effects, or a spline usually gives a better-behaved model.
+* **Use the design.** Replicates and incomplete blocks are part of the design and are usually kept as fixed or random effects alongside the spatial terms.
+* **Sort factor levels in field order** before using `ar1m()`.
+* **Computation.** The spatial residual models above never form the dense plot-by-plot covariance matrix, so trials with thousands of plots run in seconds. The default Henderson engine is recommended; `henderson = FALSE` (direct inversion) also works, but needs memory proportional to the square of the number of plots.
+
+### Translating from ASReml-R
+
+| model | ASReml-R | sommer |
+|:------|:---------|:-------|
+| single trial, AR1 x AR1 residual | `residual = ~ar1(range):ar1(row)` | `rcov = ~vsm(ar1m(range), ar1m(row), ism(units))` |
+| several trials, shared correlations | `residual = ~diag(trial):ar1(range):ar1(row)` | `rcov = ~vsm(dsm(trial), ar1m(range), ar1m(row), ism(units))` |
+| several trials, trial-specific | `residual = ~dsum(~ar1(range):ar1(row)`&#124;` trial)` | `rcov = ~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial)` |
+| only some trials spatial | `dsum(~ar1(range):ar1(row)`&#124;` trial, levels=lv)` | `dsumm(..., by=trial, levels=lv)` |
+| random row / column effects | `random = ~at(trial):row + at(trial):col` | `random = ~vsm(dsm(trial), ism(row)) + vsm(dsm(trial), ism(col))` |
+
+In ASReml-R, `dsum(... | trial, levels=lv)` covers only the listed sections, and the remaining trials need their own residual term; `dsumm()` gives them an independent residual automatically.
 
 ## Literature
 
@@ -134,24 +403,14 @@ Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative traits u
 
 Covarrubias-Pazaran G. 2018. Software update: Moving the R package sommer to multivariate mixed models for genome-assisted prediction. doi: https://doi.org/10.1101/354639
 
-Bernardo Rex. 2010. Breeding for quantitative traits in plants. Second edition. Stemma Press. 390 pp.
+Cullis B.R., Gleeson A.C. 1991. Spatial analysis of field experiments: an extension to two dimensions. Biometrics 47(4):1449-1460.
+
+Gilmour A.R., Cullis B.R., Verbyla A.P. 1997. Accounting for natural and extraneous variation in the analysis of field experiments. Journal of Agricultural, Biological, and Environmental Statistics 2:269-293.
 
 Gilmour et al. 1995. Average Information REML: An efficient algorithm for variance parameter estimation in linear mixed models. Biometrics 51(4):1440-1450.
 
 Henderson C.R. 1975. Best Linear Unbiased Estimation and Prediction under a Selection Model. Biometrics vol. 31(2):423-447.
 
-Kang et al. 2008. Efficient control of population structure in model organism association mapping. Genetics 178:1709-1723.
-
 Lee, D.-J., Durban, M., and Eilers, P.H.C. (2013). Efficient two-dimensional smoothing with P-spline ANOVA mixed models and nested bases. Computational Statistics and Data Analysis, 61, 22 - 37.
 
-Lee et al. 2015. MTG2: An efficient algorithm for multivariate linear mixed model analysis based on genomic information. Cold Spring Harbor. doi: http://dx.doi.org/10.1101/027201.
-
-Maier et al. 2015. Joint analysis of psychiatric disorders increases accuracy of risk prediction for schizophrenia, bipolar disorder, and major depressive disorder. Am J Hum Genet; 96(2):283-294.
-
 Rodriguez-Alvarez, Maria Xose, et al. Correcting for spatial heterogeneity in plant breeding experiments with P-splines. Spatial Statistics 23 (2018): 52-71.
-
-Searle. 1993. Applying the EM algorithm to calculating ML and REML estimates of variance components. Paper invited for the 1993 American Statistical Association Meeting, San Francisco.
-
-Yu et al. 2006. A unified mixed-model method for association mapping that accounts for multiple levels of relatedness. Genetics 38:203-208.
-
-Tunnicliffe W. 1989. On the use of marginal likelihood in time series model estimation. JRSS 51(1):15-27.

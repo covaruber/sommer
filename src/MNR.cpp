@@ -348,19 +348,16 @@ arma::mat dmat(const arma::mat & Xo, const bool & nishio, double minMAF) {
   
   arma::mat Xd = 1 - abs(X);
   
-  if(nishio == true){ //  Nishio ans Satoh. (2014)
+  if(nishio == true){ // Nishio and Satoh (2014); Vitezica et al. (2013) orthogonal coding
     
-    // IN R: M <- scale(Xd, center = TRUE, scale = FALSE)
-    arma::rowvec ms = mean( Xd, 0 ); // means of columns
-    arma::mat M = Xd.each_row() - ms; // centered Xd matrix
-    // IN R: bAlleleFrequency <- colMeans(X+1)/2; 0-1-2
-    arma::rowvec bAlleleFrequency = mean( X+1, 0 )/2; // means of columns
-    // IN R: varHW <- sum((2 * bAlleleFrequency * (1 - bAlleleFrequency))^2)
-    double varHW = arma::accu(arma::square(2 * bAlleleFrequency % (1 - bAlleleFrequency)));
-    // IN R: tcrossprod(M)
-    arma::mat K = M * M.t();
-    //
-    D = K/varHW;
+    arma::rowvec p = mean( X+1, 0 )/2; // frequency of the allele counted by x=1
+    arma::rowvec q = 1-p;
+    arma::rowvec p2q = 2*(p%q);
+    // w = -2q^2 (x=1), 2pq (x=0), -2p^2 (x=-1), i.e. w = -x^2 + (p-q)x + 2pq
+    arma::mat W = X.each_row() % (p-q) - arma::square(X);
+    W.each_row() += p2q;
+    double varHW = arma::accu(arma::square(p2q));
+    D = (W * W.t())/varHW;
     
   }else{ // Su et al. (2012)
     
@@ -3613,6 +3610,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
 
   std::vector<Rcpp::List> covDescriptor;
   covDescriptor.reserve(static_cast<std::size_t>(nRRe));
+  std::vector<arma::uword> covarianceDim(static_cast<std::size_t>(nRRe), 0);
+  bool compactResidualCovariance = false;
+  bool residualSectioned = false;
 
   // ================================================================
   // Generic covariance engine: native backend
@@ -4511,6 +4511,42 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       return arma::mat();
     };
 
+  auto factorSections =
+    [&](const Rcpp::List & f) -> int {
+      return f.containsElementNamed("section_levels")
+        ? Rf_length(f["section_levels"]) : 0;
+    };
+
+  // Parameter slice owned by section t, or -1 for an iid (identity) section.
+  auto sectionListed =
+    [&](const Rcpp::List & f, const int t) -> int {
+      if(f.containsElementNamed("section_index")){
+        Rcpp::IntegerVector index = f["section_index"];
+        return index[t];
+      }
+      return t;
+    };
+
+  auto sectionSlice =
+    [&](const Rcpp::List & f, const arma::vec & localPar, const int t) -> arma::vec {
+      const arma::uword npar = static_cast<arma::uword>(Rcpp::as<int>(f["section_npar"]));
+      const int listed = sectionListed(f, t);
+      if(npar == 0 || listed < 0){
+        return arma::vec();
+      }
+      const arma::uword first = static_cast<arma::uword>(listed) * npar;
+      return localPar.subvec(first, first + npar - 1);
+    };
+
+  auto evalSectionFactor =
+    [&](const Rcpp::List & f, const arma::vec & localPar, const int t) -> arma::mat {
+      if(sectionListed(f, t) < 0){
+        const arma::uword q = static_cast<arma::uword>(Rcpp::as<int>(f["dim"]));
+        return arma::eye<arma::mat>(q, q);
+      }
+      return evalFactor(f, sectionSlice(f, localPar, t));
+    };
+
   auto evaluateDescriptor =
     [&](const Rcpp::List & cs,
         const arma::vec & par) -> arma::mat {
@@ -4627,10 +4663,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     std::vector<arma::vec> factorPar;
     std::vector<int> factorStart1;
     std::vector<int> factorEnd1;
+    std::vector<arma::mat> localCovarianceD1;
     std::vector<arma::mat> localPrecisionD1;
     std::vector<int> derivativeFactor;
     double inverseScale = 1.0;
     double logDet = 0.0;
+    arma::uword totalDim = 0;
     bool factorWise = false;
   };
 
@@ -4638,7 +4676,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     [&](const Rcpp::List & cs,
         const arma::vec & par,
         DescriptorPrecisionState & out,
-        const bool buildDerivatives) -> bool {
+        const bool buildDerivatives,
+        const bool materializeDense = true) -> bool {
 
       if(par.n_elem < 1){
         Rcpp::stop("Covariance descriptor must contain log_sigma2.");
@@ -4656,6 +4695,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       std::vector<double> factorLogDet(nFactors, 0.0);
 
       arma::mat precision(1,1,arma::fill::ones);
+      arma::uword totalDim = 1;
 
       for(int fidx = 0; fidx < factors.size(); ++fidx){
         const std::size_t factorOffset =
@@ -4817,11 +4857,10 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           return false;
         }
 
-        precision =
-          arma::kron(
-            precision,
-            factorPrecision[factorOffset]
-          );
+        if(materializeDense){
+          precision = arma::kron(precision, factorPrecision[factorOffset]);
+        }
+        totalDim *= factorPrecision[factorOffset].n_rows;
       }
 
       const double inverseScale = std::exp(-par(0));
@@ -4829,13 +4868,16 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         return false;
       }
 
-      precision *= inverseScale;
-      precision = 0.5 * (precision + precision.t());
-      if(!precision.is_finite()){
-        return false;
+      if(materializeDense){
+        precision *= inverseScale;
+        precision = 0.5 * (precision + precision.t());
+        if(!precision.is_finite()){
+          return false;
+        }
+      }else{
+        precision.reset();
       }
 
-      const arma::uword totalDim = precision.n_rows;
       double logDet = static_cast<double>(totalDim) * par(0);
       for(std::size_t fidx = 0; fidx < nFactors; ++fidx){
         const arma::uword factorDim = factorPrecision[fidx].n_rows;
@@ -4854,12 +4896,14 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
 
       std::vector<arma::mat> precisionD1;
       std::vector<double> logDetD1;
+      std::vector<arma::mat> localCovarianceD1;
       std::vector<arma::mat> localPrecisionD1;
       std::vector<int> derivativeFactor;
 
       if(buildDerivatives){
         precisionD1.resize(static_cast<std::size_t>(par.n_elem));
         logDetD1.assign(static_cast<std::size_t>(par.n_elem), 0.0);
+        localCovarianceD1.resize(static_cast<std::size_t>(par.n_elem));
         localPrecisionD1.resize(static_cast<std::size_t>(par.n_elem));
         derivativeFactor.assign(static_cast<std::size_t>(par.n_elem), -2);
         std::vector<bool> derivativeAssigned(
@@ -4913,6 +4957,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
               Rcpp::stop("CovarianceFactor parameter ranges overlap or are invalid.");
             }
             precisionD1[globalK] = derivative;
+            localCovarianceD1[globalK] = factorCovarianceD1;
             localPrecisionD1[globalK] = factorPrecisionD1;
             derivativeFactor[globalK] = fidx;
             logDetD1[globalK] =
@@ -4948,10 +4993,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       out.factorPar = std::move(factorPar);
       out.factorStart1 = std::move(factorStart1);
       out.factorEnd1 = std::move(factorEnd1);
+      out.localCovarianceD1 = std::move(localCovarianceD1);
       out.localPrecisionD1 = std::move(localPrecisionD1);
       out.derivativeFactor = std::move(derivativeFactor);
       out.inverseScale = inverseScale;
       out.logDet = logDet;
+      out.totalDim = totalDim;
       out.factorWise = true;
       return true;
     };
@@ -4970,6 +5017,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
 
       state.precisionD1.clear();
       state.logDetD1.assign(static_cast<std::size_t>(par.n_elem), 0.0);
+      state.localCovarianceD1.resize(static_cast<std::size_t>(par.n_elem));
       state.localPrecisionD1.resize(static_cast<std::size_t>(par.n_elem));
       state.derivativeFactor.assign(static_cast<std::size_t>(par.n_elem), -2);
       std::vector<bool> derivativeAssigned(
@@ -5006,6 +5054,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           if(globalK >= state.localPrecisionD1.size() || derivativeAssigned[globalK]){
             Rcpp::stop("CovarianceFactor parameter ranges overlap or are invalid.");
           }
+          state.localCovarianceD1[globalK] = factorCovarianceD1;
           state.localPrecisionD1[globalK] = factorPrecisionD1;
           state.derivativeFactor[globalK] = fidx;
           state.logDetD1[globalK] =
@@ -5103,6 +5152,25 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       }
     };
 
+  auto descriptorCovarianceD1Factors =
+    [&](const DescriptorPrecisionState & state,
+        const arma::uword k,
+        std::vector<arma::mat> & factors,
+        double & scale) -> void {
+
+      if(!state.factorWise || k >= state.derivativeFactor.size()){
+        Rcpp::stop("Factor-wise covariance derivative is unavailable.");
+      }
+
+      factors = state.factorCovariance;
+      scale = 1.0 / state.inverseScale;
+      const int derivativeFactor = state.derivativeFactor[k];
+      if(derivativeFactor >= 0){
+        factors[static_cast<std::size_t>(derivativeFactor)] =
+          state.localCovarianceD1[k];
+      }
+    };
+
   auto contractKronecker =
     [&](const arma::mat & matrix,
         const std::vector<arma::mat> & factors,
@@ -5162,6 +5230,17 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       return applyKroneckerRight(input, factors, scale);
     };
 
+  auto applyDescriptorCovarianceD1Right =
+    [&](const arma::mat & input,
+        const DescriptorPrecisionState & state,
+        const arma::uword k) -> arma::mat {
+
+      std::vector<arma::mat> factors;
+      double scale = 1.0;
+      descriptorCovarianceD1Factors(state, k, factors, scale);
+      return applyKroneckerRight(input, factors, scale);
+    };
+
   auto descriptorIsPositiveDefinite =
     [&](const Rcpp::List & cs,
         const arma::vec & par,
@@ -5189,20 +5268,27 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         }
 
         arma::mat covariance;
-        try{
-          covariance = evalFactor(f, localPar);
-        }catch(...){
-          return false;
-        }
+        double factorMinimum = std::numeric_limits<double>::infinity();
+        const int nSections = factorSections(f);
+        for(int t = 0; t < std::max(nSections, 1); ++t){
+          try{
+            covariance = nSections > 0
+              ? evalSectionFactor(f, localPar, t)
+              : evalFactor(f, localPar);
+          }catch(...){
+            return false;
+          }
 
-        arma::vec eigenvalues;
-        if(!arma::eig_sym(eigenvalues, covariance) ||
-           eigenvalues.n_elem == 0 ||
-           !eigenvalues.is_finite() ||
-           eigenvalues.min() <= 0.0){
-          return false;
+          arma::vec eigenvalues;
+          if(!arma::eig_sym(eigenvalues, covariance) ||
+             eigenvalues.n_elem == 0 ||
+             !eigenvalues.is_finite() ||
+             eigenvalues.min() <= 0.0){
+            return false;
+          }
+          factorMinimum = std::min(factorMinimum, eigenvalues.min());
         }
-        logMinimumEigenvalue += std::log(eigenvalues.min());
+        logMinimumEigenvalue += std::log(factorMinimum);
       }
 
       return
@@ -5232,6 +5318,37 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
 
     covDescriptor.push_back(cs);
+    covarianceDim[static_cast<std::size_t>(i)] =
+      static_cast<arma::uword>(Rcpp::as<int>(cs["dim"]));
+
+    const bool completeResidualBlocks =
+      cs.containsElementNamed("complete_residual_blocks") &&
+      Rcpp::as<bool>(cs["complete_residual_blocks"]);
+    if(i == nRRe - 1){
+      Rcpp::List residualFactors = cs["factors"];
+      for(int fidx = 0; fidx < residualFactors.size(); ++fidx){
+        Rcpp::List factor = Rcpp::as<Rcpp::List>(residualFactors[fidx]);
+        if(factor.containsElementNamed("section_levels")){
+          residualSectioned = true;
+        }
+      }
+      if(residualSectioned && useH){
+        Rcpp::stop("dsumm() residual structures are not yet available with W weights.");
+      }
+    }
+    // The complete-block weighted path still needs the explicit block inverse.
+    if(i == nRRe - 1 && !(useH && completeResidualBlocks)){
+      compactResidualCovariance = residualSectioned;
+      Rcpp::List residualFactors = cs["factors"];
+      for(int fidx = 0; fidx < residualFactors.size(); ++fidx){
+        Rcpp::List factor = Rcpp::as<Rcpp::List>(residualFactors[fidx]);
+        if(!factor.containsElementNamed("structurally_diagonal") ||
+           !Rcpp::as<bool>(factor["structurally_diagonal"])){
+          compactResidualCovariance = true;
+          break;
+        }
+      }
+    }
 
     covPar(i) =
       Rcpp::as<arma::vec>(
@@ -5293,17 +5410,13 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     covLower(i)(0) =
       std::log(std::max(1.0e-8, tolParInv)) - std::log(vary);
 
-    theta(i) =
-      evaluateDescriptor(
-        cs,
-        covPar(i)
-      );
-
-    thetaC(i) =
-      arma::zeros<arma::mat>(
-        theta(i).n_rows,
-        theta(i).n_cols
-      );
+    if(i == nRRe - 1 && compactResidualCovariance){
+      theta(i).reset();
+      thetaC(i).reset();
+    }else{
+      theta(i) = evaluateDescriptor(cs, covPar(i));
+      thetaC(i) = arma::zeros<arma::mat>(theta(i).n_rows, theta(i).n_cols);
+    }
   }
 
   auto covarianceD1 =
@@ -5360,6 +5473,13 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
 
       if(!par.is_finite()){
         return false;
+      }
+
+      if(iStruct == nRRe - 1 && compactResidualCovariance){
+        value.reset();
+        return descriptorIsPositiveDefinite(
+          covDescriptor[static_cast<std::size_t>(iStruct)], par, 1.0e-12
+        );
       }
 
       try{
@@ -5680,10 +5800,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   // Generic residual block/layout cache
   // ============================================================
   const int residualStructIndex = nRRe - 1;
-  const int residualDim =
-    static_cast<int>(
-      theta(residualStructIndex).n_rows
-    );
+  const int residualDim = static_cast<int>(
+    covarianceDim[static_cast<std::size_t>(residualStructIndex)]
+  );
 
   if(residualDim < 1){
     Rcpp::stop("Residual covariance dimension must be positive.");
@@ -5931,6 +6050,123 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
   }
 
+  std::vector<int> residualPosInBlock(static_cast<std::size_t>(nR), -1);
+  for(int b = 0; b < residualNBlocks; ++b){
+    const arma::uvec & rows = residualKronRows[static_cast<std::size_t>(b)];
+    for(arma::uword j = 0; j < rows.n_elem; ++j){
+      residualPosInBlock[static_cast<std::size_t>(rows(j))] = static_cast<int>(j);
+    }
+  }
+
+  // Ragged blocks embedded in their factor rectangle; missing cells are absorbed
+  // exactly via R_oo^{-1} = Q_oo - Q_om Q_mm^{-1} Q_mo (ASReml missing-value form).
+  bool residualGridBlocks = false;
+  int gridNFactors = 0;
+  std::vector< std::vector<arma::uvec> > gridLevels;
+  std::vector<arma::uvec> gridObsPos;
+  std::vector<arma::uvec> gridMissPos;
+  std::vector<arma::uword> gridSize;
+  std::vector< std::vector<int> > gridSectionOf;
+
+  if(compactResidualCovariance && (!residualKronBlocks || residualSectioned) &&
+     (!residualStructurallyDiagonal || residualSectioned) && !useH){
+    Rcpp::List rfactors =
+      covDescriptor[static_cast<std::size_t>(residualStructIndex)]["factors"];
+    gridNFactors = rfactors.size();
+    std::vector<arma::uword> fdim(static_cast<std::size_t>(gridNFactors));
+    std::vector<arma::uword> ftrail(static_cast<std::size_t>(gridNFactors));
+    arma::uword trailing = static_cast<arma::uword>(residualDim);
+    for(int f = 0; f < gridNFactors; ++f){
+      Rcpp::List fl = Rcpp::as<Rcpp::List>(rfactors[f]);
+      fdim[static_cast<std::size_t>(f)] = static_cast<arma::uword>(Rcpp::as<int>(fl["dim"]));
+      trailing /= fdim[static_cast<std::size_t>(f)];
+      ftrail[static_cast<std::size_t>(f)] = trailing;
+    }
+
+    residualGridBlocks = gridNFactors > 0;
+    gridLevels.resize(static_cast<std::size_t>(residualNBlocks));
+    gridObsPos.resize(static_cast<std::size_t>(residualNBlocks));
+    gridMissPos.resize(static_cast<std::size_t>(residualNBlocks));
+    gridSize.resize(static_cast<std::size_t>(residualNBlocks));
+    gridSectionOf.assign(static_cast<std::size_t>(residualNBlocks),
+                         std::vector<int>(static_cast<std::size_t>(gridNFactors), -1));
+
+    for(int b = 0; b < residualNBlocks && residualGridBlocks; ++b){
+      const std::size_t bb = static_cast<std::size_t>(b);
+      const arma::uvec & rows = residualKronRows[bb];
+      const arma::uword nb = rows.n_elem;
+      std::vector< std::vector<int> > posOfLevel(static_cast<std::size_t>(gridNFactors));
+      gridLevels[bb].resize(static_cast<std::size_t>(gridNFactors));
+      arma::uword S = 1;
+
+      for(int f = 0; f < gridNFactors; ++f){
+        const std::size_t ff = static_cast<std::size_t>(f);
+        std::vector<arma::uword> lv;
+        lv.reserve(nb);
+        for(arma::uword j = 0; j < nb; ++j){
+          const arma::uword local = static_cast<arma::uword>(
+            residualLocalOfRow[static_cast<std::size_t>(rows(j))]);
+          lv.push_back((local / ftrail[ff]) % fdim[ff]);
+        }
+        std::sort(lv.begin(), lv.end());
+        lv.erase(std::unique(lv.begin(), lv.end()), lv.end());
+        gridLevels[bb][ff] = arma::uvec(lv);
+        posOfLevel[ff].assign(fdim[ff], -1);
+        for(std::size_t i = 0; i < lv.size(); ++i){
+          posOfLevel[ff][lv[i]] = static_cast<int>(i);
+        }
+        S *= static_cast<arma::uword>(lv.size());
+      }
+
+      if(S > 3 * nb + 1000 || S - nb > 4000){
+        residualGridBlocks = false;
+        break;
+      }
+      gridSize[bb] = S;
+
+      std::vector<char> seen(S, 0);
+      gridObsPos[bb].set_size(nb);
+      for(arma::uword j = 0; j < nb; ++j){
+        const arma::uword local = static_cast<arma::uword>(
+          residualLocalOfRow[static_cast<std::size_t>(rows(j))]);
+        arma::uword g = 0;
+        for(int f = 0; f < gridNFactors; ++f){
+          const std::size_t ff = static_cast<std::size_t>(f);
+          const arma::uword digit = (local / ftrail[ff]) % fdim[ff];
+          g = g * gridLevels[bb][ff].n_elem +
+            static_cast<arma::uword>(posOfLevel[ff][digit]);
+        }
+        gridObsPos[bb](j) = g;
+        seen[g] = 1;
+      }
+      std::vector<arma::uword> miss;
+      miss.reserve(S - nb);
+      for(arma::uword g = 0; g < S; ++g){
+        if(!seen[g]){ miss.push_back(g); }
+      }
+      gridMissPos[bb] = arma::uvec(miss);
+
+      for(int f = 0; f < gridNFactors; ++f){
+        Rcpp::List fl = Rcpp::as<Rcpp::List>(rfactors[f]);
+        if(!fl.containsElementNamed("section_factor")){
+          continue;
+        }
+        const std::size_t owner =
+          static_cast<std::size_t>(Rcpp::as<int>(fl["section_factor"]) - 1);
+        if(gridLevels[bb][owner].n_elem != 1){
+          Rcpp::stop("A residual block spans several levels of a by= section variable.");
+        }
+        gridSectionOf[bb][static_cast<std::size_t>(f)] =
+          static_cast<int>(gridLevels[bb][owner](0));
+      }
+    }
+  }
+
+  if(residualSectioned && !residualGridBlocks){
+    Rcpp::stop("dsumm() residual structures require unweighted, near-rectangular "
+               "residual blocks within each section.");
+  }
+
   // ------------------------------------------------------------
   // Cache the block design matrices used by the repeated-block/Kronecker
   // residual C-assembly path (including any diagonal-H row weighting).
@@ -5948,7 +6184,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   // rows.n_elem == residualDim, which the local-coordinate indexing below
   // requires. When blocks are irregular the Rkron path is never taken at
   // runtime, so the cache is simply left empty.
-  if(residualKronBlocks){
+  if(residualKronBlocks || residualGridBlocks){
   for(int block = 0; block < residualNBlocks; ++block){
     const arma::uvec & rows =
       residualKronRows[static_cast<std::size_t>(block)];
@@ -5972,10 +6208,11 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         const arma::uword globalRow =
           static_cast<arma::uword>(designEntry.row());
         if(residualBlockOfRow[static_cast<std::size_t>(globalRow)] == block){
-          const int localCoordinate = residualLocalOfRow[
+          // For complete blocks the block position equals the local coordinate.
+          const int localPosition = residualPosInBlock[
             static_cast<std::size_t>(globalRow)
           ];
-          blockW(static_cast<arma::uword>(localCoordinate), localCol) =
+          blockW(static_cast<arma::uword>(localPosition), localCol) =
             designEntry.value();
         }
       }
@@ -6009,7 +6246,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   std::vector<int> residualPatternLr;
   std::vector<int> residualPatternLc;
 
-  {
+  if(!residualGridBlocks && (!residualKronBlocks || residualStructurallyDiagonal)){
     std::vector<arma::uword> patternRows;
     std::vector<arma::uword> patternCols;
 
@@ -6049,6 +6286,67 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           static_cast<arma::uword>(residualPatternLr[k]),
           static_cast<arma::uword>(residualPatternLc[k])
         );
+      }
+      return arma::sp_mat(residualPatternLocations, values, nR, nR);
+    };
+
+  std::vector< std::vector<arma::uword> > residualDigits;
+  if(compactResidualCovariance){
+    Rcpp::List rfactors = covDescriptor[static_cast<std::size_t>(residualStructIndex)]["factors"];
+    arma::uword trailing = static_cast<arma::uword>(residualDim);
+    residualDigits.resize(static_cast<std::size_t>(rfactors.size()));
+    for(int fidx = 0; fidx < rfactors.size(); ++fidx){
+      Rcpp::List f = Rcpp::as<Rcpp::List>(rfactors[fidx]);
+      const arma::uword dim = static_cast<arma::uword>(Rcpp::as<int>(f["dim"]));
+      trailing /= dim;
+      std::vector<arma::uword> & digits = residualDigits[static_cast<std::size_t>(fidx)];
+      digits.resize(static_cast<std::size_t>(residualDim));
+      for(int local = 0; local < residualDim; ++local){
+        digits[static_cast<std::size_t>(local)] =
+          (static_cast<arma::uword>(local) / trailing) % dim;
+      }
+    }
+  }
+
+  // derivativeK < 0 evaluates R itself; otherwise dR/dpar_k.
+  auto buildCompactResidualSparse =
+    [&](const arma::vec & par, const int derivativeK) -> arma::sp_mat {
+      Rcpp::List rfactors = covDescriptor[static_cast<std::size_t>(residualStructIndex)]["factors"];
+      std::vector<arma::mat> pieces(static_cast<std::size_t>(rfactors.size()));
+      bool found = derivativeK <= 0;
+      for(int fidx = 0; fidx < rfactors.size(); ++fidx){
+        Rcpp::List f = Rcpp::as<Rcpp::List>(rfactors[fidx]);
+        const int start1 = Rcpp::as<int>(f["par_start"]);
+        const int end1 = Rcpp::as<int>(f["par_end"]);
+        arma::vec localPar;
+        if(end1 >= start1){
+          localPar = par.subvec(static_cast<arma::uword>(start1 - 1),
+                                static_cast<arma::uword>(end1 - 1));
+        }
+        const int k1 = derivativeK + 1;
+        if(derivativeK > 0 && k1 >= start1 && k1 <= end1){
+          pieces[static_cast<std::size_t>(fidx)] =
+            factorD1(f, localPar, static_cast<arma::uword>(k1 - start1));
+          found = true;
+        }else{
+          pieces[static_cast<std::size_t>(fidx)] = evalFactor(f, localPar);
+        }
+      }
+      if(!found){
+        Rcpp::stop("Residual covariance derivative parameter does not belong to any factor.");
+      }
+
+      const double scale = std::exp(par(0));
+      const arma::uword nnz = residualPatternLr.size();
+      arma::vec values(nnz);
+      for(arma::uword k = 0; k < nnz; ++k){
+        const std::size_t lr = static_cast<std::size_t>(residualPatternLr[k]);
+        const std::size_t lc = static_cast<std::size_t>(residualPatternLc[k]);
+        double value = scale;
+        for(std::size_t fidx = 0; fidx < pieces.size(); ++fidx){
+          value *= pieces[fidx](residualDigits[fidx][lr], residualDigits[fidx][lc]);
+        }
+        values(k) = value;
       }
       return arma::sp_mat(residualPatternLocations, values, nR, nR);
     };
@@ -7766,8 +8064,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     const arma::uword nResidualPar =
       covPar(residualStruct).n_elem;
 
-    const arma::mat residualSigma =
-      theta(residualStruct);
+    const arma::mat residualSigma = compactResidualCovariance
+      ? arma::mat()
+      : theta(residualStruct);
 
     std::vector<DescriptorPrecisionState> randomPrecisionState(
       static_cast<std::size_t>(nRe)
@@ -7782,11 +8081,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       covarianceDerivativeReady[structureOffset].assign(parameterCount, false);
     }
 
-    if(
-        residualSigma.n_rows != static_cast<arma::uword>(residualDim)
-        ||
-        residualSigma.n_cols != static_cast<arma::uword>(residualDim)
-    ){
+    if(!compactResidualCovariance &&
+       (residualSigma.n_rows != static_cast<arma::uword>(residualDim) ||
+      residualSigma.n_cols != static_cast<arma::uword>(residualDim))){
       Rcpp::stop("Residual covariance dimension changed unexpectedly.");
     }
 
@@ -7811,13 +8108,15 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     arma::sp_mat Rmat;
 
     const bool Rdiag =
-      residualStructurallyDiagonal;
+      residualStructurallyDiagonal && !residualGridBlocks;
 
     const bool Rkron =
       (
         !Rdiag
         &&
         residualKronBlocks
+        &&
+        !residualGridBlocks
       );
 
     arma::vec RdiagInv;
@@ -7826,6 +8125,104 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     SelectedInverseSubset Rselected;
     arma::mat RkronInv;
     DescriptorPrecisionState residualPrecisionState;
+
+    const bool Rgrid = residualGridBlocks;
+    std::vector< std::vector<arma::mat> > gridF;
+    std::vector< std::vector<arma::mat> > gridP;
+    std::vector<arma::mat> gridQcolM;
+    std::vector<arma::mat> gridQmmChol;
+    std::vector<arma::mat> gridDFull;
+    std::vector<int> gridDFactor;
+    std::vector<int> gridDSection;
+    double gridScale = 1.0;
+
+    auto gridKron =
+      [&](const arma::mat & X, const std::vector<arma::mat> & factors,
+          const double scale) -> arma::mat {
+        return applyKroneckerRight(X.t(), factors, scale).t();
+      };
+
+    auto gridEmbed =
+      [&](const int b, const arma::mat & V) -> arma::mat {
+        arma::mat X(gridSize[static_cast<std::size_t>(b)], V.n_cols, arma::fill::zeros);
+        X.rows(gridObsPos[static_cast<std::size_t>(b)]) = V;
+        return X;
+      };
+
+    auto gridApplyRi =
+      [&](const int b, const arma::mat & V) -> arma::mat {
+        const std::size_t bb = static_cast<std::size_t>(b);
+        arma::mat Y = gridKron(gridEmbed(b, V), gridP[bb], 1.0 / gridScale);
+        if(gridMissPos[bb].n_elem > 0){
+          const arma::mat Ym = Y.rows(gridMissPos[bb]);
+          const arma::mat & U = gridQmmChol[bb];
+          Y -= gridQcolM[bb] *
+            arma::solve(arma::trimatu(U), arma::solve(arma::trimatl(U.t()), Ym));
+        }
+        return Y.rows(gridObsPos[bb]);
+      };
+
+    // Returns false when dR_S/dpar_k is structurally zero on this block.
+    auto gridDerivFactors =
+      [&](const int b, const arma::uword k, std::vector<arma::mat> & factors) -> bool {
+        const std::size_t bb = static_cast<std::size_t>(b);
+        factors = gridF[bb];
+        const int f = gridDFactor[static_cast<std::size_t>(k)];
+        if(f < 0){
+          return true;
+        }
+        const int section = gridDSection[static_cast<std::size_t>(k)];
+        if(section >= 0 && gridSectionOf[bb][static_cast<std::size_t>(f)] != section){
+          return false;
+        }
+        const arma::uvec & lev = gridLevels[bb][static_cast<std::size_t>(f)];
+        arma::mat d = gridDFull[static_cast<std::size_t>(k)].submat(lev, lev);
+        if(!arma::any(arma::vectorise(d) != 0.0)){
+          return false;
+        }
+        factors[static_cast<std::size_t>(f)] = std::move(d);
+        return true;
+      };
+
+    auto gridApplyDR =
+      [&](const int b, const arma::uword k, const arma::mat & V) -> arma::mat {
+        std::vector<arma::mat> factors;
+        if(!gridDerivFactors(b, k, factors)){
+          return arma::zeros<arma::mat>(V.n_rows, V.n_cols);
+        }
+        return gridKron(gridEmbed(b, V), factors, gridScale)
+          .rows(gridObsPos[static_cast<std::size_t>(b)]);
+      };
+
+    // tr(R_oo^{-1} dR_oo) = dlog|R_S| - tr(Q_mm^{-1} Q_m. dR_S Q_.m)
+    auto gridTraceDR =
+      [&](const arma::uword k) -> double {
+        double total = 0.0;
+        for(int b = 0; b < residualNBlocks; ++b){
+          const std::size_t bb = static_cast<std::size_t>(b);
+          std::vector<arma::mat> factors;
+          if(!gridDerivFactors(b, k, factors)){
+            continue;
+          }
+          const double S = static_cast<double>(gridSize[bb]);
+          const int f = gridDFactor[static_cast<std::size_t>(k)];
+          double trace = S;
+          if(f >= 0){
+            const std::size_t ff = static_cast<std::size_t>(f);
+            trace = (S / static_cast<double>(factors[ff].n_rows)) *
+              arma::accu(gridP[bb][ff] % factors[ff]);
+          }
+          if(gridMissPos[bb].n_elem > 0){
+            const arma::mat A = gridKron(gridQcolM[bb], factors, gridScale);
+            const arma::mat B = gridQcolM[bb].t() * A;
+            const arma::mat & U = gridQmmChol[bb];
+            trace -= arma::trace(
+              arma::solve(arma::trimatu(U), arma::solve(arma::trimatl(U.t()), B)));
+          }
+          total += trace;
+        }
+        return total;
+      };
 
     if(Rdiag){
 
@@ -7863,6 +8260,90 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
       }
 
+    }else if(Rgrid){
+
+      Rcpp::List rfactors =
+        covDescriptor[static_cast<std::size_t>(residualStruct)]["factors"];
+      const arma::vec & par = covPar(residualStruct);
+      std::vector< std::vector<arma::mat> > Ffull(static_cast<std::size_t>(gridNFactors));
+      for(int f = 0; f < gridNFactors; ++f){
+        Rcpp::List fl = Rcpp::as<Rcpp::List>(rfactors[f]);
+        const int start1 = Rcpp::as<int>(fl["par_start"]);
+        const int end1 = Rcpp::as<int>(fl["par_end"]);
+        arma::vec localPar;
+        if(end1 >= start1){
+          localPar = par.subvec(static_cast<arma::uword>(start1 - 1),
+                                static_cast<arma::uword>(end1 - 1));
+        }
+        const int nSections = factorSections(fl);
+        std::vector<arma::mat> & evaluated = Ffull[static_cast<std::size_t>(f)];
+        if(nSections > 0){
+          evaluated.resize(static_cast<std::size_t>(nSections));
+          for(int t = 0; t < nSections; ++t){
+            evaluated[static_cast<std::size_t>(t)] = evalSectionFactor(fl, localPar, t);
+          }
+        }else{
+          evaluated.assign(1, evalFactor(fl, localPar));
+        }
+      }
+
+      gridScale = std::exp(par(0));
+      gridF.assign(static_cast<std::size_t>(residualNBlocks), std::vector<arma::mat>());
+      gridP.assign(static_cast<std::size_t>(residualNBlocks), std::vector<arma::mat>());
+      gridQcolM.assign(static_cast<std::size_t>(residualNBlocks), arma::mat());
+      gridQmmChol.assign(static_cast<std::size_t>(residualNBlocks), arma::mat());
+
+      for(int b = 0; b < residualNBlocks; ++b){
+        const std::size_t bb = static_cast<std::size_t>(b);
+        const double S = static_cast<double>(gridSize[bb]);
+        double blockLogDet = S * par(0);
+        gridF[bb].resize(static_cast<std::size_t>(gridNFactors));
+        gridP[bb].resize(static_cast<std::size_t>(gridNFactors));
+
+        for(int f = 0; f < gridNFactors; ++f){
+          const std::size_t ff = static_cast<std::size_t>(f);
+          const arma::uvec & lev = gridLevels[bb][ff];
+          const int section = gridSectionOf[bb][ff];
+          gridF[bb][ff] = Ffull[ff][section >= 0 ? static_cast<std::size_t>(section) : 0].submat(lev, lev);
+          arma::mat U;
+          if(!arma::chol(U, gridF[bb][ff])){
+            Rcpp::stop("Residual covariance factor is not positive definite on a residual block.");
+          }
+          blockLogDet += (S / static_cast<double>(lev.n_elem)) *
+            2.0 * arma::accu(arma::log(U.diag()));
+          const arma::mat Uinv = arma::inv(arma::trimatu(U));
+          gridP[bb][ff] = Uinv * Uinv.t();
+        }
+
+        const arma::uvec & miss = gridMissPos[bb];
+        if(miss.n_elem > 0){
+          arma::mat E(gridSize[bb], miss.n_elem, arma::fill::zeros);
+          for(arma::uword j = 0; j < miss.n_elem; ++j){
+            E(miss(j), j) = 1.0;
+          }
+          gridQcolM[bb] = gridKron(E, gridP[bb], 1.0 / gridScale);
+          arma::mat Qmm = gridQcolM[bb].rows(miss);
+          Qmm = 0.5 * (Qmm + Qmm.t());
+          if(!arma::chol(gridQmmChol[bb], Qmm)){
+            Rcpp::stop("Missing-cell residual precision block is not positive definite.");
+          }
+          blockLogDet += 2.0 * arma::accu(arma::log(gridQmmChol[bb].diag()));
+        }
+
+        if(!std::isfinite(blockLogDet)){
+          Rcpp::stop("Non-finite residual log-determinant on a residual block.");
+        }
+        logDetR += blockLogDet;
+      }
+
+      if(verbose && iIter == 0){
+        Rcpp::Rcout
+          << "Using exact grid residual engine (missing cells absorbed): "
+          << residualNBlocks
+          << " blocks"
+          << arma::endl;
+      }
+
     }else if(Rkron){
 
       const bool residualPrecisionOK =
@@ -7870,14 +8351,14 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           covDescriptor[static_cast<std::size_t>(residualStruct)],
           covPar(residualStruct),
           residualPrecisionState,
+          false,
           false
         )
         &&
-        residualPrecisionState.precision.n_rows
+        residualPrecisionState.totalDim
           == static_cast<arma::uword>(residualKronBlockSize);
 
       if(residualPrecisionOK){
-        RkronInv = residualPrecisionState.precision;
         logDetR =
           static_cast<double>(residualKronNBlocks)
           *
@@ -8080,7 +8561,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     }else{
 
       // Generic sparse residual path for incomplete/unbalanced blocks.
-      Rmat = buildResidualSparseFromPattern(residualSigma);
+      Rmat = compactResidualCovariance
+        ? buildCompactResidualSparse(covPar(residualStruct), -1)
+        : buildResidualSparseFromPattern(residualSigma);
 
       if(Rmat.n_rows > static_cast<arma::uword>(std::numeric_limits<int>::max())){
         Rcpp::stop("R is too large for the 32-bit Eigen sparse index type used in ai_mme_sp2().");
@@ -8228,6 +8711,18 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       if(Rdiag){
         solved = rhs;
         solved.each_col() %= RdiagInv;
+      }else if(Rgrid){
+
+        solved.zeros(rhs.n_rows, rhs.n_cols);
+        #pragma omp parallel for if(residualNBlocks > 1)
+        for(int b = 0; b < residualNBlocks; ++b){
+          const arma::uvec & rows = residualKronRows[static_cast<std::size_t>(b)];
+          const arma::mat solvedBlock = gridApplyRi(b, rhs.rows(rows));
+          for(arma::uword localRow = 0; localRow < rows.n_elem; ++localRow){
+            solved.row(rows(localRow)) = solvedBlock.row(localRow);
+          }
+        }
+
       }else if(Rkron){
 
         solved.zeros(
@@ -8333,7 +8828,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       const Eigen::VectorXd rhsMMEEig = W.transpose() * RiyEig;
       rhsMME.set_size(rhsMMEEig.size());
       std::copy(rhsMMEEig.data(), rhsMMEEig.data() + rhsMMEEig.size(), rhsMME.memptr());
-    }else if(Rkron && (!useH || Hdiag)){
+    }else if((Rkron || Rgrid) && (!useH || Hdiag)){
       // A repeated residual block does not couple observations from other
       // blocks.  Restricting each operation to the MME columns active in a
       // block avoids the global nR x nEffects dense RiW temporary.
@@ -8358,7 +8853,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           residualKronBlockWCache[static_cast<std::size_t>(block)];
 
         arma::mat blockRiW;
-        if(residualPrecisionState.factorWise){
+        if(Rgrid){
+          blockRiW = gridApplyRi(block, blockW);
+        }else if(residualPrecisionState.factorWise){
           blockRiW = applyKroneckerRight(
               blockW.t(),
               residualPrecisionState.factorPrecision,
@@ -9076,11 +9573,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             covPar(iStruct) =
               trialParameters(local);
 
-            theta(iStruct) =
-              evaluateStructure(
-                iStruct,
-                covPar(iStruct)
-              );
+            if(!(iStruct == residualStruct && compactResidualCovariance)){
+              theta(iStruct) = evaluateStructure(iStruct, covPar(iStruct));
+            }
           }
 
           if(verbose){
@@ -9126,11 +9621,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             covPar(iStruct) =
               lineSearchBase(local);
 
-            theta(iStruct) =
-              evaluateStructure(
-                iStruct,
-                covPar(iStruct)
-              );
+            if(!(iStruct == residualStruct && compactResidualCovariance)){
+              theta(iStruct) = evaluateStructure(iStruct, covPar(iStruct));
+            }
           }
 
           pendingLineSearch = false;
@@ -9189,14 +9682,66 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       );
     }
 
-    const bool residualDerivativesBlockLocal = Rkron && !useH;
+    const bool residualDerivativesBlockLocal = (Rkron || Rgrid) && !useH;
 
-    for(arma::uword k = 0; k < nResidualPar; ++k){
-      residualLocalD1(k) =
-        cachedCovarianceD1(
-          residualStruct,
-          k
-        );
+    if(Rgrid){
+      Rcpp::List rfactors =
+        covDescriptor[static_cast<std::size_t>(residualStruct)]["factors"];
+      const arma::vec & par = covPar(residualStruct);
+      gridDFactor.assign(static_cast<std::size_t>(nResidualPar), -1);
+      gridDSection.assign(static_cast<std::size_t>(nResidualPar), -1);
+      gridDFull.assign(static_cast<std::size_t>(nResidualPar), arma::mat());
+      for(int f = 0; f < gridNFactors; ++f){
+        Rcpp::List fl = Rcpp::as<Rcpp::List>(rfactors[f]);
+        const int start1 = Rcpp::as<int>(fl["par_start"]);
+        const int end1 = Rcpp::as<int>(fl["par_end"]);
+        if(end1 < start1){
+          continue;
+        }
+        const arma::vec localPar =
+          par.subvec(static_cast<arma::uword>(start1 - 1),
+                     static_cast<arma::uword>(end1 - 1));
+        const int nSections = factorSections(fl);
+        const int nPerSection = nSections > 0 ? Rcpp::as<int>(fl["section_npar"]) : 0;
+        std::vector<int> listedToSection;
+        for(int t = 0; t < nSections; ++t){
+          const int listed = sectionListed(fl, t);
+          if(listed >= 0){
+            if(static_cast<int>(listedToSection.size()) <= listed){
+              listedToSection.resize(static_cast<std::size_t>(listed + 1), -1);
+            }
+            listedToSection[static_cast<std::size_t>(listed)] = t;
+          }
+        }
+        for(int k1 = start1; k1 <= end1; ++k1){
+          const std::size_t k = static_cast<std::size_t>(k1 - 1);
+          const int local = k1 - start1;
+          gridDFactor[k] = f;
+          if(nSections > 0){
+            const int t = listedToSection[static_cast<std::size_t>(local / nPerSection)];
+            gridDSection[k] = t;
+            gridDFull[k] = factorD1(fl, sectionSlice(fl, localPar, t),
+                                    static_cast<arma::uword>(local % nPerSection));
+          }else{
+            gridDFull[k] = factorD1(fl, localPar, static_cast<arma::uword>(local));
+          }
+        }
+      }
+    }
+
+    for(arma::uword k = 0; k < nResidualPar && !Rgrid; ++k){
+      if(compactResidualCovariance && !residualDerivativesBlockLocal){
+        residualDerivativeBasis(k) =
+          buildCompactResidualSparse(covPar(residualStruct), static_cast<int>(k));
+        continue;
+      }
+      if(!(residualDerivativesBlockLocal && residualPrecisionState.factorWise)){
+        residualLocalD1(k) =
+          cachedCovarianceD1(
+            residualStruct,
+            k
+          );
+      }
       if(!residualDerivativesBlockLocal){
         residualDerivativeBasis(k) =
           buildResidualSparseFromPattern(residualLocalD1(k));
@@ -9520,8 +10065,17 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         for(int block = 0; block < residualKronNBlocks; ++block){
           const arma::uvec & rows =
             residualKronRows[static_cast<std::size_t>(block)];
-          const arma::vec localWorking =
-            residualLocalD1(iP) * Rie.elem(rows);
+          const arma::vec localRie = Rie.elem(rows);
+          arma::vec localWorking;
+          if(Rgrid){
+            localWorking = gridApplyDR(block, iP, localRie);
+          }else if(residualPrecisionState.factorWise){
+            localWorking = applyDescriptorCovarianceD1Right(
+              localRie.t(), residualPrecisionState, iP
+            ).t();
+          }else{
+            localWorking = residualLocalD1(iP) * localRie;
+          }
           for(arma::uword localRow = 0; localRow < rows.n_elem; ++localRow){
             residualWorking(rows(localRow), iP) = localWorking(localRow);
           }
@@ -10342,7 +10896,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
       arma::sp_mat traceBasisDeriv;
 
-      if(useH){
+      if(Rgrid){
+        // traceBasisDeriv is unused on the grid path.
+      }else if(useH){
         traceBasisDeriv =
           Hs.t()
           *
@@ -10374,6 +10930,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
               );
           }
         }
+
+      }else if(Rgrid){
+
+        traceSRi = gridTraceDR(iP);
 
       }else if(Rkron){
 
@@ -10478,12 +11038,16 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             }
             const arma::mat & blockRiW =
               residualKronBlockRiW[static_cast<std::size_t>(block)];
-            const arma::mat localBasis =
-              blockRiW.t()
-              *
-              residualLocalD1(iP)
-              *
-              blockRiW;
+            arma::mat localBasis;
+            if(Rgrid){
+              localBasis = blockRiW.t() * gridApplyDR(block, iP, blockRiW);
+            }else if(residualPrecisionState.factorWise){
+              localBasis = applyDescriptorCovarianceD1Right(
+                blockRiW.t(), residualPrecisionState, iP
+              ) * blockRiW;
+            }else{
+              localBasis = blockRiW.t() * residualLocalD1(iP) * blockRiW;
+            }
 
             for(arma::uword localCol = 0; localCol < columns.n_elem; ++localCol){
               for(arma::uword localRow = 0; localRow < columns.n_elem; ++localRow){
@@ -10570,10 +11134,20 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           const arma::uvec & rows =
             residualKronRows[static_cast<std::size_t>(block)];
           const arma::vec localRie = Rie.elem(rows);
+          arma::vec derivativeApplied;
+          if(Rgrid){
+            derivativeApplied = gridApplyDR(block, iP, localRie);
+          }else if(residualPrecisionState.factorWise){
+            derivativeApplied = applyDescriptorCovarianceD1Right(
+              localRie.t(), residualPrecisionState, iP
+            ).t();
+          }else{
+            derivativeApplied = residualLocalD1(iP) * localRie;
+          }
           residualQuadratic +=
             arma::dot(
               localRie,
-              residualLocalD1(iP) * localRie
+              derivativeApplied
             );
         }
       }else{
@@ -11066,7 +11640,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       // only if no fraction of the step is repairable (e.g. a genuine
       // non-finite proposal).
       // ------------------------------------------------------------
-      if(theta(iStruct).n_rows == 1 && covPar(iStruct).n_elem == 1){
+      if(covarianceDim[static_cast<std::size_t>(iStruct)] == 1 &&
+        covPar(iStruct).n_elem == 1){
 
         const arma::uword g0 = structIdx(0);
         const double previousValue = thetaUnlisted(g0);
@@ -11094,7 +11669,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           &&
           localFree.n_elem > 0
           &&
-          theta(iStruct).n_rows > 1
+          covarianceDim[static_cast<std::size_t>(iStruct)] > 1
       ){
 
         // ----------------------------------------------------------
@@ -12298,6 +12873,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     Rcpp::Named("CiMode") = computeCi,
     Rcpp::Named("solver") = solverName,
     Rcpp::Named("pcgMatrixFree") = matrixFreePCGReady,
+    Rcpp::Named("residualCovarianceCompact") = compactResidualCovariance,
     Rcpp::Named("pcgTol") = pcgTol,
     Rcpp::Named("pcgMaxIters") = pcgMaxIters,
     Rcpp::Named("theta") = theta,
@@ -12708,6 +13284,83 @@ static arma::mat directFactorD1(const Rcpp::List & f, const arma::vec & localPar
   return (directEvalFactor(f, plus) - directEvalFactor(f, minus)) / (2.0*h);
 }
 
+// Residual structures with correlated or section-specific factors are assembled
+// directly in record space instead of over the full covariance-product space.
+static bool directResidualCompact(const Rcpp::List & cs){
+  Rcpp::List factors = cs["factors"];
+  for(int fidx = 0; fidx < factors.size(); ++fidx){
+    Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+    if(f.containsElementNamed("section_levels") ||
+       !f.containsElementNamed("structurally_diagonal") ||
+       !Rcpp::as<bool>(f["structurally_diagonal"])){
+      return true;
+    }
+  }
+  return false;
+}
+
+static int directSectionListed(const Rcpp::List & f, const int t){
+  if(f.containsElementNamed("section_index")){
+    Rcpp::IntegerVector index = f["section_index"];
+    return index[t];
+  }
+  return t;
+}
+
+static arma::vec directSectionSlice(const Rcpp::List & f, const arma::vec & localPar, const int listed){
+  const arma::uword npar = static_cast<arma::uword>(Rcpp::as<int>(f["section_npar"]));
+  if(npar == 0 || listed < 0){
+    return arma::vec();
+  }
+  const arma::uword first = static_cast<arma::uword>(listed) * npar;
+  return localPar.subvec(first, first + npar - 1);
+}
+
+// Kronecker PD: sigma2 * prod_f min eig(F_f), taking the worst section per factor.
+static bool directDescriptorPD(const Rcpp::List & cs, const arma::vec & par, const double floor){
+  if(par.n_elem < 1 || !par.is_finite()){
+    return false;
+  }
+  Rcpp::List factors = cs["factors"];
+  double logMinimum = par(0);
+  for(int fidx = 0; fidx < factors.size(); ++fidx){
+    Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+    const int start1 = f.containsElementNamed("par_start") ? Rcpp::as<int>(f["par_start"]) : 1;
+    const int end1 = f.containsElementNamed("par_end") ? Rcpp::as<int>(f["par_end"]) : 0;
+    arma::vec localPar;
+    if(end1 >= start1){
+      localPar = par.subvec(static_cast<arma::uword>(start1-1), static_cast<arma::uword>(end1-1));
+    }
+    const int nSections = f.containsElementNamed("section_levels") ? Rf_length(f["section_levels"]) : 0;
+    double factorMinimum = 1.0;
+    bool any = false;
+    for(int t = 0; t < std::max(nSections, 1); ++t){
+      arma::mat K;
+      try{
+        if(nSections > 0){
+          const int listed = directSectionListed(f, t);
+          if(listed < 0){
+            continue;
+          }
+          K = directEvalFactor(f, directSectionSlice(f, localPar, listed));
+        }else{
+          K = directEvalFactor(f, localPar);
+        }
+      }catch(...){
+        return false;
+      }
+      arma::vec eigenvalues;
+      if(!arma::eig_sym(eigenvalues, K) || !eigenvalues.is_finite() || eigenvalues.min() <= 0.0){
+        return false;
+      }
+      factorMinimum = any ? std::min(factorMinimum, eigenvalues.min()) : eigenvalues.min();
+      any = true;
+    }
+    logMinimum += std::log(factorMinimum);
+  }
+  return std::isfinite(logMinimum) && logMinimum > std::log(floor);
+}
+
 static arma::mat directEvaluateDescriptor(const Rcpp::List & cs, const arma::vec & par){
 
   if(par.n_elem < 1){
@@ -12718,6 +13371,9 @@ static arma::mat directEvaluateDescriptor(const Rcpp::List & cs, const arma::vec
 
   for(int fidx = 0; fidx < factors.size(); ++fidx){
     Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+    if(f.containsElementNamed("section_levels")){
+      Rcpp::stop("Internal error: dsumm() structures must be assembled in record space.");
+    }
     const int start1 = f.containsElementNamed("par_start") ? Rcpp::as<int>(f["par_start"]) : 1;
     const int end1 = f.containsElementNamed("par_end") ? Rcpp::as<int>(f["par_end"]) : 0;
     arma::vec localPar;
@@ -12923,7 +13579,9 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     covPar(i)(0) -= std::log(vary);
     covLower(i)(0) = std::log(std::max(1.0e-8, tolParInv)) - std::log(vary);
 
-    theta(i) = directEvaluateDescriptor(cs, covPar(i));
+    theta(i) = (i == residualStruct && directResidualCompact(cs))
+      ? arma::mat()
+      : directEvaluateDescriptor(cs, covPar(i));
   }
 
   arma::vec nVc(nRRe);
@@ -13002,7 +13660,8 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   // Residual block/local-index cache (same generic mapping as
   // ai_mme_sp2, but here it directly assembles record-space R).
   // ------------------------------------------------------------
-  const int residualDim = static_cast<int>(theta(residualStruct).n_rows);
+  const bool residualCompact = directResidualCompact(covDescriptor[residualStruct]);
+  const int residualDim = Rcpp::as<int>(covDescriptor[residualStruct]["dim"]);
   if(residualDim < 1){
     Rcpp::stop("Residual covariance dimension must be positive.");
   }
@@ -13039,11 +13698,129 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     return R0;
   };
 
+  Rcpp::List residualFactors = covDescriptor[residualStruct]["factors"];
+  const int nResidualFactors = residualFactors.size();
+  std::vector<std::vector<arma::uword>> residualDigit(
+    static_cast<std::size_t>(nResidualFactors),
+    std::vector<arma::uword>(static_cast<std::size_t>(residualDim)));
+  std::vector<int> residualOwner(static_cast<std::size_t>(nResidualFactors), -1);
+  {
+    arma::uword trailing = static_cast<arma::uword>(residualDim);
+    for(int f = 0; f < nResidualFactors; ++f){
+      Rcpp::List fl = Rcpp::as<Rcpp::List>(residualFactors[f]);
+      const arma::uword dim = static_cast<arma::uword>(Rcpp::as<int>(fl["dim"]));
+      trailing /= dim;
+      for(int local = 0; local < residualDim; ++local){
+        residualDigit[static_cast<std::size_t>(f)][static_cast<std::size_t>(local)] =
+          (static_cast<arma::uword>(local) / trailing) % dim;
+      }
+      if(fl.containsElementNamed("section_factor")){
+        residualOwner[static_cast<std::size_t>(f)] = Rcpp::as<int>(fl["section_factor"]) - 1;
+      }
+    }
+  }
+
+  // Record-space R (derivativeK < 0) or dR/dpar_k from the small factor matrices.
+  auto buildRCompact = [&](const arma::vec & par, const int derivativeK) -> arma::mat {
+    std::vector<std::vector<arma::mat>> pieces(static_cast<std::size_t>(nResidualFactors));
+    int derivativeFactor = -1;
+    int derivativeSection = -1;
+    const int k1 = derivativeK + 1;
+    for(int f = 0; f < nResidualFactors; ++f){
+      Rcpp::List fl = Rcpp::as<Rcpp::List>(residualFactors[f]);
+      const int start1 = fl.containsElementNamed("par_start") ? Rcpp::as<int>(fl["par_start"]) : 1;
+      const int end1 = fl.containsElementNamed("par_end") ? Rcpp::as<int>(fl["par_end"]) : 0;
+      arma::vec localPar;
+      if(end1 >= start1){
+        localPar = par.subvec(static_cast<arma::uword>(start1-1), static_cast<arma::uword>(end1-1));
+      }
+      const bool mine = derivativeK > 0 && end1 >= start1 && k1 >= start1 && k1 <= end1;
+      const int nSections = fl.containsElementNamed("section_levels") ? Rf_length(fl["section_levels"]) : 0;
+      std::vector<arma::mat> & slot = pieces[static_cast<std::size_t>(f)];
+      if(nSections == 0){
+        slot.assign(1, mine
+          ? directFactorD1(fl, localPar, static_cast<arma::uword>(k1-start1))
+          : directEvalFactor(fl, localPar));
+        if(mine){ derivativeFactor = f; }
+        continue;
+      }
+      const int npar = Rcpp::as<int>(fl["section_npar"]);
+      const int q = Rcpp::as<int>(fl["dim"]);
+      slot.resize(static_cast<std::size_t>(nSections));
+      for(int t = 0; t < nSections; ++t){
+        const int listed = directSectionListed(fl, t);
+        if(listed < 0){
+          slot[static_cast<std::size_t>(t)] = arma::eye<arma::mat>(q, q);
+          continue;
+        }
+        const arma::vec slice = directSectionSlice(fl, localPar, listed);
+        if(mine && (k1 - start1) / npar == listed){
+          slot[static_cast<std::size_t>(t)] =
+            directFactorD1(fl, slice, static_cast<arma::uword>((k1 - start1) % npar));
+          derivativeFactor = f;
+          derivativeSection = t;
+        }else{
+          slot[static_cast<std::size_t>(t)] = directEvalFactor(fl, slice);
+        }
+      }
+    }
+    if(derivativeK > 0 && derivativeFactor < 0){
+      Rcpp::stop("Residual covariance derivative parameter does not belong to any factor.");
+    }
+
+    const double scale = std::exp(par(0));
+    arma::mat R0(nR, nR, arma::fill::zeros);
+    for(int b = 0; b < nBlocksR; ++b){
+      const std::vector<std::pair<int,int>> & rows = blockRows[b];
+      if(rows.empty()){ continue; }
+      const std::size_t first = static_cast<std::size_t>(rows[0].second);
+      std::vector<const arma::mat *> blockPiece(static_cast<std::size_t>(nResidualFactors));
+      bool zeroBlock = false;
+      for(int f = 0; f < nResidualFactors; ++f){
+        const std::size_t ff = static_cast<std::size_t>(f);
+        std::size_t section = 0;
+        if(pieces[ff].size() > 1 || residualOwner[ff] >= 0){
+          section = residualDigit[static_cast<std::size_t>(residualOwner[ff])][first];
+          if(f == derivativeFactor && derivativeSection >= 0 &&
+             static_cast<int>(section) != derivativeSection){
+            zeroBlock = true;
+          }
+        }
+        blockPiece[ff] = &pieces[ff][section];
+      }
+      if(zeroBlock){ continue; }
+      for(std::size_t p1 = 0; p1 < rows.size(); ++p1){
+        const std::size_t l1 = static_cast<std::size_t>(rows[p1].second);
+        for(std::size_t p2 = 0; p2 < rows.size(); ++p2){
+          const std::size_t l2 = static_cast<std::size_t>(rows[p2].second);
+          double value = scale;
+          for(int f = 0; f < nResidualFactors && value != 0.0; ++f){
+            const std::size_t ff = static_cast<std::size_t>(f);
+            value *= (*blockPiece[ff])(residualDigit[ff][l1], residualDigit[ff][l2]);
+          }
+          R0(rows[p1].first, rows[p2].first) = value;
+        }
+      }
+    }
+    if(useH){ return arma::mat(HsInv.t() * R0 * HsInv); }
+    return R0;
+  };
+
+  auto buildResidual = [&](const arma::vec & par, const int derivativeK) -> arma::mat {
+    if(residualCompact){
+      return buildRCompact(par, derivativeK);
+    }
+    return derivativeK < 0
+      ? buildR(directEvaluateDescriptor(covDescriptor[residualStruct], par))
+      : buildR(directDescriptorD1(covDescriptor[residualStruct], par,
+                                  static_cast<arma::uword>(derivativeK)));
+  };
+
   // ------------------------------------------------------------
   // Main covariance assembly: V(par) and its derivatives.
   // ------------------------------------------------------------
   auto buildV = [&](const arma::field<arma::vec> & par) -> arma::mat {
-    arma::mat V = buildR(directEvaluateDescriptor(covDescriptor[residualStruct], par(residualStruct)));
+    arma::mat V = buildResidual(par(residualStruct), -1);
     for(int i = 0; i < nRe; ++i){
       arma::mat Sigma = directEvaluateDescriptor(covDescriptor[i], par(i));
       const arma::uword q = qOf[i];
@@ -13058,7 +13835,7 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
 
   auto buildD = [&](const arma::field<arma::vec> & par, const int iStruct, const arma::uword k) -> arma::mat {
     if(iStruct == residualStruct){
-      return buildR(directDescriptorD1(covDescriptor[residualStruct], par(residualStruct), k));
+      return buildResidual(par(residualStruct), static_cast<int>(k));
     }
     arma::mat dSigma = directDescriptorD1(covDescriptor[iStruct], par(iStruct), k);
     const arma::uword q = qOf[iStruct];
@@ -13072,6 +13849,9 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   };
 
   auto structureIsPD = [&](int iStruct, const arma::vec & par) -> bool {
+    if(iStruct == residualStruct && residualCompact){
+      return directDescriptorPD(covDescriptor[iStruct], par, tolParInv);
+    }
     arma::mat Th = directEvaluateDescriptor(covDescriptor[iStruct], par);
     arma::vec eigval;
     bool ok = arma::eig_sym(eigval, arma::symmatu(Th));
@@ -13232,7 +14012,9 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
 
     for(int i = 0; i < nRRe; ++i){
       covPar(i) = candidate.subvec(nVcStart(i)-1, nVcEnd(i)-1);
-      theta(i) = directEvaluateDescriptor(covDescriptor[i], covPar(i));
+      if(!(i == residualStruct && residualCompact)){
+        theta(i) = directEvaluateDescriptor(covDescriptor[i], covPar(i));
+      }
     }
     monitor.col(iIter) = candidate;
 
@@ -13443,7 +14225,8 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     Rcpp::Named("convergence") = convergence,
     Rcpp::Named("partitions") = partitions,
     Rcpp::Named("CiMode") = 0,
-    Rcpp::Named("Ci") = arma::sp_mat()
+    Rcpp::Named("Ci") = arma::sp_mat(),
+    Rcpp::Named("residualCovarianceCompact") = residualCompact
   );
 }
 

@@ -222,7 +222,8 @@ mmes <- function(fixed, random, rcov, data, W,
   if(length(randomExprs)){
     for(ex in randomExprs) randomOK <- randomOK & observation_ok(ex, data_full, formula_env(random, fixedEnv), nObs)
   }
-  residualOK <- observation_ok(residualExpr, data_full, residualEnv, nObs) & !is.na(rf_full$residualLocalIndex)
+  residualOK <- if(isTRUE(rf_full$residualSelfMasked)) !is.na(rf_full$residualLocalIndex) else
+    observation_ok(residualExpr, data_full, residualEnv, nObs) & !is.na(rf_full$residualLocalIndex)
   
   keepY <- method_keep(responseOK, naMethodY, "the response")
   keepX <- method_keep(fixedOK, naMethodX, "fixed-effect variables")
@@ -307,10 +308,31 @@ mmes <- function(fixed, random, rcov, data, W,
   pairLocal <- paste(baseKey, localIndex, sep="\r")
   occurrence <- ave(seq_along(pairLocal), pairLocal, FUN=seq_along)
   blockKey <- paste(baseKey, occurrence, sep="\r")
+  residualFactors <- rf$covStruct$factors
+  dims <- vapply(residualFactors, function(f) as.integer(f$dim), integer(1))
+  trailing <- rev(cumprod(rev(c(dims[-1L], 1L))))
+  factorDigit <- function(fidx) ((localIndex - 1L) %/% trailing[fidx]) %% dims[fidx]
+  if(!anyDuplicated(localIndex)){
+    # Unique coordinates identify observations; only diagonal factors can split blocks exactly.
+    diagonalDigits <- lapply(which(vapply(residualFactors, function(f)
+      isTRUE(f$structurally_diagonal), logical(1))), factorDigit)
+    blockKey <- if(length(diagonalDigits)) do.call(paste, c(diagonalDigits, sep="\r"))
+                else rep("all", length(localIndex))
+  }
+  sectionOwner <- which(vapply(residualFactors, function(f) isTRUE(f$section_owner), logical(1)))
+  if(length(sectionOwner)){
+    # dsumm() sections are independent by definition, whatever the pairing.
+    blockKey <- paste(blockKey, factorDigit(sectionOwner[1L]), sep="\r")
+  }
   residualBlock <- match(blockKey, unique(blockKey))
   if(anyDuplicated(paste(residualBlock, localIndex, sep=":"))){
     stop("Internal residual-layout error: a block contains duplicate local covariance coordinates.", call.=FALSE)
   }
+  blockSizes <- tabulate(residualBlock)
+  rf$covStruct$complete_residual_blocks <-
+    length(blockSizes) > 0L &&
+    all(blockSizes == rf$covStruct$dim)
+  covStruct[[residualStructIndex]] <- rf$covStruct
   s2 <- paste(all.vars(residualExpr), collapse=":")
   rTermsNames[[residualStructIndex]] <- paste(s2, rf$covStruct$par_names, sep=":")
   

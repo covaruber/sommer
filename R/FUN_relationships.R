@@ -30,7 +30,7 @@ D.mat <- function(X, nishio=TRUE, min.MAF=0, return.imputed=FALSE){
   if(nrow(missingCheck) > 0){
     cat("Imputing markers with mean value\n")
     uniqueCols <- unique(missingCheck[,2])
-    X[,uniqueCols] <- apply(X[,uniqueCols],2,imputev)
+    X[,uniqueCols] <- apply(X[,uniqueCols,drop=FALSE],2,imputev,method="mean")
   }
   ##################
   res <- .Call("_sommer_dmat",PACKAGE = "sommer", 

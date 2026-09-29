@@ -17,7 +17,7 @@ Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} lines and \eqn{m} bi
 coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are allowed.
 }
 \item{nishio}{
-If TRUE Nishio ans Satoh. (2014), otherwise Su et al. (2012) (see Details in the D.mat help page).
+If TRUE, Nishio and Satoh (2014) (orthogonal parameterization of Vitezica et al. 2013), otherwise Su et al. (2012) (see Details in the D.mat help page).
 }
 \item{type}{
 An argument specifying the type of epistatic relationship matrix desired. The default is the second order epistasis (additive x additive) type="A#A". Other options are additive x dominant (type="A#D"), or dominant by dominant (type="D#D").  

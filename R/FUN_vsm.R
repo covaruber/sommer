@@ -200,36 +200,19 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
       )
     }
     
-    out <- vector(
-      "list",
-      ncol(A) * ncol(B)
+    sa <- Matrix::summary(A)
+    sb <- Matrix::summary(B)
+    m <- merge(
+      data.frame(i=sa$i, ja=sa$j, xa=sa$x),
+      data.frame(i=sb$i, jb=sb$j, xb=sb$x),
+      by="i", sort=FALSE
     )
-    
-    nm <- character(length(out))
-    
-    cc <- 1L
-    
-    for(i in seq_len(ncol(A))){
-      for(j in seq_len(ncol(B))){
-        
-        out[[cc]] <-
-          A[,i,drop=FALSE] *
-          B[,j,drop=FALSE]
-        
-        nm[cc] <-
-          paste(
-            colnames(A)[i],
-            colnames(B)[j],
-            sep=":"
-          )
-        
-        cc <- cc + 1L
-      }
-    }
-    
-    ans <- do.call(cbind, out)
-    
-    colnames(ans) <- nm
+    nb <- ncol(B)
+    ans <- Matrix::sparseMatrix(
+      i=m$i, j=(m$ja - 1L) * nb + m$jb, x=m$xa * m$xb,
+      dims=c(nrow(A), ncol(A) * nb)
+    )
+    colnames(ans) <- as.vector(t(outer(colnames(A), colnames(B), paste, sep=":")))
     
     to_sparse(ans)
   }
@@ -528,6 +511,7 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
       }
       
       f$par_end <- length(par)
+      f$label <- if(length(expr_names) >= i) expr_names[i] else paste0("factor", i)
       
       factors[[i]] <- f
     }
@@ -608,42 +592,18 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
     
     ss <- Matrix::summary(Z0)
     
-    byrow <- split(
-      seq_len(nrow(ss)),
-      ss$i
-    )
-    
-    residualLocalIndex <-
-      rep(
-        NA_integer_,
-        nrow(Z0)
+    if(anyDuplicated(ss$i) || any(abs(ss$x - 1) > 1e-12)){
+      stop(
+        paste0(
+          "Residual covariance factors must define exactly ",
+          "one covariance-product level per observation."
+        ),
+        call. = FALSE
       )
-    
-    for(rr in seq_len(nrow(Z0))){
-      
-      hits <-
-        byrow[[as.character(rr)]]
-      
-      if(is.null(hits)){
-        next
-      }
-      
-      if(
-        length(hits) != 1L ||
-        abs(ss$x[hits] - 1) > 1e-12
-      ){
-        stop(
-          paste0(
-            "Residual covariance factors must define exactly ",
-            "one covariance-product level per observation."
-          ),
-          call. = FALSE
-        )
-      }
-      
-      residualLocalIndex[rr] <-
-        ss$j[hits]
     }
+    
+    residualLocalIndex <- rep(NA_integer_, nrow(Z0))
+    residualLocalIndex[ss$i] <- as.integer(ss$j)
   }
   
   
@@ -2188,6 +2148,145 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
   invisible(TRUE)
 }
 
+# Direct sum of a residual vsm() term over the levels of `by`:
+#   R = blockdiag_t sigma2_t * kron_f K_f(theta_{f,t})
+# Levels outside `levels` receive an iid residual sigma2_t * I.
+dsumm <- function(x, by, levels=NULL){
+  byExpr <- deparse(substitute(by))
+
+  if(!is.list(x) || is.null(x$covStruct) || !identical(x$covStruct$type, "kron") ||
+     is.null(x$residualLocalIndex)){
+    stop("dsumm() expects a residual vsm() term, e.g. ",
+         "dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial).", call. = FALSE)
+  }
+  inner <- x$covStruct
+  if(any(vapply(inner$factors, function(f) !is.null(f$section_levels), logical(1)))){
+    stop("dsumm() terms cannot be nested.", call. = FALSE)
+  }
+
+  n <- length(x$residualLocalIndex)
+  if(length(by) != n){
+    stop("by in dsumm() must have one value per observation.", call. = FALSE)
+  }
+  byFactor <- if(is.factor(by)) droplevels(by) else factor(by)
+  sections <- levels(byFactor)
+  nSections <- length(sections)
+  if(nSections < 1L){
+    stop("by in dsumm() has no non-missing levels.", call. = FALSE)
+  }
+
+  listed <- if(is.null(levels)) sections else unique(as.character(levels))
+  unknown <- setdiff(listed, sections)
+  if(length(unknown)){
+    stop("Unknown levels in dsumm(): ", paste(unknown, collapse=", "), call. = FALSE)
+  }
+  if(!length(listed)){
+    stop("levels in dsumm() must select at least one level of by.", call. = FALSE)
+  }
+  nListed <- length(listed)
+  sectionIndex <- match(sections, listed) - 1L
+  sectionIndex[is.na(sectionIndex)] <- -1L
+
+  qInner <- as.integer(inner$dim)
+  byIndex <- as.integer(byFactor)
+  local <- rep(NA_integer_, n)
+  isListed <- !is.na(byIndex) & sectionIndex[pmax(byIndex, 1L)] >= 0L
+  local[isListed] <- (byIndex[isListed] - 1L) * qInner + x$residualLocalIndex[isListed]
+  for(t in which(sectionIndex < 0L)){
+    rows <- which(byIndex == t)
+    if(length(rows) > qInner){
+      stop("Level '", sections[t], "' of dsumm(by=) has more observations than ",
+           "coordinates in the inner vsm() term.", call. = FALSE)
+    }
+    # iid sections need only distinct coordinates, not their spatial labels.
+    local[rows] <- (t - 1L) * qInner + seq_along(rows)
+  }
+
+  owner <- .compile_covfactor(list(
+    type="diag",
+    dim=nSections,
+    levels=sections,
+    par=rep(0, nSections - 1L),
+    free=rep(TRUE, nSections - 1L),
+    par_names=if(nSections > 1L) paste0("variance_ratio[", sections[-1L], "]") else character()
+  ))
+  owner$label <- byExpr
+  owner$section_owner <- TRUE
+
+  par <- inner$par[1L]
+  free <- inner$free[1L]
+  parNames <- "sigma2"
+  append_factor <- function(f){
+    f$par_start <- length(par) + 1L
+    par <<- c(par, f$par)
+    free <<- c(free, f$free)
+    if(length(f$par)) parNames <<- c(parNames, paste(f$label, f$par_names, sep=":"))
+    f$par_end <- length(par)
+    f
+  }
+
+  factors <- list(append_factor(owner))
+  for(f in inner$factors){
+    if(identical(f$model, "identity")){
+      factors[[length(factors) + 1L]] <- append_factor(f)
+      next
+    }
+    localIdx <- if(f$par_end >= f$par_start) seq.int(f$par_start, f$par_end) else integer()
+    nPar <- length(localIdx)
+    reportOne <- f$native_report$fun
+    template <- f
+
+    g <- f
+    g$par <- rep(inner$par[localIdx], nListed)
+    g$free <- rep(inner$free[localIdx], nListed)
+    g$par_names <- paste0(rep(f$par_names, nListed), "[", rep(listed, each=nPar), "]")
+    g$trust_cap <- rep(f$trust_cap, nListed)
+    g$report$transform <- rep(f$report$transform, nListed)
+    g$report$lower <- rep(f$report$lower, nListed)
+    g$report$upper <- rep(f$report$upper, nListed)
+    g$section_var <- byExpr
+    g$section_levels <- sections
+    g$section_index <- sectionIndex
+    g$section_npar <- nPar
+    g$section_factor <- 1L
+    g$native_report <- list(backend="R", fun=function(scale, par, factor, absorb_scale=TRUE){
+      values <- lapply(seq_len(nListed), function(s){
+        v <- reportOne(scale=scale, par=par[(s - 1L) * nPar + seq_len(nPar)],
+                       factor=template, absorb_scale=absorb_scale)
+        stats::setNames(v, paste0(names(v), "[", listed[s], "]"))
+      })
+      unlist(values)
+    })
+    .validate_covfactor(g)
+    factors[[length(factors) + 1L]] <- append_factor(g)
+  }
+
+  covStruct <- inner
+  covStruct$par <- stats::setNames(as.numeric(par), parNames)
+  covStruct$free <- as.logical(free)
+  covStruct$par_names <- parNames
+  covStruct$factors <- factors
+  covStruct$dim <- as.integer(nSections * qInner)
+  covStruct$levels <- paste(rep(sections, each=qInner), rep(inner$levels, nSections), sep=":")
+
+  observed <- which(!is.na(local))
+  productDesign <- Matrix::sparseMatrix(
+    i=observed, j=local[observed], x=1, dims=c(n, nSections * qInner)
+  )
+
+  list(
+    Z=list(),
+    Gu=x$Gu,
+    GuRot=NULL,
+    rotation=NULL,
+    covStruct=covStruct,
+    residualLocalIndex=local,
+    residualSelfMasked=TRUE,
+    productDesign=productDesign,
+    partitionsR=NULL
+  )
+}
+
 ism <- function(x){
   expr <- as.character(substitute(x))
   dummy <- .cov_dummy(x, expr)
@@ -2212,6 +2311,12 @@ ar1m <- function(x, rho=0.30, fixed=FALSE,
   q <- ncol(dummy)
   variance <- match.arg(variance)
   if(q < 2L) stop("ar1m() requires at least two ordered levels.", call. = FALSE)
+  levNum <- suppressWarnings(as.numeric(colnames(dummy)))
+  if(!anyNA(levNum) && is.unsorted(levNum)){
+    warning("ar1m(", expr, "): numeric levels are not in increasing order; AR1 lags follow levels(), ",
+            "so reorder with factor(x, levels=sort(unique(as.numeric(as.character(x))))).",
+            call. = FALSE)
+  }
   if(length(rho) != 1L || !is.finite(rho) || abs(rho) >= 1){
     stop("rho in ar1m() must be finite and strictly between -1 and 1.", call. = FALSE)
   }

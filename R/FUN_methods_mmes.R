@@ -403,7 +403,7 @@ rotate_back_mmes <- function(object){
     if(!length(factors)){
       outputIndex <- outputIndex + 1L
       rows[[outputIndex]] <- data.frame(
-        term=termNames[i], factor="sigma2", parameter="sigma2",
+        term=termNames[i], factor="sigma2", section=NA_character_, parameter="sigma2",
         estimate=scale, stringsAsFactors=FALSE
       )
       next
@@ -439,12 +439,21 @@ rotate_back_mmes <- function(object){
              termNames[i], "'.", call.=FALSE)
       }
 
+      parameterNames <- names(values)
+      section <- rep(NA_character_, length(values))
+      if(!is.null(factor$section_levels) || isTRUE(factor$section_owner)){
+        section <- sub("^(.*)\\[([^]]*)\\]$", "\\2", parameterNames)
+        parameterNames <- sub("^(.*)\\[([^]]*)\\]$", "\\1", parameterNames)
+      }
+
       outputIndex <- outputIndex + 1L
       rows[[outputIndex]] <- data.frame(
         term=termNames[i],
-        factor=if(!is.null(factor$model) && nzchar(factor$model)) factor$model else
+        factor=if(!is.null(factor$label)) factor$label else
+          if(!is.null(factor$model) && nzchar(factor$model)) factor$model else
           paste0("factor", j),
-        parameter=names(values),
+        section=section,
+        parameter=parameterNames,
         estimate=as.numeric(values),
         stringsAsFactors=FALSE
       )
@@ -454,14 +463,14 @@ rotate_back_mmes <- function(object){
     if(!scaleAbsorbed){
       outputIndex <- outputIndex + 1L
       rows[[outputIndex]] <- data.frame(
-        term=termNames[i], factor="sigma2", parameter="sigma2",
+        term=termNames[i], factor="sigma2", section=NA_character_, parameter="sigma2",
         estimate=scale, stringsAsFactors=FALSE
       )
     }
   }
 
   if(!length(rows)){
-    return(data.frame(term=character(), factor=character(),
+    return(data.frame(term=character(), factor=character(), section=character(),
                       parameter=character(), estimate=numeric()))
   }
   out <- do.call(rbind, rows)

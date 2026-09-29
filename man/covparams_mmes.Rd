@@ -44,8 +44,9 @@ Use \code{covparams_mmes_se()} when native-scale delta-method standard errors
 are also required.
 }
 \value{
-A data frame with columns \code{term}, \code{factor}, \code{parameter}, and
-\code{estimate}.
+A data frame with columns \code{term}, \code{factor}, \code{section},
+\code{parameter}, and \code{estimate}. \code{section} identifies the
+\code{\link{dsumm}} section a parameter belongs to and is \code{NA} otherwise.
 }
 \examples{
 \dontrun{
