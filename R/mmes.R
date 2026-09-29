@@ -269,7 +269,7 @@ mmes <- function(fixed, random, rcov, data, W,
         else stop("Random-effect design has incompatible number of rows in term: ", rtermss[u], call.=FALSE)
       })
       Z <- c(Z, Zi)
-      pGu <- to_sparse(ff$Gu)
+      pGu <- to_precision_sparse(ff$Gu)
       attr(pGu, "inverse") <- TRUE
       Ai[[u]] <- pGu
       covStruct[[u]] <- ff$covStruct

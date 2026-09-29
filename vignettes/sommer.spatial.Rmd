@@ -12,6 +12,7 @@ vignette: >
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(message=FALSE, warning=FALSE, fig.width=7, fig.height=3.4)
 if(capabilities("cairo")) options(bitmapType="cairo")
+library(sommer)
 ```
 
 Field experiments are never perfectly uniform. Soil depth, water, previous crops, or a slope can make neighbouring plots more alike than distant ones, whatever genotypes are planted in them. If the statistical model ignores this, the spatial "noise" leaks into the genotype effects: good genotypes that landed in a poor corner look worse than they are, and vice versa. Spatial models describe this neighbourhood similarity explicitly, so that genotype effects are estimated more accurately.
@@ -90,7 +91,6 @@ $$
 with genetic values $g \sim N(0, 9)$, a separable AR1 spatial field $\xi$ with variance 8, $\rho_\text{range}=0.7$ and $\rho_\text{row}=0.4$, and an independent nugget $\varepsilon \sim N(0,1)$. Fifteen plots are then deleted to mimic missing data.
 
 ```{r}
-library(sommer)
 set.seed(3)
 nRange <- 16; nRow <- 24; nGeno <- 96
 g <- setNames(rnorm(nGeno, sd=3), sprintf("G%02d", seq_len(nGeno)))
@@ -193,7 +193,6 @@ par(op)
 The single-kernel spline used in M2 (`spl2Dc()`) fits the whole 2D surface with one variance component. The SpATS package (Rodriguez-Alvarez et al., 2018) instead splits the surface into five components (smooth trends along each direction and their interactions), each with its own variance. `spl2Dmats()` builds the same design matrices, so `mmes()` reproduces the SpATS fit. The classic Yates oats trial is used here, with SpATS output shown for reference. 
 
 ```{r}
-library(sommer)
 data(DT_yatesoats, package="enhancer")
 DT <- DT_yatesoats
 DT$row <- as.numeric(as.character(DT$row))

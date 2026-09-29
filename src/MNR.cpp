@@ -1331,6 +1331,11 @@ arma::sp_mat convertSparse(Rcpp::S4 mat) {
   
   // use Armadillo sparse matrix constructor
   arma::sp_mat res(i, p, x, nrow, ncol);
+  // dsCMatrix stores one triangle only; downstream code expects both.
+  if(mat.is("dsCMatrix")){
+    arma::sp_mat d = arma::diagmat(res);
+    res = res + res.t() - d;
+  }
   return(res);
 }
 

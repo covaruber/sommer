@@ -101,6 +101,8 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
   Gu_is_inverse <- FALSE
   Gu_was_supplied <- !is.null(Gu)
   
+  if(.is_giv(Gu)) Gu <- .giv_to_precision(Gu)
+  
   if(!is.null(Gu)){
     
     Gu_is_inverse <- isTRUE(attr(Gu, "inverse"))
@@ -113,7 +115,7 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
     }
     
     # Conversion can drop custom attributes.
-    Gu <- to_sparse(Gu)
+    Gu <- to_precision_sparse(Gu)
     
     # Restore immediately so the invariant is maintained throughout vsm().
     attr(Gu, "inverse") <- TRUE
@@ -372,18 +374,18 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
       drop=FALSE
     ]
     
-    Gu <- to_sparse(Gu)
+    Gu <- to_precision_sparse(Gu)
     
     attr(Gu, "inverse") <- TRUE
   }
   
   
   # Final representation validation.
-  if(!inherits(Gu, "dgCMatrix")){
+  if(!inherits(Gu, c("dgCMatrix", "dsCMatrix"))){
     stop(
       paste0(
         "Internal vsm() error: Gu was not normalized ",
-        "to dgCMatrix."
+        "to a sparse precision matrix."
       ),
       call. = FALSE
     )
@@ -654,6 +656,79 @@ to_sparse <- function(z){
   z
 }
 
+# Symmetric precision matrices keep one triangle (dsCMatrix); C++ expands them.
+to_precision_sparse <- function(z){
+  if(inherits(z, "dsCMatrix")) return(z)
+  if(!inherits(z, "Matrix")) z <- Matrix::Matrix(z, sparse=TRUE)
+  if(Matrix::isSymmetric(z)){
+    z <- as(Matrix::forceSymmetric(as(z, "CsparseMatrix")), "CsparseMatrix")
+    if(inherits(z, "dsCMatrix")) return(z)
+  }
+  to_sparse(z)
+}
+
+# 3-column (row, column, value) precision input, e.g. ASReml ainverse()/nadiv
+# listAinv. A 3x3 full matrix with dimnames and no rowNames attr is not giv.
+.is_giv <- function(x){
+  if(is.null(x) || inherits(x, "Matrix")) return(FALSE)
+  if(!(is.matrix(x) || is.data.frame(x)) || ncol(x) != 3L) return(FALSE)
+  if(!is.null(attr(x, "rowNames")) || is.data.frame(x)) return(TRUE)
+  !(nrow(x) == 3L && !is.null(rownames(x)) && !is.null(colnames(x)))
+}
+
+.giv_to_precision <- function(x){
+  levs <- attr(x, "rowNames")
+  if(is.null(levs)){
+    stop("Gu supplied in 3-column (row, column, value) format must carry a ",
+         "'rowNames' attribute with the level names.", call. = FALSE)
+  }
+  levs <- as.character(levs)
+  if(anyNA(levs) || anyDuplicated(levs)){
+    stop("attr(Gu, 'rowNames') must contain unique, non-missing level names.",
+         call. = FALSE)
+  }
+  if(isFALSE(attr(x, "inverse")) || isFALSE(attr(x, "INVERSE"))){
+    stop("Gu in 3-column format must be a precision (inverse) matrix.",
+         call. = FALSE)
+  }
+  nl <- length(levs)
+  ri <- x[, 1L]; ci <- x[, 2L]; v <- x[, 3L]
+  if(!is.numeric(ri) || !is.numeric(ci) || !is.numeric(v)){
+    stop("All three columns of a 3-column Gu must be numeric.", call. = FALSE)
+  }
+  if(anyNA(ri) || anyNA(ci) || any(ri != round(ri)) || any(ci != round(ci)) ||
+     any(ri < 1) || any(ci < 1) || any(ri > nl) || any(ci > nl)){
+    stop("Row/Column indices of a 3-column Gu must be integers between 1 and ",
+         "length(attr(Gu, 'rowNames')) = ", nl, ".", call. = FALSE)
+  }
+  if(any(!is.finite(v))){
+    stop("Values of a 3-column Gu must be finite.", call. = FALSE)
+  }
+  # Canonicalize to the upper triangle; lower-only, upper-only or both are fine.
+  i <- as.integer(pmin(ri, ci)); j <- as.integer(pmax(ri, ci))
+  key <- (as.numeric(j) - 1) * nl + i
+  dup <- duplicated(key)
+  if(any(dup)){
+    first <- v[match(key[dup], key)]
+    if(any(abs(v[dup] - first) > 1e-8 * pmax(1, abs(first)))){
+      stop("3-column Gu contains conflicting values for the same cell ",
+           "(e.g. (i,j) and (j,i) differ); the matrix must be symmetric.",
+           call. = FALSE)
+    }
+    i <- i[!dup]; j <- j[!dup]; v <- v[!dup]
+  }
+  missDiag <- setdiff(seq_len(nl), i[i == j])
+  if(length(missDiag)){
+    stop("3-column Gu is missing diagonal values for ", length(missDiag),
+         " level(s), e.g.: ", paste(head(levs[missDiag], 5), collapse=", "),
+         call. = FALSE)
+  }
+  out <- Matrix::sparseMatrix(i=i, j=j, x=as.numeric(v), dims=c(nl, nl),
+                              dimnames=list(levs, levs), symmetric=TRUE)
+  attr(out, "inverse") <- TRUE
+  out
+}
+
 ## small matrix constructors
 unsm <- function(x, reps=NULL){
   mm <- matrix(1,x,x)
@@ -828,11 +903,11 @@ covm <- function(ran1, ran2, thetaC=NULL, theta=NULL,
     ran2$Z[[1L]]
   )
   
-  G1 <- to_sparse(
+  G1 <- to_precision_sparse(
     ran1$Gu
   )
   
-  G2 <- to_sparse(
+  G2 <- to_precision_sparse(
     ran2$Gu
   )
   
@@ -1223,16 +1298,14 @@ covm <- function(ran1, ran2, thetaC=NULL, theta=NULL,
   
   Gu <- G1
   
-  Gu <- to_sparse(Gu)
-  
   attr(Gu, "inverse") <- TRUE
   
   
-  if(!inherits(Gu, "dgCMatrix")){
+  if(!inherits(Gu, c("dgCMatrix", "dsCMatrix"))){
     stop(
       paste0(
         "Internal covm() error: Gu was not normalized ",
-        "to dgCMatrix."
+        "to a sparse precision matrix."
       ),
       call.=FALSE
     )

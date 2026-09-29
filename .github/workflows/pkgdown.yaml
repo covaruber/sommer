@@ -2,7 +2,15 @@ name: pkgdown
 
 on:
   push:
-    branches: [unified]
+    branches:
+      - unified
+    paths:
+      - "_pkgdown.yml"
+      - "README.md"
+      - "NEWS.md"
+      - "vignettes/**"
+      - "man/**"
+      - "DESCRIPTION"
   workflow_dispatch:
 
 permissions:

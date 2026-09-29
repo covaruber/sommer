@@ -20,7 +20,18 @@ factors.  Examples include \code{dsm(environment)}, \code{ar1m(row)}, and
   \item{Gu}{Optional known precision matrix for the levels of the final
 main-effect term. For \code{mmes}, \code{Gu} must have row and column
 names matching the main-effect levels and \code{attr(Gu, "inverse")} must be
-\code{TRUE}. If omitted, an identity precision matrix is used.}
+\code{TRUE}. If omitted, an identity precision matrix is used.
+
+\code{Gu} can also be supplied in 3-column (row, column, value) format as a
+numeric matrix or data frame, e.g. the output of ASReml-R \code{ainverse()}
+or the \code{listAinv} element of \code{nadiv::makeAinv()}. The first two
+columns are 1-based level indices and the third the precision values. The
+level names must be given in \code{attr(Gu, "rowNames")}. The lower
+triangle, the upper triangle, or both may be given (entries present in both
+must agree), and every level needs a diagonal entry. This format is detected
+automatically, is always taken to be a precision matrix, and does not require
+the \code{inverse} attribute. Symmetric precision matrices are stored with
+one triangle only.}
   \item{sigma2}{Positive starting value for the single overall covariance
 scale of this \code{vsm} term. If \code{NULL} (the default), \code{mmes}
 replaces it with a data-driven starting value computed from the response
@@ -102,6 +113,13 @@ head(DT)
 str(with(DT, vsm(dsm(Env),ism(Name))))
 str(with(DT, vsm(csm(Env),ism(Name))))
 str(with(DT, vsm(toeplitzm(Env),ism(Name))))
+
+## Gu in 3-column (row, column, value) format with level names in rowNames
+Ainv <- data.frame(Row=c(1,2,2,3), Column=c(1,1,2,3),
+                   Ainverse=c(2,-1,2,1))
+attr(Ainv, "rowNames") <- c("a","b","c")
+id <- factor(c("a","b","c","a"))
+str(vsm(ism(id), Gu=Ainv)$Gu)
 
 }
 \seealso{
