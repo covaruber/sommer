@@ -7260,6 +7260,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     std::vector<int> localOf;
     std::vector<arma::mat> FS;
     bool crossAvailable = false;
+    // Supernodal selected inverse: C^{-1} on the pattern of L, laid out like L->x.
+    bool selReady = false;
+    const cholmod_factor * selL = nullptr;
+    std::vector<double> selZ;
+    std::vector<int> selColSuper;
+    std::vector<int> selIperm;
   };
   CholmodInverseBlockCache cholmodInvCache;
 
@@ -7338,8 +7344,108 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       touchedRows = arma::uvec(rowsOut);
     };
 
+  // Takahashi recursion over supernodes (last to first), with unit factor
+  // [I; Y], Y = L_RJ L_JJ^{-1}: Z_RJ = -Z_RR Y, Z_JJ = (L_JJ L_JJ')^{-1} - Y' Z_RJ.
+  auto buildCholmodSelectedInverse = [&](const cholmod_factor * L, const std::vector<int> & iperm) -> bool {
+    cholmodInvCache.selReady = false;
+    const int n = static_cast<int>(L->n);
+    const int nsuper = static_cast<int>(L->nsuper);
+    const int * super = static_cast<const int *>(L->super);
+    const int * pi = static_cast<const int *>(L->pi);
+    const int * px = static_cast<const int *>(L->px);
+    const int * srows = static_cast<const int *>(L->s);
+    const double * Lx = static_cast<const double *>(L->x);
+    std::vector<double> & Z = cholmodInvCache.selZ;
+    Z.assign(static_cast<std::size_t>(L->xsize), 0.0);
+    std::vector<int> & colSuper = cholmodInvCache.selColSuper;
+    colSuper.assign(static_cast<std::size_t>(n), -1);
+    for(int sn = 0; sn < nsuper; ++sn){
+      for(int k = super[sn]; k < super[sn + 1]; ++k){ colSuper[static_cast<std::size_t>(k)] = sn; }
+    }
+    std::vector<int> rowPos(static_cast<std::size_t>(n), -1);
+
+    for(int sn = nsuper - 1; sn >= 0; --sn){
+      const int k1 = super[sn];
+      const int nscol = super[sn + 1] - k1;
+      const int psi = pi[sn];
+      const int nsrow = pi[sn + 1] - psi;
+      const int nrest = nsrow - nscol;
+      const arma::mat Ls(const_cast<double *>(Lx + static_cast<std::ptrdiff_t>(px[sn])),
+                         static_cast<arma::uword>(nsrow), static_cast<arma::uword>(nscol), false, true);
+      arma::mat L11inv;
+      if(!arma::inv(L11inv, arma::trimatl(Ls.head_rows(static_cast<arma::uword>(nscol))))){ return false; }
+      arma::mat Zjj = L11inv.t() * L11inv;
+      arma::mat Zout(Z.data() + static_cast<std::ptrdiff_t>(px[sn]),
+                     static_cast<arma::uword>(nsrow), static_cast<arma::uword>(nscol), false, true);
+      if(nrest > 0){
+        const int * R = srows + psi + nscol;
+        const arma::mat Y = Ls.tail_rows(static_cast<arma::uword>(nrest)) * L11inv;
+        arma::mat Zrr(static_cast<arma::uword>(nrest), static_cast<arma::uword>(nrest));
+        int a = 0;
+        while(a < nrest){
+          const int t = colSuper[static_cast<std::size_t>(R[a])];
+          const int tpsi = pi[t];
+          const int tnsrow = pi[t + 1] - tpsi;
+          for(int q = 0; q < tnsrow; ++q){ rowPos[static_cast<std::size_t>(srows[tpsi + q])] = q; }
+          int b = a;
+          bool ok = true;
+          for(; b < nrest && colSuper[static_cast<std::size_t>(R[b])] == t; ++b){
+            const double * base = Z.data() + static_cast<std::ptrdiff_t>(px[t]) +
+              static_cast<std::ptrdiff_t>(R[b] - super[t]) * tnsrow;
+            for(int r = b; r < nrest; ++r){
+              const int p = rowPos[static_cast<std::size_t>(R[r])];
+              if(p < 0){ ok = false; break; }
+              Zrr(static_cast<arma::uword>(r), static_cast<arma::uword>(b)) = base[p];
+            }
+            if(!ok){ break; }
+          }
+          for(int q = 0; q < tnsrow; ++q){ rowPos[static_cast<std::size_t>(srows[tpsi + q])] = -1; }
+          if(!ok){ return false; }
+          a = b;
+        }
+        Zrr = arma::symmatl(Zrr);
+        const arma::mat Zrj = -Zrr * Y;
+        Zjj -= Y.t() * Zrj;
+        Zout.tail_rows(static_cast<arma::uword>(nrest)) = Zrj;
+      }
+      Zout.head_rows(static_cast<arma::uword>(nscol)) = Zjj;
+    }
+    cholmodInvCache.selL = L;
+    cholmodInvCache.selIperm = iperm;
+    cholmodInvCache.selReady = true;
+    return true;
+  };
+
+  auto cholmodSelectedLookup = [&](int i, int j, double & value) -> bool {
+    const cholmod_factor * L = cholmodInvCache.selL;
+    int a = cholmodInvCache.selIperm[static_cast<std::size_t>(i)];
+    int b = cholmodInvCache.selIperm[static_cast<std::size_t>(j)];
+    if(a > b){ std::swap(a, b); }
+    const int t = cholmodInvCache.selColSuper[static_cast<std::size_t>(a)];
+    const int * super = static_cast<const int *>(L->super);
+    const int * pi = static_cast<const int *>(L->pi);
+    const int * px = static_cast<const int *>(L->px);
+    const int * srows = static_cast<const int *>(L->s);
+    const int nscol = super[t + 1] - super[t];
+    const int nsrow = pi[t + 1] - pi[t];
+    int p;
+    if(b < super[t + 1]){
+      p = b - super[t];
+    }else{
+      const int * first = srows + pi[t] + nscol;
+      const int * last = srows + pi[t + 1];
+      const int * hit = std::lower_bound(first, last, b);
+      if(hit == last || *hit != b){ return false; }
+      p = static_cast<int>(hit - (srows + pi[t]));
+    }
+    value = cholmodInvCache.selZ[static_cast<std::size_t>(px[t]) +
+      static_cast<std::size_t>(a - super[t]) * static_cast<std::size_t>(nsrow) + static_cast<std::size_t>(p)];
+    return true;
+  };
+
   auto buildCholmodInverseBlockCache = [&]() -> void {
     cholmodInvCache.ready = false;
+    cholmodInvCache.selReady = false;
     cholmodInvCache.Cuu.clear();
     cholmodInvCache.Cxu.clear();
     cholmodInvCache.FS.clear();
@@ -7410,10 +7516,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       cholmodInvCache.Cxx = YXT.t() * YXT;
     }
 
+    bool skippedGroup = false;
     for(const std::vector<int> & cols : buildRandomInverseGroups()){
       const int m = static_cast<int>(cols.size());
       if(m == 0 || m > cholmodInvCacheMaxGroup ||
          static_cast<double>(n) * static_cast<double>(m) > cholmodInvCacheMaxDoubles){
+        skippedGroup = skippedGroup || m > 0;
         continue;
       }
       arma::mat Y;
@@ -7434,6 +7542,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         cholmodInvCache.localOf[c] = j;
       }
     }
+    if(skippedGroup && static_cast<double>(L->xsize) <= cholmodInvCacheMaxDoubles){
+      buildCholmodSelectedInverse(L, iperm);
+    }
     cholmodInvCache.ready = true;
   };
 
@@ -7442,6 +7553,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     if(!cholmodInvCache.ready || i < 0 || j < 0 || i >= nEffects || j >= nEffects){
       return false;
     }
+    if(cholmodInvCache.selReady && cholmodSelectedLookup(i, j, value)){ return true; }
     const std::size_t si = static_cast<std::size_t>(i);
     const std::size_t sj = static_cast<std::size_t>(j);
     const int bi = cholmodInvCache.borderPos[si];
