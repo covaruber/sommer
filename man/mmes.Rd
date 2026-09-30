@@ -29,7 +29,7 @@ mmes(fixed, random, rcov, data, W,
      contrasts=NULL, getPEV=TRUE, henderson=TRUE,
     computeCi=0, solver="auto", pcgTol=1.0e-8,
     pcgMaxIters=0, pcgTraceProbes=8,
-    pcgLanczosSteps=20, REML=TRUE,
+    pcgLanczosSteps=20, REML=TRUE, vcc=NULL,
     family=stats::gaussian(), pqlControl=list(),
     .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
     .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
@@ -102,6 +102,9 @@ mmes(fixed, random, rcov, data, W,
 
   \code{\link{maternm}} for Matern spatial covariance;
 
+  \code{\link{metricm}} for exponential, power, gaussian, spherical and
+  circular distance-based correlations (isotropic or anisotropic);
+
   \code{\link{sar}} and \code{\link{car}} for simultaneous and conditional
   autoregressive spatial covariance models; and
 
@@ -171,6 +174,19 @@ mmes(fixed, random, rcov, data, W,
   and local-coordinate indexing internally, so the data do \strong{not} need to
   be manually sorted by the variables defining the residual structure.
 
+  \strong{Residual pairing key (multi-trait models).} For a long-format
+  multi-trait model the residual must know which records belong to the same
+  experimental unit. With \code{ism(units)} records are paired implicitly by
+  their order of appearance within each trait; a warning is issued when
+  repeated residual coordinates must be paired by row order. An explicit key is given by replacing
+  \code{units} with a column identifying the unit, e.g.
+
+  \code{rcov = ~ vsm(usm(trait), ism(record))}
+
+  where \code{record} is the column created by \code{\link{stackTraits}}.
+  Records sharing a key value form one residual block (missing traits are
+  simply absent from it); a trait may appear only once per key value.
+
   As with random effects, \code{vsm()} owns one residual variance scale
   \eqn{\sigma^2}; the preceding covariance constructors provide dimensionless
   covariance shapes that are combined through an arbitrary Kronecker product.
@@ -194,7 +210,8 @@ mmes(fixed, random, rcov, data, W,
   \item{W}{Weights matrix (e.g., when covariance among plots exist). Internally
   W is squared and inverted as Wsi = solve(chol(W)), then the residual matrix
   is calculated as R = Wsi*O*Wsi.t(), where * is the matrix product, and O 
-  is the original residual matrix.}
+  is the original residual matrix. Weights can be combined with any residual
+  structure, including Kronecker (multi-trait) residuals.}
    \item{nIters}{Maximum number of iterations allowed.}
   \item{tolParConvLL}{Convergence criteria based in the change of log-likelihood
   between iteration i and i-1.}
@@ -381,19 +398,45 @@ mmes(fixed, random, rcov, data, W,
    with \code{REML=FALSE}. Prediction error variances (\code{uPevList}/\code{computeCi})
    are still computed from the REML-style inverse regardless of \code{REML}.}
 
+  \item{vcc}{Optional data frame of equality/scaling constraints between
+  covariance parameters (columns \code{parameter}, \code{group} and optionally
+  \code{scale}), identified through the \code{vcParams} table returned by
+  \code{returnParam=TRUE} and stored in the fit. See \code{\link{vcc}}.}
+
   \item{family}{A \code{stats::family()} object. The default Gaussian identity
   family uses the ordinary linear mixed-model implementation. Other families are
   fitted by penalized quasi-likelihood (PQL): each outer iteration forms an IRLS
   working response and weights, then fits the resulting weighted Gaussian mixed
   model with the Henderson solver. The initial implementation supports one numeric
-  response. Binomial and Poisson working residual dispersions are fixed to one.
+  response. Any family with a valid link can be used, e.g. \code{binomial()}
+  (logit, probit, cloglog), \code{poisson()}, \code{Gamma()},
+  \code{inverse.gaussian()}, \code{gaussian(link="log")}, \code{quasipoisson()}
+  and \code{MASS::negative.binomial(theta)}. Binomial counts out of a known
+  number of trials are supplied as a single proportion response built with
+  \code{\link{binm}}, whose trials are used as prior weights. Binomial,
+  Poisson and negative binomial working residual dispersions are fixed to one;
+  for other families the reported \code{dispersion} is the Pearson estimate.
+  The negative binomial \eqn{\theta} is estimated (conditional on the random
+  effects) with \code{pqlControl=list(estimateTheta=TRUE)} and returned in
+  \code{theta.nb} and \code{theta.nb.se}. Because the working-model
+  log-likelihood is not a GLMM likelihood, \code{llik}, \code{AIC} and
+  \code{BIC} are \code{NA} for PQL fits and \code{anova()} likelihood ratio
+  tests are refused; use \code{deviance} and Wald tests instead.
   Formula offsets are included on the link scale. A supplied symmetric positive
   definite \code{W} is combined with the IRLS precision after observation filtering,
-  and may be sparse and non-diagonal.}
+  and may be sparse and non-diagonal.
+
+  Long-format multi-trait data with a different family per trait are fitted by
+  supplying \code{family = \link{familym}("trait", Disease = binomial(),
+  Yield = gaussian())}. See \code{\link{familym}} for the required residual
+  structure; in that case \code{dispersion} is a named vector with one value
+  per trait.}
 
   \item{pqlControl}{A named list controlling non-Gaussian PQL fits. Supported
-  entries are \code{maxit} (outer-iteration limit, default 20) and \code{tol}
-  (relative deviance convergence tolerance, default \code{1e-5}).}
+  entries are \code{maxit} (outer-iteration limit, default 20), \code{tol}
+  (relative deviance convergence tolerance, default \code{1e-5}) and
+  \code{estimateTheta} (estimate the negative binomial \eqn{\theta}, default
+  \code{FALSE}).}
 
   \item{.pqlInner}{Internal-use logical indicating that \code{mmes()} is being
   called for a Gaussian working-model fit within the PQL iteration. Users

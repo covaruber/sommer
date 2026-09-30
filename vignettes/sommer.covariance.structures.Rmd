@@ -288,6 +288,35 @@ joint_effect <- covm(effect_1, effect_2, labels=c("effect_1", "effect_2"))
 
 Use `covm()` when two effects must be correlated. For crossed covariance factors such as environments by genotypes, use multiple factors directly inside `vsm()` instead.
 
+### 3) Covariance across several terms with `strm()`
+
+`strm()` generalizes `covm()` to any number of random terms and any covariance constructor over the terms (ASReml `str()`). All terms must share the coefficient levels, the relationship matrix, and the same inner covariance factors; their variance is $\sigma^2 K_{terms}\otimes K_{inner}\otimes A$. A direct-maternal-permanent environment animal model is:
+
+```{r, eval=FALSE}
+fit <- mmes(y ~ 1,
+            random = ~ strm(dir = vsm(ism(id)), mat = vsm(ism(dam)),
+                            pe = vsm(ism(pe)), cov = usm, Gu = Ainv),
+            data = animals)
+covparams_mmes(fit, 1)  # variances and covariances among dir, mat and pe
+```
+
+`cov` can be any constructor applied to the term index, e.g. `cov = dsm` (independent terms), `cov = corgm`, or `cov = function(x) fam(x, k = 1)`. Inner factors are shared, e.g. `strm(vsm(dsm(env), ism(id)), vsm(dsm(env), ism(dam)), Gu = Ainv)`.
+
+### 4) Equality and scaling constraints with `vcc`
+
+Covariance parameters can be constrained to be equal or to keep fixed ratios (ASReml `vcc`). Parameters are identified in the `vcParams` table:
+
+```{r, eval=FALSE}
+p <- mmes(Y ~ V * N, random = ~ B + B:MP, rcov = ~ units, data = DT_yatesoats,
+          returnParam = TRUE)
+p$vcParams
+fit <- mmes(Y ~ V * N, random = ~ B + B:MP, rcov = ~ units, data = DT_yatesoats,
+            vcc = data.frame(parameter = c("vsm(ism(B:MP)):sigma2", "vsm(ism(B)):sigma2"),
+                             group = 1, scale = c(1, 2)))
+```
+
+Here the block variance is twice the whole-plot variance. Variance scales can only be grouped with other variance scales, correlation-type parameters can only be equated, and a fixed member fixes its whole group. See `?vcc` for the rules and the limitations with respect to ASReml's `vcm`.
+
 ## SECTION 4: CovarianceFactor descriptors
 
 ### 1) Descriptor fields

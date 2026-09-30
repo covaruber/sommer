@@ -424,6 +424,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// evaluate_covstruct_cpp
+arma::mat evaluate_covstruct_cpp(const Rcpp::List& covStruct, const arma::vec& par);
+RcppExport SEXP _sommer_evaluate_covstruct_cpp(SEXP covStructSEXP, SEXP parSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type covStruct(covStructSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type par(parSEXP);
+    rcpp_result_gen = Rcpp::wrap(evaluate_covstruct_cpp(covStruct, par));
+    return rcpp_result_gen;
+END_RCPP
+}
 // ai_reml_direct_sp2
 Rcpp::List ai_reml_direct_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computePev, const bool& reml, const bool& responsePrepared, const double& preparedMean, const double& preparedSd, const bool& preparedIntercept);
 RcppExport SEXP _sommer_ai_reml_direct_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computePevSEXP, SEXP remlSEXP, SEXP responsePreparedSEXP, SEXP preparedMeanSEXP, SEXP preparedSdSEXP, SEXP preparedInterceptSEXP) {
@@ -486,6 +498,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_ai_mme_sp", (DL_FUNC) &_sommer_ai_mme_sp, 20},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 19},
     {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 28},
+    {"_sommer_evaluate_covstruct_cpp", (DL_FUNC) &_sommer_evaluate_covstruct_cpp, 2},
     {"_sommer_ai_reml_direct_sp2", (DL_FUNC) &_sommer_ai_reml_direct_sp2, 23},
     {NULL, NULL, 0}
 };

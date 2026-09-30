@@ -1361,6 +1361,150 @@ covm <- function(ran1, ran2, thetaC=NULL, theta=NULL,
   )
 }
 
+# -------------------------------------------------------------------------
+# Covariance structure spanning several random terms (ASReml str()):
+#   Var(u_1,...,u_T) = sigma2 * K_terms %x% K_inner %x% A
+# Terms must share the coefficient space, Gu and inner covariance factors.
+# -------------------------------------------------------------------------
+strm <- function(..., cov=usm, Gu=NULL, labels=NULL, sigma2=NULL,
+                 fixedSigma2=FALSE){
+  terms <- list(...)
+  exprs <- vapply(as.list(substitute(list(...)))[-1L],
+                  function(e) paste(deparse(e), collapse=""), character(1))
+  nT <- length(terms)
+  if(nT < 2L) stop("strm() needs at least two vsm() terms.", call.=FALSE)
+  for(t in seq_len(nT)){
+    x <- terms[[t]]
+    if(!is.list(x) || is.null(x$covStruct) || !identical(x$covStruct$type, "kron") ||
+       is.null(x$covStruct$descriptor_version) || x$covStruct$descriptor_version < 2L){
+      stop("Every argument of strm() must be a vsm() term.", call.=FALSE)
+    }
+    if(!length(x$Z)) stop("strm() terms must be random effects, not residual terms.", call.=FALSE)
+    if(!is.null(x$rotation)) stop("rotation=TRUE is not available inside strm().", call.=FALSE)
+    if(isFALSE(x$covStruct$sigma2_is_default) || !isTRUE(x$covStruct$free[1L])){
+      warning("sigma2/fixedSigma2 of individual strm() terms are ignored; use those of strm().",
+              call.=FALSE)
+    }
+  }
+  if(is.null(labels)){
+    labels <- if(!is.null(names(terms)) && all(nzchar(names(terms)))) names(terms) else
+      paste0("t", seq_len(nT))
+  }
+  labels <- as.character(labels)
+  if(length(labels) != nT || anyDuplicated(labels) || any(!nzchar(labels))){
+    stop("labels must contain one distinct non-empty name per term.", call.=FALSE)
+  }
+
+  # inner covariance factors must coincide across terms
+  inner <- terms[[1L]]$covStruct$factors
+  signature <- function(fs) vapply(fs, function(f) paste(f$model, f$dim,
+                                   paste(f$levels, collapse="\r")), character(1))
+  for(t in seq_len(nT)[-1L]){
+    if(!identical(signature(terms[[t]]$covStruct$factors), signature(inner))){
+      stop("All strm() terms must use the same covariance factors (same constructors and levels).",
+           call.=FALSE)
+    }
+  }
+  qInner <- length(terms[[1L]]$Z)
+
+  isIdentity <- function(G){
+    Matrix::isDiagonal(G) && all(abs(Matrix::diag(G) - 1) < 1e-12)
+  }
+  if(!is.null(Gu)){
+    if(.is_giv(Gu)) Gu <- .giv_to_precision(Gu)
+    if(!isTRUE(attr(Gu, "inverse"))){
+      stop("Gu must have attr(Gu, 'inverse')=TRUE for the Henderson solver.", call.=FALSE)
+    }
+    Gu <- to_precision_sparse(Gu)
+    if(is.null(rownames(Gu)) || !identical(rownames(Gu), colnames(Gu))){
+      stop("Gu must have identical row and column names.", call.=FALSE)
+    }
+    common <- rownames(Gu)
+  }else{
+    termGu <- lapply(terms, `[[`, "Gu")
+    known <- which(!vapply(termGu, isIdentity, logical(1)))
+    if(length(known)){
+      Gu <- termGu[[known[1L]]]
+      common <- rownames(Gu)
+      for(k in known[-1L]){
+        Gk <- termGu[[k]]
+        if(!identical(rownames(Gk), common) ||
+           length(Matrix::drop0(Gk - Gu, tol=1e-10)@x)){
+          stop("strm() terms with a Gu must share the same Gu; supply it once through strm(Gu=).",
+               call.=FALSE)
+        }
+      }
+    }else{
+      common <- unique(unlist(lapply(terms, function(x) x$covStruct$main_levels)))
+      Gu <- to_sparse(Matrix::Diagonal(n=length(common), x=1))
+      rownames(Gu) <- colnames(Gu) <- common
+    }
+  }
+  missing <- setdiff(unlist(lapply(terms, function(x) x$covStruct$main_levels)), common)
+  if(length(missing)){
+    stop("Levels missing from Gu: ", paste(utils::head(missing, 10), collapse=", "), call.=FALSE)
+  }
+  Gu <- to_precision_sparse(Gu[common, common, drop=FALSE])
+  attr(Gu, "inverse") <- TRUE
+
+  align <- function(Zt){
+    s <- Matrix::summary(to_sparse(Zt))
+    Zc <- Matrix::sparseMatrix(i=s$i, j=match(colnames(Zt)[s$j], common), x=s$x,
+                               dims=c(nrow(Zt), length(common)))
+    colnames(Zc) <- common
+    to_sparse(Zc)
+  }
+  Z <- unlist(lapply(terms, function(x) lapply(x$Z, align)), recursive=FALSE)
+  n <- vapply(Z, nrow, integer(1))
+  if(length(unique(n)) != 1L){
+    stop("All strm() terms must have the same number of observations.", call.=FALSE)
+  }
+
+  if(!is.function(cov)) stop("cov must be a covariance constructor such as usm or function(x) fam(x, 1).",
+                             call.=FALSE)
+  termFactor <- cov(factor(labels, levels=labels))$covFactor
+  if(is.null(termFactor)) stop("cov must return a CovarianceFactor descriptor.", call.=FALSE)
+  if(termFactor$dim != nT) stop("The term covariance factor must have one level per term.", call.=FALSE)
+  factors <- c(list(termFactor), inner)
+
+  sigma2IsDefault <- is.null(sigma2)
+  if(sigma2IsDefault) sigma2 <- 0.15
+  par <- c(log_sigma2=log(sigma2))
+  free <- !isTRUE(fixedSigma2)
+  parNames <- "sigma2"
+  factorLabels <- c(paste0("strm(", paste(labels, collapse=","), ")"),
+                    vapply(inner, function(f) if(!is.null(f$label)) f$label else f$model,
+                           character(1)))
+  for(i in seq_along(factors)){
+    f <- .compile_covfactor(factors[[i]])
+    .validate_covfactor(f)
+    f$par_start <- length(par) + 1L
+    if(length(f$par)){
+      par <- c(par, f$par)
+      free <- c(free, f$free)
+      parNames <- c(parNames, paste(factorLabels[i], f$par_names, sep=":"))
+    }
+    f$par_end <- length(par)
+    f$label <- factorLabels[i]
+    factors[[i]] <- f
+  }
+  innerLevels <- terms[[1L]]$covStruct$levels
+  coordLevels <- if(qInner == 1L) labels else
+    as.vector(t(outer(labels, innerLevels, paste, sep=":")))
+
+  covStruct <- list(
+    type="kron", par=stats::setNames(as.numeric(par), parNames), free=as.logical(free),
+    par_names=parNames, factors=factors, dim=as.integer(nT*qInner),
+    levels=coordLevels, scale_index=1L, descriptor_version=2L,
+    factor_interface="CovarianceFactor", parameterization="working",
+    main_levels=common, sigma2_is_default=sigma2IsDefault
+  )
+
+  list(Z=Z, Gu=Gu, GuRot=NULL, rotation=NULL, covStruct=covStruct,
+       residualLocalIndex=NULL, productDesign=NULL, partitionsR=NULL,
+       strm_labels=labels, strm_terms=exprs)
+}
+
 
 replace.values <- function(Values,Search,Replace){
   dd0 <- data.frame(Values)
@@ -1943,7 +2087,15 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
 
   if(model == "matern"){
     return(function(scale, par, factor, absorb_scale=TRUE){
-      c(if(absorb_scale) c(variance=scale), range=par[1], nu=par[2])
+      c(if(absorb_scale) c(variance=scale),
+        stats::setNames(as.numeric(par), factor$par_names))
+    })
+  }
+
+  if(model == "metric"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale),
+        stats::setNames(as.numeric(par), factor$par_names))
     })
   }
 
@@ -2427,6 +2579,7 @@ dsm <- function(x, values=NULL, fixed=NULL, theta=NULL){
     }
     values <- diag(theta)
   }
+  defaultStart <- is.null(values)
   if(is.null(values)) values <- rep(1, q)
   if(length(values) != q || any(!is.finite(values)) || any(values <= 0)){
     stop("values in dsm() must contain one positive finite value per level.", call. = FALSE)
@@ -2450,7 +2603,9 @@ dsm <- function(x, values=NULL, fixed=NULL, theta=NULL){
       levels=colnames(dummy),
       par=eta,
       free=!as.logical(fixed),
-      par_names=if(q > 1L) paste0("variance_ratio[", colnames(dummy)[-1], "]") else character()
+      par_names=if(q > 1L) paste0("variance_ratio[", colnames(dummy)[-1], "]") else character(),
+      default_start=defaultStart,
+      ratio_index=seq_len(q - 1L)
     ))
   )
 }
@@ -2522,7 +2677,8 @@ usm <- function(x, theta=NULL, fixed=NULL){
       par_names=nm,
       us_row=rows,
       us_col=cols,
-      us_diag=isdiag
+      us_diag=isdiag,
+      default_start=is.null(theta)
     ))
   )
 }
@@ -2741,7 +2897,9 @@ ma2m <- function(x, theta=c(0.15,0.05), fixed=NULL){
 # We use an unconstrained unit-diagonal lower factor A and standardize
 # A A' to correlation scale.  This spans the SPD correlation cone without
 # requiring pairwise-correlation boundary repairs.
-corgm <- function(x, theta=NULL, fixed=NULL){
+corgm <- function(x, theta=NULL, fixed=NULL,
+                  variance=c("homogeneous", "heterogeneous"), values=NULL){
+  variance <- match.arg(variance)
   expr <- as.character(substitute(x))
   dummy <- .cov_dummy(x, expr)
   q <- ncol(dummy)
@@ -2772,6 +2930,7 @@ corgm <- function(x, theta=NULL, fixed=NULL){
       stop("theta supplied to corgm() must have positive finite diagonal.",
            call. = FALSE)
     }
+    if(variance == "heterogeneous" && is.null(values)) values <- diag(K)
     K <- stats::cov2cor(K)
     ch <- try(chol(K), silent=TRUE)
     if(inherits(ch, "try-error")){
@@ -2780,6 +2939,57 @@ corgm <- function(x, theta=NULL, fixed=NULL){
     A <- t(ch)
     A <- sweep(A, 1, diag(A), "/")
     vals <- mapply(function(i,j) A[i,j], rows, cols)
+  }
+
+  if(variance == "heterogeneous"){
+    defaultStart <- is.null(values)
+    if(is.null(values)) values <- rep(1, q)
+    if(length(values) != q || any(!is.finite(values)) || any(values <= 0)){
+      stop("values in corgm() must contain one positive variance per level.", call. = FALSE)
+    }
+    ratioPar <- log(values[-1] / values[1])
+    nCor <- length(vals)
+    if(is.null(fixed)) fixed <- rep(FALSE, nCor + q - 1L)
+    if(length(fixed) != nCor + q - 1L){
+      stop("fixed in heterogeneous corgm() must have length q(q-1)/2 + q-1 ",
+           "(correlation coordinates, then variance ratios).", call. = FALSE)
+    }
+    corOf <- function(par){
+      A <- diag(q)
+      A[cbind(rows, cols)] <- par[seq_len(nCor)]
+      S <- tcrossprod(A)
+      s <- sqrt(diag(S))
+      S / outer(s, s)
+    }
+    eval_fun <- function(par){
+      d <- sqrt(c(1, exp(par[nCor + seq_len(q - 1L)])))
+      d * t(d * corOf(par))
+    }
+    report_fun <- function(scale, par, factor, absorb_scale=TRUE){
+      R <- corOf(par)
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "variance" else "relative_variance"
+      c(stats::setNames(R[cbind(rows, cols)], paste0("correlation[", labs[rows], ",", labs[cols], "]")),
+        stats::setNames(multiplier * c(1, par[nCor + seq_len(q - 1L)]),
+                        paste0(prefix, "[", labs, "]")))
+    }
+    cf <- .make_covfactor(
+      dim=q, levels=labs, par=c(as.numeric(vals), ratioPar),
+      free=!as.logical(fixed),
+      par_names=c(paste0("cor_chol[", labs[rows], ",", labs[cols], "]"),
+                  paste0("variance_ratio[", labs[-1], "]")),
+      evaluator=list(backend="R", fun=eval_fun),
+      derivative=list(backend="numeric", rel_step=1e-6),
+      report=list(backend="builtin",
+                  transform=c(rep("identity", nCor), rep("exp", q - 1L)),
+                  lower=rep(NA_real_, nCor + q - 1L), upper=rep(NA_real_, nCor + q - 1L)),
+      native_report=report_fun,
+      trust_cap=rep(1.0, nCor + q - 1L),
+      structurally_diagonal=FALSE,
+      model="corgh",
+      metadata=list(ratio_index=nCor + seq_len(q - 1L), default_start=defaultStart)
+    )
+    return(list(Z=dummy, covFactor=cf))
   }
   
   if(is.null(fixed)) fixed <- rep(FALSE, length(vals))
@@ -3305,12 +3515,19 @@ rrm <- function(x, k=1L, loadings=NULL, fixed=NULL){
 # z = sqrt(2*nu) * d/range, with K(0)=1.
 # -------------------------------------------------------------------------
 maternm <- function(x, range=NULL, nu=0.5, fixed=c(FALSE,FALSE),
-                    distance=NULL){
+                    distance=NULL, anisotropy=c("none", "geometric"),
+                    angle=pi/2, ratio=1.5){
+  anisotropy <- match.arg(anisotropy)
   expr <- paste(deparse(substitute(x)), collapse="")
   sx <- .spatial_cov_dummy(x, expr)
   Z <- sx$Z
   coords <- sx$coords
   q <- ncol(Z)
+  geometric <- anisotropy == "geometric"
+  if(geometric && (ncol(coords) != 2L || !is.null(distance))){
+    stop("Geometric anisotropy in maternm() needs two-dimensional coordinates and no distance matrix.",
+         call. = FALSE)
+  }
 
   if(q < 2L){
     stop("maternm() requires at least two distinct spatial locations.", call. = FALSE)
@@ -3341,17 +3558,30 @@ maternm <- function(x, range=NULL, nu=0.5, fixed=c(FALSE,FALSE),
   if(length(nu) != 1L || !is.finite(nu) || nu <= 0){
     stop("nu in maternm() must be one positive finite value.", call. = FALSE)
   }
-  if(length(fixed) == 1L) fixed <- rep(fixed, 2L)
-  if(length(fixed) != 2L){
-    stop("fixed in maternm() must have length 1 or 2 (range, nu).",
+  nPar <- if(geometric) 4L else 2L
+  if(length(fixed) == 1L) fixed <- rep(fixed, nPar)
+  if(length(fixed) == 2L && geometric) fixed <- c(fixed, FALSE, FALSE)
+  if(length(fixed) != nPar){
+    stop("fixed in maternm() must have length 1 or ", nPar,
+         if(geometric) " (range, nu, angle, ratio)." else " (range, nu).",
          call. = FALSE)
+  }
+  if(geometric){
+    if(length(angle) != 1L || !is.finite(angle) || angle <= 0 || angle >= pi){
+      stop("angle in maternm() must lie strictly between 0 and pi.", call. = FALSE)
+    }
+    if(length(ratio) != 1L || !is.finite(ratio) || ratio <= 0){
+      stop("ratio in maternm() must be one positive value.", call. = FALSE)
+    }
   }
 
   eval_fun <- local({
     D0 <- D
+    C0 <- coords
     function(par){
       r <- exp(par[1])
       v <- exp(par[2])
+      if(geometric) D0 <- .geometric_distance(C0, pi*stats::plogis(par[3]), exp(par[4]))$d
       z <- sqrt(2*v) * D0 / r
       K <- matrix(1, nrow(D0), ncol(D0))
       use <- z > 1e-10
@@ -3370,25 +3600,243 @@ maternm <- function(x, range=NULL, nu=0.5, fixed=c(FALSE,FALSE),
     }
   })
 
+  maternPar <- c(log_range=log(range), log_nu=log(nu))
+  maternNames <- c("range","nu")
+  maternTransform <- c("exp","exp")
+  maternLower <- c(NA_real_,NA_real_)
+  maternUpper <- c(NA_real_,NA_real_)
+  if(geometric){
+    maternPar <- c(maternPar, eta_angle=stats::qlogis(angle/pi), log_ratio=log(ratio))
+    maternNames <- c(maternNames, "angle", "ratio")
+    maternTransform <- c(maternTransform, "bounded_logit", "exp")
+    maternLower <- c(maternLower, 0, NA_real_)
+    maternUpper <- c(maternUpper, pi, NA_real_)
+  }
+
   cf <- .make_covfactor(
     dim=q,
     levels=sx$levels,
-    par=c(log_range=log(range), log_nu=log(nu)),
+    par=maternPar,
     free=!as.logical(fixed),
-    par_names=c("range","nu"),
+    par_names=maternNames,
     evaluator=list(backend="R", fun=eval_fun),
     derivative=list(backend="numeric", rel_step=1e-6),
     report=list(backend="builtin",
-                transform=c("exp","exp"),
-                lower=c(NA_real_,NA_real_),
-                upper=c(NA_real_,NA_real_)),
-    trust_cap=c(1.0,0.75),
+                transform=maternTransform,
+                lower=maternLower,
+                upper=maternUpper),
+    trust_cap=c(1.0,0.75,rep(1.0, nPar-2L)),
     structurally_diagonal=FALSE,
     model="matern",
     metadata=list(distance=D, coordinates=coords)
   )
 
   list(Z=Z, covFactor=cf)
+}
+
+# Rotated/stretched pairwise distances for geometric anisotropy; also returns
+# the pieces needed for analytic derivatives with respect to angle and ratio.
+.geometric_distance <- function(coords, angle, ratio){
+  dx <- outer(coords[,1], coords[,1], "-")
+  dy <- outer(coords[,2], coords[,2], "-")
+  u <- dx*cos(angle) + dy*sin(angle)
+  v <- -dx*sin(angle) + dy*cos(angle)
+  d <- sqrt(u^2 + (v/ratio)^2)
+  list(d=d, u=u, v=v)
+}
+
+.metric_shape <- function(model){
+  switch(model,
+    exponential=list(g=function(h) exp(-h), dg=function(h) -exp(-h)),
+    gaussian=list(g=function(h) exp(-h^2), dg=function(h) -2*h*exp(-h^2)),
+    spherical=list(g=function(h) ifelse(h < 1, 1 - 1.5*h + 0.5*h^3, 0),
+                   dg=function(h) ifelse(h < 1, -1.5 + 1.5*h^2, 0)),
+    circular=list(g=function(h){
+                    hh <- pmin(h, 1)
+                    ifelse(h < 1, (2/pi)*(acos(hh) - hh*sqrt(1 - hh^2)), 0)
+                  },
+                  dg=function(h) ifelse(h < 1, -(4/pi)*sqrt(1 - pmin(h, 1)^2), 0)))
+}
+
+# -------------------------------------------------------------------------
+# Distance-based (metric) correlation structures: exponential, power,
+# gaussian, spherical and circular, isotropic or anisotropic.
+# -------------------------------------------------------------------------
+metricm <- function(x, model=c("exponential", "power", "gaussian", "spherical", "circular"),
+                    range=NULL, rho=NULL, anisotropy=c("none", "product", "geometric"),
+                    angle=pi/2, ratio=1.5, metric=c("euclidean", "manhattan"),
+                    distance=NULL, fixed=NULL){
+  model <- match.arg(model)
+  anisotropy <- match.arg(anisotropy)
+  metric <- match.arg(metric)
+  expr <- paste(deparse(substitute(x)), collapse="")
+  sx <- .spatial_cov_dummy(x, expr)
+  coords <- sx$coords
+  q <- ncol(sx$Z)
+  nd <- ncol(coords)
+  if(q < 2L) stop("metricm() requires at least two distinct locations.", call. = FALSE)
+  if(anisotropy != "none" && nd != 2L){
+    stop("Anisotropic metricm() models require two-dimensional coordinates.", call. = FALSE)
+  }
+  if(anisotropy == "product" && !(model %in% c("exponential", "power", "gaussian"))){
+    stop("Product anisotropy is available for the exponential, power and gaussian models.",
+         call. = FALSE)
+  }
+  if(model == "spherical" && nd > 3L){
+    stop("The spherical model is only valid in up to three dimensions.", call. = FALSE)
+  }
+  if(model == "circular" && nd > 2L){
+    stop("The circular model is only valid in up to two dimensions.", call. = FALSE)
+  }
+  if(metric == "manhattan" && (anisotropy != "none" || !(model %in% c("exponential", "power")))){
+    stop("The manhattan metric is only valid for isotropic exponential and power models.",
+         call. = FALSE)
+  }
+  if(!is.null(distance) && anisotropy != "none"){
+    stop("A user distance matrix can only be used with anisotropy='none'.", call. = FALSE)
+  }
+
+  if(!is.null(distance)){
+    D <- as.matrix(distance)
+    if(!all(dim(D) == c(q,q)) || any(!is.finite(D)) || max(abs(D-t(D))) > 1e-10 ||
+       any(D < -1e-12) || any(abs(diag(D)) > 1e-10)){
+      stop("distance in metricm() must be a finite symmetric q x q distance matrix with zero diagonal.",
+           call. = FALSE)
+    }
+  }else{
+    D <- as.matrix(stats::dist(coords, method=metric))
+  }
+  posd <- D[D > 0]
+  if(!length(posd)) stop("metricm() requires a positive inter-location distance.", call. = FALSE)
+  med <- stats::median(posd)
+  isPower <- model == "power"
+
+  # one parameter per axis for product anisotropy, otherwise one
+  nAxis <- if(anisotropy == "product") 2L else 1L
+  axisDist <- if(anisotropy == "product"){
+    list(abs(outer(coords[,1], coords[,1], "-")), abs(outer(coords[,2], coords[,2], "-")))
+  }else NULL
+  if(isPower){
+    if(is.null(rho)) rho <- rep(exp(-1/med), nAxis)
+    if(length(rho) == 1L) rho <- rep(rho, nAxis)
+    if(length(rho) != nAxis || any(!is.finite(rho)) || any(rho <= 0 | rho >= 1)){
+      stop("rho in metricm() must lie strictly between 0 and 1 (one value per axis).",
+           call. = FALSE)
+    }
+    base <- stats::qlogis(rho)
+    baseNames <- if(nAxis == 2L) c("rho_x", "rho_y") else "rho"
+    baseReport <- rep("bounded_logit", nAxis)
+  }else{
+    if(is.null(range)) range <- rep(med, nAxis)
+    if(length(range) == 1L) range <- rep(range, nAxis)
+    if(length(range) != nAxis || any(!is.finite(range)) || any(range <= 0)){
+      stop("range in metricm() must be positive (one value per axis).", call. = FALSE)
+    }
+    base <- log(range)
+    baseNames <- if(nAxis == 2L) c("range_x", "range_y") else "range"
+    baseReport <- rep("exp", nAxis)
+  }
+  par <- base
+  parNames <- baseNames
+  transform <- baseReport
+  lower <- ifelse(baseReport == "bounded_logit", 0, NA_real_)
+  upper <- ifelse(baseReport == "bounded_logit", 1, NA_real_)
+  if(anisotropy == "geometric"){
+    if(length(angle) != 1L || !is.finite(angle) || angle <= 0 || angle >= pi){
+      stop("angle in metricm() must lie strictly between 0 and pi.", call. = FALSE)
+    }
+    if(length(ratio) != 1L || !is.finite(ratio) || ratio <= 0){
+      stop("ratio in metricm() must be one positive value.", call. = FALSE)
+    }
+    par <- c(par, stats::qlogis(angle/pi), log(ratio))
+    parNames <- c(parNames, "angle", "ratio")
+    transform <- c(transform, "bounded_logit", "exp")
+    lower <- c(lower, 0, NA_real_)
+    upper <- c(upper, pi, NA_real_)
+  }
+  if(is.null(fixed)) fixed <- rep(FALSE, length(par))
+  if(length(fixed) == 1L) fixed <- rep(fixed, length(par))
+  if(length(fixed) != length(par)){
+    stop("fixed in metricm() must have one value per parameter: ",
+         paste(parNames, collapse=", "), call. = FALSE)
+  }
+  shape <- if(isPower) NULL else .metric_shape(model)
+
+  # K and dK/dpar for the current working parameters.
+  kernel <- function(par, k=0L){
+    if(anisotropy == "product"){
+      if(isPower){
+        r <- stats::plogis(par[1:2])
+        K <- r[1]^axisDist[[1]] * r[2]^axisDist[[2]]
+        if(k == 0L) return(K)
+        return(K * axisDist[[k]] * (1 - r[k]))
+      }
+      ph <- exp(par[1:2])
+      h <- lapply(1:2, function(a) axisDist[[a]]/ph[a])
+      if(model == "exponential"){
+        K <- exp(-h[[1]] - h[[2]])
+        if(k == 0L) return(K)
+        return(K * h[[k]])
+      }
+      K <- exp(-h[[1]]^2 - h[[2]]^2)
+      if(k == 0L) return(K)
+      return(K * 2 * h[[k]]^2)
+    }
+    if(anisotropy == "geometric"){
+      a <- pi*stats::plogis(par[2]); lam <- exp(par[3])
+      gd <- .geometric_distance(coords, a, lam)
+      d <- gd$d
+    }else{
+      d <- D
+    }
+    if(isPower){
+      r <- stats::plogis(par[1])
+      K <- r^d
+      dKdd <- K*log(r)
+      dK1 <- K*d*(1 - r)
+    }else{
+      ph <- exp(par[1])
+      h <- d/ph
+      K <- shape$g(h)
+      dKdd <- shape$dg(h)/ph
+      dK1 <- -shape$dg(h)*h
+    }
+    if(k == 0L){ diag(K) <- 1; return(K) }
+    if(k == 1L){ diag(dK1) <- 0; return(dK1) }
+    safe <- d > 0
+    dd <- matrix(0, q, q)
+    if(k == 2L){
+      sa <- stats::plogis(par[2])
+      dd[safe] <- (gd$u*gd$v*(1 - 1/lam^2))[safe]/d[safe] * pi*sa*(1 - sa)
+    }else{
+      dd[safe] <- -(gd$v^2/lam^2)[safe]/d[safe]
+    }
+    dKdd * dd
+  }
+
+  K0 <- kernel(par)
+  if(model == "gaussian" && rcond(K0) < 1e-10){
+    warning("The starting gaussian correlation matrix is nearly singular; ",
+            "keep a residual (nugget) term or use a smaller starting range.", call. = FALSE)
+  }
+
+  cf <- .make_covfactor(
+    dim=q,
+    levels=sx$levels,
+    par=stats::setNames(par, parNames),
+    free=!as.logical(fixed),
+    par_names=parNames,
+    evaluator=list(backend="R", fun=function(par) kernel(par)),
+    derivative=list(backend="R", fun=function(par, k) kernel(par, as.integer(k))),
+    report=list(backend="builtin", transform=transform, lower=lower, upper=upper),
+    trust_cap=rep(1.0, length(par)),
+    structurally_diagonal=FALSE,
+    model="metric",
+    metadata=list(distance=D, coordinates=coords, metric_model=model,
+                  anisotropy=anisotropy)
+  )
+
+  list(Z=sx$Z, covFactor=cf)
 }
 
 # -------------------------------------------------------------------------

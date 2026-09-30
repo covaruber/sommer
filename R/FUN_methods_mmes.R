@@ -9,7 +9,7 @@
   if(interactive()) {
     desc <- utils::packageDescription(pkg)
     packageStartupMessage(magenta(paste("[]==================================================================[]")),appendLF=TRUE)
-    packageStartupMessage(magenta(paste("[]  Solving Mixed Model Equations in R (sommer) ", desc$Version," (", desc$Date, ")  []",sep="")),appendLF=TRUE)
+    packageStartupMessage(magenta(paste("[]  Solving Mixed Model Equations in R (sommer) ", desc$Version," (", desc$Date, ") []",sep="")),appendLF=TRUE)
     packageStartupMessage(magenta(paste("[]  ------------- Multivariate Linear Mixed Models --------------   []")),appendLF=TRUE)
     packageStartupMessage(paste0(magenta("[]  Author: Giovanny Covarrubias-Pazaran",paste0(bgGreen
                                                                                            (white(" ")), bgWhite(magenta("M")), bgRed(white(" ")),"  ", bgRed(bold(yellow(" (") )),bgRed(bold(white("W"))), bgRed(bold(yellow(") "))) ) ,"                []")),appendLF=TRUE)
@@ -56,6 +56,14 @@
                       as.numeric(object$BIC), "AI", object$convergence)
   colnames(LLAIC) = c("logLik","AIC","BIC","Method","Converge")
   rownames(LLAIC) <- "Value"
+  if(inherits(object, "mmes.glmm")){
+    LLAIC <- data.frame(Deviance=object$deviance,
+                        Dispersion=if(length(object$dispersion) > 1L)
+                          paste(names(object$dispersion), signif(object$dispersion, 4),
+                                sep="=", collapse=", ") else object$dispersion,
+                        Method="PQL", Converge=isTRUE(object$pqlConverged),
+                        row.names="Value")
+  }
   method="AI"
   coef <- data.frame(Estimate=object$b)
 
@@ -108,6 +116,7 @@ varcomp <- object$covParNative
   ################################################
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by ",
+            if(!is.null(x$pqlConverged)) "PQL" else
             if(isTRUE(x$REML)) "REML" else "ML", rlt,"\n", collapse = ""))
   cat(paste(rlh," sommer 4.4 ",rlh, "\n", collapse = ""))
   cat(paste(rep("=",nmaxchar), collapse = ""))
@@ -161,16 +170,20 @@ varcomp <- object$covParNative
 #### =========== ######
 
 "residuals.mmes" <- function(object,
-                               type=c("response", "deviance", "working"), ...) {
+                               type=c("response", "deviance", "pearson", "working"), ...) {
   if(inherits(object, "mmes.glmm")){
     type <- match.arg(type)
     y <- as.numeric(object$y)
-    if(type == "response") return(y - object$fitted.values)
+    mu <- object$fitted.values
+    pw <- if(is.null(object$priorWeights)) rep(1, length(y)) else object$priorWeights
+    families <- if(is.null(object$pqlFamilies)) list(object$family) else object$pqlFamilies
+    index <- if(is.null(object$pqlFamilyIndex)) rep(1L, length(y)) else object$pqlFamilyIndex
+    if(type == "response") return(y - mu)
     if(type == "working") return(as.numeric(object$workingResponse) -
                     object$linear.predictorsNoOffset)
-    contribution <- object$family$dev.resids(y, object$fitted.values,
-                                             rep(1, length(y)))
-    return(sign(y - object$fitted.values) * sqrt(pmax(contribution, 0)))
+    if(type == "pearson") return((y - mu) * sqrt(pw / .pql_apply(families, index, "variance", mu)))
+    contribution <- .pql_apply(families, index, "dev.resids", y, mu, pw)
+    return(sign(y - mu) * sqrt(pmax(contribution, 0)))
   }
   digits = max(3, getOption("digits") - 3)
   ff <- fitted.mmes(object)
@@ -669,9 +682,12 @@ anova.mmes <- function(object, object2=NULL, ...) {
   ########################################
   digits = max(3, getOption("digits") - 3)
   if(is.null(object2)){
-    stop("The 'anova' function for the sommer package only works to compare mixed models by likelihood ratio tests (LRT), was not intended to provide regular sum of squares output.")
-    # result <- sequential.fit(object,type=type)
-  }else{
+    return(wald_mmes(object, ...))
+  }
+  if(inherits(object, "mmes.glmm") || inherits(object2, "mmes.glmm")){
+    stop("Likelihood ratio tests are not available for PQL fits: their log-likelihood is that of a working Gaussian model, not of the GLMM.", call.=FALSE)
+  }
+  {
     if(!is.null(object$REML) && !is.null(object2$REML) &&
        !identical(object$REML, object2$REML)){
       warning("Comparing a REML fit against a maximum-likelihood (REML=FALSE) fit is not a valid likelihood ratio test; refit both models with the same REML= setting.", call.=FALSE)

@@ -356,6 +356,16 @@ cor(u[vv,],DT[vv,"X1"]) # same correlation
 
 The two prediction formulations shown above use different parameterizations. The GBLUP example fits genotype effects with the sparse precision matrix `Ki` through `mmes()` and `vsm()`. The rrBLUP example instead fits marker effects through `mmer()` and `vsr(list(GT))`, so a separate random effect is associated with each marker column. The older `buildGu=FALSE` explanation does not apply to the code shown here and is not part of the current `mmes()` covariance-factor interface.
 
+Marker effects can also be recovered from a GBLUP fit without refitting, with `meffects_mmes()`. Passing the marker matrix used in `A.mat()` reproduces how the relationship matrix was built; `blend` accounts for a matrix of the form $(1-\lambda)G+\lambda I$, and `se = TRUE` adds standard errors and back-solved GWAS tests (Gualdron-Duarte et al. 2014):
+
+```{r, eval=FALSE}
+G <- A.mat(GT)
+Ki <- solve(0.99 * G + 0.01 * diag(nrow(G))); attr(Ki, "inverse") <- TRUE
+ans <- mmes(X1 ~ 1, random = ~ vsm(ism(id), Gu = Ki), data = y.trn, verbose = FALSE)
+markers <- meffects_mmes(ans, 1, GT, blend = 0.01, se = TRUE)
+head(markers[order(markers$p.value), ])
+```
+
 ### 6) Indirect genetic effects
 
 General variance structures can be used to fit indirect genetic effects. Here, we use an example dataset to show how we can fit the variance and covariance components between two or more different random effects.
@@ -392,16 +402,15 @@ summary(modIGE)$varcomp
 
 ```
 
-We now fit the indirect genetic effects model with covariance between DGE and IGE for which we will use the `gvsr()` function:
+We now fit the indirect genetic effects model with covariance between DGE and IGE for which we will use the `strm()` function (`covm()` is its two-term special case):
 
 ```{r}
 
-# ### Indirect genetic effects model (needs to be fixed)
-# modIGE <- mmes(trait ~ block, dateWarning = FALSE,
-#                random = ~ covm( vsm(ism(focal)), vsm(ism(neighbour)) ),
-#                rcov = ~ units, nIters=100, verbose = FALSE,
-#               data = DT)
-# summary(modIGE)$varcomp
+modIGE <- mmes(trait ~ block, dateWarning = FALSE,
+               random = ~ strm(dge = vsm(ism(focal)), ige = vsm(ism(neighbour))),
+               rcov = ~ units, verbose = FALSE,
+              data = DT)
+summary(modIGE)$varcomp
 
 ```
 
@@ -409,15 +418,13 @@ On top of that we can include a relationship matrix for the two random effects t
 
 ```{r}
 
-### Indirect genetic effects model
-# Ai <- solve(A_ige + diag(1e-5, nrow(A_ige),nrow(A_ige) ))
-# Ai <- as(as(as( Ai,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-# # Indirect genetic effects model with covariance between DGE and IGE using relationship matrices
-# modIGE <- mmes(trait ~ block, dateWarning = FALSE,
-#                random = ~ covm( vsm(ism(focal), Gu=Ai), vsm(ism(neighbour), Gu=Ai) ),
-#                rcov = ~ units, nIters=100, verbose = FALSE,
-#               data = DT)
-# summary(modIGE)$varcomp
+Ai <- solve(A_ige + diag(1e-5, nrow(A_ige),nrow(A_ige) ))
+attr(Ai, "inverse") <- TRUE
+modIGE <- mmes(trait ~ block, dateWarning = FALSE,
+               random = ~ strm(dge = vsm(ism(focal)), ige = vsm(ism(neighbour)), Gu = Ai),
+               rcov = ~ units, verbose = FALSE,
+              data = DT)
+summary(modIGE)$varcomp
 
 ```
 
@@ -521,7 +528,20 @@ Multivariate mixed models are useful for estimating genetic variances and covari
 
 ```
 
-Other examples of multi-trait models can be found in the documentation of the rice dataset (DT_rice) and in the example dataset (DT_example). The key here is to learn how to use the reshape function from base R.
+For wide data, `stackTraits()` creates the long response and an explicit record key. Use that key as the final residual incidence when traits measured on the same experimental unit should have correlated errors; `covmatrix_mmes()` returns the fitted covariance, correlation and their standard errors.
+
+```{r}
+# DTL <- stackTraits(DT, traits = c("color", "Yield"), keep = "id")
+# ansm <- mmes(value ~ trait,
+#              random = ~ vsm(usm(trait), ism(id), Gu = Ai),
+#              rcov = ~ vsm(usm(trait), ism(record)), data = DTL)
+# covmatrix_mmes(ansm, 1)$correlation  # genetic correlation
+# covmatrix_mmes(ansm, 2)$correlation  # residual correlation
+```
+
+Mixed-family traits are also supported through `familym()`. For example, a binary disease score and a Gaussian yield can be fitted jointly with an unstructured genetic covariance. The residual covariance uses `corgm(trait, variance="heterogeneous")` so that the fixed binomial residual variance and the estimated Gaussian residual variance can coexist; see the `familym()` and `corgm()` examples for a complete reproducible fit.
+
+Other examples of multi-trait models can be found in the documentation of the rice dataset (DT_rice) and in the example dataset (DT_example).
 
 ### 9) Bivariate model with repeated records
 

@@ -453,7 +453,7 @@ version 4.3.1 (2023-06-11)
 ########################
  + There was a bug where the A matrix was not being reordered when provided in the mmec() function. It has been fixed.
  + A function to calculate effective population size based on allele coverage has been added.
- 
+
 ########################
 version 4.3.2 (2023-08-01)
 ########################
@@ -462,7 +462,7 @@ version 4.3.2 (2023-08-01)
  + now the mmec() function can use the different covariance structures in the fixed effect part so overlay and at models can be fitted as fixed.
  + Bug in atc() function fixed when a single level was used.
  + The covc() function has been added to calculate covariance between random effects as long as the incidence matrices of the random effects have the same levels.
- 
+
 ########################
 version 4.3.4 (2023-04-01)
 ########################
@@ -505,7 +505,7 @@ version 4.4.4 (2025-12-31)
  + MNR function exported and documented for users wanting to specify their matrices directly
 
 ########################
-version 4.4.8 (2026-09-23)
+version 4.4.81 (2026-09-30)
 ########################
  + ai_mme_sp2 function created to solve computation issues in the henderson algorithm. 
  + both function mmes and mmer are back and trying to split the direct inversion from henderson once again
@@ -517,9 +517,61 @@ version 4.4.8 (2026-09-23)
    mean and divided by sum((2pq)^2), so D matrices (and E.mat with A#D or D#D)
    will differ from those of earlier versions. nishio=FALSE (Su et al. 2012) is unchanged.
  + D.mat and E.mat help pages corrected to describe the formulas that are used.
- 
+ + GLMM (PQL): any family with a valid link, including links with negative
+   mu.eta (e.g. Gamma inverse). New binm(successes, failures/trials) builds a
+   single proportion response whose trials are used as binomial prior weights.
+   Pearson dispersion reported for free-dispersion families; negative binomial
+   theta estimated with pqlControl=list(estimateTheta=TRUE). Working-model
+   llik/AIC/BIC are NA and likelihood ratio tests are refused for PQL fits;
+   residuals() gains type="pearson".
+ + BUG FIX: theta_se of the Henderson engine was the inverse of the EM-blended
+   update matrix on the -2logL scale (about half the true variance). It is now
+   2*inverse(AI) over free parameters, matching the direct engine; standard
+   errors in covParNative/covparams_mmes_se change accordingly.
+ + New wald_mmes(): incremental and conditional (marginality-respecting) Wald
+   tests with denominator df "none", "residual", "satterthwaite" or "kr"
+   (Kenward-Roger). anova(object) with a single model returns it.
+ + predict.mmes: new levels argument stored in a Dtable list column, sed/avsed,
+   pairwise comparisons (all pairs or against a reference level) with p-value
+   adjustment and residual/Satterthwaite/KR df for fixed-effect contrasts.
+ + BUG FIX predict.mmes: "include and average" divided each cell by the total
+   number of cells of the term instead of the cells present for the prediction
+   row (e.g. 1/12 instead of 1/3 for V:N); results now match emmeans.
+   Prediction labels no longer lose characters matching the classify name.
+ + mmes objects store call and inputArgs so model inputs can be rebuilt.
+ + New metricm(): exponential, power, gaussian, spherical and circular
+   distance-based correlations, isotropic or anisotropic (product per axis or
+   geometric angle/ratio), with analytic derivatives (ASReml exp/iexp/aexp/
+   gau/igau/agau/isp/cir). maternm() gains geometric anisotropy.
+ + New strm(): covariance structure spanning several random terms (ASReml
+   str), sigma2 * K_terms x K_inner x A, with any constructor over the terms
+   and levels aligned on the union or on Gu. covm() is its two-term case.
+ + New vcc argument of mmes(): equality and scaling constraints between
+   covariance parameters (ASReml vcc), identified through the new vcParams
+   table (returnParam=TRUE and fitted objects). Implemented in both engines
+   by projecting each AI update on w = o + T phi; theta_se follows the
+   constraints.
+ + New meffects_mmes(): marker effects recovered from a GBLUP term (ASReml
+   mef) reproducing A.mat() or a custom transform, with optional standard
+   errors and back-solved GWAS tests.
+ + Wald, residual df and PQL dispersion use sparse rank computations.
+ + New stackTraits() converts wide trait columns to long format with an
+   explicit record key. mmes() accepts that key in the residual structure to
+   pair trait residuals without relying on row order.
+ + New familym() supports mixed-family multivariate PQL models, including
+   binomial/Poisson/negative-binomial traits with fixed residual dispersion and
+   Gaussian traits with estimated residual variances. corgm() gains a
+   heterogeneous-variance mode for residual trait covariance structures.
+ + New covmatrix_mmes() reports term covariance and correlation matrices with
+   delta-method standard errors. Default usm()/dsm() starting shapes use
+   per-coordinate residual mean squares.
+ + BUG FIX Henderson compact residual score used an incorrect zero
+   log-determinant derivative, which could prevent complete multi-trait usm
+   fits from converging. Weighted Kronecker residual derivatives now use the
+   same inverse-Cholesky weighting as the effective residual covariance.
+ + BUG FIX weighted Henderson fits with non-diagonal Kronecker residuals now
+   match the direct engine for covariance parameter estimates.
+
 ######################
 ## PENDINGS AND PRIORITIES 
-+ cholmod solver only used looking at the Gu not to the entire model
-+ rotation enabled for structured residuals
 + Fix plot.mmes

@@ -10,23 +10,26 @@ mmes <- function(fixed, random, rcov, data, W,
                  contrasts=NULL, getPEV=TRUE, henderson=TRUE,
                  computeCi=0, solver="auto", pcgTol=1.0e-8,
                  pcgMaxIters=0, pcgTraceProbes=8,
-                 pcgLanczosSteps=20, REML=TRUE,
+                 pcgLanczosSteps=20, REML=TRUE, vcc=NULL,
                  family=stats::gaussian(), pqlControl=list(),
                  .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
                  .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
                  .pqlBaseFactor=NULL){
 
   WWasMissing <- missing(W)
+  WInput <- if(WWasMissing) NULL else W
+  mmesCall <- match.call()
 
   if(length(henderson) != 1L || !is.logical(henderson) || is.na(henderson)){
     stop("henderson must be a single TRUE/FALSE value.", call.=FALSE)
   }
 
-  if(!inherits(family, "family")){
-    stop("family must be a family object, such as stats::binomial() or stats::poisson().",
+  if(!inherits(family, "family") && !inherits(family, "sommer_familym")){
+    stop("family must be a family object, such as stats::binomial() or stats::poisson(), or familym().",
          call.=FALSE)
   }
-  isGaussianIdentity <- identical(family$family, "gaussian") &&
+  isGaussianIdentity <- inherits(family, "family") &&
+    identical(family$family, "gaussian") &&
     identical(family$link, "identity")
   if(!.pqlInner && !isGaussianIdentity){
     return(get(".mmes_pql", mode="function")(
@@ -47,7 +50,7 @@ mmes <- function(fixed, random, rcov, data, W,
         henderson=henderson, computeCi=computeCi, solver=solver,
         pcgTol=pcgTol, pcgMaxIters=pcgMaxIters,
         pcgTraceProbes=pcgTraceProbes, pcgLanczosSteps=pcgLanczosSteps,
-        REML=REML
+        REML=REML, vcc=vcc
       )
     ))
   }
@@ -174,7 +177,7 @@ mmes <- function(fixed, random, rcov, data, W,
     randomEnv <- formula_env(random, fixedEnv)
     for(u in seq_along(randomExprs)){
       ex <- randomExprs[[u]]
-      if(!has_call(ex, c("vsm", "covm", "spl2Dc"))){
+      if(!has_call(ex, c("vsm", "covm", "strm", "spl2Dc"))){
         ex <- as.call(list(as.name("vsm"), as.call(list(as.name("ism"), ex))))
       }
       randomExprs[[u]] <- ex
@@ -199,7 +202,37 @@ mmes <- function(fixed, random, rcov, data, W,
     residualExpr <- as.call(list(as.name("vsm"), as.call(list(as.name("ism"), residualExpr))))
   }
   residualLabel <- expr_label(residualExpr)
+  # A final ism(key) other than ism(units) names the residual pairing key.
+  residualKeyExpr <- NULL
+  swap_key <- function(ex){
+    nm <- call_name(ex)
+    if(identical(nm, "dsumm")){
+      ex[[2L]] <- swap_key(ex[[2L]])
+      return(ex)
+    }
+    if(!identical(nm, "vsm")) return(ex)
+    argNames <- names(ex)
+    if(is.null(argNames)) argNames <- rep("", length(ex))
+    positional <- which(argNames == "")[-1L]
+    if(!length(positional)) return(ex)
+    last <- positional[length(positional)]
+    term <- ex[[last]]
+    if(identical(call_name(term), "ism") && length(term) == 2L &&
+       !identical(term[[2L]], as.name("units")) && length(positional) > 1L){
+      residualKeyExpr <<- term[[2L]]
+      ex[[last]] <- quote(ism(units))
+    }
+    ex
+  }
+  residualExpr <- swap_key(residualExpr)
   residualEnv <- formula_env(rcov, fixedEnv)
+  residualKeyFull <- NULL
+  if(!is.null(residualKeyExpr)){
+    residualKeyFull <- eval_model_expr(residualKeyExpr, data_full, residualEnv)
+    if(length(residualKeyFull) != nObs){
+      stop("The residual pairing key must have one value per observation.", call.=FALSE)
+    }
+  }
   rf_full <- eval_model_expr(residualExpr, data_full, residualEnv)
   if(is.null(rf_full$covStruct) || !identical(rf_full$covStruct$type, "kron") ||
      is.null(rf_full$covStruct$descriptor_version) || rf_full$covStruct$descriptor_version < 2L){
@@ -224,6 +257,7 @@ mmes <- function(fixed, random, rcov, data, W,
   }
   residualOK <- if(isTRUE(rf_full$residualSelfMasked)) !is.na(rf_full$residualLocalIndex) else
     observation_ok(residualExpr, data_full, residualEnv, nObs) & !is.na(rf_full$residualLocalIndex)
+  if(!is.null(residualKeyFull)) residualOK <- residualOK & !is.na(residualKeyFull)
   
   keepY <- method_keep(responseOK, naMethodY, "the response")
   keepX <- method_keep(fixedOK, naMethodX, "fixed-effect variables")
@@ -286,6 +320,9 @@ mmes <- function(fixed, random, rcov, data, W,
   if(isTRUE(.pqlFixedDispersion)){
     rf$covStruct$par[1L] <- 0
     rf$covStruct$free[1L] <- FALSE
+  }else if(is.list(.pqlFixedDispersion)){
+    rf$covStruct <- .pql_fix_levels(rf$covStruct, .pqlFixedDispersion$levels,
+                                    .pqlFixedDispersion$by)
   }
   residualStructIndex <- nRandomStruct + 1L
   covStruct[[residualStructIndex]] <- rf$covStruct
@@ -319,6 +356,14 @@ mmes <- function(fixed, random, rcov, data, W,
     blockKey <- if(length(diagonalDigits)) do.call(paste, c(diagonalDigits, sep="\r"))
                 else rep("all", length(localIndex))
   }
+  if(!is.null(residualKeyFull)){
+    blockKey <- as.character(residualKeyFull[keep])
+  }else if(anyDuplicated(localIndex) && any(occurrence > 1L) &&
+           any(!vapply(residualFactors, function(f) isTRUE(f$structurally_diagonal), logical(1)))){
+    warning("Some residual records were paired by their order in the data because the other ",
+            "data columns do not identify them; state the pairing key explicitly, e.g. ",
+            "rcov = ~vsm(usm(trait), ism(record)) (see stackTraits()).", call.=FALSE)
+  }
   sectionOwner <- which(vapply(residualFactors, function(f) isTRUE(f$section_owner), logical(1)))
   if(length(sectionOwner)){
     # dsumm() sections are independent by definition, whatever the pairing.
@@ -326,6 +371,10 @@ mmes <- function(fixed, random, rcov, data, W,
   }
   residualBlock <- match(blockKey, unique(blockKey))
   if(anyDuplicated(paste(residualBlock, localIndex, sep=":"))){
+    if(!is.null(residualKeyFull)){
+      stop("Records sharing a value of the residual pairing key must have different residual coordinates ",
+           "(e.g. one record per trait within each key).", call.=FALSE)
+    }
     stop("Internal residual-layout error: a block contains duplicate local covariance coordinates.", call.=FALSE)
   }
   blockSizes <- tabulate(residualBlock)
@@ -578,6 +627,7 @@ mmes <- function(fixed, random, rcov, data, W,
   # failure here is silently ignored and the old flat defaults are kept,
   # since this only affects the optimization starting point, never the
   # converged answer.
+  startResid <- NULL
   tryCatch({
     if(ncol(X) >= 1L && ncol(X) <= 2000L){
       Xd <- as.matrix(X)
@@ -594,6 +644,7 @@ mmes <- function(fixed, random, rcov, data, W,
             residShare <- if(nRandomStruct > 0L) 0.5 * varResid0 else varResid0
             randomPoolShare <- 0.5 * varResid0
             r <- rowMeans(resid)
+            startResid <- r
             
             # Phase 2: for plain ism()-only random terms with an identity
             # relationship matrix, use a one-way ANOVA method-of-moments
@@ -660,6 +711,24 @@ mmes <- function(fixed, random, rcov, data, W,
       }
     }
   }, error=function(e) NULL)
+
+  # Heterogeneous starting shapes for default usm()/dsm() factors (e.g. traits
+  # on different scales); only the optimizer starting point is affected.
+  if(!is.null(startResid)){
+    tryCatch({
+      covStruct[[residualStructIndex]] <-
+        .mv_start_shapes(covStruct[[residualStructIndex]], localIndex, startResid)
+      for(u in seq_len(nRandomStruct)){
+        Zu <- Z[Zind == u]
+        if(length(Zu) != covStruct[[u]]$dim) next
+        coord <- rep(NA_integer_, length(startResid))
+        for(j in seq_along(Zu)){
+          coord[Matrix::rowSums(abs(Zu[[j]])) > 0] <- j
+        }
+        covStruct[[u]] <- .mv_start_shapes(covStruct[[u]], coord, startResid)
+      }
+    }, error=function(e) NULL)
+  }
 
   if(responsePrepared){
     standardizedResponse <- (rotationInfo$yOriginal - preparedMean) / preparedSd
@@ -800,8 +869,18 @@ mmes <- function(fixed, random, rcov, data, W,
     message(crayon::blue("Engine selected: direct inversion (henderson=FALSE)"))
   }
 
+  vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
+  if(!is.null(vcc)){
+    vcSpec <- .vc_constraint_map(covStruct, vcParams, vcc)
+    covStruct <- vcSpec$covStruct
+    vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
+    vcParams$group <- vcSpec$group
+    attr(covStruct, "vcmap") <- list(T=vcSpec$T, o=vcSpec$o)
+  }
+
   if(returnParam){
     return(list(yvar=yvar, X=X, Z=Z, Zind=Zind, Ai=Ai,
+                vcParams=vcParams,
                 W=W, useH=useH, residualBlock=residualBlock,
                 residualIndex=localIndex, nIters=nIters,
                 tolParConvLL=tolParConvLL, tolParConvNorm=tolParConvNorm,
@@ -810,7 +889,9 @@ mmes <- function(fixed, random, rcov, data, W,
                 rtermss=rtermss, partitionsX=partitionsX,
                 getPEV=getPEV, rTermsNames=rTermsNames,
                 obsInfo=obsInfo, solver=solver, REML=REML,
-                henderson=henderson, rotation=rotationInfo))
+                henderson=henderson, rotation=rotationInfo,
+                responsePrepared=responsePrepared, preparedMean=preparedMean,
+                preparedSd=preparedSd, preparedIntercept=preparedIntercept))
   }
 
   if(isTRUE(henderson)){
@@ -835,6 +916,12 @@ mmes <- function(fixed, random, rcov, data, W,
                  preparedIntercept)
   }
   res$engine <- if(isTRUE(henderson)) "henderson" else "direct"
+  res$call <- mmesCall
+  res$inputArgs <- list(naMethodX=naMethodX, naMethodY=naMethodY,
+                        naMethodRandom=naMethodRandom, naMethodR=naMethodR,
+                        contrasts=contrasts, henderson=henderson, REML=REML,
+                        vcc=vcc,
+                        W=WInput)
 
   rownames(res$b) <- colnames(X)
   if(length(randomFits) && length(res$u)) rownames(res$u) <- unlist(lapply(Z, colnames))
@@ -848,6 +935,7 @@ mmes <- function(fixed, random, rcov, data, W,
   res$y <- yvar
   res$partitionsX <- partitionsX
   res$covStruct <- covStruct
+  res$vcParams <- vcParams
   res$REML <- REML
   
   if(length(randomFits) && length(rtermss)){
@@ -878,6 +966,7 @@ mmes <- function(fixed, random, rcov, data, W,
     res$Dtable <- data.frame(type=rep("fixed",length(res$partitionsX)),
                              term=names(res$partitionsX), include=FALSE, average=FALSE)
   }
+  res$Dtable$levels <- vector("list", nrow(res$Dtable))
 
   if(!is.null(rotationInfo)){
     res$buEngine <- res$bu

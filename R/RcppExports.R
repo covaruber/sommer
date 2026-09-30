@@ -109,6 +109,10 @@ ai_mme_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIn
     .Call(`_sommer_ai_mme_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept)
 }
 
+evaluate_covstruct_cpp <- function(covStruct, par) {
+    .Call(`_sommer_evaluate_covstruct_cpp`, covStruct, par)
+}
+
 ai_reml_direct_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev = 0L, reml = TRUE, responsePrepared = FALSE, preparedMean = 0.0, preparedSd = 1.0, preparedIntercept = FALSE) {
     .Call(`_sommer_ai_reml_direct_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept)
 }

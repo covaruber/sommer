@@ -87,3 +87,84 @@ test_that("PQL accepts sparse non-diagonal W after observation filtering", {
   expect_length(fitted(fit), n - 1L)
   expect_true(all(is.finite(fitted(fit))))
 })
+pqlGlmData <- function(){
+  set.seed(1); n <- 300
+  d <- data.frame(x=rnorm(n))
+  eta <- 0.5 + 0.3 * d$x
+  d$yg <- rgamma(n, shape=5, rate=5 / exp(eta))
+  d$yig <- abs(rnorm(n, exp(eta), 0.3)) + 0.05
+  d$tot <- sample(5:15, n, TRUE)
+  d$succ <- rbinom(n, d$tot, plogis(eta - 0.5))
+  d$fail <- d$tot - d$succ
+  d$yb <- rbinom(n, 1, 0.4)
+  d
+}
+
+pqlFit <- function(formula, family, data, ...){
+  mmes(formula, rcov=~units, data=data, family=family, verbose=FALSE,
+       nIters=40, tolParConvLL=1e-8, tolParConvNorm=1e-8,
+       pqlControl=utils::modifyList(list(maxit=50, tol=1e-12), list(...)))
+}
+
+test_that("PQL without random effects reproduces glm for several families and links", {
+  d <- pqlGlmData()
+  cases <- list(
+    list(yg~x, Gamma()), list(yg~x, Gamma("log")),
+    list(yig~x, inverse.gaussian("log")), list(yb~x, binomial("probit")),
+    list(yb~x, binomial("cloglog"))
+  )
+  for(case in cases){
+    fit <- pqlFit(case[[1]], case[[2]], d)
+    ref <- glm(case[[1]], data=d, family=case[[2]])
+    expect_equal(as.numeric(fit$b), unname(coef(ref)), tolerance=1e-6)
+    expect_equal(fit$dispersion, summary(ref)$dispersion, tolerance=1e-4)
+    expect_equal(fit$deviance, deviance(ref), tolerance=1e-6)
+  }
+})
+
+test_that("binm() carries binomial trials as prior weights", {
+  d <- pqlGlmData()
+  ref <- glm(cbind(succ, fail)~x, data=d, family=binomial())
+  fit <- pqlFit(binm(succ, fail)~x, binomial(), d)
+  expect_equal(as.numeric(fit$b), unname(coef(ref)), tolerance=1e-6)
+  expect_equal(fit$deviance, deviance(ref), tolerance=1e-6)
+  expect_equal(residuals(fit, type="pearson"),
+               unname(residuals(ref, type="pearson")), tolerance=1e-5)
+
+  d$p <- binm(d$succ, trials=d$tot)
+  sub <- d[-(1:7), ]
+  expect_equal(attr(sub$p, "trials"), sub$tot)
+  fitSub <- pqlFit(p~x, binomial(), sub)
+  refSub <- glm(cbind(succ, fail)~x, data=sub, family=binomial())
+  expect_equal(as.numeric(fitSub$b), unname(coef(refSub)), tolerance=1e-6)
+
+  expect_warning(expect_warning(pqlFit(I(succ/tot)~x, binomial(), d), "binm"),
+                 "non-integer")
+  expect_error(binm(3, 1, 4), "exactly one")
+  expect_error(binm(5, trials=4), "successes")
+})
+
+test_that("negative binomial theta estimation matches MASS::glm.nb", {
+  set.seed(3); n <- 400
+  d <- data.frame(x=rnorm(n))
+  d$y <- rnbinom(n, size=1.5, mu=exp(0.4 + 0.3 * d$x))
+  ref <- MASS::glm.nb(y~x, data=d)
+  fit <- pqlFit(y~x, MASS::negative.binomial(1), d, estimateTheta=TRUE, maxit=100,
+                tol=1e-10)
+  expect_equal(fit$theta.nb, ref$theta, tolerance=1e-5)
+  expect_equal(fit$theta.nb.se, ref$SE.theta, tolerance=1e-4)
+  expect_equal(as.numeric(fit$b), unname(coef(ref)), tolerance=1e-6)
+  expect_equal(fit$dispersion, 1)
+  expect_error(pqlFit(y~x, poisson(), d, estimateTheta=TRUE), "negative.binomial")
+})
+
+test_that("PQL fits do not report working-model likelihoods", {
+  d <- pqlGlmData()
+  d$g <- factor(rep(1:30, each=10))
+  fit <- mmes(binm(succ, fail)~x, random=~g, data=d, family=binomial(),
+              verbose=FALSE)
+  expect_true(is.na(fit$AIC))
+  expect_true(all(is.na(fit$llik)))
+  expect_error(anova(fit, fit), "not available for PQL")
+  expect_identical(summary(fit)$logo$Method, "PQL")
+})

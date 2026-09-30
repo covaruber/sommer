@@ -6,12 +6,14 @@
 }
 \usage{
 \method{residuals}{mmes}(object,
-                          type=c("response", "deviance", "working"), \dots)
+                          type=c("response", "deviance", "pearson", "working"), \dots)
 }
 \arguments{
  \item{object}{an object of class \code{"mmes"}}
  \item{type}{For a non-Gaussian PQL fit, return response residuals (default),
- signed deviance residuals, or final IRLS working residuals.}
+ signed deviance residuals, Pearson residuals, or final IRLS working residuals.
+ Deviance and Pearson residuals use the prior weights (binomial trials, see
+ \code{\link{binm}}).}
  \item{\dots}{Further arguments to be passed}
 }
 \value{
