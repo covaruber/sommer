@@ -10,8 +10,6 @@ vignette: >
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(message=FALSE, warning=FALSE, fig.width=7, fig.height=3.4)
-if(capabilities("cairo")) options(bitmapType="cairo")
 library(sommer)
 ```
 
@@ -109,18 +107,6 @@ field$site <- factor("F1")
 head(field)
 ```
 
-A heatmap of the raw yields already shows the patchy spatial pattern. White cells are the missing plots.
-
-```{r}
-fieldImage <- function(range, row, value, main){
-  z <- matrix(NA_real_, nRange, nRow)
-  z[cbind(range, row)] <- value
-  image(seq_len(nRange), seq_len(nRow), z, col=hcl.colors(30, "YlGn", rev=TRUE),
-        xlab="range", ylab="row", main=main)
-}
-fieldImage(field$range, field$row, field$yield, "Observed yield")
-```
-
 ### 3.2 Five candidate models
 
 All models share the same fixed effects (an intercept) and a random genotype effect; they differ only in how the field is described.
@@ -172,21 +158,6 @@ knitr::kable(covparams_mmes(fits$ar1Fld)[, c("factor", "parameter", "estimate")]
 Compare with the truth: genetic variance 9 (the 96 values actually drawn have variance 6.7, which is what the model can recover), spatial variance 8, $\rho_\text{range}=0.7$, $\rho_\text{row}=0.4$, nugget 1. Note that in a Kronecker product the single variance is reported once, on the first factor (`ar1m(rangef)`); the second factor only contributes its correlation.
 
 The difference between M3 and M4 is the nugget. M3 assumes that plot-level noise is perfectly correlated with the spatial pattern, while M4 separates a smooth-ish correlated field from independent plot error. With real data both are worth trying; the likelihood tells you which describes your field better.
-
-### 3.5 Seeing what the model learned
-
-The random spatial field in M4 has one BLUP per field position, including the positions of the missing plots. Plotting it next to the true simulated field shows that the model has recovered the pattern; the estimate is smoother, because BLUPs shrink towards zero.
-
-```{r, fig.height=3.2}
-estField <- fits$ar1Fld$uList[[2]]
-pos <- do.call(rbind, strsplit(colnames(estField), ":"))
-op <- par(mfrow=c(1, 2), mar=c(4, 4, 2, 1))
-fieldImage(rep(seq_len(nRange), nRow), rep(seq_len(nRow), each=nRange), trueField,
-           "True spatial field")
-fieldImage(as.integer(pos[, 1]), as.integer(pos[, 2]), estField[1, ],
-           "Estimated spatial field (M4)")
-par(op)
-```
 
 ### 3.6 Reproducing SpATS with P-spline ANOVA
 
