@@ -575,3 +575,4 @@ version 4.4.81 (2026-09-30)
 ######################
 ## PENDINGS AND PRIORITIES 
 + Fix plot.mmes
++ check how dense schur engine is used when more than one random term with dense Gu is used

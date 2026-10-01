@@ -159,7 +159,7 @@ mmes(fixed, random, rcov, data, W,
 
   fits a separable row-by-column AR1 residual covariance, with one correlation
   per direction shared by every other Kronecker factor. For section-specific
-  variances and correlations (ASReml \code{dsum}), use
+  variances and correlations, use
 
   \code{rcov = ~ dsumm(vsm(ar1m(Row), ar1m(Column), ism(units)), by = Trial)}
 

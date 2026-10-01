@@ -165,7 +165,14 @@ Since version 4.1.7 I have introduced the mmes-based average information functio
 
 \section{Differences of sommer >= 3.7.0 with previous versions}{
 
-Since version 3.7 I have completly redefined the specification of the variance-covariance structures to provide more flexibility to the user. This has particularly helped the residual covariance structures and the easier combination of custom random effects and overlay models. I think that although this will bring some uncomfortable situations at the beggining, in the long term this will help users to fit better models. In esence, I have abandoned the asreml formulation (not the structures available) given it's limitations to combine some of the sommer structures but all covariance structures can now be fitted using the `vsm` functions. 
+Since version 3.7 I have completly redefined the specification of the variance-covariance 
+structures to provide more flexibility to the user. This has particularly helped the 
+residual covariance structures and the easier combination of custom random effects and 
+overlay models. I think that although this will bring some uncomfortable situations at 
+the beggining, in the long term this will help users to fit better models. In esence, 
+I have abandoned the asreml formulation (not the structures available) given it's 
+limitations to combine some of the sommer structures but all covariance structures 
+can now be fitted using the `vsm` functions. 
 
 }
 \section{Differences of sommer >= 3.0.0 with previous versions}{

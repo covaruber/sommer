@@ -31,7 +31,7 @@ the structure is
 where \eqn{K_{terms}} is given by \code{cov}, \eqn{K_{inner}} is the Kronecker
 product of the covariance factors used inside the terms (e.g.
 \code{dsm(env)}), and \eqn{A} is the relationship matrix. The requirements are
-those of a direct product (as for ASReml \code{str}): all terms share the
+those of a direct product: all terms share the
 coefficient levels (their levels are aligned on the union, or on the levels of
 \code{Gu}), the same \code{Gu}, and the same inner covariance constructors with
 the same levels; the parameters of the inner factors are shared. The
@@ -39,7 +39,7 @@ the same levels; the parameters of the inner factors are shared. The
 \code{uList} element with a column per term (and inner level).
 \code{covm(ran1, ran2)} is the two-term special case with \code{cov = usm}.
 
-Unlike ASReml \code{str}, the terms do not need to be adjacent in the model
+The terms do not need to be adjacent in the model
 formula and their order is checked by level names rather than assumed.
 }
 \value{A random structure for the \code{random} formula of \code{\link{mmes}}.}

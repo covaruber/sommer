@@ -4,7 +4,7 @@
 \title{Equality and scaling constraints between variance parameters}
 \description{
 The \code{vcc} argument of \code{\link{mmes}} constrains groups of covariance
-parameters to be equal or to keep fixed ratios, as ASReml's \code{vcc}.
+parameters to be equal or to keep fixed ratios.
 Parameters are identified through the \code{vcParams} table.
 }
 \section{The vcParams table}{
@@ -43,8 +43,7 @@ covariance matrices (log for variances, atanh or bounded logits for
 correlations). A constraint is enforced exactly when it is affine on that
 scale, which covers equalities of any parameter and ratios of positive
 parameters (a log-scale offset). Relations such as
-\eqn{\sigma^2_3=\sigma^2_1+\sigma^2_2} (part of ASReml's more general
-\code{vcm}) are not affine on the log scale and are not supported.
+\eqn{\sigma^2_3=\sigma^2_1+\sigma^2_2} are not affine on the log scale and are not supported.
 
 Internally the free working parameters are written as \eqn{w=o+T\phi}. Each
 average-information update is projected onto this set in the information

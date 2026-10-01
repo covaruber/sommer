@@ -19,7 +19,7 @@ corgm(x, theta = NULL, fixed = NULL,
   heterogeneous mode.}
   \item{variance}{\code{"homogeneous"} (default) gives a pure correlation
   matrix scaled by the single variance of \code{vsm}.
-  \code{"heterogeneous"} adds one variance per level (ASReml \code{corgh}).}
+  \code{"heterogeneous"} adds one variance per level.}
   \item{values}{Optional positive starting variances (length q) for the
   heterogeneous mode. Only their ratios to the first level matter; the first
   level's variance is the \code{vsm} scale. When omitted, the starting ratios

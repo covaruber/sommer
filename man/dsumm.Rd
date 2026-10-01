@@ -5,8 +5,7 @@
 \code{dsumm} replicates a residual \code{\link{vsm}} structure independently for
 every level (section) of a grouping variable, such as a trial, location, or
 experiment. Each section receives its own variance and its own copy of every
-covariance parameter of the inner structure. This is the sommer counterpart of
-the ASReml specification \code{dsum(~ ... | section)}.
+covariance parameter of the inner structure.
 }
 \usage{
 dsumm(x, by, levels = NULL)
@@ -69,7 +68,7 @@ without \code{W} weights, and cannot be nested.
 }
 \examples{
 \dontrun{
-# ASReml: residual = ~dsum(~ar1(range):ar1(row) | trial)
+
 mix <- mmes(yield ~ trial,
             rcov = ~ dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by = trial),
             data = dat)
