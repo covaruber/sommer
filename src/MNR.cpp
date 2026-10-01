@@ -41,6 +41,8 @@ typedef Eigen::AMDOrdering<int> SommerSparseOrdering;
 #include <atomic>
 #include <cstring>
 #include <functional>
+#include <map>
+#include <cstdint>
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -3112,7 +3114,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         for (int j = 0; j < kk; j++){
           if (i > j){}else{//only upper triangular
             if(ai && cycle > 2){ // if average information
-              Inf(i,j) = 0.5 * arma::as_scalar(Ysm.t() * PdViList.slice(i) * P * PdViList.slice(j) * Py); // j is .t() ?
+              Inf(i,j) = 0.5 * arma::as_scalar(Ysm.t() * PdViList.slice(i) * PdViList.slice(j) * Py);
             }else{ // if newton raphson
               Inf(i,j) = accu(PdViList.slice(i) % PdViList.slice(j).t()) * arma::as_scalar(var_components(i)) * arma::as_scalar(var_components(j));
             }
@@ -6870,6 +6872,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     std::vector<int> borderPos;
     std::vector<int> groupOf;
     std::vector<int> localOf;
+    std::uint64_t groupSignature = 0;
     std::vector<arma::mat> Lg;
     std::vector<arma::mat> Fg;
     std::vector<arma::mat> Cgx;
@@ -6878,6 +6881,18 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   };
   BlockSchurEngine blockEngine;
   const int blockEngineMaxBorder = 2000;
+  auto crossGroupSignature = [](const std::vector< std::vector<int> > & groups) -> std::uint64_t {
+    std::uint64_t hash = 1469598103934665603ULL;
+    for(const std::vector<int> & cols : groups){
+      hash ^= static_cast<std::uint64_t>(cols.size());
+      hash *= 1099511628211ULL;
+      for(const int col : cols){
+        hash ^= static_cast<std::uint64_t>(static_cast<unsigned int>(col));
+        hash *= 1099511628211ULL;
+      }
+    }
+    return hash;
+  };
 
   auto blockEngineCheckPattern = [&](const EigenSpMat & A) -> bool {
     if(blockEngine.patternChecked &&
@@ -6977,16 +6992,19 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       dst.insert(dst.end(), candidates[g].begin(), candidates[g].end());
     }
 
-    // Dense flop estimate: per-group Cholesky/inverse plus border coupling.
+    // Estimate factorization and the dense inverse blocks needed by REML traces.
     const double infCost = std::numeric_limits<double>::infinity();
     auto planCost = [&](const std::vector< std::vector<int> > & groups, const std::size_t nBorder) -> double {
       if(groups.empty() || nBorder > static_cast<std::size_t>(blockEngineMaxBorder)){ return infCost; }
       const double bSize = static_cast<double>(nBorder);
-      double cost = bSize * bSize * bSize;
+      // Cholesky plus triangular inversion and the product forming each inverse.
+      double cost = (5.0 / 3.0) * bSize * bSize * bSize;
       for(const std::vector<int> & cols : groups){
         if(cols.size() > static_cast<std::size_t>(cholmodInvCacheMaxGroup)){ return infCost; }
         const double m = static_cast<double>(cols.size());
-        cost += m * m * m + bSize * m * m;
+        // Include D_g factorization/inversion, D_g^{-1} C_gb, Schur update,
+        // and the border/group inverse-cache cross blocks.
+        cost += (5.0 / 3.0) * m * m * m + 4.0 * bSize * m * m + 2.0 * m * bSize * bSize;
       }
       return cost;
     };
@@ -7003,6 +7021,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       blockEngine.groups.swap(groupsA);
     }
     const std::size_t nB = blockEngine.borderCols.size();
+    blockEngine.groupSignature = crossGroupSignature(blockEngine.groups);
 
     blockEngine.borderPos.assign(static_cast<std::size_t>(nEffects), -1);
     blockEngine.groupOf.assign(static_cast<std::size_t>(nEffects), -1);
@@ -7087,8 +7106,21 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       }
       blockEngine.logDet += 2.0 * arma::accu(arma::log(blockEngine.Lg[g].diag()));
       if(nB > 0){
-        blockEngine.Fg[g] = blockEngineSolveD(g, Cx);
-        S -= Cx.t() * blockEngine.Fg[g];
+        std::vector<arma::uword> activeColumns;
+        for(arma::uword b = 0; b < nB; ++b){
+          if(arma::any(Cx.col(b) != 0.0)){ activeColumns.push_back(b); }
+        }
+        blockEngine.Fg[g].zeros(m, nB);
+        if(!activeColumns.empty()){
+          arma::uvec active(activeColumns.size());
+          for(std::size_t j = 0; j < activeColumns.size(); ++j){
+            active(static_cast<arma::uword>(j)) = activeColumns[j];
+          }
+          const arma::mat CxActive = Cx.cols(active);
+          const arma::mat FActive = blockEngineSolveD(g, CxActive);
+          blockEngine.Fg[g].cols(active) = FActive;
+          S.submat(active, active) -= CxActive.t() * FActive;
+        }
       }else{
         blockEngine.Fg[g].reset();
       }
@@ -7259,6 +7291,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     std::vector<int> groupOf;
     std::vector<int> localOf;
     std::vector<arma::mat> FS;
+    std::map< std::pair<int,int>, arma::mat > crossBlocks;
+    double crossBlockDoubles = 0.0;
     bool crossAvailable = false;
     // Supernodal selected inverse: C^{-1} on the pattern of L, laid out like L->x.
     bool selReady = false;
@@ -7269,6 +7303,17 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   };
   CholmodInverseBlockCache cholmodInvCache;
 
+  struct CrossGroupTraceDemand {
+    std::vector<std::size_t> groupSizes;
+    std::vector<std::size_t> entries;
+    std::uint64_t groupSignature = 0;
+  };
+  CrossGroupTraceDemand previousCrossGroupDemand;
+  CrossGroupTraceDemand currentCrossGroupDemand;
+  bool reportedCrossGroupCache = false;
+  arma::uword currentResidualParameterCount = 0;
+  const std::size_t crossGroupCacheMaxGroups = 128;
+  const double crossGroupCacheMaxDoubles = cholmodInvCacheMaxDoubles / 16.0;
   // Y = L^{-1} P E_cols; supernodes whose RHS rows are still zero are skipped,
   // so only the elimination-tree reach of `cols` is processed.
   auto cholmodForwardSolveUnit =
@@ -7446,6 +7491,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   auto buildCholmodInverseBlockCache = [&]() -> void {
     cholmodInvCache.ready = false;
     cholmodInvCache.selReady = false;
+    cholmodInvCache.crossBlocks.clear();
+    cholmodInvCache.crossBlockDoubles = 0.0;
     cholmodInvCache.Cuu.clear();
     cholmodInvCache.Cxu.clear();
     cholmodInvCache.FS.clear();
@@ -7478,6 +7525,54 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           cholmodInvCache.FS[g] = blockEngine.Fg[g] * Sinv;
           cholmodInvCache.Cuu[g] += cholmodInvCache.FS[g] * blockEngine.Fg[g].t();
           cholmodInvCache.Cxu[g] = -cholmodInvCache.FS[g].t();
+        }
+      }
+      currentCrossGroupDemand.groupSizes.clear();
+      currentCrossGroupDemand.groupSizes.reserve(nG);
+      for(const std::vector<int> & cols : blockEngine.groups){
+        currentCrossGroupDemand.groupSizes.push_back(cols.size());
+      }
+      currentCrossGroupDemand.groupSignature = crossGroupSignature(blockEngine.groups);
+      currentCrossGroupDemand.entries.clear();
+      if(currentResidualParameterCount > 1 && nG <= crossGroupCacheMaxGroups){
+        currentCrossGroupDemand.entries.assign(nG * nG, 0);
+      }
+      if(haveBorder && nG <= crossGroupCacheMaxGroups &&
+         previousCrossGroupDemand.groupSignature == currentCrossGroupDemand.groupSignature &&
+         previousCrossGroupDemand.groupSizes == currentCrossGroupDemand.groupSizes &&
+         previousCrossGroupDemand.entries.size() == nG * nG){
+        for(std::size_t g = 0; g < nG; ++g){
+          for(std::size_t h = g + 1; h < nG; ++h){
+            const double rows = static_cast<double>(blockEngine.groups[g].size());
+            const double cols = static_cast<double>(blockEngine.groups[h].size());
+            const double cells = rows * cols;
+            const std::size_t requests =
+              previousCrossGroupDemand.entries[g * nG + h] +
+              previousCrossGroupDemand.entries[h * nG + g];
+            const double materializeFlops =
+              2.0 * rows * cols * static_cast<double>(blockEngine.borderCols.size());
+            const double dotFlops =
+              2.0 * static_cast<double>(requests) *
+              static_cast<double>(blockEngine.borderCols.size());
+            if(dotFlops < 2.0 * materializeFlops ||
+               cholmodInvCache.crossBlockDoubles + cells > crossGroupCacheMaxDoubles){
+              continue;
+            }
+            cholmodInvCache.crossBlocks.emplace(
+              std::make_pair(static_cast<int>(g), static_cast<int>(h)),
+              cholmodInvCache.FS[g] * blockEngine.Fg[h].t()
+            );
+            cholmodInvCache.crossBlockDoubles += cells;
+            if(verbose && !reportedCrossGroupCache){
+              Rcpp::Rcout
+                << "Materialized cross-group inverse block ("
+                << blockEngine.groups[g].size() << " x "
+                << blockEngine.groups[h].size()
+                << ") from prior-iteration trace demand."
+                << arma::endl;
+              reportedCrossGroupCache = true;
+            }
+          }
         }
       }
       cholmodInvCache.borderPos = blockEngine.borderPos;
@@ -7577,6 +7672,17 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     if(g < 0 || h < 0){ return false; }
     if(g != h){
       if(!cholmodInvCache.crossAvailable){ return false; }
+      if(!cholmodInvCache.crossBlocks.empty()){
+        const int lo = std::min(g, h);
+        const int hi = std::max(g, h);
+        const auto cached = cholmodInvCache.crossBlocks.find(std::make_pair(lo, hi));
+        if(cached != cholmodInvCache.crossBlocks.end()){
+          const arma::uword ri = static_cast<arma::uword>(cholmodInvCache.localOf[si]);
+          const arma::uword rj = static_cast<arma::uword>(cholmodInvCache.localOf[sj]);
+          value = g < h ? cached->second(ri, rj) : cached->second(rj, ri);
+          return true;
+        }
+      }
       value = arma::dot(
         cholmodInvCache.FS[static_cast<std::size_t>(g)].row(static_cast<arma::uword>(cholmodInvCache.localOf[si])),
         blockEngine.Fg[static_cast<std::size_t>(h)].row(static_cast<arma::uword>(cholmodInvCache.localOf[sj])));
@@ -7752,11 +7858,26 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       usedFallback = false;
       double traceValue = 0.0;
       bool allAvailable = true;
+      const std::size_t nGroups = currentCrossGroupDemand.groupSizes.size();
+      const bool trackCrossDemand =
+        useCholmodInverseCache && blockEngine.active &&
+        nGroups <= crossGroupCacheMaxGroups &&
+        currentCrossGroupDemand.groupSignature == blockEngine.groupSignature &&
+        currentCrossGroupDemand.entries.size() == nGroups * nGroups;
       for(arma::sp_mat::const_iterator it = B.begin(); it != B.end(); ++it){
         double zij = 0.0;
         const bool have = useCholmodInverseCache
           ? cholmodInverseLookup(static_cast<int>(it.row()), static_cast<int>(it.col()), zij)
           : getSelectedInverseOriginal(subset, static_cast<int>(it.col()), static_cast<int>(it.row()), zij);
+        if(trackCrossDemand){
+          const int g = cholmodInvCache.groupOf[static_cast<std::size_t>(it.row())];
+          const int h = cholmodInvCache.groupOf[static_cast<std::size_t>(it.col())];
+          if(g >= 0 && h >= 0 && g != h){
+            const std::size_t pairIndex =
+              static_cast<std::size_t>(g) * nGroups + static_cast<std::size_t>(h);
+            ++currentCrossGroupDemand.entries[pairIndex];
+          }
+        }
         if(!have){
           allAvailable = false;
           break;
@@ -8307,6 +8428,10 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   
     
 for (int iIter = 0; iIter < nIters; ++iIter) {
+  std::swap(previousCrossGroupDemand, currentCrossGroupDemand);
+  currentCrossGroupDemand.groupSizes.clear();
+  currentCrossGroupDemand.entries.clear();
+  currentCrossGroupDemand.groupSignature = 0;
 
     // ###########################
     // # 1) absorption of M into y to obtain y'Py and logDetC
@@ -8317,6 +8442,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     const arma::uword nResidualPar =
       covPar(residualStruct).n_elem;
+    currentResidualParameterCount = nResidualPar;
 
     const arma::mat residualSigma = compactResidualCovariance
       ? arma::mat()
@@ -9120,16 +9246,28 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     Eigen::SparseMatrix<double> RiWsp;
     arma::mat RiWdense;
-    bool RiWisSparse = (effectiveRiDiag.n_elem == static_cast<arma::uword>(nR));
+    bool RiWisSparse =
+      effectiveRiDiag.n_elem == static_cast<arma::uword>(nR) ||
+      (Rdiag && useH && !Hdiag &&
+       Hs.n_nonzero <= 4.0 * nR && HsInvT.n_nonzero <= 4.0 * nR);
     std::vector<arma::mat> residualKronBlockRiW(
       static_cast<std::size_t>(residualKronNBlocks)
     );
 
     if(RiWisSparse){
-      const Eigen::Map<const Eigen::VectorXd> effectiveRiDiagEig(
-        effectiveRiDiag.memptr(), static_cast<Eigen::Index>(effectiveRiDiag.n_elem)
-      );
-      RiWsp = effectiveRiDiagEig.asDiagonal() * W;
+      if(effectiveRiDiag.n_elem == static_cast<arma::uword>(nR)){
+        const Eigen::Map<const Eigen::VectorXd> effectiveRiDiagEig(
+          effectiveRiDiag.memptr(), static_cast<Eigen::Index>(effectiveRiDiag.n_elem)
+        );
+        RiWsp = effectiveRiDiagEig.asDiagonal() * W;
+      }else{
+        const Eigen::SparseMatrix<double> He = armaSparseToEigenGlobal(Hs);
+        const Eigen::Map<const Eigen::VectorXd> diagonal(
+          RdiagInv.memptr(), static_cast<Eigen::Index>(RdiagInv.n_elem)
+        );
+        const Eigen::SparseMatrix<double> weightedDesign = He.transpose() * W;
+        RiWsp = He * (diagonal.asDiagonal() * weightedDesign);
+      }
       C = Eigen::SparseMatrix<double>(W.transpose()) * RiWsp;
       C.makeCompressed();
       const Eigen::Map<const Eigen::VectorXd> RiyEig(
@@ -9271,7 +9409,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // ------------------------------------------------------------
 
     arma::field<arma::sp_mat> lambda(nReAl);
-    std::vector<Eigen::Triplet<double>> Gtriplets;
 
     if(nZs > 0){
 
@@ -9444,34 +9581,41 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           matrixFreePCGReady = false;
           matrixFreeApplyC = nullptr;
 
-          // Add G_i^{-1} = lambda_i \kron A_i directly by blocks.
+          EigenSpMat Gcontribution(nEffects, nEffects);
+          Eigen::VectorXi columnCapacity = Eigen::VectorXi::Zero(nEffects);
           for(int i = 0; i < nRe; ++i){
             const arma::mat lambdaDense = arma::mat(lambda(i));
             const std::size_t iCache = static_cast<std::size_t>(i);
-            for(arma::uword iRow = 0; iRow < lambdaDense.n_rows; ++iRow){
-              const arma::uword rowStart =
-                partitionStartCache[iCache][static_cast<std::size_t>(iRow)];
-              for(arma::uword iCol = 0; iCol < lambdaDense.n_cols; ++iCol){
-                const double coefficient = lambdaDense(iRow,iCol);
-                if(coefficient == 0.0){ continue; }
-                const arma::uword colStart =
-                  partitionStartCache[iCache][static_cast<std::size_t>(iCol)];
-                for(arma::sp_mat::const_iterator relEntry = Ai(i).begin();
-                    relEntry != Ai(i).end(); ++relEntry){
-                  Gtriplets.emplace_back(
-                    static_cast<int>(rowStart + relEntry.row()),
-                    static_cast<int>(colStart + relEntry.col()),
-                    coefficient * (*relEntry)
-                  );
+            for(arma::uword iCol = 0; iCol < lambdaDense.n_cols; ++iCol){
+              const int nonzeroFactors = static_cast<int>(arma::accu(lambdaDense.col(iCol) != 0.0));
+              const arma::uword colStart = partitionStartCache[iCache][static_cast<std::size_t>(iCol)];
+              for(arma::uword relCol = 0; relCol < Ai(i).n_cols; ++relCol){
+                columnCapacity(static_cast<int>(colStart + relCol)) =
+                  nonzeroFactors * static_cast<int>(Ai(i).col(relCol).n_nonzero);
+              }
+            }
+          }
+          Gcontribution.reserve(columnCapacity);
+          for(int i = 0; i < nRe; ++i){
+            const arma::mat lambdaDense = arma::mat(lambda(i));
+            const std::size_t iCache = static_cast<std::size_t>(i);
+            for(arma::uword iCol = 0; iCol < lambdaDense.n_cols; ++iCol){
+              const arma::uword colStart = partitionStartCache[iCache][static_cast<std::size_t>(iCol)];
+              for(arma::uword relCol = 0; relCol < Ai(i).n_cols; ++relCol){
+                const int globalCol = static_cast<int>(colStart + relCol);
+                for(arma::uword iRow = 0; iRow < lambdaDense.n_rows; ++iRow){
+                  const double coefficient = lambdaDense(iRow,iCol);
+                  if(coefficient == 0.0){ continue; }
+                  const arma::uword rowStart = partitionStartCache[iCache][static_cast<std::size_t>(iRow)];
+                  for(arma::sp_mat::const_col_iterator relEntry = Ai(i).begin_col(relCol);
+                      relEntry != Ai(i).end_col(relCol); ++relEntry){
+                    Gcontribution.insert(static_cast<int>(rowStart + relEntry.row()), globalCol) =
+                      coefficient * (*relEntry);
+                  }
                 }
               }
             }
           }
-        }
-
-        if(!useMatrixFreePCG && !Gtriplets.empty()){
-          Eigen::SparseMatrix<double> Gcontribution(nEffects, nEffects);
-          Gcontribution.setFromTriplets(Gtriplets.begin(), Gtriplets.end());
           Gcontribution.makeCompressed();
           C = C + Gcontribution;
           C.makeCompressed();
@@ -11199,6 +11343,22 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     const arma::sp_mat RiWspArmaShared =
       RiWisSparse ? eigenSparseToArmaGlobal(RiWsp) : arma::sp_mat();
 
+    // With a diagonal effective R^{-1} and diagonal dR/dphi, the C-trace
+    // operand is W' diag(s .* r^2) W; a row-major W touches only rows with s != 0.
+    const bool diagonalRiW =
+      effectiveRiDiag.n_elem == static_cast<arma::uword>(nR);
+    Eigen::SparseMatrix<double, Eigen::RowMajor> WRowMajor;
+    if(diagonalRiW){
+      WRowMajor = W;
+      WRowMajor.makeCompressed();
+    }
+    auto isDiagonalSparse = [](const arma::sp_mat & S) -> bool {
+      for(arma::sp_mat::const_iterator it = S.begin(); it != S.end(); ++it){
+        if(it.row() != it.col()){ return false; }
+      }
+      return true;
+    };
+
     Eigen::MatrixXd pcgRiWZ;
     Eigen::MatrixXd pcgRiWX;
     if(solverName == "pcg" && Rdiag && RiWisSparse){
@@ -11399,6 +11559,32 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           localBtrace.makeCompressed();
           Btrace = eigenSparseToArmaGlobal(localBtrace);
 
+        }else if(diagonalRiW && isDiagonalSparse(Sprov)){
+          std::vector<arma::uword> locRows;
+          std::vector<arma::uword> locCols;
+          std::vector<double> locValues;
+          for(arma::sp_mat::const_iterator it = Sprov.begin(); it != Sprov.end(); ++it){
+            const arma::uword obs = it.row();
+            const double ri = effectiveRiDiag(obs);
+            const double weight = (*it) * ri * ri;
+            if(weight == 0.0){ continue; }
+            const int row = static_cast<int>(obs);
+            for(Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator a(WRowMajor, row); a; ++a){
+              for(Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator c(WRowMajor, row); c; ++c){
+                locRows.push_back(static_cast<arma::uword>(a.col()));
+                locCols.push_back(static_cast<arma::uword>(c.col()));
+                locValues.push_back(weight * a.value() * c.value());
+              }
+            }
+          }
+          arma::umat locations(2, locValues.size());
+          for(std::size_t q = 0; q < locValues.size(); ++q){
+            locations(0, q) = locRows[q];
+            locations(1, q) = locCols[q];
+          }
+          Btrace = arma::sp_mat(true, locations, arma::vec(locValues),
+                                static_cast<arma::uword>(nEffects),
+                                static_cast<arma::uword>(nEffects));
         }else if(RiWisSparse){
           Btrace =
             RiWspArmaShared.t()

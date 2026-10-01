@@ -1856,7 +1856,8 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     colnames(dummy) <- expr
   }else{
     if(is.factor(x)){
-      levs <- levels(x)
+      # Unused levels would add unidentifiable, data-free blocks to K (x) Gu.
+      levs <- levels(x)[tabulate(as.integer(x), nlevels(x)) > 0L]
     }else{
       levs <- unique(na.omit(x))
     }

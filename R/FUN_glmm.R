@@ -1,3 +1,6 @@
+# Column of dataWork referenced via glm()'s non-standard evaluation of 'weights'.
+utils::globalVariables(".sommer_pql_weights")
+
 binm <- function(successes, failures=NULL, trials=NULL){
   if(is.null(failures) == is.null(trials)){
     stop("Provide exactly one of 'failures' or 'trials'.", call.=FALSE)

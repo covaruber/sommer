@@ -278,7 +278,8 @@ mmes <- function(fixed, random, rcov, data, W,
   if(!any(keep)) stop("No observations remain after applying the missing-data rules.", call.=FALSE)
   
   # The model frame is the authoritative fixed/response representation.
-  mf <- mf_full[keep, , drop=FALSE]
+  # Unused factor levels would create all-zero, non-estimable columns in X.
+  mf <- droplevels(mf_full[keep, , drop=FALSE])
   data <- data_full[keep, , drop=FALSE]
   dataor <- data_full
   
