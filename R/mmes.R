@@ -17,7 +17,8 @@ mmes <- function(fixed, random, rcov, data, W,
                  .pqlBaseFactor=NULL, acceleration="none", .pqlStart=NULL,
                  weights=NULL, factorScoreAugmentation="none",
                  .factorScoreParameters=NULL,
-                 pcgPreconditioner="diagonal", pcgNystromRank=32L){
+                 pcgPreconditioner="diagonal", pcgNystromRank=32L,
+                 solveOnly=FALSE, covPar=NULL){
   WWasMissing <- missing(W)
   WInput <- if(WWasMissing) NULL else W
   mmesCall <- match.call()
@@ -44,6 +45,23 @@ mmes <- function(fixed, random, rcov, data, W,
   isGaussianIdentity <- inherits(family, "family") &&
     identical(family$family, "gaussian") &&
     identical(family$link, "identity")
+  if(length(solveOnly) != 1L || !is.logical(solveOnly) || is.na(solveOnly)){
+    stop("solveOnly must be a single TRUE/FALSE value.", call.=FALSE)
+  }
+  if(solveOnly){
+    if(!isGaussianIdentity || .pqlInner){
+      stop("solveOnly=TRUE requires a Gaussian identity-link model.", call.=FALSE)
+    }
+    if(factorScoreAugmentation != "none" || !is.null(vcc)){
+      stop("solveOnly=TRUE does not use factorScoreAugmentation or vcc; supply the final parameters in covPar.",
+           call.=FALSE)
+    }
+    if(computeCi != 0L){
+      stop("solveOnly=TRUE does not compute C inverse/PEV; use computeCi=0.", call.=FALSE)
+    }
+  }else if(!is.null(covPar)){
+    stop("covPar is only used with solveOnly=TRUE.", call.=FALSE)
+  }
   if(factorScoreAugmentation == "profile"){
     return(.mmes_factor_score_profile(match.call(), parent.frame(), family,
       nIters, REML, henderson, computeCi, vcc, solver))
@@ -184,8 +202,8 @@ mmes <- function(fixed, random, rcov, data, W,
   # available through the formula environment and are not copied unnecessarily.
   if(is.null(data_full)) data_full <- data.frame(.sommer_row=seq_len(nObs))
   data_full$.sommer_row <- seq_len(nObs)
-  data_full$units <- factor(paste0("u", seq_len(nObs)),
-                            levels=paste0("u", seq_len(nObs)))
+  data_full$units <- structure(seq_len(nObs), levels=paste0("u", seq_len(nObs)),
+                               class="factor")
   weightBlocksFull <- NULL
   if(!is.null(weights)){
     if(!inherits(weights, "formula") || length(weights) != 2L){
@@ -352,8 +370,8 @@ mmes <- function(fixed, random, rcov, data, W,
     for(u in seq_along(randomFits)){
       ff <- randomFits[[u]]
       Zi <- lapply(ff$Z, function(x){
-        if(nrow(x) == nObs) x[keep, , drop=FALSE]
-        else if(nrow(x) == sum(keep)) x
+        if(nrow(x) == nObs && !all(keep)) x[keep, , drop=FALSE]
+        else if(nrow(x) == nObs || nrow(x) == sum(keep)) x
         else stop("Random-effect design has incompatible number of rows in term: ", rtermss[u], call.=FALSE)
       })
       Z <- c(Z, Zi)
@@ -397,7 +415,10 @@ mmes <- function(fixed, random, rcov, data, W,
   }
   
   pairLocal <- paste(baseKey, localIndex, sep="\r")
-  occurrence <- ave(seq_along(pairLocal), pairLocal, FUN=seq_along)
+  pairGroup <- match(pairLocal, pairLocal)
+  pairOrder <- order(pairGroup)
+  occurrence <- integer(length(pairGroup))
+  occurrence[pairOrder] <- sequence(rle(pairGroup[pairOrder])$lengths)
   blockKey <- paste(baseKey, occurrence, sep="\r")
   residualFactors <- rf$covStruct$factors
   dims <- vapply(residualFactors, function(f) as.integer(f$dim), integer(1))
@@ -424,7 +445,7 @@ mmes <- function(fixed, random, rcov, data, W,
     blockKey <- paste(blockKey, factorDigit(sectionOwner[1L]), sep="\r")
   }
   residualBlock <- match(blockKey, unique(blockKey))
-  if(anyDuplicated(paste(residualBlock, localIndex, sep=":"))){
+  if(anyDuplicated(as.double(residualBlock) * (max(localIndex) + 1) + localIndex)){
     if(!is.null(residualKeyFull)){
       stop("Records sharing a value of the residual pairing key must have different residual coordinates ",
            "(e.g. one record per trait within each key).", call.=FALSE)
@@ -440,7 +461,7 @@ mmes <- function(fixed, random, rcov, data, W,
   rTermsNames[[residualStructIndex]] <- paste(s2, rf$covStruct$par_names, sep=":")
   
   # ---- Fixed-effect design using terms()/assign -----------------------
-  X <- Matrix::sparse.model.matrix(fixed, data=mf, contrasts.arg=contrasts)
+  X <- .sparse_model_matrix_by_rows(fixed, mf, contrasts)
   tt <- attr(mf, "terms")
   fixedTerms <- attr(tt, "term.labels")
   assignX <- attr(X, "assign")
@@ -472,6 +493,9 @@ mmes <- function(fixed, random, rcov, data, W,
   preparedIntercept <- FALSE
 
   if(length(rotationTerms)){
+    if(solveOnly){
+      stop("rotation=TRUE is not available with solveOnly=TRUE.", call.=FALSE)
+    }
     if(length(rotationTerms) != 1L){
       stop("Only one random-effect term may request rotation.", call.=FALSE)
     }
@@ -685,7 +709,7 @@ mmes <- function(fixed, random, rcov, data, W,
   # since this only affects the optimization starting point, never the
   # converged answer.
   startResid <- NULL
-  tryCatch({
+  if(!solveOnly) tryCatch({
     if(ncol(X) >= 1L && ncol(X) <= 2000L){
       Xd <- as.matrix(X)
       Yd <- as.matrix(yvar)
@@ -881,6 +905,15 @@ mmes <- function(fixed, random, rcov, data, W,
                                    weightBlocks[nonzeroWeights$j])){
       stop("W contains nonzero entries across groups declared independent by weights.", call.=FALSE)
     }
+  }
+
+  if(solveOnly){
+    return(.mmes_solve(X, Z, Zind, Ai, yvar, W, useH, residualBlock, localIndex,
+                       covStruct, c(rtermss, residualLabel), covPar, pcgTol,
+                       pcgMaxIters, verbose, data, dataor, obsInfo, partitionsX,
+                       mmesCall,
+                       list(fixed=fixed, random=if(missing(random)) NULL else random,
+                            rcov=rcov)))
   }
   
   if (is.null(emWeight)) {

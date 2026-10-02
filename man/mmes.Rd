@@ -35,7 +35,8 @@ mmes(fixed, random, rcov, data, W,
     .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
     .pqlBaseFactor=NULL, acceleration="none", .pqlStart=NULL,
     weights=NULL, factorScoreAugmentation="none",
-    pcgPreconditioner="diagonal", pcgNystromRank=32L)
+    pcgPreconditioner="diagonal", pcgNystromRank=32L,
+    solveOnly=FALSE, covPar=NULL)
 }
 \arguments{
   \item{.pqlStart}{Internal-use covariance warm-start state for successive PQL working fits.}
@@ -90,6 +91,33 @@ mmes(fixed, random, rcov, data, W,
   \item{pcgNystromRank}{Positive number of deterministic landmarks for
   \code{pcgPreconditioner="nystrom"}; the default is 32 and the value is capped
   at the coefficient dimension.}
+  \item{solveOnly}{If \code{TRUE}, no variance components are estimated: the
+  mixed-model equations are solved once at known covariance parameters (genetic
+  evaluation). The coefficient matrix is never assembled; a matrix-free
+  preconditioned conjugate gradient iterates on the data with block-Jacobi
+  preconditioning (one block for the fixed effects when there are at most 1000
+  of them, and one covariance-dimension block per random-effect level).
+  \code{pcgTol} is the relative-residual tolerance and \code{pcgMaxIters} the
+  iteration limit (0 = automatic). Requires a Gaussian identity model,
+  \code{computeCi=0}, no rotation, no \code{vcc}, a diagonal \code{W} if any,
+  and a block-diagonal residual covariance whose blocks have at most 10000
+  records. The result is an object of class \code{mmesSolve} with \code{b},
+  \code{u}, \code{bu}, \code{uList}, \code{fitted}, \code{residuals},
+  \code{theta} (covariance matrices used), \code{vcParams} (the natural-scale
+  parameters used, reusable as \code{covPar}) and \code{pcg} diagnostics. No
+  PEV or likelihood is computed.}
+  \item{covPar}{Known covariance parameters for \code{solveOnly=TRUE}. One of:
+  a fitted \code{mmes} object with the same random and residual terms (its
+  final estimates are used exactly); a list with one element per term, named by
+  term label or in formula order (random terms, then residual), each holding
+  either the natural-scale parameter vector (as in \code{fit$covPar}) or, for
+  \code{ism()}, \code{dsm()} and \code{usm()} terms, the full covariance
+  matrix (e.g. \eqn{G_0} and \eqn{R_0}); or a data frame with columns
+  \code{term}, \code{parameter} and \code{value} (as \code{vcParams} of an
+  \code{mmesSolve} result, or the \code{vcParams} table of
+  \code{returnParam=TRUE} with a \code{value} column). When \code{NULL}, every
+  parameter must already be fixed in the formula (e.g.
+  \code{vsm(ism(id), Gu=Ainv, sigma2=0.3, fixedSigma2=TRUE)}).}
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
 
   \emph{response ~ covariate}
@@ -831,6 +859,13 @@ ans1 <- mmes(Yield~Env,
              rcov= ~ units,
              data=DT)
 summary(ans1)
+
+## Known variances: solve the MME only (e.g. genetic evaluation)
+sol1 <- mmes(Yield~Env,
+             random= ~ Name + Env:Name,
+             rcov= ~ units,
+             data=DT, solveOnly=TRUE, covPar=ans1)
+head(sol1$uList[[1]])
 
 \donttest{
 

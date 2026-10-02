@@ -159,8 +159,9 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
       
       if(verbose){
         cat(
-          "Adding additional Gu levels to the main-effect model matrix:",
-          paste(extra, collapse=", "),
+          "Adding", length(extra), "additional Gu levels to the main-effect model matrix:",
+          paste(utils::head(extra, 10L), collapse=", "),
+          if(length(extra) > 10L) "..." else "",
           "\n"
         )
       }
@@ -303,17 +304,12 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
     
     for(j in seq_len(ncol(Z0))){
       
-      mask <-
-        Z0[,j,drop=FALSE] %*%
-        Matrix::Matrix(
-          1,
-          1,
-          ncol(mainZ)
-        )
-      
+      # Row scaling keeps O(nnz); an outer-product mask would be dense n x levels.
       Z[[j]] <-
         to_sparse(
-          mainZ * mask
+          Matrix::drop0(
+            Matrix::Diagonal(x=as.numeric(Z0[,j])) %*% mainZ
+          )
         )
       
       colnames(Z[[j]]) <-
@@ -368,11 +364,10 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
     # Subsetting is required to put Gu into exactly the same ordering as
     # mainZ. Subsetting/coercion may drop custom attributes, so restore the
     # precision marker AFTER the operation.
-    Gu <- Gu[
-      colnames(mainZ),
-      colnames(mainZ),
-      drop=FALSE
-    ]
+    if(!identical(colnames(Gu), colnames(mainZ))){
+      guOrder <- match(colnames(mainZ), colnames(Gu))
+      Gu <- Gu[guOrder, guOrder, drop=FALSE]
+    }
     
     Gu <- to_precision_sparse(Gu)
     

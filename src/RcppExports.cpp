@@ -469,6 +469,34 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// mme_pcg_solve
+Rcpp::List mme_pcg_solve(const Rcpp::S4& design, const Rcpp::NumericVector& y, const int nFixed, const Rcpp::IntegerVector& termStart, const Rcpp::IntegerVector& termLevels, const Rcpp::List& AiI, const Rcpp::List& lambdaI, const Rcpp::List& residualCovStruct, const arma::vec& residualPar, const Rcpp::IntegerVector& residualBlock, const Rcpp::IntegerVector& residualIndex, const Rcpp::NumericVector& weights, const double tol, const int maxIter, const int denseFixedMax, const int maxResidualBlock, const Rcpp::NumericVector& start, const bool verbose);
+RcppExport SEXP _sommer_mme_pcg_solve(SEXP designSEXP, SEXP ySEXP, SEXP nFixedSEXP, SEXP termStartSEXP, SEXP termLevelsSEXP, SEXP AiISEXP, SEXP lambdaISEXP, SEXP residualCovStructSEXP, SEXP residualParSEXP, SEXP residualBlockSEXP, SEXP residualIndexSEXP, SEXP weightsSEXP, SEXP tolSEXP, SEXP maxIterSEXP, SEXP denseFixedMaxSEXP, SEXP maxResidualBlockSEXP, SEXP startSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type design(designSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const int >::type nFixed(nFixedSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type termStart(termStartSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type termLevels(termLevelsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type lambdaI(lambdaISEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type residualCovStruct(residualCovStructSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type residualPar(residualParSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type residualBlock(residualBlockSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type residualIndex(residualIndexSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type weights(weightsSEXP);
+    Rcpp::traits::input_parameter< const double >::type tol(tolSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxIter(maxIterSEXP);
+    Rcpp::traits::input_parameter< const int >::type denseFixedMax(denseFixedMaxSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxResidualBlock(maxResidualBlockSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type start(startSEXP);
+    Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(mme_pcg_solve(design, y, nFixed, termStart, termLevels, AiI, lambdaI, residualCovStruct, residualPar, residualBlock, residualIndex, weights, tol, maxIter, denseFixedMax, maxResidualBlock, start, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_sommer_currentDateTime", (DL_FUNC) &_sommer_currentDateTime, 0},
@@ -500,6 +528,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 28},
     {"_sommer_evaluate_covstruct_cpp", (DL_FUNC) &_sommer_evaluate_covstruct_cpp, 2},
     {"_sommer_ai_reml_direct_sp2", (DL_FUNC) &_sommer_ai_reml_direct_sp2, 23},
+    {"_sommer_mme_pcg_solve", (DL_FUNC) &_sommer_mme_pcg_solve, 18},
     {NULL, NULL, 0}
 };
 

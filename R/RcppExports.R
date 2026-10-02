@@ -117,3 +117,7 @@ ai_reml_direct_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, re
     .Call(`_sommer_ai_reml_direct_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept)
 }
 
+mme_pcg_solve <- function(design, y, nFixed, termStart, termLevels, AiI, lambdaI, residualCovStruct, residualPar, residualBlock, residualIndex, weights, tol, maxIter, denseFixedMax, maxResidualBlock, start, verbose) {
+    .Call(`_sommer_mme_pcg_solve`, design, y, nFixed, termStart, termLevels, AiI, lambdaI, residualCovStruct, residualPar, residualBlock, residualIndex, weights, tol, maxIter, denseFixedMax, maxResidualBlock, start, verbose)
+}
+

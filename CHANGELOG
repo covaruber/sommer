@@ -571,6 +571,16 @@ version 4.4.81 (2026-09-30)
    same inverse-Cholesky weighting as the effective residual covariance.
  + BUG FIX weighted Henderson fits with non-diagonal Kronecker residuals now
    match the direct engine for covariance parameter estimates.
+ + New mmes(solveOnly=TRUE, covPar=) solves the mixed-model equations at known
+   covariance parameters (genetic evaluation) with a matrix-free,
+   block-Jacobi preconditioned conjugate gradient that never assembles C.
+   covPar takes a fitted mmes object, a list of natural parameters or
+   G0/R0 matrices, or a parameter table. 1M animals (pedigree A-inverse):
+   ~10 s single trait, ~40 s three traits.
+ + vsm() no longer builds a dense records x levels mask per covariance
+   coordinate, and mmes() builds the fixed design from distinct covariate
+   rows and pairs residual records without ave(); input preparation for
+   large data is several times faster and uses far less memory.
 
 ######################
 ## PENDINGS AND PRIORITIES 
