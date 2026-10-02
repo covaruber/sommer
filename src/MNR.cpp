@@ -42,7 +42,9 @@ typedef Eigen::AMDOrdering<int> SommerSparseOrdering;
 #include <cstring>
 #include <functional>
 #include <map>
+#include <unordered_map>
 #include <cstdint>
+#include "mme_paths.h"
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -3575,6 +3577,20 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   if(solverName != "ldlt" && solverName != "pcg" && solverName != "cholmod"){
     Rcpp::stop("solver must be 'ldlt', 'pcg', or 'cholmod'.");
   }
+  std::string pcgPreconditioner = "diagonal";
+  int pcgNystromRank = 32;
+  if(covStructI.hasAttribute("pcgPreconditioner")){
+    pcgPreconditioner = Rcpp::as<std::string>(covStructI.attr("pcgPreconditioner"));
+  }
+  if(covStructI.hasAttribute("pcgNystromRank")){
+    pcgNystromRank = Rcpp::as<int>(covStructI.attr("pcgNystromRank"));
+  }
+  if(pcgPreconditioner != "diagonal" && pcgPreconditioner != "nystrom"){
+    Rcpp::stop("pcgPreconditioner must be 'diagonal' or 'nystrom'.");
+  }
+  if(pcgNystromRank < 1){
+    Rcpp::stop("pcgNystromRank must be positive.");
+  }
   if(!std::isfinite(pcgTol) || pcgTol <= 0.0){
     Rcpp::stop("pcgTol must be positive and finite.");
   }
@@ -3593,6 +3609,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   if(!reml && solverName != "ldlt" && solverName != "cholmod"){
     Rcpp::stop("reml=FALSE (maximum likelihood) currently requires solver='ldlt' or solver='cholmod'.");
   }
+
+  const sommer::SolverPlan solverPlan{
+    solverName == "ldlt" ? sommer::SolverBackend::LDLT
+      : solverName == "cholmod" ? sommer::SolverBackend::Cholmod
+      : sommer::SolverBackend::PCG,
+    reml, computeCi, pcgPreconditioner == "diagonal"};
 
   if(verbose){
 #ifdef _OPENMP
@@ -4534,6 +4556,64 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           return dL * L.t() + L * dL.t();
         }
 
+        if(op == "fa" || op == "rr"){
+          const bool isFA = op == "fa";
+          const int order = Rcpp::as<int>(f["order"]);
+          const int nload = Rcpp::as<int>(f[isFA ? "fa_nload" : "rr_nload"]);
+          const Rcpp::IntegerVector rows = f[isFA ? "fa_row" : "rr_row"];
+          const Rcpp::IntegerVector cols = f[isFA ? "fa_col" : "rr_col"];
+          const Rcpp::LogicalVector diagonal = f[isFA ? "fa_diag" : "rr_diag"];
+          const arma::uword expectedParameters = static_cast<arma::uword>(
+            nload + (isFA ? static_cast<int>(q) - 1 : 0));
+          if(order < 1 || nload < 1 || rows.size() != nload ||
+             cols.size() != nload || diagonal.size() != nload ||
+             localPar.n_elem != expectedParameters){
+            Rcpp::stop("Malformed native FA/RR derivative metadata.");
+          }
+
+          arma::mat loadings(q, static_cast<arma::uword>(order), arma::fill::zeros);
+          arma::mat loadingDerivative(q, static_cast<arma::uword>(order), arma::fill::zeros);
+          arma::vec specificRaw(q, arma::fill::ones);
+          double normalization = 1.0;
+          double normalizationDerivative = 0.0;
+          for(int parameter = 0; parameter < nload; ++parameter){
+            const arma::uword row = static_cast<arma::uword>(rows[parameter] - 1);
+            const arma::uword col = static_cast<arma::uword>(cols[parameter] - 1);
+            const bool isDiagonal = diagonal[parameter];
+            const double value = isDiagonal
+              ? std::exp(localPar(static_cast<arma::uword>(parameter)))
+              : localPar(static_cast<arma::uword>(parameter));
+            loadings(row, col) = value;
+            if(k == static_cast<arma::uword>(parameter)){
+              loadingDerivative(row, col) = isDiagonal ? value : 1.0;
+              if(row == 0 && col == 0 && isDiagonal){
+                normalizationDerivative = 2.0 * value * value;
+              }
+            }
+            if(row == 0 && col == 0){ normalization += value * value; }
+          }
+          if(isFA){
+            for(arma::uword level = 1; level < q; ++level){
+              specificRaw(level) = std::exp(localPar(
+                static_cast<arma::uword>(nload) + level - 1));
+            }
+          }
+          arma::mat covarianceNumerator = loadings * loadings.t() + arma::diagmat(specificRaw);
+          arma::mat numeratorDerivative =
+            loadingDerivative * loadings.t() + loadings * loadingDerivative.t();
+          if(isFA && k >= static_cast<arma::uword>(nload)){
+            const arma::uword level = k - static_cast<arma::uword>(nload) + 1;
+            numeratorDerivative(level, level) = specificRaw(level);
+          }
+          arma::mat derivative =
+            numeratorDerivative / normalization -
+            (normalizationDerivative / (normalization * normalization)) * covarianceNumerator;
+          if(!derivative.is_finite()){
+            Rcpp::stop("Native FA/RR derivative produced non-finite values.");
+          }
+          return 0.5 * (derivative + derivative.t());
+        }
+
         Rcpp::stop("Unsupported native derivative opcode: " + op);
       }
 
@@ -4790,7 +4870,67 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         factorCovariance[factorOffset] = covariance;
 
         bool inverseOK = false;
-        if(f.containsElementNamed("evaluator")){
+        std::string factorModel;
+        if(f.containsElementNamed("precision") && !Rf_isNull(f["precision"] )){
+          const Rcpp::List capability = f["precision"];
+          if(capability.containsElementNamed("backend") &&
+             Rcpp::as<std::string>(capability["backend"]) == "woodbury" &&
+             capability.containsElementNamed("kind")){
+            factorModel = Rcpp::as<std::string>(capability["kind"]);
+          }
+        }
+        if((factorModel == "fa" || factorModel == "rr") &&
+           f.containsElementNamed("order") &&
+           f.containsElementNamed(factorModel == "fa" ? "fa_nload" : "rr_nload")){
+          const bool isFA = factorModel == "fa";
+          const int order = Rcpp::as<int>(f["order"]);
+          const int nload = Rcpp::as<int>(f[isFA ? "fa_nload" : "rr_nload"]);
+          const Rcpp::IntegerVector rows = f[isFA ? "fa_row" : "rr_row"];
+          const Rcpp::IntegerVector columns = f[isFA ? "fa_col" : "rr_col"];
+          const Rcpp::LogicalVector diagonal = f[isFA ? "fa_diag" : "rr_diag"];
+          double reference = 0.0;
+          for(int loading = 0; loading < nload; ++loading){
+            if(rows[loading] == 1 && columns[loading] == 1){
+              reference = factorPar[factorOffset](loading);
+              break;
+            }
+          }
+          const double twiceReference = 2.0 * reference;
+          const double logScale = std::max(0.0, twiceReference) + std::log1p(std::exp(-std::abs(twiceReference)));
+          const double inverseSd = std::exp(-0.5 * logScale);
+          arma::mat loadings(covariance.n_rows, order, arma::fill::zeros);
+          for(int loading = 0; loading < nload; ++loading){
+            loadings(rows[loading] - 1, columns[loading] - 1) = diagonal[loading]
+              ? std::exp(factorPar[factorOffset](loading) - 0.5 * logScale)
+              : factorPar[factorOffset](loading) * inverseSd;
+          }
+          arma::vec specific(covariance.n_rows, arma::fill::ones);
+          specific *= std::exp(-logScale);
+          if(isFA){
+            for(arma::uword row = 1; row < specific.n_elem; ++row){
+              specific(row) = std::exp(factorPar[factorOffset](nload + row - 1) - logScale);
+            }
+          }
+          if(loadings.is_finite() && specific.is_finite() &&
+             specific.min() > 1.0e-8 * covariance.diag().max() &&
+             arma::norm(covariance - loadings * loadings.t() - arma::diagmat(specific), "fro") <=
+               1.0e-10 * std::max(1.0, arma::norm(covariance, "fro"))){
+            arma::mat weightedLoadings = loadings;
+            weightedLoadings.each_col() /= specific;
+            const arma::mat core = arma::eye<arma::mat>(order, order) + loadings.t() * weightedLoadings;
+            arma::mat coreInverse;
+            double coreLogDet = 0.0;
+            if(eigenSpdInverse(core, coreInverse, &coreLogDet)){
+              factorPrecision[factorOffset] = arma::diagmat(1.0 / specific) - weightedLoadings * coreInverse * weightedLoadings.t();
+              factorPrecision[factorOffset] = 0.5 * (factorPrecision[factorOffset] + factorPrecision[factorOffset].t());
+              factorLogDet[factorOffset] = arma::accu(arma::log(specific)) + coreLogDet;
+              inverseOK = factorPrecision[factorOffset].is_finite() &&
+                factorPrecision[factorOffset].diag().min() > 0.0 &&
+                std::isfinite(factorLogDet[factorOffset]);
+            }
+          }
+        }
+        if(!inverseOK && f.containsElementNamed("evaluator")){
           Rcpp::List evaluator = Rcpp::as<Rcpp::List>(f["evaluator"]);
           const std::string backend =
             Rcpp::as<std::string>(evaluator["backend"]);
@@ -5385,28 +5525,22 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       Rcpp::as<bool>(cs["complete_residual_blocks"]);
     if(i == nRRe - 1){
       Rcpp::List residualFactors = cs["factors"];
+      bool nonDiagonalFactor = false;
       for(int fidx = 0; fidx < residualFactors.size(); ++fidx){
         Rcpp::List factor = Rcpp::as<Rcpp::List>(residualFactors[fidx]);
         if(factor.containsElementNamed("section_levels")){
           residualSectioned = true;
         }
+        if(!factor.containsElementNamed("structurally_diagonal") ||
+           !Rcpp::as<bool>(factor["structurally_diagonal"])){
+          nonDiagonalFactor = true;
+        }
       }
       if(residualSectioned && useH){
         Rcpp::stop("dsumm() residual structures are not yet available with W weights.");
       }
-    }
-    // The complete-block weighted path still needs the explicit block inverse.
-    if(i == nRRe - 1 && !(useH && completeResidualBlocks)){
-      compactResidualCovariance = residualSectioned;
-      Rcpp::List residualFactors = cs["factors"];
-      for(int fidx = 0; fidx < residualFactors.size(); ++fidx){
-        Rcpp::List factor = Rcpp::as<Rcpp::List>(residualFactors[fidx]);
-        if(!factor.containsElementNamed("structurally_diagonal") ||
-           !Rcpp::as<bool>(factor["structurally_diagonal"])){
-          compactResidualCovariance = true;
-          break;
-        }
-      }
+      compactResidualCovariance = sommer::ResidualPolicy::compactStorage(
+        residualSectioned, nonDiagonalFactor, completeResidualBlocks, useH);
     }
 
     covPar(i) =
@@ -5701,16 +5835,92 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   }
   // Hs^{-T}, used to weight residual derivative bases.
   arma::sp_mat HsInvT;
+  const std::size_t maxFallbackEntries = 16000000;
+  int weightBlockCount = 0;
+  std::vector<std::vector<int>> weightBlockRows;
+  std::vector<int> weightBlockOfRow;
+  std::vector<Eigen::SparseMatrix<double>> weightUpperBlocks;
   if(useH){
-    bool diagonalFactor = true;
-    for(arma::sp_mat::const_iterator it = Hs.begin(); it != Hs.end(); ++it){
-      if(it.row() != it.col() && std::abs(*it) > 0.0){ diagonalFactor = false; break; }
+    const Eigen::SparseMatrix<double> upper = armaSparseToEigenGlobal(Hs);
+    Rcpp::IntegerVector weightBlocks;
+    if(covStructI.hasAttribute("weightBlocks")){
+      weightBlocks = Rcpp::as<Rcpp::IntegerVector>(covStructI.attr("weightBlocks"));
+      if(weightBlocks.size() != nR){
+        Rcpp::stop("The weights block formula has incompatible length for the Cholesky factor.");
+      }
     }
-    if(diagonalFactor){
-      arma::vec hd(Hs.diag());
-      HsInvT = arma::sp_mat(arma::diagmat(1.0 / hd));
+    if(weightBlocks.size()){
+      std::map<int, std::vector<int>> groupedRows;
+      for(int row = 0; row < nR; ++row){
+        groupedRows[weightBlocks[row]].push_back(row);
+      }
+      weightBlockOfRow.assign(static_cast<std::size_t>(nR), -1);
+      for(const auto & group : groupedRows){
+        const int blockNumber = static_cast<int>(weightBlockRows.size());
+        weightBlockRows.push_back(group.second);
+        for(int row : group.second){ weightBlockOfRow[static_cast<std::size_t>(row)] = blockNumber; }
+      }
+      weightBlockCount = static_cast<int>(weightBlockRows.size());
+      for(int col = 0; col < upper.outerSize(); ++col){
+        for(Eigen::SparseMatrix<double>::InnerIterator entry(upper, col); entry; ++entry){
+          if(weightBlockOfRow[static_cast<std::size_t>(entry.row())] !=
+             weightBlockOfRow[static_cast<std::size_t>(entry.col())]){
+            Rcpp::stop("The Cholesky factor of W couples rows declared independent by weights.");
+          }
+        }
+      }
+      std::vector<int> localOfRow(static_cast<std::size_t>(nR), -1);
+      for(const std::vector<int> & globalRows : weightBlockRows){
+        const int blockSize = static_cast<int>(globalRows.size());
+        for(int local = 0; local < blockSize; ++local){
+          localOfRow[static_cast<std::size_t>(globalRows[static_cast<std::size_t>(local)])] = local;
+        }
+        std::vector<Eigen::Triplet<double>> blockTriplets;
+        for(int localCol = 0; localCol < blockSize; ++localCol){
+          const int globalCol = globalRows[static_cast<std::size_t>(localCol)];
+          for(Eigen::SparseMatrix<double>::InnerIterator entry(upper, globalCol); entry; ++entry){
+            const int localRow = localOfRow[static_cast<std::size_t>(entry.row())];
+            if(localRow >= 0){ blockTriplets.emplace_back(localRow, localCol, entry.value()); }
+          }
+        }
+        Eigen::SparseMatrix<double> blockUpper(blockSize, blockSize);
+        blockUpper.setFromTriplets(blockTriplets.begin(), blockTriplets.end());
+        blockUpper.makeCompressed();
+        weightUpperBlocks.push_back(std::move(blockUpper));
+        for(int globalRow : globalRows){ localOfRow[static_cast<std::size_t>(globalRow)] = -1; }
+      }
     }else{
-      HsInvT = arma::sp_mat(arma::mat(arma::inv(arma::trimatu(arma::mat(Hs)))).t());
+      bool diagonalFactor = true;
+      for(arma::sp_mat::const_iterator it = Hs.begin(); it != Hs.end(); ++it){
+        if(it.row() != it.col() && std::abs(*it) > 0.0){ diagonalFactor = false; break; }
+      }
+      if(diagonalFactor){
+        arma::vec hd(Hs.diag());
+        HsInvT = arma::sp_mat(arma::diagmat(1.0 / hd));
+      }else{
+        const int batchSize = std::max(1, std::min(32, 1048576 / std::max(1, static_cast<int>(nR))));
+        std::vector<Eigen::Triplet<double>> inverseTriplets;
+        for(int first = 0; first < nR; first += batchSize){
+          const int count = std::min(batchSize, static_cast<int>(nR) - first);
+          Eigen::MatrixXd rhs = Eigen::MatrixXd::Zero(nR, count);
+          for(int local = 0; local < count; ++local){ rhs(first + local, local) = 1.0; }
+          const Eigen::MatrixXd solved = upper.triangularView<Eigen::Upper>().solve(rhs);
+          for(int local = 0; local < count; ++local){
+            for(int row = 0; row <= first + local; ++row){
+              const double value = solved(row, local);
+              if(value != 0.0){
+                if(inverseTriplets.size() >= maxFallbackEntries){
+                  Rcpp::stop("Non-diagonal weights produce excessive inverse fill; use weights=~group to declare independent blocks or use a factored residual model.");
+                }
+                inverseTriplets.emplace_back(first + local, row, value);
+              }
+            }
+          }
+        }
+        Eigen::SparseMatrix<double> inverseTranspose(nR, nR);
+        inverseTranspose.setFromTriplets(inverseTriplets.begin(), inverseTriplets.end());
+        HsInvT = eigenSparseToArmaGlobal(inverseTranspose);
+      }
     }
   }
   arma::vec dLuOut;//(nVcTotal); // we will join cols
@@ -6144,8 +6354,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   std::vector<arma::uword> gridSize;
   std::vector< std::vector<int> > gridSectionOf;
 
-  if(compactResidualCovariance && (!residualKronBlocks || residualSectioned) &&
-     (!residualStructurallyDiagonal || residualSectioned) && !useH){
+  if(sommer::ResidualPolicy::gridCandidate(compactResidualCovariance,
+      residualKronBlocks, residualSectioned, residualStructurallyDiagonal, useH)){
     Rcpp::List rfactors =
       covDescriptor[static_cast<std::size_t>(residualStructIndex)]["factors"];
     gridNFactors = rfactors.size();
@@ -6195,7 +6405,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         S *= static_cast<arma::uword>(lv.size());
       }
 
-      if(S > 3 * nb + 1000 || S - nb > 4000){
+      if(!sommer::ResidualPolicy::gridFits(static_cast<double>(S), static_cast<double>(nb))){
         residualGridBlocks = false;
         break;
       }
@@ -6541,6 +6751,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   struct SelectedInverseSubset {
     std::vector< std::vector<int> > rows;
     std::vector< std::vector<double> > values;
+    std::vector< std::unordered_map<int, std::size_t> > rowLookup;
     std::vector<int> originalToPermuted;
   };
 
@@ -6571,6 +6782,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       }else{
         out.rows.assign(n, std::vector<int>());
         out.values.assign(n, std::vector<double>());
+        out.rowLookup.clear();
+        out.rowLookup.resize(n);
         out.originalToPermuted.assign(n, -1);
 
         const auto & perm = factor.permutationP();
@@ -6593,27 +6806,31 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           std::sort(out.rows[col].begin(), out.rows[col].end());
           out.rows[col].erase(std::unique(out.rows[col].begin(), out.rows[col].end()), out.rows[col].end());
           out.values[col].assign(out.rows[col].size(), 0.0);
+          if(out.rows[col].size() >= 64){
+            std::unordered_map<int, std::size_t> & lookup = out.rowLookup[col];
+            lookup.reserve(out.rows[col].size() * 2);
+            for(std::size_t position = 0; position < out.rows[col].size(); ++position){
+              lookup.emplace(out.rows[col][position], position);
+            }
+          }
         }
       }
 
       auto getPermuted = [&](int a, int b, double & value) -> bool {
         const int col = std::min(a,b);
         const int row = std::max(a,b);
+        if(!out.rowLookup.empty() && !out.rowLookup[col].empty()){
+          const auto pos = out.rowLookup[col].find(row);
+          if(pos == out.rowLookup[col].end()){ return false; }
+          value = out.values[col][pos->second];
+          return true;
+        }
         const std::vector<int> & rr = out.rows[col];
         auto pos = std::lower_bound(rr.begin(), rr.end(), row);
         if(pos == rr.end() || (*pos) != row){ return false; }
         const std::size_t idx = static_cast<std::size_t>(pos - rr.begin());
         value = out.values[col][idx];
         return true;
-      };
-
-      auto setPermuted = [&](int row, int col, double value) {
-        if(row < col){ std::swap(row,col); }
-        const std::vector<int> & rr = out.rows[col];
-        auto pos = std::lower_bound(rr.begin(), rr.end(), row);
-        if(pos == rr.end() || (*pos) != row){ Rcpp::stop("Internal selected-inverse pattern error."); }
-        const std::size_t idx = static_cast<std::size_t>(pos - rr.begin());
-        out.values[col][idx] = value;
       };
 
       // Takahashi recursions for A = P' L D L' P.
@@ -6630,10 +6847,16 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
             lvalues.push_back(it.value());
           }
         }
+        if(out.rows[i].size() != neighbours.size() + 1){
+          Rcpp::stop("Cached selected-inverse column is incompatible with the LDLT pattern.");
+        }
 
         // Off-diagonal entries first.
         for(std::size_t jj = 0; jj < neighbours.size(); ++jj){
           const int j = neighbours[jj];
+          if(out.rows[i][jj + 1] != j){
+            Rcpp::stop("Cached selected-inverse ordering is incompatible with the LDLT pattern.");
+          }
           double sum = 0.0;
           for(std::size_t kk = 0; kk < neighbours.size(); ++kk){
             double zkj = 0.0;
@@ -6642,18 +6865,14 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
             }
             sum += lvalues[kk] * zkj;
           }
-          setPermuted(j, i, -sum);
+          out.values[i][jj + 1] = -sum;
         }
 
         double diagCorrection = 0.0;
         for(std::size_t kk = 0; kk < neighbours.size(); ++kk){
-          double zki = 0.0;
-          if(!getPermuted(neighbours[kk], i, zki)){
-            Rcpp::stop("Unable to retrieve selected inverse off-diagonal during Takahashi recursion in " + context + ".");
-          }
-          diagCorrection += lvalues[kk] * zki;
+          diagCorrection += lvalues[kk] * out.values[i][kk + 1];
         }
-        setPermuted(i, i, (1.0 / D(i)) - diagCorrection);
+        out.values[i][0] = (1.0 / D(i)) - diagCorrection;
       }
     };
 
@@ -6669,6 +6888,12 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       const int b = subset.originalToPermuted[originalCol];
       const int col = std::min(a,b);
       const int row = std::max(a,b);
+      if(!subset.rowLookup.empty() && !subset.rowLookup[col].empty()){
+        const auto pos = subset.rowLookup[col].find(row);
+        if(pos == subset.rowLookup[col].end()){ return false; }
+        value = subset.values[col][pos->second];
+        return true;
+      }
       const std::vector<int> & rr = subset.rows[col];
       auto pos = std::lower_bound(rr.begin(), rr.end(), row);
       if(pos == rr.end() || (*pos) != row){ return false; }
@@ -6748,18 +6973,44 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   // selected-block fallbacks).  Keeping all solve dispatch here makes future
   // solver backends local to this module rather than the AI-REML code.
   // ============================================================
-  EigenLDLT Cfactor;
+  struct LDLTCache {
+    EigenLDLT Cfactor;
+    EigenLDLT Dfactor;
+    bool CsymbolicReady = false;
+    bool DsymbolicReady = false;
+    bool CselectedTopologyReady = false;
+    bool DselectedTopologyReady = false;
+    std::vector<int> CouterPattern;
+    std::vector<int> CinnerPattern;
+    std::vector<int> DouterPattern;
+    std::vector<int> DinnerPattern;
+    SelectedInverseSubset CselectedTopology;
+    SelectedInverseSubset DselectedTopology;
+  };
+  const bool retainLDLTCache = solverName == "ldlt" && covStructI.hasAttribute("retainLDLTCache") &&
+    Rcpp::as<bool>(covStructI.attr("retainLDLTCache"));
+  SEXP cacheInput = covStructI.hasAttribute("ldltCache") ? static_cast<SEXP>(covStructI.attr("ldltCache")) : R_NilValue;
+  if(cacheInput != R_NilValue &&
+     (TYPEOF(cacheInput) != EXTPTRSXP || R_ExternalPtrTag(cacheInput) != Rf_install("sommer_ldlt_cache") ||
+      R_ExternalPtrAddr(cacheInput) == nullptr)){
+    cacheInput = R_NilValue;
+  }
+  Rcpp::XPtr<LDLTCache> ldltCache = retainLDLTCache && cacheInput != R_NilValue
+    ? Rcpp::XPtr<LDLTCache>(cacheInput)
+    : Rcpp::XPtr<LDLTCache>(new LDLTCache(), true, Rf_install("sommer_ldlt_cache"));
+  EigenLDLT & Cfactor = ldltCache->Cfactor;
   EigenPCG Cpcg;
-  bool CsymbolicReady = false;
+  bool & CsymbolicReady = ldltCache->CsymbolicReady;
+  int CsymbolicAnalyses = 0;
   bool CnumericReady = false;
   bool CpcgReady = false;
   bool matrixFreePCGReady = false;
   std::function<Eigen::VectorXd(const Eigen::VectorXd &)> matrixFreeApplyC;
   Eigen::VectorXd matrixFreePCGDiagonal;
-  std::vector<int> CouterPattern;
-  std::vector<int> CinnerPattern;
-  SelectedInverseSubset CselectedTopology;
-  bool CselectedTopologyReady = false;
+  std::vector<int> & CouterPattern = ldltCache->CouterPattern;
+  std::vector<int> & CinnerPattern = ldltCache->CinnerPattern;
+  SelectedInverseSubset & CselectedTopology = ldltCache->CselectedTopology;
+  bool & CselectedTopologyReady = ldltCache->CselectedTopologyReady;
 
   // ML (reml=FALSE) support: D is the random-effects-only block of C,
   // D = Z'R^{-1}Z + G^{-1} (rows/cols nX..nEffects-1 of C, re-indexed to
@@ -6768,20 +7019,28 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   // dropping the log|X'V^{-1}X| restriction term that makes REML
   // "restricted". Only used when reml==false (validated solver=="ldlt"
   // above); never touched otherwise.
-  EigenLDLT Dfactor;
-  SelectedInverseSubset DselectedTopology;
-  bool DselectedTopologyReady = false;
+  EigenLDLT & Dfactor = ldltCache->Dfactor;
+  bool & DsymbolicReady = ldltCache->DsymbolicReady;
+  std::vector<int> & DldltOuterPattern = ldltCache->DouterPattern;
+  std::vector<int> & DldltInnerPattern = ldltCache->DinnerPattern;
+  int DsymbolicAnalyses = 0;
+  int DselectedTopologyBuilds = 0;
+  int DselectedTopologyReuses = 0;
+  SelectedInverseSubset & DselectedTopology = ldltCache->DselectedTopology;
+  bool & DselectedTopologyReady = ldltCache->DselectedTopologyReady;
 
 
   // ============================================================
   // CHOLMOD (via R's Matrix package) supernodal backend for solver="cholmod"
   // ============================================================
-  // CholmodState owns the cholmod_common/cholmod_factor lifetime so they are
-  // released even if Rcpp::stop() unwinds out of this function.
+  // CholmodState owns the CHOLMOD context and can survive successive PQL fits.
   struct CholmodState {
     cholmod_common common;
     cholmod_factor * factor = nullptr;
     bool started = false;
+    bool symbolicReady = false;
+    std::vector<int> outerPattern;
+    std::vector<int> innerPattern;
     void ensureStarted(){
       if(!started){
         M_cholmod_start(&common);
@@ -6794,8 +7053,22 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       if(started){ M_cholmod_finish(&common); }
     }
   };
-  CholmodState cholmodState;
-  bool CholmodSymbolicReady = false;
+  const bool retainCholmodCache = solverName == "cholmod" &&
+    covStructI.hasAttribute("retainCholmodCache") &&
+    Rcpp::as<bool>(covStructI.attr("retainCholmodCache"));
+  SEXP cholmodCacheInput = covStructI.hasAttribute("cholmodCache")
+    ? static_cast<SEXP>(covStructI.attr("cholmodCache")) : R_NilValue;
+  if(cholmodCacheInput != R_NilValue &&
+     (TYPEOF(cholmodCacheInput) != EXTPTRSXP ||
+      R_ExternalPtrTag(cholmodCacheInput) != Rf_install("sommer_cholmod_cache") ||
+      R_ExternalPtrAddr(cholmodCacheInput) == nullptr)){
+    cholmodCacheInput = R_NilValue;
+  }
+  Rcpp::XPtr<CholmodState> cholmodCache = retainCholmodCache && cholmodCacheInput != R_NilValue
+    ? Rcpp::XPtr<CholmodState>(cholmodCacheInput)
+    : Rcpp::XPtr<CholmodState>(new CholmodState(), true, Rf_install("sommer_cholmod_cache"));
+  CholmodState & cholmodState = *cholmodCache;
+  bool & CholmodSymbolicReady = cholmodState.symbolicReady;
 
   // A cholmod_sparse VIEW over an Eigen sparse matrix's existing compressed-
   // storage arrays (zero-copy): CHOLMOD's analyze/factorize only read A, so
@@ -6823,8 +7096,9 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       return view;
     };
 
-  const double cholmodInvCacheMaxDoubles = 1.25e8;
-  const int cholmodInvCacheMaxGroup = 8000;
+  const sommer::BlockSchurPolicy blockSchurPolicy;
+  const double cholmodInvCacheMaxDoubles = blockSchurPolicy.maxDoubles;
+  const int cholmodInvCacheMaxGroup = static_cast<int>(blockSchurPolicy.maxGroup);
 
   // Original C column indices of each random-effect inverse group: one group
   // per covariance block when the random covariance is diagonal, otherwise
@@ -6880,7 +7154,6 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     double logDet = 0.0;
   };
   BlockSchurEngine blockEngine;
-  const int blockEngineMaxBorder = 2000;
   auto crossGroupSignature = [](const std::vector< std::vector<int> > & groups) -> std::uint64_t {
     std::uint64_t hash = 1469598103934665603ULL;
     for(const std::vector<int> & cols : groups){
@@ -6929,97 +7202,11 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     std::sort(couplings.begin(), couplings.end());
     couplings.erase(std::unique(couplings.begin(), couplings.end()), couplings.end());
 
-    // Plan A: greedy vertex cover of the group coupling graph; the smaller
-    // group of each still-uncovered coupled pair joins the border.
-    std::vector<char> inBorder(candidates.size(), 0);
-    std::vector<int> degree(candidates.size(), 0);
-    for(const auto & pr : couplings){ ++degree[pr.first]; ++degree[pr.second]; }
-    std::vector<std::size_t> order(couplings.size());
-    for(std::size_t k = 0; k < order.size(); ++k){ order[k] = k; }
-    std::sort(order.begin(), order.end(), [&](std::size_t a, std::size_t b){
-      const auto & pa = couplings[a];
-      const auto & pb = couplings[b];
-      const std::size_t sa = std::min(candidates[pa.first].size(), candidates[pa.second].size());
-      const std::size_t sb = std::min(candidates[pb.first].size(), candidates[pb.second].size());
-      return sa != sb ? sa < sb : a < b;
-    });
-    for(const std::size_t k : order){
-      const int g = couplings[k].first;
-      const int h = couplings[k].second;
-      if(inBorder[g] || inBorder[h]){ continue; }
-      const std::size_t sg = candidates[g].size();
-      const std::size_t sh = candidates[h].size();
-      const bool pickG = sg != sh ? sg < sh : degree[g] >= degree[h];
-      inBorder[pickG ? g : h] = 1;
-    }
-
-    std::vector<int> borderColsA;
-    for(int c = 0; c < nX; ++c){ borderColsA.push_back(c); }
-    std::vector< std::vector<int> > groupsA;
-    for(std::size_t g = 0; g < candidates.size(); ++g){
-      if(inBorder[g]){
-        borderColsA.insert(borderColsA.end(), candidates[g].begin(), candidates[g].end());
-      }else{
-        groupsA.push_back(candidates[g]);
-      }
-    }
-
-    // Plan B: coupled groups merged into connected components (e.g. all
-    // random terms nested within one environment); only X is border.
-    std::vector<int> root(candidates.size());
-    for(std::size_t g = 0; g < root.size(); ++g){ root[g] = static_cast<int>(g); }
-    auto findRoot = [&](int g) -> int {
-      while(root[static_cast<std::size_t>(g)] != g){
-        root[static_cast<std::size_t>(g)] = root[static_cast<std::size_t>(root[static_cast<std::size_t>(g)])];
-        g = root[static_cast<std::size_t>(g)];
-      }
-      return g;
-    };
-    for(const auto & pr : couplings){
-      const int a = findRoot(pr.first);
-      const int c = findRoot(pr.second);
-      if(a != c){ root[static_cast<std::size_t>(std::max(a, c))] = std::min(a, c); }
-    }
-    std::vector<int> componentIndex(candidates.size(), -1);
-    std::vector< std::vector<int> > groupsB;
-    for(std::size_t g = 0; g < candidates.size(); ++g){
-      const std::size_t r = static_cast<std::size_t>(findRoot(static_cast<int>(g)));
-      if(componentIndex[r] < 0){
-        componentIndex[r] = static_cast<int>(groupsB.size());
-        groupsB.emplace_back();
-      }
-      std::vector<int> & dst = groupsB[static_cast<std::size_t>(componentIndex[r])];
-      dst.insert(dst.end(), candidates[g].begin(), candidates[g].end());
-    }
-
-    // Estimate factorization and the dense inverse blocks needed by REML traces.
-    const double infCost = std::numeric_limits<double>::infinity();
-    auto planCost = [&](const std::vector< std::vector<int> > & groups, const std::size_t nBorder) -> double {
-      if(groups.empty() || nBorder > static_cast<std::size_t>(blockEngineMaxBorder)){ return infCost; }
-      const double bSize = static_cast<double>(nBorder);
-      // Cholesky plus triangular inversion and the product forming each inverse.
-      double cost = (5.0 / 3.0) * bSize * bSize * bSize;
-      for(const std::vector<int> & cols : groups){
-        if(cols.size() > static_cast<std::size_t>(cholmodInvCacheMaxGroup)){ return infCost; }
-        const double m = static_cast<double>(cols.size());
-        // Include D_g factorization/inversion, D_g^{-1} C_gb, Schur update,
-        // and the border/group inverse-cache cross blocks.
-        cost += (5.0 / 3.0) * m * m * m + 4.0 * bSize * m * m + 2.0 * m * bSize * bSize;
-      }
-      return cost;
-    };
-    const double costA = planCost(groupsA, borderColsA.size());
-    const double costB = planCost(groupsB, static_cast<std::size_t>(nX));
-    if(!std::isfinite(costA) && !std::isfinite(costB)){ return false; }
-
-    blockEngine.borderCols.clear();
-    if(costB < costA){
-      for(int c = 0; c < nX; ++c){ blockEngine.borderCols.push_back(c); }
-      blockEngine.groups.swap(groupsB);
-    }else{
-      blockEngine.borderCols.swap(borderColsA);
-      blockEngine.groups.swap(groupsA);
-    }
+    sommer::BlockSchurPlan plan = sommer::planBlockSchur(
+      candidates, couplings, nX, blockSchurPolicy);
+    if(!plan.eligible){ return false; }
+    blockEngine.borderCols.swap(plan.border);
+    blockEngine.groups.swap(plan.groups);
     const std::size_t nB = blockEngine.borderCols.size();
     blockEngine.groupSignature = crossGroupSignature(blockEngine.groups);
 
@@ -7029,30 +7216,26 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     for(std::size_t b = 0; b < nB; ++b){
       blockEngine.borderPos[static_cast<std::size_t>(blockEngine.borderCols[b])] = static_cast<int>(b);
     }
-    double totalDoubles = 2.0 * static_cast<double>(nB) * static_cast<double>(nB);
     for(std::size_t g = 0; g < blockEngine.groups.size(); ++g){
       const std::vector<int> & cols = blockEngine.groups[g];
-      const double m = static_cast<double>(cols.size());
-      totalDoubles += 2.0 * m * m + 3.0 * m * static_cast<double>(nB);
       for(std::size_t j = 0; j < cols.size(); ++j){
         blockEngine.groupOf[static_cast<std::size_t>(cols[j])] = static_cast<int>(g);
         blockEngine.localOf[static_cast<std::size_t>(cols[j])] = static_cast<int>(j);
       }
     }
-    if(totalDoubles > cholmodInvCacheMaxDoubles){ return false; }
     // REML builds a dense C^{-1} block per group anyway (O(m^3) either way),
     // so sparsity only favours CHOLMOD for groups too large to be cached.
     for(std::size_t g = 0; g < blockEngine.groups.size(); ++g){
       const std::vector<int> & cols = blockEngine.groups[g];
       const double m = static_cast<double>(cols.size());
-      if(m <= 64.0 || static_cast<double>(nEffects) * m <= cholmodInvCacheMaxDoubles){ continue; }
+      if(!blockSchurPolicy.needsDensityCheck(static_cast<double>(nEffects), m)){ continue; }
       double nnzIn = 0.0;
       for(const int j : cols){
         for(EigenSpMat::InnerIterator it(A, j); it; ++it){
           if(blockEngine.groupOf[static_cast<std::size_t>(it.row())] == static_cast<int>(g)){ nnzIn += 1.0; }
         }
       }
-      if(nnzIn < 0.1 * m * m){ return false; }
+      if(!blockSchurPolicy.denseEnough(nnzIn, m)){ return false; }
     }
     blockEngine.eligible = true;
     return true;
@@ -7694,10 +7877,95 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     return true;
   };
 
+  bool pcgNystromReady = false;
+  int pcgNystromRankUsed = 0;
+  Eigen::VectorXd pcgPreconditionerDiagonal;
+  Eigen::MatrixXd pcgNystromBasis;
+  Eigen::LLT<Eigen::MatrixXd> pcgNystromCoreFactor;
+  auto applyPCGPreconditioner = [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs)
+      -> Eigen::MatrixXd {
+    if(!pcgNystromReady){
+      Eigen::MatrixXd result = rhs;
+      for(Eigen::Index col = 0; col < result.cols(); ++col){
+        result.col(col).array() /= pcgPreconditionerDiagonal.array();
+      }
+      return result;
+    }
+    Eigen::MatrixXd scaled = rhs;
+    for(Eigen::Index col = 0; col < scaled.cols(); ++col){
+      scaled.col(col).array() /= pcgPreconditionerDiagonal.array();
+    }
+    const Eigen::MatrixXd projected = pcgNystromBasis.transpose() * scaled;
+    const Eigen::MatrixXd correction = pcgNystromCoreFactor.solve(projected);
+    if(pcgNystromCoreFactor.info() != Eigen::Success || !correction.allFinite()){
+      Rcpp::stop("Nyström PCG preconditioner core solve failed.");
+    }
+    Eigen::MatrixXd weightedBasis = pcgNystromBasis;
+    for(Eigen::Index col = 0; col < weightedBasis.cols(); ++col){
+      weightedBasis.col(col).array() /= pcgPreconditionerDiagonal.array();
+    }
+    scaled.noalias() -= weightedBasis * correction;
+    return scaled;
+  };
+
   auto preparePCG = [&](const EigenSpMat & Ce){
     matrixFreePCGReady = false;
     CpcgReady = false;
     if(solverName != "pcg"){ return; }
+    pcgNystromReady = false;
+    pcgNystromRankUsed = 0;
+    if(pcgPreconditioner == "nystrom"){
+      const Eigen::Index n = Ce.rows();
+      const Eigen::VectorXd diagonal = Ce.diagonal();
+      if(n == 0 || !diagonal.allFinite() || diagonal.minCoeff() <= 0.0){
+        Rcpp::stop("Nyström PCG preconditioner requires a positive finite diagonal.");
+      }
+      const int rank = std::min<int>(pcgNystromRank, static_cast<int>(n));
+      std::vector<int> landmarks(static_cast<std::size_t>(rank));
+      for(int landmark = 0; landmark < rank; ++landmark){
+        landmarks[static_cast<std::size_t>(landmark)] = static_cast<int>(
+          (static_cast<long long>(2 * landmark + 1) * static_cast<long long>(n)) /
+          static_cast<long long>(2 * rank));
+      }
+      Eigen::MatrixXd columns(n, rank);
+      for(int local = 0; local < rank; ++local){
+        const int source = landmarks[static_cast<std::size_t>(local)];
+        columns.col(local) = Ce.col(source);
+      }
+      Eigen::MatrixXd core(rank, rank);
+      for(int col = 0; col < rank; ++col){
+        for(int row = 0; row < rank; ++row){
+          core(row, col) = Ce.coeff(landmarks[static_cast<std::size_t>(row)],
+                                    landmarks[static_cast<std::size_t>(col)]);
+        }
+      }
+      core = 0.5 * (core + core.transpose());
+      Eigen::LLT<Eigen::MatrixXd> landmarkFactor(core);
+      if(landmarkFactor.info() != Eigen::Success){
+        Rcpp::stop("Nyström landmark submatrix is not positive definite; reduce pcgNystromRank or use diagonal preconditioning.");
+      }
+      pcgNystromBasis = landmarkFactor.matrixL().solve(columns.transpose()).transpose();
+      Eigen::VectorXd lowRankDiagonal = pcgNystromBasis.rowwise().squaredNorm();
+      const double diagonalFloor = 1.0e-4 * diagonal.maxCoeff();
+      pcgPreconditionerDiagonal = (diagonal - lowRankDiagonal).cwiseMax(diagonalFloor);
+      if(!pcgPreconditionerDiagonal.allFinite() || pcgPreconditionerDiagonal.minCoeff() <= 0.0){
+        Rcpp::stop("Nyström diagonal remainder is not positive; reduce pcgNystromRank or use diagonal preconditioning.");
+      }
+      Eigen::MatrixXd weightedBasis = pcgNystromBasis;
+      for(Eigen::Index col = 0; col < weightedBasis.cols(); ++col){
+        weightedBasis.col(col).array() /= pcgPreconditionerDiagonal.array();
+      }
+      Eigen::MatrixXd preconditionerCore =
+        Eigen::MatrixXd::Identity(rank, rank) + pcgNystromBasis.transpose() * weightedBasis;
+      pcgNystromCoreFactor.compute(0.5 * (preconditionerCore + preconditionerCore.transpose()));
+      if(pcgNystromCoreFactor.info() != Eigen::Success){
+        Rcpp::stop("Nyström Woodbury core is not positive definite.");
+      }
+      pcgNystromReady = true;
+      pcgNystromRankUsed = rank;
+      CpcgReady = true;
+      return;
+    }
     Cpcg.setTolerance(pcgTol);
     const int automaticMax = std::max<int>(1000, static_cast<int>(Ce.rows()));
     Cpcg.setMaxIterations(pcgMaxIters > 0 ? pcgMaxIters : automaticMax);
@@ -7705,6 +7973,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     if(Cpcg.info() != Eigen::Success){
       Rcpp::stop("PCG setup failed for the MME coefficient matrix C.");
     }
+    pcgPreconditionerDiagonal = Ce.diagonal();
     CpcgReady = true;
   };
 
@@ -7780,6 +8049,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       return Eigen::VectorXd();
     };
 
+  std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &,
+    const Eigen::MatrixXd *, const std::string &)> solvePCGBatchFn;
   auto solveCVector = [&](const Eigen::Ref<const Eigen::VectorXd> & rhs,
                           const std::string & context) -> Eigen::VectorXd {
     if(solverName == "ldlt"){
@@ -7799,12 +8070,108 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     if(!CpcgReady){
       Rcpp::stop("PCG solve requested before the PCG backend was prepared.");
     }
-    Eigen::VectorXd ans = Cpcg.solve(rhs);
-    if(Cpcg.info() != Eigen::Success || !ans.allFinite()){
-      Rcpp::stop("PCG failed to converge in " + context + ".");
-    }
-    return ans;
+    Eigen::MatrixXd rhsMatrix(rhs.size(), 1);
+    rhsMatrix.col(0) = rhs;
+    return solvePCGBatchFn(rhsMatrix, nullptr, context).col(0);
   };
+
+  int pcgBatchSolves = 0;
+  int pcgBatchIterations = 0;
+  auto solvePCGBatch = [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs,
+                           const Eigen::MatrixXd * initialGuess,
+                           const std::string & context) -> Eigen::MatrixXd {
+    if(!CpcgReady || matrixFreePCGReady){
+      Rcpp::stop("Batched assembled PCG requested without a materialized PCG system.");
+    }
+    if(rhs.rows() != C.rows()){
+      Rcpp::stop("Batched PCG right-hand side has incompatible dimensions in " + context + ".");
+    }
+    ++pcgBatchSolves;
+    const Eigen::Index n = rhs.rows();
+    const Eigen::Index nRhs = rhs.cols();
+    Eigen::MatrixXd solution = initialGuess != nullptr &&
+      initialGuess->rows() == n && initialGuess->cols() == nRhs
+      ? *initialGuess : Eigen::MatrixXd::Zero(n, nRhs);
+    Eigen::MatrixXd residual = rhs - C * solution;
+    Eigen::MatrixXd preconditioned = applyPCGPreconditioner(residual);
+    Eigen::MatrixXd direction = preconditioned;
+    Eigen::RowVectorXd residualProducts =
+      (residual.array() * preconditioned.array()).colwise().sum();
+    Eigen::RowVectorXd rhsNorm = rhs.colwise().norm();
+    std::vector<bool> active(static_cast<std::size_t>(nRhs), true);
+    for(Eigen::Index col = 0; col < nRhs; ++col){
+      if(rhsNorm(col) == 0.0){
+        solution.col(col).setZero();
+        residual.col(col).setZero();
+        direction.col(col).setZero();
+        active[static_cast<std::size_t>(col)] = false;
+      }else if(residual.col(col).norm() <= pcgTol * rhsNorm(col)){
+        direction.col(col).setZero();
+        active[static_cast<std::size_t>(col)] = false;
+      }else if(!std::isfinite(residualProducts(col)) || residualProducts(col) <= 0.0){
+        Rcpp::stop("Batched PCG encountered a non-positive preconditioned residual in " + context + ".");
+      }
+    }
+    const int maximumIterations = pcgMaxIters > 0
+      ? pcgMaxIters : std::max<int>(1000, static_cast<int>(n));
+    bool allConverged = std::none_of(active.begin(), active.end(), [](bool value){ return value; });
+    int iterationsUsed = 0;
+    for(int iteration = 0; iteration < maximumIterations && !allConverged; ++iteration){
+      const Eigen::MatrixXd operatorDirection = C * direction;
+      const Eigen::RowVectorXd curvature =
+        (direction.array() * operatorDirection.array()).colwise().sum();
+      Eigen::RowVectorXd alpha = Eigen::RowVectorXd::Zero(nRhs);
+      for(Eigen::Index col = 0; col < nRhs; ++col){
+        if(!active[static_cast<std::size_t>(col)]){ continue; }
+        if(!std::isfinite(curvature(col)) || curvature(col) <= 0.0){
+          Rcpp::stop("Batched PCG encountered non-positive curvature in " + context + ".");
+        }
+        alpha(col) = residualProducts(col) / curvature(col);
+      }
+      solution.noalias() += direction * alpha.asDiagonal();
+      residual.noalias() -= operatorDirection * alpha.asDiagonal();
+      iterationsUsed = iteration + 1;
+      allConverged = true;
+      for(Eigen::Index col = 0; col < nRhs; ++col){
+        if(active[static_cast<std::size_t>(col)] &&
+           residual.col(col).norm() > pcgTol * rhsNorm(col)){
+          allConverged = false;
+        }else if(active[static_cast<std::size_t>(col)]){
+          active[static_cast<std::size_t>(col)] = false;
+          direction.col(col).setZero();
+        }
+      }
+      if(allConverged){ break; }
+      for(Eigen::Index col = 0; col < nRhs; ++col){
+        if(!active[static_cast<std::size_t>(col)]){ continue; }
+        preconditioned.col(col) = applyPCGPreconditioner(
+          Eigen::MatrixXd(residual.col(col))).col(0);
+        const double nextProduct = residual.col(col).dot(preconditioned.col(col));
+        if(!std::isfinite(nextProduct) || nextProduct <= 0.0){
+          Rcpp::stop("Batched PCG encountered a non-positive residual update in " + context + ".");
+        }
+        const double beta = nextProduct / residualProducts(col);
+        direction.col(col) = preconditioned.col(col) + beta * direction.col(col);
+        residualProducts(col) = nextProduct;
+      }
+    }
+    pcgBatchIterations += iterationsUsed;
+    if(!allConverged){
+      Rcpp::stop("Batched PCG failed to converge in " + context + ".");
+    }
+    const Eigen::MatrixXd trueResidual = rhs - C * solution;
+    for(Eigen::Index col = 0; col < nRhs; ++col){
+      if(rhsNorm(col) > 0.0 && trueResidual.col(col).norm() > pcgTol * rhsNorm(col)){
+        Rcpp::stop("Batched PCG failed the true-residual check for RHS column " +
+          std::to_string(static_cast<long long>(col + 1)) + " in " + context + ".");
+      }
+    }
+    if(!solution.allFinite()){
+      Rcpp::stop("Batched PCG produced a non-finite solution in " + context + ".");
+    }
+    return solution;
+  };
+  solvePCGBatchFn = solvePCGBatch;
 
   auto solveCMatrix = [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs,
                           const std::string & context) -> Eigen::MatrixXd {
@@ -7829,17 +8196,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     if(!CpcgReady){
       Rcpp::stop("PCG solve requested before the PCG backend was prepared.");
     }
-    // Eigen's iterative solver is run column-by-column so convergence is
-    // checked independently for every derivative/right-hand side.
-    for(Eigen::Index j = 0; j < rhs.cols(); ++j){
-      ans.col(j) = Cpcg.solve(rhs.col(j));
-      if(Cpcg.info() != Eigen::Success || !ans.col(j).allFinite()){
-        Rcpp::stop("PCG failed to converge for RHS column " +
-                   std::to_string(static_cast<long long>(j + 1)) +
-                   " in " + context + ".");
-      }
-    }
-    return ans;
+    return solvePCGBatch(rhs, nullptr, context);
   };
 
   // Computes tr(B * factor^{-1}) using the selected-inverse fast path when
@@ -7956,7 +8313,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     // OpenMP schedules.
     #pragma omp parallel for if(pcgTraceProbes > 1)
     for(int probe = 0; probe < pcgTraceProbes; ++probe){
-      Eigen::VectorXd q(n), qPrev = Eigen::VectorXd::Zero(n);
+      Eigen::VectorXd q(n);
       for(Eigen::Index i = 0; i < n; ++i){
         q(i) = pcgProbeSign(static_cast<unsigned long long>(i),
                            static_cast<unsigned long long>(probe));
@@ -7966,42 +8323,32 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       Eigen::MatrixXd lanczosBasis(n, mMax);
 
       std::vector<double> alpha;
-      std::vector<double> beta;
       alpha.reserve(static_cast<std::size_t>(mMax));
-      beta.reserve(static_cast<std::size_t>(std::max(0, mMax-1)));
-      double betaPrev = 0.0;
+      Eigen::MatrixXd projected = Eigen::MatrixXd::Zero(mMax, mMax);
 
       for(int j = 0; j < mMax; ++j){
         lanczosBasis.col(j) = q;
         Eigen::VectorXd w = applyC(q);
-        if(j > 0){ w.noalias() -= betaPrev * qPrev; }
-        const double a = q.dot(w);
-        w.noalias() -= a * q;
-        // A small second local orthogonalisation against qPrev reduces
-        // loss of orthogonality without storing the complete Lanczos basis.
-        if(j > 0){
-          const double corr = qPrev.dot(w);
-          w.noalias() -= corr * qPrev;
+        const Eigen::MatrixXd basis = lanczosBasis.leftCols(j + 1);
+        Eigen::VectorXd coefficients = basis.transpose() * w;
+        w.noalias() -= basis * coefficients;
+        const Eigen::VectorXd correction = basis.transpose() * w;
+        w.noalias() -= basis * correction;
+        coefficients += correction;
+        for(int row = 0; row <= j; ++row){
+          projected(row, j) = coefficients(row);
+          projected(j, row) = coefficients(row);
         }
+        const double a = coefficients(j);
         const double b = w.norm();
         alpha.push_back(a);
         if(j + 1 >= mMax || b <= 1.0e-14 * std::max(1.0, std::abs(a))){ break; }
-        beta.push_back(b);
-        qPrev.swap(q);
         q = w / b;
-        betaPrev = b;
       }
 
       const int m = static_cast<int>(alpha.size());
-      Eigen::MatrixXd T = Eigen::MatrixXd::Zero(m,m);
-      for(int j = 0; j < m; ++j){
-        T(j,j) = alpha[static_cast<std::size_t>(j)];
-        if(j + 1 < m){
-          const double b = beta[static_cast<std::size_t>(j)];
-          T(j,j+1) = b;
-          T(j+1,j) = b;
-        }
-      }
+      const Eigen::MatrixXd T = 0.5 *
+        (projected.topLeftCorner(m, m) + projected.topLeftCorner(m, m).transpose());
       Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> es(T);
       if(es.info() != Eigen::Success){
         invalidProbe.store(true, std::memory_order_relaxed);
@@ -8055,35 +8402,31 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
         pcgTraceZ(i,p) = pcgProbeSign(static_cast<unsigned long long>(i),
                                      static_cast<unsigned long long>(p));
       }
-      if(
-          pcgLanczosInverseGuess.rows() == n
-          &&
-          pcgLanczosInverseGuess.cols() == pcgTraceProbes
-      ){
-        if(matrixFreePCGReady){
-          const Eigen::VectorXd rhs = pcgTraceZ.col(p);
-          const Eigen::VectorXd guess = pcgLanczosInverseGuess.col(p);
-          pcgTraceX.col(p) =
-            solveMatrixFreePCG(
-              rhs,
-              &guess,
-              "Hutchinson trace probe"
-            );
-        }else{
-          pcgTraceX.col(p) = Cpcg.solveWithGuess(
-            pcgTraceZ.col(p),
-            pcgLanczosInverseGuess.col(p)
-          );
-        }
-      }else{
+    }
+    const bool haveLanczosGuess =
+      pcgLanczosInverseGuess.rows() == n &&
+      pcgLanczosInverseGuess.cols() == pcgTraceProbes;
+    if(!matrixFreePCGReady){
+      pcgTraceX = solvePCGBatch(
+        pcgTraceZ,
+        haveLanczosGuess ? &pcgLanczosInverseGuess : nullptr,
+        "Hutchinson trace probes"
+      );
+    }else{
+      for(int p = 0; p < pcgTraceProbes; ++p){
         const Eigen::VectorXd rhs = pcgTraceZ.col(p);
-        pcgTraceX.col(p) =
-          matrixFreePCGReady
-          ? solveMatrixFreePCG(rhs, nullptr, "Hutchinson trace probe")
-          : Cpcg.solve(rhs);
+        if(haveLanczosGuess){
+          const Eigen::VectorXd guess = pcgLanczosInverseGuess.col(p);
+          pcgTraceX.col(p) = solveMatrixFreePCG(
+            rhs, &guess, "Hutchinson trace probe");
+        }else{
+          pcgTraceX.col(p) = solveMatrixFreePCG(
+            rhs, nullptr, "Hutchinson trace probe");
+        }
       }
-      if((!matrixFreePCGReady && Cpcg.info() != Eigen::Success) ||
-         !pcgTraceX.col(p).allFinite()){
+    }
+    for(int p = 0; p < pcgTraceProbes; ++p){
+      if(!pcgTraceX.col(p).allFinite()){
         Rcpp::stop("PCG failed while preparing Hutchinson trace probes for C^{-1}.");
       }
     }
@@ -8347,6 +8690,14 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   arma::vec lineSearchTarget;
   double lineSearchAlpha = 1.0;
   int lineSearchHalvings = 0;
+  int coefficientEvaluations = 0;
+  int totalLineSearchHalvings = 0;
+  int acceleratedProposals = 0;
+  std::size_t maxIrregularDesignEntries = 0;
+  std::size_t maxIrregularMMEEntries = 0;
+  arma::vec previousAcceptedParameters;
+  const bool useAitken = covStructI.hasAttribute("acceleration") &&
+    Rcpp::as<std::string>(covStructI.attr("acceleration")) == "aitken";
 
   const int maxLineSearchHalvings = 24;
 
@@ -8419,6 +8770,10 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     static_cast<std::size_t>(nRe)
   );
 
+  const sommer::ResidualPlan residualPlan = sommer::ResidualPlan::select(
+    residualStructurallyDiagonal, residualKronBlocks, residualGridBlocks,
+    useH, Hdiag);
+
   ////////////////////////////////////////////////////////////////////
   ////////////////////////////////////////////////////////////////////
   // START ITERATIVE ALGORITHM
@@ -8428,6 +8783,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   
     
 for (int iIter = 0; iIter < nIters; ++iIter) {
+  ++coefficientEvaluations;
   std::swap(previousCrossGroupDemand, currentCrossGroupDemand);
   currentCrossGroupDemand.groupSizes.clear();
   currentCrossGroupDemand.entries.clear();
@@ -8487,17 +8843,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     arma::sp_mat Rmat;
 
-    const bool Rdiag =
-      residualStructurallyDiagonal && !residualGridBlocks;
-
-    const bool Rkron =
-      (
-        !Rdiag
-        &&
-        residualKronBlocks
-        &&
-        !residualGridBlocks
-      );
+    const bool Rdiag = residualPlan.diagonal();
+    const bool Rkron = residualPlan.kronecker();
 
     arma::vec RdiagInv;
     arma::vec effectiveRiDiag;
@@ -8506,7 +8853,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     arma::mat RkronInv;
     DescriptorPrecisionState residualPrecisionState;
 
-    const bool Rgrid = residualGridBlocks;
+    const bool Rgrid = residualPlan.grid();
     std::vector< std::vector<arma::mat> > gridF;
     std::vector< std::vector<arma::mat> > gridP;
     std::vector<arma::mat> gridQcolM;
@@ -9245,11 +9592,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     arma::vec rhsMME;
 
     Eigen::SparseMatrix<double> RiWsp;
-    arma::mat RiWdense;
-    bool RiWisSparse =
-      effectiveRiDiag.n_elem == static_cast<arma::uword>(nR) ||
-      (Rdiag && useH && !Hdiag &&
-       Hs.n_nonzero <= 4.0 * nR && HsInvT.n_nonzero <= 4.0 * nR);
+    const sommer::AssemblyPath assemblyPath = residualPlan.assembly(
+      useH && !Hdiag && Hs.n_nonzero <= 4.0 * nR && HsInvT.n_nonzero <= 4.0 * nR);
+    bool RiWisSparse = assemblyPath == sommer::AssemblyPath::Sparse;
     std::vector<arma::mat> residualKronBlockRiW(
       static_cast<std::size_t>(residualKronNBlocks)
     );
@@ -9276,7 +9621,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       const Eigen::VectorXd rhsMMEEig = W.transpose() * RiyEig;
       rhsMME.set_size(rhsMMEEig.size());
       std::copy(rhsMMEEig.data(), rhsMMEEig.data() + rhsMMEEig.size(), rhsMME.memptr());
-    }else if((Rkron || Rgrid) && (!useH || Hdiag)){
+    }else if(assemblyPath == sommer::AssemblyPath::Blocks){
       // A repeated residual block does not couple observations from other
       // blocks.  Restricting each operation to the MME columns active in a
       // block avoids the global nR x nEffects dense RiW temporary.
@@ -9368,35 +9713,54 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
       RiWisSparse = true;
     }else{
-      Eigen::MatrixXd Wdense = Eigen::MatrixXd(W);
-      arma::mat Wd(Wdense.data(), Wdense.rows(), Wdense.cols());
-      RiWdense = applyRiDense(Wd);
-      arma::mat Cdense = Wd.t() * RiWdense;
-      // Build C directly from the dense product in a single pass, instead
-      // of round-tripping through an intermediate arma::sp_mat (which would
-      // itself scan Cdense once before a second scan converted it to Eigen
-      // triplets).
-      {
-        const arma::uword nEff = Cdense.n_rows;
-        std::vector<Eigen::Triplet<double>> Ctriplets;
-        Ctriplets.reserve(Cdense.n_elem);
-        for(arma::uword col = 0; col < Cdense.n_cols; ++col){
-          for(arma::uword row = 0; row < nEff; ++row){
-            const double v = Cdense(row, col);
-            if(v != 0.0){
-              Ctriplets.emplace_back(
-                static_cast<int>(row),
-                static_cast<int>(col),
-                v
-              );
+      const int batchSize = std::max(1, std::min(32, 1048576 / std::max(static_cast<int>(nR), static_cast<int>(nEffects))));
+      std::vector<Eigen::Triplet<double>> Ctriplets;
+      std::vector<Eigen::Triplet<double>> precisionTriplets;
+      for(int first = 0; first < nEffects; first += batchSize){
+        const int count = std::min(batchSize, static_cast<int>(nEffects) - first);
+        arma::mat design(nR, count, arma::fill::zeros);
+        for(int local = 0; local < count; ++local){
+          for(Eigen::SparseMatrix<double>::InnerIterator entry(W, first + local); entry; ++entry){
+            design(entry.row(), local) = entry.value();
+          }
+        }
+        const arma::mat precisionDesign = applyRiDense(design);
+        const Eigen::Map<const Eigen::MatrixXd> precisionMap(precisionDesign.memptr(), nR, count);
+        const Eigen::MatrixXd cross = W.transpose() * precisionMap;
+        for(int local = 0; local < count; ++local){
+          for(int row = 0; row < nR; ++row){
+            const double value = precisionDesign(row, local);
+            if(value != 0.0){
+              if(precisionTriplets.size() >= maxFallbackEntries){
+                Rcpp::stop("Irregular residual precision produces excessive design fill; use independent residual blocks or a structured residual model.");
+              }
+              precisionTriplets.emplace_back(row, first + local, value);
+            }
+          }
+          for(int row = 0; row < nEffects; ++row){
+            const double value = cross(row, local);
+            if(value != 0.0){
+              if(Ctriplets.size() >= maxFallbackEntries){
+                Rcpp::stop("Irregular residual precision produces excessive MME fill; use independent residual blocks or a structured residual model.");
+              }
+              Ctriplets.emplace_back(row, first + local, value);
             }
           }
         }
-        C.resize(static_cast<Eigen::Index>(nEff), static_cast<Eigen::Index>(nEff));
-        C.setFromTriplets(Ctriplets.begin(), Ctriplets.end());
-        C.makeCompressed();
       }
-      rhsMME = arma::vec(Wd.t() * Riy);
+      C.resize(nEffects, nEffects);
+      C.setFromTriplets(Ctriplets.begin(), Ctriplets.end());
+      C.makeCompressed();
+      RiWsp.resize(nR, nEffects);
+      RiWsp.setFromTriplets(precisionTriplets.begin(), precisionTriplets.end());
+      RiWsp.makeCompressed();
+      maxIrregularDesignEntries = std::max(maxIrregularDesignEntries, precisionTriplets.size());
+      maxIrregularMMEEntries = std::max(maxIrregularMMEEntries, Ctriplets.size());
+      RiWisSparse = true;
+      const Eigen::Map<const Eigen::VectorXd> RiyEig(Riy.memptr(), nR);
+      const Eigen::VectorXd rhsMMEEig = W.transpose() * RiyEig;
+      rhsMME.set_size(rhsMMEEig.size());
+      std::copy(rhsMMEEig.data(), rhsMMEEig.data() + rhsMMEEig.size(), rhsMME.memptr());
     }
 
     // ------------------------------------------------------------
@@ -9490,12 +9854,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
         }
 
-        bool useMatrixFreePCG =
-          solverName == "pcg"
-          &&
-          reml
-          &&
-          computeCi == 0;
+        bool useMatrixFreePCG = solverPlan.matrixFree(nRe > 0, true);
 
         for(int i = 0; i < nRe && useMatrixFreePCG; ++i){
           useMatrixFreePCG =
@@ -9652,6 +10011,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // entry of C in PCG mode. This must not be used by the PCG algorithm.
     double minD = std::numeric_limits<double>::quiet_NaN();
     bool reuseCselectedTopology = false;
+    bool reuseDselectedTopology = false;
 
     // D = Z'R^{-1}Z + G^{-1}, the bottom-right (nX..nEffects-1) block of C,
     // re-indexed to 0..Nu-1. This block never involves X, so it is exactly
@@ -9677,12 +10037,14 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       return Dmat;
     };
 
-    if(solverName == "ldlt"){
+    if(solverPlan.ldlt()){
       const bool sameCPattern =
         CsymbolicReady && eigenSparsePatternMatches(C, CouterPattern, CinnerPattern);
 
       if(!sameCPattern){
         Cfactor.analyzePattern(C);
+        ++CsymbolicAnalyses;
+        CselectedTopologyReady = false;
         if(Cfactor.info() != Eigen::Success){
           Rcpp::stop("Sparse symbolic analysis of the MME coefficient matrix C failed.");
         }
@@ -9693,6 +10055,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       Cfactor.factorize(C);
       if(Cfactor.info() != Eigen::Success && sameCPattern){
         Cfactor.analyzePattern(C);
+        ++CsymbolicAnalyses;
+        CselectedTopologyReady = false;
         if(Cfactor.info() == Eigen::Success){ Cfactor.factorize(C); }
       }
       if(Cfactor.info() != Eigen::Success){
@@ -9711,17 +10075,32 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
       reuseCselectedTopology = sameCPattern && CselectedTopologyReady;
 
-      if(!reml && Nu > 0){
+      if(solverPlan.factorRandomOnly(Nu > 0)){
         EigenSpMat Dmat = buildDFromC();
 
-        Dfactor.analyzePattern(Dmat);
-        if(Dfactor.info() != Eigen::Success){
-          Rcpp::stop("Sparse symbolic analysis of the random-effects-only matrix D failed (reml=FALSE).");
+        const bool sameDPattern = DsymbolicReady &&
+          eigenSparsePatternMatches(Dmat, DldltOuterPattern, DldltInnerPattern);
+        if(!sameDPattern){
+          Dfactor.analyzePattern(Dmat);
+          ++DsymbolicAnalyses;
+          if(Dfactor.info() != Eigen::Success){
+            Rcpp::stop("Sparse symbolic analysis of the random-effects-only matrix D failed (reml=FALSE).");
+          }
+          cacheEigenSparsePattern(Dmat, DldltOuterPattern, DldltInnerPattern);
+          DsymbolicReady = true;
+          DselectedTopologyReady = false;
         }
         Dfactor.factorize(Dmat);
+        if(Dfactor.info() != Eigen::Success && sameDPattern){
+          Dfactor.analyzePattern(Dmat);
+          ++DsymbolicAnalyses;
+          DselectedTopologyReady = false;
+          if(Dfactor.info() == Eigen::Success){ Dfactor.factorize(Dmat); }
+        }
         if(Dfactor.info() != Eigen::Success){
           Rcpp::stop("Sparse LDLT factorisation of the random-effects-only matrix D failed (reml=FALSE).");
         }
+        reuseDselectedTopology = sameDPattern && DselectedTopologyReady;
 
         const Eigen::VectorXd DdiagLDLT = Dfactor.vectorD();
         for(Eigen::Index j = 0; j < DdiagLDLT.size(); ++j){
@@ -9732,13 +10111,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           logDetD += std::log(dj);
         }
       }
-    }else if(solverName == "cholmod"){
+    }else if(solverPlan.cholmod()){
       // Supernodal (BLAS-3) direct factorisation via R's Matrix package, or
       // the exact dense block-Schur engine when C's random block is
       // block-diagonal with dense blocks (e.g. diag(env) x dense Gu).
       cholmodInvCache.ready = false;
       blockEngine.active = false;
-      if(reml && blockEngineCheckPattern(C)){
+      if(blockEngineCheckPattern(C)){
         blockEngineFactorize(C);
         logDetC = blockEngine.logDet;
         if(!std::isfinite(logDetC)){
@@ -9760,17 +10139,19 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         cholmod_sparse Cview = eigenToCholmodSparseView(C);
 
         const bool sameCPattern =
-          CholmodSymbolicReady && eigenSparsePatternMatches(C, CouterPattern, CinnerPattern);
+          CholmodSymbolicReady && eigenSparsePatternMatches(
+            C, cholmodState.outerPattern, cholmodState.innerPattern);
 
         if(!sameCPattern || cholmodState.factor == nullptr){
           if(cholmodState.factor != nullptr){
             M_cholmod_free_factor(&cholmodState.factor, &cholmodState.common);
           }
           cholmodState.factor = M_cholmod_analyze(&Cview, &cholmodState.common);
+          ++CsymbolicAnalyses;
           if(cholmodState.factor == nullptr || cholmodState.common.status != CHOLMOD_OK){
             Rcpp::stop("CHOLMOD symbolic analysis of the MME coefficient matrix C failed.");
           }
-          cacheEigenSparsePattern(C, CouterPattern, CinnerPattern);
+          cacheEigenSparsePattern(C, cholmodState.outerPattern, cholmodState.innerPattern);
           CholmodSymbolicReady = true;
         }
 
@@ -9787,7 +10168,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
       }
 
-      if(!reml && Nu > 0){
+      if(solverPlan.factorRandomOnly(Nu > 0)){
         EigenSpMat Dmat = buildDFromC();
 
         cholmodDState.ensureStarted();
@@ -9992,6 +10373,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         if(lineSearchHalvings < maxLineSearchHalvings){
 
           ++lineSearchHalvings;
+          ++totalLineSearchHalvings;
           lineSearchAlpha *= 0.5;
 
           arma::vec trialParameters =
@@ -10184,6 +10566,71 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
     }
 
+    auto applyGroupedWeightDerivative = [&](const arma::sp_mat & derivative) -> arma::sp_mat {
+      std::map<std::pair<int,int>, Eigen::MatrixXd> sourceBlocks;
+      std::vector<int> localOfRow(static_cast<std::size_t>(nR), -1);
+      for(int block = 0; block < weightBlockCount; ++block){
+        const std::vector<int> & rows = weightBlockRows[static_cast<std::size_t>(block)];
+        for(int local = 0; local < static_cast<int>(rows.size()); ++local){
+          localOfRow[static_cast<std::size_t>(rows[static_cast<std::size_t>(local)])] = local;
+        }
+      }
+      for(arma::sp_mat::const_iterator entry = derivative.begin(); entry != derivative.end(); ++entry){
+        const int globalRow = static_cast<int>(entry.row());
+        const int globalCol = static_cast<int>(entry.col());
+        if(globalRow > globalCol){ continue; }
+        int blockRow = weightBlockOfRow[static_cast<std::size_t>(globalRow)];
+        int blockCol = weightBlockOfRow[static_cast<std::size_t>(globalCol)];
+        int localRow = localOfRow[static_cast<std::size_t>(globalRow)];
+        int localCol = localOfRow[static_cast<std::size_t>(globalCol)];
+        if(blockRow > blockCol){
+          std::swap(blockRow, blockCol);
+          std::swap(localRow, localCol);
+        }
+        const auto key = std::make_pair(blockRow, blockCol);
+        auto found = sourceBlocks.find(key);
+        if(found == sourceBlocks.end()){
+          found = sourceBlocks.emplace(key, Eigen::MatrixXd::Zero(
+            weightUpperBlocks[static_cast<std::size_t>(blockRow)].rows(),
+            weightUpperBlocks[static_cast<std::size_t>(blockCol)].rows())).first;
+        }
+        found->second(localRow, localCol) += *entry;
+        if(blockRow == blockCol && localRow != localCol){
+          found->second(localCol, localRow) += *entry;
+        }
+      }
+      std::vector<Eigen::Triplet<double>> transformedTriplets;
+      for(const auto & source : sourceBlocks){
+        const int blockRow = source.first.first;
+        const int blockCol = source.first.second;
+        const Eigen::MatrixXd left = weightUpperBlocks[static_cast<std::size_t>(blockRow)]
+          .transpose().triangularView<Eigen::Lower>().solve(source.second);
+        const Eigen::MatrixXd transformed = weightUpperBlocks[static_cast<std::size_t>(blockCol)]
+          .transpose().triangularView<Eigen::Lower>().solve(left.transpose()).transpose();
+        const std::vector<int> & rows = weightBlockRows[static_cast<std::size_t>(blockRow)];
+        const std::vector<int> & cols = weightBlockRows[static_cast<std::size_t>(blockCol)];
+        for(Eigen::Index col = 0; col < transformed.cols(); ++col){
+          for(Eigen::Index row = 0; row < transformed.rows(); ++row){
+            const double value = transformed(row, col);
+            if(value == 0.0){ continue; }
+            if(transformedTriplets.size() >= maxFallbackEntries){
+              Rcpp::stop("Weighted residual derivatives produce excessive block fill; reduce weight-block sizes or use a structured residual model.");
+            }
+            transformedTriplets.emplace_back(rows[static_cast<std::size_t>(row)],
+                                              cols[static_cast<std::size_t>(col)], value);
+            if(blockRow != blockCol){
+              transformedTriplets.emplace_back(cols[static_cast<std::size_t>(col)],
+                                                rows[static_cast<std::size_t>(row)], value);
+            }
+          }
+        }
+      }
+      Eigen::SparseMatrix<double> transformed(derivative.n_rows, derivative.n_cols);
+      transformed.setFromTriplets(transformedTriplets.begin(), transformedTriplets.end());
+      transformed.makeCompressed();
+      return eigenSparseToArmaGlobal(transformed);
+    };
+
     for(arma::uword k = 0; k < nResidualPar && !Rgrid; ++k){
       if(compactResidualCovariance && !residualDerivativesBlockLocal){
         residualDerivativeBasis(k) =
@@ -10204,12 +10651,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       // The effective residual is R = Hs^{-T} R0 Hs^{-1}; its derivative
       // carries the same weighting (the trace code relies on this).
       if(useH){
-        residualDerivativeBasis(k) =
-          HsInvT * residualDerivativeBasis(k) * HsInvT.t();
+        residualDerivativeBasis(k) = weightBlockCount > 0
+          ? applyGroupedWeightDerivative(residualDerivativeBasis(k))
+          : HsInvT * residualDerivativeBasis(k) * HsInvT.t();
       }
     }
 
-    if(solverName == "ldlt"){
+    if(solverPlan.traces() == sommer::TracePreparation::SelectedInverse){
       buildSelectedInverseSubset(
         Cfactor,
         "C",
@@ -10219,20 +10667,19 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       CselectedTopologyReady = true;
 
       if(!reml && Nu > 0){
-        // ML score/trace terms need D's own selected inverse (never the
-        // REML-adjusted [C^{-1}]_uu block); rebuilt fresh every iteration
-        // (no topology-reuse fast path yet - correctness first).
         buildSelectedInverseSubset(
           Dfactor,
           "D",
           DselectedTopology,
-          false
+          reuseDselectedTopology
         );
+        if(reuseDselectedTopology){ ++DselectedTopologyReuses; }
+        else{ ++DselectedTopologyBuilds; }
         DselectedTopologyReady = true;
       }
-    }else if(solverName == "cholmod" && reml){
+    }else if(solverPlan.traces() == sommer::TracePreparation::InverseBlocks){
       buildCholmodInverseBlockCache();
-    }else if(solverName == "pcg"){
+    }else if(solverPlan.traces() == sommer::TracePreparation::Probes){
       preparePCGTraceProbes(static_cast<Eigen::Index>(nEffects));
     }
 
@@ -11498,7 +11945,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       bool usedCTraceFallback = false;
       double traceCorrection = 0.0;
 
-      if(solverName == "pcg" && Rdiag && RiWisSparse){
+      if(solverName == "pcg" && Rdiag && RiWisSparse && isDiagonalSparse(Sprov)){
         for(arma::sp_mat::const_iterator it = Sprov.begin();
             it != Sprov.end(); ++it){
           if(it.row() == it.col()){
@@ -11585,23 +12032,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           Btrace = arma::sp_mat(true, locations, arma::vec(locValues),
                                 static_cast<arma::uword>(nEffects),
                                 static_cast<arma::uword>(nEffects));
-        }else if(RiWisSparse){
+        }else{
           Btrace =
             RiWspArmaShared.t()
             *
             Sprov
             *
             RiWspArmaShared;
-        }else{
-          arma::mat BtraceDense =
-            RiWdense.t()
-            *
-            arma::mat(
-              Sprov
-              *
-              RiWdense
-            );
-          Btrace = arma::sp_mat(BtraceDense);
         }
 
         traceCorrection =
@@ -11791,6 +12228,24 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         "Unable to solve the variance-component information system."
       );
     }
+
+    if(useAitken && iIter % 3 == 2 && lineSearchHalvings == 0 &&
+       previousAcceptedParameters.n_elem == thetaUnlisted.n_elem &&
+       arma::as_scalar(weightEmInf(iIter)) > 0.0){
+      const arma::vec previousStep = thetaUnlisted - previousAcceptedParameters;
+      const arma::vec proposedStep = -delta;
+      const arma::vec difference = proposedStep - previousStep;
+      const double denominator = arma::dot(difference, difference);
+      if(denominator > std::numeric_limits<double>::epsilon() &&
+         arma::dot(previousStep, proposedStep) > 0.0){
+        const double multiplier = -arma::dot(previousStep, difference) / denominator;
+        if(std::isfinite(multiplier) && multiplier > 1.0){
+          delta *= std::min(2.0, multiplier);
+          ++acceleratedProposals;
+        }
+      }
+    }
+    previousAcceptedParameters = thetaUnlisted;
 
     arma::vec expectedNewTheta =
       thetaUnlisted
@@ -13237,6 +13692,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     };
 
   arma::field<arma::vec> covParOut(nRRe);
+  arma::field<arma::vec> covParWorking(nRRe);
 
   arma::vec finalJacobian(
     nVcTotal,
@@ -13259,6 +13715,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         covPar(i),
         &localJac
       );
+    covParWorking(i) = covPar(i);
+    covParWorking(i)(0) += std::log(vary);
 
     const arma::uword localN =
       covPar(i).n_elem;
@@ -13436,11 +13894,33 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     Rcpp::Named("CiMode") = computeCi,
     Rcpp::Named("solver") = solverName,
     Rcpp::Named("pcgMatrixFree") = matrixFreePCGReady,
+    Rcpp::Named(".ldltCache") = retainLDLTCache ? static_cast<SEXP>(ldltCache) : R_NilValue,
+    Rcpp::Named(".cholmodCache") = retainCholmodCache ? static_cast<SEXP>(cholmodCache) : R_NilValue,
+    Rcpp::Named("engineDiagnostics") = Rcpp::List::create(
+      Rcpp::Named("coefficientEvaluations") = coefficientEvaluations,
+      Rcpp::Named("lineSearchHalvings") = totalLineSearchHalvings,
+      Rcpp::Named("acceleratedProposals") = acceleratedProposals,
+      Rcpp::Named("CsymbolicAnalyses") = CsymbolicAnalyses,
+      Rcpp::Named("DsymbolicAnalyses") = DsymbolicAnalyses,
+      Rcpp::Named("DselectedTopologyBuilds") = DselectedTopologyBuilds,
+      Rcpp::Named("DselectedTopologyReuses") = DselectedTopologyReuses,
+      Rcpp::Named("blockSchurActive") = blockEngine.active,
+      Rcpp::Named("blockSchurGroups") = blockEngine.active ? static_cast<int>(blockEngine.groups.size()) : 0,
+      Rcpp::Named("blockSchurBorder") = blockEngine.active ? static_cast<int>(blockEngine.borderCols.size()) : 0,
+      Rcpp::Named("weightBlockCount") = weightBlockCount,
+      Rcpp::Named("pcgBatchSolves") = pcgBatchSolves,
+      Rcpp::Named("pcgBatchIterations") = pcgBatchIterations,
+      Rcpp::Named("pcgPreconditioner") = pcgPreconditioner,
+      Rcpp::Named("pcgNystromRank") = pcgNystromRankUsed,
+      Rcpp::Named("maxIrregularDesignEntries") = static_cast<double>(maxIrregularDesignEntries),
+      Rcpp::Named("maxIrregularMMEEntries") = static_cast<double>(maxIrregularMMEEntries)
+    ),
     Rcpp::Named("residualCovarianceCompact") = compactResidualCovariance,
     Rcpp::Named("pcgTol") = pcgTol,
     Rcpp::Named("pcgMaxIters") = pcgMaxIters,
     Rcpp::Named("theta") = theta,
     Rcpp::Named("covPar") = covParOut,
+    Rcpp::Named("covParWorking") = covParWorking,
     Rcpp::Named("covType") = Rcpp::wrap(covType),
     Rcpp::Named("theta_se") = InfMatInv,
     Rcpp::Named("InfMat") = InfMat, //InfMat,
@@ -14767,11 +15247,14 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   for(int i = 0; i < nRe; ++i){ uList(i) = uList(i) * stdy; }
 
   arma::field<arma::vec> covParOut(nRRe);
+  arma::field<arma::vec> covParWorking(nRRe);
   arma::vec finalJacobian(nVcTotal, arma::fill::ones);
   arma::mat monitorOut = monitor;
   for(int i = 0; i < nRRe; ++i){
     arma::vec localJac;
     covParOut(i) = directReportParameters(covDescriptor[i], covPar(i), vary, localJac);
+    covParWorking(i) = covPar(i);
+    covParWorking(i)(0) += std::log(vary);
     finalJacobian.subvec(nVcStart(i)-1, nVcEnd(i)-1) = localJac;
     for(int iter = 0; iter <= lastIter; ++iter){
       arma::vec localWork = monitor.submat(nVcStart(i)-1, iter, nVcEnd(i)-1, iter);
@@ -14797,6 +15280,7 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     Rcpp::Named("VarBeta") = VarBeta,
     Rcpp::Named("theta") = theta,
     Rcpp::Named("covPar") = covParOut,
+    Rcpp::Named("covParWorking") = covParWorking,
     Rcpp::Named("theta_se") = theta_se,
     Rcpp::Named("monitor") = monitorOut.cols(0, lastIter),
     Rcpp::Named("uList") = uList,

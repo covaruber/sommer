@@ -70,6 +70,49 @@ test_that("PQL honors offsets on the link scale", {
                pqlFit$linear.predictorsNoOffset, tolerance=1e-12)
 })
 
+test_that("PQL covariance warm starts agree with converged cold starts", {
+  set.seed(72)
+  data <- data.frame(group=factor(rep(seq_len(20L), each=8L)), x=rnorm(160L))
+  effects <- rnorm(20L, sd=0.4)
+  data$y <- rpois(160L, exp(0.2 + 0.3 * data$x + effects[data$group]))
+  fit <- function(warm){
+    mmes(y~x, random=~group, rcov=~units, data=data, family=poisson(),
+      nIters=80, tolParConvLL=1e-9, tolParConvNorm=1e-9, verbose=FALSE,
+      dateWarning=FALSE, pqlControl=list(maxit=30, tol=1e-9, warmStart=warm))
+  }
+  warm <- fit(TRUE)
+  cold <- fit(FALSE)
+  expect_equal(unname(warm$pqlMonitor[1L, "warmStarted"]), 0)
+  expect_true(all(warm$pqlMonitor[-1L, "warmStarted"] == 1))
+  expect_true(all(cold$pqlMonitor[, "warmStarted"] == 0))
+  expect_equal(unname(warm$pqlMonitor[1L, "symbolicAnalyses"]), 1)
+  expect_true(all(warm$pqlMonitor[-1L, "symbolicAnalyses"] == 0))
+  expect_true(all(cold$pqlMonitor[, "symbolicAnalyses"] >= 1))
+  expect_null(warm$.ldltCache)
+  expect_null(attr(warm$covStruct, "ldltCache"))
+  expect_equal(as.numeric(warm$b), as.numeric(cold$b), tolerance=1e-4)
+  expect_equal(fitted(warm), fitted(cold), tolerance=1e-4)
+  expect_equal(unlist(warm$theta), unlist(cold$theta), tolerance=1e-4)
+  expect_error(fit(NA), "warmStart")
+
+  cholmodData <- data.frame(x=rep(c(0, 1), each=40L))
+  cholmodData$y <- rpois(80L, exp(0.2 + 0.4 * cholmodData$x))
+  fitCholmod <- function(warmStart){
+    mmes(y~x, rcov=~units, data=cholmodData, family=poisson(),
+      solver="cholmod", nIters=4, verbose=FALSE, dateWarning=FALSE,
+      pqlControl=list(maxit=6, tol=1e-8, warmStart=warmStart))
+  }
+  cholmodWarm <- fitCholmod(TRUE)
+  cholmodCold <- fitCholmod(FALSE)
+  expect_equal(unname(cholmodWarm$pqlMonitor[1L, "symbolicAnalyses"]), 1)
+  expect_true(all(cholmodWarm$pqlMonitor[-1L, "symbolicAnalyses"] == 0))
+  expect_true(all(cholmodCold$pqlMonitor[, "symbolicAnalyses"] >= 1))
+  expect_equal(as.numeric(cholmodWarm$b), as.numeric(cholmodCold$b), tolerance=1e-4)
+  expect_equal(unlist(cholmodWarm$theta), unlist(cholmodCold$theta), tolerance=1e-4)
+  expect_null(cholmodWarm$.cholmodCache)
+  expect_null(attr(cholmodWarm$covStruct, "cholmodCache"))
+})
+
 test_that("PQL accepts sparse non-diagonal W after observation filtering", {
   set.seed(42)
   n <- 80

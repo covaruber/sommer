@@ -31,6 +31,9 @@ test_that("REML=FALSE gives ML estimates matching a dense brute-force optimizer"
 
   expect_true(fitReml$REML)
   expect_false(fitMl$REML)
+  expect_equal(fitMl$engineDiagnostics$DsymbolicAnalyses, 1L)
+  expect_equal(fitMl$engineDiagnostics$DselectedTopologyBuilds, 1L)
+  expect_gt(fitMl$engineDiagnostics$DselectedTopologyReuses, 0L)
 
   mlVarcomp <- c(fitMl$theta[[1]][1,1], fitMl$theta[[2]][1,1])
   expect_equal(mlVarcomp, refVarcomp, tolerance=1e-3)
@@ -162,4 +165,51 @@ test_that("matrix-free PCG handles multi-factor Kronecker random precision", {
   expect_true(inherits(pcg1$C, "sparseMatrix"))
   expect_equal(dim(pcg1$C), c(length(pcg1$bu), length(pcg1$bu)))
   expect_gt(Matrix::nnzero(pcg1$C), Matrix::nnzero(Matrix::crossprod(pcg1$W)))
+
+  pcgLogLik <- mmes(
+    y ~ 1,
+    random=~vsm(csm(environment, rho=0.15), dsm(trait), ism(id)),
+    rcov=~units,
+    data=dat,
+    nIters=1,
+    verbose=FALSE,
+    getPEV=FALSE,
+    computeCi=0,
+    solver="pcg",
+    pcgTol=1e-10,
+    pcgTraceProbes=128,
+    pcgLanczosSteps=72
+  )
+  exactLogLik <- fit("ldlt", nIters=1)
+  expect_equal(as.numeric(pcgLogLik$llik), as.numeric(exactLogLik$llik),
+               tolerance=0.2)
+})
+
+test_that("Nyström PCG preconditioning preserves dense-Gu fits and reduces iterations", {
+  set.seed(11)
+  nId <- 40L
+  ids <- paste0("i", seq_len(nId))
+  markers <- matrix(sample(c(-1, 0, 1), nId * 120L, replace=TRUE), nrow=nId)
+  relationship <- tcrossprod(scale(markers)) / ncol(markers) + diag(0.2, nId)
+  precision <- solve(relationship)
+  dimnames(precision) <- list(ids, ids)
+  attr(precision, "inverse") <- TRUE
+  data <- data.frame(id=factor(rep(ids, each=3L), levels=ids), y=rnorm(nId * 3L))
+  fit <- function(preconditioner){
+    mmes(y~1, random=~vsm(ism(id), Gu=precision), rcov=~units,
+      data=data, nIters=3, solver="pcg", computeCi=2,
+      pcgPreconditioner=preconditioner, pcgNystromRank=16L,
+      pcgTraceProbes=32L, pcgLanczosSteps=30L,
+      verbose=FALSE, dateWarning=FALSE)
+  }
+  diagonal <- fit("diagonal")
+  nystrom <- fit("nystrom")
+  expect_false(diagonal$pcgMatrixFree)
+  expect_false(nystrom$pcgMatrixFree)
+  expect_identical(nystrom$engineDiagnostics$pcgPreconditioner, "nystrom")
+  expect_equal(nystrom$engineDiagnostics$pcgNystromRank, 16L)
+  expect_lt(nystrom$engineDiagnostics$pcgBatchIterations,
+            diagonal$engineDiagnostics$pcgBatchIterations)
+  expect_equal(as.numeric(nystrom$llik), as.numeric(diagonal$llik), tolerance=1e-7)
+  expect_equal(as.numeric(nystrom$bu), as.numeric(diagonal$bu), tolerance=1e-7)
 })

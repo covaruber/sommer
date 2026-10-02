@@ -83,11 +83,14 @@ familym <- function(by, ...){
 
 .mmes_pql <- function(fixed, random, rcov, data, W, family, pqlControl,
                       mmesArgs){
-  defaults <- list(maxit=20L, tol=1e-5, estimateTheta=FALSE)
+  defaults <- list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)
   if(!is.list(pqlControl) || is.null(names(pqlControl)) && length(pqlControl)){
     stop("pqlControl must be a named list.", call.=FALSE)
   }
   control <- utils::modifyList(defaults, pqlControl)
+  if(length(control$warmStart) != 1L || !is.logical(control$warmStart) || is.na(control$warmStart)){
+    stop("pqlControl$warmStart must be TRUE or FALSE.", call.=FALSE)
+  }
   if(length(control$maxit) != 1L || !is.finite(control$maxit) || control$maxit < 1L ||
      control$maxit != as.integer(control$maxit)){
     stop("pqlControl$maxit must be a positive integer.", call.=FALSE)
@@ -191,6 +194,7 @@ familym <- function(by, ...){
     list(by=family$by, levels=names(families)[fixedByFamily]) else FALSE
   monitor <- vector("list", control$maxit)
   fit <- NULL
+  covarianceStart <- NULL
   baseFactor <- NULL
   previousDeviance <- Inf
   for(iteration in seq_len(control$maxit)){
@@ -215,11 +219,17 @@ familym <- function(by, ...){
                         family=stats::gaussian(), pqlControl=list(),
                         .pqlInner=TRUE, .pqlFixedDispersion=fixedDispersion,
                 .pqlWorkingPrecision=workingWeight,
-                        .pqlBaseW=W, .pqlBaseFactor=baseFactor),
+                        .pqlBaseW=W, .pqlBaseFactor=baseFactor,
+                        .pqlStart=covarianceStart),
                    mmesArgs)
     if(!is.null(random)) innerArgs$random <- random
     if(!is.null(rcov)) innerArgs$rcov <- rcov
     fit <- do.call(mmes, innerArgs)
+    if(control$warmStart && !is.null(fit$covParWorking)){
+      covarianceStart <- list(parameters=fit$covParWorking, covStruct=fit$covStruct,
+                              included=fit$obsInfo$included, ldltCache=fit$.ldltCache,
+                              cholmodCache=fit$.cholmodCache)
+    }
 
     included <- fit$obsInfo$included
     if(is.null(baseFactor) && !is.null(W)){
@@ -250,7 +260,11 @@ familym <- function(by, ...){
     deviance <- sum(.pql_apply(families, famIndex[included], "dev.resids",
                                response[included], muIncluded, priorWeights[included]))
     monitor[[iteration]] <- c(iteration=iteration, deviance=deviance,
-                              theta=if(isNegBin) theta else NA_real_)
+                              theta=if(isNegBin) theta else NA_real_,
+                              warmStarted=as.integer(fit$pqlWarmStarted),
+                              innerIterations=ncol(fit$monitor),
+                              symbolicAnalyses=if(is.null(fit$engineDiagnostics$CsymbolicAnalyses))
+                                NA_real_ else fit$engineDiagnostics$CsymbolicAnalyses)
     if(is.finite(previousDeviance) && thetaChange <= control$tol &&
        abs(deviance - previousDeviance) <= control$tol * (1 + abs(previousDeviance))){
       monitor <- monitor[seq_len(iteration)]
@@ -308,6 +322,10 @@ familym <- function(by, ...){
   fit$pqlMonitor <- monitor
   fit$pqlConverged <- nrow(monitor) < control$maxit
   fit$pqlControl <- control
+  fit$.ldltCache <- NULL
+  fit$.cholmodCache <- NULL
+  attr(fit$covStruct, "ldltCache") <- NULL
+  attr(fit$covStruct, "cholmodCache") <- NULL
   class(fit) <- c("mmes.glmm", class(fit))
   fit
 }

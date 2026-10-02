@@ -33,9 +33,63 @@ mmes(fixed, random, rcov, data, W,
     family=stats::gaussian(), pqlControl=list(),
     .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
     .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
-    .pqlBaseFactor=NULL)
+    .pqlBaseFactor=NULL, acceleration="none", .pqlStart=NULL,
+    weights=NULL, factorScoreAugmentation="none",
+    pcgPreconditioner="diagonal", pcgNystromRank=32L)
 }
 \arguments{
+  \item{.pqlStart}{Internal-use covariance warm-start state for successive PQL working fits.}
+  \item{acceleration}{Optional optimizer acceleration: \code{"none"} (default) or
+  \code{"aitken"}. Aitken proposals are capped, applied every third accepted
+  iteration during EM blending, and checked by the existing likelihood line
+  search. Requires a deterministic Henderson solver; not available for PCG or
+  direct inversion. The Henderson result's \code{engineDiagnostics} reports
+  coefficient evaluations, line-search halvings, accelerated proposals,
+  symbolic-analysis and ML selected-inverse topology counters, and active
+  block-Schur partition dimensions, grouped weight-block counts and assembled
+  PCG batch solve/iteration counts, plus peak sparse fill in the irregular
+  residual fallback.}
+  \item{weights}{Optional one-sided formula describing independent row blocks
+  of the supplied \code{W} matrix, for example \code{weights=~trial}. Rows in
+  different formula groups must have zero cross-group entries in \code{W}; the
+  formula is structural metadata and does not generate numeric weights.}
+  \item{factorScoreAugmentation}{FA/RR latent factor parameterization. The
+  default \code{"none"} uses the marginal covariance MME. \code{"fixed-shape"}
+  uses the augmented MME with fixed loading and specific-variance parameters;
+  it is currently limited to Henderson REML, \code{computeCi=0}, and one FA/RR
+  shaping factor per eligible random term. It replaces each \eqn{q d} marginal
+  coefficient block with \eqn{(k+q)d} factor and specific-effect coefficients
+  constrained to share one variance scale. \code{"profile"} estimates free
+  FA/RR shape parameters with a bounded L-BFGS-B outer profile optimizer. It
+  starts from the values in the constructors (so it does not first factor the
+  expensive marginal FA/RR system); at each candidate shape it rebuilds the
+  augmented design and refits shared random and residual scales by REML.
+  The outer iteration budget is dimension-adjusted, with at least five and at
+  most twelve outer iterations; \code{nIters} controls each inner AI fit.
+  Inner covariance starts and symbolic factorizations are reused when the
+  augmented layout matches; numeric factors are recomputed. The outer objective
+  uses finite-difference gradients, is experimental, can require many augmented
+  REML fits, and can converge to a local optimum; inspect
+  \code{factorScoreProfile}. Shape-parameter standard errors are returned as
+  \code{NA}; the inner AI information matrix is not their uncertainty estimate.
+
+  Both augmented modes currently require Gaussian identity Henderson REML,
+  \code{computeCi=0}, one FA/RR shaping factor per eligible random term, no
+  rotation, and no user \code{vcc}. With \code{solver="auto"}, dense
+  \code{Gu} selects CHOLMOD; its exact block-Schur path eliminates independent
+  specific-effect blocks while retaining factor effects in the border. The
+  returned \code{uList}, \code{bu}, fitted values, and prediction contrasts use
+  the original effects; \code{C} remains augmented and is tagged with
+  \code{CRepresentation="factor-score-augmented"}.}
+  \item{pcgPreconditioner}{PCG preconditioner: \code{"diagonal"} (default) or
+  \code{"nystrom"}. The Nyström option builds a deterministic landmark
+  approximation to assembled \eqn{C} and applies its Woodbury inverse as an SPD
+  preconditioner; PCG continues to multiply by the exact \eqn{C} and verifies
+  the true residual. Nyström currently uses assembled-C PCG, so it disables the
+  matrix-free shortcut.}
+  \item{pcgNystromRank}{Positive number of deterministic landmarks for
+  \code{pcgPreconditioner="nystrom"}; the default is 32 and the value is capped
+  at the coefficient dimension.}
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
 
   \emph{response ~ covariate}
@@ -212,6 +266,12 @@ mmes(fixed, random, rcov, data, W,
   is calculated as R = Wsi*O*Wsi.t(), where * is the matrix product, and O 
   is the original residual matrix. Weights can be combined with any residual
   structure, including Kronecker (multi-trait) residuals.}
+  \item{weights}{Optional one-sided formula describing independent row blocks
+  of the supplied \code{W} matrix, for example \code{weights = ~trial}. Rows
+  with different formula groups must have zero cross-group entries in \code{W}.
+  This is structural metadata only: it does not generate numeric weights.
+  Declared blocks are processed independently by the Henderson weighting
+  path; without this formula, \code{W} is handled without a known grouping.}
    \item{nIters}{Maximum number of iterations allowed.}
   \item{tolParConvLL}{Convergence criteria based in the change of log-likelihood
   between iteration i and i-1.}
@@ -280,9 +340,9 @@ mmes(fixed, random, rcov, data, W,
   matrix to produce the joint information matrix used in the variance-component
   update. This creates an EM-heavy warm start early in the fit and gradually
   transitions to an AI-dominated update as the optimizer approaches convergence.
-  The default schedule is a smooth decay from 1 at the first iteration to 0.05
-  by the last iteration, i.e. the fit begins in a strongly stabilized EM regime
-  and then moves toward the classical AI update. Values outside \code{[0, 1]} are
+  The default schedule is a logarithmic decay from 1 to 0.03 over the first
+  \code{min(nIters, 20)} iterations, followed by a 0.03 floor.
+  Values outside \code{[0, 1]} are
   rejected.}
   \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
   \item{getPEV}{A logical value indicating whether prediction error variance
@@ -436,7 +496,13 @@ mmes(fixed, random, rcov, data, W,
   entries are \code{maxit} (outer-iteration limit, default 20), \code{tol}
   (relative deviance convergence tolerance, default \code{1e-5}) and
   \code{estimateTheta} (estimate the negative binomial \eqn{\theta}, default
-  \code{FALSE}).}
+  \code{FALSE}) and \code{warmStart} (reuse covariance parameters from the
+  preceding working fit when the observation and model layouts agree, default
+  \code{TRUE}). The \code{pqlMonitor} also reports \code{warmStarted} and
+  \code{innerIterations} and \code{symbolicAnalyses}. With the LDLT solver,
+  compatible warm fits reuse symbolic factorizations and selected-inverse
+  topology across PQL iterations while recomputing numeric factors. Other
+  solvers reuse their symbolic factorizations within each working fit.}
 
   \item{.pqlInner}{Internal-use logical indicating that \code{mmes()} is being
   called for a Gaussian working-model fit within the PQL iteration. Users

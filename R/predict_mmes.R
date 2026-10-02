@@ -6,6 +6,42 @@
 # ignored is not used included in the prediction
 
 .mmes_engine_contrast <- function(object, D){
+  if(!is.null(object$factorScoreInfo)){
+    mappings <- object$factorScoreInfo$mappings
+    nFixed <- length(object$b)
+    nAugmented <- nrow(object$C)
+    out <- Matrix::Matrix(0, nrow(D), nAugmented, sparse=TRUE)
+    if(nFixed) out[, seq_len(nFixed)] <- D[, seq_len(nFixed), drop=FALSE]
+    for(mapping in mappings){
+      publicRanges <- mapping$publicRanges
+      if(mapping$augmented){
+        factorCount <- ncol(mapping$loading)
+        q <- nrow(mapping$loading)
+        for(level in seq_len(q)){
+          publicColumns <- publicRanges[level,1]:publicRanges[level,2]
+          for(component in seq_len(factorCount)){
+            augmentedRange <- mapping$augmentedRanges[[component]][1L,]
+            columns <- augmentedRange[1L]:augmentedRange[2L]
+            out[, columns] <- out[, columns, drop=FALSE] +
+              D[, publicColumns, drop=FALSE] * mapping$loading[level, component]
+          }
+          augmentedRange <- mapping$augmentedRanges[[factorCount + level]][1L,]
+          columns <- augmentedRange[1L]:augmentedRange[2L]
+          out[, columns] <- out[, columns, drop=FALSE] +
+            D[, publicColumns, drop=FALSE] * sqrt(mapping$specific[level])
+        }
+      }else{
+        ranges <- mapping$augmentedRanges[[1L]]
+        for(level in seq_len(nrow(publicRanges))){
+          publicColumns <- publicRanges[level,1]:publicRanges[level,2]
+          augmentedRange <- ranges[level,]
+          columns <- augmentedRange[1L]:augmentedRange[2L]
+          out[, columns] <- D[, publicColumns, drop=FALSE]
+        }
+      }
+    }
+    return(out)
+  }
   if(is.null(object$rotation)) return(D)
 
   term <- object$rotation$term

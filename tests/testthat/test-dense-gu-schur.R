@@ -31,4 +31,17 @@ test_that("multiple dense-Gu effects use exact Schur blocks", {
   expect_false(any(grepl("Materialized cross-group inverse block", cholmodOutput)))
   expect_equal(unlist(cholmodFit$theta), unlist(ldltFit$theta), tolerance=1e-8)
   expect_equal(cholmodFit$u, ldltFit$u, tolerance=1e-8)
+  expect_true(cholmodFit$engineDiagnostics$blockSchurActive)
+  expect_equal(cholmodFit$engineDiagnostics$blockSchurGroups, 3L)
+
+  mlSchur <- suppressMessages(mmes(y~env, random=random, rcov=~units,
+    data=dat, solver="cholmod", REML=FALSE, nIters=8,
+    verbose=FALSE, dateWarning=FALSE))
+  mlLdlt <- suppressMessages(mmes(y~env, random=random, rcov=~units,
+    data=dat, solver="ldlt", REML=FALSE, nIters=8,
+    verbose=FALSE, dateWarning=FALSE))
+  expect_true(mlSchur$engineDiagnostics$blockSchurActive)
+  expect_equal(unlist(mlSchur$theta), unlist(mlLdlt$theta), tolerance=1e-8)
+  expect_equal(as.numeric(mlSchur$llik), as.numeric(mlLdlt$llik), tolerance=1e-8)
+  expect_equal(mlSchur$bu, mlLdlt$bu, tolerance=1e-8)
 })

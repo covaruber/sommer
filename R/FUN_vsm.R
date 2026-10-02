@@ -2239,6 +2239,7 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
       transform[(nload+1L):p] <- "exp"
       trust[(nload+1L):p] <- 1.0
     }
+    derivative <- list(backend="native", op="fa")
 
   }else if(model == "ante"){
     ncoef <- as.integer(f$ante_ncoef)
@@ -2317,6 +2318,7 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     transform[dd] <- "exp"
     trust[dd] <- 1.0
     trust[!dd] <- 1.5
+    derivative <- list(backend="native", op="rr")
 
   }else{
     stop(paste0("Unknown covariance model label '", model,
