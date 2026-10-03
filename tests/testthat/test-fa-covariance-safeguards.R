@@ -45,6 +45,8 @@ test_that("FA/RR Woodbury and near-boundary fallback match generic covariance fa
     if(model == "boundary") specific[8L] <- 1e-10
     factor <- if(model == "rr") rrm(data$trial, 2L, loadings=loadings) else
       fam(data$trial, 2L, loadings=loadings, specific=specific)
+    expect_identical(factor$covFactor$precision$backend, "woodbury")
+    expect_identical(factor$covFactor$precision$kind, if(model == "rr") "rr" else "fa")
     factor$covFactor$free[] <- FALSE
     generic <- ownm(data$trial, K=tcrossprod(loadings) + diag(specific))
     generic$covFactor$model <- "fa"

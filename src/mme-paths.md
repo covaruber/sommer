@@ -51,6 +51,54 @@ diagonal weights uses block-local designs. Other cases use batched applications.
 | CHOLMOD, ML | Same coefficient dispatch; separate random-only D factor | D solves, without the REML C-inverse cache |
 | PCG | Iterative solves and stochastic Lanczos log determinant | Hutchinson probes |
 
+For CHOLMOD REML, a bordered block-chain engine is attempted before the dense
+block-Schur planner. One coupled random term is partitioned into its covariance
+coordinate blocks; all other effects form the border. The assembled C graph
+must be a collection of paths, the local diagonal blocks must have density at
+least 0.1, there must be at least three blocks, and the border must fit the
+2000-effect limit. Admission uses exact stored connectivity, not model names or
+thresholded numerical entries. Cycles, branching, or excessive storage use the
+existing dense/sparse dispatch. Zero correlation may produce disconnected paths;
+the subsequent numeric pattern is checked again if the correlation changes.
+
+Block elimination factors each pivot block and the border Schur complement.
+Backward selected inversion obtains diagonal and neighboring interior inverse
+blocks, then adds the exact border correction. Nonadjacent inverse requests
+within a path fall back to exact chain solves; different path components have
+only the border correction. The storage estimate is
+`3 b^2 + sum_g (4 m_g^2 + 5 m_g b) + 3 sum_edges m_g m_h` doubles and uses
+the same configurable dense budget. `engineDiagnostics$blockChainActive`
+identifies this path; `blockSchurActive` remains true for either bordered engine.
+ML retains the existing dispatch. Final `computeCi=1` retains the one-time
+LDLT subset extraction; `computeCi=2` uses the chain solve for the full inverse.
+
+Before the block-chain attempt, a latent-factor Schur engine admits a single
+random covariance factor with a validated Woodbury decomposition
+`K = L L' + diag(psi)`. It requires positive, sufficiently well-conditioned
+specifics, dense relationship precision, equal-width covariance-coordinate
+blocks with disjoint incidence rows, and diagonal effective residual precision.
+The original coefficient groups are independent conditional on a virtual
+`rank * mainEffectSize` latent border. All other coefficients remain in the
+real border. The conditional prior is
+`[diag(1/psi), -diag(1/psi)L; -L'diag(1/psi), I+L'diag(1/psi)L] kron Ai / s`.
+Eliminating the virtual border recovers the exact marginal C; log determinants
+subtract the determinant of its virtual prior block. RHS entries for virtual
+coefficients are zero and virtual solutions are not returned.
+
+The existing marginal analytic score, AI updates and uncertainty reporting
+are retained, including free loadings and specifics. Cross-environment random
+score traces contract `Ai * F_g * S^-1` with `F_h` directly rather than forming
+every dense inverse block. The public C and coefficient ordering remain
+marginal; C is still explicitly assembled during optimization.
+Admission uses `3 b^2 + mainSize^2 + sum_g (4 m_g^2 + 6 m_g b)` doubles,
+where b includes virtual equations. This separate resource rule has no fixed
+2000-effect latent-border cap. It does not change the limits of the ordinary
+dense or chain planners. Correlated residuals, overlapping incidence blocks,
+extra covariance factors, ML, or near-boundary specifics retain existing paths.
+Numerical latent Cholesky failures fall back to the original marginal CHOLMOD
+factorization for that evaluation. Diagnostics report `factorSchurActive` and
+`factorSchurFallbacks`; `blockSchurActive` includes the latent engine.
+
 Matrix-free PCG additionally requires REML, `computeCi=0`, diagonal
 preconditioning, random effects, and factor-wise precision for every random
 term. A numerical precision fallback disables it for that trial. Nyström PCG
@@ -77,17 +125,39 @@ The existing cost is retained:
 
     (5/3) b^3 + sum_g [(5/3) m_g^3 + 4 b m_g^2 + 2 m_g b^2]
 
-Limits remain 2000 border effects, 8000 effects per group, and 1.25e8 doubles
-for `2 b^2 + sum_g (2 m_g^2 + 3 m_g b)`. These limits are shared with the
-CHOLMOD inverse-cache configuration. For a group <= 64, or one whose
+The border limit remains 2000 effects. There is no fixed effect-count limit
+per dense group. Each strategy must fit the dense-storage budget before its
+cost is compared, using `2 b^2 + sum_g (2 m_g^2 + 3 m_g b)` doubles.
+The default is 1.25e8 doubles (1000 decimal MB); set
+`options(sommer.mme.denseMemoryMB=4096)` to allow a larger plan.
+This estimates dense factor/cache storage, not peak process memory: sparse C,
+covariance assembly, temporary matrices, and fitted output need additional memory.
+Diagnostics report `denseMemoryMB` and `blockSchurEstimatedDenseMB`.
+The CHOLMOD inverse cache separately requires `2 m^2 + effects * m`
+for dense group storage and forward workspace to fit the same budget. For a group <= 64, or one whose
 effects * group size fits the inverse-cache budget, density is not tested.
 Otherwise stored within-group density must be >= 0.1.
 
 Cost ties still choose the border strategy. The selected strategy is checked
-against the total memory and density limits; rejection uses CHOLMOD rather than
-trying the other strategy. Numerical block-Cholesky failure remains an error.
-Changing those fallback policies or tuning thresholds is a separate numerical
-or performance change, not part of this behavior-preserving extraction.
+against the density limit; rejection uses CHOLMOD rather than trying the other
+strategy. Numerical block-Cholesky failure remains an error.
+For coupled Kronecker terms, m is the full coefficient-group dimension, not
+the main-effect dimension: the current dense engine factors that full matrix.
+Main-effect-sized admission requires an actual banded or latent-factor
+representation. The block-chain engine supplies this for path-structured
+precisions; a Kronecker covariance alone does not split C into independent blocks.
+
+Heuristics are component- and capability-specific. Random-effect coefficient
+planning uses the precision coupling graph, group density, factor/cache storage,
+and border cost. AR1 has banded precision even though its covariance is dense;
+FA/RR generally have dense precision unless represented with latent factors;
+the automatic latent Schur path supplies that conditional representation.
+Neither should be classified using covariance density alone. Residual planning
+uses observation layout, section ownership, weights, missing cells, and grid or
+repeated-block workspaces through `ResidualPolicy`, independently of the dense
+coefficient budget. The block-chain engine budgets its actual main-effect-sized
+blocks; the latent-factor engine likewise uses its own estimate rather than
+reuse the coupled-dense estimate.
 
 ## Precision And Trace Fallbacks
 

@@ -2325,6 +2325,9 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
   f$type <- NULL                   # model label never crosses as solver dispatch
   f$evaluator <- evaluator
   f$derivative <- derivative
+  if(model %in% c("fa", "rr")){
+    f$precision <- list(backend="woodbury", kind=model)
+  }
   f$report <- list(
     backend="builtin",
     transform=as.character(transform),

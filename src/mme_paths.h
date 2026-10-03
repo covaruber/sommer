@@ -87,22 +87,30 @@ struct ResidualPlan {
 
 struct BlockSchurPolicy {
   std::size_t maxBorder = 2000;
-  std::size_t maxGroup = 8000;
   double maxDoubles = 1.25e8;
   double smallGroup = 64.0;
   double minDensity = 0.1;
 
+  double storageDoubles(const std::vector<std::vector<int>> & groups,
+                        std::size_t border) const {
+    const double borderSize = static_cast<double>(border);
+    double result = 2.0 * borderSize * borderSize;
+    for(const auto & group : groups) {
+      const double size = static_cast<double>(group.size());
+      result += 2.0 * size * size + 3.0 * size * borderSize;
+    }
+    return result;
+  }
+
   double cost(const std::vector<std::vector<int>> & groups,
               std::size_t border) const {
-    if(groups.empty() || border > maxBorder) {
+    if(groups.empty() || border > maxBorder ||
+       storageDoubles(groups, border) > maxDoubles) {
       return std::numeric_limits<double>::infinity();
     }
     const double borderSize = static_cast<double>(border);
     double result = (5.0 / 3.0) * borderSize * borderSize * borderSize;
     for(const auto & group : groups) {
-      if(group.size() > maxGroup) {
-        return std::numeric_limits<double>::infinity();
-      }
       const double size = static_cast<double>(group.size());
       result += (5.0 / 3.0) * size * size * size
         + 4.0 * borderSize * size * size
@@ -114,6 +122,40 @@ struct BlockSchurPolicy {
   bool needsDensityCheck(double effects, double group) const {
     return !(group <= smallGroup || effects * group <= maxDoubles);
   }
+  bool inverseCacheFits(double effects, double group) const {
+    return 2.0 * group * group + effects * group <= maxDoubles;
+  }
+  double chainStorageDoubles(const std::vector<std::vector<int>> & blocks,
+                            const std::vector<int> & components,
+                            std::size_t border) const {
+    if(blocks.empty() || blocks.size() != components.size() || border > maxBorder) {
+      return std::numeric_limits<double>::infinity();
+    }
+    const double borderSize = static_cast<double>(border);
+    double result = 3.0 * borderSize * borderSize;
+    for(std::size_t block = 0; block < blocks.size(); ++block) {
+      const double size = static_cast<double>(blocks[block].size());
+      result += 4.0 * size * size + 5.0 * size * borderSize;
+      if(block > 0 && components[block] == components[block - 1]) {
+        result += 3.0 * size * blocks[block - 1].size();
+      }
+    }
+    return result;
+  }
+  double latentStorageDoubles(const std::vector<std::vector<int>> & blocks,
+                             std::size_t border, std::size_t dimension) const {
+    if(blocks.empty() || dimension == 0) {
+      return std::numeric_limits<double>::infinity();
+    }
+    const double borderSize = static_cast<double>(border);
+    const double mainSize = static_cast<double>(dimension);
+    double result = 3.0 * borderSize * borderSize + mainSize * mainSize;
+    for(const auto & block : blocks) {
+      if(block.size() != dimension) { return std::numeric_limits<double>::infinity(); }
+      result += 4.0 * mainSize * mainSize + 6.0 * mainSize * borderSize;
+    }
+    return result;
+  }
   bool denseEnough(double nonzeros, double group) const {
     return nonzeros >= minDensity * group * group;
   }
@@ -124,6 +166,50 @@ struct BlockSchurPlan {
   std::vector<int> border;
   std::vector<std::vector<int>> groups;
 };
+
+struct BlockChainOrder {
+  bool eligible = false;
+  std::vector<int> blocks;
+  std::vector<int> components;
+};
+
+inline BlockChainOrder orderBlockPaths(std::size_t count,
+    const std::vector<std::pair<int, int>> & edges) {
+  BlockChainOrder result;
+  std::vector<std::vector<int>> neighbors(count);
+  for(const auto & edge : edges) {
+    if(edge.first < 0 || edge.second < 0 || edge.first == edge.second ||
+       static_cast<std::size_t>(edge.first) >= count ||
+       static_cast<std::size_t>(edge.second) >= count) { return result; }
+    neighbors[edge.first].push_back(edge.second);
+    neighbors[edge.second].push_back(edge.first);
+  }
+  for(auto & adjacent : neighbors) {
+    std::sort(adjacent.begin(), adjacent.end());
+    adjacent.erase(std::unique(adjacent.begin(), adjacent.end()), adjacent.end());
+    if(adjacent.size() > 2) { return result; }
+  }
+  std::vector<bool> visited(count, false);
+  int component = 0;
+  for(std::size_t start = 0; start < count; ++start) {
+    if(visited[start] || neighbors[start].size() > 1) { continue; }
+    int current = static_cast<int>(start);
+    while(current >= 0) {
+      if(visited[current]) { return result; }
+      visited[current] = true;
+      result.blocks.push_back(current);
+      result.components.push_back(component);
+      int next = -1;
+      for(const int adjacent : neighbors[current]) {
+        if(!visited[adjacent]) { next = adjacent; }
+      }
+      current = next;
+    }
+    ++component;
+  }
+  result.eligible = count > 0 && result.blocks.size() == count;
+  return result;
+}
 
 inline BlockSchurPlan planBlockSchur(
     const std::vector<std::vector<int>> & candidates,
@@ -210,13 +296,7 @@ inline BlockSchurPlan planBlockSchur(
   const double mergedCost = policy.cost(merged.groups, merged.border.size());
   BlockSchurPlan selected = mergedCost < borderedCost ? std::move(merged) : std::move(bordered);
   if(!std::isfinite(borderedCost) && !std::isfinite(mergedCost)) { return selected; }
-  const double border = static_cast<double>(selected.border.size());
-  double doubles = 2.0 * border * border;
-  for(const auto & group : selected.groups) {
-    const double size = static_cast<double>(group.size());
-    doubles += 2.0 * size * size + 3.0 * size * border;
-  }
-  selected.eligible = doubles <= policy.maxDoubles;
+  selected.eligible = true;
   return selected;
 }
 

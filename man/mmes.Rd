@@ -450,6 +450,38 @@ mmes(fixed, random, rcov, data, W,
    speed-up depends on the BLAS linked to the running R installation. \code{solver="cholmod"}
    currently supports all \code{computeCi} values (see above for how \code{computeCi=1}
    is handled for this solver).
+  Eligible coefficient systems use an exact dense block-Schur engine. Admission
+  uses estimated dense storage rather than a fixed effect-count limit.
+  \code{options(sommer.mme.denseMemoryMB=4096)} sets a 4096 decimal MB budget;
+  the default is 1000 MB. This is not a bound on total process memory: sparse
+  matrices, temporary workspaces and fitted output require additional memory.
+  The budget also controls coefficient inverse-cache admission, with a separate
+  workspace estimate. It does not change the residual engine's layout rules.
+  For a coupled Kronecker random term, the full coupled dimension is used, not
+  only the main-effect dimension. The fitted object's \code{engineDiagnostics}
+  reports \code{denseMemoryMB} and \code{blockSchurEstimatedDenseMB}.
+  For REML with one coupled random term whose coefficient-block graph consists
+  of paths, dense local blocks and a sufficiently small border, an exact
+  bordered block-chain engine is selected first. This can exploit AR1 random
+  precision using main-effect-sized blocks without factoring the full coupled
+  dense matrix. Unsupported graphs retain the usual dense/sparse dispatch.
+  \code{engineDiagnostics$blockChainActive} identifies the chain path;
+  \code{blockSchurActive} is true for either bordered engine. Residual layout
+  heuristics are unchanged, and \code{computeCi=1} still performs its final
+  one-time LDLT inverse-subset extraction.
+  Eligible FA/RR random terms use an exact latent-factor Schur representation
+  automatically, including free loadings and specific variances. This requires
+  Gaussian Henderson REML, one covariance shaping factor in the selected term,
+  well-conditioned positive specifics, dense relationship precision, disjoint
+  covariance-coordinate incidence blocks and diagonal effective residual
+  precision. Virtual factor equations are eliminated internally; the original
+  coefficient ordering, marginal C, analytic AI updates and standard errors
+  are preserved. No \code{factorScoreAugmentation} setting is needed.
+  \code{engineDiagnostics$factorSchurActive} identifies this path and
+  \code{factorSchurFallbacks} counts numerical latent-factor failures that
+  reverted to the original marginal CHOLMOD solve. The dense-storage estimate
+  includes virtual border equations, while total process memory also includes
+  the explicitly assembled marginal C. Incompatible models keep existing paths.
    The covariance-model specification is independent of this choice: all solvers
    receive the same generic CovarianceFactor descriptors produced by \code{vsm()}.}
 

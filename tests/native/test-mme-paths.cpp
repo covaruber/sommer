@@ -6,6 +6,18 @@
 int main() {
   using sommer::ResidualPath;
   using sommer::ResidualPlan;
+  const auto chain = sommer::orderBlockPaths(4, {{0, 2}, {2, 1}, {1, 3}});
+  assert(chain.eligible);
+  assert(chain.blocks == std::vector<int>({0, 2, 1, 3}));
+  assert(chain.components == std::vector<int>({0, 0, 0, 0}));
+  const auto disconnected = sommer::orderBlockPaths(4, {{0, 2}});
+  assert(disconnected.eligible);
+  assert(disconnected.blocks == std::vector<int>({0, 2, 1, 3}));
+  assert(disconnected.components == std::vector<int>({0, 0, 1, 2}));
+  assert(!sommer::orderBlockPaths(3, {{0, 1}, {1, 2}, {2, 0}}).eligible);
+  assert(!sommer::orderBlockPaths(4, {{0, 1}, {0, 2}, {0, 3}}).eligible);
+  assert(!sommer::orderBlockPaths(2, {{0, 2}}).eligible);
+  assert(!sommer::orderBlockPaths(0, {}).eligible);
   for(bool sectioned : {false, true}) {
     for(bool nonDiagonal : {false, true}) {
       for(bool complete : {false, true}) {
@@ -84,12 +96,33 @@ int main() {
   assert(std::isinf(policy.cost({}, 1)));
   assert(std::isinf(policy.cost({std::vector<int>(2)}, 2001)));
   assert(std::isinf(policy.cost({std::vector<int>(8001)}, 1)));
-  assert(std::isfinite(policy.cost({std::vector<int>(8000)}, 2000)));
+  assert(std::isinf(policy.cost({std::vector<int>(8000)}, 2000)));
+  sommer::BlockSchurPolicy expanded = policy;
+  expanded.maxDoubles = 2.1e8;
+  assert(std::isfinite(expanded.cost({std::vector<int>(10000)}, 30)));
+  assert(std::isinf(expanded.cost({std::vector<int>(11000)}, 30)));
+  assert(std::isfinite(policy.cost({std::vector<int>(1000), std::vector<int>(1000)}, 1030)));
+  assert(policy.storageDoubles({std::vector<int>(3)}, 2) == 44.0);
   assert(policy.cost({std::vector<int>(3)}, 2) ==
     (5.0 / 3.0) * 8.0 + (5.0 / 3.0) * 27.0 + 72.0 + 24.0);
   assert(!policy.needsDensityCheck(1e9, 64));
   assert(!policy.needsDensityCheck(1.25e8 / 100, 100));
   assert(policy.needsDensityCheck(1.25e8 / 100 + 1, 100));
+  assert(policy.inverseCacheFits(10000, 1000));
+  assert(!policy.inverseCacheFits(10030, 10000));
+  sommer::BlockSchurPolicy cacheBoundary = policy;
+  cacheBoundary.maxDoubles = 28;
+  assert(cacheBoundary.inverseCacheFits(10, 2));
+  cacheBoundary.maxDoubles = 27;
+  assert(!cacheBoundary.inverseCacheFits(10, 2));
+  assert(policy.chainStorageDoubles({{0, 1}, {2, 3}}, {0, 0}, 1) == 67.0);
+  assert(policy.chainStorageDoubles({{0, 1}, {2, 3}}, {0, 1}, 1) == 55.0);
+  assert(std::isinf(policy.chainStorageDoubles({{0}}, {}, 1)));
+  assert(std::isinf(policy.chainStorageDoubles({{0}}, {0}, 2001)));
+  assert(policy.latentStorageDoubles({{0, 1}, {2, 3}}, 1, 2) == 63.0);
+  assert(std::isinf(policy.latentStorageDoubles({{0}, {1, 2}}, 1, 2)));
+  assert(std::isinf(policy.latentStorageDoubles({}, 1, 2)));
+  assert(std::isfinite(policy.latentStorageDoubles({std::vector<int>(1000)}, 2030, 1000)));
   assert(policy.denseEnough(1000, 100));
   assert(!policy.denseEnough(999, 100));
 
@@ -112,9 +145,16 @@ int main() {
   limited.maxDoubles = 27;
   assert(!sommer::planBlockSchur({{2, 3}}, {}, 2, limited).eligible);
   limited = policy;
-  limited.maxGroup = 1;
+  limited.maxDoubles = 2;
   limited.maxBorder = 0;
   assert(!sommer::planBlockSchur({{0}, {1}}, {{0, 1}}, 0, limited).eligible);
+
+  limited = policy;
+  limited.maxDoubles = 90;
+  const auto affordable = sommer::planBlockSchur({{0, 1, 2}, {3, 4, 5, 6}}, {{0, 1}}, 0, limited);
+  assert(affordable.eligible);
+  assert(affordable.border == std::vector<int>({0, 1, 2}));
+  assert(affordable.groups == std::vector<std::vector<int>>({{3, 4, 5, 6}}));
 
   for(int fixedEffects : {0, 2}) {
     std::vector<std::vector<int>> candidates(5);
