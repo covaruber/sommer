@@ -7,12 +7,15 @@
 }
 \description{
 
-Fits a generalized linear mixed model
-coded in C++ using the Armadillo and Eigen libraries to optimize matrix 
-operations. Special covariance structures can be specified with the \code{\link{vsm}()}
-function. Two engines are available; henderson formulation and direct reml (henderson argument) and 
-three solvers in each; ldlt, cholmod and pcg (solver argument) to adjust to the
-modeling situation.
+Fits linear mixed models by restricted maximum likelihood (REML) or maximum
+likelihood (ML), and generalized linear mixed models by penalized
+quasi-likelihood (PQL). Random and residual covariance structures are specified
+with \code{\link{vsm}} and covariance constructors. Gaussian fits can use
+Henderson mixed-model equations or direct inversion in observation space;
+\code{solver} selects LDLT, CHOLMOD or PCG only for the Henderson engine.
+Alternatively, \code{solveOnly=TRUE} solves the mixed-model equations at known
+covariance parameters without estimating them. Numerical engines are implemented
+in C++ using Armadillo and Eigen.
 
 
 }
@@ -43,12 +46,16 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
 
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
 
-  \emph{response ~ covariate}
+  \emph{response ~ covariate}. Use one numeric response column; multi-trait
+  models should be stacked into long format with \code{\link{stackTraits}},
+  with the trait factor included in the fixed, random and residual formulas
+  as appropriate. Formula offsets are supported.
 
   }
 
   \item{random}{A formula specifying the \strong{random effects}, e.g.,
-  \emph{random = ~ genotype + year}. A simple random term that is not wrapped
+  \emph{random = ~ genotype + year}. Omit this argument for a model without
+  random effects. A simple random term that is not wrapped
   in \code{\link{vsm}} is treated as an identity-covariance random effect.
 
   The \code{\link{vsm}} function is the main interface for specifying structured
@@ -212,8 +219,12 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   and residual covariance specification must nevertheless have compatible lengths.
   Internally, \code{mmes()} constructs a common observation mask and applies it
   consistently to all observation-level model components.}
-  \item{W}{Weights matrix (e.g., when covariance among plots exist). Internally
-  W is squared and inverted as Wsi = solve(chol(W)), then the residual matrix
+  \item{W}{Weights matrix (e.g., when covariance among plots exists).
+  Omit this argument for unweighted Gaussian fitting; it has no explicit
+  \code{NULL} default, so omission is preferable to passing \code{W=NULL}.
+  \code{W} must be symmetric positive definite, with one row and column per
+  original observation; it is subset using the common observation mask.
+  Internally Wsi = solve(chol(W)), then the residual matrix
   is calculated as R = Wsi*O*Wsi.t(), where * is the matrix product, and O 
   is the original residual matrix. Weights can be combined with any residual
   structure, including Kronecker (multi-trait) residuals.}
@@ -223,38 +234,45 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   This is structural metadata only: it does not generate numeric weights.
   Declared blocks are processed independently by the Henderson weighting
   path; without this formula, \code{W} is handled without a known grouping.}
-   \item{nIters}{Maximum number of iterations allowed.}
-  \item{tolParConvLL}{Convergence criteria based in the change of log-likelihood
-  between iteration i and i-1.}
+  \item{nIters}{Maximum number of covariance-estimation iterations, default
+  30. In PQL this is the limit for each inner Gaussian fit; use
+  \code{pqlControl$maxit} for the outer limit. It is not used by
+  \code{solveOnly=TRUE}, which uses \code{pcgMaxIters}.}
+  \item{tolParConvLL}{Absolute log-likelihood change tolerance between
+  successive iterations, default \code{1e-4}. The Henderson engine stops
+  when either this tolerance or \code{tolParConvNorm} is satisfied.}
   \item{tolParConvNorm}{When using the Henderson method this argument is the 
-  convergence criteria based in the norm proposed by Jensen, Madsen and
+  convergence tolerance (default \code{1e-4}) based on the norm proposed by Jensen, Madsen and
   Thompson (1997):
 
   e1 = || InfMatInv.diag()/sqrt(N) * dLu ||
 
   where InfMatInv.diag() is the diagonal of the inverse of the information
   matrix, N is the total number of variance components, and dLu is the vector 
-  of first derivatives.
+  of first derivatives. This criterion is not used by the direct engine.
 
   }
   \item{tolParInv}{Tolerance parameter for matrix inverse used when singularities 
   are encountered in the estimation procedure. By default the value is 1e-06. This
-  parameter should be fairly small because the it is used to bend matrices like the
+  parameter should be fairly small because it is used to bend matrices like the
   information matrix in the henderson algorithm or the coefficient matrix when it
   is not positive-definite.}
    \item{naMethodX}{Missing-data policy for variables entering the fixed-effect
    design matrix. The default, \code{"exclude"}, marks observations with missing
    fixed-effect information for removal from the common observation set.
-   \code{"include"} retains the historical sommer behavior for supported cases by
-   imputing missing fixed-effect covariates. This option should be used carefully,
-   because imputation changes the fitted design matrix.}
+  \code{"omit"} is an alias for \code{"exclude"}. \code{"fail"} stops
+  if any required fixed-effect variable is missing. \code{"include"}
+  (alias \code{"pass"}) retains rows at the filtering stage but does not
+  impute values; downstream design construction may reject missing covariates.
+  Impute explicitly before fitting if needed.}
 
    \item{naMethodY}{Missing-data policy for the response variable(s). The default,
    \code{"exclude"}, removes observations with missing response information from the
-   common observation set. The historical \code{"include"} and \code{"include2"}
-   behaviors are retained where supported: \code{"include"} imputes missing responses,
-   whereas \code{"include2"} is intended for multivariate-response situations in which
-   an observation may be retained when at least one response is observed.}
+  common observation set. \code{"omit"} is an alias. \code{"fail"}
+  stops on missing responses. \code{"include"} (alias \code{"pass"})
+  bypasses filtering but does not impute responses, so missing values may
+  prevent fitting. \code{"include2"} is not supported. For multi-trait
+  models, stack the data and exclude only the rows with missing responses.}
 
    \item{naMethodRandom}{Missing-data policy for observation-level variables used to
    construct random-effect terms. The default is \code{"exclude"}. Under this policy,
@@ -262,25 +280,40 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
    be evaluated is excluded from the common observation set. Random terms are evaluated
    before the final observation subset is applied, so the same inclusion mask is used
    consistently for the response, fixed-effect design, and all random-effect design
-   matrices.}
+  matrices. \code{"omit"} is an alias for \code{"exclude"};
+  \code{"fail"} stops on missing required values. \code{"include"}
+  (alias \code{"pass"}) bypasses this filter without imputing classifications
+  or covariates; the random-effect constructor must still produce a valid design.}
 
    \item{naMethodR}{Missing-data policy for observation-level variables used to define
    the residual covariance structure. The default is \code{"exclude"}. Observations
    lacking information required to assign their residual covariance-product coordinate
    are excluded from the common observation set. The residual block and local-coordinate
-   layout are then constructed on the retained observations.}
+  layout are then constructed on the retained observations. \code{"omit"}
+  is an alias for \code{"exclude"}; \code{"fail"} stops on missing
+  required values. \code{"include"} (alias \code{"pass"}) bypasses this
+  filter without imputing residual coordinates; valid covariance coordinates
+  are still required. Section-specific missing-coordinate behavior is
+  described in \code{\link{dsumm}}.}
 
-   \item{returnParam}{A TRUE/FALSE value to indicate if the program should 
-   return the parameters to be used for fitting the model instead of fitting
-   the model.}
-   \item{dateWarning}{A TRUE/FALSE value to indicate if the program should warn 
-   you when is time to update the sommer package.}
-  \item{verbose}{A TRUE/FALSE value to indicate if the program should return 
-  the progress of the iterative algorithm.}
+  \item{returnParam}{Logical, default \code{FALSE}. For a Gaussian
+  covariance-estimation call, \code{TRUE} returns prepared design matrices,
+  covariance descriptors, the parameter-identification table \code{vcParams},
+  and fitting controls instead of fitting. It is not a request for fitted
+  covariance estimates. PQL and \code{solveOnly=TRUE} are dispatched before
+  this option and do not return this setup list.}
+  \item{dateWarning}{Logical, default \code{TRUE}. Print an update reminder
+  when the installed package date is more than 90 days old.}
+  \item{verbose}{Logical, default \code{TRUE}. Print iterative progress.
+  Some setup messages are printed independently of this setting.}
   \item{stepWeight}{A vector of values (of length equal to the number of 
   iterations) indicating the weight used to multiply the update (delta) for
-  variance components at each iteration. If NULL the 1st iteration will be 
-  multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can
+  covariance parameters at each iteration. If \code{NULL}, weights are 0.9,
+  except that the first two iterations whose \code{emWeight} is at most 0.5
+  use 0.5 and 0.7 when both exist. If fewer than two such iterations exist,
+  the first two iterations use those weights instead. A supplied scalar is
+  repeated; other supplied vectors are recycled to \code{nIters}.
+  All weights must be finite and positive. This argument can
   help to avoid that variance components go outside the parameter space in the 
   initial iterations which happens very often with the AI method but it can be 
   detected by looking at the behavior of the likelihood. In that case you may
@@ -292,14 +325,18 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   update. This creates an EM-heavy warm start early in the fit and gradually
   transitions to an AI-dominated update as the optimizer approaches convergence.
   The default schedule is a logarithmic decay from 1 to 0.03 over the first
-  \code{min(nIters, 20)} iterations, followed by a 0.03 floor.
+  \code{min(nIters, 13)} iterations, followed by a 0.03 floor. For a
+  one-iteration fit the default is 1. Supply one value per iteration when
+  specifying a custom schedule.
   Values outside \code{[0, 1]} are
   rejected.}
-  \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
+  \item{contrasts}{Optional named list of contrasts for fixed-effect factors,
+  passed as \code{contrasts.arg} to \code{\link[stats]{model.matrix}}.
+  The default \code{NULL} uses the current R contrast options.}
   \item{getPEV}{A logical value indicating whether prediction error variance
   results should be organized and returned when they are requested through
   \code{computeCi}.}
-  \item{henderson}{A logical value indicating which REML engine to use. \code{TRUE}
+  \item{henderson}{A logical value indicating which Gaussian REML/ML engine to use. \code{TRUE}
   (the default) uses the Henderson mixed-model-equations algorithm, efficient when
   there are many more records than coefficients to estimate. \code{FALSE} uses a
   direct-inversion engine that inverts the phenotypic covariance matrix in
@@ -354,6 +391,8 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
    (e.g. sparse pedigree-based relationship matrices, or no \code{Gu} at all)
    \code{"ldlt"} is selected. Passing an explicit value (\code{"ldlt"}, \code{"pcg"},
    or \code{"cholmod"}) always overrides the automatic choice.
+  The automatic threshold is density strictly greater than 0.2 in any
+  prepared random-effect relationship precision.
    \code{"ldlt"} uses the sparse direct simplicial LDLT factorization path.
    \code{"pcg"} selects the iterative preconditioned conjugate-gradient path.
   For REML fits with \code{computeCi=0}, random-effect precisions produced by
@@ -414,7 +453,8 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
 
    \item{pcgMaxIters}{Maximum number of PCG iterations for an individual linear solve.
    A value of \code{0} lets the C++ solver choose its internal iteration limit from the
-   problem dimension. This argument is used only by the PCG path.}
+  problem dimension. This argument is used by \code{solver="pcg"} and
+  by the separate known-parameter solver when \code{solveOnly=TRUE}.}
 
    \item{pcgTraceProbes}{Number of stochastic probe vectors used by the PCG-based
    machinery for trace quantities required during REML calculations. The default is
@@ -447,7 +487,8 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   \code{returnParam=TRUE} and stored in the fit. See \code{\link{vcc}}.}
 
   \item{family}{A \code{stats::family()} object. The default Gaussian identity
-  family uses the ordinary linear mixed-model implementation. Other families are
+  family uses the ordinary linear mixed-model implementation. A
+  \code{\link{familym}} object specifies trait-specific families. Other families are
   fitted by penalized quasi-likelihood (PQL): each outer iteration forms an IRLS
   working response and weights, then fits the resulting weighted Gaussian mixed
   model with the Henderson solver. The initial implementation supports one numeric
@@ -516,7 +557,9 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   block-Schur partition dimensions, grouped weight-block counts and assembled
   PCG batch solve/iteration counts, plus peak sparse fill in the irregular
   residual fallback.}
-  \item{.pqlStart}{Internal-use covariance warm-start state for successive PQL working fits.}
+  \item{.pqlStart}{Internal-use covariance warm-start state for successive
+  PQL working fits. The default is \code{NULL}; users should not set it
+  directly.}
   \item{factorScoreAugmentation}{FA/RR latent factor parameterization. The
   default \code{"none"} uses the marginal covariance MME. \code{"fixed-shape"}
   uses the augmented MME with fixed loading and specific-variance parameters;
@@ -546,7 +589,10 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   the original effects; \code{C} remains augmented and is tagged with
   \code{CRepresentation="factor-score-augmented"}.}
   
-  \item{.factorScoreParameters}{to be explained later.}
+  \item{.factorScoreParameters}{Internal-use list of FA/RR shape parameters
+  on the working scale, indexed by random term. The profile optimizer uses
+  these values to fix the shape parameters in each inner Gaussian fit.
+  Users should not set this argument directly.}
   
   \item{pcgPreconditioner}{PCG preconditioner: \code{"diagonal"} (default) or
   \code{"nystrom"}. The Nystrom option builds a deterministic landmark
@@ -555,7 +601,7 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   the true residual. Nystrom currently uses assembled-C PCG, so it disables the
   matrix-free shortcut.}
   
-  \item{pcgNystromRank}{Positive number of deterministic landmarks for
+  \item{pcgNystromRank}{Positive integer number of deterministic landmarks for
   \code{pcgPreconditioner="nystrom"}; the default is 32 and the value is capped
   at the coefficient dimension.}
   
@@ -573,7 +619,10 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   \code{u}, \code{bu}, \code{uList}, \code{fitted}, \code{residuals},
   \code{theta} (covariance matrices used), \code{vcParams} (the natural-scale
   parameters used, reusable as \code{covPar}) and \code{pcg} diagnostics. No
-  PEV or likelihood is computed.}
+  PEV or likelihood is computed. The default is \code{FALSE}. The fitting
+  controls \code{nIters}, \code{REML}, \code{emWeight}, \code{stepWeight},
+  \code{solver}, \code{henderson} and the stochastic PCG trace/log-determinant
+  controls do not select or tune this separate solver.}
   
   \item{covPar}{Known covariance parameters for \code{solveOnly=TRUE}. One of:
   a fitted \code{mmes} object with the same random and residual terms (its
@@ -591,6 +640,40 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
 }
 
 \details{
+
+\strong{Choosing a fitting mode}
+
+The default, \code{henderson=TRUE}, estimates covariance parameters with
+mixed-model equations in coefficient space. Supply relationship precisions
+as \code{Gu}, with \code{attr(Gu, "inverse")=TRUE}. Set
+\code{henderson=FALSE} to estimate parameters with the direct observation-space
+engine; \code{Gu} is still supplied as a relationship precision. The direct
+engine does not use the Henderson \code{solver} or PCG controls.
+Non-Gaussian families use an outer PQL iteration around Gaussian working fits,
+not exact GLMM maximum likelihood.
+
+For known-parameter prediction, use \code{solveOnly=TRUE} and \code{covPar}.
+This mode always uses its own matrix-free PCG solver, irrespective of
+\code{solver} and \code{henderson}; it does not estimate covariance parameters
+or return likelihoods or PEVs. \code{returnParam=TRUE}, by contrast, prepares
+the design and covariance descriptors without fitting or solving the model.
+
+\strong{Starting values and convergence}
+
+When \code{vsm()} variance scales are omitted, initial scales are chosen from
+fixed-effect residual variation when possible. Explicit \code{sigma2} values
+are retained; \code{fixedSigma2=TRUE} prevents estimation of that scale.
+Covariance constructors control their own starting shape parameters and which
+of those parameters are fixed.
+
+Henderson fits stop when either the absolute change in log-likelihood is below
+\code{tolParConvLL} or the parameter convergence norm is below
+\code{tolParConvNorm}. Reaching \code{nIters} alone is not convergence; inspect
+\code{convergence}, \code{llik} and \code{normMonitor}. A nearly unchanged
+likelihood need not imply equally precise covariance estimates. When comparing
+equivalent parameterizations, tighten both convergence tolerances and allow
+enough iterations. PCG trace and log-determinant approximations introduce an
+additional accuracy tradeoff controlled by the PCG arguments.
 
 \strong{Evaluation environments and observation filtering}
 
@@ -629,20 +712,20 @@ nested expressions inside model terms are not interpreted as separate top-level
 random or residual terms.
 
 The use of this function requires a good understanding of mixed models. 
-Please review the 'sommer.quick.start' vignette and pay attention to details 
+Please review the covariance-structure vignette and pay attention to details
 like format of your random and fixed variables (e.g. character and factor 
 variables have different properties when returning BLUEs or BLUPs).
 
 \strong{For tutorials} on how to perform different analysis with sommer please
 look at the vignettes by typing in the terminal:
 
-vignette("v1.sommer.quick.start")
+\code{vignette("sommer.covariance.structures", package="sommer")}
 
-vignette("v2.sommer.changes.and.faqs")
+\code{vignette("sommer.genetic.evaluation", package="sommer")}
 
-vignette("v3.sommer.qg")
+\code{vignette("sommer.qg", package="sommer")}
 
-vignette("v4.sommer.gxe")
+\code{vignette("sommer.gxe", package="sommer")}
 
 \strong{Citation}
 
@@ -653,7 +736,7 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
  \code{\link{vsm}(\link{atm}(x,levels),ism(y))}
 
  can be used to specify heterogeneous variance for the "y" covariate at specific
- levels of the covariate "x", e.g., \emph{random=~vsm(at(Location,c("A","B")),ism(ID))}
+ levels of the covariate "x", e.g., \emph{random=~vsm(atm(Location,c("A","B")),ism(ID))}
  fits a variance component for ID at levels A and B of the covariate Location.
 
  \code{\link{vsm}(\link{dsm}(x),ism(y))}
@@ -668,12 +751,11 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
  for all levels of the  covariate "x", e.g., \emph{random=~vsm(usm(Location),ism(ID))}  
  fits variance and covariance components for ID at all levels of the covariate Location.
  
- \code{\link{vsm}(\link{usm}(rrmat(x,y,z,nPC)),ism(y))}
+ \code{\link{vsm}(\link{rrm}(Location, 2), ism(ID))}
 
- can be used to specify an unstructured covariance structure for the "y" effect
- for all levels of the  covariate "x", and a response variable "z", e.g., 
- \emph{random=~vsm(rrmat(Location,ID,response, nPC=2),ism(ID))}  fits a reduced-rank 
- factor analytic covariance for ID at 2 principal components of the covariate Location.
+ fits the reduced-rank covariance model with two factors across locations for
+ \code{ID}. Use \code{\link{fam}(Location, 2)} instead to estimate
+ location-specific variances as well as factor loadings.
 
   \code{\link{vsm}(ism(\link[enhancer]{overlay}(...,rlist=NULL,prefix=NULL)))}
 
@@ -699,7 +781,7 @@ Type \emph{citation("sommer")} to know how to cite the sommer package in your pu
   be combined with the special functions \code{dsm}, \code{usm} \code{at} and \code{csm}. 
   For example \emph{random=~vsm(leg(x,1),ism(y))} or \emph{random=~vsm(usm(leg(x,1)),ism(y))}.
 
-  \code{\link{spl2Dc}(x.coord, y.coord, at.var, at.levels))}
+  \code{\link{spl2Dc}(x.coord, y.coord, at.var, at.levels)}
 
   can be used to fit a 2-dimensional spline (e.g., spatial modeling) using 
   coordinates \code{x.coord} and \code{y.coord} (in numeric class) assuming 
@@ -788,7 +870,15 @@ structures please check the help page of the package (\code{\link{sommer}}).
 }
 
 \value{
-If all parameters are correctly indicated the program will return a list with the following information:
+A Gaussian or PQL fit returns an S3 object of class \code{mmes}. The main
+components are listed below; some are engine-specific or depend on
+\code{computeCi}. PQL fits additionally return \code{family},
+\code{dispersion}, \code{deviance} and \code{pqlMonitor}; their likelihood
+and information criteria are not GLMM likelihood quantities.
+With \code{returnParam=TRUE}, a setup list is returned instead, including
+design matrices, covariance descriptors, \code{vcParams} and optimizer controls.
+With \code{solveOnly=TRUE}, the return value has class \code{mmesSolve}; see
+the \code{solveOnly} argument for its components and limitations.
 
 \item{data}{the dataset used in model fitting after application of the common
               observation mask.}
@@ -802,8 +892,10 @@ If all parameters are correctly indicated the program will return a list with th
 \item{b}{the vector of fixed effect.}
 \item{u}{the vector of random effect.}
 \item{bu}{the vector of fixed and random effects together.}
-\item{Ci}{the inverse of the coefficient matrix.}
-\item{Ci_11}{the inverse of the coefficient matrix pertaining to the fixed effects.}
+\item{C}{the mixed-model coefficient matrix, in fixed-then-random coefficient
+order. Explicit factor-score augmentation uses the augmented representation.}
+\item{Ci}{the full inverse of the coefficient matrix only when
+\code{computeCi=2}; otherwise it is not materialized.}
 \item{theta}{a list of estimated variance covariance matrices. Each element of 
              the list corresponds to the different random and residual components}
 \item{covPar}{the fitted covariance parameters in their descriptor-defined
@@ -815,17 +907,28 @@ non-diagonal Kronecker residual covariance was evaluated directly from its
 factors without materializing the full covariance matrix. In this case the
 residual element of \code{theta} is a \eqn{0 \\times 0} matrix; use
 \code{covparams_mmes()} for fitted residual covariance parameters.}
+\item{covParWorking}{covariance parameters on the internal optimizer scale,
+such as log scales and transformed correlations. Prefer the native parameter
+table for interpretation.}
+\item{vcParams}{parameter identifiers and metadata for covariance descriptors,
+used to specify \code{vcc} constraints.}
 \item{covParNative}{a data frame containing all fixed and estimated covariance
-parameters in the native model-facing scale defined by each CovarianceFactor.
+parameters, delta-method standard errors and Z ratios in the native
+model-facing scale defined by each CovarianceFactor.
 For example, \code{dsm()} entries are level-specific variances rather than
-variance ratios. This is the same result returned by \code{covparams_mmes()}.}
-\item{covParNativeSE}{the native-scale covariance-parameter table augmented
-with delta-method standard errors and Z ratios. This is the same result
-returned by \code{covparams_mmes_se()}.}
-\item{theta_se}{inverse of the information matrix.}
+variance ratios. Use \code{\link{covparams_mmes}} for estimates only or
+\code{\link{covparams_mmes_se}} for estimates with standard errors.}
+\item{theta_se}{estimated covariance matrix of the reported \code{covPar}
+coordinates, not a vector of standard errors. Native-scale standard errors
+are obtained by the delta method with \code{\link{covparams_mmes_se}}.}
 \item{InfMat}{information matrix.}
-\item{monitor}{The values of the variance-covariance components across iterations 
-              during the REML estimation.}
+\item{monitor}{covariance parameters in the reported \code{covPar}
+coordinates across iterations. Explicit factor-score augmentation may instead
+retain restored working-scale rows; use \code{covParNative} for interpretable
+final estimates in all modes.}
+\item{engine, solver}{the fitting engine and resolved Henderson solver.}
+\item{engineDiagnostics}{engine-specific counters and active numerical paths;
+see the \code{solver} and \code{acceleration} arguments.}
 \item{AIC}{Akaike information criterion}
 \item{BIC}{Bayesian information criterion}
 \item{convergence}{a TRUE/FALSE statement indicating if the model converged.}
@@ -837,19 +940,19 @@ returned by \code{covparams_mmes_se()}.}
 \item{normMonitor}{the matrix of the three norms calculated (see tolParConvNorm argument).}
 \item{toBoundary}{the matrix of variance components that were forced to the
                    boundary across iterations.}
-\item{Cchol}{the Cholesky decomposition of the coefficient matrix.}
+\item{Cchol}{legacy placeholder; the current Henderson engine returns an
+empty matrix rather than exposing its internal factorization.}
 \item{y}{the response vector.}
 \item{W}{the column binded matrix W = [X Z] }
 \item{uList}{a list containing the BLUPs in data frame format where rows are 
              levels of the random effects and column the different factors at 
              which the random effect is fitted. This is specially useful for 
              diagonal and unstructured models.}
-\item{uPevList}{a list containing the BLUPs in data frame format where rows are 
-                levels of the random effects and column the different factors at 
-                which the random effect is fitted. This is specially useful for 
-                diagonal and unstructured models.}
+\item{uPevList}{prediction error variances for the corresponding entries of
+\code{uList}, organized by random term and covariance level when
+\code{getPEV=TRUE} and \code{computeCi>0}. These are variances, not BLUPs or
+standard errors.}
 \item{args}{the fixed, random and residual formulas from the mmes model.}
-\item{constraints}{The vector of constraints.}
 
 }
 \references{

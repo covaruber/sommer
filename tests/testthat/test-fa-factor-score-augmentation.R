@@ -7,12 +7,14 @@ test_that("fixed-shape FA/RR augmentation matches the marginal MME", {
       rrm(data$env, 2L, fixed=rep(TRUE, 7L))
     fit <- function(mode){
       mmes(y~env, random=~vsm(shape, ism(id)), rcov=~units,
-        data=data, nIters=60, tolParConvLL=1e-9, tolParConvNorm=1e-9,
+        data=data, nIters=60, tolParConvLL=1e-12, tolParConvNorm=1e-12,
         computeCi=0, solver="ldlt", verbose=FALSE,
         dateWarning=FALSE, factorScoreAugmentation=mode)
     }
     marginal <- fit("none")
     augmented <- fit("fixed-shape")
+    expect_true(marginal$convergence)
+    expect_true(augmented$convergence)
     expect_equal(tail(as.numeric(augmented$llik), 1L), tail(as.numeric(marginal$llik), 1L), tolerance=1e-8)
     expect_equal(unlist(augmented$theta[[1L]]), unlist(marginal$theta[[1L]]), tolerance=1e-5)
     expect_equal(as.numeric(augmented$bu), as.numeric(marginal$bu), tolerance=1e-5)

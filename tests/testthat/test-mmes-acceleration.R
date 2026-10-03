@@ -1,9 +1,14 @@
-test_that("the default EM schedule uses the validated twenty-step taper", {
+test_that("the default EM schedule uses a thirteen-step taper", {
   data(DT_example)
-  setup <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example,
-    nIters=30, returnParam=TRUE, verbose=FALSE, dateWarning=FALSE)
-  expected <- c(exp(seq(log(1), log(0.03), length.out=20L)), rep(0.03, 10L))
-  expect_equal(setup$emWeight, expected)
+  for(nIters in c(1L, 5L, 13L, 30L)){
+    setup <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example,
+      nIters=nIters, returnParam=TRUE, verbose=FALSE, dateWarning=FALSE)
+    taperIters <- min(nIters, 13L)
+    expected <- if(nIters == 1L) 1 else
+      c(exp(seq(log(1), log(0.03), length.out=taperIters)),
+        rep(0.03, nIters - taperIters))
+    expect_equal(setup$emWeight, expected)
+  }
 })
 
 test_that("guarded Aitken acceleration preserves the converged deterministic fit", {
