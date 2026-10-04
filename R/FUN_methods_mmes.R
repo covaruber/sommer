@@ -84,7 +84,7 @@
   coef$Std.Error <- sqrt(abs(s2.beta))
   coef$t.value <- coef$Estimate/coef$Std.Error
   
-varcomp <- object$covParNative
+varcomp <- object$covParNative[,c("term",  "parameter", "estimate",  "StdError",  "Zratio"  )]
 
   # lapply(object$covStruct, function(x){x$free})
   # constraints <- unlist(lapply(object$thetaC, as.vector))

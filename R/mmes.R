@@ -1,6 +1,6 @@
 # Refactored mmes front end: unified formula environments, centralized
 # observation filtering, and language-object parsing for random/residual terms.
-mmes <- function(fixed, random, rcov, data, W,
+mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  nIters=30, tolParConvLL=1e-04,
                  tolParConvNorm=1e-04, tolParInv=1e-06,
                  naMethodX="exclude", naMethodY="exclude",
@@ -15,7 +15,7 @@ mmes <- function(fixed, random, rcov, data, W,
                  .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
                  .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
                  .pqlBaseFactor=NULL, acceleration="none", .pqlStart=NULL,
-                 weights=NULL, factorScoreAugmentation="none",
+                  factorScoreAugmentation="none",
                  .factorScoreParameters=NULL,
                  pcgPreconditioner="diagonal", pcgNystromRank=32L,
                  solveOnly=FALSE, covPar=NULL){
@@ -917,7 +917,7 @@ mmes <- function(fixed, random, rcov, data, W,
   }
   
   if (is.null(emWeight)) {
-    taperIters <- min(nIters, 20L)
+    taperIters <- min(nIters, 13L)
 
     if (taperIters <= 1L) {
       emWeight <- 1

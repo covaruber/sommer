@@ -19,7 +19,7 @@ modeling situation.
 
 \usage{
 
-mmes(fixed, random, rcov, data, W,
+mmes(fixed, random, rcov, data, W, weights=NULL,
      nIters=30, tolParConvLL=1e-04,
      tolParConvNorm=1e-04, tolParInv=1e-06,
      naMethodX="exclude", naMethodY="exclude",
@@ -34,90 +34,13 @@ mmes(fixed, random, rcov, data, W,
     .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
     .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
     .pqlBaseFactor=NULL, acceleration="none", .pqlStart=NULL,
-    weights=NULL, factorScoreAugmentation="none",
+     factorScoreAugmentation="none",
+     .factorScoreParameters=NULL,
     pcgPreconditioner="diagonal", pcgNystromRank=32L,
     solveOnly=FALSE, covPar=NULL)
 }
 \arguments{
-  \item{.pqlStart}{Internal-use covariance warm-start state for successive PQL working fits.}
-  \item{acceleration}{Optional optimizer acceleration: \code{"none"} (default) or
-  \code{"aitken"}. Aitken proposals are capped, applied every third accepted
-  iteration during EM blending, and checked by the existing likelihood line
-  search. Requires a deterministic Henderson solver; not available for PCG or
-  direct inversion. The Henderson result's \code{engineDiagnostics} reports
-  coefficient evaluations, line-search halvings, accelerated proposals,
-  symbolic-analysis and ML selected-inverse topology counters, and active
-  block-Schur partition dimensions, grouped weight-block counts and assembled
-  PCG batch solve/iteration counts, plus peak sparse fill in the irregular
-  residual fallback.}
-  \item{weights}{Optional one-sided formula describing independent row blocks
-  of the supplied \code{W} matrix, for example \code{weights=~trial}. Rows in
-  different formula groups must have zero cross-group entries in \code{W}; the
-  formula is structural metadata and does not generate numeric weights.}
-  \item{factorScoreAugmentation}{FA/RR latent factor parameterization. The
-  default \code{"none"} uses the marginal covariance MME. \code{"fixed-shape"}
-  uses the augmented MME with fixed loading and specific-variance parameters;
-  it is currently limited to Henderson REML, \code{computeCi=0}, and one FA/RR
-  shaping factor per eligible random term. It replaces each \eqn{q d} marginal
-  coefficient block with \eqn{(k+q)d} factor and specific-effect coefficients
-  constrained to share one variance scale. \code{"profile"} estimates free
-  FA/RR shape parameters with a bounded L-BFGS-B outer profile optimizer. It
-  starts from the values in the constructors (so it does not first factor the
-  expensive marginal FA/RR system); at each candidate shape it rebuilds the
-  augmented design and refits shared random and residual scales by REML.
-  The outer iteration budget is dimension-adjusted, with at least five and at
-  most twelve outer iterations; \code{nIters} controls each inner AI fit.
-  Inner covariance starts and symbolic factorizations are reused when the
-  augmented layout matches; numeric factors are recomputed. The outer objective
-  uses finite-difference gradients, is experimental, can require many augmented
-  REML fits, and can converge to a local optimum; inspect
-  \code{factorScoreProfile}. Shape-parameter standard errors are returned as
-  \code{NA}; the inner AI information matrix is not their uncertainty estimate.
 
-  Both augmented modes currently require Gaussian identity Henderson REML,
-  \code{computeCi=0}, one FA/RR shaping factor per eligible random term, no
-  rotation, and no user \code{vcc}. With \code{solver="auto"}, dense
-  \code{Gu} selects CHOLMOD; its exact block-Schur path eliminates independent
-  specific-effect blocks while retaining factor effects in the border. The
-  returned \code{uList}, \code{bu}, fitted values, and prediction contrasts use
-  the original effects; \code{C} remains augmented and is tagged with
-  \code{CRepresentation="factor-score-augmented"}.}
-  \item{pcgPreconditioner}{PCG preconditioner: \code{"diagonal"} (default) or
-  \code{"nystrom"}. The Nyström option builds a deterministic landmark
-  approximation to assembled \eqn{C} and applies its Woodbury inverse as an SPD
-  preconditioner; PCG continues to multiply by the exact \eqn{C} and verifies
-  the true residual. Nyström currently uses assembled-C PCG, so it disables the
-  matrix-free shortcut.}
-  \item{pcgNystromRank}{Positive number of deterministic landmarks for
-  \code{pcgPreconditioner="nystrom"}; the default is 32 and the value is capped
-  at the coefficient dimension.}
-  \item{solveOnly}{If \code{TRUE}, no variance components are estimated: the
-  mixed-model equations are solved once at known covariance parameters (genetic
-  evaluation). The coefficient matrix is never assembled; a matrix-free
-  preconditioned conjugate gradient iterates on the data with block-Jacobi
-  preconditioning (one block for the fixed effects when there are at most 1000
-  of them, and one covariance-dimension block per random-effect level).
-  \code{pcgTol} is the relative-residual tolerance and \code{pcgMaxIters} the
-  iteration limit (0 = automatic). Requires a Gaussian identity model,
-  \code{computeCi=0}, no rotation, no \code{vcc}, a diagonal \code{W} if any,
-  and a block-diagonal residual covariance whose blocks have at most 10000
-  records. The result is an object of class \code{mmesSolve} with \code{b},
-  \code{u}, \code{bu}, \code{uList}, \code{fitted}, \code{residuals},
-  \code{theta} (covariance matrices used), \code{vcParams} (the natural-scale
-  parameters used, reusable as \code{covPar}) and \code{pcg} diagnostics. No
-  PEV or likelihood is computed.}
-  \item{covPar}{Known covariance parameters for \code{solveOnly=TRUE}. One of:
-  a fitted \code{mmes} object with the same random and residual terms (its
-  final estimates are used exactly); a list with one element per term, named by
-  term label or in formula order (random terms, then residual), each holding
-  either the natural-scale parameter vector (as in \code{fit$covPar}) or, for
-  \code{ism()}, \code{dsm()} and \code{usm()} terms, the full covariance
-  matrix (e.g. \eqn{G_0} and \eqn{R_0}); or a data frame with columns
-  \code{term}, \code{parameter} and \code{value} (as \code{vcParams} of an
-  \code{mmesSolve} result, or the \code{vcParams} table of
-  \code{returnParam=TRUE} with a \code{value} column). When \code{NULL}, every
-  parameter must already be fixed in the formula (e.g.
-  \code{vsm(ism(id), Gu=Ainv, sigma2=0.3, fixedSigma2=TRUE)}).}
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
 
   \emph{response ~ covariate}
@@ -582,6 +505,89 @@ mmes(fixed, random, rcov, data, W,
 
   \item{.pqlBaseFactor}{Internal-use cached factor of \code{.pqlBaseW}, reused
   across PQL iterations. Users should not set this argument directly.}
+  
+  \item{acceleration}{Optional optimizer acceleration: \code{"none"} (default) or
+  \code{"aitken"}. Aitken proposals are capped, applied every third accepted
+  iteration during EM blending, and checked by the existing likelihood line
+  search. Requires a deterministic Henderson solver; not available for PCG or
+  direct inversion. The Henderson result's \code{engineDiagnostics} reports
+  coefficient evaluations, line-search halvings, accelerated proposals,
+  symbolic-analysis and ML selected-inverse topology counters, and active
+  block-Schur partition dimensions, grouped weight-block counts and assembled
+  PCG batch solve/iteration counts, plus peak sparse fill in the irregular
+  residual fallback.}
+  \item{.pqlStart}{Internal-use covariance warm-start state for successive PQL working fits.}
+  \item{factorScoreAugmentation}{FA/RR latent factor parameterization. The
+  default \code{"none"} uses the marginal covariance MME. \code{"fixed-shape"}
+  uses the augmented MME with fixed loading and specific-variance parameters;
+  it is currently limited to Henderson REML, \code{computeCi=0}, and one FA/RR
+  shaping factor per eligible random term. It replaces each \eqn{q d} marginal
+  coefficient block with \eqn{(k+q)d} factor and specific-effect coefficients
+  constrained to share one variance scale. \code{"profile"} estimates free
+  FA/RR shape parameters with a bounded L-BFGS-B outer profile optimizer. It
+  starts from the values in the constructors (so it does not first factor the
+  expensive marginal FA/RR system); at each candidate shape it rebuilds the
+  augmented design and refits shared random and residual scales by REML.
+  The outer iteration budget is dimension-adjusted, with at least five and at
+  most twelve outer iterations; \code{nIters} controls each inner AI fit.
+  Inner covariance starts and symbolic factorizations are reused when the
+  augmented layout matches; numeric factors are recomputed. The outer objective
+  uses finite-difference gradients, is experimental, can require many augmented
+  REML fits, and can converge to a local optimum; inspect
+  \code{factorScoreProfile}. Shape-parameter standard errors are returned as
+  \code{NA}; the inner AI information matrix is not their uncertainty estimate.
+
+  Both augmented modes currently require Gaussian identity Henderson REML,
+  \code{computeCi=0}, one FA/RR shaping factor per eligible random term, no
+  rotation, and no user \code{vcc}. With \code{solver="auto"}, dense
+  \code{Gu} selects CHOLMOD; its exact block-Schur path eliminates independent
+  specific-effect blocks while retaining factor effects in the border. The
+  returned \code{uList}, \code{bu}, fitted values, and prediction contrasts use
+  the original effects; \code{C} remains augmented and is tagged with
+  \code{CRepresentation="factor-score-augmented"}.}
+  
+  \item{.factorScoreParameters}{to be explained later.}
+  
+  \item{pcgPreconditioner}{PCG preconditioner: \code{"diagonal"} (default) or
+  \code{"nystrom"}. The Nystrom option builds a deterministic landmark
+  approximation to assembled \eqn{C} and applies its Woodbury inverse as an SPD
+  preconditioner; PCG continues to multiply by the exact \eqn{C} and verifies
+  the true residual. Nystrom currently uses assembled-C PCG, so it disables the
+  matrix-free shortcut.}
+  
+  \item{pcgNystromRank}{Positive number of deterministic landmarks for
+  \code{pcgPreconditioner="nystrom"}; the default is 32 and the value is capped
+  at the coefficient dimension.}
+  
+  \item{solveOnly}{If \code{TRUE}, no variance components are estimated: the
+  mixed-model equations are solved once at known covariance parameters (genetic
+  evaluation). The coefficient matrix is never assembled; a matrix-free
+  preconditioned conjugate gradient iterates on the data with block-Jacobi
+  preconditioning (one block for the fixed effects when there are at most 1000
+  of them, and one covariance-dimension block per random-effect level).
+  \code{pcgTol} is the relative-residual tolerance and \code{pcgMaxIters} the
+  iteration limit (0 = automatic). Requires a Gaussian identity model,
+  \code{computeCi=0}, no rotation, no \code{vcc}, a diagonal \code{W} if any,
+  and a block-diagonal residual covariance whose blocks have at most 10000
+  records. The result is an object of class \code{mmesSolve} with \code{b},
+  \code{u}, \code{bu}, \code{uList}, \code{fitted}, \code{residuals},
+  \code{theta} (covariance matrices used), \code{vcParams} (the natural-scale
+  parameters used, reusable as \code{covPar}) and \code{pcg} diagnostics. No
+  PEV or likelihood is computed.}
+  
+  \item{covPar}{Known covariance parameters for \code{solveOnly=TRUE}. One of:
+  a fitted \code{mmes} object with the same random and residual terms (its
+  final estimates are used exactly); a list with one element per term, named by
+  term label or in formula order (random terms, then residual), each holding
+  either the natural-scale parameter vector (as in \code{fit$covPar}) or, for
+  \code{ism()}, \code{dsm()} and \code{usm()} terms, the full covariance
+  matrix (e.g. \eqn{G_0} and \eqn{R_0}); or a data frame with columns
+  \code{term}, \code{parameter} and \code{value} (as \code{vcParams} of an
+  \code{mmesSolve} result, or the \code{vcParams} table of
+  \code{returnParam=TRUE} with a \code{value} column). When \code{NULL}, every
+  parameter must already be fixed in the formula (e.g.
+  \code{vsm(ism(id), Gu=Ainv, sigma2=0.3, fixedSigma2=TRUE)}).}
+  
 }
 
 \details{
