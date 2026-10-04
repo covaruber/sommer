@@ -3117,7 +3117,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         for (int j = 0; j < kk; j++){
           if (i > j){}else{//only upper triangular
             if(ai && cycle > 2){ // if average information
-              Inf(i,j) = 0.5 * arma::as_scalar(Ysm.t() * PdViList.slice(i) * PdViList.slice(j) * Py);
+              Inf(i,j) = 0.5 * arma::as_scalar(Ysm.t() * PdViList.slice(i) * P * PdViList.slice(j) * P * Py);
             }else{ // if newton raphson
               Inf(i,j) = accu(PdViList.slice(i) % PdViList.slice(j).t()) * arma::as_scalar(var_components(i)) * arma::as_scalar(var_components(j));
             }
