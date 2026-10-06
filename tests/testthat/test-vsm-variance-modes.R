@@ -193,3 +193,34 @@ test_that("heterogeneous AR1 reports rho and environment variances", {
   expect_true(all(is.finite(nativeSE$StdError)))
 })
 
+
+test_that("covariance representations are shared across random and residual factors", {
+  x3 <- factor(letters[1:3])
+  x4 <- factor(letters[1:4])
+  kinds <- vapply(list(
+    ism(x3), dsm(x3), fam(x3, 1), rrm(x3, 1), csm(x3),
+    ar1m(x3), ar2m(x4), antem(x4), mam(x4), usm(x3)
+  ), function(structure) structure$covFactor$representation$kind,
+  character(1))
+
+  expect_identical(unname(kinds), c(
+    "diagonal", "diagonal", "lowrank_diagonal", "lowrank_diagonal",
+    "compound_symmetry", "banded_precision", "autoregressive_precision",
+    "modified_cholesky_precision", "banded_covariance", "dense_cholesky"
+  ))
+
+  DT_example <- get("DT_example", envir=asNamespace("sommer"))
+  setup <- mmes(
+    Yield ~ Env,
+    random=~vsm(usm(Env), ism(Name)),
+    rcov=~vsm(ar1m(Env), ism(units)),
+    data=DT_example,
+    returnParam=TRUE,
+    verbose=FALSE
+  )
+  expect_identical(setup$covStruct[[1]]$factors[[1]]$representation$kind,
+                   "dense_cholesky")
+  expect_identical(setup$covStruct[[2]]$factors[[1]]$representation$kind,
+                   "banded_precision")
+})
+

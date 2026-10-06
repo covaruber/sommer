@@ -11,7 +11,7 @@ Two engines are available; henderson formulation and direct reml
 ## Usage
 
 ``` r
-mmes(fixed, random, rcov, data, W,
+mmes(fixed, random, rcov, data, W, weights=NULL,
      nIters=30, tolParConvLL=1e-04,
      tolParConvNorm=1e-04, tolParInv=1e-06,
      naMethodX="exclude", naMethodY="exclude",
@@ -21,11 +21,14 @@ mmes(fixed, random, rcov, data, W,
      contrasts=NULL, getPEV=TRUE, henderson=TRUE,
     computeCi=0, solver="auto", pcgTol=1.0e-8,
     pcgMaxIters=0, pcgTraceProbes=8,
-    pcgLanczosSteps=20, REML=TRUE,
+    pcgLanczosSteps=20, REML=TRUE, vcc=NULL,
     family=stats::gaussian(), pqlControl=list(),
     .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
     .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
-    .pqlBaseFactor=NULL)
+    .pqlBaseFactor=NULL, acceleration="none", .pqlStart=NULL,
+    factorScoreAugmentation="none", .factorScoreParameters=NULL,
+    pcgPreconditioner="diagonal", pcgNystromRank=32L,
+    solveOnly=FALSE, covPar=NULL)
 ```
 
 ## Arguments
@@ -222,6 +225,21 @@ mmes(fixed, random, rcov, data, W,
   is squared and inverted as Wsi = solve(chol(W)), then the residual
   matrix is calculated as R = Wsi\*O\*Wsi.t(), where \* is the matrix
   product, and O is the original residual matrix.
+
+- weights:
+
+  Optional one-sided formula declaring independent row blocks of `W`,
+  for example `weights=~trial`. Rows assigned to different groups must
+  have zero cross-group entries in `W`; the formula supplies structural
+  metadata and does not create numeric weights.
+
+- factorScoreAugmentation:
+
+  `"none"` uses the marginal covariance MME. `"fixed-shape"` and
+  `"profile"` can use FA/RR or nonnegative compound-symmetry random
+  factors. `usm()` remains on the marginal path because it is full-rank.
+  Augmentation requires Henderson REML, `computeCi=0`, one eligible
+  shaping factor per random term, no rotation, and no user `vcc`.
 
 - nIters:
 
@@ -913,10 +931,20 @@ with the following information:
 
 - uPevList:
 
-  a list containing the BLUPs in data frame format where rows are levels
-  of the random effects and column the different factors at which the
-  random effect is fitted. This is specially useful for diagonal and
-  unstructured models.
+  Prediction error variances for the corresponding entries of `uList`,
+  organized by random term and covariance level. These are variances,
+  not BLUPs or standard errors. Use `postPEV()` to calculate them after
+  fitting and `postVarU()` for the distinct sampling variances of BLUPs.
+
+- randomPrecision:
+
+  Original-level relationship precisions retained by random term for
+  post-fit Henderson VarU calculations, avoiding dependence on external
+  `Gu` objects. They define each prior covariance together with the fitted
+  covariance-coordinate matrix: $G_k=\Sigma_k\otimes A_k$.
+  `postVarU()` adds model-effect outputs, whereas `predict(PEV=TRUE,
+  VarU=TRUE)` projects covariances through the requested `D`/`Dtable`
+  linear combinations.
 
 - args:
 

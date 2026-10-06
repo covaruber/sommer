@@ -1889,6 +1889,54 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
 # derivative callback or derivative=list(backend="numeric") creates a new
 # covariance model without any change to ai_mme_sp2().
 # -------------------------------------------------------------------------
+.covfactor_representation <- function(model, factor=list(),
+                                     structurally_diagonal=FALSE){
+  model <- if(length(model)) as.character(model)[1] else ""
+  supplied <- factor$representation
+  if(is.list(supplied) && is.character(supplied$kind) &&
+     length(supplied$kind) == 1L){
+    return(supplied)
+  }
+
+  kind <- if(isTRUE(structurally_diagonal) ||
+             model %in% c("identity", "diag")){
+    "diagonal"
+  }else if(model %in% c("fa", "rr")){
+    "lowrank_diagonal"
+  }else if(model %in% c("csm")){
+    "compound_symmetry"
+  }else if(model == "ar1" && !isTRUE(factor$heterogeneous)){
+    "banded_precision"
+  }else if(model %in% c("arp", "ar1", "ar2", "ar3")){
+    "autoregressive_precision"
+  }else if(model == "ante"){
+    "modified_cholesky_precision"
+  }else if(model == "ma"){
+    "banded_covariance"
+  }else if(model %in% c("us", "corg")){
+    "dense_cholesky"
+  }else{
+    "dense"
+  }
+
+  out <- list(kind=kind)
+  form <- switch(model,
+    ar1=if(isTRUE(factor$heterogeneous)) "stationary_ar" else "ar1",
+    arp="stationary_ar",
+    ar2="stationary_ar",
+    ar3="stationary_ar",
+    ante="modified_cholesky",
+    csm="compound_symmetry",
+    NULL
+  )
+  if(!is.null(form)) out$form <- form
+  if(kind %in% c("lowrank_diagonal", "autoregressive_precision",
+                 "banded_covariance") && !is.null(factor$order)){
+    out$order <- as.integer(factor$order)[1]
+  }
+  out
+}
+
 .make_covfactor <- function(dim, levels, par=numeric(), free=logical(),
                             par_names=character(), evaluator,
                             derivative=list(backend="numeric", rel_step=1e-6),
@@ -1928,6 +1976,9 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     native_report=customNativeReport,
     trust_cap=as.numeric(trust_cap),
     structurally_diagonal=isTRUE(structurally_diagonal),
+    representation=.covfactor_representation(
+      model, metadata, structurally_diagonal
+    ),
     descriptor_version=2L,
     model=model
   ), metadata)
@@ -2134,8 +2185,13 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
 .compile_covfactor <- function(f){
   if(inherits(f, "sommer_covfactor") &&
      !is.null(f$evaluator) && !is.null(f$derivative) &&
-  !is.null(f$report) && !is.null(f$native_report) &&
-  !is.null(f$trust_cap)){
+     !is.null(f$report) && !is.null(f$native_report) &&
+     !is.null(f$trust_cap)){
+    if(is.null(f$representation)){
+      f$representation <- .covfactor_representation(
+        f$model, f, f$structurally_diagonal
+      )
+    }
     return(f)
   }
 
@@ -2325,8 +2381,13 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
   f$type <- NULL                   # model label never crosses as solver dispatch
   f$evaluator <- evaluator
   f$derivative <- derivative
-  if(model %in% c("fa", "rr")){
+  f$representation <- .covfactor_representation(
+    model, f, structurally_diagonal
+  )
+  if(f$representation$kind == "lowrank_diagonal"){
     f$precision <- list(backend="woodbury", kind=model)
+  }else if(f$representation$kind == "compound_symmetry"){
+    f$precision <- list(backend="woodbury", kind="compound_symmetry")
   }
   f$report <- list(
     backend="builtin",
@@ -2352,8 +2413,8 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
 
 .validate_covfactor <- function(f){
   required <- c("dim","levels","par","free","par_names","evaluator",
-                "derivative","report","native_report","trust_cap","structurally_diagonal",
-                "descriptor_version")
+                "derivative","report","native_report","trust_cap",
+                "structurally_diagonal","representation","descriptor_version")
   miss <- setdiff(required, names(f))
   if(length(miss)){
     stop(paste("Incomplete CovarianceFactor descriptor; missing:",
@@ -2364,6 +2425,13 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
   }
   if(length(f$trust_cap) != length(f$par)){
     stop("CovarianceFactor trust_cap must have one value per working parameter.",
+         call. = FALSE)
+  }
+  if(!is.list(f$representation) ||
+     !is.character(f$representation$kind) ||
+     length(f$representation$kind) != 1L ||
+     !nzchar(f$representation$kind)){
+    stop("CovarianceFactor representation must declare one family kind.",
          call. = FALSE)
   }
   if(!is.list(f$native_report) || !identical(f$native_report$backend, "R") ||
@@ -2821,7 +2889,8 @@ usm <- function(x, theta=NULL, fixed=NULL){
         upper=rep(NA_real_, length(par))
       ),
       trust_cap=rep(1, length(par)),
-      model=paste0("ar", order)
+      model=paste0("ar", order),
+      metadata=list(order=order, heterogeneous=TRUE)
     )
   )
 }

@@ -45,7 +45,17 @@ typedef Eigen::AMDOrdering<int> SommerSparseOrdering;
 #include <unordered_map>
 #include <cstdint>
 #include <chrono>
+#include <ctime>
+#include <iomanip>
+#include <sstream>
 #include "mme_paths.h"
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 #ifdef _OPENMP
 #include <omp.h>
@@ -3117,7 +3127,7 @@ Rcpp::List MNR(const arma::mat & Y, const Rcpp::List & X,
         for (int j = 0; j < kk; j++){
           if (i > j){}else{//only upper triangular
             if(ai && cycle > 2){ // if average information
-              Inf(i,j) = 0.5 * arma::as_scalar(Ysm.t() * PdViList.slice(i) * P * PdViList.slice(j) * P * Py);
+              Inf(i,j) = 0.5 * arma::as_scalar(Ysm.t() * PdViList.slice(i) * PdViList.slice(j) * Py);
             }else{ // if newton raphson
               Inf(i,j) = accu(PdViList.slice(i) % PdViList.slice(j).t()) * arma::as_scalar(var_components(i)) * arma::as_scalar(var_components(j));
             }
@@ -3620,13 +3630,13 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   if(verbose){
 #ifdef _OPENMP
     Rcpp::Rcout
-      << "OpenMP available: up to "
+      << "OpenMP configured maximum: "
       << omp_get_max_threads()
-      << " threads."
+      << " threads (not BLAS threads or measured usage)."
       << arma::endl;
 #else
     Rcpp::Rcout
-      << "OpenMP unavailable: this build runs solver kernels serially."
+      << "OpenMP unavailable: Sommer OpenMP loops are serial; BLAS may still be threaded."
       << arma::endl;
 #endif
   }
@@ -4941,7 +4951,121 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
               }
             }
           }
+        }else if(factorModel == "compound_symmetry" &&
+                 covariance.n_rows >= 2){
+          const arma::vec standardDeviation = arma::sqrt(covariance.diag());
+          const double rho = covariance(0,1) /
+            (standardDeviation(0) * standardDeviation(1));
+          if(standardDeviation.is_finite() &&
+             standardDeviation.min() > 0.0 &&
+             std::isfinite(rho) && rho >= 0.0 && rho < 1.0){
+            arma::mat loadings(covariance.n_rows, 1, arma::fill::zeros);
+            loadings.col(0) = standardDeviation * std::sqrt(rho);
+            const arma::vec specific =
+              covariance.diag() * (1.0 - rho);
+            const arma::mat reconstructed =
+              loadings * loadings.t() + arma::diagmat(specific);
+            if(specific.is_finite() &&
+               specific.min() > 1.0e-8 * covariance.diag().max() &&
+               arma::norm(covariance - reconstructed, "fro") <=
+                 1.0e-10 * std::max(1.0, arma::norm(covariance, "fro"))){
+              arma::mat weightedLoadings = loadings;
+              weightedLoadings.each_col() /= specific;
+              const arma::mat core =
+                arma::eye<arma::mat>(1,1) + loadings.t() * weightedLoadings;
+              arma::mat coreInverse;
+              double coreLogDet = 0.0;
+              if(eigenSpdInverse(core, coreInverse, &coreLogDet)){
+                factorPrecision[factorOffset] =
+                  arma::diagmat(1.0 / specific) -
+                  weightedLoadings * coreInverse * weightedLoadings.t();
+                factorPrecision[factorOffset] = 0.5 *
+                  (factorPrecision[factorOffset] + factorPrecision[factorOffset].t());
+                factorLogDet[factorOffset] =
+                  arma::accu(arma::log(specific)) + coreLogDet;
+                inverseOK = factorPrecision[factorOffset].is_finite() &&
+                  factorPrecision[factorOffset].diag().min() > 0.0 &&
+                  std::isfinite(factorLogDet[factorOffset]);
+                if(inverseOK && nFactors == 1){
+                  lowRankLoadings = std::move(loadings);
+                  lowRankSpecific = specific;
+                  lowRankCoreLogDet = coreLogDet;
+                }
+              }
+            }
+          }
         }
+        if(!inverseOK && f.containsElementNamed("representation")){
+          const Rcpp::List representation = f["representation"];
+          if(representation.containsElementNamed("form") &&
+             Rcpp::as<std::string>(representation["form"]) == "stationary_ar"){
+            const int order = Rcpp::as<int>(f["order"]);
+            const arma::uword q = covariance.n_rows;
+            const arma::vec & shape = factorPar[factorOffset];
+            if(order >= 1 && q > static_cast<arma::uword>(order) &&
+               shape.n_elem >= static_cast<arma::uword>(order)){
+              arma::vec phi;
+              for(int currentOrder = 1; currentOrder <= order; ++currentOrder){
+                const double reflection = std::tanh(
+                  shape(static_cast<arma::uword>(currentOrder - 1))
+                );
+                arma::vec updated(static_cast<arma::uword>(currentOrder),
+                                  arma::fill::zeros);
+                updated(static_cast<arma::uword>(currentOrder - 1)) = reflection;
+                if(currentOrder > 1){
+                  for(int lag = 0; lag < currentOrder - 1; ++lag){
+                    updated(static_cast<arma::uword>(lag)) =
+                      phi(static_cast<arma::uword>(lag)) - reflection *
+                      phi(static_cast<arma::uword>(currentOrder - 2 - lag));
+                  }
+                }
+                phi = std::move(updated);
+              }
+
+              const arma::vec standardDeviation = arma::sqrt(covariance.diag());
+              if(standardDeviation.is_finite() && standardDeviation.min() > 0.0){
+                const arma::vec inverseSd = 1.0 / standardDeviation;
+                const arma::mat correlation = arma::diagmat(inverseSd) *
+                  covariance * arma::diagmat(inverseSd);
+                const arma::uword p = static_cast<arma::uword>(order);
+                const arma::mat initial = correlation.submat(0, 0, p - 1, p - 1);
+                arma::mat initialPrecision;
+                double initialLogDet = 0.0;
+                if(eigenSpdInverse(initial, initialPrecision, &initialLogDet)){
+                  double innovationVariance = 1.0;
+                  for(arma::uword lag = 0; lag < p; ++lag){
+                    innovationVariance -= phi(lag) * correlation(0, lag + 1);
+                  }
+                  if(std::isfinite(innovationVariance) && innovationVariance > 0.0){
+                    arma::mat innovations(covariance.n_rows, covariance.n_cols,
+                                          arma::fill::eye);
+                    for(arma::uword row = p; row < q; ++row){
+                      for(arma::uword lag = 1; lag <= p; ++lag){
+                        innovations(row, row - lag) = -phi(lag - 1);
+                      }
+                    }
+                    arma::mat innovationPrecision(q, q, arma::fill::zeros);
+                    innovationPrecision.submat(0, 0, p - 1, p - 1) = initialPrecision;
+                    for(arma::uword row = p; row < q; ++row){
+                      innovationPrecision(row, row) = 1.0 / innovationVariance;
+                    }
+                    const arma::mat correlationPrecision =
+                      innovations.t() * innovationPrecision * innovations;
+                    factorPrecision[factorOffset] = arma::diagmat(inverseSd) *
+                      correlationPrecision * arma::diagmat(inverseSd);
+                    factorLogDet[factorOffset] = initialLogDet +
+                      static_cast<double>(q - p) * std::log(innovationVariance) +
+                      2.0 * arma::accu(arma::log(standardDeviation));
+                    inverseOK = factorPrecision[factorOffset].is_finite() &&
+                      factorPrecision[factorOffset].diag().min() > 0.0 &&
+                      std::isfinite(factorLogDet[factorOffset]);
+                  }
+                }
+              }
+            }
+          }
+        }
+
         if(!inverseOK && f.containsElementNamed("evaluator")){
           Rcpp::List evaluator = Rcpp::as<Rcpp::List>(f["evaluator"]);
           const std::string backend =
@@ -4949,9 +5073,16 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
           if(backend == "native" && evaluator.containsElementNamed("op")){
             const std::string op =
               Rcpp::as<std::string>(evaluator["op"]);
+            std::string precisionForm = op;
+            if(f.containsElementNamed("representation")){
+              const Rcpp::List representation = f["representation"];
+              if(representation.containsElementNamed("form")){
+                precisionForm = Rcpp::as<std::string>(representation["form"]);
+              }
+            }
             const arma::uword q = covariance.n_rows;
 
-            if(op == "ar1" && q >= 2){
+            if(precisionForm == "ar1" && q >= 2){
               const double rho = covariance(0,1);
               const double denominator = 1.0 - rho*rho;
               if(std::isfinite(denominator) && denominator > 0.0){
@@ -4971,7 +5102,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                 inverseOK = true;
               }
 
-            }else if((op == "cor_uniform" || op == "corh") && q >= 2){
+            }else if((precisionForm == "compound_symmetry" ||
+                      op == "cor_uniform" || op == "corh") && q >= 2){
               const arma::vec standardDeviation =
                 arma::sqrt(covariance.diag());
               const double rho =
@@ -5005,7 +5137,7 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                 inverseOK = true;
               }
 
-            }else if(op == "ante"){
+            }else if(precisionForm == "modified_cholesky" || op == "ante"){
               const int ncoef = Rcpp::as<int>(f["ante_ncoef"]);
               Rcpp::IntegerVector rr = f["ante_row"];
               Rcpp::IntegerVector cc = f["ante_col"];
@@ -9106,6 +9238,48 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
   int coefficientEvaluations = 0;
   int totalLineSearchHalvings = 0;
   int acceleratedProposals = 0;
+  struct FactorizationTiming {
+    double elapsedSeconds = 0.0;
+    double cpuSeconds = 0.0;
+    int calls = 0;
+  };
+  struct NumericFactorTimer {
+    FactorizationTiming & timing;
+    std::chrono::steady_clock::time_point started;
+    double cpuStarted;
+    static double processCPUSeconds(){
+#ifdef _WIN32
+      FILETIME created, exited, kernelTime, userTime;
+      if(!GetProcessTimes(GetCurrentProcess(), &created, &exited, &kernelTime, &userTime)){
+        return std::numeric_limits<double>::quiet_NaN();
+      }
+      ULARGE_INTEGER kernelTicks, userTicks;
+      kernelTicks.LowPart = kernelTime.dwLowDateTime;
+      kernelTicks.HighPart = kernelTime.dwHighDateTime;
+      userTicks.LowPart = userTime.dwLowDateTime;
+      userTicks.HighPart = userTime.dwHighDateTime;
+      return (static_cast<double>(kernelTicks.QuadPart) +
+        static_cast<double>(userTicks.QuadPart)) / 1.0e7;
+#else
+      const std::clock_t ticks = std::clock();
+      return ticks == static_cast<std::clock_t>(-1)
+        ? std::numeric_limits<double>::quiet_NaN()
+        : static_cast<double>(ticks) / CLOCKS_PER_SEC;
+#endif
+    }
+    explicit NumericFactorTimer(FactorizationTiming & value)
+      : timing(value), started(std::chrono::steady_clock::now()), cpuStarted(processCPUSeconds()) {}
+    ~NumericFactorTimer(){
+      const double cpuFinished = processCPUSeconds();
+      timing.elapsedSeconds += std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - started).count();
+      timing.cpuSeconds += cpuFinished - cpuStarted;
+      ++timing.calls;
+    }
+  };
+  FactorizationTiming cholmodTiming;
+  FactorizationTiming ldltTiming;
+  FactorizationTiming blockSchurTiming;
   std::size_t maxIrregularDesignEntries = 0;
   std::size_t maxIrregularMMEEntries = 0;
   arma::vec previousAcceptedParameters;
@@ -10464,12 +10638,18 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         CsymbolicReady = true;
       }
 
-      Cfactor.factorize(C);
+      {
+        NumericFactorTimer timer(ldltTiming);
+        Cfactor.factorize(C);
+      }
       if(Cfactor.info() != Eigen::Success && sameCPattern){
         Cfactor.analyzePattern(C);
         ++CsymbolicAnalyses;
         CselectedTopologyReady = false;
-        if(Cfactor.info() == Eigen::Success){ Cfactor.factorize(C); }
+        if(Cfactor.info() == Eigen::Success){
+          NumericFactorTimer timer(ldltTiming);
+          Cfactor.factorize(C);
+        }
       }
       if(Cfactor.info() != Eigen::Success){
         Rcpp::stop("Sparse LDLT factorisation of the MME coefficient matrix C failed.");
@@ -10502,12 +10682,18 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           DsymbolicReady = true;
           DselectedTopologyReady = false;
         }
-        Dfactor.factorize(Dmat);
+        {
+          NumericFactorTimer timer(ldltTiming);
+          Dfactor.factorize(Dmat);
+        }
         if(Dfactor.info() != Eigen::Success && sameDPattern){
           Dfactor.analyzePattern(Dmat);
           ++DsymbolicAnalyses;
           DselectedTopologyReady = false;
-          if(Dfactor.info() == Eigen::Success){ Dfactor.factorize(Dmat); }
+          if(Dfactor.info() == Eigen::Success){
+            NumericFactorTimer timer(ldltTiming);
+            Dfactor.factorize(Dmat);
+          }
         }
         if(Dfactor.info() != Eigen::Success){
           Rcpp::stop("Sparse LDLT factorisation of the random-effects-only matrix D failed (reml=FALSE).");
@@ -10530,6 +10716,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       cholmodInvCache.ready = false;
       blockEngine.active = false;
       if(blockEngineCheckPattern(C)){
+        NumericFactorTimer timer(blockSchurTiming);
         blockEngineFactorize(C);
       }
       if(blockEngine.active){
@@ -10570,8 +10757,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           CholmodSymbolicReady = true;
         }
 
-        const int factorizeOk =
-          M_cholmod_factorize(&Cview, cholmodState.factor, &cholmodState.common);
+        int factorizeOk;
+        {
+          NumericFactorTimer timer(cholmodTiming);
+          factorizeOk = M_cholmod_factorize(&Cview, cholmodState.factor, &cholmodState.common);
+        }
         if(!factorizeOk || cholmodState.common.status != CHOLMOD_OK){
           Rcpp::stop("CHOLMOD supernodal factorisation of the MME coefficient matrix C failed.");
         }
@@ -10604,8 +10794,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           CholmodDSymbolicReady = true;
         }
 
-        const int factorizeDOk =
-          M_cholmod_factorize(&Dview, cholmodDState.factor, &cholmodDState.common);
+        int factorizeDOk;
+        {
+          NumericFactorTimer timer(cholmodTiming);
+          factorizeDOk = M_cholmod_factorize(&Dview, cholmodDState.factor, &cholmodDState.common);
+        }
         if(!factorizeDOk || cholmodDState.common.status != CHOLMOD_OK){
           Rcpp::stop("CHOLMOD supernodal factorisation of the random-effects-only matrix D failed (reml=FALSE).");
         }
@@ -12954,6 +13147,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // D) Positive-definiteness fallback PER covariance structure.
     //    A failing structure is repaired locally; valid covariance
     //    structures keep their original AI/EM update unchanged.
+    std::string notPD = "-";
+
     for(int iStruct = 0; iStruct < nRRe; ++iStruct){
 
       arma::uvec structIdx =
@@ -13011,12 +13206,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         continue;
       }
 
-      if(verbose){
-        Rcpp::Rcout
-          << "Covariance structure "
-          << iStruct + 1
-          << " is not PD; applying local fallback."
-          << arma::endl;
+      if(notPD == "-"){
+        notPD = std::to_string(iStruct + 1);
+      }else{
+        notPD += "," + std::to_string(iStruct + 1);
       }
 
       // Identify genuinely free parameters belonging only to this
@@ -13357,14 +13550,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
           repaired =
             true;
-
-          if(verbose){
-            Rcpp::Rcout
-              << "Covariance structure "
-              << iStruct + 1
-              << " update rejected; retaining previous PD value."
-              << arma::endl;
-          }
         }
       }
 
@@ -13461,13 +13646,6 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         thetaUnlisted
         -
         expectedNewTheta;
-
-      if(verbose){
-        Rcpp::Rcout
-          << "  Working-coordinate trust scaling applied: alpha="
-          << trustScale
-          << arma::endl;
-      }
     }
 
     // C) Quantify changes in the ACTUAL safeguarded proposal.
@@ -13547,50 +13725,71 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     if(verbose == true){
 
-      if(iIter == 0){
-        Rcpp::Rcout
-          << "iteration   "
-          << " LogLik   "
-          << "  wall    "
-          << "cpu(sec)   "
-          << "restrained   "
-          << "EM weight";
-
-        if(solverName == "ldlt"){
-          Rcpp::Rcout
-            << "      pivot";
+      int notPDWidth = 0;
+      for(int iStruct = 0; iStruct < nRRe; ++iStruct){
+        notPDWidth += static_cast<int>(std::to_string(iStruct + 1).size());
+        if(iStruct > 0){
+          ++notPDWidth;
         }
-
-        Rcpp::Rcout
-          << arma::endl;
       }
 
-      Rcpp::Rcout
-        << "    "
-        << iIter+1
-        << "      "
-        << llik(iIter)
-        << "   "
-        << ltm->tm_hour
-        << ":"
-        << ltm->tm_min
-        << ":"
-        << ltm->tm_sec
-        << "      "
-        << seconds
-        << "           "
-        << restrained.n_elem
-        << "      "
-        << arma::as_scalar(weightEmInf(iIter));
+      const std::vector<int> widths = {
+        std::max(9, static_cast<int>(std::to_string(nIters).size())),
+        16, 8, 14,
+        std::max(10, static_cast<int>(std::to_string(nVcTotal).size())),
+        10, std::max(5, notPDWidth), 10, 16
+      };
+      const std::vector<std::string> headings = {
+        "iteration", "LogLik", "wall", "cpu(sec)", "restrained",
+        "EMweight", "notPD", "trustAlpha", "pivot"
+      };
+      const std::size_t nColumns = solverName == "ldlt" ? 9 : 8;
 
+      auto formatNumber = [](double value, int width) -> std::string {
+        std::ostringstream text;
+        text << std::fixed << std::setprecision(3) << value;
+        if(text.str().size() > static_cast<std::size_t>(width)){
+          text.str("");
+          text << std::scientific << std::setprecision(3) << value;
+        }
+        return text.str();
+      };
+
+      auto printRow = [&](const std::vector<std::string> & values){
+        std::ostringstream row;
+        for(std::size_t column = 0; column < nColumns; ++column){
+          if(column > 0){
+            row << "  ";
+          }
+          row << std::setw(widths[column]) << values[column];
+        }
+        Rcpp::Rcout << row.str() << arma::endl;
+      };
+
+      if(iIter == 0){
+        printRow(headings);
+      }
+
+      std::ostringstream wall;
+      wall << std::setfill('0')
+           << std::setw(2) << ltm->tm_hour << ":"
+           << std::setw(2) << ltm->tm_min << ":"
+           << std::setw(2) << ltm->tm_sec;
+
+      std::vector<std::string> values = {
+        std::to_string(iIter + 1),
+        formatNumber(llik(iIter), widths[1]),
+        wall.str(),
+        formatNumber(seconds, widths[3]),
+        std::to_string(restrained.n_elem),
+        formatNumber(arma::as_scalar(weightEmInf(iIter)), widths[5]),
+        notPD,
+        formatNumber(trustScale, widths[7])
+      };
       if(solverName == "ldlt"){
-        Rcpp::Rcout
-          << "      "
-          << minD;
+        values.push_back(formatNumber(minD, widths[8]));
       }
-
-      Rcpp::Rcout
-        << arma::endl;
+      printRow(values);
     }
 
     dLuOut =
@@ -14321,6 +14520,20 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
   // only here, for the R-facing Matrix output.
   const arma::sp_mat Wout = eigenSparseToArmaGlobal(W);
   const arma::sp_mat Cout = eigenSparseToArmaGlobal(C);
+  auto timingList = [](const FactorizationTiming & timing, const char * measurement) -> Rcpp::List {
+    return Rcpp::List::create(
+      Rcpp::Named("measurement") = measurement,
+      Rcpp::Named("calls") = timing.calls,
+      Rcpp::Named("elapsedSeconds") = timing.elapsedSeconds,
+      Rcpp::Named("cpuSeconds") = timing.cpuSeconds,
+      Rcpp::Named("averageCPUs") = timing.elapsedSeconds > 0.0
+        ? timing.cpuSeconds / timing.elapsedSeconds : NA_REAL);
+  };
+#ifdef _OPENMP
+  const int openmpMaxThreads = omp_get_max_threads();
+#else
+  const int openmpMaxThreads = NA_INTEGER;
+#endif
   return Rcpp::List::create(
     Rcpp::Named("llik") = llik,
     // Rcpp::Named("M") = M,
@@ -14340,6 +14553,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     Rcpp::Named("pcgMatrixFree") = matrixFreePCGReady,
     Rcpp::Named(".ldltCache") = retainLDLTCache ? static_cast<SEXP>(ldltCache) : R_NilValue,
     Rcpp::Named(".cholmodCache") = retainCholmodCache ? static_cast<SEXP>(cholmodCache) : R_NilValue,
+    Rcpp::Named("factorizationDiagnostics") = Rcpp::List::create(
+      Rcpp::Named("openmpMaxThreads") = openmpMaxThreads,
+      Rcpp::Named("timings") = Rcpp::List::create(
+        Rcpp::Named("cholmod") = timingList(cholmodTiming, "numeric factorization"),
+        Rcpp::Named("ldlt") = timingList(ldltTiming, "numeric factorization"),
+        Rcpp::Named("blockSchur") = timingList(blockSchurTiming,
+          "block extraction, factorization, Schur assembly and log determinant"))),
     Rcpp::Named("engineDiagnostics") = Rcpp::List::create(
       Rcpp::Named("coefficientEvaluations") = coefficientEvaluations,
       Rcpp::Named("lineSearchHalvings") = totalLineSearchHalvings,

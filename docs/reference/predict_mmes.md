@@ -6,7 +6,8 @@
 
 ``` r
 # S3 method for class 'mmes'
-predict(object, Dtable=NULL, D, ...)
+predict(object, Dtable=NULL, D, levels=NULL, sed=FALSE,
+  pairwise=FALSE, adjust="none", df=Inf, PEV=TRUE, VarU=TRUE, ...)
 ```
 
 ## Arguments
@@ -19,15 +20,15 @@ predict(object, Dtable=NULL, D, ...)
 
   a table specifying the terms to be included or averaged.
 
-  An "include" term means that the model matrices for that fixed or
-  random effect is filled with 1's for the positions where column names
-  and row names match.
+  An "include" term uses cells matching each prediction row. Categorical
+  random effects are mapped within each fitted term, including fitted
+  cells without records. Numeric fixed terms retain their evaluated values.
 
-  An "include and average" term means that the model matrices for that
-  fixed or random effect is filled with 1/#1's in that row.
+  An "include and average" term averages the included cells. For fixed
+  categorical terms the count includes reference cells absorbed in the intercept.
 
-  An "average" term alone means that all rows for such fixed or random
-  effect will be filled with 1/#levels in the effect.
+  An "average" term alone averages over selected factor levels. Numeric
+  fixed terms are evaluated at their covariate settings before averaging.
 
   If a term is not considered "include" or "average" is then totally
   ignored in the BLUP and SE calculation.
@@ -35,12 +36,66 @@ predict(object, Dtable=NULL, D, ...)
   The default rule to invoke when the user doesn't provide the Dtable is
   to include and average all terms that match the argument D.
 
+  The `levels` column is a list-column. `NULL` means all factor levels and
+  default numeric settings. The returned table records resolved numeric
+  settings and can be reused.
+
 - D:
 
   a character string specifying the variable used to extract levels for
   the rows of the D matrix and its construction. Alternatively, the D
   matrix (of class dgCMatrix) specifying the matrix to be used for the
   predictions directly.
+
+- levels:
+
+  An optional named list whose names match `Dtable$term`. Fixed-factor
+  interactions use data cell labels, such as `"Victory:0.2"`. Structured
+  random terms use fitted cell labels, such as `"CA.2011:genotype1"`.
+  For an included categorical classify term, levels select prediction rows
+  in the supplied order and can request fitted levels present only in `Gu`.
+  For other terms, they restrict inclusion or averaging.
+
+  A term with one numeric variable accepts a scalar, for example
+  `levels=list("Env:cov"=5)`. Numeric or mixed terms also accept a named
+  per-variable list, for example
+  `levels=list("Env:cov"=list(Env=c("CA.2011", "CA.2012"), cov=5))`.
+  Numeric settings must be finite scalar values. Use the exact term names
+  in the fitted Dtable. Restrictions are term-specific: restricting `V`
+  does not automatically restrict `V:N`.
+
+- sed:
+
+  Return standard errors of differences and their summary when `TRUE`.
+
+- pairwise:
+
+  `TRUE` for all pairwise differences, or a single reference prediction level.
+
+- adjust:
+
+  Multiplicity adjustment passed to `stats::p.adjust`.
+
+- df:
+
+  Degrees of freedom: `Inf`, a positive number, `"residual"`,
+  `"satterthwaite"`, or `"kr"`. Small-sample methods apply only to
+  fixed-effect contrasts; contrasts involving random effects remain normal-based.
+
+- PEV:
+
+  Logical, default `TRUE`. Return prediction-error covariance for the
+  requested linear combinations as `PEV` and its diagonal as `pvals$pev`.
+  When `FALSE`, omit these additional outputs; `vcov` and `std.error`
+  remain available for compatibility.
+
+- VarU:
+
+  Logical, default `TRUE`. Return sampling covariance of the random
+  contribution to each requested linear combination as `VarU`, its diagonal
+  as `pvals$var.u`, and whole-predictor sampling covariance as `sampling.vcov`.
+  Set `FALSE` to skip the extra relationship solves. Requires a Gaussian
+  Henderson fit; use `VarU=FALSE` for PQL working-model predictions.
 
 - ...:
 
@@ -54,36 +109,56 @@ Predictions are obtained for each combination of values of the specified
 variables that is present in the data set used to fit the model. See
 vignettes for more details.
 
-Standard errors are exact for any `computeCi` setting (0, 1, or 2) and
-do not require `object$Ci`: `Var(D %*% bu) = D C.inv() D.t()` is instead
-obtained by solving `C x = d` for each row `d` of `D` against the stored
-coefficient matrix `object$C`, which
-[`mmes()`](https://covaruber.github.io/sommer/reference/mmes.md) always
-returns regardless of `computeCi`. This is cheaper than forming the
-complete inverse (`computeCi=2`) and, unlike the Takahashi
-selected-inverse subset (`computeCi=1`), is exact for arbitrary linear
-combinations, not just diagonal PEVs.
+Categorical structured random terms use their fitted covariance-coordinate
+and main-effect levels to construct genetic weights, even for cells without
+observations. Unsupported random designs that cannot be mapped for all rows
+produce a warning; use an explicit `D` matrix for these designs.
 
-For predicted values the pertinent design matrices X and Z together with
-BLUEs (b) and BLUPs (u) are multiplied and added together.
+Numeric fixed terms, including factor-by-covariate interactions, use the
+fitted formula and contrasts. Numeric variables default to their means in
+the retained fitting data, unless overridden. Factor levels are equally
+weighted when averaged: an averaged `Env:cov` term with one slope per
+environment uses `mean(cov)/nlevels(Env)` for each slope.
 
-predicted.value equal Xb + Zu.1 + ... + Zu.n
+Write $D=[L_b,L_u]$. The target is $t=L_b\beta+L_u u$ and its predictor is
+$\hat t=L_b\hat\beta+L_u\hat u$. All prediction covariance outputs refer to
+the final returned `D`, after `Dtable` and `levels` have been applied. They
+have one row and column per requested prediction, not per model effect.
 
-For computing standard errors for predictions the parts of the
-coefficient matrix:
+Let $C_0$ be the original-scale Henderson coefficient matrix,
+$Q=(C_0^{-1})_{uu}$, and $B=(C_0^{-1})_{bb}$. Then
 
-C11 equal (X.t() V.inv() X).inv()
+$$
+\mathrm{PEV}=\operatorname{Var}(t-\hat t)=D C_0^{-1}D',
+$$
+$$
+\mathrm{VarU}=L_u(G-Q)L_u',
+$$
+$$
+\mathrm{sampling.vcov}=L_b B L_b'+L_u(G-Q)L_u'.
+$$
 
-C12 equal 0 - \[(X.t() V.inv() X).inv() X.t() V.inv() G Z\]
+The existing `vcov` equals PEV and `std.error` is its diagonal square root.
+The fixed BLUE and random BLUP have zero sampling cross-covariance, but
+their estimation/prediction errors generally do not. Subtracting full-target
+PEV from $L_uGL_u'$ is therefore incorrect when fixed effects are included.
+Fixed-only predictions have zero random `VarU`, but generally nonzero
+sampling covariance and PEV. For random-only predictions,
+$L_uGL_u'=\mathrm{PEV}+\mathrm{VarU}$.
 
-C22 equal PEV equal G - \[Z.t() G\[V.inv() - (V.inv() X X.t() V.inv() X
-V.inv() X)\]G Z.t()\]
+Computations batch full, random-only and fixed-only contrasts through one
+Henderson factorization, solving against their transposes and applying
+`Cscale`. They do not use `Ci` or construct/invert observation covariance
+$V$. Prior covariance products use $G_k=\Sigma_k\otimes A_k$ and sparse
+relationship-precision solves. New fits retain precisions in original
+level order; older ordinary fits attempt input reconstruction. Rotated
+and factor-score effects are mapped to public coordinates. Direct and
+matrix-free `solveOnly` fits lack the required stored coefficient system.
 
-In practive C equals ( W.t() V.inv() W ).inv()
-
-when both fixed and random effects are present in the inclusion set. If
-only fixed and random effects are included, only the respective terms
-from the SE for fixed or random effects are calculated.
+These are exact known-parameter covariances and plug-in approximations at
+estimated variance components, omitting parameter-estimation uncertainty.
+Additional matrices require quadratic storage in the prediction count.
+SEDs and pairwise tests retain their PEV-based meaning.
 
 ## Value
 
@@ -93,7 +168,20 @@ from the SE for fixed or random effects are calculated.
 
 - vcov:
 
-  the variance covariance for the predictions.
+  Full target prediction-error covariance, always returned.
+
+- PEV:
+
+  Identical to `vcov` when requested; its diagonal is `pvals$pev`.
+
+- VarU:
+
+  Sampling covariance of the requested random contribution;
+  its diagonal is `pvals$var.u`.
+
+- sampling.vcov:
+
+  Sampling covariance of the whole requested predictor, when `VarU=TRUE`.
 
 - D:
 
@@ -101,7 +189,11 @@ from the SE for fixed or random effects are calculated.
 
 - Dtable:
 
-  the table specifying the terms to include and terms to be averaged.
+  the table specifying included and averaged terms and resolved levels/settings.
+
+- sed, avsed, pairwise:
+
+  Requested standard errors of differences, their summary, and pairwise comparisons.
 
 ## References
 
@@ -255,4 +347,37 @@ pp$pvals
 #> N0.2:VVictory       N0.2:VVictory        81.79167  7.470608
 #> N0.4:VVictory       N0.4:VVictory        85.83333  7.470608
 #> N0.6:VVictory       N0.6:VVictory        88.37500  7.470608
+```
+
+The `levels` argument and the `Dtable$levels` list-column are equivalent.
+This example selects nitrogen levels in the requested order:
+
+```r
+Dt <- m3$Dtable
+Dt$average[Dt$term %in% c("1", "V", "V:N")] <- TRUE
+Dt$include[Dt$term %in% c("N", "V:N")] <- TRUE
+
+p <- predict(m3, D="N", Dtable=Dt,
+             levels=list(N=c("0.6", "0.2")))
+p$pvals
+p$Dtable$levels[[match("N", p$Dtable$term)]]
+
+Dt$levels[[match("N", Dt$term)]] <- c("0.6", "0.2")
+p2 <- predict(m3, D="N", Dtable=Dt)
+all.equal(p$D, p2$D)
+#> [1] TRUE
+```
+
+The covariance matrices are projected through the requested linear combination:
+
+```r
+p <- predict(m3, D="N", Dtable=Dt, PEV=TRUE, VarU=TRUE)
+p$PEV
+p$VarU
+p$sampling.vcov
+randomColumns <- seq.int(nrow(m3$b)+1L, nrow(m3$bu))
+randomD <- p$D[,randomColumns,drop=FALSE]
+full <- postVarU(m3, mode=2)
+all.equal(unname(p$VarU),
+          unname(as.matrix(randomD %*% full$VarU %*% t(randomD))))
 ```

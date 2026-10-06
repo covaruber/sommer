@@ -32,7 +32,7 @@ export( spl2Dc,spl2Dmats,tpsmmbwrapper)
 ## FUN_stats
 export( 
        corImputation,
-       r2, postPEV
+       r2, postPEV, postVarU
        )
 
 ## FUN_relationships

@@ -140,7 +140,17 @@
 }
 
 "predict.mmes" <- function(object, Dtable=NULL, D, levels=NULL, sed=FALSE,
-                           pairwise=FALSE, adjust="none", df=Inf, ...){
+                           pairwise=FALSE, adjust="none", df=Inf,
+                           PEV=TRUE, VarU=TRUE, ...){
+  if(length(PEV) != 1L || is.na(PEV) || !is.logical(PEV)){
+    stop("PEV must be TRUE or FALSE.", call.=FALSE)
+  }
+  if(length(VarU) != 1L || is.na(VarU) || !is.logical(VarU)){
+    stop("VarU must be TRUE or FALSE.", call.=FALSE)
+  }
+  if(inherits(object, "mmes.glmm") && VarU){
+    stop("VarU is currently available only for Gaussian mmes fits.", call.=FALSE)
+  }
   if(is.character(D)){classify <- D}else{classify="id"} # save a copy before D is overwriten
   # Prediction variances are obtained by solving C %*% X = t(D) for the
   # handful of rows in D (see predict_mmes_vcov_cpp), so the complete or
@@ -343,13 +353,42 @@
   ## calculate predictions and standard errors
   bu <- object$bu
   predicted.value <- D %*% bu
-  vcov <- predict_mmes_vcov_cpp(object, .mmes_engine_contrast(object, D))
+  engineD <- to_sparse(.mmes_engine_contrast(object, D))
+  vcov <- predict_mmes_vcov_cpp(object, engineD)
+  pev <- if(PEV) vcov else NULL
+  varU <- NULL
+  samplingVcov <- NULL
+  if(VarU){
+    .mmes_varu_check(object)
+    nFixed <- nrow(object$b)
+    randomD <- D
+    if(nFixed) randomD[, seq_len(nFixed)] <- 0
+    prior <- .mmes_prior_vcov(object, randomD)
+    randomError <- predict_mmes_vcov_cpp(
+      object,
+      to_sparse(.mmes_engine_contrast(object, randomD))
+    )
+    varU <- prior - randomError
+    varU <- (varU + t(varU))/2
+    fixedD <- D
+    if(nFixed < ncol(D)) fixedD[, seq.int(nFixed + 1L, ncol(D))] <- 0
+    fixedSampling <- predict_mmes_vcov_cpp(
+      object,
+      to_sparse(.mmes_engine_contrast(object, fixedD))
+    )
+    samplingVcov <- fixedSampling + varU
+  }
   std.error <- sqrt(diag(vcov))
-  pvals <- data.frame(id=rownames(D),predicted.value=predicted.value[,1], std.error=std.error)
+  predictionIds <- rownames(D)
+  if(is.null(predictionIds)) predictionIds <- as.character(seq_len(nrow(D)))
+  pvals <- data.frame(id=predictionIds, predicted.value=predicted.value[,1],
+                      std.error=std.error, pev=diag(vcov),
+                      var.u=if(is.null(varU)) rep(NA_real_, nrow(D)) else diag(varU))
   if(is.character(classify)){colnames(pvals)[1] <- classify}
-  out <- list(pvals=pvals,D=D,vcov=vcov, Dtable=Dtable)
+  out <- list(pvals=pvals,D=D,vcov=vcov,PEV=pev,VarU=varU,
+              sampling.vcov=samplingVcov,Dtable=Dtable)
   if(sed || !isFALSE(pairwise)){
-    out <- c(out, .predict_comparisons(pvals, vcov, rownames(D), sed, pairwise,
+    out <- c(out, .predict_comparisons(pvals, vcov, predictionIds, sed, pairwise,
                                        adjust, df, object, D))
   }
   return(out)

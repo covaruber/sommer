@@ -132,6 +132,9 @@
 - [`postPEV()`](https://covaruber.github.io/sommer/reference/postPEV.md)
   : Post-fit prediction error variances and inverse coefficient matrix
 
+- [`postVarU()`](https://covaruber.github.io/sommer/reference/postVarU.md)
+  : Post-fit Sampling Covariance of BLUPs
+
 - [`predict(`*`<mmes>`*`)`](https://covaruber.github.io/sommer/reference/predict_mmes.md)
   : Predict form of a LMM fitted with mmes
 

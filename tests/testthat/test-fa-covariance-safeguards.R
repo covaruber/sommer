@@ -63,6 +63,117 @@ test_that("FA/RR Woodbury and near-boundary fallback match generic covariance fa
   }
 })
 
+test_that("compound-symmetry Woodbury matches its generic covariance fallback", {
+  set.seed(132)
+  data <- expand.grid(trial=factor(seq_len(8L)), genotype=factor(seq_len(12L)))
+  data$BLUEs <- rnorm(nrow(data))
+  precision <- Matrix::Diagonal(12L)
+  dimnames(precision) <- list(levels(data$genotype), levels(data$genotype))
+  attr(precision, "inverse") <- TRUE
+
+  for(rho in c(0.3, -0.1)){
+    factor <- csm(data$trial, rho=rho)
+    factor$covFactor$free[] <- FALSE
+    covariance <- matrix(rho, 8L, 8L)
+    diag(covariance) <- 1
+    generic <- ownm(data$trial, K=covariance)
+    fits <- lapply(list(factor, generic), function(shape){
+      mmes(BLUEs~trial, random=~vsm(shape, ism(genotype), Gu=precision),
+        rcov=~units, data=data, nIters=4, solver="ldlt", verbose=FALSE,
+        dateWarning=FALSE)
+    })
+    expect_equal(as.numeric(fits[[1L]]$bu), as.numeric(fits[[2L]]$bu),
+                 tolerance=1e-7)
+    expect_equal(as.numeric(fits[[1L]]$llik), as.numeric(fits[[2L]]$llik),
+                 tolerance=1e-7)
+    expect_equal(unname(fits[[1L]]$theta[[1L]]),
+                 unname(fits[[2L]]$theta[[1L]]), tolerance=1e-7)
+  }
+})
+
+test_that("stationary AR precision matches dense covariance factors", {
+  set.seed(93)
+  q <- 7L
+  data <- expand.grid(trial=factor(seq_len(q)), genotype=factor(seq_len(8L)))
+  data$BLUEs <- rnorm(nrow(data))
+  precision <- Matrix::Diagonal(8L)
+  dimnames(precision) <- list(levels(data$genotype), levels(data$genotype))
+  attr(precision, "inverse") <- TRUE
+  cases <- list(c(order=1L, heterogeneous=TRUE),
+                c(order=2L, heterogeneous=FALSE),
+                c(order=2L, heterogeneous=TRUE),
+                c(order=3L, heterogeneous=FALSE),
+                c(order=3L, heterogeneous=TRUE))
+
+  for(case in cases){
+    order <- as.integer(case[["order"]])
+    heterogeneous <- as.logical(case[["heterogeneous"]])
+    fixed <- rep(TRUE, order + if(heterogeneous) q - 1L else 0L)
+    shape <- if(order == 1L){
+      ar1m(data$trial, variance="heterogeneous", fixed=fixed)
+    }else if(order == 2L){
+      ar2m(data$trial, variance=if(heterogeneous) "heterogeneous" else "homogeneous",
+           fixed=fixed)
+    }else{
+      ar3m(data$trial, variance=if(heterogeneous) "heterogeneous" else "homogeneous",
+           fixed=fixed)
+    }
+    factor <- shape$covFactor
+    correlation <- matrix(
+      sommer:::.ar_correlation_from_pacf(tanh(factor$par[seq_len(order)]), q),
+      q, q
+    )
+    if(heterogeneous){
+      standardDeviation <- c(1, exp(factor$par[order + seq_len(q - 1L)] / 2))
+      covariance <- diag(standardDeviation) %*% correlation %*% diag(standardDeviation)
+    }else{
+      covariance <- correlation
+    }
+    generic <- ownm(data$trial, K=covariance)
+    fits <- lapply(list(shape, generic), function(term){
+      mmes(BLUEs~trial, random=~vsm(term, ism(genotype), Gu=precision),
+        rcov=~units, data=data, nIters=4, solver="ldlt", verbose=FALSE,
+        dateWarning=FALSE)
+    })
+    expect_equal(as.numeric(fits[[1L]]$bu), as.numeric(fits[[2L]]$bu),
+                 tolerance=1e-7, info=paste("AR order", order, "heterogeneous", heterogeneous))
+    expect_equal(as.numeric(fits[[1L]]$llik), as.numeric(fits[[2L]]$llik),
+                 tolerance=1e-7, info=paste("AR order", order, "heterogeneous", heterogeneous))
+  }
+})
+
+test_that("compound-symmetry and AR precision are shared with residual Kronecker blocks", {
+  set.seed(28)
+  q <- 6L
+  data <- expand.grid(trial=factor(seq_len(q)), id=factor(seq_len(8L)))
+  data$y <- rnorm(nrow(data))
+  shapes <- list(list(shape=csm(data$trial, rho=0.25), rho=0.25),
+                 list(shape=csm(data$trial, rho=-0.1), rho=-0.1),
+                 list(shape=ar2m(data$trial, fixed=rep(TRUE, 2L)), rho=NULL))
+
+  for(item in shapes){
+    shape <- item$shape
+    factor <- shape$covFactor
+    covariance <- if(identical(factor$representation$kind, "compound_symmetry")){
+      matrix(item$rho, q, q)
+    }else{
+      matrix(sommer:::.ar_correlation_from_pacf(tanh(factor$par), q), q, q)
+    }
+    diag(covariance) <- 1
+    factor$free[] <- FALSE
+    shape$covFactor <- factor
+    generic <- ownm(data$trial, K=covariance)
+    fits <- lapply(list(shape, generic), function(term){
+      mmes(y~trial, random=~id, rcov=~vsm(term, ism(id)), data=data,
+        nIters=4, solver="ldlt", verbose=FALSE, dateWarning=FALSE)
+    })
+    expect_equal(as.numeric(fits[[1L]]$llik), as.numeric(fits[[2L]]$llik),
+                 tolerance=1e-7, info=factor$model)
+    expect_equal(as.numeric(fits[[1L]]$bu), as.numeric(fits[[2L]]$bu),
+                 tolerance=1e-7, info=factor$model)
+  }
+})
+
 test_that("analytic FA/RR derivatives match centered finite differences", {
   set.seed(271)
   data <- expand.grid(trial=factor(seq_len(5L)), genotype=factor(seq_len(10L)))

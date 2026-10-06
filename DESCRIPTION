@@ -1,7 +1,7 @@
 Package: sommer
 Type: Package
 Title: Solving Mixed Model Equations in R
-Version: 4.4.87
+Version: 4.4.88
 Date: 2026-09-30
 Authors@R: c(
     person("Giovanny","Covarrubias-Pazaran", email="cova_ruber@live.com.mx", role=c("aut","cre"),
@@ -19,6 +19,9 @@ URL: https://github.com/covaruber/sommer
 LinkingTo: Rcpp, RcppArmadillo, RcppProgress, RcppEigen, Matrix
 SystemRequirements: METIS graph partitioning library (optional; enables nested-dissection sparse ordering for large relationship matrices, auto-detected at configure time, falls back to AMD ordering when absent)
 Suggests: 
+    flexiblas,
+    RhpcBLASctl,
+    parallelly,
     rmarkdown,
     knitr,
     plyr,

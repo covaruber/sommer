@@ -58,6 +58,13 @@ for details). `postPEV()` is only needed when the diagonal prediction
 error variances (`uPevList`) or the complete inverse (`Ci`) are wanted
 for their own sake.
 
+For the sampling variance of the BLUP itself, use
+[`postVarU()`](https://covaruber.github.io/sommer/reference/postVarU.md):
+$\operatorname{Var}(\hat u)=G-\operatorname{Var}(u-\hat u)$.
+PEV and BLUP sampling variance are different quantities, and both omit
+covariance-parameter estimation uncertainty. `postVarU()` leaves existing
+PEV outputs unchanged.
+
 For this post-fit calculation to be available, the `mmes` model must
 have been fitted with a version of the Henderson mixed model solver that
 stores the final sparse coefficient matrix and its scaling factor in the

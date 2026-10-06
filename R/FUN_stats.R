@@ -47,6 +47,123 @@ postPEV <- function(object, mode = 1L){
 }
 
 
+.mmes_varu_check <- function(object){
+  if(!inherits(object, "mmes") || inherits(object, "mmes.glmm")){
+    stop("VarU requires a Gaussian mmes fit.", call.=FALSE)
+  }
+  if(is.null(object$C) || !nrow(object$C) || is.null(object$Cscale)){
+    stop("VarU requires a Henderson fit with stored C and Cscale; direct and solveOnly fits are not supported.", call.=FALSE)
+  }
+}
+
+.mmes_random_precision <- function(object){
+  precision <- object$randomPrecision
+  if(is.null(precision)){
+    inputs <- .mmes_rebuild_inputs(object)
+    if(!is.null(object$rotation) || !is.null(object$factorScoreInfo)){
+      stop("Refit rotated or factor-score models to retain original relationship precisions for VarU.", call.=FALSE)
+    }
+    precision <- inputs$Ai[seq_along(object$uList)]
+    for(index in seq_along(precision)){
+      if(nrow(precision[[index]]) != nrow(object$uList[[index]])){
+        stop("Rebuilt relationship precision does not match fitted effects; refit the model.", call.=FALSE)
+      }
+    }
+  }
+  precision
+}
+
+.mmes_prior_vcov <- function(object, D, precision=.mmes_random_precision(object)){
+  out <- matrix(0, nrow(D), nrow(D))
+  for(index in seq_along(object$uList)){
+    ranges <- object$partitions[[index]]
+    columns <- unlist(lapply(seq_len(nrow(ranges)), function(coordinate){
+      seq.int(ranges[coordinate,1], ranges[coordinate,2])
+    }), use.names=FALSE)
+    if(!any(D[,columns,drop=FALSE] != 0)) next
+    Sigma <- object$theta[[index]]
+    dimension <- object$covStruct[[index]]$dim
+    if(!identical(dim(Sigma), c(dimension, dimension))){
+      Sigma <- covmatrix_mmes(object, index, se=FALSE, max.dim=dimension)$covariance
+    }
+    blocks <- lapply(seq_len(nrow(ranges)), function(coordinate){
+      D[,seq.int(ranges[coordinate,1], ranges[coordinate,2]),drop=FALSE]
+    })
+    factor <- Matrix::Cholesky(Matrix::forceSymmetric(precision[[index]]), LDL=FALSE)
+    solved <- Matrix::solve(factor, do.call(cbind, lapply(blocks, t)), system="A")
+    for(first in seq_along(blocks)){
+      for(second in seq_along(blocks)){
+        rhsColumns <- (second-1L)*nrow(D) + seq_len(nrow(D))
+        out <- out + Sigma[first,second] * as.matrix(blocks[[first]] %*% solved[,rhsColumns,drop=FALSE])
+      }
+    }
+  }
+  (out+t(out))/2
+}
+
+.mmes_henderson_vcov <- function(object, contrasts){
+  mapped <- lapply(contrasts, function(D) .mmes_engine_contrast(object, D))
+  sizes <- vapply(mapped, nrow, integer(1))
+  joint <- to_sparse(do.call(rbind, mapped))
+  covariance <- predict_mmes_vcov_cpp(object, joint)
+  offsets <- c(0L, cumsum(sizes))
+  lapply(seq_along(sizes), function(index){
+    rows <- offsets[index] + seq_len(sizes[index])
+    covariance[rows,rows,drop=FALSE]
+  })
+}
+
+postVarU <- function(object, mode=1L){
+  .mmes_varu_check(object)
+  if(length(mode) != 1L || is.na(mode) || !mode %in% 0:2){
+    stop("mode must be 0, 1, or 2.", call.=FALSE)
+  }
+  if(mode == 0L){
+    object$uVarList <- NULL
+    object$VarU <- NULL
+    object$uVarMode <- 0L
+    return(object)
+  }
+  precision <- .mmes_random_precision(object)
+  nFixed <- nrow(object$b)
+  nRandom <- nrow(object$bu)-nFixed
+  diagonal <- numeric(nRandom)
+  if(mode == 2L){
+    D <- cbind(Matrix::Matrix(0, nRandom, nFixed, sparse=TRUE), Matrix::Diagonal(nRandom))
+    error <- .mmes_henderson_vcov(object, list(D))[[1L]]
+    object$VarU <- .mmes_prior_vcov(object, D, precision)-error
+    labels <- unlist(lapply(seq_along(object$uList), function(index){
+      effects <- object$uList[[index]]
+      paste(names(object$uList)[index],
+            rep(colnames(effects), each=nrow(effects)),
+            rep(rownames(effects), times=ncol(effects)), sep=":")
+    }))
+    dimnames(object$VarU) <- list(labels, labels)
+    diagonal <- diag(object$VarU)
+  }else{
+    object$VarU <- NULL
+    for(start in seq.int(1L, max(nRandom,1L), by=128L)){
+      if(!nRandom) break
+      rows <- seq.int(start, min(start+127L, nRandom))
+      D <- Matrix::sparseMatrix(i=seq_along(rows), j=nFixed+rows, x=1,
+                                dims=c(length(rows), nrow(object$bu)))
+      error <- .mmes_henderson_vcov(object, list(D))[[1L]]
+      diagonal[rows] <- diag(.mmes_prior_vcov(object, D, precision)-error)
+    }
+  }
+  object$uVarList <- lapply(seq_along(object$uList), function(index){
+    ranges <- object$partitions[[index]]
+    columns <- unlist(lapply(seq_len(nrow(ranges)), function(coordinate){
+      seq.int(ranges[coordinate,1], ranges[coordinate,2])
+    }), use.names=FALSE)-nFixed
+    matrix(diagonal[columns], nrow=nrow(object$uList[[index]]),
+           dimnames=dimnames(object$uList[[index]]))
+  })
+  names(object$uVarList) <- names(object$uList)
+  object$uVarMode <- as.integer(mode)
+  object
+}
+
 corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
   if(is.null(rownames(wide))){stop("Rownames of the input matrix cannot be NULL. Please add them", call. = FALSE)}
   if(is.null(Gu)){

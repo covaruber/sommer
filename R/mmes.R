@@ -15,13 +15,17 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
                  .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
                  .pqlBaseFactor=NULL, acceleration="none", .pqlStart=NULL,
-                  factorScoreAugmentation="none",
+                 factorScoreAugmentation="none",
                  .factorScoreParameters=NULL,
                  pcgPreconditioner="diagonal", pcgNystromRank=32L,
-                 solveOnly=FALSE, covPar=NULL){
+                 solveOnly=FALSE, covPar=NULL, blasThreads=NULL){
   WWasMissing <- missing(W)
   WInput <- if(WWasMissing) NULL else W
   mmesCall <- match.call()
+  finishThreads <- get(".mmes_thread_finish", mode="function")
+  threadScope <- get(".mmes_blas_scope", mode="function")(blasThreads)
+  on.exit(threadScope$restore(), add=TRUE)
+  if(verbose && !returnParam) get(".mmes_thread_report", mode="function")(threadScope)
 
   if(length(henderson) != 1L || !is.logical(henderson) || is.na(henderson)){
     stop("henderson must be a single TRUE/FALSE value.", call.=FALSE)
@@ -63,11 +67,12 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     stop("covPar is only used with solveOnly=TRUE.", call.=FALSE)
   }
   if(factorScoreAugmentation == "profile"){
-    return(.mmes_factor_score_profile(match.call(), parent.frame(), family,
-      nIters, REML, henderson, computeCi, vcc, solver))
+    return(finishThreads(
+      .mmes_factor_score_profile(match.call(), parent.frame(), family,
+        nIters, REML, henderson, computeCi, vcc, solver), threadScope, verbose))
   }
   if(!.pqlInner && !isGaussianIdentity){
-    return(get(".mmes_pql", mode="function")(
+    return(finishThreads(get(".mmes_pql", mode="function")(
       fixed=fixed,
       random=if(missing(random)) NULL else random,
       rcov=if(missing(rcov)) NULL else rcov,
@@ -89,7 +94,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
         factorScoreAugmentation=factorScoreAugmentation,
         pcgPreconditioner=pcgPreconditioner, pcgNystromRank=pcgNystromRank
       )
-    ))
+    ), threadScope, verbose))
   }
   
   desc <- utils::packageDescription("sommer")
@@ -240,7 +245,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
       if(!is.null(.factorScoreParameters) && !is.null(.factorScoreParameters[[u]])){
         override <- .factorScoreParameters[[u]]
         if(length(override) != length(ff$covStruct$par) - 1L || any(!is.finite(override))){
-          stop("Internal FA/RR profile parameter override has incompatible length or non-finite values.", call.=FALSE)
+          stop("Internal factor-score profile override has incompatible length or non-finite values.", call.=FALSE)
         }
         ff$covStruct$par[-1L] <- override
         ff$covStruct$free[-1L] <- FALSE
@@ -365,6 +370,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   # ---- Random structures, now subset exactly once ---------------------
   Z <- list(); Ai <- list(); covStruct <- list(); Zind <- numeric()
   rTermsNames <- list(); rtermss <- randomLabels
+  randomPrecision <- vector("list", length(randomFits))
   
   if(length(randomFits)){
     for(u in seq_along(randomFits)){
@@ -378,6 +384,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
       pGu <- to_precision_sparse(ff$Gu)
       attr(pGu, "inverse") <- TRUE
       Ai[[u]] <- pGu
+      randomPrecision[[u]] <- pGu
       covStruct[[u]] <- ff$covStruct
       Zind <- c(Zind, rep(u, length(Zi)))
       s2 <- paste(all.vars(randomExprs[[u]]), collapse=":")
@@ -908,16 +915,16 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   }
 
   if(solveOnly){
-    return(.mmes_solve(X, Z, Zind, Ai, yvar, W, useH, residualBlock, localIndex,
+    return(finishThreads(.mmes_solve(X, Z, Zind, Ai, yvar, W, useH, residualBlock, localIndex,
                        covStruct, c(rtermss, residualLabel), covPar, pcgTol,
                        pcgMaxIters, verbose, data, dataor, obsInfo, partitionsX,
                        mmesCall,
                        list(fixed=fixed, random=if(missing(random)) NULL else random,
-                            rcov=rcov)))
+                           rcov=rcov)), threadScope, verbose))
   }
   
   if (is.null(emWeight)) {
-    taperIters <- min(nIters, 13L)
+    taperIters <- min(nIters, 20L)
 
     if (taperIters <= 1L) {
       emWeight <- 1
@@ -961,7 +968,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
        !is.null(vcc) || length(rotationTerms)){
       stop("factor-score augmentation currently requires Henderson REML, computeCi=0, no user vcc constraints, and no rotation.", call.=FALSE)
     }
-    if(!length(randomFits)) stop("factorScoreAugmentation requires a random FA/RR term.", call.=FALSE)
+    if(!length(randomFits)) stop("factorScoreAugmentation requires a low-rank or compound-symmetry random term.", call.=FALSE)
     residualCovStruct <- covStruct[[length(covStruct)]]
     residualTermNames <- rTermsNames[[length(rTermsNames)]]
     factorScoreInfo <- .factor_score_augment(
@@ -970,7 +977,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
       allowFree=factorScoreAugmentation == "profile"
     )
     if(!any(vapply(factorScoreInfo$mappings, function(x) isTRUE(x$augmented), logical(1)))){
-      stop("No fixed-shape fam()/rrm() random term was eligible for factor-score augmentation.", call.=FALSE)
+      stop("No eligible positive low-rank-plus-diagonal random term was available for factor-score augmentation.", call.=FALSE)
     }
     Z <- factorScoreInfo$Z
     Ai <- factorScoreInfo$Ai
@@ -1093,6 +1100,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                 rtermss=rtermss, partitionsX=partitionsX,
                 getPEV=getPEV, rTermsNames=rTermsNames,
                 obsInfo=obsInfo, solver=solver, REML=REML,
+                blasThreads=blasThreads,
                 henderson=henderson, weights=weights,
                 weightBlocks=weightBlocks, rotation=rotationInfo,
                 factorScoreInfo=factorScoreInfo,
@@ -1154,6 +1162,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   res$data <- data
   res$dataOriginal <- dataor
   res$obsInfo <- obsInfo
+  res$randomPrecision <- randomPrecision
   res$y <- yvar
   res$partitionsX <- partitionsX
   res$covStruct <- covStruct
@@ -1212,5 +1221,5 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   
   class(res) <- "mmes"
   res$covParNative <- get(".covparams_mmes_se", mode="function")(res)
-  res
+  finishThreads(res, threadScope, verbose)
 }

@@ -31,10 +31,12 @@ This vignette focuses on the `fam()` and `rrm()` covariance-shaping factors used
 
 1) Loadings and specific variances
 2) Genotype scores
-3) Percentage of variance explained
-4) Loadings plot
-5) Genotype scores biplot
-6) Heatmap of the fitted genetic correlation matrix
+3) Why and how to rotate loadings and scores
+4) Percentage of variance explained
+5) Loadings plot
+6) Genotype scores plot
+7) Latent regression plots
+8) Heatmap of the fitted genetic correlation matrix
 
 ## SECTION 1: Theory
 
@@ -131,17 +133,17 @@ A lower AIC/BIC and a significant likelihood ratio test favor the less restricti
 
 ### 1) Loadings and specific variances
 
-`loadings_mmes()` reconstructs the fitted, normalized loadings $\Lambda$ and specific variances $\Psi$ so that $\sigma^2(\Lambda\Lambda^{\mathsf T}+\Psi)$ reproduces the fitted covariance matrix exactly.
+`loadings_mmes()` reconstructs the fitted loadings and specific variances. Here we request `varianceScale = FALSE` explicitly to obtain the normalized loadings $\Lambda$ and specific variances $\Psi$, so that $\sigma^2(\Lambda\Lambda^{\mathsf T}+\Psi)$ reproduces the fitted covariance matrix. The default `rotation = TRUE` returns rotated loadings; rotation does not change this covariance.
 
 ```{r}
-faInfo <- loadings_mmes(fitFA)
+faInfo <- loadings_mmes(fitFA, varianceScale = FALSE, rotation = TRUE)
 round(faInfo$loadings, 3)
 round(faInfo$specific, 3)
 faInfo$sigma2
 ```
 
 ```{r}
-rrInfo <- loadings_mmes(fitRR)
+rrInfo <- loadings_mmes(fitRR, varianceScale = FALSE, rotation = TRUE)
 round(rrInfo$specific, 3)
 ```
 
@@ -149,14 +151,62 @@ Notice that `rrInfo$specific` is constant across environments: this is the direc
 
 ### 2) Genotype scores
 
-`scores_mmes()` predicts each genotype's position on the $k$ latent factors from its BLUPs, the fitted loadings, and the fitted covariance.
+`scores_mmes()` predicts each genotype's position on the $k$ latent factors from its BLUPs, the fitted loadings, and the fitted covariance. We use the default regression method and `varianceScale = TRUE`: scores are then on the standardized latent-factor scale, with the overall genetic scale absorbed into the corresponding loadings. The term "regression" here describes the score estimator, not a new regression fitted to the plotted points.
 
 ```{r}
-faScores <- scores_mmes(fitFA)
+faScores <- scores_mmes(fitFA, method = "regression",
+                       varianceScale = TRUE, rotation = TRUE)
 head(faScores)
 ```
 
-### 3) Percentage of variance explained
+### 3) Why and how to rotate loadings and scores
+
+The fitted covariance identifies a latent *subspace*, not a unique set of factor axes. For any orthogonal $k\times k$ matrix $Q$, with $Q Q^{\mathsf T}=I$,
+
+$$
+(\Lambda Q)(\Lambda Q)^{\mathsf T}=\Lambda\Lambda^{\mathsf T}.
+$$
+
+Consequently, many loading matrices describe exactly the same model. The lower-triangular constraints used during fitting identify one parameterization, but its axes depend on the ordering of environments and need not be convenient for interpretation. Rotation at extraction is a change of coordinates, not a refit: it leaves the likelihood, specific variances, genetic covariance, and fitted genotype-by-environment effects unchanged.
+
+Both `loadings_mmes()` and `scores_mmes()` accept the logical argument `rotation`:
+
+- `rotation = FALSE` retains the fitted, lower-triangular loading orientation.
+- `rotation = TRUE` (the default) rotates using the right singular vectors of the loading matrix. If $\Lambda=A D V^{\mathsf T}$ is its singular value decomposition, sommer uses $Q=-V$ and returns $\Lambda_* = \Lambda Q$. The loading columns are then orthogonal, ordered by decreasing squared length. This is an SVD rotation, not a varimax or oblique rotation; no rotation name or custom matrix is accepted by this argument.
+
+The rotated first factor captures the largest share of the *common* genetic variance; subsequent factors capture decreasing shares. When first-factor loadings have the same sign across environments, that factor can describe broad performance, while later factors describe contrasting responses or crossover interaction. This interpretation is data-dependent: the first factor is not necessarily an overall-performance axis, and later factors are not automatically particular environmental variables.
+
+**Always rotate loadings and scores together.** Writing $L=\sqrt{\sigma^2}\Lambda$ for the loadings in trait units and $F$ for the genotype-by-factor score matrix, the common genetic prediction is
+
+$$
+\widehat U_{\mathrm{common}} = F L^{\mathsf T}.
+$$
+
+With $L_* = LQ$ and $F_* = FQ$, this product is unchanged. Mixing rotated scores with unrotated loadings gives incorrect reconstructions and misleading plots. Keep `term`, `method`, and `varianceScale` consistent across extraction calls as well. Here the normalized loadings in `faInfo` are converted to trait units explicitly to match `faScores`:
+
+```{r}
+faUnrotated <- loadings_mmes(fitFA, varianceScale = FALSE,
+                           rotation = FALSE)
+scoresUnrotated <- scores_mmes(fitFA, method = "regression",
+                              varianceScale = TRUE, rotation = FALSE)
+L <- sqrt(faInfo$sigma2) * faInfo$loadings
+LUnrotated <- sqrt(faUnrotated$sigma2) * faUnrotated$loadings
+common <- faScores %*% t(L)
+commonUnrotated <- scoresUnrotated %*% t(LUnrotated)
+
+stopifnot(
+  isTRUE(all.equal(tcrossprod(L), tcrossprod(LUnrotated))),
+  isTRUE(all.equal(common, commonUnrotated)),
+  isTRUE(all.equal(faInfo$specific, faUnrotated$specific))
+)
+round(crossprod(L), 3)
+```
+
+The same arguments and reasoning apply to `fitRR`. For one factor there is no multi-axis rotation, only a possible sign change. A factor's sign is arbitrary: reversing both a loading column and its score column changes neither the covariance nor the common predictions. Thus a negative score is not intrinsically "poor performance"; interpret it together with the loadings. Across separate fits, axes can also swap or become unstable when singular values are nearly equal, so raw score signs and labels should not be compared without aligning the axes.
+
+This extraction argument is distinct from `vsm(..., Gu = Gu, rotation = TRUE)`, which requests Lee--van der Werf rotation of a relationship term during fitting, not the post-fit orientation of FA/RR factors.
+
+### 4) Percentage of variance explained
 
 A standard factor-analytic diagnostic is the proportion of total genetic variance attributed to each latent factor:
 
@@ -167,7 +217,9 @@ propExplained <- varPerFactor / totalVar
 round(100 * propExplained, 1)
 ```
 
-### 4) Loadings plot
+These percentages use the normalized loadings and specific variances, so the common overall scale cancels. Their sum is the percentage of total genetic variance explained by the common factors, not necessarily 100%. Rotation redistributes variance between factors but preserves that sum. Under the default SVD rotation, factors are ordered by decreasing contribution; the percentages refer to variance across environments, not phenotypic variance or genotype-specific prediction accuracy.
+
+### 5) Loadings plot
 
 Plotting the loadings by environment shows which environments are most associated with each latent factor.
 
@@ -181,7 +233,9 @@ legend("topright", legend = colnames(faInfo$loadings),
        fill = c("steelblue4", "tomato"), bty = "n")
 ```
 
-### 5) Genotype scores biplot
+### 6) Genotype scores plot
+
+This is a plot of genotype scores only, rather than a biplot containing both genotype scores and environment loadings. Genotypes close together have similar common-factor responses, although their environment-specific effects may differ. The signs and directions must be read alongside the loading plot.
 
 ```{r, fig.show='hold'}
 plot(faScores[,2] ~ faScores[,1],
@@ -192,7 +246,65 @@ text(faScores[,2] ~ faScores[,1], labels = rownames(faScores),
 abline(h = 0, v = 0, lty = 3)
 ```
 
-### 6) Heatmap of the fitted genetic correlation matrix
+### 7) Latent regression plots
+
+In the FA literature, a *latent regression plot* displays genotype performance against an environmental coordinate estimated by the model: a factor loading. Unlike regression on measured rainfall or temperature, the horizontal coordinate is latent and learned from the genetic covariance. Each genotype has its own regression slope, given by its factor score. Such plots help distinguish broad adaptation from sensitivity to the environmental contrasts captured by a factor; see Smith and Cullis (2018) for FA-based selection tools and interpretation of performance and stability.
+
+For genotype $g$ in environment $e$, the genetic effect is decomposed as
+
+$$
+\widehat u_{ge} = \sum_{j=1}^k \widehat f_{gj} L_{ej}
+                  + \widehat\delta_{ge},
+$$
+
+where $\widehat\delta_{ge}$ is the predicted environment-specific remainder. In a one-factor model the common response is the straight line $\widehat f_{g1} L_{e1}$ through the origin. With multiple factors, plotting the full genetic effect against only one loading also includes contributions from the other factors. To isolate factor $j$, subtract those contributions first:
+
+$$
+\widehat u_{ge}^{(j)} = \widehat u_{ge}
+  - \sum_{h\ne j}\widehat f_{gh} L_{eh}
+  = \widehat f_{gj} L_{ej} + \widehat\delta_{ge}.
+$$
+
+The following base-R plots show these adjusted genetic BLUPs as points and the common-factor response as a line. We select four genotypes spanning the rotated first-factor scores to keep the display readable. Their selection is illustrative, not a ranking rule.
+
+```{r, fig.width=9, fig.height=5}
+U <- fitFA$uList[[faInfo$term]]
+U <- U[rownames(faScores), rownames(L), drop = FALSE]
+specificBLUP <- U - common
+scoreOrder <- order(faScores[, 1])
+selected <- scoreOrder[unique(round(seq(1, length(scoreOrder),
+                                       length.out = 4)))]
+genotypeColors <- c("steelblue4", "tomato3", "darkgreen", "goldenrod3")
+
+local({
+  oldPar <- par(mfrow = c(1, ncol(L)), mar = c(4.5, 4.5, 3, 1))
+  on.exit(par(oldPar))
+  for (factorIndex in seq_len(ncol(L))) {
+    loading <- L[, factorIndex]
+    factorResponse <- outer(faScores[selected, factorIndex], loading)
+    adjusted <- factorResponse + specificBLUP[selected, , drop = FALSE]
+    plot(range(loading), range(c(adjusted, factorResponse, 0)),
+         type = "n", xlab = paste("Environment loading:", colnames(L)[factorIndex]),
+         ylab = "Adjusted genetic effect", main = paste("Latent regression", factorIndex))
+    abline(h = 0, v = 0, lty = 3, col = "grey70")
+    for (genotypeIndex in seq_along(selected)) {
+      points(loading, adjusted[genotypeIndex, ], pch = 16,
+             col = genotypeColors[genotypeIndex])
+      abline(a = 0, b = faScores[selected[genotypeIndex], factorIndex],
+             col = genotypeColors[genotypeIndex], lwd = 2)
+    }
+    legend("topleft", legend = rownames(faScores)[selected],
+           col = genotypeColors[seq_along(selected)], pch = 16, lty = 1,
+           cex = 0.7, bty = "n")
+  }
+})
+```
+
+Each point represents an environment, located at its loading on that factor. A steep slope indicates a strong response to that latent environmental contrast; a nearly flat slope indicates little response along that axis. Opposite slopes indicate contrasting responses. Points away from a genotype's line reflect the environment-specific remainder after removing the other factors, not raw observation residuals. The lines use model-derived scores; they are not ordinary least-squares regressions fitted to these points.
+
+These are plots of *genetic deviations*, not absolute yield: the fixed environment effects are omitted, so all common-factor lines pass through zero and their crossings alone do not establish differences in total yield. For selection, consider the full predicted genetic effects (or predictions including fixed effects), all retained factors, specific effects, and prediction uncertainty. The points are shrunken BLUPs, and uncertainty in both loadings and scores is not shown. The default regression scores and Bartlett scores need not give the same slopes; use one method consistently. To draw analogous RR plots, extract the RR loadings and scores with the same rotation and scale choices and use the RR term's BLUP matrix.
+
+### 8) Heatmap of the fitted genetic correlation matrix
 
 The normalized loadings and specific variances returned by `loadings_mmes()` can be combined directly into the fitted genetic covariance, and then converted to a correlation matrix for visualization.
 
@@ -201,6 +313,8 @@ Sigma <- faInfo$sigma2 * (
   faInfo$loadings %*% t(faInfo$loadings) + diag(faInfo$specific)
 )
 corMat <- cov2cor(Sigma)
+stopifnot(isTRUE(all.equal(unname(Sigma),
+                          unname(fitFA$theta[[faInfo$term]]))))
 heatmap(corMat, symm = TRUE,
         main = "Fitted genetic correlation among environments")
 ```
@@ -214,5 +328,7 @@ Covarrubias-Pazaran G. 2016. Genome assisted prediction of quantitative traits u
 Smith AB, Cullis BR, Thompson R. 2001. Analyzing variety by environment data using multiplicative mixed models and expectations of trials. Biometrics 57(4).
 
 Thompson R, Cullis B, Smith A, Gilmour A. 2003. A sparse implementation of the average information algorithm for factor analytic and reduced rank variance models. Australian & New Zealand Journal of Statistics 45(4).
+
+Smith AB, Cullis BR. 2018. Plant breeding selection tools built on factor analytic mixed models for multi-environment trial data. Euphytica 214:143. <https://doi.org/10.1007/s10681-018-2220-5>.
 
 Gilmour AR, Thompson R, Cullis BR. 1995. Average Information REML: An efficient algorithm for variance parameter estimation in linear mixed models. Biometrics 51:1440-1450.
