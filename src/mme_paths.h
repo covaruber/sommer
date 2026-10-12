@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
+#include <functional>
 #include <limits>
 #include <utility>
 #include <vector>
@@ -14,6 +15,129 @@ enum class ResidualPath { Diagonal, Grid, Kronecker, Sparse };
 enum class AssemblyPath { Sparse, Blocks, Batched };
 enum class SolverBackend { LDLT, Cholmod, PCG };
 enum class TracePreparation { SelectedInverse, InverseBlocks, Probes, None };
+
+struct TensorComponentPlan {
+  bool eligible = false;
+  std::size_t coordinates = 0;
+  std::vector<std::vector<int>> groups;
+};
+
+class DisjointComponents {
+  std::vector<int> parent;
+  int root(int vertex) {
+    while(parent[vertex] != vertex) {
+      parent[vertex] = parent[parent[vertex]];
+      vertex = parent[vertex];
+    }
+    return vertex;
+  }
+public:
+  explicit DisjointComponents(std::size_t size) {
+    if(size > static_cast<std::size_t>(std::numeric_limits<int>::max())) { return; }
+    parent.resize(size);
+    for(std::size_t vertex = 0; vertex < size; ++vertex) { parent[vertex] = static_cast<int>(vertex); }
+  }
+  bool unite(int first, int second) {
+    if(first < 0 || second < 0 || static_cast<std::size_t>(first) >= parent.size() ||
+       static_cast<std::size_t>(second) >= parent.size()) { return false; }
+    const int firstRoot = root(first);
+    const int secondRoot = root(second);
+    parent[std::max(firstRoot, secondRoot)] = std::min(firstRoot, secondRoot);
+    return true;
+  }
+  std::vector<int> labels() {
+    std::vector<int> result(parent.size());
+    std::vector<int> mapping(parent.size(), -1);
+    int count = 0;
+    for(std::size_t vertex = 0; vertex < parent.size(); ++vertex) {
+      const int representative = root(static_cast<int>(vertex));
+      if(mapping[representative] < 0) { mapping[representative] = count++; }
+      result[vertex] = mapping[representative];
+    }
+    return result;
+  }
+};
+
+inline TensorComponentPlan planTensorGraphComponents(
+    const std::vector<std::size_t> & dimensions,
+    const std::vector<std::vector<int>> & labels,
+    std::size_t maxCoordinates) {
+  TensorComponentPlan result;
+  if(dimensions.size() != labels.size() || maxCoordinates == 0) { return result; }
+  maxCoordinates = std::min(maxCoordinates,
+    static_cast<std::size_t>(std::numeric_limits<int>::max()));
+  std::size_t coordinates = 1;
+  std::size_t components = 1;
+  std::vector<std::vector<int>> canonical(labels.size());
+  std::vector<std::size_t> counts(labels.size());
+  for(std::size_t axis = 0; axis < dimensions.size(); ++axis) {
+    const std::size_t dimension = dimensions[axis];
+    if(dimension == 0 || coordinates > maxCoordinates / dimension ||
+       labels[axis].size() != dimension) { return result; }
+    coordinates *= dimension;
+    std::vector<int> mapping(dimension, -1);
+    canonical[axis].resize(dimension);
+    for(std::size_t vertex = 0; vertex < dimension; ++vertex) {
+      const int label = labels[axis][vertex];
+      if(label < 0 || static_cast<std::size_t>(label) >= dimension) { return result; }
+      if(mapping[label] < 0) { mapping[label] = static_cast<int>(counts[axis]++); }
+      canonical[axis][vertex] = mapping[label];
+    }
+    components *= counts[axis];
+  }
+  result.coordinates = coordinates;
+  result.groups.resize(components);
+  for(std::size_t coordinate = 0; coordinate < coordinates; ++coordinate) {
+    std::size_t trailing = coordinates;
+    std::size_t component = 0;
+    for(std::size_t axis = 0; axis < dimensions.size(); ++axis) {
+      trailing /= dimensions[axis];
+      component = component * counts[axis] +
+        canonical[axis][(coordinate / trailing) % dimensions[axis]];
+    }
+    result.groups[component].push_back(static_cast<int>(coordinate));
+  }
+  result.eligible = true;
+  return result;
+}
+
+inline TensorComponentPlan planTensorComponents(
+    const std::vector<std::size_t> & dimensions,
+    const std::vector<bool> & diagonalAxes,
+    std::size_t maxCoordinates) {
+  TensorComponentPlan result;
+  if(dimensions.size() != diagonalAxes.size() || maxCoordinates == 0) {
+    return result;
+  }
+  maxCoordinates = std::min(maxCoordinates,
+    static_cast<std::size_t>(std::numeric_limits<int>::max()));
+  std::size_t coordinates = 1;
+  std::size_t components = 1;
+  for(std::size_t axis = 0; axis < dimensions.size(); ++axis) {
+    const std::size_t dimension = dimensions[axis];
+    if(dimension == 0 || coordinates > maxCoordinates / dimension) {
+      return result;
+    }
+    coordinates *= dimension;
+    if(diagonalAxes[axis]) { components *= dimension; }
+  }
+  result.coordinates = coordinates;
+  result.groups.resize(components);
+  for(std::size_t coordinate = 0; coordinate < coordinates; ++coordinate) {
+    std::size_t trailing = coordinates;
+    std::size_t component = 0;
+    for(std::size_t axis = 0; axis < dimensions.size(); ++axis) {
+      trailing /= dimensions[axis];
+      if(diagonalAxes[axis]) {
+        component = component * dimensions[axis]
+          + (coordinate / trailing) % dimensions[axis];
+      }
+    }
+    result.groups[component].push_back(static_cast<int>(coordinate));
+  }
+  result.eligible = true;
+  return result;
+}
 
 struct ResidualPolicy {
   static bool compactStorage(bool sectioned, bool nonDiagonalFactor,
@@ -47,6 +171,14 @@ struct SolverPlan {
   }
   bool factorRandomOnly(bool hasRandomEffects) const {
     return !reml && hasRandomEffects;
+  }
+  bool dFirstML(std::size_t fixed, std::size_t random,
+                double maxDoubles, bool retainJointCache) const {
+    const double fixedSize = static_cast<double>(fixed);
+    const double randomSize = static_cast<double>(random);
+    return !pcg() && !reml && inverseMode != 1 && random > 0 && fixed <= 256
+      && !retainJointCache && 3.0 * randomSize * fixedSize +
+        4.0 * fixedSize * fixedSize <= maxDoubles;
   }
   TracePreparation traces() const {
     return ldlt() ? TracePreparation::SelectedInverse
@@ -142,6 +274,22 @@ struct BlockSchurPolicy {
     }
     return result;
   }
+  double bandStorageDoubles(const std::vector<std::vector<int>> & blocks,
+                            std::size_t bandwidth,
+                            std::size_t border) const {
+    if(blocks.empty() || bandwidth == 0 || bandwidth >= blocks.size() ||
+       border > maxBorder) { return std::numeric_limits<double>::infinity(); }
+    const double borderSize = static_cast<double>(border);
+    double result = 2.0 * borderSize * borderSize;
+    for(std::size_t block = 0; block < blocks.size(); ++block) {
+      const double size = static_cast<double>(blocks[block].size());
+      result += 3.0 * size * borderSize + size * size;
+      for(std::size_t offset = 1; offset <= bandwidth && offset <= block; ++offset) {
+        result += 2.0 * size * blocks[block - offset].size();
+      }
+    }
+    return result;
+  }
   double latentStorageDoubles(const std::vector<std::vector<int>> & blocks,
                              std::size_t border, std::size_t dimension) const {
     if(blocks.empty() || dimension == 0) {
@@ -172,6 +320,49 @@ struct BlockChainOrder {
   std::vector<int> blocks;
   std::vector<int> components;
 };
+
+struct BlockBandPlan {
+  bool eligible = false;
+  std::size_t bandwidth = 0;
+};
+
+struct BlockBandPolicy {
+  std::size_t maxBandwidth = 4;
+  std::size_t minBlocks = 40;
+  static bool isAdvantageous(std::size_t blockCount, std::size_t bandwidth,
+                             std::size_t borderSize, std::size_t totalEffects) {
+    if(bandwidth > 4 || blockCount < 40 || totalEffects == 0) return false;
+    const double borderRatio = static_cast<double>(borderSize) / static_cast<double>(totalEffects);
+    return borderRatio <= 0.05;
+  }
+};
+
+struct LatentSchurPolicy {
+  static bool isAdvantageousMultiFactor(std::size_t lowRankDimension, std::size_t borderSize) {
+    // Multi-factor latent Woodbury Schur is advantageous when the low-rank
+    // dimension is sufficiently large (>= 8) and the virtual border is compact (<= 300).
+    return (lowRankDimension >= 8 && borderSize <= 300);
+  }
+};
+
+inline BlockBandPlan planBlockBand(
+    std::size_t count, const std::vector<std::pair<int, int>> & edges,
+    std::size_t maxBandwidth) {
+  BlockBandPlan result;
+  if(count == 0 || count > static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+    return result;
+  }
+  for(const auto & edge : edges) {
+    if(edge.first < 0 || edge.second < 0 || edge.first == edge.second ||
+       static_cast<std::size_t>(edge.first) >= count ||
+       static_cast<std::size_t>(edge.second) >= count) { return result; }
+    const std::size_t distance = static_cast<std::size_t>(std::abs(edge.first - edge.second));
+    result.bandwidth = std::max(result.bandwidth, distance);
+    if(result.bandwidth > maxBandwidth) { return BlockBandPlan(); }
+  }
+  result.eligible = result.bandwidth > 0;
+  return result;
+}
 
 inline BlockChainOrder orderBlockPaths(std::size_t count,
     const std::vector<std::pair<int, int>> & edges) {
@@ -210,11 +401,11 @@ inline BlockChainOrder orderBlockPaths(std::size_t count,
   result.eligible = count > 0 && result.blocks.size() == count;
   return result;
 }
-
 inline BlockSchurPlan planBlockSchur(
     const std::vector<std::vector<int>> & candidates,
     const std::vector<std::pair<int, int>> & couplings,
-    int fixedEffects, const BlockSchurPolicy & policy) {
+  int fixedEffects, const BlockSchurPolicy & policy,
+  const std::function<bool(const BlockSchurPlan &)> & admissible = nullptr) {
   std::vector<char> inBorder(candidates.size(), 0);
   std::vector<int> degree(candidates.size(), 0);
   for(const auto & pair : couplings) {
@@ -292,8 +483,16 @@ inline BlockSchurPlan planBlockSchur(
     columns.insert(columns.end(), candidates[group].begin(), candidates[group].end());
   }
 
-  const double borderedCost = policy.cost(bordered.groups, bordered.border.size());
-  const double mergedCost = policy.cost(merged.groups, merged.border.size());
+  double borderedCost = policy.cost(bordered.groups, bordered.border.size());
+  double mergedCost = policy.cost(merged.groups, merged.border.size());
+  if(admissible){
+    if(std::isfinite(borderedCost) && !admissible(bordered)){
+      borderedCost = std::numeric_limits<double>::infinity();
+    }
+    if(std::isfinite(mergedCost) && !admissible(merged)){
+      mergedCost = std::numeric_limits<double>::infinity();
+    }
+  }
   BlockSchurPlan selected = mergedCost < borderedCost ? std::move(merged) : std::move(bordered);
   if(!std::isfinite(borderedCost) && !std::isfinite(mergedCost)) { return selected; }
   selected.eligible = true;

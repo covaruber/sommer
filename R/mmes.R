@@ -8,17 +8,10 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  returnParam=FALSE, dateWarning=TRUE,
                  verbose=TRUE, stepWeight=NULL, emWeight=NULL,
                  contrasts=NULL, getPEV=TRUE, henderson=TRUE,
-                 computeCi=0, solver="auto", pcgTol=1.0e-8,
-                 pcgMaxIters=0, pcgTraceProbes=8,
-                 pcgLanczosSteps=20, REML=TRUE, vcc=NULL,
+                 computeCi=0, solver="auto", REML=TRUE, vcc=NULL,
                  family=stats::gaussian(), pqlControl=list(),
-                 .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
-                 .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
-                 .pqlBaseFactor=NULL, acceleration="none", .pqlStart=NULL,
-                 factorScoreAugmentation="none",
-                 .factorScoreParameters=NULL,
-                 pcgPreconditioner="diagonal", pcgNystromRank=32L,
-                 solveOnly=FALSE, covPar=NULL, blasThreads=NULL){
+                 solveOnly=FALSE, covPar=NULL, blasThreads=NULL,
+                 engine=NULL, ..., .internal=NULL){
   WWasMissing <- missing(W)
   WInput <- if(WWasMissing) NULL else W
   mmesCall <- match.call()
@@ -26,6 +19,32 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   threadScope <- get(".mmes_blas_scope", mode="function")(blasThreads)
   on.exit(threadScope$restore(), add=TRUE)
   if(verbose && !returnParam) get(".mmes_thread_report", mode="function")(threadScope)
+
+  dots <- list(...)
+  .pqlInner <- isTRUE(.internal$pqlInner) || isTRUE(dots$.pqlInner)
+  .pqlFixedDispersion <- if(!is.null(.internal$pqlFixedDispersion)) .internal$pqlFixedDispersion else dots$.pqlFixedDispersion
+  if(is.null(.pqlFixedDispersion)) .pqlFixedDispersion <- FALSE
+  .pqlWorkingPrecision <- if(!is.null(.internal$pqlWorkingPrecision)) .internal$pqlWorkingPrecision else dots$.pqlWorkingPrecision
+  .pqlBaseW <- if(!is.null(.internal$pqlBaseW)) .internal$pqlBaseW else dots$.pqlBaseW
+  .pqlBaseFactor <- if(!is.null(.internal$pqlBaseFactor)) .internal$pqlBaseFactor else dots$.pqlBaseFactor
+  .pqlStart <- if(!is.null(.internal$pqlStart)) .internal$pqlStart else dots$.pqlStart
+  .factorScoreParameters <- if(!is.null(.internal$factorScoreParameters)) .internal$factorScoreParameters else dots$.factorScoreParameters
+
+  mergeControl <- get(".merge_mmes_control", mode="function")
+  engineControl <- mergeControl(
+    engine = engine,
+    solver = solver,
+    ...
+  )
+  solver <- engineControl$solver
+  acceleration <- engineControl$acceleration
+  factorScoreAugmentation <- engineControl$factorScoreAugmentation
+  pcgPreconditioner <- engineControl$pcg$preconditioner
+  pcgNystromRank <- engineControl$pcg$nystromRank
+  pcgTol <- engineControl$pcg$tol
+  pcgMaxIters <- engineControl$pcg$maxIters
+  pcgTraceProbes <- engineControl$pcg$traceProbes
+  pcgLanczosSteps <- engineControl$pcg$lanczosSteps
 
   if(length(henderson) != 1L || !is.logical(henderson) || is.na(henderson)){
     stop("henderson must be a single TRUE/FALSE value.", call.=FALSE)
@@ -88,11 +107,8 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
         dateWarning=dateWarning, verbose=verbose, stepWeight=stepWeight,
         emWeight=emWeight, contrasts=contrasts, getPEV=getPEV,
         henderson=henderson, computeCi=computeCi, solver=solver,
-        pcgTol=pcgTol, pcgMaxIters=pcgMaxIters,
-        pcgTraceProbes=pcgTraceProbes, pcgLanczosSteps=pcgLanczosSteps,
-        REML=REML, vcc=vcc, acceleration=acceleration, weights=weights,
-        factorScoreAugmentation=factorScoreAugmentation,
-        pcgPreconditioner=pcgPreconditioner, pcgNystromRank=pcgNystromRank
+        REML=REML, vcc=vcc, weights=weights,
+        engine=engineControl
       )
     ), threadScope, verbose))
   }
@@ -1037,7 +1053,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
            "solver='cholmod' (solver='auto' resolves to one of these already).",
            call.=FALSE)
     }
-    message(crayon::blue(paste("Solver selected:", solver)))
+    # if(verbose){message(crayon::blue(paste("Solver selected:", solver)))}
   }else{
     # The direct-inversion engine has no Henderson-style sparse solver
     # choice; it always inverts the n x n phenotypic covariance directly.
@@ -1046,12 +1062,21 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
       stop("With henderson=FALSE (the direct-inversion engine), computeCi must be 0 (no PEV) or 2 (full PEV, small models only); computeCi=1 (Takahashi selected inverse) is Henderson-only.",
            call.=FALSE)
     }
-    message(crayon::blue("Engine selected: direct inversion (henderson=FALSE)"))
+    if(verbose){message(crayon::blue("Engine selected: direct inversion (henderson=FALSE)"))}
   }
 
   attr(covStruct, "acceleration") <- acceleration
   attr(covStruct, "pcgPreconditioner") <- pcgPreconditioner
   attr(covStruct, "pcgNystromRank") <- as.integer(pcgNystromRank)
+  attr(covStruct, "engineControl") <- engineControl
+  attr(covStruct, "denseMemoryMB") <- engineControl$denseMemoryMB
+  attr(covStruct, "blockBanded") <- engineControl$experimental$blockBanded
+  attr(covStruct, "factorSchurMultiFactor") <- engineControl$experimental$factorSchurMultiFactor
+  attr(covStruct, "dFirstML") <- engineControl$experimental$dFirstML
+  attr(covStruct, "matrixFreePcg") <- engineControl$experimental$matrixFreePcg
+  attr(covStruct, "cholmodFinalSelected") <- engineControl$experimental$cholmodFinalSelected
+  attr(covStruct, "pdCertificates") <- engineControl$experimental$pdCertificates
+  attr(covStruct, "panelCi2") <- as.integer(engineControl$experimental$panelCi2)
   if(!is.null(weightBlocks)) attr(covStruct, "weightBlocks") <- weightBlocks
   attr(covStruct, "retainLDLTCache") <- .pqlInner && identical(solver, "ldlt")
   attr(covStruct, "retainCholmodCache") <- .pqlInner && identical(solver, "cholmod")
@@ -1105,7 +1130,8 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                 weightBlocks=weightBlocks, rotation=rotationInfo,
                 factorScoreInfo=factorScoreInfo,
                 responsePrepared=responsePrepared, preparedMean=preparedMean,
-                preparedSd=preparedSd, preparedIntercept=preparedIntercept))
+                preparedSd=preparedSd, preparedIntercept=preparedIntercept,
+                engine=engineControl))
   }
 
   if(isTRUE(henderson)){
@@ -1148,7 +1174,8 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                         naMethodRandom=naMethodRandom, naMethodR=naMethodR,
                         contrasts=contrasts, henderson=henderson, REML=REML,
                         vcc=vcc,
-                        W=WInput)
+                        W=WInput,
+                        engine=engineControl)
 
   rownames(res$b) <- colnames(X)
   if(length(randomFits) && length(res$u)){
@@ -1168,6 +1195,10 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   res$covStruct <- covStruct
   res$vcParams <- vcParams
   res$REML <- REML
+  res$engineControl <- engineControl
+  if(is.list(res$engineDiagnostics)){
+    res$engineDiagnostics$controlObject <- engineControl
+  }
   
   if(length(randomFits) && length(rtermss)){
     names(res$theta) <- c(rtermss, residualLabel)

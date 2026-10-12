@@ -159,6 +159,8 @@ test_that("matrix-free PCG handles multi-factor Kronecker random precision", {
 
   expect_equal(pcg1$covPar, pcg2$covPar, tolerance=1e-12)
   expect_equal(pcg1$bu, pcg2$bu, tolerance=1e-12)
+  expect_true(is.finite(pcg1$pcgLogDetProbeStandardError))
+  expect_lte(pcg1$pcgSolveMaxRelativeResidual, 1.01e-10)
   expect_true(pcg1$pcgMatrixFree)
   expect_false(ldltOne$pcgMatrixFree)
   expect_equal(pcgOne$bu, ldltOne$bu, tolerance=1e-7)
@@ -212,4 +214,54 @@ test_that("Nyström PCG preconditioning preserves dense-Gu fits and reduces iter
             diagonal$engineDiagnostics$pcgBatchIterations)
   expect_equal(as.numeric(nystrom$llik), as.numeric(diagonal$llik), tolerance=1e-7)
   expect_equal(as.numeric(nystrom$bu), as.numeric(diagonal$bu), tolerance=1e-7)
+})
+
+test_that("PCG contracts correlated complete and ragged residual derivatives through probes", {
+  dataset <- expand.grid(id=factor(seq_len(6L)), environment=factor(seq_len(4L)),
+    replicate=factor(seq_len(2L)))
+  dataset$record <- interaction(dataset$id, dataset$replicate)
+  dataset$response <- sin(seq_len(nrow(dataset))) + as.integer(dataset$id) / 4
+  for(missing in c(FALSE, TRUE)){
+    active <- if(missing) dataset[-c(2L, 7L, 15L), ] else dataset
+    fitModel <- function(solver){
+      mmes(response~environment, random=~id,
+        rcov=~vsm(ar1m(environment), ism(record)), data=active, solver=solver,
+        nIters=1L, pcgTraceProbes=24L, pcgLanczosSteps=30L, pcgTol=1e-10,
+        getPEV=FALSE, verbose=FALSE, dateWarning=FALSE)
+    }
+    reference <- fitModel("ldlt")
+    candidate <- fitModel("pcg")
+    repeated <- fitModel("pcg")
+    expect_gt(candidate$engineDiagnostics$pcgResidualTraceContractions, 0L)
+    expect_equal(candidate$bu, reference$bu, tolerance=1e-7)
+    expect_equal(candidate$InfMat, reference$InfMat, tolerance=1e-7)
+    expect_equal(candidate$dLu, repeated$dLu, tolerance=1e-12)
+  }
+})
+
+test_that("D-first ML matches joint factorization and full uncertainty for both direct backends", {
+  data(DT_example)
+  for(solver in c("ldlt", "cholmod")){
+    fitModel <- function(mode){
+      mmes(Yield~Env, random=~Name, data=DT_example, solver=solver, REML=FALSE,
+        nIters=4L, computeCi=mode, verbose=FALSE, dateWarning=FALSE)
+    }
+    joint <- fitModel(1L)
+    reduced <- fitModel(0L)
+    full <- fitModel(2L)
+    expect_false(joint$engineDiagnostics$dFirstMLActive)
+    expect_true(reduced$engineDiagnostics$dFirstMLActive)
+    expect_equal(reduced$engineDiagnostics$CsymbolicAnalyses, 0L)
+    expect_true(full$engineDiagnostics$dFirstMLActive)
+    if(solver == "cholmod"){
+      expect_gt(reduced$engineDiagnostics$cholmodDSelectedBuilds, 0L)
+    }
+    for(component in c("llik", "theta", "bu", "InfMat", "dLu", "theta_se")){
+      expect_equal(reduced[[component]], joint[[component]], tolerance=1e-7)
+      expect_equal(full[[component]], joint[[component]], tolerance=1e-7)
+    }
+    expect_equal(full$uPevList, joint$uPevList, tolerance=1e-7)
+    expect_equal(as.matrix(full$C) %*% as.matrix(full$Ci),
+      diag(nrow(full$C)) * full$Cscale, tolerance=1e-7)
+  }
 })

@@ -69,8 +69,21 @@ only the border correction. The storage estimate is
 `3 b^2 + sum_g (4 m_g^2 + 5 m_g b) + 3 sum_edges m_g m_h` doubles and uses
 the same configurable dense budget. `engineDiagnostics$blockChainActive`
 identifies this path; `blockSchurActive` remains true for either bordered engine.
-ML retains the existing dispatch. Final `computeCi=1` retains the one-time
-LDLT subset extraction; `computeCi=2` uses the chain solve for the full inverse.
+ML retains its direct D / D-first dispatch. Final `computeCi=1` uses the current
+CHOLMOD supernodal selected inverse when a generic CHOLMOD factor and workspace
+are available; Schur and over-budget cases use the Eigen LDLT subset fallback.
+`computeCi=2` uses the chain solve for the full inverse.
+An experimental block-banded CHOLMOD path is available with
+`options(sommer.mme.blockBanded=TRUE)`. It is off by default because current
+benchmarks are slower than generic CHOLMOD on 600 scalar AR2 blocks
+(0.93x fit-only, 0.89x with full inverse) and 16 blocks of width 120
+(0.71x, 0.90x respectively; ratios are generic/banded). When enabled, it
+admits only REML random-term graphs with 3 or more
+blocks, bandwidth at most 4, a border within the existing limit, and the
+band-storage estimate within the dense budget. It factors exact block bands and
+the fixed-effect border; score traces use exact solve fallbacks rather than an
+approximate banded inverse. Keep the generic CHOLMOD path as the default until
+representative end-to-end benchmarks show a crossover.
 
 Before the block-chain attempt, a latent-factor Schur engine admits a single
 random covariance factor with a validated Woodbury decomposition
@@ -107,14 +120,21 @@ Even PCG fits may factor a generic sparse residual R: factorization-free refers
 to the coefficient system C, not every matrix in the model.
 
 ML uses D for determinant and score corrections, while joint sensitivity solves
-and final BLUE/BLUP uncertainty continue to use C. `computeCi=0` skips final
-inverse extraction, not the trace work needed during fitting.
+and final BLUE/BLUP uncertainty continue to use C. Eligible direct ML fits may
+factor D plus the small fixed-effect Schur complement and route joint solves
+through block elimination; mode 1, retained joint-factor caches, excessive fixed
+borders, or failed Schur admission use the original joint-C factorization.
+`computeCi=0` skips final inverse extraction, not the trace work needed during fitting.
 
 ## Block-Schur Planning
 
-Random candidates are covariance partitions for structurally diagonal terms and
-whole terms otherwise. Stored entries of C define the coupling graph. The pure
-planner compares two strategies:
+Random candidates follow the ordered factor list, with no one/two-factor limit.
+Each structurally diagonal shaping axis partitions the tensor prior; correlated
+axes remain within a component. Thus diagonal x AR x diagonal x US has smaller
+prior components even though the full product is not diagonal. The relationship
+coefficients stay within each proposed component. Stored entries of C then
+define coupling between candidates, so incidence/residual coupling can merge
+or border them. The pure planner compares two strategies:
 
 - Border the smaller group of each uncovered edge, with existing degree-based
   tie-breaking and deterministic edge order.
@@ -134,13 +154,18 @@ This estimates dense factor/cache storage, not peak process memory: sparse C,
 covariance assembly, temporary matrices, and fitted output need additional memory.
 Diagnostics report `denseMemoryMB` and `blockSchurEstimatedDenseMB`.
 The CHOLMOD inverse cache separately requires `2 m^2 + effects * m`
-for dense group storage and forward workspace to fit the same budget. For a group <= 64, or one whose
+and a conservative aggregate retained/workspace estimate to fit the same budget.
+That estimate includes fixed inverse blocks, accumulated random inverse/cross
+blocks, overlapping forward workspaces, and selected-inverse frontal workspace.
+Over-budget entries use exact solve fallbacks; this is not a process-memory cap.
+For a group <= 64, or one whose
 effects * group size fits the inverse-cache budget, density is not tested.
 Otherwise stored within-group density must be >= 0.1.
 
-Cost ties still choose the border strategy. The selected strategy is checked
-against the density limit; rejection uses CHOLMOD rather than trying the other
-strategy. Numerical block-Cholesky failure remains an error.
+Cost ties still choose the border strategy. Each storage-feasible strategy is
+checked against the density limit before cost selection; an inadmissible
+cheaper strategy does not hide the other feasible strategy. If neither fits,
+the generic CHOLMOD path is used. Numerical block-Cholesky failure remains an error.
 For coupled Kronecker terms, m is the full coefficient-group dimension, not
 the main-effect dimension: the current dense engine factors that full matrix.
 Main-effect-sized admission requires an actual banded or latent-factor
@@ -161,9 +186,14 @@ reuse the coupled-dense estimate.
 
 ## Precision And Trace Fallbacks
 
-The descriptor precision ladder is unchanged: eligible FA/RR Woodbury,
-native AR1/compound-symmetry/ANTE formulas, structurally diagonal reciprocals,
-then generic SPD inversion. Eligibility includes numerical reconstruction and
+The descriptor precision ladder includes eligible FA/RR Woodbury, native
+AR1/stationary-AR/compound-symmetry/ANTE formulas, normalized SAR/CAR precision
+from their system matrices, structurally diagonal reciprocals, then generic SPD
+inversion. AR(p)/ANTE precision is currently materialized as a dense factor
+matrix; SAR/CAR still evaluate dense covariance before using their direct
+precision formula. Their working-coordinate precision/log-determinant
+derivatives use the normalized system identities; covariance derivatives are
+recovered as `dK=-K(dP)K`. Eligibility includes numerical reconstruction and
 conditioning checks. Random assembled/near-PD fallback and repeated-residual
 block LDLT/jitter recovery remain in their owning numerical kernels.
 
@@ -172,6 +202,89 @@ selected-inverse/cache entry must not be treated as zero. Partial trace sums
 are discarded before exact batched solves. ML lookups use D indices, REML
 lookups use C indices. Cached topology is reusable only when the stored sparse
 pattern matches; numerical values must be refreshed.
+
+LDLT selected-inverse topology may also cache dependency offsets for the numeric
+Takahashi recursion. Each subset's address cache is capped at 1,048,576 entries
+and 1/48 of the configured dense byte budget, with exact lookup fallback for
+uncached columns. A reused cache releases those tables when its budget shrinks.
+Final LDLT `computeCi=1` reuses the final accepted-state numeric subset.
+CHOLMOD final mode-1 extraction still uses the existing Eigen LDLT fallback.
+
+Grid residual factorization reuse is local to one coefficient evaluation and
+keys on factor, section, and the exact ordered level subset. Missing/gapped
+subsets continue to use their principal covariance, not a sliced precision.
+PCG non-diagonal residual corrections contract the same projected probes through
+derivative applications rather than assemble a coefficient-space trace matrix.
+
+For `computeCi=1`, LDLT reuses the final accepted selected subset. Generic
+CHOLMOD fits build/export the supernodal selected inverse when the factor is
+compatible and its workspace fits budget; structured-Schur or over-budget fits
+retain the exact Eigen LDLT fallback. Both are incomplete inverse subsets and
+do not make arbitrary contrast variances available from `Ci`. `computeCi=2`
+uses 32-column identity panels to limit temporary full-matrix duplication.
+
+Matrix-free PCG applies the random Kronecker prior to panels and runs independent
+per-column CG recurrences in chunks. This is not block-Krylov CG; each column
+retains separate alpha/beta and convergence checks.
+PCG fit diagnostics include the empirical standard error across SLQ probe
+estimates and maximum verified true relative solve residual. These diagnostics
+do not currently change probe counts, Lanczos depth, or solve tolerances.
+
+## Structured Engine Control and Experimental Crossover Registration
+
+To prevent unchecked accumulation of experimental solver options and avoid global
+option pollution in parallel or batch workflows, solver dispatch and experimental
+numerical paths are unified under a structured control object:
+
+```r
+engine = mmes_control(
+  solver = "auto",
+  denseMemoryMB = 1000,
+  experimental = list(
+    blockBanded = "auto",
+    factorSchurMultiFactor = "auto",
+    dFirstML = "auto",
+    matrixFreePcg = "auto",
+    cholmodFinalSelected = "auto",
+    pdCertificates = "auto",
+    panelCi2 = 64
+  ),
+  pcg = list(...)
+)
+```
+
+Each experimental path toggle supports a three-state mode:
+- `"off"`: Completely disables the experimental engine and uses the stable baseline.
+- `"force"`: Forces execution of the experimental path when structurally eligible,
+  bypassing conservative heuristic cost gates.
+- `"auto"`: Adopts calibrated mathematical crossover rules evaluated in `mme_paths.h`.
+
+Calibrated crossover rules:
+- **`factorSchurMultiFactor`**: Multi-factor latent Woodbury Schur complements
+  (e.g., `fam(env, 1) \otimes dsm(rep) \otimes ism(id)`) deliver up to 1.73x speedup
+  over CHOLMOD when `lowRankDimension >= 8` (e.g., $\ge 8$ environments) and the
+  virtual latent border `borderSize <= 300`. It is automatically admitted under `"auto"`
+  via `LatentSchurPolicy::isAdvantageousMultiFactor`. For smaller environment counts or
+  large borders, generic CHOLMOD is retained.
+- **`dFirstML`**: Maximum Likelihood estimation avoids joint $(p+q) \times (p+q)$
+  factorization by factoring $D = Z'R^{-1}Z + G^{-1}$ and solving a compact $p \times p$
+  Schur complement, providing 1.1x to 2.2x speedup across LDLT and CHOLMOD when
+  $p \le 256$ fixed effects. It is enabled under `"auto"`.
+- **`matrixFreePcg`**: For iterative solves with factor-wise random priors, the prior
+  operator avoids materializing $C$, delivering 1.04x to 1.13x speedups for large
+  random systems ($N \ge 400$).
+- **`panelCi2`**: Identity panel size for full inverse computation (`computeCi=2`)
+  defaults to 64, delivering up to 6.9x speedups over 16- and 32-column batches by
+  improving BLAS-3 cache utilization.
+- **`blockBanded`**: SuiteSparse CHOLMOD's supernodal amalgamation outperforms scalar
+  banded Cholesky on tested sequential AR graphs; `"auto"` safely retains generic
+  CHOLMOD, while `"force"` remains available for dedicated experiments.
+
+An experimental benchmarking and crossover calibration framework is provided via
+`generate_mme_workload()`, `mme_workload_grid()`, `run_mme_benchmark()`, and
+`analyze_mme_crossovers()`. It evaluates runtime, memory consumption, convergence,
+and numerical parity across factor levels and dimensions to calibrate empirical
+crossover frontiers.
 
 ## Phase Boundaries
 

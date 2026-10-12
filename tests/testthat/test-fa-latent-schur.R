@@ -92,11 +92,26 @@ test_that("latent Schur rejects incompatible residuals, ML and near-boundary spe
   rejected <- fitModel(overlapping)
   expect_false(rejected$engineDiagnostics$factorSchurActive)
   expect_equal(rejected$llik, fitModel(overlapping, solver="ldlt")$llik, tolerance=1e-6)
+  previousMultiFactor <- options(sommer.mme.factorSchurMultiFactor=NULL)
+  on.exit(options(previousMultiFactor), add=TRUE)
+  extraFactorDefault <- mmes(response~environment,
+    random=~vsm(fam(environment, 1L), dsm(replicate), ism(id), Gu=precision),
+    data=dataset, solver="cholmod", nIters=2L, computeCi=0L, getPEV=FALSE,
+    verbose=FALSE, dateWarning=FALSE)
+  expect_false(extraFactorDefault$engineDiagnostics$factorSchurActive)
+  options(sommer.mme.factorSchurMultiFactor=TRUE)
   extraFactor <- mmes(response~environment,
     random=~vsm(fam(environment, 1L), dsm(replicate), ism(id), Gu=precision),
     data=dataset, solver="cholmod", nIters=2L, computeCi=0L, getPEV=FALSE,
     verbose=FALSE, dateWarning=FALSE)
-  expect_false(extraFactor$engineDiagnostics$factorSchurActive)
+  extraFactorReference <- mmes(response~environment,
+    random=~vsm(fam(environment, 1L), dsm(replicate), ism(id), Gu=precision),
+    data=dataset, solver="ldlt", nIters=2L, computeCi=0L, getPEV=FALSE,
+    verbose=FALSE, dateWarning=FALSE)
+  expect_true(extraFactor$engineDiagnostics$factorSchurActive)
+  for(component in c("llik", "theta", "bu", "InfMat", "dLu", "theta_se")){
+    expect_equal(extraFactor[[component]], extraFactorReference[[component]], tolerance=1e-6)
+  }
   expect_false(fitModel(shape, reml=FALSE)$engineDiagnostics$factorSchurActive)
   boundary <- fam(dataset$environment, 1L, specific=c(rep(1, 4L), 1e-10))
   boundary$covFactor$free[] <- FALSE
@@ -107,4 +122,37 @@ test_that("latent Schur rejects incompatible residuals, ML and near-boundary spe
   expect_equal(fallback$bu, reference$bu, tolerance=1e-6)
   options(sommer.mme.denseMemoryMB=0.001)
   expect_false(fitModel(shape)$engineDiagnostics$factorSchurActive)
+})
+
+test_that("latent Schur supports a low-rank axis at any position in longer products", {
+  previous <- options(sommer.mme.factorSchurMultiFactor=NULL)
+  on.exit(options(previous), add=TRUE)
+  dataset <- expand.grid(id=factor(seq_len(6L)), site=factor(1:2),
+    environment=factor(letters[1:4]), block=factor(1:3))
+  dataset$response <- sin(seq_len(nrow(dataset)) / 5) + as.integer(dataset$id) / 6
+  relationship <- diag(6L) + matrix(0.08, 6L, 6L)
+  dimnames(relationship) <- list(levels(dataset$id), levels(dataset$id))
+  attr(relationship, "inverse") <- TRUE
+  randomModels <- list(
+    ~vsm(fam(environment, 1L), dsm(site), dsm(block), ism(id), Gu=relationship),
+    ~vsm(dsm(site), fam(environment, 1L), dsm(block), ism(id), Gu=relationship),
+    ~vsm(dsm(site), dsm(block), fam(environment, 1L), ism(id), Gu=relationship))
+  default <- mmes(response~site+environment+block, random=randomModels[[1L]],
+    rcov=~units, data=dataset, solver="cholmod", nIters=2L,
+    computeCi=0L, getPEV=FALSE, verbose=FALSE, dateWarning=FALSE)
+  expect_false(default$engineDiagnostics$factorSchurActive)
+  options(sommer.mme.factorSchurMultiFactor=TRUE)
+  for(position in seq_along(randomModels)){
+    fitModel <- function(solver){
+      mmes(response~site+environment+block, random=randomModels[[position]],
+        rcov=~units, data=dataset, solver=solver, nIters=3L,
+        computeCi=0L, getPEV=FALSE, verbose=FALSE, dateWarning=FALSE)
+    }
+    latent <- fitModel("cholmod")
+    reference <- fitModel("ldlt")
+    expect_true(latent$engineDiagnostics$factorSchurActive)
+    for(component in c("llik", "theta", "bu", "InfMat", "dLu", "theta_se")){
+      expect_equal(latent[[component]], reference[[component]], tolerance=1e-6)
+    }
+  }
 })

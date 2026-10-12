@@ -174,6 +174,97 @@ test_that("all covariance-factor families provide finite native reports", {
   }
 })
 
+test_that("normalized SAR and CAR precision paths match the observation-space reference", {
+  locations <- letters[1:4]
+  adjacency <- matrix(c(0,1,0,1, 1,0,1,0, 0,1,0,1, 1,0,1,0), 4L, byrow=TRUE)
+  dimnames(adjacency) <- list(locations, locations)
+  dataset <- expand.grid(id=factor(seq_len(7L)), site=factor(locations), replicate=1:2)
+  dataset$response <- sin(seq_len(nrow(dataset)) / 3) + as.integer(dataset$id) / 7
+  relationship <- diag(7L) + matrix(0.08, 7L, 7L)
+  dimnames(relationship) <- list(levels(dataset$id), levels(dataset$id))
+  attr(relationship, "inverse") <- TRUE
+  for(shape in list(sar(dataset$site, adjacency, rho=0.2, fixed=TRUE),
+                    car(dataset$site, adjacency, rho=0.2, fixed=TRUE))){
+    factor <- shape$covFactor
+    covariance <- factor$evaluator$fun(factor$par)
+    if(identical(factor$model, "sar")){
+      rho <- -factor$rho_bound + 2 * factor$rho_bound *
+        stats::plogis(factor$par[1L])
+      system <- diag(nrow(adjacency)) - rho * adjacency
+      first <- c(1, rep(0, nrow(adjacency) - 1L))
+      normalization <- sum(solve(t(system), first)^2)
+      expectedPrecision <- normalization * crossprod(system)
+      expectedLogDet <- -2 * as.numeric(determinant(system, logarithm=TRUE)$modulus) -
+        nrow(system) * log(normalization)
+    }else{
+      rho <- factor$rho_lower + (factor$rho_upper - factor$rho_lower) *
+        stats::plogis(factor$par[1L])
+      system <- diag(factor$degree) - rho * adjacency
+      normalization <- solve(system)[1L, 1L]
+      expectedPrecision <- normalization * system
+      expectedLogDet <- -as.numeric(determinant(system, logarithm=TRUE)$modulus) -
+        nrow(system) * log(normalization)
+    }
+    expect_equal(solve(covariance), expectedPrecision, tolerance=1e-10)
+    expect_equal(as.numeric(determinant(covariance, logarithm=TRUE)$modulus),
+      expectedLogDet, tolerance=1e-10)
+    step <- 1e-6
+    eta <- factor$par[1L]
+    if(identical(factor$model, "sar")){
+      derivativeRho <- 2 * factor$rho_bound * stats::plogis(eta) *
+        (1 - stats::plogis(eta))
+      systemDerivative <- -derivativeRho * adjacency
+      first <- c(1, rep(0, nrow(adjacency) - 1L))
+      normalizationVector <- solve(t(system), first)
+      normalizationDerivativeVector <- solve(t(system),
+        derivativeRho * t(adjacency) %*% normalizationVector)
+      normalizationDerivative <- 2 * sum(
+        normalizationVector * normalizationDerivativeVector)
+      precisionDerivative <- normalizationDerivative * crossprod(system) +
+        normalization * (crossprod(systemDerivative, system) +
+          crossprod(system, systemDerivative))
+      logDetDerivative <- -2 * sum(diag(solve(system, systemDerivative))) -
+        nrow(system) * normalizationDerivative / normalization
+    }else{
+      derivativeRho <- (factor$rho_upper - factor$rho_lower) *
+        stats::plogis(eta) * (1 - stats::plogis(eta))
+      systemDerivative <- -derivativeRho * adjacency
+      normalizationVector <- solve(system, c(1, rep(0, nrow(adjacency) - 1L)))
+      normalizationDerivativeVector <- solve(system,
+        derivativeRho * adjacency %*% normalizationVector)
+      normalizationDerivative <- normalizationDerivativeVector[1L]
+      precisionDerivative <- normalizationDerivative * system +
+        normalization * systemDerivative
+      logDetDerivative <- -sum(diag(solve(system, systemDerivative))) -
+        nrow(system) * normalizationDerivative / normalization
+    }
+    covarianceAt <- function(value){
+      factor$evaluator$fun(value)
+    }
+    numericPrecisionDerivative <-
+      (solve(covarianceAt(eta + step)) - solve(covarianceAt(eta - step))) /
+      (2 * step)
+    numericLogDetDerivative <-
+      (as.numeric(determinant(covarianceAt(eta + step), logarithm=TRUE)$modulus) -
+       as.numeric(determinant(covarianceAt(eta - step), logarithm=TRUE)$modulus)) /
+      (2 * step)
+    expect_equal(precisionDerivative, numericPrecisionDerivative, tolerance=1e-7)
+    expect_equal(logDetDerivative, numericLogDetDerivative, tolerance=1e-7)
+
+    fitModel <- function(solver){
+      mmes(response~site, random=~vsm(shape, ism(id), Gu=relationship),
+        rcov=~units, data=dataset, solver=solver,
+        nIters=1L, verbose=FALSE, dateWarning=FALSE)
+    }
+    coefficient <- fitModel("ldlt")
+    supernodal <- fitModel("cholmod")
+    expect_true(is.finite(coefficient$llik[1L]))
+    for(component in c("llik", "theta", "bu", "InfMat", "dLu")){
+      expect_equal(supernodal[[component]], coefficient[[component]], tolerance=1e-7)
+    }
+  }
+})
+
 test_that("heterogeneous AR1 reports rho and environment variances", {
   DT_example <- get("DT_example", envir=asNamespace("sommer"))
   fit <- mmes(

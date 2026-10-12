@@ -1,3 +1,26 @@
+test_that("fixed factor and relationship components split tensor priors without diagonal-only rules", {
+  dataset <- expand.grid(id=factor(seq_len(6L)), environment=factor(1:2), trait=factor(1:2))
+  dataset$response <- sin(seq_len(nrow(dataset))) + as.integer(dataset$id) / 3
+  precision <- matrix(0, 6L, 6L)
+  precision[1:3, 1:3] <- diag(3L) + matrix(0.1, 3L, 3L)
+  precision[4:6, 4:6] <- diag(3L) + matrix(0.1, 3L, 3L)
+  dimnames(precision) <- list(levels(dataset$id), levels(dataset$id))
+  attr(precision, "inverse") <- TRUE
+  fitModel <- function(solver){
+    mmes(response~environment+trait,
+      random=~vsm(ar1m(environment), usm(trait), ism(id), Gu=precision), data=dataset,
+      solver=solver, nIters=3L, computeCi=2L, verbose=FALSE, dateWarning=FALSE)
+  }
+  reference <- fitModel("ldlt")
+  candidate <- fitModel("cholmod")
+  expect_true(candidate$engineDiagnostics$blockSchurActive)
+  expect_equal(candidate$engineDiagnostics$blockSchurGroups, 2L)
+  for(component in c("llik", "theta", "bu", "InfMat", "dLu", "theta_se", "uPevList")){
+    expect_equal(candidate[[component]], reference[[component]], tolerance=1e-7)
+  }
+  expect_equal(as.matrix(candidate$Ci), as.matrix(reference$Ci), tolerance=1e-7)
+})
+
 test_that("multiple dense-Gu effects use exact Schur blocks", {
   set.seed(17)
   nInd <- 18
@@ -40,8 +63,67 @@ test_that("multiple dense-Gu effects use exact Schur blocks", {
   mlLdlt <- suppressMessages(mmes(y~env, random=random, rcov=~units,
     data=dat, solver="ldlt", REML=FALSE, nIters=8,
     verbose=FALSE, dateWarning=FALSE))
-  expect_true(mlSchur$engineDiagnostics$blockSchurActive)
+  expect_true(mlSchur$engineDiagnostics$dFirstMLActive)
   expect_equal(unlist(mlSchur$theta), unlist(mlLdlt$theta), tolerance=1e-8)
   expect_equal(as.numeric(mlSchur$llik), as.numeric(mlLdlt$llik), tolerance=1e-8)
   expect_equal(mlSchur$bu, mlLdlt$bu, tolerance=1e-8)
+})
+
+test_that("partial diagonal tensor products expose exact Schur groups in any factor order", {
+  dataset <- expand.grid(id=factor(seq_len(4L)), site=factor(1:2),
+    time=factor(1:2), zone=factor(1:2), trait=factor(1:2), batch=factor(1:2))
+  dataset$response <- sin(seq_len(nrow(dataset))) + as.integer(dataset$id) / 3
+  precision <- diag(4L) + matrix(0.1, 4L, 4L)
+  dimnames(precision) <- list(levels(dataset$id), levels(dataset$id))
+  attr(precision, "inverse") <- TRUE
+  randomModels <- list(
+    ~vsm(dsm(site), ar1m(time), usm(trait), ism(id), Gu=precision),
+    ~vsm(ar1m(time), dsm(site), usm(trait), dsm(zone), ism(id), Gu=precision),
+    ~vsm(dsm(zone), usm(trait), dsm(batch), ar1m(time), dsm(site), ism(id), Gu=precision))
+  for(model in seq_along(randomModels)) for(reml in c(TRUE, FALSE)) for(inverseMode in 0:2){
+    fitModel <- function(solver){
+      mmes(response~site+time+zone+trait+batch, random=randomModels[[model]],
+        data=dataset, solver=solver, REML=reml, nIters=2L,
+        computeCi=inverseMode, getPEV=inverseMode > 0L, verbose=FALSE, dateWarning=FALSE)
+    }
+    reference <- fitModel("ldlt")
+    candidate <- fitModel("cholmod")
+    if(!reml && inverseMode != 1L){
+      expect_true(candidate$engineDiagnostics$dFirstMLActive)
+    }else{
+      expect_true(candidate$engineDiagnostics$blockSchurActive)
+      expect_equal(candidate$engineDiagnostics$blockSchurGroups, as.integer(2^model))
+    }
+    for(component in c("llik", "theta", "bu", "InfMat", "dLu", "theta_se")){
+      expect_equal(candidate[[component]], reference[[component]], tolerance=1e-7)
+    }
+    expect_equal(as.matrix(candidate$C), as.matrix(reference$C), tolerance=1e-7)
+    if(inverseMode > 0L){ expect_equal(candidate$uPevList, reference$uPevList, tolerance=1e-7) }
+    if(inverseMode == 2L){ expect_equal(as.matrix(candidate$Ci), as.matrix(reference$Ci), tolerance=1e-7) }
+  }
+})
+
+test_that("correlated ragged residuals merge tensor prior components exactly", {
+  dataset <- expand.grid(id=factor(seq_len(4L)), site=factor(1:2),
+    time=factor(1:2), zone=factor(1:2), trait=factor(1:2))
+  dataset$record <- interaction(dataset$id, dataset$time, dataset$zone, dataset$trait)
+  dataset$response <- sin(seq_len(nrow(dataset))) + as.integer(dataset$id) / 3
+  dataset <- dataset[-1L, ]
+  precision <- diag(4L) + matrix(0.1, 4L, 4L)
+  dimnames(precision) <- list(levels(dataset$id), levels(dataset$id))
+  attr(precision, "inverse") <- TRUE
+  fitModel <- function(solver){
+    mmes(response~site+time+zone+trait,
+      random=~vsm(dsm(site), ar1m(time), dsm(zone), usm(trait), ism(id), Gu=precision),
+      rcov=~vsm(ar1m(site, rho=0.35, fixed=TRUE), ism(record)), data=dataset,
+      solver=solver, nIters=3L, computeCi=2L, verbose=FALSE, dateWarning=FALSE)
+  }
+  reference <- fitModel("ldlt")
+  candidate <- fitModel("cholmod")
+  expect_true(candidate$engineDiagnostics$blockSchurActive)
+  expect_equal(candidate$engineDiagnostics$blockSchurGroups, 2L)
+  for(component in c("llik", "theta", "bu", "InfMat", "dLu", "theta_se", "uPevList")){
+    expect_equal(candidate[[component]], reference[[component]], tolerance=1e-7)
+  }
+  expect_equal(as.matrix(candidate$Ci), as.matrix(reference$Ci), tolerance=1e-7)
 })

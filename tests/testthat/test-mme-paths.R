@@ -44,3 +44,38 @@ test_that("dense storage budget controls coupled Schur admission", {
     expect_error(fitModel(), "sommer.mme.denseMemoryMB must be a positive finite number", fixed=TRUE)
   }
 })
+
+test_that("LDLT selected-inverse dependency caching respects its budget and preserves output", {
+  previous <- options(sommer.mme.denseMemoryMB=NULL)
+  on.exit(options(previous), add=TRUE)
+  data(DT_example)
+  fitModel <- function(){
+    mmes(Yield~Env, random=~Name, data=DT_example, solver="ldlt",
+      nIters=3L, computeCi=1L, verbose=FALSE, dateWarning=FALSE)
+  }
+  cached <- fitModel()
+  expect_gt(cached$engineDiagnostics$CselectedDependencyEntries, 0)
+  options(sommer.mme.denseMemoryMB=1e-5)
+  uncached <- fitModel()
+  expect_equal(uncached$engineDiagnostics$CselectedDependencyEntries, 0)
+  for(component in c("llik", "theta", "bu", "InfMat", "dLu", "uPevList")){
+    expect_equal(cached[[component]], uncached[[component]], tolerance=1e-10)
+  }
+  expect_equal(as.matrix(cached$Ci), as.matrix(uncached$Ci), tolerance=1e-10)
+})
+
+test_that("generic CHOLMOD trace fallbacks preserve fits under an exhausted cache budget", {
+  previous <- options(sommer.mme.denseMemoryMB=1e-5)
+  on.exit(options(previous), add=TRUE)
+  data(DT_example)
+  fitModel <- function(solver){
+    mmes(Yield~Env, random=~Name, data=DT_example, solver=solver,
+      nIters=3L, computeCi=1L, verbose=FALSE, dateWarning=FALSE)
+  }
+  candidate <- fitModel("cholmod")
+  reference <- fitModel("ldlt")
+  expect_false(candidate$engineDiagnostics$blockSchurActive)
+  for(component in c("llik", "theta", "bu", "InfMat", "dLu", "uPevList")){
+    expect_equal(candidate[[component]], reference[[component]], tolerance=1e-7)
+  }
+})

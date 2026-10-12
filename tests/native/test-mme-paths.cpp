@@ -6,6 +6,61 @@
 int main() {
   using sommer::ResidualPath;
   using sommer::ResidualPlan;
+  const auto identityTensor = sommer::planTensorComponents({}, {}, 1);
+  assert(identityTensor.eligible);
+  assert(identityTensor.groups == std::vector<std::vector<int>>({{0}}));
+  sommer::DisjointComponents graph(4);
+  assert(graph.unite(0, 2));
+  assert(graph.unite(1, 3));
+  assert(!graph.unite(0, 4));
+  assert(graph.labels() == std::vector<int>({0, 1, 0, 1}));
+  const auto graphTensor = sommer::planTensorGraphComponents(
+    {2, 3}, {{0, 0}, {0, 1, 0}}, 6);
+  assert(graphTensor.eligible);
+  assert(graphTensor.groups == std::vector<std::vector<int>>({{0, 2, 3, 5}, {1, 4}}));
+  assert(!sommer::planTensorGraphComponents({2}, {{0, 2}}, 2).eligible);
+  assert(!sommer::planTensorGraphComponents({2}, {{0}}, 2).eligible);
+  assert(!sommer::planTensorGraphComponents({2, 3}, {{0, 1}, {0, 0, 0}}, 5).eligible);
+  assert(!sommer::planTensorComponents({2}, {}, 2).eligible);
+  assert(!sommer::planTensorComponents({0}, {true}, 1).eligible);
+  assert(!sommer::planTensorComponents({2, 3}, {true, false}, 5).eligible);
+  assert(!sommer::planTensorComponents(
+    {std::numeric_limits<std::size_t>::max(), 2}, {true, false},
+    std::numeric_limits<std::size_t>::max()).eligible);
+  const auto partialTensor = sommer::planTensorComponents(
+    {2, 3, 2}, {true, false, true}, 12);
+  assert(partialTensor.eligible);
+  assert(partialTensor.coordinates == 12);
+  assert(partialTensor.groups == std::vector<std::vector<int>>(
+    {{0, 2, 4}, {1, 3, 5}, {6, 8, 10}, {7, 9, 11}}));
+  for(std::size_t axes = 1; axes <= 5; ++axes) {
+    const std::vector<std::size_t> dimensions(axes, 2);
+    const std::size_t coordinates = std::size_t(1) << axes;
+    for(std::size_t mask = 0; mask < coordinates; ++mask) {
+      std::vector<bool> diagonal(axes, false);
+      std::size_t expectedGroups = 1;
+      for(std::size_t axis = 0; axis < axes; ++axis) {
+        diagonal[axis] = (mask & (std::size_t(1) << axis)) != 0;
+        if(diagonal[axis]) { expectedGroups *= 2; }
+      }
+      const auto tensor = sommer::planTensorComponents(dimensions, diagonal, coordinates);
+      assert(tensor.eligible && tensor.groups.size() == expectedGroups);
+      std::vector<bool> visited(coordinates, false);
+      for(const auto & group : tensor.groups) {
+        assert(group.size() == coordinates / expectedGroups);
+        for(int coordinate : group) {
+          assert(!visited[coordinate]);
+          visited[coordinate] = true;
+          for(std::size_t axis = 0; axis < axes; ++axis) {
+            if(!diagonal[axis]) { continue; }
+            const std::size_t shift = axes - axis - 1;
+            assert(((coordinate >> shift) & 1) == ((group.front() >> shift) & 1));
+          }
+        }
+      }
+      assert(std::all_of(visited.begin(), visited.end(), [](bool value) { return value; }));
+    }
+  }
   const auto chain = sommer::orderBlockPaths(4, {{0, 2}, {2, 1}, {1, 3}});
   assert(chain.eligible);
   assert(chain.blocks == std::vector<int>({0, 2, 1, 3}));
@@ -18,6 +73,20 @@ int main() {
   assert(!sommer::orderBlockPaths(4, {{0, 1}, {0, 2}, {0, 3}}).eligible);
   assert(!sommer::orderBlockPaths(2, {{0, 2}}).eligible);
   assert(!sommer::orderBlockPaths(0, {}).eligible);
+  const auto bandwidthTwo = sommer::planBlockBand(6, {{0, 1}, {1, 2}, {0, 2}, {2, 4}}, 2);
+  assert(bandwidthTwo.eligible && bandwidthTwo.bandwidth == 2);
+  assert(!sommer::planBlockBand(5, {{0, 3}}, 2).eligible);
+  assert(!sommer::planBlockBand(3, {{0, 3}}, 3).eligible);
+  assert(!sommer::planBlockBand(4, {{1, 1}}, 2).eligible);
+  assert(sommer::BlockBandPolicy::isAdvantageous(50, 2, 2, 100));
+  assert(!sommer::BlockBandPolicy::isAdvantageous(30, 2, 2, 100));
+  assert(!sommer::BlockBandPolicy::isAdvantageous(50, 5, 2, 100));
+  assert(!sommer::BlockBandPolicy::isAdvantageous(50, 2, 10, 100));
+  assert(!sommer::BlockBandPolicy::isAdvantageous(50, 2, 2, 0));
+  assert(sommer::LatentSchurPolicy::isAdvantageousMultiFactor(8, 200));
+  assert(sommer::LatentSchurPolicy::isAdvantageousMultiFactor(16, 300));
+  assert(!sommer::LatentSchurPolicy::isAdvantageousMultiFactor(4, 200));
+  assert(!sommer::LatentSchurPolicy::isAdvantageousMultiFactor(8, 350));
   for(bool sectioned : {false, true}) {
     for(bool nonDiagonal : {false, true}) {
       for(bool complete : {false, true}) {
@@ -93,6 +162,16 @@ int main() {
     }
   }
   const sommer::BlockSchurPolicy policy;
+  assert(std::isfinite(policy.bandStorageDoubles({{0, 1}, {2, 3}, {4, 5}}, 2, 1)));
+  assert(std::isinf(policy.bandStorageDoubles({{0}, {1}}, 2, 1)));
+  const sommer::SolverPlan mlPlan{sommer::SolverBackend::LDLT, false, 0, true};
+  assert(mlPlan.dFirstML(2, 10, 76, false));
+  assert(!mlPlan.dFirstML(2, 10, 75, false));
+  assert(!mlPlan.dFirstML(2, 10, 76, true));
+  assert(!mlPlan.dFirstML(257, 10, 1e9, false));
+  assert(!mlPlan.dFirstML(2, 0, 76, false));
+  const sommer::SolverPlan subsetPlan{sommer::SolverBackend::LDLT, false, 1, true};
+  assert(!subsetPlan.dFirstML(2, 10, 76, false));
   assert(std::isinf(policy.cost({}, 1)));
   assert(std::isinf(policy.cost({std::vector<int>(2)}, 2001)));
   assert(std::isinf(policy.cost({std::vector<int>(8001)}, 1)));
@@ -138,6 +217,12 @@ int main() {
   assert(bordered.eligible);
   assert(bordered.border == std::vector<int>({0, 1}));
   assert(bordered.groups == std::vector<std::vector<int>>({{2, 3}}));
+  const auto alternative = sommer::planBlockSchur({{0, 1}, {2, 3}}, {{0, 1}}, 0, policy,
+    [](const sommer::BlockSchurPlan & plan) { return plan.border.empty(); });
+  assert(alternative.eligible && alternative.border.empty());
+  assert(alternative.groups == std::vector<std::vector<int>>({{0, 1, 2, 3}}));
+  assert(!sommer::planBlockSchur({{0, 1}, {2, 3}}, {{0, 1}}, 0, policy,
+    [](const sommer::BlockSchurPlan &) { return false; }).eligible);
   assert(!sommer::planBlockSchur({}, {}, 0, policy).eligible);
   sommer::BlockSchurPolicy limited = policy;
   limited.maxDoubles = 28;

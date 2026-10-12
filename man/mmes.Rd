@@ -27,16 +27,10 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
      returnParam=FALSE, dateWarning=TRUE,
      verbose=TRUE, stepWeight=NULL, emWeight=NULL,
      contrasts=NULL, getPEV=TRUE, henderson=TRUE,
-    computeCi=0, solver="auto", pcgTol=1.0e-8,
-    pcgMaxIters=0, pcgTraceProbes=8,
-    pcgLanczosSteps=20, REML=TRUE, vcc=NULL,
-    family=stats::gaussian(), pqlControl=list(),
-    .pqlInner=FALSE, .pqlFixedDispersion=FALSE,
-    .pqlWorkingPrecision=NULL, .pqlBaseW=NULL,
-    .pqlBaseFactor=NULL, acceleration="none", .pqlStart=NULL,
-    factorScoreAugmentation="none", .factorScoreParameters=NULL,
-    pcgPreconditioner="diagonal", pcgNystromRank=32L,
-    solveOnly=FALSE, covPar=NULL, blasThreads=NULL)
+     computeCi=0, solver="auto", REML=TRUE, vcc=NULL,
+     family=stats::gaussian(), pqlControl=list(),
+     solveOnly=FALSE, covPar=NULL, blasThreads=NULL,
+     engine=NULL, ...)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -374,24 +368,6 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
    The covariance-model specification is independent of this choice: all solvers
    receive the same generic CovarianceFactor descriptors produced by \code{vsm()}.}
 
-   \item{pcgTol}{Convergence tolerance used by the PCG linear solver. The default is
-  \code{1e-8}. This argument is used when \code{solver="pcg"}. Smaller values request
-   more accurate iterative solves but may increase computation time.}
-
-   \item{pcgMaxIters}{Maximum number of PCG iterations for an individual linear solve.
-   A value of \code{0} lets the C++ solver choose its internal iteration limit from the
-   problem dimension. This argument is used only by the PCG path.}
-
-   \item{pcgTraceProbes}{Number of stochastic probe vectors used by the PCG-based
-   machinery for trace quantities required during REML calculations. The default is
-  \code{8}. Increasing this value can reduce stochastic approximation variability at
-   additional computational cost. This argument is relevant to \code{solver="pcg"}.}
-
-   \item{pcgLanczosSteps}{Number of Lanczos steps used by the PCG-based stochastic
-  log-determinant calculations. The default is \code{20}. Larger values can improve
-   the approximation at additional computational cost. This argument is relevant to
-   \code{solver="pcg"}.}
-
    \item{REML}{Logical, \code{TRUE} (default) fits variance/covariance parameters by
    restricted maximum likelihood (REML), the classical choice for BLUP-style variance
    component estimation. Setting \code{REML=FALSE} fits by maximum likelihood (ML)
@@ -453,77 +429,6 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   topology across PQL iterations while recomputing numeric factors. Other
   solvers reuse their symbolic factorizations within each working fit.}
 
-  \item{.pqlInner}{Internal-use logical indicating that \code{mmes()} is being
-  called for a Gaussian working-model fit within the PQL iteration. Users
-  should not set this argument directly.}
-
-  \item{.pqlFixedDispersion}{Internal-use logical indicating that the working
-  residual dispersion is fixed, as required for binomial and Poisson PQL
-  models. Users should not set this argument directly.}
-
-  \item{.pqlWorkingPrecision}{Internal-use vector containing the current IRLS
-  working precisions after observation filtering. Users should not set this
-  argument directly.}
-
-  \item{.pqlBaseW}{Internal-use base observation precision matrix supplied by
-  the outer PQL fit before combination with the IRLS working precisions. Users
-  should not set this argument directly.}
-
-  \item{.pqlBaseFactor}{Internal-use cached factor of \code{.pqlBaseW}, reused
-  across PQL iterations. Users should not set this argument directly.}
-  \item{acceleration}{Optional optimizer acceleration: \code{"none"} (default) or
-  \code{"aitken"}. Aitken proposals are capped, applied every third accepted
-  iteration during EM blending, and checked by the existing likelihood line
-  search. Requires a deterministic Henderson solver; not available for PCG or
-  direct inversion. The Henderson result's \code{engineDiagnostics} reports
-  coefficient evaluations, line-search halvings, accelerated proposals,
-  symbolic-analysis and ML selected-inverse topology counters, and active
-  block-Schur partition dimensions, grouped weight-block counts and assembled
-  PCG batch solve/iteration counts, plus peak sparse fill in the irregular
-  residual fallback.}
-  \item{.pqlStart}{Internal-use covariance warm-start state for successive PQL working fits.}
-  \item{factorScoreAugmentation}{Latent-factor parameterization for FA/RR and
-  compound-symmetry covariance factors with nonnegative correlation. The
-  default \code{"none"} uses the marginal covariance MME. \code{"fixed-shape"}
-  uses the augmented MME with fixed loading and specific-variance parameters;
-  it is currently limited to Henderson REML, \code{computeCi=0}, and one
-  eligible low-rank-plus-diagonal shaping factor per random term. It replaces each \eqn{q d} marginal
-  coefficient block with \eqn{(k+q)d} factor and specific-effect coefficients
-  constrained to share one variance scale. \code{"profile"} estimates free
-  eligible shape parameters with a bounded L-BFGS-B outer profile optimizer. It
-  starts from the values in the constructors (so it does not first factor the
-  expensive marginal FA/RR system); at each candidate shape it rebuilds the
-  augmented design and refits shared random and residual scales by REML.
-  The outer iteration budget is dimension-adjusted, with at least five and at
-  most twelve outer iterations; \code{nIters} controls each inner AI fit.
-  Inner covariance starts and symbolic factorizations are reused when the
-  augmented layout matches; numeric factors are recomputed. The outer objective
-  uses finite-difference gradients, is experimental, can require many augmented
-  REML fits, and can converge to a local optimum; inspect
-  \code{factorScoreProfile}. Shape-parameter standard errors are returned as
-  \code{NA}; the inner AI information matrix is not their uncertainty estimate.
-
-  Both augmented modes currently require Gaussian identity Henderson REML,
-  \code{computeCi=0}, one eligible low-rank-plus-diagonal shaping factor per
-  random term, no
-  rotation, and no user \code{vcc}. With \code{solver="auto"}, dense
-  \code{Gu} selects CHOLMOD; its exact block-Schur path eliminates independent
-  specific-effect blocks while retaining factor effects in the border. The
-  returned \code{uList}, \code{bu}, fitted values, and prediction contrasts use
-  the original effects; \code{C} remains augmented and is tagged with
-  \code{CRepresentation="factor-score-augmented"}.}
-  \item{.factorScoreParameters}{Internal-use FA/RR shape parameters on the
-  working scale, indexed by random term. The profile optimizer uses these to
-  fix shapes in its inner fits; users should not set this argument directly.}
-  \item{pcgPreconditioner}{PCG preconditioner: \code{"diagonal"} (default) or
-  \code{"nystrom"}. The Nyström option builds a deterministic landmark
-  approximation to assembled \eqn{C} and applies its Woodbury inverse as an SPD
-  preconditioner; PCG continues to multiply by the exact \eqn{C} and verifies
-  the true residual. Nyström currently uses assembled-C PCG, so it disables the
-  matrix-free shortcut.}
-  \item{pcgNystromRank}{Positive number of deterministic landmarks for
-  \code{pcgPreconditioner="nystrom"}; the default is 32 and the value is capped
-  at the coefficient dimension.}
   \item{solveOnly}{If \code{TRUE}, no variance components are estimated: the
   mixed-model equations are solved once at known covariance parameters (genetic
   evaluation). The coefficient matrix is never assembled; a matrix-free
@@ -571,6 +476,18 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   block-Schur measurements include block extraction and Schur assembly.
   For PQL/profile fits these native measurements describe the returned inner
   fit, while the fit-level measurement covers the outer call.}
+
+  \item{engine}{Optional structured control object returned by
+  \code{\link{mmes_control}} specifying the backend solver, memory budget,
+  iterative PCG configuration, and experimental numerical paths (e.g.,
+  block-banded Cholesky, multi-factor latent Woodbury Schur complements,
+  D-first ML, matrix-free PCG priors, and supernodal selected-inverse modes).
+  When provided, \code{engine} overrides the legacy top-level solver and iterative
+  arguments in a cleanly encapsulated, thread-isolated structure.}
+
+  \item{\dots}{Additional solver options or legacy arguments (such as \code{acceleration},
+  \code{factorScoreAugmentation}, \code{pcgTol}, \code{pcgTraceProbes}, \code{pcgPreconditioner},
+  \code{denseMemoryMB}) automatically forwarded to \code{\link{mmes_control}}.}
 }
 
 \details{
@@ -929,7 +846,7 @@ DT=DT[with(DT, order(Env)), ]
 ## Compound simmetry (CS) + Diagonal (DIAG) model
 ans2 <- mmes(Yield~Env,
              random= ~Name + vsm(dsm(Env),ism(Name)),
-             rcov= ~ vsm(dsm(Env),ism(units)),
+             rcov= ~ dsumm(vsm(ism(units)), by=Env),
              data=DT)
 summary(ans2)
 
@@ -939,10 +856,57 @@ summary(ans2)
 
 ans3 <- mmes(Yield~Env,
              random=~ vsm(usm(Env),ism(Name)),
-             rcov=~vsm(dsm(Env),ism(units)),
+             rcov= ~ dsumm(vsm(ism(units)), by=Env),
              data=DT)
 summary(ans3)
 
+
+}
+
+\donttest{
+
+## simulated MET
+nInds=300
+nMarks=1000
+nEnvs=3
+
+#random population of nInds lines with nMarks markers
+M <- matrix(rep(0,nInds*nMarks),nInds,nMarks)
+for (i in 1:nInds) {
+  M[i,] <- ifelse(runif(nMarks)<0.5,-1,1)
+}
+# compute the relationship matrix
+MMT <- tcrossprod(M)
+m <- sum(diag(MMT))/nrow(MMT)
+MMT <- MMT/m
+MMT <- MMT + diag(1e-05, ncol(MMT), ncol(MMT))
+# get phenotypes
+rg <- enhancer::simGECorMat(nEnvs, 1, mu=0.2, v=0.2)
+rg <- Matrix::nearPD(rg)$mat
+rg # desired genetic correlation
+u <- mvrnorm(n = nMarks, rep(0, nEnvs), Sigma=rg) # marker effects
+g <- crossprod(t(M),u) # genetic values
+h2 <- 0.2  #heritability 
+envEffect <- rnorm(nEnvs, mean = abs(rnorm(1))) # environment means
+e <- mvrnorm(n = nInds, envEffect, Sigma=(1-h2)/h2*diag(diag(var(g)))) # errors
+p = g + e # phenotypes
+y <- as.vector(p) # phenotypes as vector
+env <- sort(rep(paste0("e",1:nEnvs), nrow(g))) # environment labels
+ind <- rep(paste0("i",1:nrow(g)), nEnvs ) # individuals labels
+colnames(MMT) <- rownames(MMT) <- paste0("i",1:nrow(g)) # assign dimnames
+
+MMTi <- solve(MMT + diag(1e-4,ncol(MMT),ncol(MMT)))
+MMTi[lower.tri(MMTi)] <- t(MMTi)[lower.tri(MMTi)] # fill the lower triangular
+MMTi <- as(as(as( MMTi,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(MMTi, 'inverse')=TRUE
+
+DT <- data.frame(ind=ind, env=env, y=y)
+# fit the models
+mixm2 <- mmes(y ~ env,
+              random=~ vsm(dsm(env), ism(ind), Gu=MMTi),
+              data=DT
+)
+summary(mixm2)$varcomp
 
 }
 

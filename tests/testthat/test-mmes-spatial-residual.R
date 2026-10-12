@@ -21,6 +21,25 @@ test_that("complete separable spatial residuals stay descriptor-only", {
   expect_true(all(is.finite(fit$covParNative$estimate)))
 })
 
+test_that("grid precision reuses exact factor subsets within an evaluation", {
+  dataset <- expand.grid(trial=factor(seq_len(3L)),
+    range=factor(seq_len(4L)), row=factor(seq_len(4L)))
+  dataset <- dataset[-c(1L, 17L, 33L), , drop=FALSE]
+  dataset$response <- sin(seq_len(nrow(dataset))) + cos(seq_len(nrow(dataset)) / 3)
+  fitModel <- function(solver){
+    mmes(response~trial, rcov=~vsm(dsm(trial), ar1m(range), ar1m(row), ism(units)),
+      data=dataset, solver=solver, nIters=3L, verbose=FALSE, dateWarning=FALSE)
+  }
+  reference <- fitModel("ldlt")
+  candidate <- fitModel("cholmod")
+  expect_gt(reference$engineDiagnostics$gridFactorReuses, 0L)
+  expect_equal(reference$engineDiagnostics$gridFactorizations,
+    5L * reference$engineDiagnostics$coefficientEvaluations)
+  for(component in c("llik", "theta", "bu", "InfMat", "dLu")){
+    expect_equal(candidate[[component]], reference[[component]], tolerance=1e-7)
+  }
+})
+
 test_that("ragged spatial residual blocks stay compact and match the dense engine", {
   set.seed(42)
   dat <- expand.grid(
@@ -92,6 +111,8 @@ test_that("dsumm() estimates section-specific parameters exactly", {
   expect_true(dense$residualCovarianceCompact)
   expect_equal(dim(dense$theta[[1L]]), c(0L, 0L))
   expect_equal(unlist(grid$covPar), unlist(dense$covPar), tolerance=1e-5)
+  expect_gt(grid$engineDiagnostics$factorEvaluationReuses, 0L)
+  expect_gt(grid$engineDiagnostics$pdCertificates, 0L)
 
   native <- covparams_mmes(grid)
   expect_equal(native$factor[native$section == "B"],

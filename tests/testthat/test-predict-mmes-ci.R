@@ -42,6 +42,41 @@ test_that("predict.mmes gives exact SEs without requiring the full Ci inverse", 
   expect_equal(as.numeric(p0n$D[, interceptColumn]), rep(1, nrow(p0n$D)))
 })
 
+test_that("generic CHOLMOD reuses its supernodal selected inverse for mode one", {
+  previous <- options(sommer.mme.denseMemoryMB=0.1)
+  on.exit(options(previous), add=TRUE)
+  size <- 120L
+  data <- data.frame(id=factor(seq_len(size)), one=factor(rep("all", size)),
+    y=sin(seq_len(size) / 9) + cos(seq_len(size) / 17))
+  fitModel <- function(solver, mode){
+    mmes(y~1, random=~vsm(ar2m(id), ism(one)), rcov=~units, data=data,
+      solver=solver, nIters=2L, computeCi=mode, getPEV=TRUE,
+      verbose=FALSE, dateWarning=FALSE)
+  }
+  selected <- fitModel("cholmod", 1L)
+  full <- fitModel("cholmod", 2L)
+  expect_false(selected$engineDiagnostics$blockSchurActive)
+  expect_true(selected$engineDiagnostics$cholmodFinalSelectedInverse)
+  selectedEntries <- Matrix::summary(selected$Ci)
+  fullDense <- as.matrix(full$Ci)
+  expect_equal(selectedEntries$x,
+    fullDense[cbind(selectedEntries$i, selectedEntries$j)], tolerance=1e-7)
+  expect_equal(selected$uPevList, full$uPevList, tolerance=1e-7)
+  expect_equal(as.numeric(diag(selected$Ci)), as.numeric(diag(full$Ci)), tolerance=1e-7)
+  predictionSelected <- predict(selected, D="id")
+  predictionFull <- predict(full, D="id")
+  expect_equal(predictionSelected$pvals$std.error,
+    predictionFull$pvals$std.error, tolerance=1e-7)
+
+  options(sommer.mme.denseMemoryMB=1e-7)
+  fallback <- fitModel("cholmod", 1L)
+  expect_false(fallback$engineDiagnostics$cholmodFinalSelectedInverse)
+  fallbackEntries <- Matrix::summary(fallback$Ci)
+  expect_equal(fallbackEntries$x,
+    fullDense[cbind(fallbackEntries$i, fallbackEntries$j)], tolerance=1e-7)
+  expect_equal(fallback$uPevList, full$uPevList, tolerance=1e-7)
+})
+
 test_that("predict.mmes averages fixed interactions over their full level space", {
   data(DT_yatesoats)
 

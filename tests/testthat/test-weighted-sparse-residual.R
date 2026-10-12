@@ -1,3 +1,23 @@
+test_that("CHOLMOD selected residual traces match LDLT for weighted incomplete blocks", {
+  dataset <- expand.grid(id=factor(seq_len(4L)), environment=factor(seq_len(3L)),
+    replicate=factor(seq_len(2L)))
+  dataset$record <- interaction(dataset$id, dataset$replicate)
+  dataset$response <- sin(seq_len(nrow(dataset))) + as.integer(dataset$id) / 5
+  dataset <- dataset[-c(1L, 7L), ]
+  weights <- diag(nrow(dataset)) + matrix(0.02, nrow(dataset), nrow(dataset))
+  fitModel <- function(solver){
+    mmes(response~environment, random=~id, rcov=~vsm(usm(environment), ism(record)),
+      W=weights, data=dataset, solver=solver, nIters=2L,
+      getPEV=FALSE, verbose=FALSE, dateWarning=FALSE)
+  }
+  reference <- fitModel("ldlt")
+  candidate <- fitModel("cholmod")
+  expect_gt(candidate$engineDiagnostics$cholmodRSelectedBuilds, 0L)
+  for(component in c("llik", "theta", "bu", "InfMat", "dLu")){
+    expect_equal(candidate[[component]], reference[[component]], tolerance=1e-7)
+  }
+})
+
 test_that("sparse non-diagonal weights preserve diagonal-residual fits", {
   set.seed(7)
   n <- 60L
