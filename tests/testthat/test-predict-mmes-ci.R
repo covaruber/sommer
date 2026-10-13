@@ -43,7 +43,7 @@ test_that("predict.mmes gives exact SEs without requiring the full Ci inverse", 
 })
 
 test_that("generic CHOLMOD reuses its supernodal selected inverse for mode one", {
-  previous <- options(sommer.mme.denseMemoryMB=0.1)
+  previous <- options(sommer.mme.denseMemoryMB=0.1, sommer.mme.blockBanded=FALSE)
   on.exit(options(previous), add=TRUE)
   size <- 120L
   data <- data.frame(id=factor(seq_len(size)), one=factor(rep("all", size)),

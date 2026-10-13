@@ -30,7 +30,7 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
      computeCi=0, solver="auto", REML=TRUE, vcc=NULL,
      family=stats::gaussian(), pqlControl=list(),
      solveOnly=FALSE, covPar=NULL, blasThreads=NULL,
-     engine=NULL, ...)
+     engine=NULL, ..., .internal=NULL)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -488,6 +488,8 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   \item{\dots}{Additional solver options or legacy arguments (such as \code{acceleration},
   \code{factorScoreAugmentation}, \code{pcgTol}, \code{pcgTraceProbes}, \code{pcgPreconditioner},
   \code{denseMemoryMB}) automatically forwarded to \code{\link{mmes_control}}.}
+
+  \item{.internal}{Internal parameter list reserved for nested recursive calls (e.g. PQL inner fits).}
 }
 
 \details{

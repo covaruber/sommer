@@ -4,3 +4,12 @@
 ^_pkgdown\.yml$
 ^pkgdown$
 ^docs$
+^\.clinerules$
+^\.cursor$
+^\.opencode$
+^\.windsurf$
+^AGENTS\.md$
+^benchmarks$
+^sommer.*\.tar\.gz$
+^\.\.Rcheck$
+^sommer\.Rcheck$

@@ -29,7 +29,7 @@
 #'     \item \code{traceProbes}: Number of stochastic probes for Hutchinson traces (default 8).
 #'     \item \code{lanczosSteps}: Lanczos quadrature steps for stochastic log determinant (default 20).
 #'     \item \code{preconditioner}: Preconditioner type, \code{"diagonal"} or \code{"nystrom"}.
-#'     \item \code{nystromRank}: Target rank for Nyström preconditioner (default 32).
+#'     \item \code{nystromRank}: Target rank for Nystrom preconditioner (default 32).
 #'   }
 #' @param acceleration Convergence accelerator. One of \code{"none"} or \code{"aitken"}.
 #' @param factorScoreAugmentation Factor-score augmentation strategy. One of \code{"none"},
@@ -192,7 +192,25 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
 
 #' @rdname mmes_control
 #' @export
-mme_control <- mmes_control
+mme_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
+                        denseMemoryMB = NULL,
+                        experimental = list(),
+                        pcg = list(),
+                        acceleration = c("none", "aitken"),
+                        factorScoreAugmentation = c("none", "fixed-shape", "profile"),
+                        recordDiagnostics = TRUE,
+                        verboseDiagnostics = FALSE,
+                        ...){
+  mmes_control(solver = solver,
+               denseMemoryMB = denseMemoryMB,
+               experimental = experimental,
+               pcg = pcg,
+               acceleration = acceleration,
+               factorScoreAugmentation = factorScoreAugmentation,
+               recordDiagnostics = recordDiagnostics,
+               verboseDiagnostics = verboseDiagnostics,
+               ...)
+}
 
 #' Print method for sommer_mme_control
 #' @param x An object of class \code{sommer_mme_control}.

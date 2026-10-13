@@ -18,7 +18,15 @@ mmes_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
              verboseDiagnostics = FALSE,
              \dots)
 
-mme_control(\dots)
+mme_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
+            denseMemoryMB = NULL,
+            experimental = list(),
+            pcg = list(),
+            acceleration = c("none", "aitken"),
+            factorScoreAugmentation = c("none", "fixed-shape", "profile"),
+            recordDiagnostics = TRUE,
+            verboseDiagnostics = FALSE,
+            \dots)
 }
 \arguments{
   \item{solver}{Backend linear solver for coefficient matrix factorization.

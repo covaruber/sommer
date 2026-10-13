@@ -3545,6 +3545,37 @@ static arma::vec projectVarianceParameters(const VarianceParameterMap & map,
   return out;
 }
 
+static bool find_intercept_vector(const arma::sp_mat & X, arma::vec & cOut) {
+  if(X.n_cols == 0 || X.n_rows == 0){
+    return false;
+  }
+  cOut.zeros(X.n_cols);
+  // Check if any single column is all 1s
+  for(arma::uword j = 0; j < X.n_cols; ++j){
+    if(arma::all(arma::vec(X.col(j)) == 1.0)){
+      cOut(j) = 1.0;
+      return true;
+    }
+  }
+  // General: solve (X'X) c = X' 1
+  arma::mat XtX = arma::mat(X.t() * X);
+  arma::vec Xt1 = arma::vec(arma::sum(X, 0).t());
+  arma::vec c;
+  bool ok = arma::solve(c, XtX, Xt1, arma::solve_opts::fast);
+  if(!ok){
+    c = arma::pinv(XtX) * Xt1;
+    ok = true;
+  }
+  if(ok){
+    arma::vec fit = arma::vec(X * c);
+    if(arma::max(arma::abs(fit - 1.0)) < 1.0e-4){
+      cOut = c;
+      return true;
+    }
+  }
+  return false;
+}
+
 // [[Rcpp::export]]
 Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const arma::vec & Zind, const Rcpp::List & AiI,
@@ -3740,23 +3771,39 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
 
   double vary = responsePrepared ? preparedSd * preparedSd : arma::mean(arma::var(y0));
   double stdy = responsePrepared ? preparedSd : arma::mean(arma::stddev(y0));
-  double muy = responsePrepared ? preparedMean : arma::mean(arma::mean(y0));
   if(!std::isfinite(vary) || vary <= 0.0){
     Rcpp::stop("Response variance must be positive and finite.");
   }
 
+  arma::vec cShift(X.n_cols, arma::fill::zeros);
+  bool hasIntercept = false;
+  if(responsePrepared){
+    hasIntercept = preparedIntercept;
+    if(hasIntercept && X.n_cols > 0){
+      cShift(0) = 1.0;
+    }
+  } else {
+    hasIntercept = find_intercept_vector(X, cShift);
+  }
+
+  double muy = 0.0;
+  if(responsePrepared){
+    muy = preparedMean;
+  } else if(hasIntercept){
+    muy = arma::mean(arma::mean(y0));
+  }
+
   arma::mat responseScaled = arma::mat(y0);
   if(!responsePrepared){
-    const arma::rowvec responseMeans = arma::mean(responseScaled, 0);
+    if(hasIntercept){
+      const arma::rowvec responseMeans = arma::mean(responseScaled, 0);
+      responseScaled.each_row() -= responseMeans;
+    }
     const arma::rowvec responseSds = arma::stddev(responseScaled, 0, 0);
-    responseScaled.each_row() -= responseMeans;
     responseScaled.each_row() /= responseSds;
   }
   arma::sp_mat y = arma::sp_mat(responseScaled);
-  bool intercept = responsePrepared ? preparedIntercept : false;
-  if(!responsePrepared && X.n_cols > 0 && arma::accu(X.col(0)) == X.n_rows){
-    intercept = true;
-  }
+  bool intercept = hasIntercept;
 
   // ------------------------------------------------------------------
   // Generic arbitrary-Kronecker covariance descriptor interface.
@@ -15414,13 +15461,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
   }
   bu = bu*stdy;
   b = b*stdy;
-  // Rcpp::Rcout << intercept << arma::endl;
-  if(intercept==true){ // if true mu is required in the first position only
-    b(0,0) = b(0,0) + muy;
-    bu(0,0) = bu(0,0) + muy;
-  }else{ // if false mu is required all over b
-    bu.submat(0, 0, (b.n_rows-1), 0) = bu.submat(0, 0, (b.n_rows-1), 0) + muy;
-    b = b + muy;
+  if(hasIntercept && muy != 0.0){
+    for(arma::uword j = 0; j < b.n_elem; ++j){
+      b(j) += muy * cShift(j);
+      bu(j) += muy * cShift(j);
+    }
   }
   if(computeCi > 0 && Ci.n_elem > 0){ Ci = Ci*vary; }
   // Transform covariance-parameter uncertainty and monitor output from
@@ -16447,16 +16492,36 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   if(!std::isfinite(vary) || vary <= 0.0){
     Rcpp::stop("Response variance must be positive and finite.");
   }
-  const double muy = responsePrepared ? preparedMean : arma::mean(arma::vec(arma::mat(y0).col(0)));
   const double stdy = responsePrepared ? preparedSd : std::sqrt(vary);
 
-  arma::vec y = arma::vec(arma::mat(y0).col(0));
-  if(!responsePrepared){ y = (y - muy) / stdy; }
-
-  bool intercept = responsePrepared ? preparedIntercept : false;
-  if(!responsePrepared && X.n_cols > 0 && arma::accu(X.col(0)) == X.n_rows){
-    intercept = true;
+  arma::vec cShift(X.n_cols, arma::fill::zeros);
+  bool hasIntercept = false;
+  if(responsePrepared){
+    hasIntercept = preparedIntercept;
+    if(hasIntercept && X.n_cols > 0){
+      cShift(0) = 1.0;
+    }
+  } else {
+    hasIntercept = find_intercept_vector(X, cShift);
   }
+
+  double muy = 0.0;
+  if(responsePrepared){
+    muy = preparedMean;
+  } else if(hasIntercept){
+    muy = arma::mean(arma::vec(arma::mat(y0).col(0)));
+  }
+
+  arma::vec y = arma::vec(arma::mat(y0).col(0));
+  if(!responsePrepared){
+    if(hasIntercept){
+      y = (y - muy) / stdy;
+    } else {
+      y = y / stdy;
+    }
+  }
+
+  bool intercept = hasIntercept;
   const arma::mat Xd = arma::mat(X);
   arma::uword rankX = arma::rank(Xd);
 
@@ -17115,7 +17180,11 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   // ------------------------------------------------------------
   for(int i = 0; i < nRRe; ++i){ theta(i) = theta(i) * vary; }
   beta = beta * stdy;
-  if(intercept){ beta(0) += muy; }
+  if(hasIntercept && muy != 0.0){
+    for(arma::uword j = 0; j < beta.n_elem; ++j){
+      beta(j) += muy * cShift(j);
+    }
+  }
   VarBeta = VarBeta * vary;
   u = u * stdy;
   for(int i = 0; i < nRe; ++i){ uList(i) = uList(i) * stdy; }

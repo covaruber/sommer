@@ -4,7 +4,7 @@
 \alias{print.sommer_mme_benchmark}
 \title{Print method for sommer_mme_benchmark}
 \usage{
-print.sommer_mme_benchmark(x, ...)
+\method{print}{sommer_mme_benchmark}(x, ...)
 }
 \arguments{
 \item{x}{An object of class \code{sommer_mme_benchmark}.}

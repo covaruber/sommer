@@ -714,12 +714,23 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
       ZOriginal=ZOriginal
     )
     responsePrepared <- TRUE
-    preparedMean <- mean(as.numeric(yOriginal))
     preparedSd <- stats::sd(as.numeric(yOriginal))
-    preparedIntercept <- "Intercept" %in% colnames(XOriginal)
     if(!is.finite(preparedSd) || preparedSd <= 0){
       stop("rotation=TRUE requires a response with positive finite variance.",
            call.=FALSE)
+    }
+    ones <- rep(1, nrow(XOriginal))
+    qrX <- qr(as.matrix(XOriginal))
+    cShift <- as.vector(qr.coef(qrX, ones))
+    cShift[is.na(cShift)] <- 0
+    fitOnes <- as.vector(as.matrix(XOriginal) %*% cShift)
+    hasIntercept <- max(abs(fitOnes - 1)) < 1e-4
+    if(hasIntercept && ("(Intercept)" %in% colnames(XOriginal) || "Intercept" %in% colnames(XOriginal))){
+      preparedMean <- mean(as.numeric(yOriginal))
+      preparedIntercept <- TRUE
+    }else{
+      preparedMean <- 0
+      preparedIntercept <- FALSE
     }
   }
   
