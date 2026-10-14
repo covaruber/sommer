@@ -1,0 +1,10 @@
+candidate graph_random auto 0.608 off 0.666 active FALSE chain FALSE 
+candidate graph_banded auto 0.31 off 0.308 active FALSE chain FALSE 
+candidate us_5L_100ID_sparse_REML auto 0.123 off 0.123 active FALSE chain FALSE 
+candidate us_5L_100ID_dense_REML auto 0.21 off 0.229 active TRUE chain FALSE 
+candidate ar1_5L_100ID_dense_REML auto 0.143 off 0.179 active TRUE chain TRUE 
+candidate ar1_50L_64ID_none_REML auto 0.286 off 0.29 active FALSE chain FALSE 
+candidate ar2_30L_8ID_none_REML auto 0.12 off 0.121 active FALSE chain FALSE 
+candidate sar_100L_4ID_none_REML auto 0.171 off 0.17 active FALSE chain FALSE 
+candidate car_100L_4ID_none_REML auto 0.169 off 0.165 active TRUE chain TRUE 
+VALIDATION_OK

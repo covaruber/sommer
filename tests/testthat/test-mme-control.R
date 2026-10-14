@@ -10,6 +10,8 @@ test_that("mmes_control constructs valid solver and experimental configuration",
   expect_equal(ctrl$experimental$cholmodFinalSelected, "auto")
   expect_equal(ctrl$experimental$pdCertificates, "auto")
   expect_equal(ctrl$experimental$panelCi2, 64L)
+  expect_equal(ctrl$experimental$traceBatch, "off")
+  expect_equal(ctrl$experimental$sparseFactors, "off")
   expect_equal(ctrl$pcg$tol, 1e-8)
   expect_equal(ctrl$pcg$preconditioner, "diagonal")
 
@@ -38,6 +40,10 @@ test_that("mmes_control constructs valid solver and experimental configuration",
   dot_ctrl <- mmes_control(blockBanded = TRUE, factorSchurMultiFactor = "force")
   expect_equal(dot_ctrl$experimental$blockBanded, "force")
   expect_equal(dot_ctrl$experimental$factorSchurMultiFactor, "force")
+  expect_equal(mmes_control(traceBatch = TRUE)$experimental$traceBatch, "force")
+  expect_equal(sommer:::.merge_mmes_control(traceBatch = TRUE)$experimental$traceBatch, "force")
+  expect_equal(mmes_control(sparseFactors = TRUE)$experimental$sparseFactors, "force")
+  expect_equal(sommer:::.merge_mmes_control(sparseFactors = TRUE)$experimental$sparseFactors, "force")
 
   # Validation errors
   expect_error(mmes_control(denseMemoryMB = -10), "denseMemoryMB must be a positive finite number")

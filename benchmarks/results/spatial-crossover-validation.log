@@ -1,0 +1,184 @@
+sar 60 0.05 1 off 1.064 seconds
+sar 60 0.05 1 force 1.069 seconds
+sar 60 0.05 2 force 1.076 seconds
+sar 60 0.05 2 off 1.048 seconds
+sar 60 0.05 3 off 1.07 seconds
+sar 60 0.05 3 force 1.056 seconds
+car 60 0.05 1 off 1.082 seconds
+car 60 0.05 1 force 1.051 seconds
+car 60 0.05 2 force 1.034 seconds
+car 60 0.05 2 off 1.089 seconds
+car 60 0.05 3 off 1.073 seconds
+car 60 0.05 3 force 1.027 seconds
+sar 150 0.05 1 off 1.254 seconds
+sar 150 0.05 1 force 1.276 seconds
+sar 150 0.05 2 force 1.281 seconds
+sar 150 0.05 2 off 1.334 seconds
+sar 150 0.05 3 off 1.248 seconds
+sar 150 0.05 3 force 1.229 seconds
+car 150 0.05 1 off 1.144 seconds
+car 150 0.05 1 force 1.163 seconds
+car 150 0.05 2 force 1.182 seconds
+car 150 0.05 2 off 1.167 seconds
+car 150 0.05 3 off 1.135 seconds
+car 150 0.05 3 force 1.184 seconds
+sar 300 0.05 1 off 2.291 seconds
+sar 300 0.05 1 force 2.457 seconds
+sar 300 0.05 2 force 2.528 seconds
+sar 300 0.05 2 off 2.309 seconds
+sar 300 0.05 3 off 2.299 seconds
+sar 300 0.05 3 force 2.481 seconds
+car 300 0.05 1 off 1.671 seconds
+car 300 0.05 1 force 1.633 seconds
+car 300 0.05 2 force 1.614 seconds
+car 300 0.05 2 off 1.656 seconds
+car 300 0.05 3 off 1.548 seconds
+car 300 0.05 3 force 1.614 seconds
+sar 60 0.25 1 off 1.097 seconds
+sar 60 0.25 1 force 1.097 seconds
+sar 60 0.25 2 force 1.079 seconds
+sar 60 0.25 2 off 1.153 seconds
+sar 60 0.25 3 off 1.133 seconds
+sar 60 0.25 3 force 1.105 seconds
+car 60 0.25 1 off 1.114 seconds
+car 60 0.25 1 force 1.109 seconds
+car 60 0.25 2 force 1.061 seconds
+car 60 0.25 2 off 1.081 seconds
+car 60 0.25 3 off 1.096 seconds
+car 60 0.25 3 force 1.024 seconds
+sar 150 0.25 1 off 1.306 seconds
+sar 150 0.25 1 force 1.322 seconds
+sar 150 0.25 2 force 1.338 seconds
+sar 150 0.25 2 off 1.34 seconds
+sar 150 0.25 3 off 1.385 seconds
+sar 150 0.25 3 force 1.36 seconds
+car 150 0.25 1 off 1.3 seconds
+car 150 0.25 1 force 1.254 seconds
+car 150 0.25 2 force 1.301 seconds
+car 150 0.25 2 off 1.299 seconds
+car 150 0.25 3 off 1.324 seconds
+car 150 0.25 3 force 1.299 seconds
+sar 300 0.25 1 off 2.532 seconds
+sar 300 0.25 1 force 2.781 seconds
+sar 300 0.25 2 force 2.707 seconds
+sar 300 0.25 2 off 2.47 seconds
+sar 300 0.25 3 off 2.373 seconds
+sar 300 0.25 3 force 2.795 seconds
+car 300 0.25 1 off 2.199 seconds
+car 300 0.25 1 force 2.202 seconds
+car 300 0.25 2 force 2.25 seconds
+car 300 0.25 2 off 2.078 seconds
+car 300 0.25 3 off 2.178 seconds
+car 300 0.25 3 force 2.405 seconds
+sar 60 1 1 off 1.179 seconds
+sar 60 1 1 force 1.097 seconds
+sar 60 1 2 force 1.083 seconds
+sar 60 1 2 off 1.074 seconds
+sar 60 1 3 off 1.039 seconds
+sar 60 1 3 force 1.056 seconds
+car 60 1 1 off 1.077 seconds
+car 60 1 1 force 1.066 seconds
+car 60 1 2 force 1.069 seconds
+car 60 1 2 off 1.055 seconds
+car 60 1 3 off 1.047 seconds
+car 60 1 3 force 1.089 seconds
+sar 150 1 1 off 1.402 seconds
+sar 150 1 1 force 1.426 seconds
+sar 150 1 2 force 1.391 seconds
+sar 150 1 2 off 1.278 seconds
+sar 150 1 3 off 1.402 seconds
+sar 150 1 3 force 1.359 seconds
+car 150 1 1 off 1.328 seconds
+car 150 1 1 force 1.357 seconds
+car 150 1 2 force 1.331 seconds
+car 150 1 2 off 1.311 seconds
+car 150 1 3 off 1.289 seconds
+car 150 1 3 force 1.346 seconds
+sar 300 1 1 off 2.404 seconds
+sar 300 1 1 force 3.113 seconds
+sar 300 1 2 force 3.09 seconds
+sar 300 1 2 off 2.46 seconds
+sar 300 1 3 off 2.411 seconds
+sar 300 1 3 force 3.142 seconds
+car 300 1 1 off 2.417 seconds
+car 300 1 1 force 2.692 seconds
+car 300 1 2 force 2.714 seconds
+car 300 1 2 off 2.409 seconds
+car 300 1 3 off 2.467 seconds
+car 300 1 3 force 2.658 seconds
+ model levels requested_density  mode elapsed_seconds factor_eval_seconds
+   car     60              0.05 force           1.034         0.000074082
+   sar     60              0.05 force           1.069         0.000082611
+   car    150              0.05 force           1.182         0.000110502
+   sar    150              0.05 force           1.276         0.000107164
+   car    300              0.05 force           1.614         0.000191284
+   sar    300              0.05 force           2.481         0.000185292
+   car     60              0.25 force           1.061         0.000076231
+   sar     60              0.25 force           1.097         0.000078926
+   car    150              0.25 force           1.299         0.000112406
+   sar    150              0.25 force           1.338         0.000114215
+   car    300              0.25 force           2.250         0.000191411
+   sar    300              0.25 force           2.781         0.000182359
+   car     60              1.00 force           1.069         0.000084708
+   sar     60              1.00 force           1.083         0.000082936
+   car    150              1.00 force           1.346         0.000116706
+   sar    150              1.00 force           1.391         0.000130869
+   car    300              1.00 force           2.692         0.000179631
+   sar    300              1.00 force           3.113         0.000178935
+   car     60              0.05   off           1.082         0.000068202
+   sar     60              0.05   off           1.064         0.000068549
+   car    150              0.05   off           1.144         0.000107244
+   sar    150              0.05   off           1.254         0.000110312
+   car    300              0.05   off           1.656         0.000160484
+   sar    300              0.05   off           2.299         0.000153593
+   car     60              0.25   off           1.096         0.000077322
+   sar     60              0.25   off           1.133         0.000065167
+   car    150              0.25   off           1.300         0.000132143
+   sar    150              0.25   off           1.340         0.000109910
+   car    300              0.25   off           2.178         0.000165654
+   sar    300              0.25   off           2.470         0.000161087
+   car     60              1.00   off           1.055         0.000065628
+   sar     60              1.00   off           1.074         0.000067067
+   car    150              1.00   off           1.311         0.000105345
+   sar    150              1.00   off           1.402         0.000104717
+   car    300              1.00   off           2.417         0.000149382
+   sar    300              1.00   off           2.411         0.000151220
+ peak_rss_kb factor_cache_reuses
+      223768                   6
+      222300                   6
+      240948                   6
+      246848                   6
+      272012                   6
+      294592                   6
+      222404                   6
+      224848                   6
+      245372                   6
+      253512                   6
+      287692                   6
+      314632                   6
+      225344                   6
+      225472                   6
+      253112                   6
+      253632                   6
+      314872                   6
+      306512                   6
+      228620                   0
+      229416                   0
+      250092                   0
+      256476                   0
+      299344                   0
+      314204                   0
+      228652                   0
+      232252                   0
+      253584                   0
+      262128                   0
+      312248                   0
+      326472                   0
+      232796                   0
+      233236                   0
+      260432                   0
+      262520                   0
+      331556                   0
+      323908                   0
+Maximum relative output difference: 2.299077e-14 
+VALIDATION_OK

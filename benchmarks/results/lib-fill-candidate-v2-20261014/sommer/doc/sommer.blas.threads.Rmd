@@ -1,0 +1,318 @@
+---
+title: "Installing and configuring BLAS thread control"
+author: "sommer development team"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Installing and configuring BLAS thread control}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse=TRUE, comment="#>")
+```
+
+# What the error means
+
+An explicit request such as `mmes(..., blasThreads="auto")` can produce:
+
+```text
+Error: Runtime BLAS control is unavailable. Install flexiblas for a FlexiBLAS R installation, or RhpcBLASctl for a supported BLAS; alternatively configure BLAS before launching R and leave blasThreads=NULL.
+```
+
+This is a thread-control availability error, not an error in the model formula
+or covariance structures. Three separate components are involved:
+
+1. **The BLAS library used by R.** A threaded implementation, such as OpenBLAS
+   or Intel MKL, performs dense numerical work. FlexiBLAS is a wrapper that
+   selects a BLAS backend; it is not itself a guarantee of a threaded backend.
+2. **An R package that controls that library.** The current `sommer`
+   implementation uses `flexiblas` for an available FlexiBLAS installation,
+   or `RhpcBLASctl` for a recognized supported BLAS installation.
+3. **Allocation-aware CPU detection.** `parallelly` is needed specifically for
+   `blasThreads="auto"`. An explicit positive integer does not require it.
+
+These packages are optional dependencies. Installing `sommer` does not
+necessarily install them, and installing a control package does not replace
+R's BLAS library. No separate CHOLMOD installation is needed for
+`solver="cholmod"`; that solver uses the CHOLMOD bundled with R's Matrix package.
+
+# Identify the R installation and BLAS
+
+Run these commands in the same R session that you use to fit the model:
+
+```{r identify-runtime}
+R.version.string
+R.home()
+.libPaths()
+extSoftVersion()["BLAS"]
+sessionInfo()[c("BLAS", "LAPACK")]
+```
+
+Look for `flexiblas`, `openblas`, or `mkl` in the BLAS path or description.
+On a cluster, a different R module, terminal, RStudio session, or batch job
+can use a different R installation and package library. Installing the
+adapter into one installation does not make it available to another.
+
+The current implementation recognizes non-FlexiBLAS paths containing
+`openblas`, `mkl`, `acml`, or `goto` for the `RhpcBLASctl` route. A generic
+name such as `libRblas.so` or `Rblas.dll` may conceal the actual backend;
+the current detection does not infer its identity from that name. It also
+does not currently recognize a standalone BLIS or Apple Accelerate backend
+through this route. A control package's capabilities alone do not override
+these detection rules.
+
+# Install the appropriate R packages
+
+## Route A: R uses FlexiBLAS
+
+In the R installation used for fitting, run:
+
+```{r install-flexiblas, eval=FALSE}
+install.packages(c("flexiblas", "parallelly"),
+                 repos="https://cloud.r-project.org")
+```
+
+Restart R after installation, then check:
+
+```{r verify-flexiblas, eval=FALSE}
+library(flexiblas)
+stopifnot(flexiblas_avail())
+flexiblas_current_backend()
+flexiblas_get_num_threads()
+parallelly::availableCores()
+```
+
+`flexiblas_avail()` must be `TRUE`. If it is `FALSE`, loading this R package
+has not made the running R installation use FlexiBLAS. Use the correct
+R installation or ask your administrator for an R build linked to FlexiBLAS.
+
+If FlexiBLAS is available but its selected backend is a serial reference
+implementation, list the available backends:
+
+```{r select-flexiblas-backend, eval=FALSE}
+flexiblas::flexiblas_list()
+flexiblas::flexiblas_list_loaded()
+
+# Only use OPENBLAS if that name appears in the available backend list.
+backend <- flexiblas::flexiblas_load_backend("OPENBLAS")
+flexiblas::flexiblas_switch(backend)
+flexiblas::flexiblas_current_backend()
+flexiblas::flexiblas_get_num_threads()
+```
+
+Backend names and availability depend on the system configuration. Switching
+backends changes BLAS/LAPACK for the whole R process; do it before fitting
+models and record the choice for reproducibility. `mmes()` changes the thread
+setting when requested, but does not choose or install a FlexiBLAS backend.
+
+For a FlexiBLAS R installation, installing only `RhpcBLASctl` is not a
+substitute for this route: the current `sommer` controller deliberately
+requires the FlexiBLAS interface when the reported BLAS is FlexiBLAS.
+
+## Route B: R uses a recognized OpenBLAS or MKL library directly
+
+Run:
+
+```{r install-blasctl, eval=FALSE}
+install.packages(c("RhpcBLASctl", "parallelly"),
+                 repos="https://cloud.r-project.org")
+```
+
+Restart R, then check:
+
+```{r verify-blasctl, eval=FALSE}
+library(RhpcBLASctl)
+extSoftVersion()["BLAS"]
+blas_get_num_procs()
+parallelly::availableCores()
+```
+
+The getter alone does not prove that the backend supports changing its thread
+count. Some unsupported configurations return one. The small `mmes()` example
+below checks the complete path; an explicit request that the backend does not
+accept results in an error rather than a silent fallback.
+
+## If R still uses a reference BLAS
+
+Installing `RhpcBLASctl`, `flexiblas`, or an operating-system OpenBLAS package
+does not by itself guarantee that the running R process uses a threaded BLAS.
+R must actually load or be linked to that library.
+
+On Linux, use a distribution-supported R/BLAS configuration or an administrator
+provided R module linked to OpenBLAS, MKL, or FlexiBLAS. Some distributions use
+a BLAS alternatives mechanism, while other installations require a different
+R build. Follow the instructions for your distribution and R installation;
+there is no universal library-switch command. For source builds, consult the
+[R Installation and Administration manual](https://cran.r-project.org/doc/manuals/r-release/R-admin.html#BLAS).
+
+On Windows, `RhpcBLASctl` may be available as a binary, but installing it does
+not replace the BLAS shipped with R. Source packages need the Rtools version
+matching your R release. On macOS, source packages need the applicable command
+line compiler tools and, when required, a compatible Fortran compiler. Use a
+supported R distribution or build with a known threaded BLAS if the current
+backend cannot be controlled by this implementation. Do not manually overwrite
+R's BLAS/LAPACK files with an arbitrary downloaded library.
+
+If installation fails with missing headers or libraries, install the development
+files for the already selected numerical stack, or request them from your
+administrator. On a managed cluster, using its matching compiler and R modules
+is preferable to mixing incompatible system and user-installed libraries.
+
+# Verify control with a small model
+
+First confirm that this session is loading a `sommer` build containing the
+argument. Older installed builds can coexist with the current source folder:
+
+```{r verify-sommer, eval=FALSE}
+library(sommer)
+packageVersion("sommer")
+find.package("sommer")
+stopifnot("blasThreads" %in% names(formals(mmes)))
+```
+
+The following example runs only when the required controller and
+`parallelly` are available. It uses small synthetic data, rather than requiring
+your `DT` or `MMTi` objects. It tests a one-thread request first, then
+allocation-aware automatic sizing. Both are short verification fits, not
+convergence or performance benchmarks.
+
+```{r verification-fit}
+blas <- unname(extSoftVersion()["BLAS"])
+hasFlexiBLAS <- requireNamespace("flexiblas", quietly=TRUE) &&
+  isTRUE(tryCatch(flexiblas::flexiblas_avail(), error=function(error) FALSE))
+hasDirectControl <- !is.na(blas) &&
+  !grepl("flexiblas", blas, ignore.case=TRUE) &&
+  grepl("openblas|mkl|acml|goto", blas, ignore.case=TRUE) &&
+  requireNamespace("RhpcBLASctl", quietly=TRUE)
+
+if(requireNamespace("sommer", quietly=TRUE) &&
+   "blasThreads" %in% names(formals(sommer::mmes)) &&
+   requireNamespace("parallelly", quietly=TRUE) &&
+   (hasFlexiBLAS || hasDirectControl)){
+  local({
+    suppressPackageStartupMessages(library(sommer))
+    getThreads <- if(hasFlexiBLAS) flexiblas::flexiblas_get_num_threads else
+      RhpcBLASctl::blas_get_num_procs
+    before <- getThreads()
+    exampleData <- expand.grid(Name=factor(seq_len(12L)),
+      Env=factor(letters[1:3]), replicate=seq_len(2L))
+    exampleData$Yield <- as.integer(exampleData$Env) +
+      sin(as.integer(exampleData$Name)) + cos(seq_len(nrow(exampleData)))
+    for(request in list(1L, "auto")){
+      fit <- sommer::mmes(Yield~Env, random=~Name, rcov=~units,
+        data=exampleData, solver="cholmod", nIters=2,
+        dateWarning=FALSE, verbose=FALSE, blasThreads=request)
+      print(fit$threadingDiagnostics[c("blasBackend", "controller",
+        "blasThreadsRequested", "blasThreadsConfigured", "availableCPUs",
+        "openmpMaxThreads", "numericalPath", "averageCPUs")])
+      stopifnot(getThreads() == before)
+    }
+  })
+}else{
+  message("Verification skipped: install the matching controller and parallelly, and load a sommer build with blasThreads.")
+}
+```
+
+`blasThreadsConfigured` should show the setting used during the fit. The
+controller restores the previous BLAS setting on return, including on errors.
+Therefore, querying BLAS threads *after* `mmes()` returns can show the old
+count; that does not mean the request was ignored. Use the returned diagnostics
+to inspect the fit's configuration.
+
+# Retry your model
+
+After completing the route matching your R installation, the original model
+can be fitted without changing its statistical specification:
+
+```{r user-model, eval=FALSE}
+library(sommer)
+mixm2 <- mmes(value~envf, nIters=5,
+  random=~vsm(fam(envf, 1), ism(id), Gu=MMTi) +
+           vsm(dsm(envf), ism(repf)),
+  rcov=~vsm(dsm(envf), ism(units)),
+  data=DT, blasThreads="auto")
+
+mixm2$threadingDiagnostics
+```
+
+Here `DT` and `MMTi` are your existing data and inverse relationship matrix.
+Alternatively, request an explicit count such as `blasThreads=4L`. Installing
+`parallelly` alone only resolves automatic CPU detection; it does not supply
+BLAS control.
+
+# Cluster allocations and startup configuration
+
+`"auto"` uses `parallelly::availableCores()` rather than blindly using every
+CPU visible on the host. Scheduler limits, affinity and container quotas can
+make this count smaller than `parallel::detectCores()`. It does not request
+additional CPUs from a scheduler or distribute a fit across nodes.
+
+For example, a Slurm job requesting eight CPUs for one R process can start with:
+
+```bash
+#!/bin/bash
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+
+# Load your site's compatible R/numerical-library modules here.
+export OMP_NUM_THREADS=1
+Rscript fit.R
+```
+
+With a working runtime controller, `fit.R` can use `blasThreads="auto"`.
+Setting OpenMP to one isolates BLAS threading and avoids many OpenMP workers
+each launching a BLAS team; it is a starting point to benchmark, not a
+universally optimal setting. BLAS and Sommer's OpenMP loops are separate
+threading layers. Some BLAS builds themselves use OpenMP, so startup variables
+and runtime setters can interact.
+
+If runtime control is unavailable but your BLAS supports startup thread
+configuration, leave `blasThreads=NULL` and configure it **before starting R**.
+For a pthread-based OpenBLAS backend, for example:
+
+```bash
+OPENBLAS_NUM_THREADS=8 OMP_NUM_THREADS=1 Rscript fit.R
+```
+
+For MKL, use its documented `MKL_NUM_THREADS` setting; OpenMP-based OpenBLAS
+uses `OMP_NUM_THREADS`. Follow the selected backend's documentation. These
+variables cannot make a serial reference BLAS threaded, and changing them
+with `Sys.setenv()` after BLAS initializes may have no effect. Without a
+supported query interface, the BLAS thread count can remain unknown to Sommer
+even when startup configuration works.
+
+# Troubleshooting and interpreting usage
+
+| Symptom | Check or action |
+|---|---|
+| `Runtime BLAS control is unavailable` | Check the BLAS identity in this R session; install its matching adapter in an active `.libPaths()` library. |
+| `blasThreads='auto' requires ... parallelly` | Install `parallelly`, or supply a positive integer instead. |
+| `flexiblas_avail()` is `FALSE` | Use R linked to FlexiBLAS; installing its R interface does not relink R. |
+| Adapter installed but BLAS has a generic name | Current detection may not recognize that installation; use startup settings with `blasThreads=NULL` or an explicitly identified supported R build. |
+| Backend did not accept the requested setting | Check whether it is serial or has a thread limit; select a supported threaded backend or use an accepted count. |
+| `unused argument (blasThreads=...)` | The loaded Sommer is older than the source tree; install the current tree and restart R. |
+| Packages available interactively but missing in a job | Check the job's R module, `.libPaths()` and `R_LIBS_USER`; install or expose packages for that R installation. |
+
+Configured counts are not actual utilization. `openmpMaxThreads` is an OpenMP
+limit, not a CHOLMOD or BLAS usage count. `averageCPUs` measures aggregate
+process CPU seconds divided by elapsed seconds, not an instantaneous number
+of active threads. Factorization measurements are in
+`threadingDiagnostics$factorizations`; their `measurement` fields distinguish
+numeric CHOLMOD/LDLT work from the broader block-Schur workload.
+
+Even `solver="cholmod"` can select a structure-aware Schur engine for an
+eligible model. Small blocks, serial work, memory bandwidth and thread startup
+overhead can prevent speedups. Confirm the numerical path and benchmark several
+counts on representative data rather than assuming that `"auto"` is fastest.
+The repository's `benchmarks/thread-scaling.R` and accompanying README provide
+a repeated scaling benchmark with numerical-agreement checks.
+
+# References
+
+- [flexiblas package documentation](https://cran.r-project.org/package=flexiblas)
+- [RhpcBLASctl package documentation](https://cran.r-project.org/package=RhpcBLASctl)
+- [parallelly package documentation](https://cran.r-project.org/package=parallelly)
+- [R Installation and Administration](https://cran.r-project.org/doc/manuals/r-release/R-admin.html)

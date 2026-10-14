@@ -16,6 +16,7 @@ mmes_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
              factorScoreAugmentation = c("none", "fixed-shape", "profile"),
              recordDiagnostics = TRUE,
              verboseDiagnostics = FALSE,
+             memoryPolicy = NULL,
              \dots)
 
 mme_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
@@ -39,6 +40,12 @@ mme_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
   Schur-complement engines, block-chain/banded paths, and selected-inverse caches.
   Default is 1000 MB.}
 
+  \item{memoryPolicy}{\code{"speed"} (default) stops with the memory needed when a fast path
+  does not fit \code{denseMemoryMB}, instead of falling back to a slower path; \code{"limit"}
+  keeps the fit within \code{denseMemoryMB} by accepting slower fallbacks. Currently enforced for
+  the CHOLMOD selected-inverse caches, whose fallback (per-request solves) was measured several
+  times slower, and opt-in exact LDLT trace panels. This is not a process-memory cap.}
+
   \item{experimental}{A named list of experimental solver paths. Each toggle accepts
   \code{"auto"} (policy-driven crossover), \code{"off"} (disabled), or \code{"force"}
   (enabled when structurally eligible):
@@ -50,6 +57,10 @@ mme_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
     \item{\code{cholmodFinalSelected}}{Supernodal CHOLMOD Takahashi selected inverse for \code{computeCi=1}.}
     \item{\code{pdCertificates}}{Fast-path sufficient positive-definiteness certificates.}
     \item{\code{panelCi2}}{Batch panel size for full inverse computation in \code{computeCi=2} (default 64).}
+    \item{\code{profile}}{\code{"force"} records per-phase timings and workload counters in \code{engineDiagnostics$profile}; default \code{"off"}.}
+    \item{\code{blockSchur}}{Block elimination engines (dense Schur, chain, banded, latent): \code{"off"} uses the generic sparse factorization, \code{"force"} skips the density and group-size admission rules (memory limits still apply).}
+    \item{\code{traceBatch}}{\code{"force"} batches exact LDLT random-score fallback solves in independent parallel panels; default \code{"off"}. No derivative entries are thresholded.}
+    \item{\code{sparseFactors}}{\code{"force"} enables exact sparse AR(p)/ANTE precision operands, innovation-row ANTE covariance evaluation, and sparse SAR/CAR evaluation; default \code{"off"}. Dense covariance and derivative compatibility outputs remain available.}
   }}
 
   \item{pcg}{A named list of settings for the iterative PCG solver:

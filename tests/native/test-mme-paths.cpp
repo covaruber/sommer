@@ -1,9 +1,29 @@
 #include "../../src/mme_paths.h"
 #include <cassert>
+#include <chrono>
 #include <cmath>
 #include <initializer_list>
+#include <string>
 
 int main() {
+  assert(sommer::FactorPolicy::spatial(sommer::PrecisionFamily::NormalEquations));
+  assert(sommer::FactorPolicy::spatial(sommer::PrecisionFamily::Affine));
+  assert(!sommer::FactorPolicy::spatial(sommer::PrecisionFamily::ModifiedCholesky));
+  assert(sommer::FactorPolicy::innovationDerivative(sommer::PrecisionFamily::ModifiedCholesky, true));
+  assert(!sommer::FactorPolicy::innovationDerivative(sommer::PrecisionFamily::ModifiedCholesky, false));
+  assert(sommer::FactorPolicy::logDetMultiplicity(12, 4) == 3.0);
+  assert(std::isnan(sommer::FactorPolicy::logDetMultiplicity(12, 5)));
+  assert(sommer::WorkspacePolicy::cacheFits(100, 80, 20));
+  assert(!sommer::WorkspacePolicy::cacheFits(100, 80, 21));
+  assert(!sommer::WorkspacePolicy::cacheFits(100, 101, 0));
+  assert(sommer::WorkspacePolicy::crossBlockWorthCaching(200, 100));
+  assert(!sommer::WorkspacePolicy::crossBlockWorthCaching(199, 100));
+  assert(sommer::WorkspacePolicy::panelColumns() == 32);
+  assert(sommer::WorkspacePolicy::inversePanelColumns() == 64);
+  assert(sommer::FactorPolicy::shiftedCholesky(1, 128));
+  assert(!sommer::FactorPolicy::shiftedCholesky(2, 128));
+  assert(sommer::FactorPolicy::supportContraction(50, 10, 50));
+  assert(!sommer::FactorPolicy::supportContraction(51, 10, 100));
   using sommer::ResidualPath;
   using sommer::ResidualPlan;
   const auto identityTensor = sommer::planTensorComponents({}, {}, 1);
@@ -185,7 +205,18 @@ int main() {
   assert(policy.cost({std::vector<int>(3)}, 2) ==
     (5.0 / 3.0) * 8.0 + (5.0 / 3.0) * 27.0 + 72.0 + 24.0);
   assert(!policy.needsDensityCheck(1e9, 64));
-  assert(!policy.needsDensityCheck(1.25e8 / 100, 100));
+  assert(policy.fillFavoursSchur(1e7, 1e8));
+  assert(!policy.fillFavoursSchur(1e4, 1e8));
+  assert(!policy.fillFavoursSchur(0.049999 * 1e8, 1e8));
+  assert(policy.fillFavoursSchur(0.05 * 1e8, 1e8));
+  assert(policy.fillFavoursSchur(1e4, 1e8, true));
+  assert(!policy.fillFavoursSchur(1e4, 1e8, false));
+  assert(!policy.fillFavoursSchur(-1.0, 1e8));
+  assert(!policy.fillFavoursSchur(std::numeric_limits<double>::infinity(), 1e8));
+  assert(!policy.fillFavoursSchur(std::numeric_limits<double>::quiet_NaN(), 1e8));
+  assert(!policy.fillFavoursSchur(1e6, std::numeric_limits<double>::infinity()));
+  assert(!policy.fillFavoursSchur(1e6, 0.0));
+  assert(policy.needsDensityCheck(1.25e8 / 100, 100));
   assert(policy.needsDensityCheck(1.25e8 / 100 + 1, 100));
   assert(policy.inverseCacheFits(10000, 1000));
   assert(!policy.inverseCacheFits(10030, 10000));
@@ -288,5 +319,92 @@ int main() {
         }
       }
     }
+  }
+  {
+    using sommer::FitPhase;
+    using sommer::PhaseProfile;
+    auto spin = [](double seconds) {
+      const auto until = std::chrono::steady_clock::now() +
+        std::chrono::duration<double>(seconds);
+      while(std::chrono::steady_clock::now() < until) {}
+    };
+    PhaseProfile off(false);
+    off.startIteration();
+    off.enter(FitPhase::Factorization);
+    off.finish();
+    assert(!off.enabled() && off.iterations().empty());
+    for(double seconds : off.total()) { assert(seconds == 0.0); }
+
+    PhaseProfile profile(true);
+    spin(0.01);
+    for(int iteration = 0; iteration < 3; ++iteration) {
+      profile.startIteration();
+      spin(0.002);
+      profile.enter(FitPhase::Factorization);
+      spin(0.004);
+      profile.enter(FitPhase::Update);
+    }
+    profile.enter(FitPhase::Final);
+    spin(0.003);
+    profile.finish();
+    const auto factorization = static_cast<std::size_t>(FitPhase::Factorization);
+    const auto factorEval = static_cast<std::size_t>(FitPhase::FactorEval);
+    const auto setup = static_cast<std::size_t>(FitPhase::Setup);
+    const auto final = static_cast<std::size_t>(FitPhase::Final);
+    assert(profile.iterations().size() == 3);
+    assert(profile.total()[setup] >= 0.01);
+    assert(profile.total()[final] >= 0.003);
+    assert(profile.total()[factorization] >= 3 * 0.004);
+    assert(profile.total()[factorEval] >= 3 * 0.002);
+    double rowSum = 0.0;
+    for(const auto & row : profile.iterations()) {
+      assert(row[setup] == 0.0 && row[final] == 0.0);
+      for(double seconds : row) { rowSum += seconds; }
+    }
+    double totalSum = 0.0;
+    for(double seconds : profile.total()) { totalSum += seconds; }
+    assert(std::fabs(totalSum - rowSum - profile.total()[setup] - profile.total()[final]) < 1e-9);
+    assert(std::string(sommer::fitPhaseName(sommer::kFitPhaseCount - 1)) == "final");
+    assert(std::string(sommer::fitPhaseName(sommer::kFitPhaseCount)).empty());
+  }
+  {
+    // Column-major pattern builder: neighbours[j] lists the rows of column j.
+    auto pattern = [](const std::vector<std::vector<int>> & neighbours, std::vector<int> & outer, std::vector<int> & inner) {
+      outer.assign(1, 0);
+      inner.clear();
+      for(const auto & rows : neighbours) {
+        inner.insert(inner.end(), rows.begin(), rows.end());
+        outer.push_back(static_cast<int>(inner.size()));
+      }
+    };
+    std::vector<int> outer, inner;
+    const std::size_t n = 10;
+    std::vector<int> identity(n);
+    for(std::size_t index = 0; index < n; ++index) { identity[index] = static_cast<int>(index); }
+    std::vector<std::vector<int>> chain(n);
+    for(std::size_t index = 0; index < n; ++index) {
+      if(index > 0) { chain[index].push_back(static_cast<int>(index) - 1); }
+      if(index + 1 < n) { chain[index].push_back(static_cast<int>(index) + 1); }
+    }
+    pattern(chain, outer, inner);
+    const auto tridiagonal = sommer::symbolicCholeskyCounts(n, outer, inner, identity, 1000);
+    assert(tridiagonal.valid && tridiagonal.nonzeros == 2 * n - 1);
+    assert(std::fabs(tridiagonal.flops - (4.0 * (n - 1) + 1.0)) < 1e-12);
+    std::vector<std::vector<int>> star(n);
+    for(std::size_t index = 1; index < n; ++index) {
+      star[0].push_back(static_cast<int>(index));
+      star[index].push_back(0);
+    }
+    pattern(star, outer, inner);
+    const auto hubFirst = sommer::symbolicCholeskyCounts(n, outer, inner, identity, 1000);
+    assert(hubFirst.valid && hubFirst.nonzeros == n * (n + 1) / 2);
+    std::vector<int> hubLast(n);
+    for(std::size_t index = 0; index < n; ++index) { hubLast[index] = static_cast<int>((index + 1) % n); }
+    const auto reordered = sommer::symbolicCholeskyCounts(n, outer, inner, hubLast, 1000);
+    assert(reordered.valid && reordered.nonzeros == 2 * n - 1);
+    assert(reordered.flops < hubFirst.flops);
+    const auto capped = sommer::symbolicCholeskyCounts(n, outer, inner, identity, 20);
+    assert(!capped.valid && std::isinf(capped.flops));
+    assert(!sommer::symbolicCholeskyCounts(n, outer, inner, std::vector<int>(n, 0), 1000).valid);
   }
 }

@@ -1911,6 +1911,8 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     "autoregressive_precision"
   }else if(model == "ante"){
     "modified_cholesky_precision"
+  }else if(model %in% c("sar", "car")){
+    "spatial_precision"
   }else if(model == "ma"){
     "banded_covariance"
   }else if(model %in% c("us", "corg")){
@@ -1927,9 +1929,30 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     ar3="stationary_ar",
     ante="modified_cholesky",
     csm="compound_symmetry",
+    sar="normalized_normal_equations",
+    car="normalized_affine_precision",
     NULL
   )
   if(!is.null(form)) out$form <- form
+  if(model == "ante"){
+    out$innovation <- list(rows=factor$ante_row, columns=factor$ante_col,
+                           coefficient_count=factor$ante_ncoef)
+  }
+  if(model %in% c("fa", "rr")){
+    prefix <- paste0(model, "_")
+    out$loadings <- list(rank=factor$order,
+      count=factor[[paste0(prefix, "nload")]],
+      rows=factor[[paste0(prefix, "row")]],
+      columns=factor[[paste0(prefix, "col")]],
+      diagonal=factor[[paste0(prefix, "diag")]],
+      heterogeneous_specific=identical(model, "fa"))
+  }
+  if(model %in% c("sar", "car")){
+    out$spatial <- list(weights=factor$W,
+      lower=if(model == "sar") -factor$rho_bound else factor$rho_lower,
+      upper=if(model == "sar") factor$rho_bound else factor$rho_upper,
+      degree=if(model == "car") factor$degree else NULL)
+  }
   if(kind %in% c("lowrank_diagonal", "autoregressive_precision",
                  "banded_covariance") && !is.null(factor$order)){
     out$order <- as.integer(factor$order)[1]
@@ -2187,10 +2210,19 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
      !is.null(f$evaluator) && !is.null(f$derivative) &&
      !is.null(f$report) && !is.null(f$native_report) &&
      !is.null(f$trust_cap)){
-    if(is.null(f$representation)){
-      f$representation <- .covfactor_representation(
-        f$model, f, f$structurally_diagonal
-      )
+    representation <- f$representation
+    legacySpatial <- isTRUE(f$model %in% c("sar", "car")) &&
+      identical(representation$kind, "dense") && is.null(representation$form)
+    needsCapabilities <- is.null(representation) || legacySpatial ||
+      (identical(representation$kind, "lowrank_diagonal") && is.null(representation$loadings)) ||
+      (identical(representation$kind, "modified_cholesky_precision") && is.null(representation$innovation))
+    if(needsCapabilities){
+      metadata <- f
+      metadata$representation <- NULL
+      defaults <- .covfactor_representation(f$model, metadata, f$structurally_diagonal)
+      if(legacySpatial) representation$kind <- defaults$kind
+      f$representation <- if(is.null(representation)) defaults else utils::modifyList(defaults, representation)
+      .validate_covfactor(f)
     }
     return(f)
   }
@@ -2433,6 +2465,55 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
      !nzchar(f$representation$kind)){
     stop("CovarianceFactor representation must declare one family kind.",
          call. = FALSE)
+  }
+  innovation <- f$representation$innovation
+  if(!is.null(innovation)){
+    count <- innovation$coefficient_count
+    rows <- innovation$rows
+    columns <- innovation$columns
+    if(length(count) != 1L || !is.finite(count) || count < 0 || count != as.integer(count) ||
+       length(rows) != count || length(columns) != count ||
+       anyNA(rows) || anyNA(columns) || any(rows != as.integer(rows)) ||
+       any(columns != as.integer(columns)) || any(columns < 1L) ||
+       any(rows > f$dim) || any(rows <= columns) ||
+       anyDuplicated(data.frame(rows=rows, columns=columns))){
+      stop("Invalid modified-Cholesky innovation capability.", call. = FALSE)
+    }
+    if(is.null(f$section_npar) && length(f$par) != count + f$dim - 1L){
+      stop("Innovation capability has incompatible parameter count.", call. = FALSE)
+    }
+  }
+  loadings <- f$representation$loadings
+  if(!is.null(loadings)){
+    count <- loadings$count
+    rank <- loadings$rank
+    rows <- loadings$rows
+    columns <- loadings$columns
+    if(length(count) != 1L || length(rank) != 1L || !is.finite(count) || !is.finite(rank) ||
+       count < 1L || rank < 1L || count != as.integer(count) || rank != as.integer(rank) ||
+       length(rows) != count || length(columns) != count || length(loadings$diagonal) != count ||
+       anyNA(rows) || anyNA(columns) || anyNA(loadings$diagonal) ||
+       any(rows != as.integer(rows)) || any(columns != as.integer(columns)) ||
+       any(rows < 1L | rows > f$dim) || any(columns < 1L | columns > rank) ||
+       anyDuplicated(data.frame(rows=rows, columns=columns)) ||
+       !is.logical(loadings$diagonal) || !is.logical(loadings$heterogeneous_specific) ||
+       length(loadings$heterogeneous_specific) != 1L || is.na(loadings$heterogeneous_specific)){
+      stop("Invalid low-rank loading capability.", call. = FALSE)
+    }
+  }
+  spatial <- f$representation$spatial
+  if(!is.null(spatial)){
+    if(!is.matrix(spatial$weights) || !is.numeric(spatial$weights) ||
+       !identical(dim(spatial$weights), rep(as.integer(f$dim), 2L)) ||
+       any(!is.finite(spatial$weights)) || length(spatial$lower) != 1L ||
+       length(spatial$upper) != 1L || !is.finite(spatial$lower) ||
+       !is.finite(spatial$upper) || spatial$lower >= spatial$upper){
+      stop("Invalid normalized spatial precision capability.", call. = FALSE)
+    }
+    if(identical(f$representation$form, "normalized_affine_precision") &&
+       (length(spatial$degree) != f$dim || any(!is.finite(spatial$degree)) || any(spatial$degree <= 0))){
+      stop("Affine spatial precision requires positive finite degrees.", call. = FALSE)
+    }
   }
   if(!is.list(f$native_report) || !identical(f$native_report$backend, "R") ||
      !is.function(f$native_report$fun)){

@@ -11,6 +11,11 @@
 #'   \code{"ldlt"}, \code{"cholmod"}, or \code{"pcg"}.
 #' @param denseMemoryMB Upper bound on dense memory allocations (in megabytes) used by
 #'   Schur-complement engines, block-chain / banded paths, and selected-inverse caches. Default is 1000.
+#' @param memoryPolicy \code{"speed"} (default) stops with the memory needed when a fast path
+#'   does not fit \code{denseMemoryMB}, instead of falling back to a slower path; \code{"limit"}
+#'   keeps the fit within \code{denseMemoryMB} by accepting slower fallbacks. Currently enforced for
+#'   the CHOLMOD selected-inverse caches, whose fallback (per-request solves) was measured several
+#'   times slower, and opt-in exact LDLT trace panels. This is not a process-memory cap.
 #' @param experimental A named list of experimental path controls. Each toggle accepts \code{"auto"},
 #'   \code{"off"}, or \code{"force"} (or boolean \code{TRUE}/\code{FALSE}):
 #'   \itemize{
@@ -21,6 +26,15 @@
 #'     \item \code{cholmodFinalSelected}: Supernodal CHOLMOD Takahashi selected inverse for mode 1.
 #'     \item \code{pdCertificates}: Sufficient positive-definiteness certificates fast-path.
 #'     \item \code{panelCi2}: Batch panel size for full inverse in \code{computeCi=2} (default 32).
+#'     \item \code{profile}: \code{"force"} records per-phase timings and workload counters in
+#'       \code{engineDiagnostics$profile}; default \code{"off"}.
+#'     \item \code{blockSchur}: block elimination engines (dense Schur, chain, banded, latent).
+#'       \code{"off"} uses the generic sparse factorization; \code{"force"} skips the density and
+#'       group-size admission rules (memory limits still apply).
+#'     \item \code{traceBatch}: \code{"force"} batches exact LDLT random-score fallback solves
+#'       in independent parallel panels; default \code{"off"}. No derivative entries are thresholded.
+#'     \item \code{sparseFactors}: \code{"force"} enables exact sparse AR(p)/ANTE precision operands,
+#'       innovation-row ANTE covariance evaluation, and sparse SAR/CAR evaluation; default \code{"off"}.
 #'   }
 #' @param pcg A named list of iterative PCG solver settings:
 #'   \itemize{
@@ -49,6 +63,7 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
                          factorScoreAugmentation = c("none", "fixed-shape", "profile"),
                          recordDiagnostics = TRUE,
                          verboseDiagnostics = FALSE,
+                         memoryPolicy = NULL,
                          ...){
   dots <- list(...)
   if(missing(solver) || is.null(solver)){
@@ -88,6 +103,13 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
     }
     denseMemoryMB <- as.double(denseMemoryMB)
   }
+
+  if(is.null(memoryPolicy)) memoryPolicy <- getOption("sommer.mme.memoryPolicy", "speed")
+  if(!is.character(memoryPolicy) || length(memoryPolicy) != 1L ||
+     !tolower(memoryPolicy) %in% c("speed", "limit")){
+    stop("memoryPolicy must be 'speed' or 'limit'.", call.=FALSE)
+  }
+  memoryPolicy <- tolower(memoryPolicy)
 
   # Helper to normalize three-state experimental modes ("auto", "off", "force")
   .normalize_mode <- function(val, default="auto", optName=NULL){
@@ -130,7 +152,7 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
 
   # Merge any experimental toggles passed in dots
   knownExpToggles <- c("blockBanded", "factorSchurMultiFactor", "dFirstML",
-                       "matrixFreePcg", "cholmodFinalSelected", "pdCertificates", "panelCi2")
+                       "matrixFreePcg", "cholmodFinalSelected", "pdCertificates", "panelCi2", "profile", "blockSchur", "traceBatch", "sparseFactors")
   for(toggle in knownExpToggles){
     if(toggle %in% names(dots) && !toggle %in% names(experimental)){
       experimental[[toggle]] <- dots[[toggle]]
@@ -145,6 +167,10 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
     matrixFreePcg = .normalize_mode(experimental$matrixFreePcg, "auto", "sommer.mme.matrixFreePcg"),
     cholmodFinalSelected = .normalize_mode(experimental$cholmodFinalSelected, "auto", "sommer.mme.cholmodFinalSelected"),
     pdCertificates = .normalize_mode(experimental$pdCertificates, "auto", "sommer.mme.pdCertificates"),
+    profile = .normalize_mode(experimental$profile, "off", "sommer.mme.profile"),
+    blockSchur = .normalize_mode(experimental$blockSchur, "auto", "sommer.mme.blockSchur"),
+    traceBatch = .normalize_mode(experimental$traceBatch, "off", "sommer.mme.traceBatch"),
+    sparseFactors = .normalize_mode(experimental$sparseFactors, "off", "sommer.mme.sparseFactors"),
     panelCi2 = if(!is.null(experimental$panelCi2)) as.integer(experimental$panelCi2) else 64L
   )
   if(!is.finite(expResolved$panelCi2) || expResolved$panelCi2 < 1L){
@@ -179,6 +205,7 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
   control <- list(
     solver = solver,
     denseMemoryMB = denseMemoryMB,
+    memoryPolicy = memoryPolicy,
     experimental = expResolved,
     pcg = pcgResolved,
     acceleration = acceleration,
@@ -220,6 +247,7 @@ print.sommer_mme_control <- function(x, ...){
   cat("-- sommer MME Engine Control --\n")
   cat("Solver backend       :", x$solver, "\n")
   cat("Dense memory budget  :", x$denseMemoryMB, "MB\n")
+  cat("Memory policy        :", x$memoryPolicy, "\n")
   cat("Acceleration         :", x$acceleration, "\n")
   cat("Factor augmentation  :", x$factorScoreAugmentation, "\n")
   cat("Iterative (PCG)      : tol =", x$pcg$tol,
@@ -271,6 +299,9 @@ print.sommer_mme_control <- function(x, ...){
     if("denseMemoryMB" %in% names(dots) && !is.null(dots$denseMemoryMB)){
       ctrl$denseMemoryMB <- as.double(dots$denseMemoryMB)
     }
+    if("memoryPolicy" %in% names(dots) && !is.null(dots$memoryPolicy)){
+      ctrl$memoryPolicy <- mmes_control(memoryPolicy = dots$memoryPolicy)$memoryPolicy
+    }
     if("experimental" %in% names(dots) && is.list(dots$experimental)){
       ctrl$experimental <- utils::modifyList(ctrl$experimental, dots$experimental)
     }
@@ -293,7 +324,7 @@ print.sommer_mme_control <- function(x, ...){
   expList <- if("experimental" %in% names(dots) && is.list(dots$experimental)) dots$experimental else list()
 
   knownExpToggles <- c("blockBanded", "factorSchurMultiFactor", "dFirstML",
-                       "matrixFreePcg", "cholmodFinalSelected", "pdCertificates", "panelCi2")
+                       "matrixFreePcg", "cholmodFinalSelected", "pdCertificates", "panelCi2", "profile", "blockSchur", "traceBatch", "sparseFactors")
   for(toggle in knownExpToggles){
     if(toggle %in% names(dots) && !toggle %in% names(expList)){
       expList[[toggle]] <- dots[[toggle]]
@@ -303,6 +334,7 @@ print.sommer_mme_control <- function(x, ...){
   mmes_control(
     solver = solver,
     denseMemoryMB = denseMB,
+    memoryPolicy = if("memoryPolicy" %in% names(dots)) dots$memoryPolicy else NULL,
     experimental = expList,
     pcg = pcgArgs,
     acceleration = accel,

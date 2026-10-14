@@ -3,6 +3,7 @@
 \alias{mme_workload_grid}
 \alias{run_mme_benchmark}
 \alias{analyze_mme_crossovers}
+\alias{profile_mme_workload}
 \title{Experimental Benchmarking and Crossover Analysis Framework}
 \description{
 A suite of tools to instantiate parameterized mixed model workloads across factor levels,
@@ -40,6 +41,9 @@ run_mme_benchmark(workloads,
 analyze_mme_crossovers(benchmark,
                        baseline_engine = NULL,
                        candidate_engine = NULL)
+
+profile_mme_workload(workload, engine = mmes_control(), nIters = 5L,
+                     dominantShare = 0.3)
 }
 \arguments{
   \item{name}{Descriptive label for the workload.}
@@ -66,6 +70,9 @@ analyze_mme_crossovers(benchmark,
   \item{benchmark}{An object of class \code{"sommer_mme_benchmark"}.}
   \item{baseline_engine}{Name of the reference baseline engine in the benchmark results.}
   \item{candidate_engine}{Name of the candidate experimental engine in the benchmark results.}
+  \item{workload}{A single \code{mme_workload} to profile.}
+  \item{engine}{A \code{\link{mmes_control}} object; profiling is forced on.}
+  \item{dominantShare}{Share of fit time above which a phase is flagged dominant. Default is 0.3.}
 }
 \value{
 \code{generate_mme_workload} returns an object of class \code{"mme_workload"}.
@@ -77,6 +84,9 @@ execution timings, iteration counts, active solver paths, and parity status.
 
 \code{analyze_mme_crossovers} returns an object of class \code{"sommer_mme_crossover"} summarizing
 speedup ratios and empirical decision boundaries.
+
+\code{profile_mme_workload} returns an object of class \code{"sommer_mme_profile"} with a
+per-phase seconds table, workload counters, and per-iteration seconds.
 }
 \seealso{
 \code{\link{mmes}}, \code{\link{mmes_control}}

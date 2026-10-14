@@ -9,13 +9,13 @@ test_that("Henderson progress rows include PD and trust diagnostics", {
     quiet_fit <- fit(FALSE)
     header <- grep("^ *iteration", output, value=TRUE)
     expect_length(header, 1L)
-    expect_match(header, "EMweight +notPD +trustAlpha")
+    expect_match(header, "EMweight +notPD +trustAlpha +lineAlpha")
     expect_identical(grepl("pivot", header), solver == "ldlt")
 
     rows <- grep("^ +[0-9]+ +", output, value=TRUE)
     fields <- strsplit(trimws(rows), " +")
     expect_length(rows, ncol(verbose_fit$llik))
-    expect_true(all(lengths(fields) == if(solver == "ldlt") 9L else 8L))
+    expect_true(all(lengths(fields) == if(solver == "ldlt") 10L else 9L))
     column_ends <- function(line){
       positions <- gregexpr("\\S+", line)[[1L]]
       as.integer(positions + attr(positions, "match.length") - 1L)
@@ -25,13 +25,15 @@ test_that("Henderson progress rows include PD and trust diagnostics", {
     }
     for(values in fields){
       expect_match(values[3L], "^[0-9]{2}:[0-9]{2}:[0-9]{2}$")
-      numeric_columns <- c(2L, 4L, 6L, 8L, if(solver == "ldlt") 9L)
+      numeric_columns <- c(2L, 4L, 6L, 8L, 9L, if(solver == "ldlt") 10L)
       expect_true(all(grepl("^-?[0-9]+\\.[0-9]{3}(e[+-][0-9]+)?$",
         values[numeric_columns])))
     }
     expect_identical(vapply(fields, `[[`, character(1), 7L), rep("-", length(rows)))
     expect_equal(as.numeric(vapply(fields, `[[`, character(1), 8L)), rep(1, length(rows)))
-    expect_false(any(grepl("local fallback|trust scaling applied|update rejected", output)))
+    expect_equal(as.numeric(vapply(fields, `[[`, character(1), 9L)), rep(1, length(rows)))
+    expect_false(any(grepl(paste0("local fallback|trust scaling applied|update rejected|",
+      "REML likelihood decreased|Global likelihood line search accepted"), output)))
     expect_equal(verbose_fit$monitor, quiet_fit$monitor)
     expect_equal(verbose_fit$llik, quiet_fit$llik)
   }
@@ -55,7 +57,7 @@ test_that("Henderson progress rows collect failed structures and applied trust s
   rows <- grep("^ +[0-9]+ +", output, value=TRUE)
   fields <- strsplit(trimws(rows), " +")
   expect_length(rows, ncol(fit$llik))
-  expect_true(all(lengths(fields) == 9L))
+  expect_true(all(lengths(fields) == 10L))
   expect_gte(length(rows), 10L)
   header <- grep("^ *iteration", output, value=TRUE)
   column_ends <- function(line){
@@ -73,5 +75,10 @@ test_that("Henderson progress rows collect failed structures and applied trust s
   expect_true(any(not_pd == "1,2"))
   expect_true(all(is.finite(alpha) & alpha >= 0 & alpha <= 1))
   expect_true(any(alpha < 1))
-  expect_false(any(grepl("local fallback|trust scaling applied|update rejected", output)))
+  line_alpha <- as.numeric(vapply(fields, `[[`, character(1), 9L))
+  expect_true(all(is.finite(line_alpha) & line_alpha >= 0 & line_alpha <= 1))
+  expect_equal(line_alpha[1L], 1)
+  expect_identical(any(line_alpha < 1), fit$engineDiagnostics$lineSearchHalvings > 0L)
+  expect_false(any(grepl(paste0("local fallback|trust scaling applied|update rejected|",
+    "REML likelihood decreased|Global likelihood line search accepted"), output)))
 })

@@ -32,7 +32,8 @@ test_that("dense storage budget controls coupled Schur admission", {
   expect_true(dense$engineDiagnostics$blockSchurActive)
   expect_equal(dense$engineDiagnostics$denseMemoryMB, 1000)
   expect_gt(dense$engineDiagnostics$blockSchurEstimatedDenseMB, 0.001)
-  options(sommer.mme.denseMemoryMB=0.001)
+  options(sommer.mme.denseMemoryMB=0.001, sommer.mme.memoryPolicy="limit")
+  on.exit(options(sommer.mme.memoryPolicy=NULL), add=TRUE)
   sparse <- fitModel()
   expect_false(sparse$engineDiagnostics$blockSchurActive)
   expect_equal(sparse$llik, dense$llik, tolerance=1e-7)
@@ -55,7 +56,8 @@ test_that("LDLT selected-inverse dependency caching respects its budget and pres
   }
   cached <- fitModel()
   expect_gt(cached$engineDiagnostics$CselectedDependencyEntries, 0)
-  options(sommer.mme.denseMemoryMB=1e-5)
+  options(sommer.mme.denseMemoryMB=1e-5, sommer.mme.memoryPolicy="limit")
+  on.exit(options(sommer.mme.memoryPolicy=NULL), add=TRUE)
   uncached <- fitModel()
   expect_equal(uncached$engineDiagnostics$CselectedDependencyEntries, 0)
   for(component in c("llik", "theta", "bu", "InfMat", "dLu", "uPevList")){
@@ -65,7 +67,7 @@ test_that("LDLT selected-inverse dependency caching respects its budget and pres
 })
 
 test_that("generic CHOLMOD trace fallbacks preserve fits under an exhausted cache budget", {
-  previous <- options(sommer.mme.denseMemoryMB=1e-5)
+  previous <- options(sommer.mme.denseMemoryMB=1e-5, sommer.mme.memoryPolicy="limit")
   on.exit(options(previous), add=TRUE)
   data(DT_example)
   fitModel <- function(solver){
@@ -78,4 +80,84 @@ test_that("generic CHOLMOD trace fallbacks preserve fits under an exhausted cach
   for(component in c("llik", "theta", "bu", "InfMat", "dLu", "uPevList")){
     expect_equal(candidate[[component]], reference[[component]], tolerance=1e-7)
   }
+})
+test_that("memoryPolicy speed stops with the required memory and limit falls back", {
+  previous <- options(sommer.mme.denseMemoryMB=1e-5, sommer.mme.memoryPolicy=NULL)
+  on.exit(options(previous), add=TRUE)
+  data(DT_example)
+  fitModel <- function(policy){
+    mmes(Yield~Env, random=~Name, data=DT_example, solver="cholmod", nIters=2L,
+      computeCi=1L, verbose=FALSE, dateWarning=FALSE,
+      engine=mmes_control(solver="cholmod", memoryPolicy=policy))
+  }
+  expect_equal(mmes_control()$memoryPolicy, "speed")
+  expect_error(mmes_control(memoryPolicy="fast"), "memoryPolicy must be")
+  expect_error(fitModel("speed"), "denseMemoryMB.*memoryPolicy")
+  limited <- fitModel("limit")
+  expect_equal(limited$engineDiagnostics$control$memoryPolicy, "limit")
+  options(sommer.mme.denseMemoryMB=NULL)
+  expect_equal(fitModel("speed")$engineDiagnostics$control$memoryPolicy, "speed")
+})
+
+test_that("sparse relationship blocks avoid dense Schur and banded engines are opt-in", {
+  fitFor <- function(relationship, structure="us"){
+    wl <- generate_mme_workload(structure=structure, n_levels=4L, n_ind=100L,
+      relationship=relationship, seed=11L)
+    mmes(wl$fixed, random=wl$random, rcov=wl$rcov, data=wl$data, nIters=2L,
+      solver="cholmod", verbose=FALSE, dateWarning=FALSE)
+  }
+  expect_true(fitFor("dense")$engineDiagnostics$blockSchurActive)
+  expect_false(fitFor("sparse")$engineDiagnostics$blockSchurActive)
+  wl <- generate_mme_workload(structure="ar1", n_levels=50L, n_ind=8L, relationship="none")
+  fit <- mmes(wl$fixed, random=wl$random, rcov=wl$rcov, data=wl$data, nIters=2L,
+    solver="cholmod", verbose=FALSE, dateWarning=FALSE)
+  expect_false(fit$engineDiagnostics$blockBandedActive)
+})
+
+test_that("blockSchur toggle disables or forces the block engines", {
+  wl <- generate_mme_workload(structure="us", n_levels=4L, n_ind=100L, relationship="dense", seed=11L)
+  fitFor <- function(mode) mmes(wl$fixed, random=wl$random, rcov=wl$rcov, data=wl$data, nIters=2L,
+    engine=mmes_control(solver="cholmod", experimental=list(blockSchur=mode)),
+    verbose=FALSE, dateWarning=FALSE)
+  expect_true(fitFor("auto")$engineDiagnostics$blockSchurActive)
+  off <- fitFor("off")
+  expect_false(off$engineDiagnostics$blockSchurActive)
+  expect_equal(off$engineDiagnostics$control$blockSchur, "off")
+  expect_equal(off$llik, fitFor("auto")$llik, tolerance=1e-7)
+  sparse <- generate_mme_workload(structure="us", n_levels=4L, n_ind=100L, relationship="sparse", seed=11L)
+  forced <- mmes(sparse$fixed, random=sparse$random, rcov=sparse$rcov, data=sparse$data, nIters=2L,
+    engine=mmes_control(solver="cholmod", experimental=list(blockSchur="force")),
+    verbose=FALSE, dateWarning=FALSE)
+  expect_true(forced$engineDiagnostics$blockSchurActive)
+})
+
+test_that("fill guard rejects coupled low-fill blocks and retains independent groups", {
+  set.seed(303L)
+  size <- 128L
+  precision <- diag(size)
+  precision[row(precision) == col(precision) + 1L] <- -0.2
+  upper <- which(upper.tri(precision))
+  precision[sample(upper, 160L)] <- -0.1
+  precision <- precision + t(precision)
+  diag(precision) <- rowSums(abs(precision)) + 1
+  dimnames(precision) <- rep(list(paste0("g", seq_len(size))), 2L)
+  attr(precision, "inverse") <- TRUE
+  dataset <- expand.grid(id=factor(rownames(precision)), environment=factor(1:6), replicate=1:2)
+  dataset$response <- rnorm(nrow(dataset))
+  fit <- function(mode, relationship){
+    mmes(response~environment, random=~vsm(ar1m(environment), ism(id), Gu=relationship),
+      data=dataset, nIters=2L, verbose=FALSE, dateWarning=FALSE,
+      engine=mmes_control(solver="cholmod", experimental=list(blockSchur=mode)))
+  }
+  automatic <- fit("auto", precision)
+  forced <- fit("force", precision)
+  expect_false(automatic$engineDiagnostics$blockSchurActive)
+  expect_true(forced$engineDiagnostics$blockSchurActive)
+  for(component in c("llik", "covPar", "bu", "InfMat", "dLu")){
+    expect_equal(automatic[[component]], forced[[component]], tolerance=1e-7)
+  }
+  identity <- diag(size)
+  dimnames(identity) <- dimnames(precision)
+  attr(identity, "inverse") <- TRUE
+  expect_true(fit("auto", identity)$engineDiagnostics$blockSchurActive)
 })

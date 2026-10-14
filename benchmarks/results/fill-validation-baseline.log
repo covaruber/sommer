@@ -1,0 +1,10 @@
+baseline graph_random auto 2.968 off 0.643 active TRUE chain FALSE 
+baseline graph_banded auto 0.332 off 0.332 active FALSE chain FALSE 
+baseline us_5L_100ID_sparse_REML auto 0.123 off 0.126 active FALSE chain FALSE 
+baseline us_5L_100ID_dense_REML auto 0.215 off 0.228 active TRUE chain FALSE 
+baseline ar1_5L_100ID_dense_REML auto 0.142 off 0.177 active TRUE chain TRUE 
+baseline ar1_50L_64ID_none_REML auto 0.224 off 0.465 active TRUE chain FALSE 
+baseline ar2_30L_8ID_none_REML auto 0.116 off 0.119 active TRUE chain FALSE 
+baseline sar_100L_4ID_none_REML auto 0.173 off 0.168 active TRUE chain FALSE 
+baseline car_100L_4ID_none_REML auto 0.168 off 0.165 active TRUE chain TRUE 
+VALIDATION_OK

@@ -315,3 +315,219 @@ test_that("covariance representations are shared across random and residual fact
                    "banded_precision")
 })
 
+test_that("sparse factor kernels preserve covariance fits and uncertainty", {
+  set.seed(303L)
+  dataset <- expand.grid(id = factor(seq_len(8L)), level = factor(seq_len(8L)), rep = seq_len(2L))
+  dataset$section <- interaction(dataset$id, dataset$rep)
+  trueCovariance <- 0.4 ^ abs(outer(seq_len(8L), seq_len(8L), "-"))
+  effects <- matrix(rnorm(8L * 8L), 8L, 8L) %*% chol(trueCovariance)
+  dataset$response <- effects[cbind(as.integer(dataset$id), as.integer(dataset$level))] +
+    rnorm(nrow(dataset), sd = 0.5) + as.integer(dataset$level) / 8
+  adjacency <- as.matrix(Matrix::bandSparse(8L, k = 1L, diagonals = list(rep(1, 7L)), symmetric = TRUE))
+  dimnames(adjacency) <- rep(list(levels(dataset$level)), 2L)
+  directed <- adjacency
+  directed[1L, 2L] <- -0.2
+  denseAdjacency <- matrix(1, 8L, 8L) - diag(8L)
+  dimnames(denseAdjacency) <- dimnames(adjacency)
+  shapes <- list(
+    ar1m(dataset$level, rho = -0.3),
+    ar2m(dataset$level, pacf = c(0.2, -0.1)),
+    ar3m(dataset$level, pacf = c(0.2, 0.1, -0.1)),
+    ar2m(dataset$level, pacf = c(0.94, 0.85), variance = "heterogeneous",
+         fixed = c(TRUE, TRUE, rep(TRUE, 7L)), values = seq(0.5, 1.5, length.out = 8L)),
+    antem(dataset$level, order = 1L), antem(dataset$level, order = 3L),
+    sar(dataset$level, directed, rho = 0.2), car(dataset$level, adjacency, rho = 0.2),
+    sar(dataset$level, denseAdjacency, rho = -0.05), car(dataset$level, denseAdjacency, rho = 0),
+    car(dataset$level, adjacency, rho = 0.9, fixed = TRUE))
+  cases <- list(
+    list(solver = "ldlt", REML = TRUE, computeCi = 0L),
+    list(solver = "ldlt", REML = FALSE, computeCi = 1L, missing = TRUE),
+    list(solver = "cholmod", REML = TRUE, computeCi = 2L, weighted = TRUE),
+    list(solver = "ldlt", REML = TRUE, computeCi = 0L, henderson = FALSE),
+    list(solver = "ldlt", REML = TRUE, computeCi = 2L, residual = TRUE, missing = TRUE))
+  fields <- c("llik", "monitor", "theta", "covPar", "bu", "InfMat", "dLu", "theta_se", "uPevList")
+  for(shapeIndex in seq_along(shapes)){
+    shape <- shapes[[shapeIndex]]
+    for(configuration in cases[c(1L, 2L + (shapeIndex - 1L) %% 4L)]){
+      modelData <- dataset
+      if(isTRUE(configuration$missing)) modelData$response[c(3L, 17L, 55L)] <- NA_real_
+      fitWith <- function(mode){
+        arguments <- list(fixed = response ~ level, random = ~vsm(shape, ism(id)), rcov = ~units,
+          data = modelData, REML = configuration$REML, computeCi = configuration$computeCi,
+          getPEV = configuration$computeCi > 0L, nIters = 2L, verbose = FALSE, dateWarning = FALSE,
+          engine = mmes_control(solver = configuration$solver,
+            experimental = list(sparseFactors = mode, blockSchur = "off")))
+        if(isTRUE(configuration$weighted)) arguments$W <- Matrix::Diagonal(nrow(dataset), x = seq(0.8, 1.2, length.out = nrow(dataset)))
+        if(isFALSE(configuration$henderson)) arguments$henderson <- FALSE
+        if(isTRUE(configuration$residual)){
+          arguments$random <- ~id
+          arguments$rcov <- ~vsm(shape, ism(section))
+        }
+        do.call(mmes, arguments)
+      }
+      reference <- fitWith("off")
+      candidate <- fitWith("force")
+      for(field in fields){ expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-6, info = shape$covFactor$model) }
+      if(configuration$computeCi == 2L){
+        expect_equal(as.matrix(candidate$Ci), as.matrix(reference$Ci), tolerance = 1e-6)
+        if(!isFALSE(configuration$henderson)){
+          product <- as.matrix(candidate$C %*% candidate$Ci)
+          expect_lt(max(abs(product / mean(diag(product)) - diag(nrow(product)))), 1e-7)
+        }
+      }
+    }
+  }
+  for(shape in shapes[c(2L, 5L, 7L)]){
+    fitWith <- function(mode){
+      mmes(response ~ level, random = ~vsm(shape, ism(id)), rcov = ~units, data = dataset,
+           nIters = 2L, nThreads = 1L, computeCi = 0L, verbose = FALSE, dateWarning = FALSE,
+           engine = mmes_control(solver = "pcg", experimental = list(sparseFactors = mode, matrixFreePcg = "force")))
+    }
+    reference <- fitWith("off")
+    candidate <- fitWith("force")
+    for(field in fields){ expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-6) }
+  }
+  for(shape in shapes[c(2L, 5L, 7L, 8L)]){
+    fitWith <- function(mode){
+      mmes(response ~ level, random = ~vsm(shape, ism(id)), rcov = ~units, data = dataset,
+           nIters = 4L, nThreads = 1L, computeCi = 0L, verbose = FALSE, dateWarning = FALSE,
+           engine = mmes_control(solver = "ldlt", experimental = list(sparseFactors = mode, blockSchur = "off")))
+    }
+    reference <- fitWith("off")
+    candidate <- fitWith("force")
+    for(field in fields){ expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-6) }
+    expect_equal(candidate$convergence, reference$convergence)
+  }
+})
+
+test_that("saved built-in factors acquire missing family capabilities", {
+  levels <- factor(letters[1:4])
+  adjacency <- as.matrix(Matrix::bandSparse(4L, k = 1L,
+    diagonals = list(rep(1, 3L)), symmetric = TRUE))
+  dimnames(adjacency) <- rep(list(base::levels(levels)), 2L)
+  shapes <- list(antem(levels), fam(levels, 1L), rrm(levels, 1L),
+                 sar(levels, adjacency, rho = 0.2), car(levels, adjacency, rho = 0.2))
+  for(shape in shapes){
+    legacy <- shape$covFactor
+    legacy$representation$innovation <- NULL
+    legacy$representation$loadings <- NULL
+    legacy$representation$spatial <- NULL
+    if(legacy$model %in% c("sar", "car")) legacy$representation <- list(kind = "dense")
+    compiled <- sommer:::.compile_covfactor(legacy)
+    expect_identical(compiled$representation, shape$covFactor$representation)
+  }
+})
+
+test_that("complete innovation residual blocks preserve sparse derivative outputs", {
+  set.seed(303L)
+  dataset <- expand.grid(id = factor(seq_len(8L)), level = factor(seq_len(4L)), rep = 1:2)
+  dataset$section <- interaction(dataset$id, dataset$rep)
+  dataset$response <- rnorm(nrow(dataset))
+  shape <- antem(dataset$level, order = 1L)
+  fitWith <- function(mode){
+    mmes(response ~ 1, random = ~id, rcov = ~vsm(shape, ism(section)),
+         data = dataset, nIters = 2L, nThreads = 1L, computeCi = 0L,
+         getPEV = FALSE, verbose = FALSE, dateWarning = FALSE,
+         engine = mmes_control(solver = "ldlt",
+           experimental = list(sparseFactors = mode, blockSchur = "off")))
+  }
+  reference <- fitWith("off")
+  candidate <- fitWith("force")
+  for(field in c("llik", "monitor", "theta", "covPar", "bu", "InfMat", "dLu", "theta_se")){
+    expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-7)
+  }
+})
+
+test_that("factor capabilities are label independent and spatial products have exact scores", {
+  set.seed(304L)
+  dataset <- expand.grid(id = factor(seq_len(8L)), site = factor(letters[1:4]),
+                         environment = factor(seq_len(3L)), rep = 1:2)
+  dataset$response <- rnorm(nrow(dataset))
+  adjacency <- as.matrix(Matrix::bandSparse(4L, k = 1L,
+    diagonals = list(rep(1, 3L)), symmetric = TRUE))
+  dimnames(adjacency) <- rep(list(levels(dataset$site)), 2L)
+  shapes <- list(sar(dataset$site, adjacency, rho = 0.2),
+                 car(dataset$site, adjacency, rho = 0.2),
+                 antem(dataset$site), fam(dataset$site, 1L), rrm(dataset$site, 1L))
+  for(shape in shapes){
+    for(mode in c("off", "force")){
+      setup <- mmes(response ~ 1, random = ~vsm(shape, ar1m(environment, rho = 0.3), ism(id)),
+        data = dataset, nIters = 2L, nThreads = 1L, computeCi = 0L,
+        getPEV = FALSE, verbose = FALSE, dateWarning = FALSE, returnParam = TRUE,
+        engine = mmes_control(solver = "ldlt",
+          experimental = list(sparseFactors = mode, blockSchur = "off")))
+      runEngine <- function(descriptors){
+        sommer:::ai_mme_sp2(setup$X, setup$Z, setup$Zind, setup$Ai, setup$yvar,
+          setup$W, setup$useH, setup$residualBlock, setup$residualIndex,
+          setup$nIters, setup$tolParConvLL, setup$tolParConvNorm, setup$tolParInv,
+          descriptors, setup$emWeight, setup$stepWeight, FALSE,
+          responsePrepared = setup$responsePrepared, preparedMean = setup$preparedMean,
+          preparedSd = setup$preparedSd, preparedIntercept = setup$preparedIntercept)
+      }
+      reference <- runEngine(setup$covStruct)
+      anonymous <- setup$covStruct
+      anonymous[[1L]]$factors[[1L]]$model <- NULL
+      candidate <- runEngine(anonymous)
+      for(field in c("llik", "monitor", "theta", "bu", "InfMat", "dLu", "theta_se")){
+        expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-7)
+      }
+      if(identical(shape$covFactor$model, "ante")){
+        custom <- anonymous
+        descriptor <- custom[[1L]]$factors[[1L]]
+        evaluator <- local({
+          dimension <- descriptor$dim
+          innovation <- descriptor$representation$innovation
+          function(parameters){
+            transition <- diag(dimension)
+            transition[cbind(innovation$rows, innovation$columns)] <-
+              -parameters[seq_len(innovation$coefficient_count)]
+            variances <- c(1, exp(parameters[-seq_len(innovation$coefficient_count)]))
+            inverse <- solve(transition)
+            inverse %*% diag(variances) %*% t(inverse)
+          }
+        })
+        descriptor$evaluator <- list(backend = "R", fun = evaluator)
+        descriptor$derivative <- list(backend = "numeric", rel_step = 1e-6)
+        descriptor$ante_ncoef <- descriptor$ante_row <- descriptor$ante_col <- NULL
+        sommer:::.validate_covfactor(descriptor)
+        custom[[1L]]$factors[[1L]] <- descriptor
+        customFit <- runEngine(custom)
+        for(field in c("llik", "monitor", "theta", "bu", "InfMat", "dLu", "theta_se")){
+          expect_equal(customFit[[field]], candidate[[field]], tolerance = 1e-6)
+        }
+        invalid <- descriptor
+        invalid$representation$innovation$rows[1L] <- 0L
+        expect_error(sommer:::.validate_covfactor(invalid), "Invalid modified-Cholesky")
+      }
+      if(shape$covFactor$model %in% c("sar", "car")){
+        generic <- anonymous
+        generic[[1L]]$factors[[1L]]$representation <- list(kind = "dense")
+        baseline <- runEngine(generic)
+        for(field in c("llik", "monitor", "theta", "bu", "InfMat", "dLu", "theta_se")){
+          expect_equal(candidate[[field]], baseline[[field]], tolerance = 1e-6)
+        }
+        invalid <- anonymous[[1L]]$factors[[1L]]
+        invalid$representation$spatial$upper <- invalid$representation$spatial$lower
+        expect_error(sommer:::.validate_covfactor(invalid), "Invalid normalized spatial")
+      }
+    }
+  }
+})
+
+test_that("large ANTE sparse derivative storage preserves fit outputs", {
+  set.seed(2401L)
+  dataset <- expand.grid(id = factor(seq_len(16L)), level = factor(seq_len(48L)), replicate = 1:2)
+  dataset$response <- rnorm(nrow(dataset)) + as.integer(dataset$id) / 5 + as.integer(dataset$level) / 20
+  shape <- antem(dataset$level, order = 2L)
+  fitWith <- function(mode){
+    mmes(response ~ 1, random = ~vsm(shape, ism(id)), rcov = ~units, data = dataset,
+         nIters = 2L, computeCi = 0L, verbose = FALSE, dateWarning = FALSE,
+         engine = mmes_control(solver = "ldlt", experimental = list(blockSchur = "off", sparseFactors = mode)))
+  }
+  reference <- fitWith("off")
+  candidate <- fitWith("force")
+  for(field in c("llik", "monitor", "theta", "covPar", "bu", "InfMat", "dLu", "theta_se")){
+    expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-7)
+  }
+})
+

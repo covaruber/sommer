@@ -120,7 +120,8 @@ test_that("latent Schur rejects incompatible residuals, ML and near-boundary spe
   reference <- fitModel(boundary, solver="ldlt")
   expect_equal(fallback$llik, reference$llik, tolerance=1e-6)
   expect_equal(fallback$bu, reference$bu, tolerance=1e-6)
-  options(sommer.mme.denseMemoryMB=0.001)
+  options(sommer.mme.denseMemoryMB=0.001, sommer.mme.memoryPolicy="limit")
+  on.exit(options(sommer.mme.memoryPolicy=NULL), add=TRUE)
   expect_false(fitModel(shape)$engineDiagnostics$factorSchurActive)
 })
 

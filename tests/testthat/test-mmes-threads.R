@@ -84,7 +84,7 @@ test_that("thread control preserves estimates and reports the actual numerical p
   expect_equal(threaded$llik, serial$llik, tolerance=1e-8)
   expect_identical(threaded$threadingDiagnostics$numericalPath, "block Schur")
   expect_gt(threaded$threadingDiagnostics$factorizations$blockSchur$calls, 0L)
-  old <- options(sommer.mme.denseMemoryMB=1e-6)
+  old <- options(sommer.mme.denseMemoryMB=1e-6, sommer.mme.memoryPolicy="limit")
   on.exit(options(old), add=TRUE)
   supernodal <- fit(1L)
   expect_false(supernodal$engineDiagnostics$blockSchurActive)

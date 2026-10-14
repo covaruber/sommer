@@ -312,3 +312,24 @@ hadamard.prod <-function (x, y){
 
 
 
+
+# Least squares for variance-component starting values only. A well-conditioned
+# full-rank design goes through the normal equations (sparse crossprod plus a
+# Cholesky factor); anything else uses the dense QR, whose NA coefficients flag
+# aliased columns to the caller.
+.mmes_start_lsq <- function(X, Y){
+  p <- ncol(X)
+  XtX <- as.matrix(Matrix::crossprod(X))
+  R <- tryCatch(chol(XtX), error=function(e) NULL)
+  if(!is.null(R) && all(is.finite(R)) &&
+     min(diag(R) / sqrt(diag(XtX))) > 1e-7){
+    XtY <- as.matrix(Matrix::crossprod(X, Y))
+    beta <- backsolve(R, backsolve(R, XtY, transpose=TRUE))
+    return(list(beta=beta, rank=p, resid=Y - as.matrix(X %*% beta)))
+  }
+  Xd <- as.matrix(X)
+  qrX <- qr(Xd)
+  beta <- if(nrow(Xd) - qrX$rank >= 1L) qr.coef(qrX, Y) else NULL
+  list(beta=beta, rank=qrX$rank,
+       resid=if(is.null(beta) || anyNA(beta)) NULL else Y - Xd %*% beta)
+}

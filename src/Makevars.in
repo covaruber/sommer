@@ -7,4 +7,8 @@ PKG_LIBS = \
 	$(LAPACK_LIBS) \
 	$(BLAS_LIBS) \
 	$(FLIBS) \
-	@SOMMER_METIS_LIBS@
+@SOMMER_METIS_LIBS@
+
+all: $(SHLIB)
+
+MNR.o: mme_paths.h mme_factors.h mme_covariance.h

@@ -745,14 +745,13 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   startResid <- NULL
   if(!solveOnly) tryCatch({
     if(ncol(X) >= 1L && ncol(X) <= 2000L){
-      Xd <- as.matrix(X)
       Yd <- as.matrix(yvar)
-      qrX <- qr(Xd)
-      dfResid <- nrow(Xd) - qrX$rank
+      lsq <- .mmes_start_lsq(X, Yd)
+      dfResid <- nrow(Yd) - lsq$rank
       if(dfResid >= 1L){
-        beta <- qr.coef(qrX, Yd)
+        beta <- lsq$beta
         if(!anyNA(beta)){
-          resid <- Yd - Xd %*% beta
+          resid <- lsq$resid
           varResid0 <- mean(colSums(resid^2)) / dfResid
           if(is.finite(varResid0) && varResid0 > 0){
             floorVar <- 1e-6 * varResid0
@@ -1081,12 +1080,23 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   attr(covStruct, "pcgNystromRank") <- as.integer(pcgNystromRank)
   attr(covStruct, "engineControl") <- engineControl
   attr(covStruct, "denseMemoryMB") <- engineControl$denseMemoryMB
+  attr(covStruct, "memoryPolicy") <- engineControl$memoryPolicy
   attr(covStruct, "blockBanded") <- engineControl$experimental$blockBanded
   attr(covStruct, "factorSchurMultiFactor") <- engineControl$experimental$factorSchurMultiFactor
   attr(covStruct, "dFirstML") <- engineControl$experimental$dFirstML
   attr(covStruct, "matrixFreePcg") <- engineControl$experimental$matrixFreePcg
   attr(covStruct, "cholmodFinalSelected") <- engineControl$experimental$cholmodFinalSelected
   attr(covStruct, "pdCertificates") <- engineControl$experimental$pdCertificates
+  attr(covStruct, "profile") <- engineControl$experimental$profile
+  attr(covStruct, "blockSchur") <- engineControl$experimental$blockSchur
+  attr(covStruct, "traceBatch") <- engineControl$experimental$traceBatch
+  attr(covStruct, "sparseFactors") <- engineControl$experimental$sparseFactors
+  for(structureIndex in seq_along(covStruct)){
+    for(factorIndex in seq_along(covStruct[[structureIndex]]$factors)){
+      covStruct[[structureIndex]]$factors[[factorIndex]]$sparse_kernels <-
+        identical(engineControl$experimental$sparseFactors, "force")
+    }
+  }
   attr(covStruct, "panelCi2") <- as.integer(engineControl$experimental$panelCi2)
   if(!is.null(weightBlocks)) attr(covStruct, "weightBlocks") <- weightBlocks
   attr(covStruct, "retainLDLTCache") <- .pqlInner && identical(solver, "ldlt")

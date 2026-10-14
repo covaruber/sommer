@@ -80,7 +80,8 @@ test_that("chain admission rejects nonpaths and respects memory and ML scope", {
   denseShape <- ownm(dataset$environment, K=diag(4L) + matrix(0.2, 4L, 4L))
   expect_false(fitModel(denseShape)$engineDiagnostics$blockChainActive)
   expect_false(fitModel(arShape, FALSE)$engineDiagnostics$blockChainActive)
-  options(sommer.mme.denseMemoryMB=0.001)
+  options(sommer.mme.denseMemoryMB=0.001, sommer.mme.memoryPolicy="limit")
+  on.exit(options(sommer.mme.memoryPolicy=NULL), add=TRUE)
   expect_false(fitModel(arShape)$engineDiagnostics$blockChainActive)
 })
 

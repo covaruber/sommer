@@ -331,6 +331,7 @@ run_mme_benchmark <- function(workloads,
         parity_ok = parity_ok,
         max_rel_diff = max_rel_diff,
         error = NA_character_,
+        .mme_profile_columns(diag),
         stringsAsFactors = FALSE
       )
     }
@@ -346,6 +347,82 @@ run_mme_benchmark <- function(workloads,
   )
   class(out) <- "sommer_mme_benchmark"
   out
+}
+
+.mme_phase_names <- c("setup", "factorEval", "assembly", "factorization", "acceptance",
+                      "tracePrep", "sensitivities", "aiAssembly", "scoreTraces",
+                      "update", "constraints", "proposal", "final")
+
+# One-row data frame of phase seconds and workload counters; NA when profiling is off.
+.mme_profile_columns <- function(diag){
+  prof <- if(is.list(diag)) diag$profile else NULL
+  cols <- as.list(rep(NA_real_, length(.mme_phase_names)))
+  names(cols) <- paste0("phase_", .mme_phase_names)
+  counters <- list(nEffects = NA_real_, nnzC = NA_real_, freeParams = NA_real_,
+                   numericFactorSeconds = NA_real_)
+  dominant <- NA_character_
+  if(is.list(prof)){
+    secs <- prof$seconds
+    cols[paste0("phase_", names(secs))] <- as.list(unname(secs))
+    counters$nEffects <- prof$counters$nEffects
+    counters$nnzC <- prof$counters$nnzC
+    counters$freeParams <- prof$counters$freeCovarianceParameters
+    counters$numericFactorSeconds <- prof$counters$numericFactorSeconds
+    dominant <- names(which.max(secs))
+  }
+  as.data.frame(c(cols, counters, list(dominantPhase = dominant)), stringsAsFactors = FALSE)
+}
+
+#' Profile an MME Workload by Phase
+#'
+#' Fits one workload with phase profiling enabled and tabulates where the time goes.
+#'
+#' @param workload An \code{mme_workload} from \code{\link{generate_mme_workload}}.
+#' @param engine A \code{\link{mmes_control}} object; profiling is forced on.
+#' @param nIters Maximum REML/ML iterations. Default is 5.
+#' @param dominantShare Share of fit time above which a phase is flagged dominant. Default is 0.3.
+#'
+#' @return A list of class \code{"sommer_mme_profile"} with a per-phase \code{table},
+#'   workload \code{counters}, per-iteration seconds, and the total elapsed time.
+#' @export
+profile_mme_workload <- function(workload, engine = mmes_control(), nIters = 5L,
+                                 dominantShare = 0.3){
+  if(!inherits(workload, "mme_workload")){
+    stop("workload must be of class 'mme_workload'.", call.=FALSE)
+  }
+  engine$experimental$profile <- "force"
+  t0 <- proc.time()
+  fit <- mmes(fixed = workload$fixed, random = workload$random, rcov = workload$rcov,
+              data = workload$data, REML = workload$REML, computeCi = workload$computeCi,
+              nIters = nIters, engine = engine, verbose = FALSE, dateWarning = FALSE)
+  elapsed <- unname((proc.time() - t0)[3L])
+  prof <- fit$engineDiagnostics$profile
+  if(!is.list(prof)) stop("The fit did not return a profile.", call.=FALSE)
+  secs <- prof$seconds
+  table <- data.frame(phase = names(secs), seconds = unname(secs),
+                      share = unname(secs) / sum(secs), stringsAsFactors = FALSE)
+  table$dominant <- table$share >= dominantShare
+  out <- list(workload = workload$name, table = table, counters = prof$counters,
+              secondsByIteration = prof$secondsByIteration,
+              elapsed_sec = elapsed, engine = engine)
+  class(out) <- "sommer_mme_profile"
+  out
+}
+
+#' Print method for sommer_mme_profile
+#' @param x An object of class \code{sommer_mme_profile}.
+#' @param ... Ignored.
+#' @export
+print.sommer_mme_profile <- function(x, ...){
+  cat("-- sommer MME Phase Profile:", x$workload, "--\n")
+  tab <- x$table
+  tab$seconds <- round(tab$seconds, 4)
+  tab$share <- round(tab$share, 3)
+  print(tab, row.names = FALSE)
+  cat(sprintf("Elapsed %.3fs | nEffects %d | nnz(C) %.0f | free covariance parameters %d | solver %s\n",
+              x$elapsed_sec, x$counters$nEffects, x$counters$nnzC,
+              x$counters$freeCovarianceParameters, x$counters$solver))
+  invisible(x)
 }
 
 #' Analyze Crossover Frontiers from MME Benchmarks

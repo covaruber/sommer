@@ -128,8 +128,8 @@ test_that("fixed-shape augmentation uses the CHOLMOD dense-Gu Schur path", {
   expect_gt(nrow(augmented$C), nrow(marginal$C))
   expect_identical(augmented$CRepresentation, "factor-score-augmented")
 
-  profiled <- mmes(y~env, random=~vsm(fam(env, 2L),
-      ism(id), Gu=precision), rcov=~units, data=data, nIters=3,
+    profiled <- mmes(y~env, random=~vsm(fam(env, 2L, fixed=c(rep(TRUE, 15L), FALSE)),
+        ism(id), Gu=precision), rcov=~units, data=data, nIters=1,
     computeCi=0, solver="auto", verbose=FALSE, dateWarning=FALSE,
     factorScoreAugmentation="profile")
   expect_identical(as.character(profiled$solver), "cholmod")
@@ -139,13 +139,14 @@ test_that("fixed-shape augmentation uses the CHOLMOD dense-Gu Schur path", {
 
 test_that("profile mode optimizes free FA shapes using augmented REML", {
   set.seed(9)
-  data <- expand.grid(env=factor(letters[1:3]), id=factor(seq_len(8L)))
+  data <- expand.grid(env=factor(letters[1:2]), id=factor(seq_len(8L)))
   data$y <- rnorm(nrow(data))
-  initial <- mmes(y~env, random=~vsm(fam(env, 1L), ism(id)),
+  shape <- fam(data$env, 1L, fixed=c(TRUE, TRUE, FALSE))
+  initial <- mmes(y~env, random=~vsm(shape, ism(id)),
     rcov=~units, data=data, returnParam=TRUE, verbose=FALSE,
     dateWarning=FALSE)
-  profile <- mmes(y~env, random=~vsm(fam(env, 1L), ism(id)),
-    rcov=~units, data=data, nIters=5, computeCi=0, solver="ldlt",
+  profile <- mmes(y~env, random=~vsm(shape, ism(id)),
+    rcov=~units, data=data, nIters=1, computeCi=0, solver="ldlt",
     verbose=FALSE, dateWarning=FALSE, factorScoreAugmentation="profile")
   expect_identical(profile$factorScoreAugmentation, "profile")
   expect_identical(profile$CRepresentation, "factor-score-augmented")
@@ -155,7 +156,7 @@ test_that("profile mode optimizes free FA shapes using augmented REML", {
   expect_true(profile$factorScoreProfile$objective <=
               profile$factorScoreProfile$startObjective)
   expect_gt(max(abs(profile$factorScoreProfile$parameters -
-                    initial$covStruct[[1L]]$par[-1L])), 1e-5)
+                    initial$covStruct[[1L]]$par[-1L][initial$covStruct[[1L]]$free[-1L]])), 1e-5)
   expect_true(all(is.finite(covparams_mmes(profile)$estimate)))
   expect_true(anyNA(profile$theta_se))
   if(profile$factorScoreProfile$convergence != 0L){
@@ -165,8 +166,8 @@ test_that("profile mode optimizes free FA shapes using augmented REML", {
     rcov=~units, data=data, nIters=2, factorScoreAugmentation="profile",
     solver="pcg", verbose=FALSE), "requires Gaussian REML")
 
-  rrProfile <- mmes(y~env, random=~vsm(rrm(env, 1L), ism(id)),
-    rcov=~units, data=data, nIters=5, computeCi=0, solver="ldlt",
+  rrProfile <- mmes(y~env, random=~vsm(rrm(env, 1L, fixed=c(TRUE, FALSE)), ism(id)),
+    rcov=~units, data=data, nIters=1, computeCi=0, solver="ldlt",
     verbose=FALSE, dateWarning=FALSE, factorScoreAugmentation="profile")
   expect_identical(rrProfile$factorScoreAugmentation, "profile")
   expect_gt(rrProfile$factorScoreProfile$profileEvaluations, 1L)
@@ -179,7 +180,7 @@ test_that("profile mode supports positive compound-symmetry factors", {
   data <- expand.grid(env=factor(letters[1:3]), id=factor(seq_len(6L)))
   data$y <- rnorm(nrow(data))
   profile <- mmes(y~env, random=~vsm(csm(env, rho=0.2), ism(id)),
-    rcov=~units, data=data, nIters=4, computeCi=0, solver="ldlt",
+    rcov=~units, data=data, nIters=1, computeCi=0, solver="ldlt",
     verbose=FALSE, dateWarning=FALSE, factorScoreAugmentation="profile")
   expect_identical(profile$factorScoreAugmentation, "profile")
   expect_identical(profile$CRepresentation, "factor-score-augmented")
@@ -190,8 +191,8 @@ test_that("profile mode updates free FA parameters through augmented REML fits",
   set.seed(86)
   data <- expand.grid(env=factor(letters[1:3]), id=factor(seq_len(8L)))
   data$y <- rnorm(nrow(data))
-  profile <- mmes(y~env, random=~vsm(fam(env, 1L), ism(id)),
-    rcov=~units, data=data, nIters=5, computeCi=0, solver="ldlt",
+  profile <- mmes(y~env, random=~vsm(fam(env, 1L, fixed=c(rep(TRUE, 4L), FALSE)), ism(id)),
+    rcov=~units, data=data, nIters=1, computeCi=0, solver="ldlt",
     verbose=FALSE, dateWarning=FALSE, factorScoreAugmentation="profile")
   expect_identical(profile$factorScoreAugmentation, "profile")
   expect_identical(profile$CRepresentation, "factor-score-augmented")

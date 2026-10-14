@@ -2,6 +2,8 @@
 #define SOMMER_MME_PATHS_H
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
 #include <functional>
@@ -15,6 +17,187 @@ enum class ResidualPath { Diagonal, Grid, Kronecker, Sparse };
 enum class AssemblyPath { Sparse, Blocks, Batched };
 enum class SolverBackend { LDLT, Cholmod, PCG };
 enum class TracePreparation { SelectedInverse, InverseBlocks, Probes, None };
+
+enum class PrecisionFamily {
+  Dense, Diagonal, AR1, StationaryAR, ModifiedCholesky,
+  LowRankDiagonal, CompoundSymmetry, NormalEquations, Affine
+};
+
+struct FactorPolicy {
+  static bool shiftedCholesky(std::size_t factors, std::size_t dimension) {
+    return factors == 1 && dimension >= 128;
+  }
+  static bool supportContraction(double support, double dimension, std::size_t capacity) {
+    return support <= 0.5 * dimension * dimension && support <= static_cast<double>(capacity);
+  }
+  static bool spatial(PrecisionFamily family) {
+    return family == PrecisionFamily::NormalEquations || family == PrecisionFamily::Affine;
+  }
+  static bool innovationDerivative(PrecisionFamily family, bool sparseEnabled) {
+    return sparseEnabled && family == PrecisionFamily::ModifiedCholesky;
+  }
+  static double logDetMultiplicity(std::size_t total, std::size_t factor) {
+    return factor > 0 && total % factor == 0
+      ? static_cast<double>(total / factor) : std::numeric_limits<double>::quiet_NaN();
+  }
+};
+
+struct WorkspacePolicy {
+  static std::size_t cacheEntries() { return 1048576; }
+  static std::size_t panelColumns() { return 32; }
+  static std::size_t inversePanelColumns() { return 64; }
+  static std::size_t nystromRank() { return 32; }
+  static std::size_t crossGroups() { return 128; }
+  static std::size_t indexedColumnRows() { return 64; }
+  static std::size_t sparseEntryLimit() { return 16000000; }
+  static bool cacheFits(std::size_t capacity, std::size_t retained, std::size_t requested) {
+    return retained <= capacity && requested <= capacity - retained;
+  }
+  static bool crossBlockWorthCaching(double dotFlops, double materializeFlops) {
+    return dotFlops >= 2.0 * materializeFlops;
+  }
+  static std::size_t cacheCapacity(double doubles, std::size_t entryBytes) {
+    return static_cast<std::size_t>(std::min(static_cast<double>(cacheEntries()),
+      doubles * sizeof(double) / (48.0 * static_cast<double>(entryBytes))));
+  }
+};
+
+// Phases are consecutive laps of one fit; Factorization also covers the
+// symbolic analysis and any PCG preparation, Final covers post-loop output.
+enum class FitPhase {
+  Setup, FactorEval, Assembly, Factorization, Acceptance, TracePrep,
+  Sensitivities, AIAssembly, ScoreTraces, Update, Constraints, Proposal, Final
+};
+
+const std::size_t kFitPhaseCount = 13;
+
+inline const char * fitPhaseName(std::size_t phase) {
+  static const char * const names[kFitPhaseCount] = {
+    "setup", "factorEval", "assembly", "factorization", "acceptance",
+    "tracePrep", "sensitivities", "aiAssembly", "scoreTraces", "update",
+    "constraints", "proposal", "final"
+  };
+  return phase < kFitPhaseCount ? names[phase] : "";
+}
+
+class PhaseProfile {
+public:
+  typedef std::array<double, kFitPhaseCount> Row;
+
+private:
+  bool on;
+  std::size_t current;
+  std::chrono::steady_clock::time_point mark;
+  Row totals;
+  std::vector<Row> rows;
+
+  void lap() {
+    const std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+    const double seconds = std::chrono::duration<double>(now - mark).count();
+    mark = now;
+    totals[current] += seconds;
+    if(!rows.empty() && current != static_cast<std::size_t>(FitPhase::Final)) {
+      rows.back()[current] += seconds;
+    }
+  }
+
+public:
+  explicit PhaseProfile(bool enabled = false)
+    : on(enabled), current(static_cast<std::size_t>(FitPhase::Setup)), mark(), totals() {
+    if(on) { mark = std::chrono::steady_clock::now(); }
+    totals.fill(0.0);
+  }
+  bool enabled() const { return on; }
+  void enter(FitPhase phase) {
+    if(!on) { return; }
+    lap();
+    current = static_cast<std::size_t>(phase);
+  }
+  void startIteration() {
+    if(!on) { return; }
+    enter(FitPhase::FactorEval);
+    Row empty;
+    empty.fill(0.0);
+    rows.push_back(empty);
+  }
+  void finish() {
+    if(!on) { return; }
+    lap();
+  }
+  const Row & total() const { return totals; }
+  const std::vector<Row> & iterations() const { return rows; }
+};
+
+struct SymbolicFactor {
+  bool valid = false;
+  std::size_t nonzeros = 0;
+  double flops = 0.0;
+};
+
+// Sparse Cholesky fill and work for a symmetric pattern under permutation[new] = old.
+// Counts follow the row-subtree method on the elimination tree; flops = sum of squared column counts.
+inline SymbolicFactor symbolicCholeskyCounts(
+    std::size_t size, const std::vector<int> & outer, const std::vector<int> & inner,
+    const std::vector<int> & permutation, std::size_t maxNonzeros) {
+  SymbolicFactor result;
+  if(size == 0 || outer.size() != size + 1 || permutation.size() != size ||
+     size > static_cast<std::size_t>(std::numeric_limits<int>::max())) { return result; }
+  std::vector<int> position(size, -1);
+  for(std::size_t index = 0; index < size; ++index) {
+    const int original = permutation[index];
+    if(original < 0 || static_cast<std::size_t>(original) >= size || position[original] >= 0) { return result; }
+    position[original] = static_cast<int>(index);
+  }
+  std::vector<std::vector<int>> lowerNeighbours(size);
+  for(std::size_t column = 0; column < size; ++column) {
+    for(int entry = outer[column]; entry < outer[column + 1]; ++entry) {
+      const int row = inner[entry];
+      if(row < 0 || static_cast<std::size_t>(row) >= size) { return result; }
+      const int first = position[column];
+      const int second = position[row];
+      if(first == second) { continue; }
+      lowerNeighbours[std::max(first, second)].push_back(std::min(first, second));
+    }
+  }
+  std::vector<int> parent(size, -1), ancestor(size, -1), mark(size, -1);
+  std::vector<std::size_t> columnCount(size, 1);
+  for(std::size_t node = 0; node < size; ++node) {
+    const int current = static_cast<int>(node);
+    for(const int start : lowerNeighbours[node]) {
+      int walker = start;
+      while(ancestor[walker] != -1 && ancestor[walker] != current) {
+        const int next = ancestor[walker];
+        ancestor[walker] = current;
+        walker = next;
+      }
+      if(ancestor[walker] == -1) { ancestor[walker] = current; parent[walker] = current; }
+    }
+    mark[node] = current;
+    for(const int start : lowerNeighbours[node]) {
+      int walker = start;
+      while(walker >= 0 && mark[walker] != current) {
+        ++columnCount[walker];
+        mark[walker] = current;
+        walker = parent[walker];
+      }
+    }
+  }
+  std::size_t total = 0;
+  double flops = 0.0;
+  for(std::size_t column = 0; column < size; ++column) {
+    total += columnCount[column];
+    flops += static_cast<double>(columnCount[column]) * static_cast<double>(columnCount[column]);
+    if(total > maxNonzeros) {
+      result.nonzeros = total;
+      result.flops = std::numeric_limits<double>::infinity();
+      return result;
+    }
+  }
+  result.valid = true;
+  result.nonzeros = total;
+  result.flops = flops;
+  return result;
+}
 
 struct TensorComponentPlan {
   bool eligible = false;
@@ -222,6 +405,7 @@ struct BlockSchurPolicy {
   double maxDoubles = 1.25e8;
   double smallGroup = 64.0;
   double minDensity = 0.1;
+  double minFillRatio = 0.05;
 
   double storageDoubles(const std::vector<std::vector<int>> & groups,
                         std::size_t border) const {
@@ -251,8 +435,15 @@ struct BlockSchurPolicy {
     return result;
   }
 
-  bool needsDensityCheck(double effects, double group) const {
-    return !(group <= smallGroup || effects * group <= maxDoubles);
+  bool fillFavoursSchur(double sparseFlops, double schurCost,
+                        bool independentGroups = false) const {
+    if(!std::isfinite(schurCost) || schurCost <= 0.0) { return false; }
+    if(!std::isfinite(sparseFlops) || sparseFlops < 0.0) { return false; }
+    if(independentGroups) { return true; }
+    return sparseFlops >= minFillRatio * schurCost;
+  }
+  bool needsDensityCheck(double /*effects*/, double group) const {
+    return group > smallGroup;
   }
   bool inverseCacheFits(double effects, double group) const {
     return 2.0 * group * group + effects * group <= maxDoubles;

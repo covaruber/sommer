@@ -582,7 +582,77 @@ version 4.4.81 (2026-09-30)
    rows and pairs residual records without ave(); input preparation for
    large data is several times faster and uses far less memory.
 
+########################
+version 4.4.90 (2026-10-13)
+########################
+
+  Engine speed work for ai_mme_sp2 (details and measurements in
+  src/ai-mme-sp2-acceleration-plan.md).
+ + New mmes_control(experimental=list(profile="force")) records per-phase
+   seconds and workload counters in fit$engineDiagnostics$profile. New
+   profile_mme_workload() tabulates them; run_mme_benchmark() carries phase_*
+   columns; benchmarks/profile_phase0.R profiles AR(p), SAR/CAR and dense-Gu fits.
+ + New mmes_control(memoryPolicy="speed"|"limit"), default "speed": when the
+   CHOLMOD selected-inverse caches do not fit denseMemoryMB the fit stops and
+   reports the memory needed, instead of a silently slower fallback
+   ("limit" keeps the old fallbacks).
+ + The block-banded engine is no longer chosen automatically (up to 80x slower
+   than generic CHOLMOD on AR1 fits); it remains available with
+   experimental=list(blockBanded="force").
+ + General dense block-Schur admission now compares predicted sparse-factor
+   work (AMD symbolic fill) with dense-plan cost instead of block density.
+   Coupled plans require a work/cost ratio of at least 0.05; uncoupled groups
+   retain their solve/trace fast path. Invalid estimates do not admit Schur.
+   An isolated low-fill random-graph fixture improved from 2.968 s to 0.641 s,
+   with maximum relative output differences below 1.6e-9 across nine fixtures.
+   Chain/latent/banded policies are unchanged by this guard. The CHOLMOD dense
+   inverse-block cache still skips sparse groups. The provisional 64/1000
+   fragmentation rule was removed after true on/off validation contradicted
+   the earlier memory-budget proxy comparison.
+ + The positive-definiteness check of single-factor covariance structures with
+   >= 128 effects (SAR, CAR, large AR/Toeplitz) uses a shifted Cholesky test
+   instead of an eigendecomposition; identical fits, 2-4x less time in the
+   constraint step.
+ + mmes() starting values for variance components no longer use a dense QR
+   of the fixed-effects design (a 12000 x 1000 design spent about 90% of the
+   wall time there with multithreaded BLAS); a sparse normal-equations solve
+   is used for well-conditioned full-rank designs. Same converged estimates,
+   about 6x faster end to end on that model.
+ + New mmes_control(experimental=list(blockSchur="auto"|"off"|"force")) to
+   disable (off) or bypass the density/group-size rules of (force) the block
+   elimination engines; engineDiagnostics$profile gains traceFallbackSolves.
+ + Opt-in experimental=list(traceBatch="force") batches exact LDLT random-score
+   fallback solves in independent OpenMP panels, without the shared solve lock.
+   A 1000-level AR2 fixture improves from 7.959 s to 6.084 s with four threads;
+   likelihood, scores, AI, estimates and uncertainty match the old exact path.
+   Peak RSS increases about 14.2 MiB. One-thread fits do not benefit, so the
+   default stays off. Panel scratch obeys speed/limit memory policies.
+   New profile counters: traceBatchSolves and traceBatchWorkspaceBytes.
+ + Opt-in experimental=list(sparseFactors="force") uses exact sparse AR(p)/ANTE
+   precision operands in derivative products and tensor applications, compact
+   ANTE innovation rows, and sparse SAR/CAR covariance/derivative solves.
+   On paired 1000-level fixtures, whole-fit medians improve from 6.287 s to
+   4.770 s for SAR and 5.699 s to 4.168 s for CAR; peak RSS falls about
+   114.9 MiB and 45.0 MiB, respectively. Likelihood, scores, AI, estimates
+   and uncertainty agree within 5.23e-9 relative error across ten fixtures.
+   AR/ANTE whole-fit gains are modest or unestablished, so defaults stay off.
+   Dense compatibility and covariance-derivative storage remain; no derivative
+   thresholding, PCG estimator change, or optimizer change is introduced.
+ + LDLT selected inverse indexes dense columns by position instead of hashing
+   (solver="ldlt" with a dense Gu, 300 individuals: 72 s to 16.5 s).
+
+ + ai_mme_sp2 now delegates covariance evaluation, precision, derivatives and
+   tensor operations to a shared covariance engine. Structured kernels use
+   representation capabilities rather than model labels, including custom
+  modified-Cholesky innovation callbacks. Saved built-in factors acquire
+  missing capabilities at the R compilation boundary. Path and workspace policy remains
+   in mme_paths.h; existing acceleration defaults and output names are retained.
+ + BUG FIX complete-block ANTE residuals with sparseFactors="force" no longer
+   reject valid covariance derivative indices. Multi-factor SAR/CAR scores now
+   include the Kronecker log-determinant multiplicity. Sparse spatial evaluation
+   caches obey their aggregate entry allowance without unsigned underflow.
+
 ######################
-## PENDINGS AND PRIORITIES 
+## PENDINGS AND PRIORITIES
 + Fix plot.mmes
 + check how dense schur engine is used when more than one random term with dense Gu is used
