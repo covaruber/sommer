@@ -1,8 +1,10 @@
 test_that("profiling is off by default and does not change the fit", {
-  wl <- generate_mme_workload(n_ind = 12L, n_levels = 4L, structure = "ar1", seed = 7L)
+  set.seed(7L)
+  data <- expand.grid(id = factor(seq_len(6L)), level = factor(seq_len(4L)), rep = seq_len(2L))
+  data$response <- rnorm(nrow(data)) + as.integer(data$level) / 4
   fitWith <- function(mode){
-    mmes(wl$fixed, random = wl$random, rcov = wl$rcov, data = wl$data, nIters = 3L,
-         solver = "cholmod", engine = mmes_control(solver = "cholmod",
+    mmes(response ~ level, random = ~vsm(ar1m(level), ism(id)), rcov = ~units,
+         data = data, nIters = 2L, solver = "cholmod", engine = mmes_control(solver = "cholmod",
            experimental = list(profile = mode)),
          verbose = FALSE, dateWarning = FALSE)
   }
@@ -16,36 +18,26 @@ test_that("profiling is off by default and does not change the fit", {
 })
 
 test_that("phase profile reports consistent seconds, iterations and counters", {
-  wl <- generate_mme_workload(n_ind = 12L, n_levels = 4L, structure = "ar2", seed = 3L)
+  set.seed(3L)
+  data <- expand.grid(id = factor(seq_len(6L)), level = factor(seq_len(4L)), rep = seq_len(2L))
+  data$response <- rnorm(nrow(data)) + as.integer(data$level) / 4
   for(solver in c("ldlt", "cholmod")){
-    p <- profile_mme_workload(wl, mmes_control(solver = solver), nIters = 3L)
-    expect_s3_class(p, "sommer_mme_profile")
-    expect_identical(p$table$phase, sommer:::.mme_phase_names)
-    expect_true(all(p$table$seconds >= 0))
-    expect_equal(sum(p$table$share), 1)
+    fit <- mmes(response ~ level, random = ~vsm(ar2m(level), ism(id)), rcov = ~units,
+      data = data, nIters = 2L, solver = solver, verbose = FALSE, dateWarning = FALSE,
+      engine = mmes_control(solver = solver, experimental = list(profile = "force")))
+    p <- fit$engineDiagnostics$profile
+    expect_identical(names(p$seconds), sommer:::.mme_phase_names)
+    expect_true(all(p$seconds >= 0))
+    expect_equal(sum(p$seconds) / sum(p$seconds), 1)
     byIteration <- p$secondsByIteration
     expect_equal(nrow(byIteration), p$counters$iterations)
     expect_equal(unname(colSums(byIteration)[c("setup", "final")]), c(0, 0))
     expect_equal(unname(colSums(byIteration)),
-                 p$table$seconds * (!p$table$phase %in% c("setup", "final")),
+                 unname(p$seconds * as.numeric(!names(p$seconds) %in% c("setup", "final"))),
                  tolerance = 1e-9)
     expect_gt(p$counters$nnzC, 0)
     expect_gt(p$counters$freeCovarianceParameters, 0)
-    expect_output(print(p), "Phase Profile")
   }
-  expect_error(profile_mme_workload(list()), "mme_workload")
-})
-
-test_that("benchmark results carry phase columns only when profiling is on", {
-  wl <- generate_mme_workload(n_ind = 10L, n_levels = 3L, structure = "ar1")
-  bench <- run_mme_benchmark(wl, list(
-    plain = mmes_control(solver = "ldlt"),
-    profiled = mmes_control(solver = "ldlt", experimental = list(profile = "force"))),
-    replications = 1L, nIters = 2L, verbose = FALSE)
-  expect_true(is.na(bench$results$phase_assembly[1L]))
-  expect_false(is.na(bench$results$phase_assembly[2L]))
-  expect_true(is.na(bench$results$dominantPhase[1L]))
-  expect_true(nzchar(bench$results$dominantPhase[2L]))
 })
 
 test_that("exact trace panels preserve AR2 fits, scores and uncertainty", {

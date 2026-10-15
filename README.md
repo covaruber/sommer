@@ -10,6 +10,31 @@ You can install the development version of `sommer` from GitHub:
 remotes::install_github('covaruber/sommer')
 ```
 
+### Optional GPU Kernels
+
+The Henderson solver uses one implementation for CPU and optional CUDA dense
+kernels. CPU is the default. Package startup checks NVIDIA hardware first, then
+CUDA readiness, and reports whether GPU use can be enabled.
+
+On Linux, install a compatible NVIDIA driver and CUDA toolkit, then build from
+source:
+
+```sh
+SOMMER_CUDA_HOME=/path/to/cuda R CMD INSTALL --preclean .
+```
+
+Enable eligible kernels globally with `options(sommer.mme.gpu = TRUE)`, or pass
+`engine = mmes_control(gpu = TRUE, gpuMinSize = 256L)` to `mmes()`. Set
+`gpu = FALSE` in the control object to override the global option. The threshold
+also defaults from `options(sommer.mme.gpuMinSize = 256L)`.
+
+CUDA runtime, cuBLAS, and cuSOLVER libraries load dynamically. CPU fitting does
+not require them, even in a CUDA-enabled build. Explicit GPU requests stop when
+unavailable. Only eligible dense kernels are accelerated; sparse work remains
+on CPU, and transfers can outweigh gains. Direct inversion and `solveOnly`
+remain CPU-only. See `?mmes` and `?mmes_control` for requirements and the
+`gpuDiagnostics` counters.
+
 ## Home website
 
 Want to know more about the sommer project or you need professional services? Visit https://covaruber.github.io/sommer/ 

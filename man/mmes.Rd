@@ -10,9 +10,10 @@
 Fits a generalized linear mixed model
 coded in C++ using the Armadillo and Eigen libraries to optimize matrix 
 operations. Special covariance structures can be specified with the \code{\link{vsm}()}
-function. Two engines are available; henderson formulation and direct reml (henderson argument) and 
-three solvers in each; ldlt, cholmod and pcg (solver argument) to adjust to the
-modeling situation.
+function. Two engines are available: Henderson mixed model equations and direct
+observation-space REML/ML, selected by \code{henderson}. The Henderson engine
+supports \code{ldlt}, \code{cholmod}, and \code{pcg} solvers. Both CPU and
+optional CUDA dense kernels use the same Henderson algorithm.
 
 
 }
@@ -482,17 +483,44 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   iterative PCG configuration, and experimental numerical paths (e.g.,
   block-banded Cholesky, multi-factor latent Woodbury Schur complements,
   D-first ML, matrix-free PCG priors, and supernodal selected-inverse modes).
+  GPU dense kernels are opt-in through \code{mmes_control(gpu=TRUE)}. The
+  \code{gpuMinSize} control defaults to
+  \code{getOption("sommer.mme.gpuMinSize", 256L)}.
   When provided, \code{engine} overrides the legacy top-level solver and iterative
   arguments in a cleanly encapsulated, thread-isolated structure.}
 
   \item{\dots}{Additional solver options or legacy arguments (such as \code{acceleration},
   \code{factorScoreAugmentation}, \code{pcgTol}, \code{pcgTraceProbes}, \code{pcgPreconditioner},
-  \code{denseMemoryMB}) automatically forwarded to \code{\link{mmes_control}}.}
+  \code{denseMemoryMB}, \code{gpu}, and \code{gpuMinSize}) automatically forwarded
+  to \code{\link{mmes_control}}.}
 
   \item{.internal}{Internal parameter list reserved for nested recursive calls (e.g. PQL inner fits).}
 }
 
 \details{
+
+\strong{Optional GPU kernels}
+
+CPU is the default. Set \code{options(sommer.mme.gpu=TRUE)} to request CUDA
+kernels by default, or use \code{engine=mmes_control(gpu=TRUE)} for one fit.
+Explicit \code{gpu=FALSE} controls override the global option. Package startup
+checks accessible NVIDIA hardware before probing CUDA libraries and reports
+whether GPU use is ready, libraries or a CUDA-enabled build are missing, or
+device initialization failed. A compatible NVIDIA driver, CUDA runtime,
+cuBLAS, cuSOLVER, and a CUDA-enabled sommer build are required.
+
+On Linux, build with \code{SOMMER_CUDA_HOME=/path/to/cuda R CMD INSTALL --preclean .}.
+CUDA libraries load dynamically, so the same build can fit on CPU without them.
+Explicit GPU requests stop if unavailable; direct inversion and \code{solveOnly}
+remain CPU-only. GPU use does not alter the existing \code{solver="auto"} policy.
+
+Eligible dense Cholesky factorizations, triangular solves, and Schur products
+can use CUDA. Sparse factorization, assembly, and remaining trace operations
+remain on CPU. Small operations stay on CPU according to \code{gpuMinSize}.
+The returned \code{gpuDiagnostics} contains \code{enabled}, \code{minimumSize},
+\code{choleskyCalls}, \code{triangularSolveCalls}, and \code{productCalls};
+zero counters mean no GPU kernels ran. Operands currently transfer per operation,
+so GPU availability alone does not imply faster fitting.
 
 \strong{Iteration output}
 

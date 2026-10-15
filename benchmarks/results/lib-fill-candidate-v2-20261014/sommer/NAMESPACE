@@ -9,7 +9,7 @@ export(
 
 ## FUN_main
 export(mmes, vsm,
-       mmes_control, mme_control,
+       mmes_control,
        generate_mme_workload, mme_workload_grid,
        run_mme_benchmark, analyze_mme_crossovers, profile_mme_workload,
        mmer, vsr,
@@ -72,7 +72,7 @@ S3method(print, coef.mmes)
 S3method(print, summary.mmes)
 S3method(print, wald.mmes)
 S3method(print, mmesSolve)
-S3method(print, sommer_mme_control)
+S3method(print, sommer_mmes_control)
 S3method(print, sommer_mme_benchmark)
 S3method(print, sommer_mme_crossover)
 S3method(print, sommer_mme_profile)
@@ -112,5 +112,3 @@ S3method("[", binm)
              "nobs", "ppoints", "sd", "model.frame", "model.response", "na.pass",
              "cor", "optim", "rchisq","quantile","deriv","terms.formula",
              "aggregate","pf","terms", "reshape","ave", "plogis", "qlogis")
-
-

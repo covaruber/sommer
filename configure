@@ -10,6 +10,12 @@ CPPFLAGS=$("${R_HOME}/bin/R" CMD config CPPFLAGS)
 
 SOMMER_METIS_CPPFLAGS=""
 SOMMER_METIS_LIBS=""
+SOMMER_CUDA_CPPFLAGS="${SOMMER_CUDA_CPPFLAGS:-}"
+SOMMER_CUDA_LIBS="${SOMMER_CUDA_LIBS:-}"
+SOMMER_GPU_LOADER_LIBS=""
+case "$(uname -s)" in
+  Linux*) SOMMER_GPU_LOADER_LIBS="-ldl" ;;
+esac
 
 METIS_CPPFLAGS=""
 METIS_LIBS="-lmetis"
@@ -25,8 +31,8 @@ cat > "${tmpbase}.cpp" <<'EOF'
 int main(){ idx_t n = 0; (void)n; return 0; }
 EOF
 
-if "${CXX}" ${CPPFLAGS} ${METIS_CPPFLAGS} -c "${tmpbase}.cpp" -o "${tmpbase}.o" > "${tmpbase}.log" 2>&1; then
-  if "${CXX}" "${tmpbase}.o" -o "${tmpbase}.bin" ${METIS_LIBS} >> "${tmpbase}.log" 2>&1; then
+if ${CXX} ${CPPFLAGS} ${METIS_CPPFLAGS} -c "${tmpbase}.cpp" -o "${tmpbase}.o" > "${tmpbase}.log" 2>&1; then
+  if ${CXX} "${tmpbase}.o" -o "${tmpbase}.bin" ${METIS_LIBS} >> "${tmpbase}.log" 2>&1; then
     SOMMER_METIS_CPPFLAGS="-DSOMMER_HAVE_METIS ${METIS_CPPFLAGS}"
     SOMMER_METIS_LIBS="${METIS_LIBS}"
   fi
@@ -40,9 +46,53 @@ else
   echo "configure: METIS not found - using Eigen's built-in AMD ordering (default)."
 fi
 
+if [ -n "${SOMMER_CUDA_HOME:-}" ] || [ -n "${SOMMER_CUDA_CPPFLAGS}" ] || [ -n "${SOMMER_CUDA_LIBS}" ]; then
+  if [ -n "${SOMMER_CUDA_HOME:-}" ]; then
+    : "${SOMMER_CUDA_CPPFLAGS:=-I${SOMMER_CUDA_HOME}/include}"
+    cuda_libdir="${SOMMER_CUDA_HOME}/lib64"
+    if [ ! -d "${cuda_libdir}" ]; then
+      cuda_libdir="${SOMMER_CUDA_HOME}/lib"
+    fi
+    : "${SOMMER_CUDA_LIBS:=-L${cuda_libdir} -Wl,-rpath,${cuda_libdir} -lcusolver -lcublas -lcudart}"
+  fi
+  tmpbase="${TMPDIR:-/tmp}/sommer_cuda_test_$$"
+  cat > "${tmpbase}.cpp" <<'EOF'
+#include <cuda_runtime_api.h>
+#include <cublas_v2.h>
+#include <cusolverDn.h>
+int main(){
+  cublasHandle_t blas;
+  cusolverDnHandle_t solver;
+  cublasCreate(&blas);
+  cusolverDnCreate(&solver);
+  cusolverDnDestroy(solver);
+  cublasDestroy(blas);
+  return static_cast<int>(cudaFree(nullptr));
+}
+EOF
+  if ! ${CXX} ${CPPFLAGS} ${SOMMER_CUDA_CPPFLAGS} "${tmpbase}.cpp" \
+      -o "${tmpbase}.bin" ${SOMMER_CUDA_LIBS} > "${tmpbase}.log" 2>&1; then
+    echo "configure: requested CUDA toolkit failed the compile/link check."
+    cat "${tmpbase}.log"
+    rm -f "${tmpbase}.cpp" "${tmpbase}.bin" "${tmpbase}.log"
+    exit 1
+  fi
+  rm -f "${tmpbase}.cpp" "${tmpbase}.bin" "${tmpbase}.log"
+  SOMMER_CUDA_CPPFLAGS="-DSOMMER_HAVE_CUDA ${SOMMER_CUDA_CPPFLAGS}"
+  SOMMER_CUDA_LIBS=$(printf '%s\n' "${SOMMER_CUDA_LIBS}" | sed \
+    -e 's/-lcusolver//g' -e 's/-lcublas//g' -e 's/-lcudart//g')
+  echo "configure: CUDA kernels enabled for ai_mme_sp2(); libraries load only on GPU requests."
+else
+  echo "configure: CUDA kernels disabled; CPU fitting remains available."
+fi
+
 sed \
   -e "s|@SOMMER_METIS_CPPFLAGS@|${SOMMER_METIS_CPPFLAGS}|" \
   -e "s|@SOMMER_METIS_LIBS@|${SOMMER_METIS_LIBS}|" \
+  -e "s|@SOMMER_CUDA_CPPFLAGS@|${SOMMER_CUDA_CPPFLAGS}|" \
+  -e "s|@SOMMER_CUDA_LIBS@|${SOMMER_CUDA_LIBS}|" \
+  -e "s|@SOMMER_GPU_LOADER_LIBS@|${SOMMER_GPU_LOADER_LIBS}|" \
+  -e 's/[[:space:]]*$//' \
   src/Makevars.in > src/Makevars
 
 exit 0

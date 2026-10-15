@@ -1,6 +1,5 @@
 \name{mmes_control}
 \alias{mmes_control}
-\alias{mme_control}
 \title{Mixed Model Equation Solver Control and Experimental Options}
 \description{
 Constructs a structured configuration object for \code{\link{mmes}}, encapsulating
@@ -17,17 +16,9 @@ mmes_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
              recordDiagnostics = TRUE,
              verboseDiagnostics = FALSE,
              memoryPolicy = NULL,
+             gpu = NULL,
+             gpuMinSize = NULL,
              \dots)
-
-mme_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
-            denseMemoryMB = NULL,
-            experimental = list(),
-            pcg = list(),
-            acceleration = c("none", "aitken"),
-            factorScoreAugmentation = c("none", "fixed-shape", "profile"),
-            recordDiagnostics = TRUE,
-            verboseDiagnostics = FALSE,
-            \dots)
 }
 \arguments{
   \item{solver}{Backend linear solver for coefficient matrix factorization.
@@ -81,10 +72,20 @@ mme_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
 
   \item{verboseDiagnostics}{Logical; whether to print diagnostic details during execution. Default is \code{FALSE}.}
 
+  \item{gpu}{Logical; enable eligible CUDA dense kernels in the unified Henderson
+  solver. Defaults to \code{getOption("sommer.mme.gpu", FALSE)}. Requires accessible
+  NVIDIA hardware, compatible CUDA runtime, cuBLAS and cuSOLVER libraries, and a
+  CUDA-enabled sommer build. Explicit requests stop when unavailable; CPU remains
+  the default. Direct inversion and \code{solveOnly} remain CPU-only.}
+
+  \item{gpuMinSize}{Positive integer; minimum matrix size for CUDA kernels.
+  Defaults to \code{getOption("sommer.mme.gpuMinSize", 256L)}. Small eligible
+  operations stay on CPU. GPU call counters appear in \code{fit$gpuDiagnostics}.}
+
   \item{\dots}{Additional named parameters or legacy experimental arguments.}
 }
 \value{
-An object of class \code{"sommer_mme_control"}.
+An object of class \code{"sommer_mmes_control"}.
 }
 \seealso{
 \code{\link{mmes}}, \code{\link{generate_mme_workload}}, \code{\link{run_mme_benchmark}}

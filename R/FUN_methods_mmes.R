@@ -3,6 +3,8 @@
 #this function is executed once the library is loaded
 .onAttach = function(library, pkg)
 {
+  packageStartupMessage(get(".mmes_gpu_message", mode="function")(
+    get(".mmes_gpu_status", mode="function")()))
   Rv = R.Version()
   if(!exists("getRversion", baseenv()) || (getRversion() < "3.5.0"))
     stop("This package requires R 3.5.0 or later")

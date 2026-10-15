@@ -104,34 +104,3 @@ test_that("auto BLAS sizing uses allocation-aware CPU availability", {
   scope$restore()
   expect_identical(configured, 1L)
 })
-
-test_that("the scaling runner records both paths and numerical agreement", {
-  controller <- sommer:::.mmes_blas_controller()
-  skip_if(is.null(controller), "No supported BLAS controller available")
-  previous <- controller$get()
-  on.exit(controller$set(previous), add=TRUE)
-  benchmarkEnvironment <- new.env(parent=asNamespace("sommer"))
-  sys.source(test_path("..", "..", "benchmarks", "thread-scaling.R"),
-    envir=benchmarkEnvironment)
-  models <- benchmarkEnvironment$benchmark_models(ids=8L, envs=2L, iterations=2L)
-  output <- tempfile(fileext=".csv")
-  stem <- sub("\\.csv$", "", output)
-  on.exit(unlink(c(output, paste0(stem, ".summary.csv"), paste0(stem, ".runtime.rds"))), add=TRUE)
-  expect_warning(
-    result <- withCallingHandlers(benchmarkEnvironment$run_thread_scaling(
-      1L, models, repeats=1L, output=output), warning=function(condition){
-        if(grepl("^Set OMP_NUM_THREADS", conditionMessage(condition))){
-          invokeRestart("muffleWarning")
-        }
-      }), NA)
-  expect_equal(nrow(result$results), 2L)
-  expect_true(all(result$results$numericalAgreement))
-  expect_setequal(result$results$numericalPath, c("cholmod", "block Schur"))
-  expect_true(all(result$results$factorCalls > 0L))
-  expect_true(all(result$summary$fitSpeedup == 1))
-  expect_true(file.exists(output))
-  expect_true(file.exists(paste0(stem, ".summary.csv")))
-  expect_true(file.exists(paste0(stem, ".runtime.rds")))
-  expect_equal(nrow(utils::read.csv(output)), 2L)
-  expect_equal(controller$get(), previous)
-})

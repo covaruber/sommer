@@ -1,6 +1,8 @@
 test_that("mmes_control constructs valid solver and experimental configuration", {
+  expect_true("mmes_control" %in% getNamespaceExports("sommer"))
   ctrl <- mmes_control()
-  expect_s3_class(ctrl, "sommer_mme_control")
+  expect_s3_class(ctrl, "sommer_mmes_control")
+  expect_output(print(ctrl), "sommer MME Engine Control")
   expect_equal(ctrl$solver, "auto")
   expect_equal(ctrl$denseMemoryMB, 1000)
   expect_equal(ctrl$experimental$blockBanded, "auto")
@@ -60,7 +62,7 @@ test_that("mmes seamlessly accepts engine argument and reports control diagnosti
   fit <- mmes(Yield ~ Env, random = ~ Name, data = DT_example,
               nIters = 2L, engine = ctrl, verbose = FALSE, dateWarning = FALSE)
 
-  expect_s3_class(fit$engineControl, "sommer_mme_control")
+  expect_s3_class(fit$engineControl, "sommer_mmes_control")
   expect_equal(fit$engineControl$solver, "ldlt")
   expect_equal(fit$engineControl$denseMemoryMB, 800)
   expect_equal(fit$engineDiagnostics$control$solver, "ldlt")
@@ -70,7 +72,7 @@ test_that("mmes seamlessly accepts engine argument and reports control diagnosti
   # returnParam includes engine
   param <- mmes(Yield ~ Env, random = ~ Name, data = DT_example,
                 returnParam = TRUE, engine = ctrl, verbose = FALSE, dateWarning = FALSE)
-  expect_s3_class(param$engine, "sommer_mme_control")
+  expect_s3_class(param$engine, "sommer_mmes_control")
   expect_equal(param$engine$denseMemoryMB, 800)
 })
 

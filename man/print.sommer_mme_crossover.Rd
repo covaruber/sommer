@@ -4,7 +4,7 @@
 \alias{print.sommer_mme_crossover}
 \title{Print method for sommer_mme_crossover}
 \usage{
-print.sommer_mme_crossover(x, ...)
+\method{print}{sommer_mme_crossover}(x, ...)
 }
 \arguments{
 \item{x}{An object of class \code{sommer_mme_crossover}.}

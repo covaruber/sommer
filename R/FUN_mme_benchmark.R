@@ -412,6 +412,7 @@ profile_mme_workload <- function(workload, engine = mmes_control(), nIters = 5L,
 #' Print method for sommer_mme_profile
 #' @param x An object of class \code{sommer_mme_profile}.
 #' @param ... Ignored.
+#' @method print sommer_mme_profile
 #' @export
 print.sommer_mme_profile <- function(x, ...){
   cat("-- sommer MME Phase Profile:", x$workload, "--\n")
@@ -500,6 +501,7 @@ analyze_mme_crossovers <- function(benchmark,
 #' Print method for sommer_mme_benchmark
 #' @param x An object of class \code{sommer_mme_benchmark}.
 #' @param ... Ignored.
+#' @method print sommer_mme_benchmark
 #' @export
 print.sommer_mme_benchmark <- function(x, ...){
   cat("-- sommer MME Benchmark Results --\n")
@@ -514,6 +516,7 @@ print.sommer_mme_benchmark <- function(x, ...){
 #' Print method for sommer_mme_crossover
 #' @param x An object of class \code{sommer_mme_crossover}.
 #' @param ... Ignored.
+#' @method print sommer_mme_crossover
 #' @export
 print.sommer_mme_crossover <- function(x, ...){
   cat("-- sommer MME Crossover Analysis --\n")

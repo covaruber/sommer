@@ -70,8 +70,8 @@ postVarU                Post-fit Sampling Covariance of BLUPs
 predict.mmes            Predict form of a LMM fitted with mmes
 print.sommer_mme_benchmark
                         Print method for sommer_mme_benchmark
-print.sommer_mme_control
-                        Print method for sommer_mme_control
+print.sommer_mmes_control
+                        Print method for sommer_mmes_control
 print.sommer_mme_crossover
                         Print method for sommer_mme_crossover
 print.sommer_mme_profile

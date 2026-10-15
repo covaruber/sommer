@@ -16,4 +16,6 @@ PKG_CPPFLAGS = -DARMA_64BIT_WORD=1
 
 all: $(SHLIB)
 
-MNR.o: mme_paths.h mme_factors.h mme_covariance.h
+MNR.o: mme_paths.h mme_factors.h mme_covariance.h mme_sp2_support.h
+ai_mme_sp2.o: mme_paths.h mme_factors.h mme_covariance.h mme_sp2_support.h mme_gpu.h mme_cuda_runtime.h
+mme_gpu.o: mme_gpu.h mme_cuda_runtime.h

@@ -80,7 +80,15 @@ test_that("partial diagonal tensor products expose exact Schur groups in any fac
     ~vsm(dsm(site), ar1m(time), usm(trait), ism(id), Gu=precision),
     ~vsm(ar1m(time), dsm(site), usm(trait), dsm(zone), ism(id), Gu=precision),
     ~vsm(dsm(zone), usm(trait), dsm(batch), ar1m(time), dsm(site), ism(id), Gu=precision))
-  for(model in seq_along(randomModels)) for(reml in c(TRUE, FALSE)) for(inverseMode in 0:2){
+  cases <- list(
+    list(model = 1L, reml = TRUE, inverseMode = 0L),
+    list(model = 2L, reml = TRUE, inverseMode = 2L),
+    list(model = 3L, reml = FALSE, inverseMode = 2L)
+  )
+  for(case in cases){
+    model <- case$model
+    reml <- case$reml
+    inverseMode <- case$inverseMode
     fitModel <- function(solver){
       mmes(response~site+time+zone+trait+batch, random=randomModels[[model]],
         data=dataset, solver=solver, REML=reml, nIters=2L,

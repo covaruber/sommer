@@ -47,7 +47,6 @@ metricm	metricm
 mmer	mmer
 mmes	mmes
 mmes_control	mmes_control
-mme_control	mmes_control
 mme_workload_grid	generate_mme_workload
 mme_workload_grid	mme_workload_grid
 MNR	MNR
@@ -62,7 +61,7 @@ predict.mmes	predict_mmes
 print.mmer	DEPRECATED_summary_mmer
 print.mmes	summary_mmes
 print.sommer_mme_benchmark	print.sommer_mme_benchmark
-print.sommer_mme_control	print.sommer_mme_control
+print.sommer_mmes_control	print.sommer_mmes_control
 print.sommer_mme_crossover	print.sommer_mme_crossover
 print.sommer_mme_profile	print.sommer_mme_profile
 print.summary.mmer	DEPRECATED_summary_mmer

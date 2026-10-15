@@ -4,7 +4,7 @@
 \alias{print.sommer_mme_profile}
 \title{Print method for sommer_mme_profile}
 \usage{
-print.sommer_mme_profile(x, ...)
+\method{print}{sommer_mme_profile}(x, ...)
 }
 \arguments{
 \item{x}{An object of class \code{sommer_mme_profile}.}

@@ -116,13 +116,14 @@
   p <- ncol(inputs$X)
   if(isTRUE(inputs$henderson)){
     solver <- if(identical(object$solver, "cholmod")) "cholmod" else "ldlt"
-    r <- .Call("_sommer_ai_mme_sp2", PACKAGE="sommer",
+    r <- get("ai_mme_sp2", mode="function")(
                inputs$X, inputs$Z, inputs$Zind, inputs$Ai, inputs$yvar, inputs$W,
                inputs$useH, inputs$residualBlock, inputs$residualIndex,
                1L, 1e-4, 1e-4, inputs$tolParInv, cs, 0, 1, FALSE, 0L, solver,
                1e-8, 0L, 8L, 20L, isTRUE(inputs$REML),
                inputs$responsePrepared, inputs$preparedMean, inputs$preparedSd,
-               inputs$preparedIntercept)
+               inputs$preparedIntercept, gpu = isTRUE(inputs$engine$gpu),
+               gpuMinSize = if(is.null(inputs$engine$gpuMinSize)) 256L else inputs$engine$gpuMinSize)
     D <- cbind(Matrix::Diagonal(p), Matrix::Matrix(0, p, nrow(r$C) - p, sparse=TRUE))
     D <- as(as(D, "generalMatrix"), "CsparseMatrix")
     Phi <- as.matrix(predict_mmes_vcov_cpp(r, D))

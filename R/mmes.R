@@ -49,6 +49,12 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   if(length(henderson) != 1L || !is.logical(henderson) || is.na(henderson)){
     stop("henderson must be a single TRUE/FALSE value.", call.=FALSE)
   }
+  if(isTRUE(engineControl$gpu)){
+    if(!henderson || solveOnly){
+      stop("gpu=TRUE requires Henderson fitting; direct inversion and solveOnly remain CPU-only.", call.=FALSE)
+    }
+    get(".mmes_gpu_require", mode="function")()
+  }
   acceleration <- match.arg(acceleration, c("none", "aitken"))
   factorScoreAugmentation <- match.arg(factorScoreAugmentation,
     c("none", "fixed-shape", "profile"))
@@ -1164,7 +1170,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  verbose, computeCi, solver, pcgTol, pcgMaxIters,
                  pcgTraceProbes, pcgLanczosSteps, REML,
                  responsePrepared, preparedMean, preparedSd,
-                 preparedIntercept)
+                 preparedIntercept, engineControl$gpu, engineControl$gpuMinSize)
 
   }else{
     res <- .Call("_sommer_ai_reml_direct_sp2", PACKAGE="sommer",

@@ -7,7 +7,7 @@ library(sommer)
     cs[[i]]$par <- fit$covParWorking[[i]]
     cs[[i]]$free[] <- FALSE
   }
-  r <- .Call("_sommer_ai_mme_sp2", PACKAGE="sommer",
+  r <- sommer:::ai_mme_sp2(
              inputs$X, inputs$Z, inputs$Zind, inputs$Ai, inputs$yvar, inputs$W,
              inputs$useH, inputs$residualBlock, inputs$residualIndex,
              1L, 1e-4, 1e-4, inputs$tolParInv, cs, 0, 1, FALSE, 0L, "ldlt",

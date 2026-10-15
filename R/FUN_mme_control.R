@@ -50,11 +50,15 @@
 #'   \code{"fixed-shape"}, or \code{"profile"}.
 #' @param recordDiagnostics Logical; whether to capture detailed engine diagnostics in the fitted object. Default is TRUE.
 #' @param verboseDiagnostics Logical; whether to print diagnostic details during execution. Default is FALSE.
+#' @param gpu Logical; enable eligible CUDA dense kernels. Defaults to
+#'   \code{getOption("sommer.mme.gpu", FALSE)}. Requires usable NVIDIA hardware,
+#'   CUDA libraries, and a CUDA-enabled package build.
+#' @param gpuMinSize Positive integer; minimum matrix size for CUDA kernels.
+#'   Defaults to \code{getOption("sommer.mme.gpuMinSize", 256L)}.
 #' @param ... Additional experimental toggles or legacy options passed as named arguments.
 #'
-#' @return An object of class \code{"sommer_mme_control"}.
+#' @return An object of class \code{"sommer_mmes_control"}.
 #' @export
-#' @aliases mme_control
 mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
                          denseMemoryMB = NULL,
                          experimental = list(),
@@ -64,11 +68,28 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
                          recordDiagnostics = TRUE,
                          verboseDiagnostics = FALSE,
                          memoryPolicy = NULL,
+                         gpu = NULL,
+                         gpuMinSize = NULL,
                          ...){
   dots <- list(...)
+  if(is.null(gpu)) gpu <- getOption("sommer.mme.gpu", FALSE)
+  if(!is.logical(gpu) || length(gpu) != 1L || is.na(gpu)){
+    stop("gpu must be a single TRUE/FALSE value.", call.=FALSE)
+  }
+  if(is.null(gpuMinSize)) gpuMinSize <- getOption("sommer.mme.gpuMinSize", 256L)
+  if(!is.numeric(gpuMinSize) || length(gpuMinSize) != 1L ||
+     !is.finite(gpuMinSize) || gpuMinSize < 1 || gpuMinSize > .Machine$integer.max ||
+     gpuMinSize != floor(gpuMinSize)){
+    stop("gpuMinSize must be a positive integer.", call.=FALSE)
+  }
   if(missing(solver) || is.null(solver)){
     solver <- "auto"
   } else {
+    solverChoices <- c("auto", "ldlt", "cholmod", "pcg")
+    if(!is.character(solver) || length(solver) < 1L || is.na(solver[1L]) ||
+       !tolower(solver[1L]) %in% solverChoices){
+      stop("solver must be one of 'auto', 'ldlt', 'cholmod', or 'pcg'.", call.=FALSE)
+    }
     solver <- match.arg(tolower(solver[1L]), c("auto", "ldlt", "cholmod", "pcg"))
   }
 
@@ -204,6 +225,8 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
 
   control <- list(
     solver = solver,
+    gpu = gpu,
+    gpuMinSize = as.integer(gpuMinSize),
     denseMemoryMB = denseMemoryMB,
     memoryPolicy = memoryPolicy,
     experimental = expResolved,
@@ -213,39 +236,19 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
     recordDiagnostics = isTRUE(recordDiagnostics),
     verboseDiagnostics = isTRUE(verboseDiagnostics)
   )
-  class(control) <- "sommer_mme_control"
+  class(control) <- "sommer_mmes_control"
   control
 }
 
-#' @rdname mmes_control
-#' @export
-mme_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
-                        denseMemoryMB = NULL,
-                        experimental = list(),
-                        pcg = list(),
-                        acceleration = c("none", "aitken"),
-                        factorScoreAugmentation = c("none", "fixed-shape", "profile"),
-                        recordDiagnostics = TRUE,
-                        verboseDiagnostics = FALSE,
-                        ...){
-  mmes_control(solver = solver,
-               denseMemoryMB = denseMemoryMB,
-               experimental = experimental,
-               pcg = pcg,
-               acceleration = acceleration,
-               factorScoreAugmentation = factorScoreAugmentation,
-               recordDiagnostics = recordDiagnostics,
-               verboseDiagnostics = verboseDiagnostics,
-               ...)
-}
-
-#' Print method for sommer_mme_control
-#' @param x An object of class \code{sommer_mme_control}.
+#' Print method for sommer_mmes_control
+#' @param x An object of class \code{sommer_mmes_control}.
 #' @param ... Ignored.
+#' @method print sommer_mmes_control
 #' @export
-print.sommer_mme_control <- function(x, ...){
+print.sommer_mmes_control <- function(x, ...){
   cat("-- sommer MME Engine Control --\n")
   cat("Solver backend       :", x$solver, "\n")
+  cat("GPU dense kernels    :", isTRUE(x$gpu), "\n")
   cat("Dense memory budget  :", x$denseMemoryMB, "MB\n")
   cat("Memory policy        :", x$memoryPolicy, "\n")
   cat("Acceleration         :", x$acceleration, "\n")
@@ -266,8 +269,13 @@ print.sommer_mme_control <- function(x, ...){
                                 solver = "auto",
                                 ...){
   dots <- list(...)
-  if(inherits(engine, "sommer_mme_control")){
+  if(inherits(engine, "sommer_mmes_control")){
     ctrl <- engine
+    gpuControl <- mmes_control(
+      gpu = if("gpu" %in% names(dots)) dots$gpu else ctrl$gpu,
+      gpuMinSize = if("gpuMinSize" %in% names(dots)) dots$gpuMinSize else ctrl$gpuMinSize)
+    ctrl$gpu <- gpuControl$gpu
+    ctrl$gpuMinSize <- gpuControl$gpuMinSize
     if(!missing(solver) && !is.null(solver) && !identical(solver, "auto")){
       ctrl$solver <- tolower(solver[1L])
     }
@@ -333,6 +341,8 @@ print.sommer_mme_control <- function(x, ...){
 
   mmes_control(
     solver = solver,
+    gpu = if("gpu" %in% names(dots)) dots$gpu else NULL,
+    gpuMinSize = if("gpuMinSize" %in% names(dots)) dots$gpuMinSize else NULL,
     denseMemoryMB = denseMB,
     memoryPolicy = if("memoryPolicy" %in% names(dots)) dots$memoryPolicy else NULL,
     experimental = expList,

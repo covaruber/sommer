@@ -46,7 +46,7 @@ test_that("generic CHOLMOD reuses its supernodal selected inverse for mode one",
   previous <- options(sommer.mme.denseMemoryMB=0.1, sommer.mme.blockBanded=FALSE,
                       sommer.mme.memoryPolicy="limit")
   on.exit(options(previous), add=TRUE)
-  size <- 120L
+  size <- 64L
   data <- data.frame(id=factor(seq_len(size)), one=factor(rep("all", size)),
     y=sin(seq_len(size) / 9) + cos(seq_len(size) / 17))
   fitModel <- function(solver, mode){

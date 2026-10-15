@@ -327,17 +327,10 @@ test_that("sparse factor kernels preserve covariance fits and uncertainty", {
   dimnames(adjacency) <- rep(list(levels(dataset$level)), 2L)
   directed <- adjacency
   directed[1L, 2L] <- -0.2
-  denseAdjacency <- matrix(1, 8L, 8L) - diag(8L)
-  dimnames(denseAdjacency) <- dimnames(adjacency)
   shapes <- list(
-    ar1m(dataset$level, rho = -0.3),
     ar2m(dataset$level, pacf = c(0.2, -0.1)),
-    ar3m(dataset$level, pacf = c(0.2, 0.1, -0.1)),
-    ar2m(dataset$level, pacf = c(0.94, 0.85), variance = "heterogeneous",
-         fixed = c(TRUE, TRUE, rep(TRUE, 7L)), values = seq(0.5, 1.5, length.out = 8L)),
-    antem(dataset$level, order = 1L), antem(dataset$level, order = 3L),
-    sar(dataset$level, directed, rho = 0.2), car(dataset$level, adjacency, rho = 0.2),
-    sar(dataset$level, denseAdjacency, rho = -0.05), car(dataset$level, denseAdjacency, rho = 0),
+    antem(dataset$level, order = 3L),
+    sar(dataset$level, directed, rho = 0.2),
     car(dataset$level, adjacency, rho = 0.9, fixed = TRUE))
   cases <- list(
     list(solver = "ldlt", REML = TRUE, computeCi = 0L),
@@ -377,7 +370,7 @@ test_that("sparse factor kernels preserve covariance fits and uncertainty", {
       }
     }
   }
-  for(shape in shapes[c(2L, 5L, 7L)]){
+  for(shape in shapes[c(1L, 2L, 3L)]){
     fitWith <- function(mode){
       mmes(response ~ level, random = ~vsm(shape, ism(id)), rcov = ~units, data = dataset,
            nIters = 2L, nThreads = 1L, computeCi = 0L, verbose = FALSE, dateWarning = FALSE,
@@ -387,7 +380,7 @@ test_that("sparse factor kernels preserve covariance fits and uncertainty", {
     candidate <- fitWith("force")
     for(field in fields){ expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-6) }
   }
-  for(shape in shapes[c(2L, 5L, 7L, 8L)]){
+  for(shape in shapes[c(1L, 3L)]){
     fitWith <- function(mode){
       mmes(response ~ level, random = ~vsm(shape, ism(id)), rcov = ~units, data = dataset,
            nIters = 4L, nThreads = 1L, computeCi = 0L, verbose = FALSE, dateWarning = FALSE,

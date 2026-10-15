@@ -1,0 +1,144 @@
+gpuEngineArguments <- function(workload, solver = "cholmod", inverseMode = 0L,
+                               reml = TRUE){
+  setup <- mmes(workload$fixed, random = workload$random, rcov = workload$rcov,
+    data = workload$data, nIters = 2L, nThreads = 1L, computeCi = inverseMode,
+    getPEV = inverseMode > 0L, verbose = FALSE, dateWarning = FALSE,
+    returnParam = TRUE, REML = reml,
+    engine = mmes_control(solver = solver,
+      experimental = list(blockSchur = if(solver == "cholmod") "force" else "off")))
+  list(X = setup$X, ZI = setup$Z, Zind = setup$Zind, AiI = setup$Ai,
+    y0 = setup$yvar, H = setup$W, useH = setup$useH,
+    residualBlockI = setup$residualBlock, residualIndexI = setup$residualIndex,
+    nIters = setup$nIters, tolParConvLL = setup$tolParConvLL,
+    tolParConvNorm = setup$tolParConvNorm, tolParInv = setup$tolParInv,
+    covStructI = setup$covStruct, weightEmInf = setup$emWeight,
+    weightInf = setup$stepWeight, verbose = FALSE, computeCi = inverseMode,
+    solver = solver, reml = reml, responsePrepared = setup$responsePrepared,
+    preparedMean = setup$preparedMean, preparedSd = setup$preparedSd,
+    preparedIntercept = setup$preparedIntercept)
+}
+
+test_that("unified solver preserves CPU results with GPU disabled", {
+  for(structure in c("ar1", "ar2")){
+    workload <- generate_mme_workload(n_ind = 6L, n_levels = 4L,
+      structure = structure, relationship = "dense", seed = 37L)
+    for(solver in c("ldlt", "cholmod", "pcg")){
+      arguments <- gpuEngineArguments(workload, solver)
+      reference <- do.call(sommer:::ai_mme_sp2, arguments)
+      candidate <- do.call(sommer:::ai_mme_sp2, c(arguments, list(gpu = FALSE)))
+      for(field in c("llik", "theta", "bu", "InfMat", "dLu", "theta_se", "C")){
+        expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-10)
+      }
+      expect_false(candidate$gpuDiagnostics$enabled)
+      expect_equal(candidate$gpuDiagnostics$choleskyCalls, 0)
+      expect_equal(candidate$gpuDiagnostics$triangularSolveCalls, 0)
+      expect_equal(candidate$gpuDiagnostics$productCalls, 0)
+    }
+  }
+})
+
+test_that("unified solver preserves final inverse and ML CPU paths", {
+  workload <- generate_mme_workload(n_ind = 6L, n_levels = 4L,
+    structure = "ar1", relationship = "dense", seed = 38L)
+  for(inverseMode in 1:2){
+    arguments <- gpuEngineArguments(workload, inverseMode = inverseMode)
+    reference <- do.call(sommer:::ai_mme_sp2, arguments)
+    candidate <- do.call(sommer:::ai_mme_sp2, c(arguments, list(gpu = FALSE)))
+    expect_equal(candidate$Ci, reference$Ci, tolerance = 1e-10)
+    expect_equal(candidate$uPevList, reference$uPevList, tolerance = 1e-10)
+  }
+  arguments <- gpuEngineArguments(workload, reml = FALSE)
+  reference <- do.call(sommer:::ai_mme_sp2, arguments)
+  candidate <- do.call(sommer:::ai_mme_sp2, c(arguments, list(gpu = FALSE)))
+  expect_equal(candidate$llik, reference$llik, tolerance = 1e-10)
+  expect_equal(candidate$bu, reference$bu, tolerance = 1e-10)
+  expect_error(do.call(sommer:::ai_mme_sp2,
+    c(arguments, list(gpu = FALSE, gpuMinSize = 0L))), "gpuMinSize")
+})
+
+test_that("GPU requests either use CUDA or report an explicit backend error", {
+  workload <- generate_mme_workload(n_ind = 6L, n_levels = 4L,
+    structure = "ar1", relationship = "dense", seed = 40L)
+  result <- tryCatch(do.call(sommer:::ai_mme_sp2,
+    c(gpuEngineArguments(workload), list(gpu = TRUE, gpuMinSize = 1L))),
+    error = identity)
+  if(inherits(result, "error")){
+    expect_match(conditionMessage(result), "CUDA|cuBLAS|cuSOLVER|GPU")
+  }else{
+    expect_true(result$gpuDiagnostics$enabled)
+    expect_gt(result$gpuDiagnostics$choleskyCalls, 0)
+  }
+})
+
+test_that("CUDA kernels match CPU fits when GPU testing is enabled", {
+  skip_if(Sys.getenv("SOMMER_TEST_CUDA") != "true",
+    "Set SOMMER_TEST_CUDA=true on a CUDA build with an NVIDIA GPU")
+  workload <- generate_mme_workload(n_ind = 8L, n_levels = 4L,
+    structure = "ar1", relationship = "dense", seed = 39L)
+  for(inverseMode in c(0L, 2L)){
+    arguments <- gpuEngineArguments(workload, inverseMode = inverseMode)
+    reference <- do.call(sommer:::ai_mme_sp2, arguments)
+    candidate <- do.call(sommer:::ai_mme_sp2,
+      c(arguments, list(gpu = TRUE, gpuMinSize = 1L)))
+    for(field in c("llik", "theta", "bu", "InfMat", "Ci", "uPevList")){
+      expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-7)
+    }
+    expect_gt(candidate$gpuDiagnostics$choleskyCalls, 0)
+    expect_gt(candidate$gpuDiagnostics$triangularSolveCalls, 0)
+    expect_gt(candidate$gpuDiagnostics$productCalls, 0)
+  }
+})
+
+test_that("CUDA library checks only run when NVIDIA hardware is detected", {
+  checked <- FALSE
+  libraries <- function(){
+    checked <<- TRUE
+    list(libraries = TRUE, compiled = TRUE, available = TRUE, reason = "")
+  }
+  absent <- sommer:::.mmes_gpu_status(function() FALSE, libraries)
+  expect_false(checked)
+  expect_false(absent$available)
+  expect_match(sommer:::.mmes_gpu_message(absent), "only CPU")
+  ready <- sommer:::.mmes_gpu_status(function() TRUE, libraries)
+  expect_true(checked)
+  expect_true(ready$available)
+  expect_match(sommer:::.mmes_gpu_message(ready), "sommer.mme.gpu=TRUE")
+})
+
+test_that("startup guidance distinguishes missing libraries, builds and drivers", {
+  status <- function(libraries, compiled, available = FALSE, reason = "probe failure"){
+    sommer:::.mmes_gpu_status(function() TRUE, function()
+      list(libraries = libraries, compiled = compiled, available = available,
+        reason = reason))
+  }
+  expect_match(sommer:::.mmes_gpu_message(status(FALSE, TRUE)), "Install compatible CUDA")
+  expect_match(sommer:::.mmes_gpu_message(status(TRUE, FALSE)), "Reinstall")
+  expect_match(sommer:::.mmes_gpu_message(status(TRUE, TRUE)), "initialization failed")
+  failed <- sommer:::.mmes_gpu_status(function() TRUE, function() stop("loader error"))
+  expect_false(failed$available)
+  expect_match(failed$reason, "loader error")
+})
+
+test_that("GPU controls honor global defaults and explicit per-fit overrides", {
+  old <- options(sommer.mme.gpu = TRUE, sommer.mme.gpuMinSize = 512L)
+  on.exit(options(old), add = TRUE)
+  expect_true(mmes_control()$gpu)
+  expect_identical(mmes_control()$gpuMinSize, 512L)
+  expect_false(mmes_control(gpu = FALSE)$gpu)
+  expect_true(sommer:::.merge_mmes_control(mmes_control(gpu = FALSE), gpu = TRUE)$gpu)
+  expect_error(mmes_control(gpu = NA), "TRUE/FALSE")
+  expect_error(mmes_control(gpuMinSize = 1.5), "positive integer")
+  options(sommer.mme.gpu = FALSE)
+  workload <- generate_mme_workload(n_ind = 6L, n_levels = 4L, structure = "ar1")
+  fit <- mmes(workload$fixed, random = workload$random, rcov = workload$rcov,
+    data = workload$data, nIters = 2L, verbose = FALSE, dateWarning = FALSE,
+    engine = mmes_control(gpu = FALSE))
+  expect_false(fit$gpuDiagnostics$enabled)
+  expect_identical(fit$gpuDiagnostics$minimumSize, 512L)
+  expect_error(mmes(workload$fixed, data = workload$data, gpu = TRUE,
+    henderson = FALSE, verbose = FALSE, dateWarning = FALSE), "CPU-only")
+  if(!sommer:::.mmes_gpu_status()$available){
+    expect_error(mmes(workload$fixed, data = workload$data, gpu = TRUE,
+      verbose = FALSE, dateWarning = FALSE), "gpu=TRUE cannot run")
+  }
+})
