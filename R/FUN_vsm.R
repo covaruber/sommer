@@ -1945,7 +1945,9 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
       rows=factor[[paste0(prefix, "row")]],
       columns=factor[[paste0(prefix, "col")]],
       diagonal=factor[[paste0(prefix, "diag")]],
-      heterogeneous_specific=identical(model, "fa"))
+      heterogeneous_specific=identical(model, "fa") &&
+        !identical(factor$variance, "homogeneous"),
+      zero_specific=isTRUE(factor$zero_specific))
   }
   if(model %in% c("sar", "car")){
     out$spatial <- list(weights=factor$W,
@@ -2118,8 +2120,12 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
         1 / sqrt(normalization)
       loading <- multiplier * rawLoading
       names(loading) <- paste0("loading[", levels[rows], ",F", cols, "]")
-      specific <- (if(absorb_scale) scale else 1) *
-        c(1, par[-seq_len(nload)]) / normalization
+      specificRaw <- if(identical(factor$variance, "homogeneous")) rep(1, length(levels)) else
+        c(1, par[-seq_len(nload)])
+      specific <- (if(absorb_scale) scale else 1) * specificRaw / normalization
+      if(identical(factor$variance, "homogeneous")){
+        return(c(loading, common_specific_variance=specific[1L]))
+      }
       names(specific) <- paste0(if(absorb_scale) "specific_variance" else
                                   "relative_specific_variance", "[", levels, "]")
       c(loading, specific)
@@ -2130,13 +2136,20 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     rows <- as.integer(f$rr_row)
     cols <- as.integer(f$rr_col)
     return(function(scale, par, factor, absorb_scale=TRUE){
-      normalization <- par[1L]^2 + 1
+      remainder <- if(isTRUE(factor$zero_specific)) 0 else 1
+      normalization <- par[1L]^2 + remainder
       multiplier <- if(absorb_scale) sqrt(scale / normalization) else
         1 / sqrt(normalization)
       loading <- multiplier * par
       names(loading) <- paste0("loading[", levels[rows], ",F", cols, "]")
-      c(loading,
-        common_specific_variance=(if(absorb_scale) scale else 1) / normalization)
+      if(remainder > 0){
+        return(c(loading,
+          common_specific_variance=(if(absorb_scale) scale else 1) / normalization))
+      }
+      specific <- stats::setNames(rep(0, length(levels)),
+        paste0(if(absorb_scale) "specific_variance" else
+          "relative_specific_variance", "[", levels, "]"))
+      c(loading, specific)
     })
   }
 
@@ -2354,33 +2367,31 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
     }
 
   }else if(model == "rr"){
-    # Reduced-rank is intentionally compiled to the generic callback backend.
-    # This is the proof-of-concept for future covariance structures: adding
-    # rrm() requires no native C++ evaluator or solver-specific branch.
     order <- as.integer(f$order)
     rows <- as.integer(f$rr_row)
     cols <- as.integer(f$rr_col)
     dd <- as.logical(f$rr_diag)
     nload <- as.integer(f$rr_nload)
+    remainder <- if(isTRUE(f$zero_specific)) 0 else 1
     if(length(rows) != nload || length(cols) != nload ||
        length(dd) != nload || p != nload){
       stop("Malformed reduced-rank covariance metadata.", call. = FALSE)
     }
 
     rr_eval <- local({
-      q0 <- q; k0 <- order; r0 <- rows; c0 <- cols; d0 <- dd
+      q0 <- q; k0 <- order; r0 <- rows; c0 <- cols; d0 <- dd; psi0 <- remainder
       function(par){
         L <- matrix(0, q0, k0)
         for(a in seq_along(par)){
           L[r0[a], c0[a]] <- if(d0[a]) exp(par[a]) else par[a]
         }
-        M <- tcrossprod(L) + diag(q0)
+        M <- tcrossprod(L) + diag(psi0, q0)
         M / M[1,1]
       }
     })
 
     rr_d1 <- local({
-      q0 <- q; k0 <- order; r0 <- rows; c0 <- cols; d0 <- dd
+      q0 <- q; k0 <- order; r0 <- rows; c0 <- cols; d0 <- dd; psi0 <- remainder
       function(par, k){
         L <- matrix(0, q0, k0)
         for(a in seq_along(par)){
@@ -2388,7 +2399,7 @@ atm <- function(x, levs, values=NULL, fixed=NULL){
         }
         dL <- matrix(0, q0, k0)
         dL[r0[k], c0[k]] <- if(d0[k]) exp(par[k]) else 1
-        M <- tcrossprod(L) + diag(q0)
+        M <- tcrossprod(L) + diag(psi0, q0)
         D <- dL %*% t(L) + L %*% t(dL)
         s <- M[1,1]
         ds <- D[1,1]
@@ -3170,7 +3181,9 @@ corgm <- function(x, theta=NULL, fixed=NULL,
 #
 # Lambda is lower-triangular in its leading k x k block for rotational
 # identification. Leading loading diagonals are positive (log parameterized).
-fam <- function(x, k=1L, loadings=NULL, specific=NULL, fixed=NULL){
+fam <- function(x, k=1L, loadings=NULL, specific=NULL, fixed=NULL,
+                variance=c("heterogeneous", "homogeneous")){
+  variance <- match.arg(variance)
   expr <- as.character(substitute(x))
   dummy <- .cov_dummy(x, expr)
   q <- ncol(dummy)
@@ -3215,8 +3228,15 @@ fam <- function(x, k=1L, loadings=NULL, specific=NULL, fixed=NULL){
   }
   
   if(is.null(specific)) specific <- rep(0.50, q)
+  if(variance == "homogeneous" && length(specific) == 1L){
+    specific <- rep(specific, q)
+  }
   if(length(specific) != q || any(!is.finite(specific)) || any(specific <= 0)){
-    stop("specific in fam() must contain q positive finite specific variances.",
+    stop("specific in fam() must contain q positive finite specific variances (or one value when variance='homogeneous').",
+         call. = FALSE)
+  }
+  if(variance == "homogeneous" && any(specific != specific[1L])){
+    stop("specific in homogeneous fam() must be a single value or q equal values.",
          call. = FALSE)
   }
   
@@ -3240,8 +3260,10 @@ fam <- function(x, k=1L, loadings=NULL, specific=NULL, fixed=NULL){
     }
   }
   
-  par <- c(load_par, log(specific[-1]))
-  par_names <- c(load_names, paste0("specific_ratio[", labs[-1], "]"))
+  par <- if(variance == "heterogeneous") c(load_par, log(specific[-1])) else load_par
+  par_names <- if(variance == "heterogeneous"){
+    c(load_names, paste0("specific_ratio[", labs[-1], "]"))
+  }else load_names
   
   if(is.null(fixed)) fixed <- rep(FALSE, length(par))
   if(length(fixed) != length(par)){
@@ -3263,6 +3285,7 @@ fam <- function(x, k=1L, loadings=NULL, specific=NULL, fixed=NULL){
       fa_row=rows,
       fa_col=cols,
       fa_diag=diag_loading,
+      variance=variance,
       fa_specific_reference=labs[1]
     ))
   )
@@ -3467,26 +3490,18 @@ ownm <- function(x, K=NULL, fun=NULL, par=numeric(), fixed=NULL,
 
 
 
-# Reduced-rank covariance approximation of rank k:
-#   M = Lambda Lambda' + I,
-# followed by K = M / M[1,1].
-#
-# The rank-k component Lambda Lambda' captures the dominant covariance pattern,
-# while the identity term supplies a common isotropic remainder.  This keeps the
-# covariance strictly positive definite, which is required by the current
-# Henderson precision-based implementation.  The leading k x k block of Lambda
-# is lower triangular for rotational identification and its diagonal entries are
-# positive through a log parameterization.
+# Pure reduced-rank covariance: K = Lambda Lambda', with Lambda[1,1]=1.
+# The reference loading removes the internal scale already supplied by vsm().
 rrm <- function(x, k=1L, loadings=NULL, fixed=NULL){
   expr <- as.character(substitute(x))
   dummy <- .cov_dummy(x, expr)
   q <- ncol(dummy)
   labs <- colnames(dummy)
   
-  k <- as.integer(k)
-  if(length(k) != 1L || k < 1L || k >= q){
+  if(length(k) != 1L || !is.finite(k) || k != as.integer(k) || k < 1L || k >= q){
     stop("k in rrm() must satisfy 1 <= k < number of levels.", call. = FALSE)
   }
+  k <- as.integer(k)
   
   rows <- integer()
   cols <- integer()
@@ -3521,6 +3536,7 @@ rrm <- function(x, k=1L, loadings=NULL, fixed=NULL){
     }
   }
   
+  L <- L / L[1L, 1L]
   vals <- numeric(nload)
   nm <- character(nload)
   
@@ -3539,6 +3555,10 @@ rrm <- function(x, k=1L, loadings=NULL, fixed=NULL){
   if(length(fixed) != length(vals)){
     stop("fixed in rrm() must match the number of loading parameters.", call. = FALSE)
   }
+  if(!is.logical(fixed) || anyNA(fixed)){
+    stop("fixed in rrm() must be a logical vector without missing values.", call. = FALSE)
+  }
+  fixed[1L] <- TRUE
   
   list(
     Z=dummy,
@@ -3553,7 +3573,8 @@ rrm <- function(x, k=1L, loadings=NULL, fixed=NULL){
       rr_nload=as.integer(nload),
       rr_row=rows,
       rr_col=cols,
-      rr_diag=diag_loading
+      rr_diag=diag_loading,
+      zero_specific=TRUE
     ))
   )
 }

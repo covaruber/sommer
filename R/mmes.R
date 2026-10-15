@@ -427,6 +427,24 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   }
   residualStructIndex <- nRandomStruct + 1L
   covStruct[[residualStructIndex]] <- rf$covStruct
+  hasReducedRank <- function(structure){
+    any(vapply(structure$factors, function(factor)
+      isTRUE(factor$representation$loadings$zero_specific), logical(1)))
+  }
+  if(hasReducedRank(rf$covStruct)){
+    stop("rrm() fixes specific variances at zero and is only supported for random effects, not rcov.",
+         call.=FALSE)
+  }
+  reducedRankRandom <- any(vapply(covStruct[seq_len(nRandomStruct)],
+                                  hasReducedRank, logical(1)))
+  if(reducedRankRandom && solveOnly){
+    stop("solveOnly=TRUE does not support singular rrm() covariance structures; use regular mmes() fitting with fixed covariance parameters.",
+         call.=FALSE)
+  }
+  if(reducedRankRandom && factorScoreAugmentation != "none"){
+    stop("rrm() uses native reduced-rank fitting, not factorScoreAugmentation. Use factorScoreAugmentation='none'.",
+         call.=FALSE)
+  }
   localIndex <- as.integer(rf$residualLocalIndex[keep])
   
   # Preserve the established residual-block pairing semantics for this

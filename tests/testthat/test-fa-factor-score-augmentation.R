@@ -1,10 +1,10 @@
-test_that("fixed-shape FA/RR augmentation matches the marginal MME", {
+test_that("fixed-shape heterogeneous/homogeneous FA augmentation matches the marginal MME", {
   set.seed(82)
   data <- expand.grid(env=factor(letters[1:4]), id=factor(seq_len(7L)))
   data$y <- rnorm(nrow(data))
   for(model in c("fa", "rr")){
     shape <- if(model == "fa") fam(data$env, 2L, fixed=rep(TRUE, 10L)) else
-      rrm(data$env, 2L, fixed=rep(TRUE, 7L))
+      fam(data$env, 2L, fixed=rep(TRUE, 7L), variance="homogeneous")
     fit <- function(mode){
       mmes(y~env, random=~vsm(shape, ism(id)), rcov=~units,
         data=data, nIters=60, tolParConvLL=1e-12, tolParConvNorm=1e-12,
@@ -23,7 +23,7 @@ test_that("fixed-shape FA/RR augmentation matches the marginal MME", {
       (if(model == "fa") 2L else 2L) * nlevels(data$id))
     expect_identical(augmented$CRepresentation, "factor-score-augmented")
     expect_error(mmes(y~env, random=~vsm(if(model == "fa") fam(env, 2L) else
-      rrm(env, 2L), ism(id)), rcov=~units, data=data, nIters=2,
+      fam(env, 2L, variance="homogeneous"), ism(id)), rcov=~units, data=data, nIters=2,
       factorScoreAugmentation="fixed-shape"), "requires all covariance-shape")
   }
 })
@@ -166,7 +166,8 @@ test_that("profile mode optimizes free FA shapes using augmented REML", {
     rcov=~units, data=data, nIters=2, factorScoreAugmentation="profile",
     solver="pcg", verbose=FALSE), "requires Gaussian REML")
 
-  rrProfile <- mmes(y~env, random=~vsm(rrm(env, 1L, fixed=c(TRUE, FALSE)), ism(id)),
+  rrProfile <- mmes(y~env, random=~vsm(fam(env, 1L, fixed=c(TRUE, FALSE),
+    variance="homogeneous"), ism(id)),
     rcov=~units, data=data, nIters=1, computeCi=0, solver="ldlt",
     verbose=FALSE, dateWarning=FALSE, factorScoreAugmentation="profile")
   expect_identical(rrProfile$factorScoreAugmentation, "profile")

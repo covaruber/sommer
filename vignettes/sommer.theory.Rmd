@@ -290,7 +290,7 @@ ingredients are. The two building blocks used throughout the package are:
   family-1 recipe). A sum of "something squared" ($\Lambda\Lambda'$, always
   positive semi-definite) and "something positive on the diagonal" ($\Psi$)
   is always positive definite — again, automatically, for *any* real
-  $\Lambda$. Used by `fam()`/`rrcm()` (Chapter 3.9) and, in a
+  $\Lambda$. Used by `fam()`/`rrm()` (Chapter 3.8) and, in a
   triangular/banded variant, by `antem()` (Chapter 3.10).
 
 **The common thread across all three families:** every recipe in this
@@ -441,7 +441,7 @@ covariance shape is reachable, at the cost of $O(q^2)$ parameters. It mixes
 **variance-type** (log-diagonal) and **correlation-type** (off-diagonal)
 working parameters in a single structure.
 
-## 3.8 `fam(x, k, loadings, specific, fixed)` / `rrcm(x, k, loadings, fixed)` — factor-analytic covariance
+## 3.8 `fam(x, k, loadings, specific, fixed, variance)` / `rrm(x, k, loadings, fixed)` — factor-analytic covariance
 
 $$
 M = \Lambda\Lambda' + \Psi, \qquad K = M / M_{11}
@@ -461,9 +461,11 @@ A rank-$k$ **correlation-type** structure (loadings) plus a genuinely
 **variance-type** component (specific variances) — a compact alternative to
 `usm()` when $q$ is large and a low-rank + diagonal approximation is
 statistically reasonable (the standard "FA" model for many traits or many
-environments). `rrcm()` is the same loading parameterization with
-$\Psi=I$ fixed (a pure reduced-rank approximation, no free specific
-variances) — purely correlation/shape-type.
+environments). `fam(..., variance="homogeneous")` uses $\Psi=I$ internally,
+estimating a common specific variance on the fitted scale. `rrm()` instead
+fixes $\Psi=0$ for a genuine rank-$k$ covariance and fixes the first loading
+to one to remove the internal scale. Its singular random covariance is fitted
+using latent-factor Henderson equations or the direct-inversion engine.
 
 ## 3.9 `antem(x, order, beta, innovations, fixed)` — antedependence
 
@@ -555,7 +557,7 @@ backward compatibility with older model specifications.
 | `usm` | $q(q+1)/2-1$ | 3 (Cholesky) + 1 (diag) | mixed (dense) |
 | `corgm` | $q(q-1)/2$ | 3 (unit-diag factor) | correlation (dense) |
 | `fam` | loadings ($k$-rank) + $(q-1)$ specific | 3 (loadings) + 1 | mixed |
-| `rrcm` | loadings ($k$-rank) | 3 (loadings) | correlation |
+| `rrm` | loadings ($k$-rank), first loading fixed | 3 (loadings) | singular shape |
 | `antem` | banded regression coeffs + $(q-1)$ innovations | 3 (banded) + 1 | mixed |
 | `maternm` | 2 (range, nu) | 1 (log) x2 | correlation (shape) |
 | `sar`/`car` | 1 (`rho`) | 2 (bounded logit) | correlation (shape) |
@@ -924,7 +926,7 @@ working parameters are simply $\eta=(0.2,\ 0.1,\ 0.15)$, i.e. `par` equals
 the lower-triangular entries directly, with no chain-rule factor to apply
 when differentiating $K$ with respect to $\eta$.
 
-## 5.10 `fam()` / `rrcm()`
+## 5.10 `fam()` / `rrm()`
 
 $q=3$, rank $k=1$. Loadings $\Lambda=(0.6,\ 0.4,\ 0.2)'$ (with the leading
 entry $\Lambda_{11}=0.6>0$ log-parameterized:
@@ -940,8 +942,10 @@ M=\Lambda\Lambda'+\Psi=
 \qquad K=M/M_{11}
 $$
 
-`rrcm()` would drop the $\psi$ working parameters entirely (fixing
-$\Psi=I$) and keep only the loading parameters $\eta_{load}$.
+`fam(..., variance="homogeneous")` drops the $\psi$ working parameters
+(using $\Psi=I$ internally). `rrm()` instead sets $\Psi=0$ and normalizes
+the supplied loadings to $(1,\ 2/3,\ 1/3)'$, fixing the first loading.
+The overall variance remains owned by `vsm()`.
 
 ## 5.11 `antem()`
 

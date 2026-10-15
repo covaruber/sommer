@@ -33,6 +33,13 @@ and the Bartlett scores are
 \deqn{F = U\Psi^{-1}\Lambda(\Lambda^{\mathsf T}\Psi^{-1}\Lambda)^{-1}.}
 Because \eqn{U} already contains shrunken (BLUP) effects, the resulting
 scores are similarly regularized.
+
+For \code{rrm()}, the covariance is singular and the specific variances are
+zero. Regression scores instead recover the latent BLUP coordinates using
+\deqn{F=U\Lambda(\Lambda^{\mathsf T}\Lambda)^{-1},}
+so that \eqn{F\Lambda^{\mathsf T}=U}. This uses the returned loading scale
+and rotation. Bartlett scores are undefined for this zero-specific-variance
+model and produce an informative error.
 }
 \value{
 A matrix with one row per level of the main random-effect term and one

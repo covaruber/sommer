@@ -334,8 +334,8 @@ rotate_back_mmes <- function(object){
     loadingsRaw[rows[a], cols[a]] <- natural[a]
   }
 
-  specificRaw <- rep(1, q)
-  if(f$model == "fa" && q > 1L){
+  specificRaw <- if(isTRUE(f$zero_specific)) rep(0, q) else rep(1, q)
+  if(f$model == "fa" && !identical(f$variance, "homogeneous") && q > 1L){
     specificRaw[-1] <- natural[nload + seq_len(q-1L)]
   }
 
@@ -351,7 +351,7 @@ rotate_back_mmes <- function(object){
   
   if(varianceScale){
     loadings <- loadings * sqrt(sigma2)
-    specific <- specific * sqrt(sigma2)
+    specific <- specific * sigma2
   }
   
   if(rotation){
@@ -597,7 +597,7 @@ rotate_back_mmes <- function(object){
     variance <- pmax(diag(nativeCovariance), 0)
     standardError <- sqrt(variance)
     zRatio <- rep(NA_real_, length(standardError))
-    positiveSE <- standardError > 0
+    positiveSE <- is.finite(standardError) & standardError > 0
     zRatio[positiveSE] <- base$estimate[positiveSE] / standardError[positiveSE]
 
     base$StdError <- standardError
@@ -655,7 +655,13 @@ rotate_back_mmes <- function(object){
   }
   U <- U[, rownames(L), drop=FALSE]
 
-  if(method == "regression"){
+  if(all(fa$specific == 0)){
+    if(method == "bartlett"){
+      stop("Bartlett scores are undefined for rrm(): specific variances are fixed at zero. Use method='regression'.",
+           call.=FALSE)
+    }
+    scores <- U %*% L %*% solve(crossprod(L))
+  }else if(method == "regression"){
     SigmaInv <- solve(Sigma)
     scores <- U %*% SigmaInv %*% L
   }else{
@@ -760,4 +766,3 @@ plot.mmes <- function(x, stnd=TRUE, ...) {
   #####################
   layout(matrix(1,1,1))
 }
-

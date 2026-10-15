@@ -94,7 +94,9 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
 
   \code{\link{fam}} for factor-analytic covariance;
 
-  \code{\link{rrm}} for the reduced-rank covariance approximation;
+  \code{\link{rrm}} for a reduced-rank random covariance with specific
+  variances fixed at zero; use \code{fam(..., variance="homogeneous")}
+  for an estimated common specific variance;
 
   \code{\link{antem}} for antedependence covariance;
 

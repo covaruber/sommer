@@ -62,23 +62,25 @@ the first term for the (rotationally-constrained, lower-triangular) loadings and
 
 ### 3) The reduced-rank (RR) model
 
-The RR model uses the same loading structure but fixes the environment-specific remainder to be homogeneous:
+The RR model uses the same loading structure but fixes every specific variance to zero:
 
 $$
-K = \Lambda\Lambda^{\mathsf T} + I.
+K = \Lambda\Lambda^{\mathsf T},\qquad \Lambda_{11}=1.
 $$
 
 `rrm(x, k)` therefore has
 
 $$
-kq-\frac{k(k-1)}{2}
+kq-\frac{k(k-1)}{2}-1
 $$
 
-working parameters: exactly $q-1$ fewer than `fam(x, k)`, because it does not estimate separate environment-specific variances. RR is a restricted (nested) special case of FA in which every environment is assumed to have the same residual/specific variance after accounting for the $k$ common factors. It is useful when there is not enough replication to support $q$ separate specific variances, or as a more parsimonious first approximation before fitting the full FA model.
+free shape parameters, plus the overall scale supplied by `vsm()`: exactly $q$ fewer parameters than heterogeneous `fam(x, k)`. The covariance has rank $k$, with no diagonal remainder, matching ASReml's default `rr()` covariance family. The Henderson engine works with latent factors rather than inverting the singular environment covariance; direct inversion is also supported.
+
+For an estimated common nonzero specific variance, use `fam(x, k, variance="homogeneous")`. This is the covariance family previously fitted by `rrm()`; the default `fam()` remains heterogeneous.
 
 ### 4) Choosing k and comparing to other structures
 
-Increasing $k$ moves the model continuously from compound symmetry-like behavior ($k=0$, not directly supported, but conceptually the limit) toward the saturated unstructured model ($k=q-1$). In practice $k$ is chosen small enough to remain identifiable and interpretable (often 1-3 factors), and increased only if it meaningfully improves the likelihood. Because RR is nested inside FA with the same $k$, `anova.mmes()` can be used to test whether the extra $q-1$ FA specific-variance parameters are supported by the data.
+Increasing $k$ enlarges the latent subspace, but RR remains singular while $k<q$. In practice $k$ is chosen small enough to remain identifiable and interpretable (often 1-3 factors). Zero-specific RR lies on the boundary of the FA family, so ordinary chi-squared likelihood-ratio reference distributions need not apply.
 
 ## SECTION 2: Fitting factor-analytic and reduced-rank models
 
@@ -120,14 +122,13 @@ summary(fitRR)$varcomp
 
 ### 4) Comparing FA and RR
 
-Because `rrm(Env, 2)` is nested inside `fam(Env, 2)` (both use rank 2, but RR fixes the specific variances to be equal), we can compare them with a likelihood ratio test:
+Both models use rank 2, but RR fixes all specific variances at zero. Compare their fitted likelihoods:
 
 ```{r}
-c(AIC_FA = fitFA$AIC, AIC_RR = fitRR$AIC)
-anova.mmes(fitFA, fitRR)
+c(logLik_FA = tail(fitFA$llik, 1), logLik_RR = tail(fitRR$llik, 1))
 ```
 
-A lower AIC/BIC and a significant likelihood ratio test favor the less restrictive FA model whenever the data support heterogeneous environment-specific variances.
+The less restrictive FA model can capture genetic variation outside the common-factor subspace. A formal likelihood-ratio test requires accounting for the zero-variance boundary; do not interpret a naive chi-squared test as an ordinary interior-parameter comparison.
 
 ## SECTION 3: Extracting loadings, scores, and diagnostic plots
 
@@ -147,7 +148,7 @@ rrInfo <- loadings_mmes(fitRR, varianceScale = FALSE, rotation = TRUE)
 round(rrInfo$specific, 3)
 ```
 
-Notice that `rrInfo$specific` is constant across environments: this is the direct consequence of `rrm()` fixing a homogeneous specific variance, unlike the heterogeneous values in `faInfo$specific`.
+Notice that `rrInfo$specific` is exactly zero in every environment, unlike the estimated heterogeneous values in `faInfo$specific`. With `fam(..., variance="homogeneous")`, the extracted specifics are equal but generally nonzero.
 
 ### 2) Genotype scores
 

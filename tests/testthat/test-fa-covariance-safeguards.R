@@ -29,7 +29,7 @@ test_that("rank-two factor-analytic updates remain finite and positive definite"
   )))
 })
 
-test_that("FA/RR Woodbury and near-boundary fallback match generic covariance factors", {
+test_that("FA Woodbury and near-boundary fallback match generic covariance factors", {
   set.seed(314)
   data <- expand.grid(trial=factor(seq_len(8L)), genotype=factor(seq_len(12L)))
   data$BLUEs <- rnorm(nrow(data))
@@ -43,10 +43,11 @@ test_that("FA/RR Woodbury and near-boundary fallback match generic covariance fa
   for(model in c("fa", "rr", "boundary")){
     specific <- if(model == "rr") rep(1, 8L) else rep(0.7, 8L)
     if(model == "boundary") specific[8L] <- 1e-10
-    factor <- if(model == "rr") rrm(data$trial, 2L, loadings=loadings) else
+    factor <- if(model == "rr") fam(data$trial, 2L, loadings=loadings,
+      specific=1, variance="homogeneous") else
       fam(data$trial, 2L, loadings=loadings, specific=specific)
     expect_identical(factor$covFactor$precision$backend, "woodbury")
-    expect_identical(factor$covFactor$precision$kind, if(model == "rr") "rr" else "fa")
+    expect_identical(factor$covFactor$precision$kind, "fa")
     factor$covFactor$free[] <- FALSE
     generic <- ownm(data$trial, K=tcrossprod(loadings) + diag(specific))
     generic$covFactor$model <- "fa"
@@ -192,7 +193,7 @@ test_that("analytic FA/RR derivatives match centered finite differences", {
         loading[rows[index], cols[index]] <- if(diagonal[index]) exp(par[index]) else par[index]
       }
       specific <- if(model == "fa") c(1, exp(par[nload + seq_len(nlevels(data$trial)-1L)])) else
-        rep(1, nlevels(data$trial))
+        rep(0, nlevels(data$trial))
       value <- tcrossprod(loading) + diag(specific)
       value / value[1L, 1L]
     }

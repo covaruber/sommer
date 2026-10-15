@@ -44,6 +44,80 @@ diagonal weights uses block-local designs. Other cases use batched applications.
 
 ## Solver Rules
 
+Zero-specific loading capabilities take a separate exact route in `mme_rr.h`.
+For each such random axis, the sparse random design is multiplied by its
+normalized rectangular loading matrix and the covariance in latent coordinates
+is identity. Other covariance axes, relationship precisions, random terms,
+residual structures, and weights retain the ordinary Henderson implementations.
+For this route, the weight Cholesky factor uses natural observation ordering
+in both conditional equations and analytic derivatives. With `U = chol(W)`,
+the Henderson residual precision is `U R0^{-1} U'`; residual derivative
+actions therefore use `U^{-T} (dR0) U^{-1}`.
+The covariance in public coefficient coordinates remains exactly singular:
+neither a diagonal perturbation nor a generalized-inverse precision is used.
+
+Free variances and loadings are optimized jointly by analytic average
+information. Descriptor factor derivatives generate covariance actions directly;
+the Henderson coefficient matrix supplies the `P`-operator solves. Random
+score traces share loading-span contractions across all parameters of
+each term: for an orthonormal loading span `Q`, a covariance derivative
+satisfies `dG = A Q' + Q A'` with
+`A = dG Q - 0.5 Q (Q' dG Q)`. Only the latent-span design directions need
+projection solves, rather than every original covariance coordinate.
+Residual traces share a residual-index contraction. Relationship
+and observation panels are bounded, and diagonal residual actions are
+vectorized. The residual log-scale trace follows from `tr(P V) = n - p`
+(`tr(V^{-1} V) = n` for ML) after subtracting random log-scale traces;
+scale-only residuals require no observation trace panels. The algorithm
+forms neither the record-space marginal covariance nor a dense `P` matrix.
+`engineDiagnostics$scoreWorking` and
+`engineDiagnostics$averageInformationWorking` report the analytic score
+`0.5 * (y' P V_i P y - tr(P V_i))` and
+`0.5 * y' P V_i P V_j P y` in the covariance-descriptor
+working coordinates, including fixed coordinates. `InfMat` and `dLu` retain
+the native engine's twice-scaled information and score conventions.
+Parameter standard errors use the inverse unblended AI, mapped to reported
+coordinates by the descriptor's reporting Jacobian. `stepWeight` controls the
+AI step (the working-coordinate direction has an infinity-norm trust cap of
+2.5), `emWeight` blends AI with its diagonal EM surrogate, and accepted
+likelihoods and parameter states are retained in the normal iteration history.
+`normMonitor` records the accepted parameter-change norms and score norm at
+each state; `percDelta` compares successive accepted changes.
+Initial likelihood errors and interrupts propagate unchanged. Subsequent
+numerically invalid trial points are rejected, with a summary warning and
+`invalidTrialEvaluations` / `invalidTrialReasons` diagnostics retaining every
+distinct numerical failure reason and its count. Logic errors, allocation
+failures, and R callback long jumps are not converted to optimization penalties.
+
+Conditional likelihood evaluations stop before ordinary derivative/trace
+preparation; the outer loading-aware AI evaluation owns those calculations.
+Conditional equations retain ordinary solver and eligible block-Schur
+dispatch. The FA Woodbury Schur decomposition eliminates positive-specific
+blocks; exact RR has no such blocks and directly solves the smaller latent
+system instead. Verbose RR fits report the path before evaluation, the actual
+conditional coefficient engine, and each accepted likelihood and score norm.
+`engineDiagnostics$traceMethod` identifies the shared-contraction trace path.
+`engineDiagnostics$randomTraceDirections` reports the total loading-span
+directions used across random terms.
+
+The RR coefficient-engine message precedes its progress header. Progress rows
+include wall time, cumulative process CPU seconds, scheduled `EMweight`,
+accepted incoming `trustAlpha` and `lineAlpha`, and score norm. Incoming scales
+start at one; `lineAlpha` includes `stepWeight` and backtracking. Their numeric
+history and CPU times are in `engineDiagnostics$iterationProgress`.
+Ordinary boundary-restraint and `notPD` fields are not applicable to the
+latent optimizer and are omitted rather than populated with placeholders.
+
+`C` remains the SPD latent coefficient matrix. `coefficientMap` maps its
+coefficients into public coordinates; `bu`, `W`, partitions and BLUPs use public
+coordinates. Prediction-covariance and post-fit inverse helpers apply this map.
+Mode 1 computes exact public PEV diagonals with bounded solve panels; mode 2
+maps the full latent inverse. The route reports `reducedRankActive`,
+`latentReducedRank`, `latentCoefficients`, `originalCoefficients`, and
+`likelihoodEvaluations` in `engineDiagnostics`. It requires LDLT or CHOLMOD;
+PCG, `vcc`, covariance-update acceleration and zero-specific residuals are
+explicitly unsupported. Conditional sparse/GPU backend controls remain active.
+
 | Request | Coefficient factorization | Accepted-state trace preparation |
 | --- | --- | --- |
 | LDLT | Cached Eigen symbolic/numeric LDLT | Takahashi selected inverse |

@@ -6,6 +6,93 @@
 
 namespace sommer {
 
+inline bool zeroSpecificFactor(const Rcpp::List & factor) {
+  if(factor.containsElementNamed("zero_specific") &&
+     Rcpp::as<bool>(factor["zero_specific"])) { return true; }
+  if(!factor.containsElementNamed("representation")) { return false; }
+  const Rcpp::List representation = factor["representation"];
+  if(!representation.containsElementNamed("loadings") ||
+     Rf_isNull(representation["loadings"])) { return false; }
+  const Rcpp::List loadings = representation["loadings"];
+  return loadings.containsElementNamed("zero_specific") &&
+    Rcpp::as<bool>(loadings["zero_specific"]);
+}
+
+inline bool heterogeneousSpecificFactor(const Rcpp::List & factor) {
+  if(factor.containsElementNamed("representation")) {
+    const Rcpp::List representation = factor["representation"];
+    if(representation.containsElementNamed("loadings") &&
+       !Rf_isNull(representation["loadings"])) {
+      const Rcpp::List loadings = representation["loadings"];
+      if(loadings.containsElementNamed("heterogeneous_specific")) {
+        return Rcpp::as<bool>(loadings["heterogeneous_specific"]);
+      }
+    }
+  }
+  return !zeroSpecificFactor(factor);
+}
+
+inline arma::mat normalizedFactorLoadings(const Rcpp::List & factor,
+                                         const arma::vec & par) {
+  const bool rr = zeroSpecificFactor(factor);
+  const bool rrMetadata = factor.containsElementNamed("rr_nload");
+  const int q = Rcpp::as<int>(factor["dim"]);
+  const int rank = Rcpp::as<int>(factor["order"]);
+  const int count = Rcpp::as<int>(factor[rrMetadata ? "rr_nload" : "fa_nload"]);
+  const Rcpp::IntegerVector rows = factor[rrMetadata ? "rr_row" : "fa_row"];
+  const Rcpp::IntegerVector columns = factor[rrMetadata ? "rr_col" : "fa_col"];
+  const Rcpp::LogicalVector diagonal = factor[rrMetadata ? "rr_diag" : "fa_diag"];
+  const bool heterogeneous = !rr && heterogeneousSpecificFactor(factor);
+  if(q < 1 || rank < 1 || rank > q || count < 1 ||
+     rows.size() != count || columns.size() != count || diagonal.size() != count ||
+     par.n_elem != static_cast<arma::uword>(count + (heterogeneous ? q - 1 : 0))) {
+    Rcpp::stop("Malformed factor loading metadata.");
+  }
+  double reference = 0.0;
+  for(int a = 0; a < count; ++a) {
+    if(rows[a] == 1 && columns[a] == 1) { reference = par(a); }
+  }
+  const double twiceReference = 2.0 * reference;
+  const double logScale = rr ? twiceReference :
+    std::max(0.0, twiceReference) + std::log1p(std::exp(-std::abs(twiceReference)));
+  arma::mat L(q, rank, arma::fill::zeros);
+  for(int a = 0; a < count; ++a) {
+    if(rows[a] < 1 || rows[a] > q || columns[a] < 1 || columns[a] > rank) {
+      Rcpp::stop("Invalid factor loading coordinate.");
+    }
+    L(rows[a] - 1, columns[a] - 1) = diagonal[a]
+      ? std::exp(par(a) - 0.5 * logScale)
+      : par(a) * std::exp(-0.5 * logScale);
+  }
+  return L;
+}
+
+inline arma::mat loadingFactorCovariance(const Rcpp::List & factor,
+                                        const arma::vec & par) {
+  const arma::mat L = normalizedFactorLoadings(factor, par);
+  arma::mat covariance = L * L.t();
+  if(zeroSpecificFactor(factor)) { return covariance; }
+  const bool rrMetadata = factor.containsElementNamed("rr_nload");
+  const int count = Rcpp::as<int>(factor[rrMetadata ? "rr_nload" : "fa_nload"]);
+  const Rcpp::IntegerVector rows = factor[rrMetadata ? "rr_row" : "fa_row"];
+  const Rcpp::IntegerVector columns = factor[rrMetadata ? "rr_col" : "fa_col"];
+  double reference = 0.0;
+  for(int a = 0; a < count; ++a) {
+    if(rows[a] == 1 && columns[a] == 1) { reference = par(a); }
+  }
+  const double twiceReference = 2.0 * reference;
+  const double logScale = std::max(0.0, twiceReference) +
+    std::log1p(std::exp(-std::abs(twiceReference)));
+  covariance.diag() += std::exp(-logScale);
+  if(heterogeneousSpecificFactor(factor)) {
+    for(arma::uword row = 1; row < covariance.n_rows; ++row) {
+      covariance(row, row) += std::exp(par(count + row - 1) - logScale) -
+        std::exp(-logScale);
+    }
+  }
+  return covariance;
+}
+
 inline PrecisionFamily precisionFamily(const Rcpp::List & factor) {
   if(!factor.containsElementNamed("representation")) { return PrecisionFamily::Dense; }
   const Rcpp::List representation = factor["representation"];

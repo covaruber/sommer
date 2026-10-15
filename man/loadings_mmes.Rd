@@ -17,8 +17,9 @@ loadings_mmes(object, term = NULL, varianceScale=TRUE, rotation=TRUE)
 \code{object$covStruct}) built with a single \code{fam()} or \code{rrm()}
 covariance-shaping factor. If \code{NULL}, the unique such term in the model
 is used automatically; an error is raised if none or more than one exist.}
-\item{varianceScale}{a logical argument to indicate if loadings should be returned 
-in variance scale (multiplied by sqrt(sigma2)).}
+\item{varianceScale}{Whether to return loadings multiplied by
+\code{sqrt(sigma2)} and specific variances multiplied by \code{sigma2}.
+When \code{FALSE}, both describe the dimensionless covariance shape.}
 \item{rotation}{a logical value to indicate if loadings should be rotated by its
 singular vectors.}
 
@@ -28,15 +29,18 @@ singular vectors.}
 that \code{vsm()} owns the single overall variance; the loadings and specific
 variances reported by \code{loadings_mmes} are re-normalized so that
 \deqn{\Sigma = \sigma^2(\Lambda\Lambda^{\mathsf T}+\Psi)}
-reproduces \code{object$theta[[term]]} exactly, where \eqn{\sigma^2} is
-\code{object$covPar[[term]][1]}.
+reproduces \code{object$theta[[term]]} exactly when
+\code{varianceScale=FALSE}, where \eqn{\sigma^2} is
+\code{object$covPar[[term]][1]}. With \code{varianceScale=TRUE}, the
+returned loadings crossproduct plus the diagonal of the returned specific
+variances directly reproduces that covariance.
 }
 \value{
 A list containing:
 \describe{
 \item{loadings}{a levels-by-factor matrix \eqn{\Lambda}.}
 \item{specific}{a named vector of specific variances \eqn{\Psi} (identically
-1 for every level in a \code{rrm()} term).}
+zero for every level in a \code{rrm()} term).}
 \item{sigma2}{the fitted overall variance scale.}
 \item{model}{\code{"fa"} or \code{"rr"}.}
 \item{term}{the resolved term name.}

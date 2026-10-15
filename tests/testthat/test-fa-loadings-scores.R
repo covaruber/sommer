@@ -61,7 +61,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
   rr <- loadings_mmes(fit_rr, term_rr, varianceScale = FALSE, rotation = FALSE)
 
   expect_equal(dim(rr$loadings), c(6L, 1L))
-  expect_true(all(rr$specific > 0))
+  expect_true(all(rr$specific == 0))
 
   reconstructed_rr <- rr$sigma2 * (
     rr$loadings %*% t(rr$loadings) + diag(rr$specific)
@@ -70,12 +70,12 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
 
   native_rr <- covparams_mmes(fit_rr, term_rr)
   native_rr_loadings <- native_rr$estimate[grepl("^loading\\[", native_rr$parameter)]
-  native_rr_specific <- native_rr$estimate[native_rr$parameter == "common_specific_variance"]
+  native_rr_specific <- native_rr$estimate[grepl("^specific_variance\\[", native_rr$parameter)]
   native_rr_matrix <- matrix(0, 6L, 1L)
   native_rr_matrix[cbind(fit_rr$covStruct[[term_rr]]$factors[[1]]$rr_row,
                          fit_rr$covStruct[[term_rr]]$factors[[1]]$rr_col)] <-
     native_rr_loadings
-  expect_equal(unname(tcrossprod(native_rr_matrix) + diag(native_rr_specific, 6L)),
+  expect_equal(unname(tcrossprod(native_rr_matrix) + diag(native_rr_specific)),
                unname(fit_rr$theta[[term_rr]]), tolerance=1e-6)
 
   scores_rr <- scores_mmes(fit_rr, term_rr, varianceScale = FALSE, rotation = FALSE)

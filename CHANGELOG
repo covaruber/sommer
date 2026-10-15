@@ -652,6 +652,32 @@ version 4.4.90 (2026-10-13)
    include the Kronecker log-determinant multiplicity. Sparse spatial evaluation
    caches obey their aggregate entry allowance without unsigned underflow.
 
+ + rrm() now fits genuine reduced-rank covariance with all specific variances
+   fixed at zero, matching the covariance family of ASReml rr(). The first
+   loading is fixed to one to identify the overall scale supplied by vsm().
+   Native latent-factor Henderson and direct-inversion fitting support the
+   singular random covariance without an artificial diagonal remainder.
+ + fam() gains variance="homogeneous" to estimate a common specific variance
+   (the former rrm() covariance family); the default remains "heterogeneous".
+   loadings_mmes() returns exactly zero specifics for RR and scales specific
+   variances by sigma2, not sqrt(sigma2). RR regression scores recover latent
+   BLUP coordinates; Bartlett scoring rejects zero-specific RR models.
+ + Native latent RR fitting now uses loading-aware scores and average
+   information instead of BFGS and numerical observed information. Covariance
+   derivatives include changes in the latent design; the original
+   covariance-family descriptors and sparse Henderson solves are reused.
+   Parameter uncertainty uses final unblended AI, while stepWeight and
+   emWeight control updates and the iteration monitor records accepted fits.
+ + Native RR AI traces now share exact design and residual contractions across
+   covariance parameters, avoiding repeated observation-space derivative and
+   relationship solves. Conditional likelihood trials skip unused ordinary
+   trace preparation. Verbose RR fits report their MME path, coefficient solver
+   (including eligible block-Schur dispatch), and accepted iteration progress.
+ + RR progress prints the coefficient engine before the table header and
+   includes wall/CPU times, EMweight and actual accepted trust/line-search
+   scales. Numeric values are retained in engineDiagnostics$iterationProgress;
+   inapplicable boundary-restraint and notPD columns remain omitted.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes

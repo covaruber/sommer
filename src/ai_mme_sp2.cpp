@@ -1,5 +1,6 @@
 #include "mme_sp2_support.h"
 #include "mme_gpu.h"
+#include "mme_rr.h"
 
 // [[Rcpp::export]]
 Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
@@ -26,6 +27,41 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const bool gpu = false,
                      const int gpuMinSize = 256
 ){
+
+  if(verbose){
+#ifdef _OPENMP
+    Rcpp::Rcout
+      << "OpenMP configured maximum: "
+      << omp_get_max_threads()
+      << " threads (not BLAS threads or measured usage)."
+      << arma::endl;
+#else
+    Rcpp::Rcout
+      << "OpenMP unavailable: Sommer OpenMP loops are serial; BLAS may still be threaded."
+      << arma::endl;
+#endif
+  }
+  const bool rrConditional = covStructI.hasAttribute("rrConditional") &&
+    Rcpp::as<bool>(covStructI.attr("rrConditional"));
+  if(!rrConditional && sommer::hasZeroSpecific(covStructI)){
+    if(solver != "ldlt" && solver != "cholmod"){
+      Rcpp::stop("Exact latent reduced-rank Henderson fitting requires solver='ldlt' or solver='cholmod'.");
+    }
+    return sommer::fitReducedRank(
+      X, ZI, Zind, covStructI, AiI, y0, H, useH, residualBlockI, residualIndexI,
+      nIters, tolParConvLL, tolParConvNorm, computeCi, verbose,
+      weightEmInf, weightInf, reml, responsePrepared, preparedMean, preparedSd,
+      preparedIntercept,
+      [&](const Rcpp::List & latentZ, const arma::vec & latentIndex,
+          const Rcpp::List & covariance, int inverseMode) -> Rcpp::List {
+        return ai_mme_sp2(X, latentZ, latentIndex, AiI, y0, H, useH,
+          residualBlockI, residualIndexI, 1, tolParConvLL, tolParConvNorm,
+          tolParInv, covariance, weightEmInf, weightInf, false, inverseMode,
+          solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps,
+          reml, responsePrepared, preparedMean, preparedSd, preparedIntercept,
+          gpu, gpuMinSize);
+      });
+  }
 
   sommer::gpu::DenseBackend gpuBackend(gpu, gpuMinSize);
 
@@ -183,20 +219,6 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
   }
   bool enableBlockBandedEngine = (blockBandedMode == "force");
-
-  if(verbose){
-#ifdef _OPENMP
-    Rcpp::Rcout
-      << "OpenMP configured maximum: "
-      << omp_get_max_threads()
-      << " threads (not BLAS threads or measured usage)."
-      << arma::endl;
-#else
-    Rcpp::Rcout
-      << "OpenMP unavailable: Sommer OpenMP loops are serial; BLAS may still be threaded."
-      << arma::endl;
-#endif
-  }
 
   time_t before = time(0);
   localtime(&before);
@@ -717,12 +739,24 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
     // Stage 1 Eigen migration: factorise H directly in sparse form instead
     // of densifying it just to call gpuBackend.cholesky().
     const Eigen::SparseMatrix<double> He = armaSparseToEigenGlobal(H);
-    Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Upper> HeLLT;
-    HeLLT.compute(He);
-    if(HeLLT.info() != Eigen::Success){
-      Rcpp::stop("Sparse Cholesky factorisation of the weights matrix H failed.");
+    Eigen::SparseMatrix<double> HeU;
+    if(rrConditional){
+      // Preserve observation order for the documented chol(W) transform.
+      Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Upper,
+        Eigen::NaturalOrdering<int>> HeLLT;
+      HeLLT.compute(He);
+      if(HeLLT.info() != Eigen::Success){
+        Rcpp::stop("Sparse Cholesky factorisation of the weights matrix H failed.");
+      }
+      HeU = HeLLT.matrixU();
+    } else {
+      Eigen::SimplicialLLT<Eigen::SparseMatrix<double>, Eigen::Upper> HeLLT;
+      HeLLT.compute(He);
+      if(HeLLT.info() != Eigen::Success){
+        Rcpp::stop("Sparse Cholesky factorisation of the weights matrix H failed.");
+      }
+      HeU = HeLLT.matrixU();
     }
-    Eigen::SparseMatrix<double> HeU = HeLLT.matrixU();
     HeU.makeCompressed();
     Hs = eigenSparseToArmaGlobal(HeU);
   }
@@ -6462,6 +6496,22 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
     }
 
+    if(rrConditional){
+      b = bu(bInd);
+      if(nZs > 0){ u = bu(uInd); }
+      arma::uword offset = 0;
+      for(int term = 0; term < nRRe; ++term){
+        monitor.submat(offset, 0, offset + covPar(term).n_elem - 1, 0) = covPar(term);
+        offset += covPar(term).n_elem;
+      }
+      avInf.zeros();
+      InfMat.zeros();
+      InfMatInv.zeros();
+      normMonitor.zeros();
+      dLuOut.zeros(nVcTotal);
+      convergence = true;
+      break;
+    }
     phaseProfile.enter(sommer::FitPhase::TracePrep);
     // Derivatives and trace/AI preparation are unnecessary for likelihood
     // trials rejected above. Reuse the factor covariance/precision state
@@ -10029,6 +10079,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     Rcpp::Named("W") = Wout,
     Rcpp::Named("C") = Cout,
     Rcpp::Named("Cscale") = vary,
+    Rcpp::Named("yWorking") = yDense,
     Rcpp::Named("b") = b,
     Rcpp::Named("u") = u,
     Rcpp::Named("bu") = bu,

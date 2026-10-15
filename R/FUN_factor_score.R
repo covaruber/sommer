@@ -5,6 +5,10 @@
 
   if(identical(representation, "lowrank_diagonal") &&
      factor$model %in% c("fa", "rr")){
+    if(factor$model == "rr"){
+      stop("rrm() has zero specific variances and uses native reduced-rank fitting, not factorScoreAugmentation. Use factorScoreAugmentation='none'.",
+           call.=FALSE)
+    }
     order <- as.integer(factor$order)
     nload <- if(factor$model == "fa") as.integer(factor$fa_nload) else
       as.integer(factor$rr_nload)
@@ -19,7 +23,7 @@
       loading[rows[index], cols[index]] <-
         if(diagonal[index]) exp(par[index]) else par[index]
     }
-    specific <- if(factor$model == "fa"){
+    specific <- if(!identical(factor$variance, "homogeneous")){
       c(1, exp(par[nload + seq_len(q - 1L)]))
     }else{
       rep(1, q)
@@ -289,6 +293,11 @@
   freeShapes <- list()
   for(term in seq_along(setup$rtermss)){
     shape <- setup$covStruct[[term]]
+    if(any(vapply(shape$factors, function(factor)
+      isTRUE(factor$representation$loadings$zero_specific), logical(1)))){
+      stop("rrm() uses native reduced-rank fitting, not factorScoreAugmentation. Use factorScoreAugmentation='none'.",
+           call.=FALSE)
+    }
     if(length(shape$factors) != 1L ||
        !shape$factors[[1L]]$representation$kind %in%
          c("lowrank_diagonal", "compound_symmetry")) next
@@ -452,4 +461,3 @@
   result$convergence <- isTRUE(result$convergence) && optimum$convergence == 0L
   result
 }
-

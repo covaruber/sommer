@@ -499,136 +499,8 @@ public:
       }
 
 
-      if(op == "fa"){
-        const int order =
-          Rcpp::as<int>(
-            f["order"]
-          );
-
-        const int nload =
-          Rcpp::as<int>(
-            f["fa_nload"]
-          );
-
-        Rcpp::IntegerVector rr =
-          f["fa_row"];
-
-        Rcpp::IntegerVector cc =
-          f["fa_col"];
-
-        Rcpp::LogicalVector dd =
-          f["fa_diag"];
-
-        if(order < 1 ||
-           nload < 1 ||
-           rr.size() != nload ||
-           cc.size() != nload ||
-           dd.size() != nload ||
-           localPar.n_elem !=
-             static_cast<arma::uword>(
-               nload
-               +
-               static_cast<int>(q)
-               -
-               1
-             )){
-          Rcpp::stop("Malformed factor-analytic covariance factor.");
-        }
-
-        arma::mat L(
-          q,
-          static_cast<arma::uword>(order),
-          arma::fill::zeros
-        );
-
-        double referenceLogLoading = 0.0;
-
-        for(int a = 0; a < nload; ++a){
-          if(rr[a] == 1 && cc[a] == 1 && dd[a]){
-            referenceLogLoading =
-              localPar(static_cast<arma::uword>(a));
-            break;
-          }
-        }
-
-        const double twiceReferenceLogLoading =
-          2.0 * referenceLogLoading;
-
-        const double logScale =
-          twiceReferenceLogLoading > 0.0
-          ?
-          twiceReferenceLogLoading
-          +
-          std::log1p(std::exp(-twiceReferenceLogLoading))
-          :
-          std::log1p(std::exp(twiceReferenceLogLoading));
-
-        const double inverseReferenceSd =
-          std::exp(-0.5 * logScale);
-
-        for(int a = 0; a < nload; ++a){
-
-          const arma::uword i =
-            static_cast<arma::uword>(
-              rr[a] - 1
-            );
-
-          const arma::uword j =
-            static_cast<arma::uword>(
-              cc[a] - 1
-            );
-
-          const double value =
-            dd[a]
-            ?
-            std::exp(
-              localPar(
-                static_cast<arma::uword>(a)
-              )
-              -
-              0.5 * logScale
-            )
-            :
-            localPar(
-              static_cast<arma::uword>(a)
-            )
-            *
-            inverseReferenceSd;
-
-          L(i,j) =
-            value;
-        }
-
-        arma::vec psi(
-          q,
-          arma::fill::zeros
-        );
-
-        psi(0) =
-          std::exp(-logScale);
-
-        for(arma::uword i = 1; i < q; ++i){
-
-          psi(i) =
-            std::exp(
-              localPar(
-                static_cast<arma::uword>(nload)
-                +
-                i
-                -
-                1
-              )
-              -
-              logScale
-            );
-        }
-
-        return
-          L * L.t()
-          +
-          arma::diagmat(
-            psi
-          );
+      if(op == "fa" || op == "rr"){
+        return sommer::loadingFactorCovariance(f, localPar);
       }
 
       if(op == "ante"){
@@ -882,14 +754,16 @@ public:
         }
 
         if(op == "fa" || op == "rr"){
-          const bool isFA = op == "fa";
+          const bool isFA = !sommer::zeroSpecificFactor(f);
+          const bool heterogeneous = isFA && sommer::heterogeneousSpecificFactor(f);
+          const bool rrMetadata = f.containsElementNamed("rr_nload");
           const int order = Rcpp::as<int>(f["order"]);
-          const int nload = Rcpp::as<int>(f[isFA ? "fa_nload" : "rr_nload"]);
-          const Rcpp::IntegerVector rows = f[isFA ? "fa_row" : "rr_row"];
-          const Rcpp::IntegerVector cols = f[isFA ? "fa_col" : "rr_col"];
-          const Rcpp::LogicalVector diagonal = f[isFA ? "fa_diag" : "rr_diag"];
+          const int nload = Rcpp::as<int>(f[rrMetadata ? "rr_nload" : "fa_nload"]);
+          const Rcpp::IntegerVector rows = f[rrMetadata ? "rr_row" : "fa_row"];
+          const Rcpp::IntegerVector cols = f[rrMetadata ? "rr_col" : "fa_col"];
+          const Rcpp::LogicalVector diagonal = f[rrMetadata ? "rr_diag" : "fa_diag"];
           const arma::uword expectedParameters = static_cast<arma::uword>(
-            nload + (isFA ? static_cast<int>(q) - 1 : 0));
+            nload + (heterogeneous ? static_cast<int>(q) - 1 : 0));
           if(order < 1 || nload < 1 || rows.size() != nload ||
              cols.size() != nload || diagonal.size() != nload ||
              localPar.n_elem != expectedParameters){
@@ -899,7 +773,8 @@ public:
           arma::mat loadings(q, static_cast<arma::uword>(order), arma::fill::zeros);
           arma::mat loadingDerivative(q, static_cast<arma::uword>(order), arma::fill::zeros);
           arma::vec specificRaw(q, arma::fill::ones);
-          double normalization = 1.0;
+          if(!isFA){ specificRaw.zeros(); }
+          double normalization = isFA ? 1.0 : 0.0;
           double normalizationDerivative = 0.0;
           for(int parameter = 0; parameter < nload; ++parameter){
             const arma::uword row = static_cast<arma::uword>(rows[parameter] - 1);
@@ -917,7 +792,7 @@ public:
             }
             if(row == 0 && col == 0){ normalization += value * value; }
           }
-          if(isFA){
+          if(heterogeneous){
             for(arma::uword level = 1; level < q; ++level){
               specificRaw(level) = std::exp(localPar(
                 static_cast<arma::uword>(nload) + level - 1));
@@ -926,7 +801,7 @@ public:
           arma::mat covarianceNumerator = loadings * loadings.t() + arma::diagmat(specificRaw);
           arma::mat numeratorDerivative =
             loadingDerivative * loadings.t() + loadings * loadingDerivative.t();
-          if(isFA && k >= static_cast<arma::uword>(nload)){
+          if(heterogeneous && k >= static_cast<arma::uword>(nload)){
             const arma::uword level = k - static_cast<arma::uword>(nload) + 1;
             numeratorDerivative(level, level) = specificRaw(level);
           }
@@ -1283,6 +1158,9 @@ public:
           bandedPrecision = true;
         }
         if(family == sommer::PrecisionFamily::LowRankDiagonal){
+          if(sommer::zeroSpecificFactor(f)){
+            Rcpp::stop("Zero-specific reduced-rank covariance has no full-space precision; use the latent Henderson path.");
+          }
           const Rcpp::List capability = sommer::factorCapability(f, "loadings");
           const bool heterogeneousSpecific = Rcpp::as<bool>(capability["heterogeneous_specific"]);
           const int order = Rcpp::as<int>(capability["rank"]);

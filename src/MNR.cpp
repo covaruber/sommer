@@ -1500,6 +1500,8 @@ arma::mat nearPDcpp(const arma::mat X0,
   return X;
 }
 
+arma::mat predict_mmes_vcov_cpp(Rcpp::List model, const arma::sp_mat & Dmat);
+
 // [[Rcpp::export]]
 Rcpp::List post_mme_Cinverse_cpp(Rcpp::List model, const int mode = 1){
 
@@ -1537,6 +1539,43 @@ Rcpp::List post_mme_Cinverse_cpp(Rcpp::List model, const int mode = 1){
     model["uPevList"] = uPevList;
     model["CiComputed"] = false;
     model["CiMode"] = 0;
+    return model;
+  }
+
+  if(model.containsElementNamed("coefficientMap") &&
+     !Rf_isNull(model["coefficientMap"])){
+    const arma::sp_mat mapping = Rcpp::as<arma::sp_mat>(model["coefficientMap"]);
+    const arma::uword originalEffects = mapping.n_rows;
+    arma::sp_mat Ci(originalEffects, originalEffects);
+    if(mode == 2){
+      const arma::sp_mat identity = arma::speye<arma::sp_mat>(originalEffects, originalEffects);
+      Ci = arma::sp_mat(predict_mmes_vcov_cpp(model, identity));
+    }else{
+      for(arma::uword first = 0; first < originalEffects; first += 32){
+        const arma::uword count = std::min<arma::uword>(32, originalEffects - first);
+        arma::sp_mat selection(count, originalEffects);
+        for(arma::uword row = 0; row < count; ++row){ selection(row, first + row) = 1.0; }
+        const arma::mat block = predict_mmes_vcov_cpp(model, selection);
+        for(arma::uword row = 0; row < count; ++row){ Ci(first + row, first + row) = block(row, row); }
+      }
+    }
+    Rcpp::List pevs(partitions.size());
+    for(int term = 0; term < partitions.size(); ++term){
+      const arma::mat partition = Rcpp::as<arma::mat>(partitions[term]);
+      const arma::uword width = partition(0, 1) - partition(0, 0) + 1;
+      arma::mat pev(width, partition.n_rows);
+      for(arma::uword column = 0; column < partition.n_rows; ++column){
+        for(arma::uword row = 0; row < width; ++row){
+          const arma::uword index = partition(column, 0) - 1 + row;
+          pev(row, column) = Ci(index, index);
+        }
+      }
+      pevs[term] = pev;
+    }
+    model["Ci"] = Ci;
+    model["uPevList"] = pevs;
+    model["CiComputed"] = mode == 2;
+    model["CiMode"] = mode;
     return model;
   }
 
@@ -1844,6 +1883,15 @@ arma::mat predict_mmes_vcov_cpp(Rcpp::List model, const arma::sp_mat & Dmat){
 
   arma::sp_mat C = Rcpp::as<arma::sp_mat>(model["C"]);
   const double Cscale = Rcpp::as<double>(model["Cscale"]);
+  arma::sp_mat design = Dmat;
+  if(model.containsElementNamed("coefficientMap") &&
+     !Rf_isNull(model["coefficientMap"])){
+    const arma::sp_mat mapping = Rcpp::as<arma::sp_mat>(model["coefficientMap"]);
+    if(design.n_cols != mapping.n_rows){
+      Rcpp::stop("D must have one column per original mixed-model coefficient.");
+    }
+    design = design * mapping;
+  }
 
   if(C.n_rows != C.n_cols){
     Rcpp::stop("Stored C must be square.");
@@ -1851,7 +1899,7 @@ arma::mat predict_mmes_vcov_cpp(Rcpp::List model, const arma::sp_mat & Dmat){
 
   const int nEffects = static_cast<int>(C.n_rows);
 
-  if(static_cast<int>(Dmat.n_cols) != nEffects){
+  if(static_cast<int>(design.n_cols) != nEffects){
     Rcpp::stop("D must have one column per mixed-model effect (nrow/ncol of stored C).");
   }
 
@@ -1885,10 +1933,10 @@ arma::mat predict_mmes_vcov_cpp(Rcpp::List model, const arma::sp_mat & Dmat){
     Rcpp::stop("Sparse LDLT factorisation of stored C failed.");
   }
 
-  const int k = static_cast<int>(Dmat.n_rows);
+  const int k = static_cast<int>(design.n_rows);
 
   Eigen::MatrixXd rhs = Eigen::MatrixXd::Zero(nEffects, k);
-  for(arma::sp_mat::const_iterator it = Dmat.begin(); it != Dmat.end(); ++it){
+  for(arma::sp_mat::const_iterator it = design.begin(); it != design.end(); ++it){
     rhs(static_cast<Eigen::Index>(it.col()), static_cast<Eigen::Index>(it.row())) = (*it);
   }
 
@@ -1900,7 +1948,7 @@ arma::mat predict_mmes_vcov_cpp(Rcpp::List model, const arma::sp_mat & Dmat){
 
   const arma::mat Xarma(X.data(), static_cast<arma::uword>(nEffects), static_cast<arma::uword>(k));
 
-  arma::mat vcov = (Dmat * Xarma) * Cscale;
+  arma::mat vcov = (design * Xarma) * Cscale;
   vcov = 0.5 * (vcov + vcov.t());
 
   return vcov;
@@ -3555,46 +3603,8 @@ static arma::mat directEvalNativeFactor(const Rcpp::List & f,
     return 0.5 * (K + K.t());
   }
 
-  if(op == "fa"){
-    const int order = Rcpp::as<int>(f["order"]);
-    const int nload = Rcpp::as<int>(f["fa_nload"]);
-    Rcpp::IntegerVector rr = f["fa_row"];
-    Rcpp::IntegerVector cc = f["fa_col"];
-    Rcpp::LogicalVector dd = f["fa_diag"];
-    if(order < 1 || nload < 1 || rr.size() != nload || cc.size() != nload ||
-       dd.size() != nload ||
-       localPar.n_elem != static_cast<arma::uword>(nload + static_cast<int>(q) - 1)){
-      Rcpp::stop("Malformed factor-analytic covariance factor.");
-    }
-    arma::mat L(q, static_cast<arma::uword>(order), arma::fill::zeros);
-    double referenceLogLoading = 0.0;
-    for(int a = 0; a < nload; ++a){
-      if(rr[a] == 1 && cc[a] == 1 && dd[a]){
-        referenceLogLoading = localPar(static_cast<arma::uword>(a));
-        break;
-      }
-    }
-    const double twiceReferenceLogLoading = 2.0 * referenceLogLoading;
-    const double logScale =
-      twiceReferenceLogLoading > 0.0
-      ? twiceReferenceLogLoading + std::log1p(std::exp(-twiceReferenceLogLoading))
-      : std::log1p(std::exp(twiceReferenceLogLoading));
-    const double inverseReferenceSd = std::exp(-0.5 * logScale);
-    for(int a = 0; a < nload; ++a){
-      const arma::uword i = static_cast<arma::uword>(rr[a] - 1);
-      const arma::uword j = static_cast<arma::uword>(cc[a] - 1);
-      const double value =
-        dd[a]
-        ? std::exp(localPar(static_cast<arma::uword>(a)) - 0.5 * logScale)
-        : localPar(static_cast<arma::uword>(a)) * inverseReferenceSd;
-      L(i,j) = value;
-    }
-    arma::vec psi(q, arma::fill::zeros);
-    psi(0) = std::exp(-logScale);
-    for(arma::uword i = 1; i < q; ++i){
-      psi(i) = std::exp(localPar(static_cast<arma::uword>(nload) + i - 1) - logScale);
-    }
-    return L * L.t() + arma::diagmat(psi);
+  if(op == "fa" || op == "rr"){
+    return sommer::loadingFactorCovariance(f, localPar);
   }
 
   if(op == "ante"){
@@ -3998,6 +4008,14 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
       Rcpp::stop("ai_reml_direct_sp2() requires CovarianceFactor descriptor_version >= 2.");
     }
     covDescriptor[i] = cs;
+    if(i == residualStruct){
+      const Rcpp::List factors = cs["factors"];
+      for(int axis = 0; axis < factors.size(); ++axis){
+        if(sommer::zeroSpecificFactor(Rcpp::as<Rcpp::List>(factors[axis]))){
+          Rcpp::stop("Zero-specific reduced rank is supported for random effects only; residual covariance must be positive definite.");
+        }
+      }
+    }
     covPar(i) = Rcpp::as<arma::vec>(cs["par"]);
     Rcpp::LogicalVector freeR = cs["free"];
     if(freeR.size() != static_cast<int>(covPar(i).n_elem)){
@@ -4289,6 +4307,19 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     arma::mat Th = directEvaluateDescriptor(covDescriptor[iStruct], par);
     arma::vec eigval;
     bool ok = arma::eig_sym(eigval, arma::symmatu(Th));
+    if(iStruct != residualStruct){
+      const Rcpp::List factors = covDescriptor[iStruct]["factors"];
+      bool reducedRank = false;
+      for(int axis = 0; axis < factors.size(); ++axis){
+        reducedRank = reducedRank ||
+          sommer::zeroSpecificFactor(Rcpp::as<Rcpp::List>(factors[axis]));
+      }
+      if(reducedRank){
+        const double scale = std::max(1.0, arma::norm(Th, "inf"));
+        return ok && eigval.is_finite() && eigval.n_elem > 0 &&
+          eigval.min() >= -1.0e-10 * scale && eigval.max() > 0.0;
+      }
+    }
     return ok && eigval.n_elem > 0 && eigval.min() > tolParInv;
   };
 
@@ -4598,12 +4629,12 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
         Kdense = arma::eye<arma::mat>(Zdense[i][0].n_cols, Zdense[i][0].n_cols);
       }
       for(arma::uword a = 0; a < q; ++a){
-        const int startA = static_cast<int>(partitions(i)(a,0)) - 1;
-        const int endA = static_cast<int>(partitions(i)(a,1)) - 1;
+        const int startA = static_cast<int>(partitions(i)(a,0)) - 1 - nX;
+        const int endA = static_cast<int>(partitions(i)(a,1)) - 1 - nX;
         Zfull.cols(startA, endA) = Zdense[i][a];
         for(arma::uword b = 0; b < q; ++b){
-          const int startB = static_cast<int>(partitions(i)(b,0)) - 1;
-          const int endB = static_cast<int>(partitions(i)(b,1)) - 1;
+          const int startB = static_cast<int>(partitions(i)(b,0)) - 1 - nX;
+          const int endB = static_cast<int>(partitions(i)(b,1)) - 1 - nX;
           Gfull.submat(startA, startB, endA, endB) = Sigma(a,b) * Kdense;
         }
       }
@@ -4616,8 +4647,8 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
       const int levels = Zdense[i][0].n_cols;
       arma::mat eMat(levels, q, arma::fill::zeros);
       for(arma::uword a = 0; a < q; ++a){
-        const int startA = static_cast<int>(partitions(i)(a,0)) - 1;
-        const int endA = static_cast<int>(partitions(i)(a,1)) - 1;
+        const int startA = static_cast<int>(partitions(i)(a,0)) - 1 - nX;
+        const int endA = static_cast<int>(partitions(i)(a,1)) - 1 - nX;
         eMat.col(a) = arma::diagvec(PevFull.submat(startA, startA, endA, endA)) * vary;
       }
       uPevList(i) = eMat;
@@ -5334,5 +5365,3 @@ Rcpp::List mme_pcg_solve(const Rcpp::S4 & design,
     Rcpp::Named("solveSeconds") = solveSeconds
   );
 }
-
-
