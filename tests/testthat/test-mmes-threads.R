@@ -104,3 +104,50 @@ test_that("auto BLAS sizing uses allocation-aware CPU availability", {
   scope$restore()
   expect_identical(configured, 1L)
 })
+
+test_that("parallel AI contractions preserve serial fits and cache accounting", {
+  script <- tempfile(fileext=".R")
+  outputs <- c(tempfile(fileext=".rds"), tempfile(fileext=".rds"))
+  on.exit(unlink(c(script, outputs)), add=TRUE)
+  writeLines(deparse(substitute({
+    arguments <- commandArgs(TRUE)
+    library(sommer, lib.loc=arguments[2L])
+    dataset <- expand.grid(trial=factor(seq_len(6L)),
+      genotype=factor(seq_len(12L)), block=factor(seq_len(3L)))
+    dataset$y <- 100 + c(45, -30, -12, 52, 18, -20)[dataset$trial] +
+      sin(as.integer(dataset$genotype) / 3) * 8 +
+      cos(seq_len(nrow(dataset)) / 5) * 3
+    models <- list(
+      ~vsm(fam(trial, 2), ism(genotype)),
+      ~vsm(usm(trial), ism(genotype)),
+      ~vsm(fam(trial, 2), ism(genotype)) + vsm(usm(block), ism(genotype))
+    )
+    results <- list()
+    for(repetition in seq_len(12L)){
+      for(model in models){
+        fit <- mmes(y~trial+block, random=model, data=dataset, nIters=3L,
+          verbose=FALSE, dateWarning=FALSE)
+        results[[length(results) + 1L]] <- c(
+          fit[c("theta", "bu", "llik", "InfMat", "dLu")],
+          list(contractionDigitEntries=fit$engineDiagnostics$contractionDigitEntries)
+        )
+      }
+    }
+    saveRDS(results, arguments[1L])
+  })), script)
+  libraryPath <- dirname(find.package("sommer"))
+  for(index in seq_along(outputs)){
+    threads <- c(1L, 2L)[index]
+    output <- system2(file.path(R.home("bin"), "Rscript"),
+      c("--vanilla", shQuote(script), shQuote(outputs[index]), shQuote(libraryPath)),
+      env=c(paste0("OMP_NUM_THREADS=", threads), "OMP_THREAD_LIMIT=2",
+        "OPENBLAS_NUM_THREADS=1", "MKL_NUM_THREADS=1", "BLIS_NUM_THREADS=1"),
+      stdout=TRUE, stderr=TRUE)
+    expect_null(attr(output, "status"), info=paste(output, collapse="\n"))
+    if(!file.exists(outputs[index])) return(invisible(NULL))
+  }
+  serial <- readRDS(outputs[1L])
+  threaded <- readRDS(outputs[2L])
+  expect_true(any(vapply(serial, function(fit) fit$contractionDigitEntries > 0, logical(1))))
+  expect_equal(threaded, serial, tolerance=1e-8)
+})

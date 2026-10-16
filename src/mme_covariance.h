@@ -2,6 +2,7 @@
 #define SOMMER_MME_COVARIANCE_H
 
 #include "mme_factors.h"
+#include <mutex>
 
 namespace sommer {
 
@@ -22,6 +23,7 @@ public:
   int sparseSpatialFactorizationReuses = 0;
 
   std::map<std::vector<arma::uword>, arma::umat> contractionDigitsCache;
+  std::mutex contractionDigitsMutex;
   std::size_t contractionDigitsEntries = 0;
   std::size_t contractionDigitsMaxEntries = WorkspacePolicy::cacheEntries();
 
@@ -2066,20 +2068,28 @@ public:
         return accumulate(0, 0, 0, scale);
       }
 
-      auto cached = contractionDigitsCache.find(dimensions);
-      if(cached == contractionDigitsCache.end() && !factors.empty() &&
-         totalDim <= (contractionDigitsMaxEntries - contractionDigitsEntries) / factors.size()){
-        arma::umat digits(totalDim, factors.size());
-        arma::uword trailing = totalDim;
-        for(std::size_t axis = 0; axis < factors.size(); ++axis){
-          trailing /= dimensions[axis];
-          for(arma::uword coordinate = 0; coordinate < totalDim; ++coordinate){
-            digits(coordinate, axis) = (coordinate / trailing) % dimensions[axis];
+      const arma::umat * cachedDigits = nullptr;
+      {
+        std::lock_guard<std::mutex> lock(contractionDigitsMutex);
+        auto cached = contractionDigitsCache.find(dimensions);
+        if(cached == contractionDigitsCache.end() && !factors.empty() &&
+           totalDim <= (contractionDigitsMaxEntries - contractionDigitsEntries) / factors.size()){
+          arma::umat digits(totalDim, factors.size());
+          arma::uword trailing = totalDim;
+          for(std::size_t axis = 0; axis < factors.size(); ++axis){
+            trailing /= dimensions[axis];
+            for(arma::uword coordinate = 0; coordinate < totalDim; ++coordinate){
+              digits(coordinate, axis) = (coordinate / trailing) % dimensions[axis];
+            }
           }
+          cached = contractionDigitsCache.emplace(dimensions, std::move(digits)).first;
+          contractionDigitsEntries += cached->second.n_elem;
         }
-        contractionDigitsEntries += digits.n_elem;
-        cached = contractionDigitsCache.emplace(dimensions, std::move(digits)).first;
+        if(cached != contractionDigitsCache.end()){
+          cachedDigits = &cached->second;
+        }
       }
+      // Entries are immutable and never erased; map insertion preserves their addresses.
       double result = 0.0;
       for(arma::uword row = 0; row < totalDim; ++row){
         for(arma::uword col = 0; col < totalDim; ++col){
@@ -2089,10 +2099,10 @@ public:
             const arma::mat & factor = factors[axis];
             const arma::uword dim = factor.n_rows;
             trailing /= dim;
-            const arma::uword factorRow = cached == contractionDigitsCache.end()
-              ? (row / trailing) % dim : cached->second(row, axis);
-            const arma::uword factorCol = cached == contractionDigitsCache.end()
-              ? (col / trailing) % dim : cached->second(col, axis);
+            const arma::uword factorRow = cachedDigits == nullptr
+              ? (row / trailing) % dim : (*cachedDigits)(row, axis);
+            const arma::uword factorCol = cachedDigits == nullptr
+              ? (col / trailing) % dim : (*cachedDigits)(col, axis);
             value *= factor(factorRow, factorCol);
           }
           result += matrix(row,col) * value;

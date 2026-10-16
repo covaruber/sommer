@@ -284,6 +284,10 @@ uncached columns. A reused cache releases those tables when its budget shrinks.
 Final LDLT `computeCi=1` reuses the final accepted-state numeric subset.
 CHOLMOD final mode-1 extraction still uses the existing Eigen LDLT fallback.
 
+Parallel AI contractions share a bounded coordinate-digit cache. A mutex guards
+cache lookup, insertion, and entry accounting. Cached tables are immutable and
+remain valid for the engine's lifetime, so contractions run outside the lock.
+
 Grid residual factorization reuse is local to one coefficient evaluation and
 keys on factor, section, and the exact ordered level subset. Missing/gapped
 subsets continue to use their principal covariance, not a sliced precision.
