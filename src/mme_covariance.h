@@ -886,6 +886,88 @@ public:
       return evalFactor(f, sectionSlice(f, localPar, t));
     }
 
+  arma::mat evaluateObservedDescriptor(const Rcpp::List & descriptor,
+        const arma::vec & par, const arma::uvec & index,
+        const arma::uword parameter) {
+      const Rcpp::List factors = descriptor["factors"];
+      const int dimension = Rcpp::as<int>(descriptor["dim"]);
+      if(par.is_empty() || dimension < 1 || index.is_empty() ||
+         index.max() >= static_cast<arma::uword>(dimension) || parameter > par.n_elem){
+        Rcpp::stop("Observed covariance indices or parameter are out of range.");
+      }
+      // par.n_elem requests covariance; zero differentiates its log scale.
+      arma::umat digits(index.n_elem, factors.size());
+      arma::uword trailing = dimension;
+      int derivativeAxis = -1;
+      for(int axis = 0; axis < factors.size(); ++axis){
+        const Rcpp::List factor = factors[axis];
+        const int size = Rcpp::as<int>(factor["dim"]);
+        if(size < 1 || trailing % size != 0){
+          Rcpp::stop("Observed covariance factor dimensions are inconsistent.");
+        }
+        trailing /= size;
+        for(arma::uword row = 0; row < index.n_elem; ++row){
+          digits(row, axis) = (index(row) / trailing) % size;
+        }
+        const int first = Rcpp::as<int>(factor["par_start"]) - 1;
+        const int last = Rcpp::as<int>(factor["par_end"]) - 1;
+        if(parameter > 0 && parameter < par.n_elem &&
+           static_cast<int>(parameter) >= first && static_cast<int>(parameter) <= last){
+          derivativeAxis = axis;
+        }
+      }
+      if(trailing != 1 || (parameter > 0 && parameter < par.n_elem && derivativeAxis < 0)){
+        Rcpp::stop("Observed covariance parameter does not belong to a valid factor.");
+      }
+      arma::mat result(index.n_elem, index.n_elem, arma::fill::ones);
+      for(int axis = 0; axis < factors.size(); ++axis){
+        const Rcpp::List factor = factors[axis];
+        const int first = Rcpp::as<int>(factor["par_start"]) - 1;
+        const int last = Rcpp::as<int>(factor["par_end"]) - 1;
+        arma::vec local;
+        if(last >= first){ local = par.subvec(first, last); }
+        const int sections = factorSections(factor);
+        const int owner = sections ? Rcpp::as<int>(factor["section_factor"]) - 1 : -1;
+        if(sections && (owner < 0 || owner >= factors.size())){
+          Rcpp::stop("A sectioned covariance factor has no valid section owner.");
+        }
+        std::vector<arma::mat> pieces(sections ? sections : 1);
+        for(std::size_t section = 0; section < pieces.size(); ++section){
+          if(axis != derivativeAxis){
+            pieces[section] = sections ? evalSectionFactor(factor, local, section)
+                                      : evalFactor(factor, local);
+          }else if(!sections){
+            pieces[section] = factorD1(factor, local, parameter - first);
+          }else{
+            const int listed = sectionListed(factor, section);
+            const int count = Rcpp::as<int>(factor["section_npar"]);
+            const int offset = static_cast<int>(parameter) - first;
+            if(listed >= 0 && count > 0 && offset / count == listed){
+              pieces[section] = factorD1(factor, sectionSlice(factor, local, section),
+                                         offset % count);
+            }
+          }
+          const arma::mat & piece = pieces[section];
+          const arma::uword size = Rcpp::as<int>(factor["dim"]);
+          if(!piece.is_empty() && (piece.n_rows != size || piece.n_cols != size)){
+            Rcpp::stop("Observed covariance factor returned an invalid matrix.");
+          }
+        }
+        for(arma::uword column = 0; column < index.n_elem; ++column){
+          for(arma::uword row = 0; row < index.n_elem; ++row){
+            const arma::uword section = sections ? digits(row, owner) : 0;
+            if(section >= pieces.size()){
+              Rcpp::stop("Observed covariance section index is out of range.");
+            }
+            const arma::mat & piece = pieces[section];
+            result(row, column) *= piece.is_empty() ? 0.0
+              : piece(digits(row, axis), digits(column, axis));
+          }
+        }
+      }
+      return std::exp(par(0)) * result;
+    }
+
   arma::mat evaluateDescriptor(const Rcpp::List & cs,
         const arma::vec & par) {
 

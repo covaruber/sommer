@@ -6,65 +6,29 @@
 
 namespace sommer {
 
-inline arma::mat rrDescriptorDerivative(CovarianceFactorEngine & engine,
-                                        const Rcpp::List & descriptor,
-                                        const arma::vec & par,
-                                        const arma::uword parameter) {
-  if(parameter >= par.n_elem) {
-    Rcpp::stop("Reduced-rank covariance derivative index is out of range.");
-  }
-  const arma::mat covariance = engine.evaluateDescriptor(descriptor, par);
-  if(parameter == 0) { return covariance; }
-  const Rcpp::List factors = descriptor["factors"];
-  const double scale = std::exp(par(0));
-  for(int axis = 0; axis < factors.size(); ++axis) {
-    const Rcpp::List factor = factors[axis];
-    const int start = Rcpp::as<int>(factor["par_start"]) - 1;
-    const int end = Rcpp::as<int>(factor["par_end"]) - 1;
-    if(start < 0 || end < start) { continue; }
-    if(parameter < static_cast<arma::uword>(start) ||
-       parameter > static_cast<arma::uword>(end)) {
-      continue;
-    }
-    const arma::vec local = par.subvec(static_cast<arma::uword>(start),
-                                       static_cast<arma::uword>(end));
-    const arma::uword dimension = static_cast<arma::uword>(Rcpp::as<int>(factor["dim"]));
-    arma::mat derivative;
-    derivative = engine.factorD1(factor, local,
-      parameter - static_cast<arma::uword>(start));
-    if(derivative.n_rows != dimension || derivative.n_cols != dimension) {
-      Rcpp::stop("Covariance factor derivative returned an invalid matrix.");
-    }
-    arma::mat product(1, 1, arma::fill::ones);
-    for(int other = 0; other < factors.size(); ++other) {
-      const Rcpp::List otherFactor = factors[other];
-      const int otherStart = Rcpp::as<int>(otherFactor["par_start"]) - 1;
-      const int otherEnd = Rcpp::as<int>(otherFactor["par_end"]) - 1;
-      arma::mat piece;
-      if(otherStart < 0 || otherEnd < otherStart) {
-        piece = engine.evalFactor(otherFactor, arma::vec());
-      } else {
-        const arma::vec otherPar = par.subvec(static_cast<arma::uword>(otherStart),
-                                              static_cast<arma::uword>(otherEnd));
-        if(other == axis) {
-          piece = derivative;
-        } else {
-          piece = engine.evalFactor(otherFactor, otherPar);
-        }
-      }
-      product = arma::kron(product, piece);
-    }
-    return scale * product;
-  }
-  Rcpp::stop("Covariance derivative parameter does not belong to a factor.");
-  return arma::mat();
-}
-
 struct RRAIResult {
   arma::vec score;
   arma::mat information;
   arma::uword randomTraceDirections = 0;
+  arma::uword largestResidualBlock = 0;
+  std::string residualEngine;
+  arma::vec phaseSeconds = arma::vec(4, arma::fill::zeros);
 };
+
+struct RRConditionalOperators {
+  arma::sp_mat W;
+  arma::sp_mat C;
+  arma::vec y;
+  double scale;
+  std::string residualEngine;
+  std::function<arma::mat(const arma::mat &)> precision;
+  std::function<arma::mat(const arma::mat &)> solve;
+  std::function<arma::mat(const arma::mat &)> solveRandom;
+  std::function<arma::mat(arma::uword, const arma::mat &)> derivative;
+  std::function<arma::mat(arma::uword)> residualContraction;
+};
+
+using RRConditionalCallback = std::function<void(const RRConditionalOperators &)>;
 
 inline arma::mat reducedRankCoefficientMap(const Rcpp::List & descriptor,
                                            const arma::vec & parameters) {
@@ -85,7 +49,7 @@ inline arma::mat reducedRankCoefficientMap(const Rcpp::List & descriptor,
 }
 
 inline RRAIResult reducedRankInformation(
-    const Rcpp::List & fit,
+    const RRConditionalOperators & operators,
     const arma::sp_mat & X,
     const Rcpp::List & originalZ,
     const arma::vec & Zind,
@@ -98,12 +62,16 @@ inline RRAIResult reducedRankInformation(
     const arma::vec & parameters,
     const std::vector<arma::uword> & offsets,
     const bool reml) {
-  const arma::sp_mat W = Rcpp::as<arma::sp_mat>(fit["W"]);
-  const arma::sp_mat C = Rcpp::as<arma::sp_mat>(fit["C"]);
-  const arma::vec y = Rcpp::as<arma::vec>(fit["yWorking"]);
+    const auto started = std::chrono::steady_clock::now();
+    auto secondsSince = [](const std::chrono::steady_clock::time_point & start) {
+      return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+    };
+  const arma::sp_mat & W = operators.W;
+  const arma::sp_mat & C = operators.C;
+  const arma::vec & y = operators.y;
   const arma::uword n = y.n_elem;
   const arma::uword nParameters = parameters.n_elem;
-  const double covarianceScale = Rcpp::as<double>(fit["Cscale"]);
+  const double covarianceScale = operators.scale;
   if(W.n_rows != n || C.n_rows != C.n_cols || residualBlock.n_elem != n ||
      residualIndex.n_elem != n) {
     Rcpp::stop("Reduced-rank AI received inconsistent Henderson dimensions.");
@@ -125,12 +93,6 @@ inline RRAIResult reducedRankInformation(
     EigenSpMat upper = weightFactor.matrixU();
     upper.makeCompressed();
     residualTransform = eigenSparseToArmaGlobal(upper);
-  }
-  EigenSpMat Ce = armaSparseToEigenGlobal(C);
-  EigenLDLT Cfactor;
-  Cfactor.compute(Ce);
-  if(Cfactor.info() != Eigen::Success) {
-    Rcpp::stop("Sparse Henderson factorization failed during reduced-rank AI evaluation.");
   }
   auto solveFactor = [](const EigenLDLT & factor, const arma::mat & rhs,
                         const std::string & context) -> arma::mat {
@@ -202,21 +164,22 @@ inline RRAIResult reducedRankInformation(
     standardizedParameters[static_cast<std::size_t>(term)] =
       parameters.subvec(offsets[term], offsets[term + 1] - 1);
     standardizedParameters[static_cast<std::size_t>(term)](0) -= std::log(covarianceScale);
-    covariance[static_cast<std::size_t>(term)] = engine.evaluateDescriptor(
-      Rcpp::as<Rcpp::List>(descriptors[term]),
-      standardizedParameters[static_cast<std::size_t>(term)]);
+    if(term < terms - 1) {
+      covariance[static_cast<std::size_t>(term)] = engine.evaluateDescriptor(
+        Rcpp::as<Rcpp::List>(descriptors[term]),
+        standardizedParameters[static_cast<std::size_t>(term)]);
+    }
   }
 
   struct ResidualBlockState {
     arma::uvec rows;
     arma::uvec index;
     arma::mat covariance;
-    arma::mat precision;
   };
   std::vector<ResidualBlockState> residualStates;
-  const bool diagonalResidual = arma::accu(arma::abs(covariance.back() -
-    arma::diagmat(covariance.back().diag()))) == 0.0;
-  arma::vec residualDiagonal(n), residualPrecisionDiagonal(n);
+  const Rcpp::List residualDescriptor = descriptors[terms - 1];
+  const arma::vec & residualParameters = standardizedParameters.back();
+  const arma::uword residualDimension = Rcpp::as<int>(residualDescriptor["dim"]);
   const arma::uword residualBlocks = residualBlock.max();
   residualStates.reserve(residualBlocks);
   for(arma::uword block = 1; block <= residualBlocks; ++block) {
@@ -227,49 +190,19 @@ inline RRAIResult reducedRankInformation(
     for(arma::uword row = 0; row < state.rows.n_elem; ++row) {
       const arma::uword observation = state.rows(row);
       if(residualIndex(observation) < 1 ||
-         residualIndex(observation) > covariance.back().n_rows) {
+         residualIndex(observation) > residualDimension) {
         Rcpp::stop("Residual covariance index is outside its descriptor dimensions.");
       }
       state.index(row) = residualIndex(observation) - 1;
     }
-    state.covariance = covariance.back().submat(state.index, state.index);
-    if(!arma::inv_sympd(state.precision, state.covariance) ||
-       !state.precision.is_finite()) {
-      Rcpp::stop("Residual covariance block is not positive definite in reduced-rank AI evaluation.");
-    }
-    if(diagonalResidual) {
-      residualDiagonal.elem(state.rows) = state.covariance.diag();
-      residualPrecisionDiagonal.elem(state.rows) = state.precision.diag();
+    if(!operators.derivative) {
+      state.covariance = engine.evaluateObservedDescriptor(residualDescriptor,
+        residualParameters, state.index, residualParameters.n_elem);
     }
     residualStates.push_back(std::move(state));
   }
-  auto applyResidual = [&](const arma::mat & values, const bool precision) -> arma::mat {
-    arma::mat input = values;
-    if(useH) {
-      if(precision) {
-        input = arma::mat(residualTransform.t() * input);
-      } else {
-        input = solveTransform(input, false, "residual covariance derivative");
-      }
-    }
-    arma::mat output(n, values.n_cols, arma::fill::zeros);
-    if(diagonalResidual) {
-      output = input;
-      output.each_col() %= precision ? residualPrecisionDiagonal : residualDiagonal;
-    } else {
-      for(const ResidualBlockState & state : residualStates) {
-        const arma::mat & local = precision ? state.precision : state.covariance;
-        output.rows(state.rows) = local * input.rows(state.rows);
-      }
-    }
-    if(useH) {
-      output = precision ? arma::mat(residualTransform * output)
-                         : solveTransform(output, true, "residual covariance derivative");
-    }
-    return output;
-  };
   auto applyRi = [&](const arma::mat & value) -> arma::mat {
-    return applyResidual(value, true);
+    return operators.precision(value);
   };
 
   // Relationship precisions are factored once per random term and reused for
@@ -331,30 +264,25 @@ inline RRAIResult reducedRankInformation(
     const Rcpp::List descriptor = descriptors[term];
     const arma::vec par = standardizedParameters[static_cast<std::size_t>(term)];
     for(arma::uword local = 0; local < count; ++local) {
-      const arma::mat dSigma = rrDescriptorDerivative(engine, descriptor, par, local);
+      const arma::mat dSigma = term < terms - 1
+        ? engine.descriptorD1(descriptor, par, local) : arma::mat();
       derivativeCovariances.push_back(dSigma);
-      zeroDerivatives.push_back(dSigma.is_zero());
+      zeroDerivatives.push_back(term < terms - 1 && dSigma.is_zero());
       if(term < terms - 1) {
         derivatives.emplace_back([&, term, dSigma](const arma::mat & v) {
           return applyRandom(term, dSigma, v);
         });
       } else {
-        const arma::vec diagonal = dSigma.diag();
-        const bool diagonalDerivative =
-          arma::accu(arma::abs(dSigma - arma::diagmat(diagonal))) == 0.0;
-        derivatives.emplace_back([&, dSigma, diagonal, diagonalDerivative](const arma::mat & v) {
-          if(dSigma.is_zero()) { return arma::mat(n, v.n_cols, arma::fill::zeros); }
+        derivatives.emplace_back([&, local](const arma::mat & v) {
+          if(operators.derivative) { return operators.derivative(local, v); }
           arma::mat input = v;
           if(useH) { input = solveTransform(input, false, "residual derivative"); }
           arma::mat output(n, v.n_cols, arma::fill::zeros);
-          if(diagonalDerivative) {
-            output = input;
-            output.each_col() %= diagonal.elem(residualIndex - 1);
-          } else {
-            for(const ResidualBlockState & state : residualStates) {
-              output.rows(state.rows) = dSigma.submat(state.index, state.index) *
-                input.rows(state.rows);
-            }
+          for(const ResidualBlockState & state : residualStates) {
+            const arma::mat derivative = local == 0 ? state.covariance
+              : engine.evaluateObservedDescriptor(residualDescriptor, residualParameters,
+                                                   state.index, local);
+            output.rows(state.rows) = derivative * input.rows(state.rows);
           }
           if(useH) { output = solveTransform(output, true, "residual derivative"); }
           return output;
@@ -366,27 +294,18 @@ inline RRAIResult reducedRankInformation(
   auto applyP = [&](const arma::mat & value) -> arma::mat {
     const arma::mat riValue = applyRi(value);
     const arma::mat rhs = W.t() * riValue;
-    const arma::mat solved = solveFactor(Cfactor, rhs, "P-operator coefficient solve");
+    const arma::mat solved = operators.solve(rhs);
     return riValue - applyRi(W * solved);
   };
-  EigenLDLT randomFactor;
   arma::sp_mat randomW;
   if(!reml && X.n_cols < W.n_cols) {
     randomW = W.cols(X.n_cols, W.n_cols - 1);
-    const arma::sp_mat randomC =
-      C.submat(X.n_cols, X.n_cols, C.n_rows - 1, C.n_cols - 1);
-    EigenSpMat randomEigen = armaSparseToEigenGlobal(randomC);
-    randomFactor.compute(randomEigen);
-    if(randomFactor.info() != Eigen::Success) {
-      Rcpp::stop("Random-effect Henderson factorization failed during ML trace evaluation.");
-    }
   }
   auto applyVi = [&](const arma::mat & value) -> arma::mat {
     if(reml) { return applyP(value); }
     if(randomW.n_cols == 0) { return applyRi(value); }
     const arma::mat riValue = applyRi(value);
-    const arma::mat solved = solveFactor(randomFactor, randomW.t() * riValue,
-      "ML random-effect coefficient solve");
+    const arma::mat solved = operators.solveRandom(randomW.t() * riValue);
     return riValue - applyRi(randomW * solved);
   };
 
@@ -394,10 +313,14 @@ inline RRAIResult reducedRankInformation(
   const arma::mat py = applyP(yMat);
   std::vector<arma::mat> applied(nParameters), projected(nParameters);
   RRAIResult out;
+  out.residualEngine = operators.residualEngine;
   out.score.zeros(nParameters);
   out.information.zeros(nParameters, nParameters);
-  const arma::uword panelWidth = 32;
+  out.phaseSeconds(0) = secondsSince(started);
+  const auto randomTraceStarted = std::chrono::steady_clock::now();
+  const arma::uword panelWidth = WorkspacePolicy::panelColumns();
   arma::vec traces(nParameters, arma::fill::zeros);
+  arma::uword latentOffset = X.n_cols;
   for(int term = 0; term < terms - 1; ++term) {
     const RelationshipFactor & state = relationship[static_cast<std::size_t>(term)];
     const arma::uword q = state.designs.size();
@@ -414,28 +337,35 @@ inline RRAIResult reducedRankInformation(
       }
       span = std::move(orthogonal);
     }
-    std::vector<arma::sp_mat> traceDesigns;
-    for(arma::uword column = 0; column < span.n_cols; ++column) {
-      arma::sp_mat design(n, width);
-      for(arma::uword row = 0; row < q; ++row) {
-        if(span(row, column) != 0.0) { design += span(row, column) * state.designs[row]; }
-      }
-      traceDesigns.push_back(std::move(design));
+    const arma::mat mapping = reducedRankCoefficientMap(descriptor,
+      standardizedParameters[static_cast<std::size_t>(term)]);
+    const arma::mat leftInverse = arma::pinv(mapping);
+    const arma::mat latentCovariance = leftInverse *
+      covariance[static_cast<std::size_t>(term)] * leftInverse.t();
+    arma::mat latentPrecision;
+    if(!arma::inv_sympd(latentPrecision, latentCovariance)) {
+      Rcpp::stop("Latent covariance factorization failed during reduced-rank trace evaluation.");
     }
+    const arma::mat precisionSpan = latentPrecision * leftInverse * span;
     arma::mat contractions(q, span.n_cols, arma::fill::zeros);
     out.randomTraceDirections += span.n_cols;
     // dG = A Q' + Q A' for an orthonormal loading span Q; only Q needs P solves.
     for(arma::uword first = 0; first < width; first += panelWidth) {
       Rcpp::checkUserInterrupt();
       const arma::uword count = std::min(panelWidth, width - first);
-      arma::mat basis(width, count, arma::fill::zeros);
-      for(arma::uword column = 0; column < count; ++column) {
-        basis(first + column, column) = 1.0;
-      }
-      const arma::mat relationshipPanel = solveFactor(*state.factor, basis,
-        "relationship trace panel");
       for(arma::uword source = 0; source < span.n_cols; ++source) {
-        const arma::mat projectedPanel = applyVi(traceDesigns[source] * relationshipPanel);
+        // P Z_l G_l = R^{-1} W C^{-1} E_l: relationship covariances cancel.
+        arma::mat rhs(reml ? W.n_cols : randomW.n_cols, count, arma::fill::zeros);
+        for(arma::uword axis = 0; axis < mapping.n_cols; ++axis) {
+          for(arma::uword column = 0; column < count; ++column) {
+            rhs(latentOffset - (reml ? 0 : X.n_cols) + axis * width + first + column,
+                column) = precisionSpan(axis, source);
+          }
+        }
+        const arma::mat solved = reml ? operators.solve(rhs)
+          : operators.solveRandom(rhs);
+        const arma::mat projectedPanel = applyRi(reml ? arma::mat(W * solved)
+                                                      : arma::mat(randomW * solved));
         for(arma::uword target = 0; target < q; ++target) {
           const arma::sp_mat designPanel = state.designs[target].cols(first, first + count - 1);
           for(arma::sp_mat::const_iterator entry = designPanel.begin();
@@ -450,12 +380,16 @@ inline RRAIResult reducedRankInformation(
       const arma::mat tangent = derivativeSpan - 0.5 * span * (span.t() * derivativeSpan);
       traces(parameter) = 2.0 * arma::accu(tangent % contractions);
     }
+    latentOffset += mapping.n_cols * width;
   }
-  const arma::uword residualDimension = covariance.back().n_rows;
-  arma::mat residualContractions(residualDimension, residualDimension, arma::fill::zeros);
+  std::vector<arma::mat> residualContractions;
+  out.phaseSeconds(1) = secondsSince(randomTraceStarted);
+  const auto residualTraceStarted = std::chrono::steady_clock::now();
   arma::uvec blockOfRow(n), localRow(n);
   for(std::size_t block = 0; block < residualStates.size(); ++block) {
     const ResidualBlockState & state = residualStates[block];
+    residualContractions.emplace_back(state.rows.n_elem, state.rows.n_elem, arma::fill::zeros);
+    out.largestResidualBlock = std::max(out.largestResidualBlock, state.rows.n_elem);
     for(arma::uword row = 0; row < state.rows.n_elem; ++row) {
       blockOfRow(state.rows(row)) = block;
       localRow(state.rows(row)) = row;
@@ -463,7 +397,18 @@ inline RRAIResult reducedRankInformation(
   }
   const arma::uword residualFirst = offsets[terms - 1];
   const bool residualHasShape = nParameters - residualFirst > 1;
-  for(arma::uword first = 0; residualHasShape && first < n; first += panelWidth) {
+  if(residualHasShape && operators.residualContraction) {
+    for(std::size_t block = 0; block < residualStates.size(); ++block) {
+      const ResidualBlockState & state = residualStates[block];
+      const arma::mat contraction =
+        operators.residualContraction(residualBlock(residualStates[block].rows(0)) - 1);
+      // The grid engine orders rows by covariance coordinate, not observation.
+      const arma::uvec observationOrder = arma::sort_index(arma::sort_index(state.index));
+      residualContractions[block] = contraction.submat(observationOrder, observationOrder);
+    }
+  }
+  for(arma::uword first = 0; residualHasShape && !operators.residualContraction &&
+      first < n; first += panelWidth) {
     Rcpp::checkUserInterrupt();
     const arma::uword count = std::min(panelWidth, n - first);
     arma::mat basis(n, count, arma::fill::zeros);
@@ -478,20 +423,26 @@ inline RRAIResult reducedRankInformation(
     for(arma::uword column = 0; column < count; ++column) {
       const arma::uword observation = first + column;
       const ResidualBlockState & state = residualStates[blockOfRow(observation)];
-      const arma::uword index = state.index(localRow(observation));
       for(arma::uword row = 0; row < state.rows.n_elem; ++row) {
-        residualContractions(state.index(row), index) += projectedPanel(state.rows(row), column);
+        residualContractions[blockOfRow(observation)](row, localRow(observation)) +=
+          projectedPanel(state.rows(row), column);
       }
     }
   }
   for(arma::uword parameter = residualFirst + 1; parameter < nParameters; ++parameter) {
-    traces(parameter) = arma::accu(derivativeCovariances[parameter] % residualContractions);
+    for(std::size_t block = 0; block < residualStates.size(); ++block) {
+      const arma::mat derivative = engine.evaluateObservedDescriptor(residualDescriptor,
+        residualParameters, residualStates[block].index, parameter - residualFirst);
+      traces(parameter) += arma::accu(derivative % residualContractions[block]);
+    }
   }
   // tr(P V) = n - p (REML), or tr(V^{-1} V) = n (ML).
   traces(residualFirst) = static_cast<double>(n) - (reml ? X.n_cols : 0);
   for(int term = 0; term < terms - 1; ++term) {
     traces(residualFirst) -= traces(offsets[term]);
   }
+  out.phaseSeconds(2) = secondsSince(residualTraceStarted);
+  const auto informationStarted = std::chrono::steady_clock::now();
   for(arma::uword parameter = 0; parameter < nParameters; ++parameter) {
     if(zeroDerivatives[parameter]) {
       applied[parameter].zeros(n, 1);
@@ -514,6 +465,7 @@ inline RRAIResult reducedRankInformation(
   if(!out.score.is_finite() || !out.information.is_finite()) {
     Rcpp::stop("Reduced-rank analytic score or average information is non-finite.");
   }
+  out.phaseSeconds(3) = secondsSince(informationStarted);
   return out;
 }
 
@@ -549,7 +501,8 @@ inline Rcpp::List fitReducedRank(
     const double preparedMean, const double preparedSd,
     const bool preparedIntercept,
     const std::function<Rcpp::List(const Rcpp::List &, const arma::vec &,
-                                 const Rcpp::List &, int)> & conditionalFit) {
+                                 const Rcpp::List &, int,
+                                 const RRConditionalCallback *)> & conditionalFit) {
   if(!Rf_isNull(descriptors.attr("vcmap"))) {
     Rcpp::stop("Latent reduced-rank Henderson fitting does not yet support vcc constraints.");
   }
@@ -595,7 +548,8 @@ inline Rcpp::List fitReducedRank(
   int evaluations = 0;
   std::vector<arma::mat> maps;
   std::vector<arma::uword> widths;
-  auto evaluate = [&](const arma::vec & values, const int ci) -> Rcpp::List {
+  auto evaluate = [&](const arma::vec & values, const int ci,
+                      const RRConditionalCallback * callback = nullptr) -> Rcpp::List {
     ++evaluations;
     Rcpp::List covariance = Rcpp::clone(descriptors);
     covariance.attr("rrConditional") = true;
@@ -666,7 +620,7 @@ inline Rcpp::List fitReducedRank(
     for(std::size_t block = 0; block < designs.size(); ++block) {
       latentDesign[block] = designs[block];
     }
-    return conditionalFit(latentDesign, arma::vec(designTerms), covariance, ci);
+    return conditionalFit(latentDesign, arma::vec(designTerms), covariance, ci, callback);
   };
   auto unpack = [&](const arma::vec & reduced) -> arma::vec {
     arma::vec result = parameters;
@@ -751,7 +705,11 @@ inline Rcpp::List fitReducedRank(
   for(int iteration = 0; iteration < iterations; ++iteration) {
     Rcpp::checkUserInterrupt();
     const arma::vec current = unpack(reduced);
-    result = evaluate(current, 0);
+    const RRConditionalCallback informationCallback = [&](const RRConditionalOperators & operators) {
+      rrInformation = reducedRankInformation(operators, X, Z, Zind, Ai,
+        residualBlock, residualIndex, H, useH, descriptors, current, offsets, reml);
+    };
+    result = evaluate(current, 0, &informationCallback);
     const arma::vec likelihood = Rcpp::as<arma::vec>(result["llik"]);
     if(likelihood.is_empty() || !likelihood.is_finite()) {
       Rcpp::stop("Reduced-rank Henderson fit returned a non-finite likelihood.");
@@ -771,13 +729,12 @@ inline Rcpp::List fitReducedRank(
         Rcpp::Rcout << "Latent coefficient solver: "
           << Rcpp::as<std::string>(result["solver"]) << "." << arma::endl;
       }
+      Rcpp::Rcout << "Residual engine: shared " << rrInformation.residualEngine
+                  << " (likelihood and AI)." << arma::endl;
       printProgressRow({"iteration", "LogLik", "wall", "cpu(sec)", "EMweight",
                         "trustAlpha", "lineAlpha", "scoreNorm"});
     }
     const double currentLikelihood = likelihood(likelihood.n_elem - 1);
-    rrInformation = reducedRankInformation(result, X, Z, Zind, Ai,
-      residualBlock, residualIndex, H, useH, descriptors, current, offsets,
-      reml);
     likelihoodHistory.insert_rows(likelihoodHistory.n_elem,
       arma::vec(1, arma::fill::value(currentLikelihood)));
     parameterHistory.insert_cols(parameterHistory.n_cols, current);
@@ -1008,6 +965,15 @@ inline Rcpp::List fitReducedRank(
   diagnostics["optimizer"] = "AI-Henderson-analytic";
   diagnostics["traceMethod"] = "shared-covariance-contractions";
   diagnostics["randomTraceDirections"] = static_cast<double>(rrInformation.randomTraceDirections);
+  diagnostics["largestResidualBlock"] = static_cast<double>(rrInformation.largestResidualBlock);
+  diagnostics["residualEvaluation"] = "observed-blocks";
+  diagnostics["residualEngine"] = rrInformation.residualEngine;
+  diagnostics["sharedConditionalOperators"] = true;
+  Rcpp::NumericVector aiTimings(rrInformation.phaseSeconds.begin(),
+                               rrInformation.phaseSeconds.end());
+  aiTimings.names() = Rcpp::CharacterVector::create("setup", "randomTraces",
+                                                  "residualTraces", "information");
+  diagnostics["aiElapsedSeconds"] = aiTimings;
   result["engineDiagnostics"] = diagnostics;
 
   arma::mat information = rrInformation.information;

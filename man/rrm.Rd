@@ -59,6 +59,26 @@ or projection matrix. Random trace solves use the loading span (rank \code{k}),
 rather than every environment direction. Reducing the coefficient dimension does not guarantee
 a faster fit for every dataset.
 
+Section-specific spatial residuals supplied by \code{dsumm()} are evaluated
+on their observed residual blocks, including grids with missing cells and
+unlisted sections with independent residuals. Residual covariance derivatives
+and trace contractions never expand the full section-by-grid covariance.
+\code{engineDiagnostics$residualEvaluation} reports \code{"observed-blocks"}
+and \code{engineDiagnostics$largestResidualBlock} records the largest observed
+block dimension used by the native RR AI evaluator.
+
+Likelihood and AI calculations share the selected residual precision operator
+and the live coefficient factorization, including grid residuals with
+missing-cell absorption and eligible block-Schur solves. No separate
+coefficient factorization or dense observed-block precision is built for AI.
+Random trace panels use the latent Henderson identity to cancel relationship
+covariance actions. Grid residual traces use block-local projection panels
+rather than repeated full-observation precision applications.
+\code{engineDiagnostics$residualEngine} identifies the
+shared residual engine, and \code{sharedConditionalOperators} confirms its
+use. \code{aiElapsedSeconds} gives elapsed timings for the final AI
+evaluation's setup, random traces, residual traces, and information matrix.
+
 The positive-specific-variance Woodbury Schur formulation used for
 \code{fam()} is unnecessary for exact RR: the specific-effect blocks are
 absent, not inverted at zero. The smaller latent coefficient system still

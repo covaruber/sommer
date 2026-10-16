@@ -2,8 +2,7 @@
 #include "mme_gpu.h"
 #include "mme_rr.h"
 
-// [[Rcpp::export]]
-Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
+static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const arma::vec & Zind, const Rcpp::List & AiI,
                      const arma::sp_mat & y0,
                      const arma::sp_mat & H, const bool & useH,
@@ -25,7 +24,8 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const double & preparedSd = 1.0,
                      const bool & preparedIntercept = false,
                      const bool gpu = false,
-                     const int gpuMinSize = 256
+                     const int gpuMinSize = 256,
+                     const sommer::RRConditionalCallback * rrCallback = nullptr
 ){
 
   if(verbose){
@@ -53,13 +53,14 @@ Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
       weightEmInf, weightInf, reml, responsePrepared, preparedMean, preparedSd,
       preparedIntercept,
       [&](const Rcpp::List & latentZ, const arma::vec & latentIndex,
-          const Rcpp::List & covariance, int inverseMode) -> Rcpp::List {
-        return ai_mme_sp2(X, latentZ, latentIndex, AiI, y0, H, useH,
+          const Rcpp::List & covariance, int inverseMode,
+          const sommer::RRConditionalCallback * callback) -> Rcpp::List {
+        return ai_mme_sp2_impl(X, latentZ, latentIndex, AiI, y0, H, useH,
           residualBlockI, residualIndexI, 1, tolParConvLL, tolParConvNorm,
           tolParInv, covariance, weightEmInf, weightInf, false, inverseMode,
           solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps,
           reml, responsePrepared, preparedMean, preparedSd, preparedIntercept,
-          gpu, gpuMinSize);
+          gpu, gpuMinSize, callback);
       });
   }
 
@@ -6496,28 +6497,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
     }
 
-    if(rrConditional){
-      b = bu(bInd);
-      if(nZs > 0){ u = bu(uInd); }
-      arma::uword offset = 0;
-      for(int term = 0; term < nRRe; ++term){
-        monitor.submat(offset, 0, offset + covPar(term).n_elem - 1, 0) = covPar(term);
-        offset += covPar(term).n_elem;
-      }
-      avInf.zeros();
-      InfMat.zeros();
-      InfMatInv.zeros();
-      normMonitor.zeros();
-      dLuOut.zeros(nVcTotal);
-      convergence = true;
-      break;
-    }
-    phaseProfile.enter(sommer::FitPhase::TracePrep);
+    if(!rrConditional){ phaseProfile.enter(sommer::FitPhase::TracePrep); }
     // Derivatives and trace/AI preparation are unnecessary for likelihood
     // trials rejected above. Reuse the factor covariance/precision state
     // already evaluated for the accepted likelihood rather than evaluating
     // descriptor factors again.
-    for(int iR = 0; iR < nRe; ++iR){
+    for(int iR = 0; !rrConditional && iR < nRe; ++iR){
       DescriptorPrecisionState & precisionState =
         randomPrecisionState[static_cast<std::size_t>(iR)];
       if(precisionState.factorWise){
@@ -6529,7 +6514,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
     }
 
-    if(Rkron && residualPrecisionState.factorWise){
+    if(!rrConditional && Rkron && residualPrecisionState.factorWise){
       factorEngine.buildDescriptorPrecisionDerivatives(
         covDescriptor[static_cast<std::size_t>(residualStruct)],
         covPar(residualStruct),
@@ -6539,7 +6524,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     const bool residualDerivativesBlockLocal = (Rkron || Rgrid) && !useH;
 
-    if(Rgrid){
+    if(Rgrid && (!rrConditional || rrCallback)){
       Rcpp::List rfactors =
         covDescriptor[static_cast<std::size_t>(residualStruct)]["factors"];
       const arma::vec & par = covPar(residualStruct);
@@ -6582,6 +6567,83 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           }
         }
       }
+    }
+
+    if(rrConditional){
+      if(rrCallback){
+        sommer::RRConditionalOperators operators;
+        operators.W = eigenSparseToArmaGlobal(W);
+        operators.C = eigenSparseToArmaGlobal(C);
+        operators.y = yDense;
+        operators.scale = vary;
+        operators.residualEngine = Rgrid ? "grid" : Rdiag ? "diagonal"
+          : Rkron ? "kronecker" : "sparse";
+        operators.precision = applyRiDense;
+        operators.solve = [&](const arma::mat & rhs) -> arma::mat {
+          Eigen::Map<const Eigen::MatrixXd> mapped(rhs.memptr(), rhs.n_rows, rhs.n_cols);
+          const Eigen::MatrixXd solved = solveCMatrix(mapped, "reduced-rank AI");
+          if(!solved.allFinite()){ Rcpp::stop("Non-finite reduced-rank AI coefficient solve."); }
+          return arma::mat(solved.data(), solved.rows(), solved.cols());
+        };
+        operators.solveRandom = [&](const arma::mat & rhs) -> arma::mat {
+          Eigen::Map<const Eigen::MatrixXd> mapped(rhs.memptr(), rhs.n_rows, rhs.n_cols);
+          const Eigen::MatrixXd solved = solveRandomBlock(mapped, "reduced-rank ML AI");
+          if(!solved.allFinite()){ Rcpp::stop("Non-finite reduced-rank ML AI coefficient solve."); }
+          return arma::mat(solved.data(), solved.rows(), solved.cols());
+        };
+        Eigen::SparseMatrix<double, Eigen::RowMajor> rrRowDesign;
+        if(Rgrid){
+          rrRowDesign = W;
+          operators.derivative = [&](arma::uword parameter, const arma::mat & values) -> arma::mat {
+            arma::mat output(values.n_rows, values.n_cols, arma::fill::zeros);
+            for(int block = 0; block < residualNBlocks; ++block){
+              const arma::uvec & rows = residualKronRows[static_cast<std::size_t>(block)];
+              output.rows(rows) = gridApplyDR(block, parameter, values.rows(rows));
+            }
+            return output;
+          };
+          operators.residualContraction = [&](arma::uword block) -> arma::mat {
+            const arma::uvec & rows = residualKronRows[block];
+            arma::mat design(rows.n_elem, reml ? nEffects : Nu, arma::fill::zeros);
+            for(arma::uword local = 0; local < rows.n_elem; ++local){
+              for(Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator entry(rrRowDesign, rows(local)); entry; ++entry){
+                if(reml || entry.col() >= nX){
+                  design(local, entry.col() - (reml ? 0 : nX)) = entry.value();
+                }
+              }
+            }
+            const arma::mat precisionDesign = gridApplyRi(block, design);
+            arma::mat contraction(rows.n_elem, rows.n_elem);
+            const arma::uword panel = sommer::WorkspacePolicy::panelColumns();
+            for(arma::uword first = 0; first < rows.n_elem; first += panel){
+              Rcpp::checkUserInterrupt();
+              const arma::uword count = std::min(panel, rows.n_elem - first);
+              arma::mat basis(rows.n_elem, count, arma::fill::zeros);
+              for(arma::uword column = 0; column < count; ++column){ basis(first + column, column) = 1.0; }
+              const arma::mat rhs = precisionDesign.rows(first, first + count - 1).t();
+              const arma::mat solved = reml ? operators.solve(rhs) : operators.solveRandom(rhs);
+              contraction.cols(first, first + count - 1) =
+                gridApplyRi(block, basis) - precisionDesign * solved;
+            }
+            return contraction;
+          };
+        }
+        (*rrCallback)(operators);
+      }
+      b = bu(bInd);
+      if(nZs > 0){ u = bu(uInd); }
+      arma::uword offset = 0;
+      for(int term = 0; term < nRRe; ++term){
+        monitor.submat(offset, 0, offset + covPar(term).n_elem - 1, 0) = covPar(term);
+        offset += covPar(term).n_elem;
+      }
+      avInf.zeros();
+      InfMat.zeros();
+      InfMatInv.zeros();
+      normMonitor.zeros();
+      dLuOut.zeros(nVcTotal);
+      convergence = true;
+      break;
     }
 
     auto applyGroupedWeightDerivative = [&](const arma::sp_mat & derivative) -> arma::sp_mat {
@@ -10195,4 +10257,27 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // Rcpp::Named("MWuchol") = MWuchol
   );
   
+}
+
+// [[Rcpp::export]]
+Rcpp::List ai_mme_sp2(const arma::sp_mat & X, const Rcpp::List & ZI,
+                     const arma::vec & Zind, const Rcpp::List & AiI,
+                     const arma::sp_mat & y0, const arma::sp_mat & H,
+                     const bool & useH, const arma::uvec & residualBlockI,
+                     const arma::uvec & residualIndexI, int nIters,
+                     double tolParConvLL, double tolParConvNorm, double tolParInv,
+                     const Rcpp::List & covStructI, const arma::vec & weightEmInf,
+                     const arma::vec & weightInf, const bool & verbose,
+                     const int & computeCi = 0, const std::string & solver = "ldlt",
+                     const double & pcgTol = 1.0e-8, const int & pcgMaxIters = 0,
+                     const int & pcgTraceProbes = 8, const int & pcgLanczosSteps = 20,
+                     const bool & reml = true, const bool & responsePrepared = false,
+                     const double & preparedMean = 0.0, const double & preparedSd = 1.0,
+                     const bool & preparedIntercept = false, const bool gpu = false,
+                     const int gpuMinSize = 256) {
+  return ai_mme_sp2_impl(X, ZI, Zind, AiI, y0, H, useH, residualBlockI,
+    residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI,
+    weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters,
+    pcgTraceProbes, pcgLanczosSteps, reml, responsePrepared, preparedMean,
+    preparedSd, preparedIntercept, gpu, gpuMinSize);
 }

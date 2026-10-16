@@ -15,15 +15,15 @@
   list(data=dataset, precision=precision, loading=loading)
 }
 
-.rr_ai_dense_reference <- function(setup, working, reml){
+.rr_ai_dense_reference <- function(setup, working, reml, residualCovariance=NULL){
   counts <- vapply(setup$covStruct, function(structure) length(structure$par), integer(1))
   offsets <- cumsum(c(0L, counts))
   evaluate <- function(parameters){
     covariance <- matrix(0, nrow(setup$X), nrow(setup$X))
     for(term in seq_along(counts)){
       local <- parameters[offsets[term] + seq_len(counts[term])]
-      shape <- sommer:::evaluate_covstruct_cpp(setup$covStruct[[term]], local)
       if(term < length(counts)){
+        shape <- sommer:::evaluate_covstruct_cpp(setup$covStruct[[term]], local)
         designs <- setup$Z[which(setup$Zind == term)]
         relationship <- solve(as.matrix(setup$Ai[[term]]))
         for(first in seq_along(designs)) for(second in seq_along(designs)){
@@ -31,8 +31,13 @@
             as.matrix(designs[[first]] %*% relationship %*% t(designs[[second]]))
         }
       }else{
-        sameBlock <- outer(setup$residualBlock, setup$residualBlock, "==")
-        residual <- shape[setup$residualIndex, setup$residualIndex, drop=FALSE] * sameBlock
+        if(is.null(residualCovariance)){
+          shape <- sommer:::evaluate_covstruct_cpp(setup$covStruct[[term]], local)
+          sameBlock <- outer(setup$residualBlock, setup$residualBlock, "==")
+          residual <- shape[setup$residualIndex, setup$residualIndex, drop=FALSE] * sameBlock
+        }else{
+          residual <- residualCovariance(local)
+        }
         if(setup$useH){
           inverseTransform <- solve(chol(as.matrix(setup$W)))
           residual <- t(inverseTransform) %*% residual %*% inverseTransform
@@ -130,7 +135,10 @@ test_that("latent RR reports its path, coefficient solver, and accepted iteratio
     expect_true(any(grepl("^MME path: exact latent reduced rank", output)))
     expect_true(any(grepl("^OpenMP (configured maximum|unavailable)", output)))
     expect_true(any(grepl("engine active|Latent coefficient solver:", output)))
-    headerIndex <- grep("^iteration +LogLik +wall +cpu\\(sec\\) +EMweight +trustAlpha +lineAlpha +score norm$",
+    expect_true(any(grepl("^Residual engine: shared diagonal \\(likelihood and AI\\).$", output)))
+    expect_true(fit$engineDiagnostics$sharedConditionalOperators)
+    expect_identical(fit$engineDiagnostics$residualEngine, "diagonal")
+    headerIndex <- grep("^iteration +LogLik +wall +cpu\\(sec\\) +EMweight +trustAlpha +lineAlpha +scoreNorm$",
                         output)
     expect_length(headerIndex, 1L)
     engineIndex <- grep("engine active|Latent coefficient solver:", output)
@@ -154,7 +162,7 @@ test_that("latent RR reports its path, coefficient solver, and accepted iteratio
     expect_true(all(diff(progress[, "cpu(sec)"]) >= 0))
     for(column in c("EMweight", "trustAlpha", "lineAlpha", "cpu(sec)")){
       outputColumn <- match(column, c("iteration", "LogLik", "wall", "cpu(sec)",
-                                    "EMweight", "trustAlpha", "lineAlpha", "score norm"))
+                                    "EMweight", "trustAlpha", "lineAlpha", "scoreNorm"))
       expect_lt(max(abs(as.numeric(vapply(fields, `[[`, character(1), outputColumn)) -
                           progress[, column])), 0.00051)
     }
@@ -165,7 +173,7 @@ test_that("latent RR reports its path, coefficient solver, and accepted iteratio
       as.integer(positions + attr(positions, "match.length") - 1L)
     }
     for(row in rows){
-      expect_identical(columnEnds(row), columnEnds(output[headerIndex])[-8L])
+      expect_identical(columnEnds(row), columnEnds(output[headerIndex]))
     }
     expect_false(any(grepl("MME path:|iteration +LogLik|engine active", quietOutput)))
     expect_equal(fit$monitor, quiet$monitor)
@@ -314,4 +322,116 @@ test_that("latent AI matches independently optimized ML", {
                       reference$score)), 1e-8)
   expect_equal(as.matrix(fit$engineDiagnostics$averageInformationWorking),
                reference$information, tolerance=2e-6)
+})
+
+test_that("latent RR sectioned spatial scores and AI match dense observation formulas", {
+  set.seed(729)
+  dataset <- expand.grid(environment=factor(letters[1:3]),
+    row=factor(seq_len(3)), range=factor(seq_len(3)))
+  dataset$id <- factor(rep(seq_len(5), length.out=nrow(dataset)))
+  dataset$response <- rnorm(nrow(dataset))
+  dataset <- dataset[sample(setdiff(seq_len(nrow(dataset)), c(2L, 10L, 23L))), ]
+  distanceRow <- abs(outer(as.integer(dataset$row), as.integer(dataset$row), "-"))
+  distanceRange <- abs(outer(as.integer(dataset$range), as.integer(dataset$range), "-"))
+  environment <- as.integer(dataset$environment)
+  for(selected in list(letters[1:3], c("c", "a"))){
+    residualCovariance <- function(parameters){
+      scales <- exp(c(parameters[1L], parameters[1L] + parameters[2:3]))
+      nSelected <- length(selected)
+      rangeRho <- tanh(parameters[3L + seq_len(nSelected)])
+      rowRho <- tanh(parameters[3L + nSelected + seq_len(nSelected)])
+      result <- matrix(0, nrow(dataset), nrow(dataset))
+      for(section in seq_len(3)){
+        rows <- which(environment == section)
+        listed <- match(letters[section], selected)
+        result[rows, rows] <- scales[section] * if(is.na(listed)){
+          diag(length(rows))
+        }else{
+          rangeRho[listed]^distanceRange[rows, rows] *
+            rowRho[listed]^distanceRow[rows, rows]
+        }
+      }
+      result
+    }
+    for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
+      fitModel <- function(returnParam){
+        mmes(response~environment,
+          random=~vsm(rrm(environment, 1L), ism(id), sigma2=0.9),
+          rcov=~dsumm(vsm(ar1m(range, rho=0.2), ar1m(row, rho=-0.15),
+                          ism(units), sigma2=0.6),
+                      by=environment, levels=selected),
+          data=dataset, solver=solver, REML=reml,
+          nIters=3L, computeCi=0L, returnParam=returnParam,
+          verbose=FALSE, dateWarning=FALSE)
+      }
+      setup <- fitModel(TRUE)
+      fit <- fitModel(FALSE)
+      reference <- .rr_ai_dense_reference(setup,
+        unlist(fit$covParWorking, use.names=FALSE), reml, residualCovariance)
+      expect_equal(reference$score, reference$numericalScore, tolerance=1e-6)
+      expect_equal(as.numeric(fit$engineDiagnostics$scoreWorking),
+                   reference$score, tolerance=2e-6)
+      expect_equal(as.matrix(fit$engineDiagnostics$averageInformationWorking),
+                   reference$information, tolerance=2e-6)
+      expect_true(all(diff(as.numeric(fit$llik)) >= -1e-7))
+      expect_identical(fit$engineDiagnostics$residualEvaluation, "observed-blocks")
+      expect_identical(fit$engineDiagnostics$residualEngine, "grid")
+      expect_true(fit$engineDiagnostics$sharedConditionalOperators)
+      expect_true(all(is.finite(fit$engineDiagnostics$aiElapsedSeconds)))
+      expect_lte(fit$engineDiagnostics$largestResidualBlock, 9)
+    }
+  }
+})
+
+test_that("latent RR residual workspace follows observed blocks, not the full grid", {
+  set.seed(730)
+  dataset <- expand.grid(environment=factor(letters[1:9]), cell=seq_len(30))
+  dataset$row <- factor((dataset$cell - 1L) %% 5L + 1L +
+                          (as.integer(dataset$environment) - 1L) * 5L)
+  dataset$range <- factor((dataset$cell - 1L) %/% 5L + 1L +
+                            (as.integer(dataset$environment) - 1L) * 6L)
+  dataset$id <- factor((seq_len(nrow(dataset)) - 1L) %% 7L + 1L)
+  dataset$response <- rnorm(nrow(dataset))
+  fit <- mmes(response~environment,
+    random=~vsm(rrm(environment, 1L), ism(id)),
+    rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=environment),
+    data=dataset, nIters=1L, computeCi=0L, verbose=FALSE, dateWarning=FALSE)
+  expect_equal(tail(fit$covStruct, 1L)[[1L]]$dim, 21870L)
+  expect_equal(fit$engineDiagnostics$largestResidualBlock, 30)
+  expect_identical(fit$engineDiagnostics$residualEvaluation, "observed-blocks")
+  expect_true(all(is.finite(fit$engineDiagnostics$scoreWorking)))
+  expect_true(all(is.finite(fit$engineDiagnostics$averageInformationWorking)))
+})
+
+test_that("latent RR AI reuses sparse and block-Schur conditional paths consistently", {
+  fixture <- .rr_ai_fixture()
+  dataset <- fixture$data
+  precision <- fixture$precision
+  fitModel <- function(path, returnParam=FALSE){
+    mmes(response~environment,
+      random=~vsm(rrm(environment, 1L), ism(id), Gu=precision),
+      data=dataset, nIters=3L, returnParam=returnParam,
+      engine=mmes_control(solver="cholmod", experimental=list(blockSchur=path)),
+      verbose=FALSE, dateWarning=FALSE)
+  }
+  setup <- fitModel("off", TRUE)
+  sparse <- fitModel("off")
+  schur <- fitModel("force")
+  expect_false(sparse$engineDiagnostics$blockSchurActive)
+  expect_true(schur$engineDiagnostics$blockSchurActive)
+  expect_equal(sparse$llik, schur$llik, tolerance=1e-8)
+  expect_equal(sparse$engineDiagnostics$scoreWorking,
+               schur$engineDiagnostics$scoreWorking, tolerance=1e-8)
+  expect_equal(sparse$engineDiagnostics$averageInformationWorking,
+               schur$engineDiagnostics$averageInformationWorking, tolerance=1e-8)
+  for(fit in list(sparse, schur)){
+    reference <- .rr_ai_dense_reference(setup,
+      unlist(fit$covParWorking, use.names=FALSE), TRUE)
+    expect_equal(as.numeric(fit$engineDiagnostics$scoreWorking),
+                 reference$score, tolerance=2e-6)
+    expect_true(fit$engineDiagnostics$sharedConditionalOperators)
+    expect_identical(names(fit$engineDiagnostics$aiElapsedSeconds),
+                     c("setup", "randomTraces", "residualTraces", "information"))
+    expect_null(dim(fit$engineDiagnostics$aiElapsedSeconds))
+  }
 })

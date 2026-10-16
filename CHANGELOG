@@ -678,6 +678,18 @@ version 4.4.90 (2026-10-13)
    scales. Numeric values are retained in engineDiagnostics$iterationProgress;
    inapplicable boundary-restraint and notPD columns remain omitted.
 
+ + BUG FIX native RR AI fitting now supports dsumm() spatial residuals.
+   Covariances, analytic derivatives, and shared trace contractions operate
+   on observed residual blocks rather than expanding the section-by-grid
+   covariance. Existing section slicing and factor derivatives are reused.
+
+ + Native RR AI now reuses the live LDLT/CHOLMOD or block-Schur coefficient
+   solver and the likelihood's residual precision operator. Spatial fits use
+   the shared grid engine and its factor-wise derivatives rather than a
+   second dense observed-block precision. Random traces cancel relationship
+   covariance actions through the latent Henderson identity. Verbose output
+   identifies the shared residual engine; AI phase timings are retained.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes
