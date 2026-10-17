@@ -114,8 +114,8 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   isGaussianIdentity <- inherits(family, "family") &&
     identical(family$family, "gaussian") &&
     identical(family$link, "identity")
-  supportsEM <- isGaussianIdentity && !.pqlInner && henderson &&
-    !identical(tolower(solver), "pcg") &&
+  supportsEM <- isGaussianIdentity && !.pqlInner &&
+    (!henderson || !identical(tolower(solver), "pcg")) &&
     acceleration == "none" && factorScoreAugmentation == "none" &&
     !identical(engineControl$experimental$saddlePoint, "force")
   adaptiveRecovery <- automaticBlendWeight && supportsEM && !isTRUE(solveOnly)
@@ -127,10 +127,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     if(!isGaussianIdentity || .pqlInner){
       stop("Positive blendWeight is not supported for PQL fits.", call.=FALSE)
     }
-    if(!henderson){
-      stop("Positive blendWeight is not supported with direct inversion.", call.=FALSE)
-    }
-    if(is.character(solver) && length(solver) == 1L &&
+    if(henderson && is.character(solver) && length(solver) == 1L &&
        identical(tolower(solver), "pcg")){
       stop("Positive blendWeight requires a deterministic solver; solver='pcg' is unsupported.",
            call.=FALSE)

@@ -3905,6 +3905,8 @@ static arma::vec directReportParameters(const Rcpp::List & cs, const arma::vec &
   return out;
 }
 
+#include "mme_direct_em.h"
+
 // [[Rcpp::export]]
 Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
                               const Rcpp::List & ZI,
@@ -4030,7 +4032,9 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     covUpper(i) = arma::vec(covPar(i).n_elem, arma::fill::value(std::numeric_limits<double>::infinity()));
 
     covPar(i)(0) -= std::log(vary);
-    covLower(i)(0) = std::log(std::max(1.0e-8, tolParInv)) - std::log(vary);
+    if(covFree(i)(0) > 0.5) {
+      covLower(i)(0) = std::log(std::max(1.0e-8, tolParInv)) - std::log(vary);
+    }
 
     theta(i) = (i == residualStruct && directResidualCompact(cs))
       ? arma::mat()
@@ -4302,10 +4306,17 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   };
 
   auto structureIsPD = [&](int iStruct, const arma::vec & par) -> bool {
+    if(!par.is_finite()){ return false; }
+    // Test shape separately from scale so a random variance can reach its
+    // original-response-scale floor without failing a standardized PD cutoff.
+    arma::vec shape = par;
+    shape(0) = 0.0;
     if(iStruct == residualStruct && residualCompact){
-      return directDescriptorPD(covDescriptor[iStruct], par, tolParInv);
+      return directDescriptorPD(covDescriptor[iStruct], shape,
+        std::numeric_limits<double>::min());
     }
-    arma::mat Th = directEvaluateDescriptor(covDescriptor[iStruct], par);
+    arma::mat Th = directEvaluateDescriptor(covDescriptor[iStruct], shape);
+    if(!Th.is_finite()){ return false; }
     arma::vec eigval;
     bool ok = arma::eig_sym(eigval, arma::symmatu(Th));
     if(iStruct != residualStruct){
@@ -4321,7 +4332,7 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
           eigval.min() >= -1.0e-10 * scale && eigval.max() > 0.0;
       }
     }
-    return ok && eigval.n_elem > 0 && eigval.min() > tolParInv;
+    return ok && eigval.is_finite() && eigval.n_elem > 0 && eigval.min() > 0.0;
   };
 
   // Constant across iterations: only free (non-fixed) parameters are
@@ -4335,6 +4346,32 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   arma::uvec freeIdx = arma::find(freeUnlisted > 0.5);
   const VarianceParameterMap vcMap =
     readVarianceParameterMap(covStructI, static_cast<arma::uword>(nVcTotal));
+  arma::mat tangent(nVcTotal, freeIdx.n_elem, arma::fill::zeros);
+  for(arma::uword j = 0; j < freeIdx.n_elem; ++j){ tangent(freeIdx(j), j) = 1.0; }
+  if(vcMap.active){
+    tangent = vcMap.T;
+    for(int k = 0; k < nVcTotal; ++k){
+      if(freeUnlisted(k) < 0.5 && arma::any(tangent.row(k) != 0.0)){
+        Rcpp::stop("The direct-engine constraint map contains a free direction through a fixed parameter.");
+      }
+    }
+    const arma::uvec used = arma::find(arma::sum(arma::abs(tangent), 0).t() > 0.0);
+    tangent = tangent.cols(used);
+  }
+  auto feasibleTangent = [&](const arma::mat & basis, const arma::vec & point,
+                             const arma::vec & direction) -> arma::mat {
+    std::vector<arma::uword> active;
+    for(int k = 0; k < nVcTotal; ++k){
+      const double slack = 1.0e-10 * (1.0 + std::abs(point(k)));
+      if(((point(k) <= lowerUnlisted(k) + slack && direction(k) < 0.0) ||
+          (point(k) >= upperUnlisted(k) - slack && direction(k) > 0.0)) &&
+         arma::any(basis.row(k) != 0.0)){
+        active.push_back(k);
+      }
+    }
+    if(active.empty()){ return basis; }
+    return basis * arma::null(basis.rows(arma::uvec(active)));
+  };
 
   // Standardizing y by stdy shifts log|V| and log|Q| by constants that
   // cancel in yPy but not in the reported likelihood; add the Jacobian
@@ -4351,73 +4388,84 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   arma::mat VarBeta(nX, nX, arma::fill::zeros);
   arma::vec Py(nR, arma::fill::zeros);
   sommer::MMEProgress progress(nRRe);
+  const double scoreTolerance = std::sqrt(std::max(tolParConvLL, tolParConvNorm));
+  const arma::vec stepCaps = sommer::covarianceWorkingStepCaps(covStructI);
+  double projectedScoreNorm = std::numeric_limits<double>::infinity();
+  int lineSearchHalvings = 0;
+  std::string stopReason = "iteration-limit";
+  const bool adaptive = covStructI.hasAttribute("adaptiveRecovery") &&
+    Rcpp::as<bool>(covStructI.attr("adaptiveRecovery"));
+  const std::string blendMethod = covStructI.hasAttribute("blend")
+    ? Rcpp::as<std::string>(covStructI.attr("blend")) : "em";
+  if(blendMethod != "em" && blendMethod != "pxem") {
+    Rcpp::stop("Unknown direct-engine EM blending method.");
+  }
+  const bool parameterExpanded = blendMethod == "pxem";
+  sommer::AIRecoveryPolicy recoveryPolicy;
+  bool previousAI = false;
+  int previousHalvings = 0;
+  int emPreparations = 0, closedSteps = 0, generalizedSteps = 0;
+  int qEvaluations = 0, aiUpdateSolves = 0, likelihoodEvaluations = 0;
+  int emFallbacks = 0, pxFallbacks = 0, acceptedRecoveries = 0;
+  int regularizedAttempts = 0, regularizedAccepted = 0;
+  std::vector<int> recoveryIterations;
+  std::vector<std::string> recoveryReasons;
+  std::vector<double> regularizedRidges;
+  std::vector<int> regularizedIterations;
+  arma::vec weightHistory(nIters, arma::fill::zeros);
+  arma::vec qHistory(nIters, arma::fill::value(NA_REAL));
+  arma::vec pxHistory(nIters, arma::fill::value(NA_REAL));
+  arma::ivec mstepHistory(nIters, arma::fill::value(NA_INTEGER));
+  arma::ivec mstepEvaluations(nIters, arma::fill::zeros);
+  arma::ivec pxConvergenceHistory(nIters, arma::fill::value(NA_INTEGER));
+  arma::ivec pxEvaluationHistory(nIters, arma::fill::zeros);
+  arma::mat expansionHistory(nRe, nIters, arma::fill::zeros);
+  std::vector<arma::uword> emWidths(nRe);
+  for(int term = 0; term < nRe; ++term) { emWidths[term] = Zdense[term][0].n_cols; }
+  arma::mat pendingVi, pendingP;
+  double pendingLikelihood = NA_REAL;
+  bool pending = false;
+
+  auto evaluatePoint = [&](const arma::field<arma::vec> & point, arma::mat & Vi,
+                           arma::mat & P, double & likelihood) -> bool {
+    ++likelihoodEvaluations;
+    arma::mat V = arma::symmatu(buildV(point));
+    if(!V.is_finite() || !arma::inv_sympd(Vi, V)){ return false; }
+    const arma::mat VX = Vi * Xd;
+    const arma::mat Q = Xd.t() * VX;
+    arma::mat Qinv;
+    if(!arma::inv_sympd(Qinv, Q)){ return false; }
+    P = arma::symmatu(Vi - VX * Qinv * VX.t());
+    double logDetV, signV, logDetQ = 0.0, signQ = 1.0;
+    arma::log_det(logDetV, signV, V);
+    if(reml){ arma::log_det(logDetQ, signQ, Q); }
+    const double degrees = reml ? nR - rankX : nR;
+    likelihood = -0.5 * (logDetV + logDetQ + arma::as_scalar(y.t() * P * y) +
+      degrees * std::log(2.0 * arma::datum::pi)) + llikScaleCorrection;
+    return signV > 0.0 && signQ > 0.0 && std::isfinite(likelihood);
+  };
 
   for(int iIter = 0; iIter < nIters; ++iIter){
+    Rcpp::checkUserInterrupt();
     lastIter = iIter;
-
-    arma::mat V = buildV(covPar);
-    V = arma::symmatu(V);
-
-    arma::mat Vi;
-    bool okV = arma::inv_sympd(Vi, V);
-    arma::mat D = arma::eye<arma::mat>(nR, nR);
-    for(int jit = 0; !okV && jit < 4; ++jit){
-      V = V + D * (tolParInv * std::pow(10.0, jit));
-      okV = arma::inv_sympd(Vi, V);
+    arma::mat Vi, P;
+    double likelihood;
+    if(pending) {
+      Vi = std::move(pendingVi);
+      P = std::move(pendingP);
+      likelihood = pendingLikelihood;
+      pending = false;
+    } else if(!evaluatePoint(covPar, Vi, P, likelihood)){
+      Rcpp::stop("Direct-engine V or X'V^{-1}X is numerically singular; check covariance structures and fixed-effect collinearity.");
     }
-    if(!okV){
-      Rcpp::stop("V is numerically singular. Try a larger tolParInv or check the supplied covariance structures.");
-    }
-
-    arma::mat VX = Vi * Xd;
-    arma::mat Q = Xd.t() * VX;
-    arma::mat Qinv;
-    bool okQ = arma::inv_sympd(Qinv, Q);
-    arma::mat Dx = arma::eye<arma::mat>(nX, nX);
-    for(int jit = 0; !okQ && jit < 4; ++jit){
-      Q = Q + Dx * (tolParInv * std::pow(10.0, jit));
-      okQ = arma::inv_sympd(Qinv, Q);
-    }
-    if(!okQ){
-      Rcpp::stop("X'V^{-1}X is numerically singular. Try a larger tolParInv or check the fixed-effects design for collinearity.");
-    }
-
-    arma::mat P = Vi - VX * Qinv * VX.t();
-    P = arma::symmatu(P);
     Py = P * y;
-
-    double valV, signV, valQ, signQ;
-    arma::log_det(valV, signV, V);
-    const double logDetV = valV;
-    double logDetQ = 0.0;
-    if(reml){
-      arma::log_det(valQ, signQ, Q);
-      logDetQ = valQ;
+    llik(iIter) = likelihood;
+    arma::vec thetaUnlisted(nVcTotal);
+    for(int i = 0; i < nRRe; ++i){
+      thetaUnlisted.subvec(nVcStart(i)-1, nVcEnd(i)-1) = covPar(i);
+      lowerUnlisted(nVcStart(i)-1) = std::min(covPar(i)(0), covLower(i)(0));
     }
-    const double yPy = arma::as_scalar(y.t() * Py);
-    const double n = static_cast<double>(nR);
-    const double constTerm = reml ? (n - static_cast<double>(rankX)) * std::log(2.0*arma::datum::pi)
-                                  : n * std::log(2.0*arma::datum::pi);
-    llik(iIter) = -0.5 * (logDetV + logDetQ + yPy + constTerm) + llikScaleCorrection;
-
-    if(verbose){
-      if(iIter == 0){
-        Rcpp::Rcout << "Direct path: dense phenotypic V Cholesky ("
-                    << (residualCompact ? "compact" : "explicit") << " residual)" << arma::endl;
-        progress.header();
-      }
-      progress.row(iIter + 1, llik(iIter), iIter > 0 ? llik(iIter - 1) : NA_REAL,
-        "AI", "off");
-    }
-
-    if(iIter > 0){
-      const double deltaLL = llik(iIter) - llik(iIter-1);
-      if(deltaLL < tolParConvLL){
-        convergence = true;
-        monitor.col(iIter) = monitor.col(iIter-1);
-        break;
-      }
-    }
+    monitor.col(iIter) = thetaUnlisted;
 
     // Score and average information.
     arma::vec score(nVcTotal, arma::fill::zeros);
@@ -4429,74 +4477,263 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
       for(arma::uword k = 0; k < covPar(i).n_elem; ++k){
         arma::mat Dk = buildD(covPar, i, k);
         arma::vec vk = Dk * Py;
-        const double traceTerm = arma::accu(P % Dk);
+        const double traceTerm = reml ? arma::accu(P % Dk) : arma::accu(Vi % Dk);
         score(g) = 0.5 * (arma::dot(Py, vk) - traceTerm);
         vList[g] = vk;
         PvList[g] = P * vk;
         g++;
       }
     }
-    for(int a = 0; a < nVcTotal; ++a){
-      for(int b = a; b < nVcTotal; ++b){
-        AI(a,b) = 0.5 * arma::dot(vList[a], PvList[b]);
-        AI(b,a) = AI(a,b);
+    double weight = weightEmInf(iIter);
+    if(weight < 0.0 || weight > 1.0 || !std::isfinite(weight)) {
+      Rcpp::stop("Direct-engine blend weights must be finite and between 0 and 1.");
+    }
+    if(weight < 1.0) {
+      for(int a = 0; a < nVcTotal; ++a){
+        for(int b = a; b < nVcTotal; ++b){
+          AI(a,b) = 0.5 * arma::dot(vList[a], PvList[b]);
+          AI(b,a) = AI(a,b);
+        }
       }
     }
-
-    arma::vec emDiag = arma::diagvec(AI);
-    for(int k = 0; k < nVcTotal; ++k){
-      if(!std::isfinite(emDiag(k)) || emDiag(k) <= tolParInv){ emDiag(k) = 1.0; }
+    if(!score.is_finite() || !AI.is_finite()){
+      Rcpp::stop("Non-finite direct-engine covariance score or average information.");
     }
-    arma::mat InfMat = (1.0 - weightEmInf(iIter)) * AI + weightEmInf(iIter) * arma::diagmat(emDiag);
-
-    arma::vec thetaUnlisted(nVcTotal);
-    for(int i = 0; i < nRRe; ++i){
-      thetaUnlisted.subvec(nVcStart(i)-1, nVcEnd(i)-1) = covPar(i);
+    const arma::mat scoreTangent = feasibleTangent(tangent, thetaUnlisted,
+      arma::vec(tangent * (tangent.t() * score)));
+    const arma::vec projectedScore = scoreTangent.t() * score;
+    projectedScoreNorm = 0.0;
+    for(arma::uword j = 0; j < projectedScore.n_elem; ++j){
+      arma::vec v(nR, arma::fill::zeros), pv(nR, arma::fill::zeros);
+      for(int k = 0; k < nVcTotal; ++k) {
+        v += scoreTangent(k, j) * vList[k];
+        pv += scoreTangent(k, j) * PvList[k];
+      }
+      const double curvature = 0.5 * arma::dot(v, pv);
+      projectedScoreNorm = std::max(projectedScoreNorm, std::abs(projectedScore(j)) /
+        std::sqrt(std::max(std::numeric_limits<double>::min(), std::abs(curvature))));
+    }
+    std::string recoveryReason;
+    bool regularized = false;
+    bool ordinaryFallback = false;
+    double progressTrust = NA_REAL, progressLine = NA_REAL;
+    if(adaptive && iIter < nIters - 1) {
+      const char * reason = recoveryPolicy.observe(previousAI, previousHalvings,
+        iIter > 0 ? likelihood - llik(iIter - 1) : 0.0, tolParConvLL,
+        projectedScoreNorm <= scoreTolerance);
+      if(reason) { recoveryReason = reason; weight = 1.0; recoveryPolicy.reset(); }
+    }
+    auto printProgress = [&]() {
+      weightHistory(iIter) = weight;
+      if(!verbose) { return; }
+      if(iIter == 0) {
+        Rcpp::Rcout << "Direct path: dense phenotypic V Cholesky ("
+                    << (residualCompact ? "compact" : "explicit") << " residual)"
+                    << (adaptive ? ", AI-first EM/PX-GEM recovery" : "") << arma::endl;
+        progress.header();
+      }
+      progress.row(iIter + 1, likelihood, iIter > 0 ? llik(iIter - 1) : NA_REAL,
+        regularized && weight == 0.0 ? "AI-reg" :
+          sommer::MMEProgress::update(weight, parameterExpanded && !ordinaryFallback),
+        regularized && weight == 0.0 ? "info-solve" :
+          sommer::MMEProgress::policy(adaptive, parameterExpanded, weight, recoveryReason),
+        progressTrust, progressLine);
+    };
+    const bool likelihoodSmall = iIter > 0 &&
+      std::abs(likelihood - llik(iIter-1)) < tolParConvLL;
+    if(scoreTangent.n_cols == 0 || (likelihoodSmall && projectedScoreNorm <= scoreTolerance)){
+      convergence = true;
+      stopReason = "converged";
+      printProgress();
+      break;
     }
 
     arma::vec delta(nVcTotal, arma::fill::zeros);
-    arma::vec weightedScore = weightInf(iIter) * score;
-    if(freeIdx.n_elem > 0){
-      arma::mat InfFree = InfMat.submat(freeIdx, freeIdx);
-      arma::vec scoreFree = weightedScore(freeIdx);
-      arma::vec deltaFree;
-      bool solvedOK = arma::solve(deltaFree, InfFree, scoreFree, arma::solve_opts::likely_sympd);
-      if(!solvedOK){ solvedOK = arma::solve(deltaFree, arma::pinv(InfFree), scoreFree); }
-      if(!solvedOK){
-        Rcpp::stop("Unable to solve the variance-component information system.");
+    arma::mat feasible = scoreTangent;
+    for(int activeSet = 0; weight < 1.0 && activeSet <= nVcTotal && feasible.n_cols > 0; ++activeSet){
+      const arma::mat information = feasible.t() * AI * feasible;
+      const arma::vec gradient = feasible.t() * score;
+      arma::vec scaling = arma::sqrt(arma::clamp(arma::abs(information.diag()),
+        std::numeric_limits<double>::min(), std::numeric_limits<double>::max()));
+      const arma::mat normalized = information / (scaling * scaling.t());
+      const arma::vec rhs = gradient / scaling;
+      arma::vec direction;
+      ++aiUpdateSolves;
+      bool solved = arma::solve(direction, normalized, rhs,
+        arma::solve_opts::likely_sympd + arma::solve_opts::no_approx);
+      if(adaptive && (!solved || !direction.is_finite() ||
+          arma::norm(normalized * direction - rhs, 2) >
+            1.0e-6 * (1.0 + arma::norm(rhs, 2)) ||
+          !sommer::reliableAIInformation(
+          information, 1.0 / scaling))) {
+        ++regularizedAttempts;
+        const sommer::RegularizedAIDirection retry =
+          sommer::regularizedAIDirection(AI, score, feasible, stepCaps);
+        if(retry.reliable) {
+          delta = retry.direction;
+          regularized = true;
+          regularizedRidges.push_back(retry.ridge);
+          regularizedIterations.push_back(iIter + 1);
+          break;
+        }
+        weight = 1.0;
+        recoveryReason = "information-solve";
+        break;
       }
-      delta(freeIdx) = deltaFree;
-    }
-
-    arma::vec candidate = thetaUnlisted + delta;
-    candidate = projectVarianceParameters(vcMap, candidate, freeIdx, InfMat);
-    for(int k = 0; k < nVcTotal; ++k){
-      if(freeUnlisted(k) < 0.5){ candidate(k) = thetaUnlisted(k); continue; }
-      if(candidate(k) < lowerUnlisted(k)){ candidate(k) = lowerUnlisted(k); }
-      if(candidate(k) > upperUnlisted(k)){ candidate(k) = upperUnlisted(k); }
-    }
-    candidate = projectVarianceParameters(vcMap, candidate, freeIdx,
-                                          arma::eye<arma::mat>(nVcTotal, nVcTotal));
-
-    for(int halving = 0; halving < 10; ++halving){
-      bool allPD = true;
-      for(int i = 0; i < nRRe && allPD; ++i){
-        arma::vec parCandidate = candidate.subvec(nVcStart(i)-1, nVcEnd(i)-1);
-        if(!structureIsPD(i, parCandidate)){ allPD = false; }
+      if(!solved){ direction = arma::pinv(normalized) * rhs; }
+      delta = feasible * (direction / scaling);
+      if(!delta.is_finite() || arma::dot(delta, score) <= 0.0){
+        delta = feasible * (gradient / arma::square(scaling));
       }
-      if(allPD){ break; }
-      candidate = thetaUnlisted + 0.5 * (candidate - thetaUnlisted);
-      if(halving == 9){ candidate = thetaUnlisted; }
+      if(!delta.is_finite()){ Rcpp::stop("Non-finite direct-engine covariance direction."); }
+      const arma::mat next = feasibleTangent(feasible, thetaUnlisted, delta);
+      if(next.n_cols == feasible.n_cols){ break; }
+      feasible = next;
+      delta.zeros();
     }
+    sommer::DirectEMProposal em;
+    bool momentsReady = false;
+    auto prepareEM = [&]() {
+      if(momentsReady) { return; }
+      double workspaceEntries = 24.0 * static_cast<double>(nR) * nR +
+        8.0 * static_cast<double>(nVcTotal) * nVcTotal;
+      for(int term = 0; term < nRe; ++term) {
+        workspaceEntries += 12.0 * static_cast<double>(qOf[term]) * qOf[term];
+      }
+      if(covStructI.hasAttribute("denseMemoryMB")) {
+        const double budget = Rcpp::as<double>(covStructI.attr("denseMemoryMB"));
+        if(workspaceEntries * sizeof(double) > budget * 1024.0 * 1024.0) {
+          Rcpp::stop("Exact direct EM moments exceed denseMemoryMB. Increase the engine memory budget; no approximate moments or diagonal AI substitution are used.");
+        }
+      }
+      em = sommer::directEMProposal(covDescriptor, covPar, freeUnlisted,
+        lowerUnlisted, upperUnlisted, tangent, vcMap.active,
+        Bcache, emWidths, Xd, y, Vi, P, reml,
+        [&](const arma::vec & par) { return buildResidual(par, -1); },
+        parameterExpanded);
+      momentsReady = true;
+      ++emPreparations;
+      if(em.closed) { ++closedSteps; } else { ++generalizedSteps; }
+      qEvaluations += em.evaluations;
+      qHistory(iIter) = em.qGain;
+      pxHistory(iIter) = em.pxGain;
+      mstepHistory(iIter) = em.converged;
+      mstepEvaluations(iIter) = em.ordinaryEvaluations;
+      if(parameterExpanded && nRe > 0) {
+        pxConvergenceHistory(iIter) = em.pxConverged;
+        pxEvaluationHistory(iIter) = em.pxEvaluations;
+      }
+      if(nRe > 0) { expansionHistory.col(iIter) = em.expansion; }
+    };
+    const arma::vec aiDirection = delta;
+    if(weight > 0.0 && iIter < nIters - 1) {
+      prepareEM();
+      delta = (1.0 - weight) * aiDirection + weight * (em.point - thetaUnlisted);
+    }
+    const double relativeStep = arma::norm(delta, 2) / (1.0 + arma::norm(thetaUnlisted, 2));
+    if(projectedScoreNorm <= scoreTolerance && relativeStep < tolParConvNorm){
+      convergence = true;
+      stopReason = "converged";
+      printProgress();
+      break;
+    }
+    // Never return a proposal whose likelihood and score were not evaluated.
+    if(iIter == nIters - 1){ printProgress(); break; }
 
-    for(int i = 0; i < nRRe; ++i){
-      covPar(i) = candidate.subvec(nVcStart(i)-1, nVcEnd(i)-1);
-      if(!(i == residualStruct && residualCompact)){
-        theta(i) = directEvaluateDescriptor(covDescriptor[i], covPar(i));
+    bool accepted = false;
+    const int halvingsBefore = lineSearchHalvings;
+    const int phases = adaptive && weight == 0.0 &&
+      projectedScoreNorm > scoreTolerance ? 2 : 1;
+    for(int phase = 0; phase < phases && !accepted; ++phase) {
+      if(phase == 1) {
+        weight = 1.0;
+        recoveryReason = regularized ? "information-solve" : "line-search";
+        prepareEM();
+        delta = em.point - thetaUnlisted;
+        recoveryPolicy.reset();
+      }
+      const bool mixed = weight > 0.0 && weight < 1.0;
+      const int attempts = 1 + (mixed ? 1 : 0) +
+        (parameterExpanded && weight > 0.0 && nRe > 0 ? 1 : 0);
+      for(int attempt = 0; attempt < attempts && !accepted; ++attempt) {
+        if(attempt > 0) {
+          weight = 1.0;
+          if(mixed && attempt == 1) {
+            delta = em.point - thetaUnlisted;
+            ++emFallbacks;
+          } else {
+            delta = em.ordinary - thetaUnlisted;
+            ++pxFallbacks;
+            ordinaryFallback = true;
+          }
+        }
+        const bool fullEM = weight == 1.0 || attempt > 0;
+        double alpha = adaptive && fullEM ? 1.0 : weightInf(iIter);
+        for(int k = 0; k < nVcTotal; ++k) {
+          if(!fullEM && delta(k) != 0.0) {
+            alpha = std::min(alpha, stepCaps(k) / std::abs(delta(k)));
+          }
+          if(delta(k) < 0.0 && std::isfinite(lowerUnlisted(k))) {
+            alpha = std::min(alpha, std::max(0.0, (thetaUnlisted(k) - lowerUnlisted(k)) / -delta(k)));
+          } else if(delta(k) > 0.0 && std::isfinite(upperUnlisted(k))) {
+            alpha = std::min(alpha, std::max(0.0, (upperUnlisted(k) - thetaUnlisted(k)) / delta(k)));
+          }
+        }
+        progressTrust = alpha;
+        for(int search = 0; search < 30 && alpha > 0.0; ++search) {
+          const arma::vec candidate = thetaUnlisted + alpha * delta;
+          arma::field<arma::vec> trial(nRRe);
+          bool valid = candidate.is_finite() && arma::all(candidate >= lowerUnlisted) &&
+            arma::all(candidate <= upperUnlisted);
+          for(int i = 0; i < nRRe && valid; ++i) {
+            trial(i) = candidate.subvec(nVcStart(i)-1, nVcEnd(i)-1);
+            valid = structureIsPD(i, trial(i));
+          }
+          arma::mat trialVi, trialP;
+          double trialLikelihood;
+          const double minimumGain = adaptive && (fullEM || regularized) ? 1.0e-10 : 0.0;
+          const bool evaluated = valid && evaluatePoint(trial, trialVi, trialP, trialLikelihood);
+          const bool stationaryEM = fullEM && projectedScoreNorm <= scoreTolerance &&
+            evaluated && trialLikelihood >= likelihood -
+              1.0e-10 * (1.0 + std::abs(likelihood));
+          if(evaluated &&
+             ((trialLikelihood > likelihood + minimumGain &&
+               (fullEM || trialLikelihood >= likelihood +
+                 1.0e-4 * alpha * arma::dot(score, delta))) || stationaryEM)) {
+            covPar = trial;
+            pendingVi = std::move(trialVi);
+            pendingP = std::move(trialP);
+            pendingLikelihood = trialLikelihood;
+            pending = true;
+            accepted = true;
+            progressLine = alpha / progressTrust;
+            if(attempt > 0) { weight = 1.0; }
+            break;
+          }
+          alpha *= 0.5;
+          ++lineSearchHalvings;
+        }
       }
     }
-    monitor.col(iIter) = candidate;
-
+    if(adaptive && weight == 1.0) {
+      recoveryIterations.push_back(iIter + 1);
+      recoveryReasons.push_back(recoveryReason);
+      if(accepted) { ++acceptedRecoveries; }
+    }
+    if(accepted && regularized && weight == 0.0) { ++regularizedAccepted; }
+    previousAI = accepted && weight == 0.0;
+    previousHalvings = lineSearchHalvings - halvingsBefore;
+    printProgress();
+    if(!accepted){
+      stopReason = "line-search-stalled";
+      Rcpp::warning("Direct-engine optimization stalled at the last accepted parameters; convergence was not certified.");
+      break;
+    }
+  }
+  for(int i = 0; i < nRRe; ++i){
+    if(!(i == residualStruct && residualCompact)){
+      theta(i) = directEvaluateDescriptor(covDescriptor[i], covPar(i));
+    }
   }
 
   // ------------------------------------------------------------
@@ -4529,10 +4766,7 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   beta = Qinv * (Xd.t() * (Vi * y));
   VarBeta = Qinv;
 
-  // Clean (non-EM-blended) average information at the converged point, used
-  // only for theta_se: the per-iteration InfMat blends in a diagonal EM
-  // stabilizer for optimizer robustness, which must not leak into reported
-  // standard errors.
+  // Final inference uses clean AI, never the EM/GEM proposal or its curvature.
   {
     arma::mat AIFinal(nVcTotal, nVcTotal, arma::fill::zeros);
     std::vector<arma::vec> vListFinal(nVcTotal), PvListFinal(nVcTotal);
@@ -4553,16 +4787,15 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
       }
     }
     InfMatInvWorking.zeros();
-    if(freeIdx.n_elem > 0){
-      arma::mat aiFree = AIFinal.submat(freeIdx, freeIdx);
-      if(vcMap.active){
-        arma::mat Ts = vcMap.T.rows(freeIdx);
-        arma::uvec used = arma::find(arma::sum(arma::abs(Ts), 0).t() > 0);
-        Ts = Ts.cols(used);
-        InfMatInvWorking.submat(freeIdx, freeIdx) = Ts * arma::pinv(Ts.t() * aiFree * Ts) * Ts.t();
-      }else{
-        InfMatInvWorking.submat(freeIdx, freeIdx) = arma::pinv(aiFree);
-      }
+    if(tangent.n_cols > 0){
+      // Log-scale information vanishes at a variance boundary. Normalize
+      // before inversion so that unrelated uncertainty is not truncated.
+      const arma::mat information = tangent.t() * AIFinal * tangent;
+      const arma::vec scaling = arma::sqrt(arma::clamp(arma::abs(information.diag()),
+        std::numeric_limits<double>::min(), std::numeric_limits<double>::max()));
+      const arma::mat normalized = information / (scaling * scaling.t());
+      InfMatInvWorking = tangent *
+        (arma::pinv(normalized) / (scaling * scaling.t())) * tangent.t();
     }
   }
 
@@ -4711,6 +4944,48 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     Rcpp::Named("partitions") = partitions,
     Rcpp::Named("CiMode") = 0,
     Rcpp::Named("Ci") = arma::sp_mat(),
+    Rcpp::Named("engineDiagnostics") = Rcpp::List::create(
+      Rcpp::Named("direct") = Rcpp::List::create(
+        Rcpp::Named("optimizer") = adaptive ? "ai-first" :
+          arma::all(weightEmInf == 0.0) ? "ai" :
+          arma::all(weightEmInf == 1.0) ? blendMethod : "blend",
+        Rcpp::Named("stopReason") = stopReason,
+        Rcpp::Named("finalProjectedScoreNorm") = projectedScoreNorm,
+        Rcpp::Named("scoreTolerance") = scoreTolerance,
+        Rcpp::Named("lineSearchHalvings") = lineSearchHalvings,
+        Rcpp::Named("aiUpdateSolves") = aiUpdateSolves,
+        Rcpp::Named("likelihoodEvaluations") = likelihoodEvaluations),
+      Rcpp::Named("blend") = Rcpp::List::create(
+        Rcpp::Named("method") = blendMethod,
+        Rcpp::Named("weights") = weightHistory.head(lastIter + 1),
+        Rcpp::Named("qGains") = qHistory.head(lastIter + 1),
+        Rcpp::Named("closedFormSteps") = closedSteps,
+        Rcpp::Named("generalizedSteps") = generalizedSteps,
+        Rcpp::Named("eStepEvaluations") = emPreparations,
+        Rcpp::Named("qEvaluations") = qEvaluations,
+        Rcpp::Named("numericalMstepConverged") = mstepHistory.head(lastIter + 1),
+        Rcpp::Named("numericalMstepEvaluations") = mstepEvaluations.head(lastIter + 1),
+        Rcpp::Named("pxQGains") = pxHistory.head(lastIter + 1),
+        Rcpp::Named("pxMstepConverged") = pxConvergenceHistory.head(lastIter + 1),
+        Rcpp::Named("pxMstepEvaluations") = pxEvaluationHistory.head(lastIter + 1),
+        Rcpp::Named("pxLogExpansion") = expansionHistory.cols(0, lastIter),
+        Rcpp::Named("emFallbacks") = emFallbacks,
+        Rcpp::Named("pxEMFallbacks") = pxFallbacks),
+      Rcpp::Named("recovery") = Rcpp::List::create(
+        Rcpp::Named("automatic") = adaptive,
+        Rcpp::Named("method") = blendMethod,
+        Rcpp::Named("likelihood") = reml ? "REML" : "ML",
+        Rcpp::Named("steps") = static_cast<int>(recoveryIterations.size()),
+        Rcpp::Named("accepted") = acceptedRecoveries,
+        Rcpp::Named("iterations") = recoveryIterations,
+        Rcpp::Named("reasons") = recoveryReasons,
+        Rcpp::Named("regularizedAttempts") = regularizedAttempts,
+        Rcpp::Named("stopReason") = stopReason,
+        Rcpp::Named("finalProjectedScoreNorm") = projectedScoreNorm,
+        Rcpp::Named("scoreTolerance") = scoreTolerance,
+        Rcpp::Named("regularizedAcceptedSteps") = regularizedAccepted,
+        Rcpp::Named("regularizedIterations") = regularizedIterations,
+        Rcpp::Named("regularizedRidges") = regularizedRidges)),
     Rcpp::Named("residualCovarianceCompact") = residualCompact
   );
 }

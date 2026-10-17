@@ -49,9 +49,28 @@ Gaussian Henderson REML or ML fits. Explicit numeric schedules keep their previo
 meaning; zero disables automatic recovery. `mme_recovery.h` owns the fixed
 three-step poor-progress triggers (four halvings per accepted AI step, or
 likelihood gains below tolerance). A non-small projected score is required.
-Information-solve failure and exhausted AI line search can trigger immediately.
-One strictly likelihood-improving recovery step is followed by another AI
+Exhausted ordinary AI line search triggers EM/PXEM immediately.
+On information-solve failure, `mme_ai_recovery.h` first forms a scaled,
+ridge-regularized direction within the current feasible tangent. Tangent
+columns are normalized in working-coordinate trust-cap units. Increasing
+the ridge produces an ascent direction bounded by those caps, rather than
+globally shrinking a huge direction dominated by one weak coordinate.
+Ordinary AI also rejects a trust-scaled reciprocal condition estimate below
+`sqrt(epsilon)`: a small backward residual alone does not certify a
+well-determined forward step.
+The helper owns only this small information-system solve; it computes no
+posterior moments or covariance factorizations. Active-set restrictions
+remain in `mme_em.h`, which also applies the existing feasibility and
+observed-likelihood line search. A stabilized solve or search failure then
+requests lazy EM/PXEM at the accepted point.
+
+Regularized AI and EM/PXEM each require an observed-likelihood gain above
+`1e-10`. One accepted retry step is followed by another ordinary AI
 attempt; failed recovery warns and returns an uncertified accepted point.
+The ordinary/regularized/EM sequence may repeat without a separate recovery
+cap, subject to the existing iteration limit. Diagnostics distinguish
+regularized solve attempts, usable directions and ridges, accepted
+regularized steps, and EM/PXEM recovery attempts.
 Convergence requires a projected-score certificate, not merely a small move.
 These safeguards do not search across likelihood basins.
 
@@ -82,8 +101,33 @@ an accepted exact-information fit, including requested inverse output.
 Rejected trials still follow the blend likelihood guards. The blend counters
 `nativeAIEvaluations`, `latentAIEvaluations`, and `acceptedAIFitReuses`
 separate information dispatch from accepted-fit reuse.
-PCG, direct inversion, PQL, competing accelerators, factor-score augmentation,
+PCG, PQL, competing accelerators, factor-score augmentation,
 and saddle-point fitting do not admit positive EM-type weights.
+
+Direct inversion implements the same blend controls separately in
+`mme_direct_em.h`, called only by `ai_reml_direct_sp2()` in `MNR.cpp`.
+It never calls the Henderson engine. Both drivers reuse the unchanged numerical
+Q minimizer in `mme_em_optimizer.h`; Henderson update algorithms are unchanged.
+Direct E-steps contract observation kernels with `Py * Py' - P` for REML or
+`Py * Py' - Vi` for ML. Nonsingular random priors use centered sufficient
+statistics. Zero-specific RR uses loading maps and nonsingular latent priors;
+candidate map and PX changes enter residual Q through exact observation-space
+cross-covariance contractions. ML profiles beta inside residual Q, while REML
+retains joint fixed-effect uncertainty. Residual assembly preserves weighting,
+section-specific descriptors, and incomplete observed blocks.
+
+Direct scalar and eligible diagonal/unstructured random M-steps are closed form.
+Generic constrained numerical M-steps increase Q for all other supported
+families. Full EM skips AI update solves; zero weights prepare no EM moments.
+Undamped full EM bypasses AI trust caps, but all proposals pass feasibility and
+observed-likelihood checks. Rejected mixtures try EM, and rejected PX proposals
+can try the ordinary seed. Accepted likelihood states are reused.
+Automatic direct recovery shares `AIRecoveryPolicy` and regularized directions;
+its reliability test uses diagonal-normalized information so vanishing
+log-scale curvature alone does not force recovery. Explicit schedules disable
+automatic recovery. Diagnostics separate Q work, actual weights, recovery,
+AI update solves, and likelihood evaluations. Exact EM workspace has a
+conservative `denseMemoryMB` admission check; existing direct caches are separate.
 
 PX-GEM adds one positive expansion scalar per random term and optimizes the
 expanded Q objective in original constrained covariance coordinates plus

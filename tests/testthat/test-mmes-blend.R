@@ -104,7 +104,6 @@ test_that("positive EM-direction blending rejects unsupported engines", {
   }
 
   expect_error(fit(solver="pcg"), "solver='pcg'")
-  expect_error(fit(henderson=FALSE), "direct inversion")
   expect_error(fit(family=binomial()), "PQL")
   expect_error(fit(acceleration="aitken"), "acceleration")
   expect_error(fit(factorScoreAugmentation="fixed-shape"),
@@ -120,7 +119,7 @@ test_that("positive EM-direction blending rejects unsupported engines", {
 
 test_that("unsupported EM modes default to pure AI only when weights are omitted", {
   data(DT_example)
-  modes <- list(list(henderson=FALSE), list(solver="pcg"),
+  modes <- list(list(solver="pcg"),
     list(acceleration="aitken"), list(saddlePoint=TRUE))
   for(mode in modes){
     setup <- do.call(mmes, c(list(fixed=Yield~Env, random=~Name, data=DT_example,

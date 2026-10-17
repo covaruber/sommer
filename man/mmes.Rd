@@ -306,8 +306,21 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   a non-small scaled projected score: after three consecutive accepted AI
   steps requiring at least four halvings each, three consecutive likelihood
   gains below \code{tolParConvLL}, an exhausted AI line search, or an
-  unreliable information solve. One EM/GEM or PX-GEM recovery step must
-  increase the observed likelihood by more than \code{1e-10}; then AI resumes.
+  unreliable information solve. Before using EM/PX-GEM for an unreliable
+  solve, the optimizer tries a scaled, ridge-regularized AI direction in the
+  feasible parameter tangent. Scaling uses working-coordinate trust caps;
+  increasing the ridge bounds the direction without letting one nearly flat
+  coordinate shrink all other updates. This retry must pass the same
+  feasibility and observed-likelihood line search as other proposals.
+  An information system is also unreliable when its reciprocal condition
+  estimate in trust-cap units is below the square root of machine precision,
+  even if the ordinary solve returns a small residual.
+  Both a regularized AI retry and an EM/GEM or PX-GEM recovery step must
+  increase the observed likelihood by more than \code{1e-10}.
+  If the regularized direction or its line search fails, EM/PX-GEM is computed
+  on demand at the accepted point. After either accepted retry, ordinary AI
+  resumes at the next iteration. This sequence can repeat up to \code{nIters};
+  there is no separate cap on repeated recoveries.
   Recovery failure returns the last accepted point with a warning and
   \code{convergence=FALSE}. Approaching a variance boundary alone is not a
   trigger. Convergence requires a scaled projected score no greater than
@@ -315,10 +328,10 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   change or relative parameter step. Projection respects fixed and tied
   parameters and outward directions at variance floors.
   Full explicit EM or PX-GEM
-  weights skip AI construction except for final inference. Generic
+  weights skip AI update construction except for final inference. Generic
   covariance structures use increasing-Q generalized EM updates. Positive
-  weights require deterministic Gaussian Henderson REML or ML fitting,
-  without PQL, direct inversion, acceleration, factor-score augmentation, or
+  weights require Gaussian Henderson or direct REML or ML fitting,
+  with deterministic Henderson solvers and without PQL, acceleration, factor-score augmentation, or
   saddle-point fitting. When weights are omitted, these unsupported modes
   default to pure AI; explicitly positive weights are rejected.
   Set all weights to zero to request the existing AI engine explicitly.
@@ -326,8 +339,13 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   automatic recovery. Refit arguments preserve \code{NULL} for automatic fits.
   Recovery diagnostics appear in \code{engineDiagnostics$recovery}: method, likelihood mode,
   number of attempted and accepted recovery steps, one-based source iterations,
-  trigger reasons,
-  stop reason, final projected score norm, and score tolerance.
+  trigger reasons, stop reason, final projected score norm, and score tolerance.
+  These recovery-step counts refer to EM/PX-GEM, not regularized AI.
+  \code{regularizedAttempts} counts stabilized-direction solves, including
+  failures and active-set retries. \code{regularizedAcceptedSteps} counts
+  accepted regularized AI updates. Paired \code{regularizedIterations} and
+  \code{regularizedRidges} record one-based source iterations and applied
+  ridges for usable stabilized directions, not acceptance guarantees.
   The thresholds are fixed initial heuristics, not a global-optimum guarantee;
   use alternative starting values to investigate competing local optima.
   Recovery uses the existing exact posterior-moment kernels and their
@@ -559,10 +577,11 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
 
 \strong{EM, PX-GEM and AI direction blending}
 
-The EM E-step includes posterior uncertainty in both fixed coefficients and
-random effects. Closed-form M-steps update covariance scales and eligible
+The REML E-step includes posterior uncertainty in both fixed coefficients and
+random effects. ML conditions on current GLS fixed effects.
+Closed-form M-steps update covariance scales and eligible
 fully free diagonal or unstructured random terms from their posterior
-moments. Complete, fully free unstructured residual blocks and diagonal
+moments. Under Henderson fitting, complete, fully free unstructured residual blocks and diagonal
 residual factors also have closed-form updates. Models without a closed-form
 joint M-step, including free structured covariance shapes, reduced-rank
 loadings, and equality or ratio
@@ -588,6 +607,7 @@ random term to expand.
 This implementation is PX-GEM: every accepted expanded M-step increases Q,
 but numerical optimization need not reach its maximum. It is not a full
 matrix expansion or a claim to reproduce another package's PX algorithm.
+The following coefficient-cache details describe the Henderson implementation.
 Non-reduced-rank models cache blockwise quadratic expansion moments.
 Reduced-rank models cache exact quadratic posterior moments in a normalized
 loading/design basis once per E-step, including cross-term uncertainty.
@@ -608,7 +628,7 @@ without a duplicate trial fit. Fixed parameters, scale floors, and
 fits are rejected with a warning and recorded diagnostic reasons; unrelated
 evaluation errors propagate.
 
-Full EM or PX-GEM weights skip iterative scores and AI sensitivity solves. Zero weights
+Full Henderson EM or PX-GEM weights skip iterative scores and AI sensitivity solves. Zero weights
 skip posterior-moment and M-step work. Exact final AI is still computed for
 covariance-parameter standard errors. Non-reduced-rank AI directions, including
 zero-weight iterations inside a blended schedule, use the native exact AI
@@ -640,6 +660,45 @@ The same list reports \code{randomMomentPairs},
 Top-level \code{engineDiagnostics} counters \code{emInverseTraceCalls},
 \code{emInverseTraceFallbackPanels}, and \code{emDesignTraceCalls} distinguish
 backend contractions from their uncached exact-panel fallbacks.
+
+\strong{Direct observation-space EM}
+
+With \code{henderson=FALSE}, the same \code{blend} and \code{blendWeight}
+controls select AI, EM/GEM, scalar PX-GEM, mixed directions, or exponential
+tapers. Omitted weights select AI-first recovery; explicit zero weights disable
+EM work and recovery. No Henderson coefficient solve is used.
+Exact random sufficient statistics contract the cached observation kernels
+\eqn{Z_a K Z_b'} with \eqn{Py(Py)'} minus \eqn{P} for REML or
+\eqn{V^{-1}} for ML. Residual moments use the same observation order, weights,
+and observed residual-block indices as direct likelihood assembly.
+Zero-specific reduced-rank terms use nonsingular latent priors and
+candidate-dependent loading maps, not inverses of singular random covariances.
+PX objectives retain cross-term and fixed-effect posterior uncertainty.
+
+Eligible scale, diagonal, and unstructured random M-steps are closed form.
+Other direct updates, including structured or incomplete residual covariances,
+custom covariance factors, partially fixed structures, and \code{vcc} constraints,
+numerically increase Q. These are GEM, not a guarantee of global Q maximization.
+ML profiles fixed effects inside the residual Q objective; REML integrates their
+joint posterior uncertainty. Full EM weights compute no AI update solves.
+Projected-score convergence checks and clean final AI inference remain active.
+Full undamped EM proposals bypass AI trust caps but still pass covariance
+validity and observed-likelihood checks. Accepted trials supply the next
+iteration's likelihood state. Exact EM workspace obeys \code{denseMemoryMB};
+the estimate covers EM workspace, not all pre-existing direct-engine caches.
+
+\code{engineDiagnostics$direct} records optimizer, stop reason, projected
+score certificate, line-search halvings, \code{aiUpdateSolves}, and likelihood
+evaluations. \code{engineDiagnostics$blend} records actual weights, Q gains,
+closed-form/GEM seed counts, \code{eStepEvaluations}, numerical M-step
+status/evaluation counts, PX expansions, and fallbacks. Q and expansion histories
+describe proposals before outer backtracking; uncomputed Q gains and M-step
+statuses are \code{NA}. The final evaluated iteration has no proposal.
+Direct recovery uses the same poor-progress triggers and regularized-AI helper
+as Henderson. Information reliability is tested after diagonal normalization,
+so a small variance alone does not force recovery. Recovery attempts require
+observed-likelihood gains above \code{1e-10} and resume AI after acceptance.
+The common \code{engineDiagnostics$recovery} fields describe these attempts.
 
 For PX-GEM, \code{engineDiagnostics$blend} includes \code{pxEvaluations},
 \code{pxExpansionTerms}, \code{pxLogExpansion} (random terms by iterations),
@@ -696,7 +755,8 @@ local clock time and process CPU time.
   \item{\code{deltaLL}}{Change from the preceding printed accepted likelihood;
   \code{-} on the first row.}
   \item{\code{update}}{The selected proposal method: \code{AI}, \code{hybrid-AI},
-  \code{EM}, or \code{PXEM}. A mixture such as \code{AI+EM:0.40} shows the
+  \code{AI-reg} (scaled, regularized AI), \code{EM}, or \code{PXEM}.
+  A mixture such as \code{AI+EM:0.40} shows the
   EM-type direction weight. Fallbacks show the method actually tried last.
   A final row may report a selected method without taking another step.}
   \item{\code{policy}}{\code{auto:em} or \code{auto:pxem} means AI-first

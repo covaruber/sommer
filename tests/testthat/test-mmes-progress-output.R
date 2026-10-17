@@ -104,7 +104,10 @@ test_that("all mmes progress paths share compact columns without changing fits",
     list(), list(REML=FALSE), list(solver="cholmod"), list(solver="pcg", blendWeight=0),
     list(blendWeight=0, acceleration="hybrid-ai"),
     list(blendWeight=c(1, 0.4, 0)), list(blend="pxem", blendWeight=c(1, 0.4, 0)),
-    list(saddlePoint=TRUE, blendWeight=0), list(henderson=FALSE, blendWeight=0))
+    list(saddlePoint=TRUE, blendWeight=0), list(henderson=FALSE, blendWeight=0),
+    list(henderson=FALSE, blendWeight=1),
+    list(henderson=FALSE, blend="pxem", blendWeight=c(1, 0.4, 0)),
+    list(henderson=FALSE))
   expected <- NULL
   for(arguments in cases){
     fit <- function(verbose) do.call(mmes, c(list(fixed=Yield~Env, random=~Name,
@@ -148,5 +151,6 @@ test_that("recovery progress names the selected method and trigger", {
   dataset$Name2 <- dataset$Name
   output <- capture.output(fit <- mmes(Yield~Env, random=~Name+Name2, data=dataset,
     nIters=3L, verbose=TRUE, dateWarning=FALSE))
-  expect_true(any(grepl("EM +info-solve", output)))
+  expect_true(any(grepl("AI-reg +info-solve", output)))
+  expect_equal(fit$engineDiagnostics$recovery$steps, 0L)
 })

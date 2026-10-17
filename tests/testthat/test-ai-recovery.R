@@ -4,6 +4,50 @@
     verbose=FALSE, dateWarning=FALSE, ...)
 }
 
+test_that("regularized AI solves in trust units and preserves fixed and tied tangent directions", {
+  source <- test_path("..", "native", "test-mme-ai-recovery.cpp")
+  header <- test_path("..", "..", "src", "mme_ai_recovery.h")
+  skip_if(!all(file.exists(c(source, header))),
+    "Native checks require the package source tree")
+  skip_if(!nzchar(Sys.which("c++")), "C++ compiler unavailable")
+  helper <- new.env()
+  Rcpp::sourceCpp(source, env=helper)
+  information <- diag(c(1e-30, 2, 3, 4))
+  score <- c(-1e-8, 3, 2, 1)
+  tangent <- cbind(c(1, 0, 0, 0), c(0, 2, 1, 0))
+  caps <- c(1, 0.5, 2, 1)
+  candidate <- helper$regularized_ai_probe(information, score, tangent, caps)
+  expect_true(candidate$reliable)
+  expect_false(candidate$ordinaryReliable)
+  expect_true(all(is.finite(candidate$direction)))
+  expect_gt(sum(candidate$direction * score), 0)
+  expect_lte(max(abs(candidate$direction) / caps), 1)
+  expect_equal(candidate$direction[2L], 2 * candidate$direction[3L])
+  expect_equal(candidate$direction[4L], 0)
+  expect_gt(candidate$ridge, 0)
+  rescaled <- helper$regularized_ai_probe(information * 100, score * 100, tangent, caps)
+  expect_equal(rescaled$direction, candidate$direction, tolerance=1e-10)
+  expect_equal(rescaled$ridge, candidate$ridge * 100, tolerance=1e-10)
+  indefinite <- helper$regularized_ai_probe(diag(c(-1, 2)), c(1, 1), diag(2), c(1, 1))
+  expect_true(indefinite$reliable)
+  expect_gt(sum(indefinite$direction), 0)
+  empty <- helper$regularized_ai_probe(information, score, matrix(0, 4, 0), caps)
+  flat <- helper$regularized_ai_probe(matrix(0, 4, 4), score, diag(4), caps)
+  expect_false(empty$reliable)
+  expect_false(flat$reliable)
+  healthy <- helper$regularized_ai_probe(diag(4), score, diag(4), rep(1, 4))
+  expect_true(healthy$ordinaryReliable)
+  threshold <- sqrt(.Machine$double.eps)
+  for(ratio in c(0.5, 2)){
+    probe <- helper$regularized_ai_probe(diag(c(1, ratio * threshold)),
+      c(1, 1), diag(2), c(1, 1))
+    expect_identical(probe$ordinaryReliable, ratio > 1)
+  }
+  units <- helper$regularized_ai_probe(diag(c(1e16, 1)), c(1, 1),
+    diag(2), c(1e-8, 1))
+  expect_true(units$ordinaryReliable)
+})
+
 test_that("healthy default AI skips all EM and PX work and reuses accepted fits", {
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")){
     for(method in c("em", "pxem")){
@@ -14,6 +58,7 @@ test_that("healthy default AI skips all EM and PX work and reuses accepted fits"
       expect_true(fit$convergence)
       expect_equal(diagnostics$recovery$stopReason, "converged")
       expect_equal(diagnostics$recovery$steps, 0)
+      expect_equal(diagnostics$recovery$regularizedAttempts, 0L)
       expect_lte(diagnostics$recovery$finalProjectedScoreNorm,
         diagnostics$recovery$scoreTolerance)
       expect_equal(diagnostics$blend$emEvaluations, 0)
@@ -53,7 +98,7 @@ test_that("negligible gains with a non-small score trigger one recovery then ret
   }
 })
 
-test_that("singular AI information invokes exact EM recovery", {
+test_that("singular AI information tries regularized AI before computing EM moments", {
   data(DT_example)
   dataset <- DT_example
   dataset$Name2 <- dataset$Name
@@ -61,12 +106,85 @@ test_that("singular AI information invokes exact EM recovery", {
     fit <- mmes(Yield~Env, random=~Name+Name2, data=dataset, solver=solver,
       nIters=4L, REML=reml, verbose=FALSE, dateWarning=FALSE)
     diagnostics <- fit$engineDiagnostics
-    expect_equal(diagnostics$recovery$reasons[1L], "information-solve")
-    expect_gt(diagnostics$blend$emEvaluations, 0)
+    expect_gt(diagnostics$recovery$regularizedAttempts, 0L)
+    expect_gt(diagnostics$recovery$regularizedAcceptedSteps, 0L)
+    expect_equal(diagnostics$recovery$steps, 0L)
+    expect_equal(diagnostics$blend$emEvaluations, 0L)
+    expect_equal(diagnostics$blend$qEvaluations, 0L)
+    expect_equal(diagnostics$blend$momentPanelSolves, 0L)
+    expect_true(all(diagnostics$recovery$regularizedRidges > 0))
     expect_true(all(diff(as.numeric(fit$llik)) > 1e-10))
     expect_true(all(is.finite(fit$InfMat)))
-    expect_false(fit$convergence)
+    if(fit$convergence){
+      expect_lte(diagnostics$recovery$finalProjectedScoreNorm,
+        diagnostics$recovery$scoreTolerance)
+    }
   }
+})
+
+test_that("successful repeated recoveries have no separate two-step cap", {
+  fit <- .recovery_fit(nIters=15L, stepWeight=1e-7)
+  recovery <- fit$engineDiagnostics$recovery
+  expect_equal(recovery$iterations, c(4L, 8L, 12L))
+  expect_equal(recovery$acceptedSteps, 3L)
+  expect_equal(recovery$stopReason, "iteration-limit")
+  expect_equal(which(fit$engineDiagnostics$blend$weights > 0), recovery$iterations)
+  expect_true(all(diff(as.numeric(fit$llik)) >= -1e-10))
+})
+
+test_that("failed regularized line search still falls back to EM without accepting a negligible step", {
+  data(DT_example)
+  dataset <- DT_example
+  dataset$Name2 <- dataset$Name
+  for(reml in c(TRUE, FALSE)) for(method in c("em", "pxem")){
+    expect_warning(fit <- mmes(Yield~Env, random=~Name+Name2, data=dataset,
+      nIters=4L, stepWeight=1e-12, REML=reml, blend=method,
+      verbose=FALSE, dateWarning=FALSE), "AI-first optimization stalled")
+    recovery <- fit$engineDiagnostics$recovery
+    expect_gt(recovery$regularizedAttempts, 0L)
+    expect_equal(recovery$regularizedAcceptedSteps, 0L)
+    expect_equal(recovery$reasons, "information-solve")
+    expect_equal(recovery$steps, 1L)
+    expect_equal(recovery$acceptedSteps, 0L)
+    expect_gt(fit$engineDiagnostics$blend$emEvaluations, 0L)
+    expect_equal(recovery$stopReason, "recovery-stalled")
+    expect_false(fit$convergence)
+    initial <- mmes(Yield~Env, random=~Name+Name2, data=dataset,
+      nIters=1L, REML=reml, verbose=FALSE, dateWarning=FALSE)
+    for(field in c("theta", "bu", "llik")){
+      expect_equal(fit[[field]], initial[[field]], tolerance=1e-9)
+    }
+  }
+})
+
+test_that("DT_h2 FA retry avoids repeated EM recovery and improves accepted likelihood", {
+  data(DT_h2)
+  dataset <- DT_h2[with(DT_h2, order(Env)), ]
+  fits <- list()
+  for(solver in c("ldlt", "cholmod")){
+    fit <- mmes(y~Env, random=~vsm(fam(Env, 1L), ism(Name)) +
+      vsm(dsm(Env), ism(Block)), rcov=~vsm(dsm(Env), ism(units)), data=dataset,
+      solver=solver, nIters=30L, verbose=FALSE, dateWarning=FALSE)
+    diagnostics <- fit$engineDiagnostics
+    expect_gt(diagnostics$recovery$regularizedAcceptedSteps, 0L)
+    expect_equal(diagnostics$recovery$steps, 0L)
+    expect_equal(diagnostics$blend$emEvaluations, 0L)
+    expect_equal(diagnostics$blend$qEvaluations, 0L)
+    expect_gt(tail(as.numeric(fit$llik), 1L), 125)
+    expect_true(all(diff(as.numeric(fit$llik)) >= -1e-10))
+    accepted <- diagnostics$recovery$regularizedIterations
+    expect_true(all(diff(as.numeric(fit$llik))[accepted] > 1e-10))
+    if(fit$convergence){
+      expect_lte(diagnostics$recovery$finalProjectedScoreNorm,
+        diagnostics$recovery$scoreTolerance)
+    }else{
+      expect_gt(diagnostics$recovery$finalProjectedScoreNorm,
+        diagnostics$recovery$scoreTolerance)
+    }
+    fits[[solver]] <- fit
+  }
+  expect_equal(fits$ldlt$llik, fits$cholmod$llik, tolerance=1e-5)
+  expect_equal(fits$ldlt$theta, fits$cholmod$theta, tolerance=1e-5)
 })
 
 test_that("failed recovery returns the accepted point and warns without false convergence", {

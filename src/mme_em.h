@@ -2,110 +2,14 @@
 #define SOMMER_MME_EM_H
 #include "mme_recovery.h"
 #include "mme_progress.h"
+#include "mme_ai_recovery.h"
+#include "mme_em_optimizer.h"
 
 namespace sommer {
 
 struct CovarianceFactorizationError : std::runtime_error {
   using std::runtime_error::runtime_error;
 };
-
-struct EMMinimum {
-  arma::vec point;
-  double value = 0.0;
-  bool converged = false;
-  int evaluations = 0;
-};
-
-// Every accepted numerical M-step decreases -2Q, including early termination.
-inline EMMinimum minimizeEM(
-    const arma::vec & start,
-    const std::function<double(const arma::vec &)> & objective) {
-  EMMinimum out;
-  out.point = start;
-  auto evaluate = [&](const arma::vec & point) {
-    ++out.evaluations;
-    Rcpp::checkUserInterrupt();
-    return objective(point);
-  };
-  out.value = evaluate(start);
-  if(!std::isfinite(out.value)) {
-    Rcpp::stop("The EM objective is non-finite at the accepted parameter vector.");
-  }
-  if(start.is_empty()) { out.converged = true; return out; }
-  auto gradient = [&](const arma::vec & point, double value) {
-    arma::vec g(point.n_elem);
-    for(arma::uword j = 0; j < point.n_elem; ++j) {
-      double h = 1.0e-5 * (1.0 + std::abs(point(j)));
-      double plus = std::numeric_limits<double>::infinity();
-      double minus = plus;
-      for(int refinement = 0; refinement < 10; ++refinement) {
-        arma::vec trial = point;
-        trial(j) += h;
-        plus = evaluate(trial);
-        trial(j) = point(j) - h;
-        minus = evaluate(trial);
-        if(std::isfinite(plus) || std::isfinite(minus)) { break; }
-        if(refinement < 9) { h *= 0.25; }
-      }
-      if(std::isfinite(plus) && std::isfinite(minus)) {
-        g(j) = (plus - minus) / (2.0 * h);
-      } else if(std::isfinite(plus)) {
-        g(j) = (plus - value) / h;
-      } else if(std::isfinite(minus)) {
-        g(j) = (value - minus) / h;
-      } else {
-        Rcpp::stop("The EM objective has no finite numerical derivative in a free direction.");
-      }
-    }
-    return g;
-  };
-  arma::mat inverse = arma::eye<arma::mat>(start.n_elem, start.n_elem);
-  arma::vec g = gradient(out.point, out.value);
-  for(int iteration = 0; iteration < 60; ++iteration) {
-    if(arma::abs(g).max() <= 1.0e-7 * (1.0 + std::abs(out.value))) {
-      out.converged = true;
-      break;
-    }
-    arma::vec direction = -inverse * g;
-    if(arma::dot(direction, g) >= 0.0) {
-      inverse.eye();
-      direction = -g;
-    }
-    const double largest = arma::abs(direction).max();
-    if(largest > 1.0) { direction /= largest; }
-    double alpha = 1.0;
-    arma::vec candidate;
-    double next = out.value;
-    bool accepted = false;
-    for(int search = 0; search < 30; ++search) {
-      candidate = out.point + alpha * direction;
-      next = evaluate(candidate);
-      if(std::isfinite(next) &&
-         next <= out.value + 1.0e-4 * alpha * arma::dot(g, direction)) {
-        accepted = true;
-        break;
-      }
-      alpha *= 0.5;
-    }
-    if(!accepted) { break; }
-    const arma::vec nextGradient = gradient(candidate, next);
-    const arma::vec step = candidate - out.point;
-    const arma::vec change = nextGradient - g;
-    const double curvature = arma::dot(step, change);
-    if(curvature > 1.0e-12 * arma::norm(step) * arma::norm(change)) {
-      const double rho = 1.0 / curvature;
-      const arma::mat identity = arma::eye<arma::mat>(start.n_elem, start.n_elem);
-      const arma::mat transfer = identity - rho * step * change.t();
-      inverse = transfer * inverse * transfer.t() + rho * step * step.t();
-    } else {
-      inverse.eye();
-    }
-    out.point = std::move(candidate);
-    out.value = next;
-    g = nextGradient;
-  }
-  return out;
-}
 
 using EMConditionalFit = std::function<Rcpp::List(
   const Rcpp::List &, const arma::vec &, const Rcpp::List &, int,
@@ -167,6 +71,9 @@ inline Rcpp::List fitEMBlend(
   bool previousStepWasAI = false;
   std::vector<std::string> recoveryReasons;
   std::vector<int> recoveryIterations;
+  int regularizedAttempts = 0, regularizedAccepted = 0;
+  std::vector<int> regularizedIterations;
+  std::vector<double> regularizedRidges;
   std::string stopReason = "iteration-limit";
   double currentScoreNorm = std::numeric_limits<double>::infinity();
   const bool lowRank = hasZeroSpecific(descriptors);
@@ -395,6 +302,7 @@ inline Rcpp::List fitEMBlend(
     int pxObjectiveEvaluations = 0;
     bool closedFormAccepted = false;
     bool recoveryMomentsReady = false;
+    bool regularizedAI = false;
     std::string recoveryReason;
     const auto requestRecovery = [&](const std::string & reason) {
       weight = 1.0;
@@ -435,7 +343,8 @@ inline Rcpp::List fitEMBlend(
             arma::vec direction;
             if(adaptive) {
               arma::mat upper;
-              const bool reliable = arma::chol(upper, information) &&
+              const bool reliable = reliableAIInformation(information, aiTrustScale(feasible, stepCaps)) &&
+                arma::chol(upper, information) &&
                 arma::solve(direction, information, projected,
                   arma::solve_opts::likely_sympd + arma::solve_opts::no_approx) &&
                 direction.is_finite() &&
@@ -444,6 +353,24 @@ inline Rcpp::List fitEMBlend(
                 (arma::dot(direction, projected) > 0.0 || currentScoreNorm <= scoreTolerance);
               if(!reliable) {
                 if(currentScoreNorm > scoreTolerance && iteration < iterations - 1) {
+                  ++regularizedAttempts;
+                  const RegularizedAIDirection stabilized = regularizedAIDirection(
+                    ai.information, score, feasible, stepCaps);
+                  if(stabilized.reliable) {
+                    aiDirection = stabilized.direction;
+                    regularizedAI = true;
+                    const arma::mat next = restrictEMScaleTangent(
+                      feasible, parameters, offsets, logFloor, aiDirection);
+                    if(next.n_cols != feasible.n_cols) {
+                      feasible = next;
+                      regularizedAI = false;
+                      aiDirection.zeros();
+                      continue;
+                    }
+                    regularizedIterations.push_back(iteration + 1);
+                    regularizedRidges.push_back(stabilized.ridge);
+                    break;
+                  }
                   requestRecovery("information-solve");
                 }
                 aiDirection.zeros();
@@ -1126,12 +1053,14 @@ inline Rcpp::List fitEMBlend(
       }
     }
     double progressTrust = NA_REAL, progressLine = NA_REAL;
-    std::string progressUpdate = MMEProgress::update(weight, parameterExpanded);
+    std::string progressUpdate = regularizedAI ? "AI-reg"
+      : MMEProgress::update(weight, parameterExpanded);
     const double progressPrevious = previousLikelihood;
     const auto printProgress = [&]() {
       if(verbose) {
         progress.row(iteration + 1, likelihood, progressPrevious, progressUpdate,
-          MMEProgress::policy(adaptive, parameterExpanded, weight, recoveryReason),
+          regularizedAI && weight == 0.0 ? "info-solve"
+            : MMEProgress::policy(adaptive, parameterExpanded, weight, recoveryReason),
           progressTrust, progressLine);
       }
     };
@@ -1167,7 +1096,7 @@ inline Rcpp::List fitEMBlend(
     const int phases = adaptive && weight == 0.0 && currentScoreNorm > scoreTolerance ? 2 : 1;
     for(int phase = 0; phase < phases && !accepted; ++phase) {
       if(phase == 1) {
-        requestRecovery("line-search");
+        requestRecovery(regularizedAI ? "information-solve" : "line-search");
         prepareRecovery();
         direction = emProposal - parameters;
         weightHistory(weightHistory.n_elem - 1) = weight;
@@ -1188,8 +1117,9 @@ inline Rcpp::List fitEMBlend(
       for(int attempt = 0; attempt < attempts; ++attempt) {
       if(attempt == 1 && mixed) { direction = emProposal - parameters; ++emFallbacks; }
       else if(attempt > 0) { direction = ordinaryProposal - parameters; ++pxEMFallbacks; }
-      progressUpdate = MMEProgress::update(attempt > 0 ? 1.0 : weight,
-        parameterExpanded && (attempt == 0 || (attempt == 1 && mixed)));
+      progressUpdate = regularizedAI && weight == 0.0 ? "AI-reg"
+        : MMEProgress::update(attempt > 0 ? 1.0 : weight,
+            parameterExpanded && (attempt == 0 || (attempt == 1 && mixed)));
       double alpha = damping;
       if(weight < 1.0 && attempt == 0) {
         for(arma::uword j = 0; j < count; ++j) {
@@ -1232,7 +1162,7 @@ inline Rcpp::List fitEMBlend(
         }
         const arma::vec trialLikelihoods = Rcpp::as<arma::vec>(trial["llik"]);
         const double trialLikelihood = trialLikelihoods(trialLikelihoods.n_elem - 1);
-        const bool improves = adaptive && weight > 0.0
+        const bool improves = adaptive && (weight > 0.0 || regularizedAI)
           ? trialLikelihood > likelihood + 1.0e-10
           : trialLikelihood >= likelihood - 1.0e-10;
         if(std::isfinite(trialLikelihood) && improves) {
@@ -1251,6 +1181,9 @@ inline Rcpp::List fitEMBlend(
     }
     previousHalvings = lineHalvings - halvingsBeforeSearch;
     previousStepWasAI = weight == 0.0;
+    if(accepted && regularizedAI && weight == 0.0) {
+      ++regularizedAccepted;
+    }
     if(adaptive && weight > 0.0) {
       previousHalvings = 0;
       if(accepted) { ++acceptedRecoveries; }
@@ -1312,6 +1245,10 @@ inline Rcpp::List fitEMBlend(
       Rcpp::Named("acceptedSteps") = acceptedRecoveries,
       Rcpp::Named("iterations") = recoveryIterations,
       Rcpp::Named("reasons") = recoveryReasons,
+      Rcpp::Named("regularizedAttempts") = regularizedAttempts,
+      Rcpp::Named("regularizedAcceptedSteps") = regularizedAccepted,
+      Rcpp::Named("regularizedIterations") = regularizedIterations,
+      Rcpp::Named("regularizedRidges") = regularizedRidges,
       Rcpp::Named("stopReason") = stopReason,
       Rcpp::Named("finalProjectedScoreNorm") = projectedScoreNorm,
       Rcpp::Named("scoreTolerance") = scoreTolerance);

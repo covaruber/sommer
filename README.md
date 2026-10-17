@@ -35,6 +35,39 @@ on CPU, and transfers can outweigh gains. Direct inversion and `solveOnly`
 remain CPU-only. See `?mmes` and `?mmes_control` for requirements and the
 `gpuDiagnostics` counters.
 
+## Direct-inversion fitting
+
+Use `mmes(..., henderson = FALSE)` for the dense observation-level covariance
+engine. AI is the default, with on-demand EM/GEM recovery after unreliable
+information solves, exhausted line searches, or repeated poor progress.
+The `blend` and `blendWeight` controls have the same meaning as in Henderson
+fitting: `blendWeight=0` requests AI only, `blendWeight=1` requests EM/GEM,
+intermediate weights mix directions, and `blend="pxem"` selects scalar PX-GEM.
+Scalar/vector schedules and whole-number exponential tapers are supported.
+Random-effect variances can reach the original-response-scale numerical
+floor, `max(1e-8, tolParInv)`, without freezing the remaining components.
+The assembled observation covariance must remain positive definite.
+
+Convergence requires a small feasible score as well as a small likelihood
+change or AI proposal. A rejected update is not convergence: a stalled line
+search warns and returns the last accepted fit with `convergence = FALSE`.
+Reaching `nIters` also returns the last evaluated point, not an unevaluated
+proposal. Inspect `fit$engineDiagnostics$direct` for the stop reason, score
+certificate, and line-search halving count.
+
+Direct EM uses exact observation-space posterior moments, not a diagonal AI
+approximation or a Henderson solve. All direct covariance families support
+EM/GEM and PX-GEM under ML and REML, including structured residuals, custom
+covariance factors, and zero-specific reduced-rank terms. Eligible scalar,
+diagonal, and unstructured random updates have closed-form M-steps; other
+updates numerically increase the complete-data Q objective. ML profiles fixed
+effects inside the residual Q objective; REML includes fixed-effect posterior
+uncertainty. Final covariance standard errors still use clean AI.
+Inspect `engineDiagnostics$blend` for Q gains and M-step work, and
+`engineDiagnostics$recovery` for automatic recovery triggers and acceptance.
+Exact EM workspace obeys `denseMemoryMB`; structured/PX updates can cost more
+than AI despite needing fewer iterations. Henderson algorithms are unchanged.
+
 ## Home website
 
 Want to know more about the sommer project or you need professional services? Visit https://covaruber.github.io/sommer/ 
@@ -50,4 +83,3 @@ Therefore, the fact that `sommer` is free and open-source does **not** mean that
 The purpose of the `sommer` project is to encourage open collaboration, reproducibility, and continued improvement of statistical and quantitative-genetics software. Contributions and derivative work are welcome, but they should respect the freedoms and obligations established by the GPL.
 
 Please read the full GPL license distributed with `sommer` before incorporating `sommer` source code into another project.
-

@@ -795,9 +795,31 @@ version 4.4.90 (2026-10-13)
    stored diagnostics remain unchanged. Recovery rows identify the actual
    method tried, including late line-search recovery and EM/PX fallbacks.
 
+ + Unreliable automatic AI solves now try a scaled, ridge-regularized,
+   trust-limited AI direction before computing EM/PXEM moments. Both retries
+   require feasible observed-likelihood improvement; ordinary AI resumes
+   after each accepted step. Explicit numeric blend schedules are unchanged.
+   Progress reports AI-reg and diagnostics record regularized attempts,
+   accepted steps, source iterations, and ridges.
+
  + Standalone sparse and saddle native tests now check for their private
    source headers before compiling. They skip in installed-package check
    layouts without src/, while source-tree runs retain the native checks.
+
+ + Direct inversion (henderson=FALSE) now supports the same blend/blendWeight
+   controls as Henderson: true observation-space EM/GEM, scalar PX-GEM,
+   mixed directions, scalar/vector schedules, and exponential tapers.
+   Omitted weights select lazy AI-first recovery; explicit zero preserves
+   AI-only fitting. All direct covariance families support ML and REML,
+   including custom factors, constrained and ragged residual structures,
+   and zero-specific reduced-rank latent terms. Numerical M-steps increase Q;
+   they do not claim global maximization. ML profiles fixed effects in Q,
+   and REML includes joint fixed-effect posterior uncertainty.
+   Full EM skips AI update solves, while final inference remains clean AI.
+   Direct EM workspace obeys denseMemoryMB. Diagnostics record Q work,
+   actual methods, numerical M-step status, recovery, and likelihood reuse.
+   Henderson algorithms are unchanged; the existing numerical Q minimizer
+   is shared without changing its implementation.
 
 ######################
 ## PENDINGS AND PRIORITIES

@@ -292,8 +292,8 @@ active or automatic recovery is selected, preserving exact standalone EM
 updates and allowing full AI proposals subject to trust caps and backtracking.
 Explicit pure-AI fits retain their
 previous damping schedule. Set `blendWeight=0` to request the existing pure-AI path.
-Positive blend weights require deterministic Gaussian Henderson REML or ML
-fitting; PCG, direct inversion, PQL, acceleration, factor-score augmentation,
+Positive blend weights support Gaussian Henderson or direct REML/ML
+fitting; Henderson PCG, PQL, acceleration, factor-score augmentation,
 and saddle-point fitting do not support them. These modes default to pure AI
 when weights are omitted; explicitly positive weights are rejected.
 Diagnostics, including numerical M-step convergence, appear in
@@ -326,7 +326,8 @@ With `verbose=TRUE`, all `mmes()` optimizer paths share a compact table:
  iter         LogLik    deltaLL       update          policy  trust   line notPD  time(s)
 ```
 
-`update` identifies AI, EM, PXEM, or a weighted mixture such as `AI+EM:0.40`.
+`update` identifies AI, scaled regularized AI (`AI-reg`), EM, PXEM, or a
+weighted mixture such as `AI+EM:0.40`.
 `policy` shows `auto:em` or `auto:pxem` while AI-first monitoring is active.
 Recovery rows show `backtracking`, `low-gain`, `line-search`, or `info-solve`;
 the update column identifies the selected recovery method. `scheduled` means
@@ -349,10 +350,22 @@ and one of these events:
 - Three consecutive accepted AI steps gain less than `tolParConvLL`.
 - The AI line search exhausts its 25 trials.
 - The projected AI system fails a positive-definiteness, solve-residual, or
-  ascent-direction check.
+  ascent-direction check, or its trust-scaled reciprocal condition estimate
+  falls below the square root of machine precision.
 
-One recovery step must improve observed likelihood by more than `1e-10`.
-The next iteration retries AI. If recovery also stalls, the fit returns the
+For an unreliable information solve, ordinary AI first retries with a
+scaled, ridge-regularized direction in the feasible parameter tangent.
+Trust-cap scaling and an increasing ridge bound each working-coordinate step,
+preventing a nearly flat coordinate from shrinking all other updates.
+The `AI-reg` / `info-solve` row identifies this retry. It must remain feasible
+and improve observed likelihood by more than `1e-10` through backtracking.
+Only if that direction or its line search fails are EM/PXEM moments computed.
+Other recovery triggers still use EM/PXEM directly.
+
+An EM/PXEM recovery step also must improve observed likelihood by more than
+`1e-10`. The next iteration always retries ordinary AI. This sequence may
+repeat up to `nIters`; repeated recoveries have no separate iteration cap.
+If EM/PXEM recovery also stalls, the fit returns the
 last accepted parameters, warns, and reports `convergence=FALSE`. An approaching
 variance floor alone does not trigger recovery. These are initial fixed
 heuristics, not guarantees that recovery will improve speed on every model.
@@ -366,7 +379,12 @@ at `tolParInv`; the maximum must not exceed
 
 `engineDiagnostics$recovery` records the method, attempted and accepted step
 counts, source iterations,
-trigger reasons, stop reason, and final score certificate. The existing blend
+trigger reasons, stop reason, and final score certificate. Those step counts
+refer to EM/PXEM. `regularizedAttempts` counts stabilized-direction solves,
+including failures and active-set retries; `regularizedAcceptedSteps` counts
+accepted regularized AI updates. Paired `regularizedIterations` and
+`regularizedRidges` record source iterations and ridges for usable stabilized
+directions, whether or not the subsequent proposal is accepted. The existing blend
 counters report actual AI, moment, and M-step work. Explicit numeric
 `blendWeight` schedules disable automatic recovery and retain their semantics.
 
@@ -433,6 +451,46 @@ evaluation counts, and `pxEMFallbacks`. These describe proposals before
 backtracking. Fewer iterations need not mean less wall time: compare PX-AI
 against EM-AI at the same final accuracy before choosing a method.
 The default remains `blend="em"`.
+
+### Direct-engine EM and recovery
+
+The direct engine (`henderson=FALSE`) accepts the same `blend` and `blendWeight`
+controls. Its default is AI-first recovery, explicit zero selects AI only, and
+positive scalar/vector schedules blend genuine posterior-moment EM/GEM or
+scalar PX-GEM directions with AI. These updates do not call Henderson.
+
+For a random term with covariance $\Sigma\otimes K$ and $m$ relationship
+levels, cache $B_{ab}=Z_aKZ_b'$. At an accepted fit, let $r=Py$ and
+$A=P$ for REML or $A=V^{-1}$ for ML. The sufficient statistic is
+
+$$
+C_{ab}=r'B_{ab}r-\operatorname{tr}(AB_{ab}),\qquad
+S=m\Sigma+\Sigma C\Sigma.
+$$
+
+Eligible scalar, diagonal, and unstructured random M-steps use these moments
+directly. Other families use numerical increasing-Q GEM, including custom
+covariances, constrained parameters, and structured or incomplete residual
+blocks. Zero-specific RR moves loadings into a latent design with nonsingular
+prior covariance. Candidate loading/PX changes retain exact cross-term
+posterior uncertainty in residual Q without a coefficient-sized posterior
+matrix. ML profiles beta inside the residual Q objective; REML integrates
+fixed-effect uncertainty.
+
+Full EM proposals bypass AI trust caps and still pass covariance and observed
+likelihood checks. The direct driver retains projected-score convergence
+certification and clean final AI standard errors. Healthy AI iterations prepare
+no EM moments; failed or persistently difficult AI steps can request one
+EM/PX recovery, then resume AI. Direct information reliability uses
+diagonal-normalized curvature, avoiding recovery solely because a variance
+approaches its numerical floor.
+
+`engineDiagnostics$direct` reports AI update solves and accepted-state
+likelihood work. `engineDiagnostics$blend` reports moment preparations, Q gains,
+numerical M-step status, actual weights, expansions, and fallbacks.
+`engineDiagnostics$recovery` records automatic triggers and accepted recoveries.
+Exact EM workspace obeys `denseMemoryMB`, separately from existing direct
+caches. Structured/PX numerical updates may cost more than AI.
 
 ## 4.3 Safeguards around the proposed step
 
