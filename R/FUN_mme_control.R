@@ -2,6 +2,44 @@
 # Encapsulates solver selection, memory budgets, iterative (PCG) parameters,
 # and experimental path toggles without polluting global options.
 
+.mme_experimental_mode <- function(val, default="auto", optName=NULL){
+  if(is.null(val)){
+    if(!is.null(optName)){
+      optVal <- getOption(optName, NULL)
+      if(!is.null(optVal)){
+        if(is.logical(optVal) && length(optVal) == 1L && !is.na(optVal)){
+          return(if(optVal) "force" else "off")
+        }
+        if(is.character(optVal) && length(optVal) == 1L){
+          val <- optVal
+        } else {
+          stop(sprintf("%s must be TRUE or FALSE.", optName), call.=FALSE)
+        }
+      }
+    }
+    if(is.null(val)) return(default)
+  }
+  if(is.logical(val) && length(val) == 1L){
+    if(is.na(val)){
+      if(!is.null(optName)){
+        stop(sprintf("%s must be TRUE or FALSE.", optName), call.=FALSE)
+      }
+      return(default)
+    }
+    return(if(val) "force" else "off")
+  }
+  if(is.character(val) && length(val) == 1L){
+    valLower <- tolower(val)
+    if(valLower %in% c("auto", "off", "force", "true", "false")){
+      if(valLower == "true") return("force")
+      if(valLower == "false") return("off")
+      return(valLower)
+    }
+  }
+  stop(sprintf("Experimental toggle must be 'auto', 'off', 'force', TRUE, or FALSE (got '%s').",
+               as.character(val)), call.=FALSE)
+}
+
 #' Mixed Model Equation Engine Control
 #'
 #' Builds a structured control object defining solver algorithms, memory budgets,
@@ -35,6 +73,17 @@
 #'       in independent parallel panels; default \code{"off"}. No derivative entries are thresholded.
 #'     \item \code{sparseFactors}: \code{"force"} enables exact sparse AR(p)/ANTE precision operands,
 #'       innovation-row ANTE covariance evaluation, and sparse SAR/CAR evaluation; default \code{"off"}.
+#'     \item \code{saddlePoint}: \code{"force"} selects an experimental exact augmented MME
+#'       factorization using pivoted sparse LU. Default and \code{"auto"} remain inactive.
+#'       Gaussian Henderson REML/ML fits support diagonal, repeated-block, and explicit sparse
+#'       residual covariance, including weights. Compact grid/ragged residuals, latent reduced
+#'       rank, PQL, solve-only, rotation, acceleration, and factor-score augmentation are rejected.
+#'       The deterministic solver setting still selects residual and final selected-inverse
+#'       support; PCG is incompatible. Fitting avoids normal-equation products and uses exact
+#'       traces and AI. Final \code{C} is assembled once for compatibility, so this is not a
+#'       C-free memory path. Mode 1 retains the Eigen selected-inverse subset, which can differ
+#'       from the CHOLMOD subset. Diagnostics are in \code{engineDiagnostics$saddlePoint}.
+#'       LU pivot fill is not bounded by \code{denseMemoryMB}; no speedup is guaranteed.
 #'   }
 #' @param pcg A named list of iterative PCG solver settings:
 #'   \itemize{
@@ -45,7 +94,20 @@
 #'     \item \code{preconditioner}: Preconditioner type, \code{"diagonal"} or \code{"nystrom"}.
 #'     \item \code{nystromRank}: Target rank for Nystrom preconditioner (default 32).
 #'   }
-#' @param acceleration Convergence accelerator. One of \code{"none"} or \code{"aitken"}.
+#' @param acceleration Convergence accelerator. One of \code{"none"}, \code{"aitken"},
+#'   or \code{"hybrid-ai"}. The opt-in hybrid uses damped BFGS between exact AI
+#'   refreshes and always returns exact final covariance information. It supports
+#'   Gaussian Henderson fits with deterministic solvers; tied parameters use exact AI.
+#'   Exact refreshes occur at most five accepted iterations apart and for final
+#'   certification. Between refreshes, diagonal stabilization uses the current
+#'   BFGS metric. PCG, direct inversion, latent RR, PQL, solve-only and factor-score
+#'   augmentation are not supported. Diagnostics in \code{engineDiagnostics$hybridAI}
+#'   report refreshes, resets, certifications and actual/skipped sensitivity columns.
+#'   Hybrid convergence requires an exact relative proposal norm below
+#'   \code{tolParConvNorm} and an AI-diagonal-scaled projected score maximum no larger
+#'   than \code{sqrt(max(tolParConvLL, tolParConvNorm))}. Tolerances are never relaxed
+#'   automatically. Final \code{InfMat} retains its exact AI/diagonal blend;
+#'   \code{theta_se} uses clean exact AI independently of \code{computeCi}.
 #' @param factorScoreAugmentation Factor-score augmentation strategy. One of \code{"none"},
 #'   \code{"fixed-shape"}, or \code{"profile"}.
 #' @param recordDiagnostics Logical; whether to capture detailed engine diagnostics in the fitted object. Default is TRUE.
@@ -63,7 +125,7 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
                          denseMemoryMB = NULL,
                          experimental = list(),
                          pcg = list(),
-                         acceleration = c("none", "aitken"),
+                         acceleration = c("none", "aitken", "hybrid-ai"),
                          factorScoreAugmentation = c("none", "fixed-shape", "profile"),
                          recordDiagnostics = TRUE,
                          verboseDiagnostics = FALSE,
@@ -96,7 +158,7 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
   if(missing(acceleration) || is.null(acceleration)){
     acceleration <- "none"
   } else {
-    acceleration <- match.arg(tolower(acceleration[1L]), c("none", "aitken"))
+    acceleration <- match.arg(tolower(acceleration[1L]), c("none", "aitken", "hybrid-ai"))
   }
 
   if(missing(factorScoreAugmentation) || is.null(factorScoreAugmentation)){
@@ -132,48 +194,9 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
   }
   memoryPolicy <- tolower(memoryPolicy)
 
-  # Helper to normalize three-state experimental modes ("auto", "off", "force")
-  .normalize_mode <- function(val, default="auto", optName=NULL){
-    if(is.null(val)){
-      if(!is.null(optName)){
-        optVal <- getOption(optName, NULL)
-        if(!is.null(optVal)){
-          if(is.logical(optVal) && length(optVal) == 1L && !is.na(optVal)){
-            return(if(optVal) "force" else "off")
-          }
-          if(is.character(optVal) && length(optVal) == 1L){
-            val <- optVal
-          } else {
-            stop(sprintf("%s must be TRUE or FALSE.", optName), call.=FALSE)
-          }
-        }
-      }
-      if(is.null(val)) return(default)
-    }
-    if(is.logical(val) && length(val) == 1L){
-      if(is.na(val)){
-        if(!is.null(optName)){
-          stop(sprintf("%s must be TRUE or FALSE.", optName), call.=FALSE)
-        }
-        return(default)
-      }
-      return(if(val) "force" else "off")
-    }
-    if(is.character(val) && length(val) == 1L){
-      valLower <- tolower(val)
-      if(valLower %in% c("auto", "off", "force", "true", "false")){
-        if(valLower == "true") return("force")
-        if(valLower == "false") return("off")
-        return(valLower)
-      }
-    }
-    stop(sprintf("Experimental toggle must be 'auto', 'off', 'force', TRUE, or FALSE (got '%s').",
-                 as.character(val)), call.=FALSE)
-  }
-
   # Merge any experimental toggles passed in dots
   knownExpToggles <- c("blockBanded", "factorSchurMultiFactor", "dFirstML",
-                       "matrixFreePcg", "cholmodFinalSelected", "pdCertificates", "panelCi2", "profile", "blockSchur", "traceBatch", "sparseFactors")
+                       "matrixFreePcg", "cholmodFinalSelected", "pdCertificates", "panelCi2", "profile", "blockSchur", "traceBatch", "sparseFactors", "saddlePoint")
   for(toggle in knownExpToggles){
     if(toggle %in% names(dots) && !toggle %in% names(experimental)){
       experimental[[toggle]] <- dots[[toggle]]
@@ -182,16 +205,17 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
 
   # Experimental toggles
   expResolved <- list(
-    blockBanded = .normalize_mode(experimental$blockBanded, "auto", "sommer.mme.blockBanded"),
-    factorSchurMultiFactor = .normalize_mode(experimental$factorSchurMultiFactor, "auto", "sommer.mme.factorSchurMultiFactor"),
-    dFirstML = .normalize_mode(experimental$dFirstML, "auto", "sommer.mme.dFirstML"),
-    matrixFreePcg = .normalize_mode(experimental$matrixFreePcg, "auto", "sommer.mme.matrixFreePcg"),
-    cholmodFinalSelected = .normalize_mode(experimental$cholmodFinalSelected, "auto", "sommer.mme.cholmodFinalSelected"),
-    pdCertificates = .normalize_mode(experimental$pdCertificates, "auto", "sommer.mme.pdCertificates"),
-    profile = .normalize_mode(experimental$profile, "off", "sommer.mme.profile"),
-    blockSchur = .normalize_mode(experimental$blockSchur, "auto", "sommer.mme.blockSchur"),
-    traceBatch = .normalize_mode(experimental$traceBatch, "off", "sommer.mme.traceBatch"),
-    sparseFactors = .normalize_mode(experimental$sparseFactors, "off", "sommer.mme.sparseFactors"),
+    blockBanded = .mme_experimental_mode(experimental$blockBanded, "auto", "sommer.mme.blockBanded"),
+    factorSchurMultiFactor = .mme_experimental_mode(experimental$factorSchurMultiFactor, "auto", "sommer.mme.factorSchurMultiFactor"),
+    dFirstML = .mme_experimental_mode(experimental$dFirstML, "auto", "sommer.mme.dFirstML"),
+    matrixFreePcg = .mme_experimental_mode(experimental$matrixFreePcg, "auto", "sommer.mme.matrixFreePcg"),
+    cholmodFinalSelected = .mme_experimental_mode(experimental$cholmodFinalSelected, "auto", "sommer.mme.cholmodFinalSelected"),
+    pdCertificates = .mme_experimental_mode(experimental$pdCertificates, "auto", "sommer.mme.pdCertificates"),
+    profile = .mme_experimental_mode(experimental$profile, "off", "sommer.mme.profile"),
+    blockSchur = .mme_experimental_mode(experimental$blockSchur, "auto", "sommer.mme.blockSchur"),
+    traceBatch = .mme_experimental_mode(experimental$traceBatch, "off", "sommer.mme.traceBatch"),
+    sparseFactors = .mme_experimental_mode(experimental$sparseFactors, "off", "sommer.mme.sparseFactors"),
+    saddlePoint = .mme_experimental_mode(experimental$saddlePoint, "off", "sommer.mme.saddlePoint"),
     panelCi2 = if(!is.null(experimental$panelCi2)) as.integer(experimental$panelCi2) else 64L
   )
   if(!is.finite(expResolved$panelCi2) || expResolved$panelCi2 < 1L){
@@ -280,7 +304,7 @@ print.sommer_mmes_control <- function(x, ...){
       ctrl$solver <- tolower(solver[1L])
     }
     if("acceleration" %in% names(dots) && !is.null(dots$acceleration)){
-      ctrl$acceleration <- match.arg(tolower(dots$acceleration[1L]), c("none", "aitken"))
+      ctrl$acceleration <- match.arg(tolower(dots$acceleration[1L]), c("none", "aitken", "hybrid-ai"))
     }
     if("factorScoreAugmentation" %in% names(dots) && !is.null(dots$factorScoreAugmentation)){
       ctrl$factorScoreAugmentation <- match.arg(tolower(dots$factorScoreAugmentation[1L]),
@@ -313,6 +337,12 @@ print.sommer_mmes_control <- function(x, ...){
     if("experimental" %in% names(dots) && is.list(dots$experimental)){
       ctrl$experimental <- utils::modifyList(ctrl$experimental, dots$experimental)
     }
+    if("saddlePoint" %in% names(dots) &&
+       !"saddlePoint" %in% names(dots$experimental)){
+      ctrl$experimental$saddlePoint <- dots$saddlePoint
+    }
+    ctrl$experimental$saddlePoint <- .mme_experimental_mode(
+      ctrl$experimental$saddlePoint, "off", "sommer.mme.saddlePoint")
     return(ctrl)
   }
 
@@ -332,7 +362,7 @@ print.sommer_mmes_control <- function(x, ...){
   expList <- if("experimental" %in% names(dots) && is.list(dots$experimental)) dots$experimental else list()
 
   knownExpToggles <- c("blockBanded", "factorSchurMultiFactor", "dFirstML",
-                       "matrixFreePcg", "cholmodFinalSelected", "pdCertificates", "panelCi2", "profile", "blockSchur", "traceBatch", "sparseFactors")
+                       "matrixFreePcg", "cholmodFinalSelected", "pdCertificates", "panelCi2", "profile", "blockSchur", "traceBatch", "sparseFactors", "saddlePoint")
   for(toggle in knownExpToggles){
     if(toggle %in% names(dots) && !toggle %in% names(expList)){
       expList[[toggle]] <- dots[[toggle]]

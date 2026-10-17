@@ -45,9 +45,10 @@ Native latent-factor Henderson fits support \code{solver="ldlt"} and
 loading-aware likelihood scores and average-information updates in the
 original loading/variance coordinates. The loading derivatives account for
 the parameter-dependent latent design; the singular environment covariance
-is never inverted. \code{stepWeight} and \code{emWeight} control the step
-size and information stabilization, respectively, as in ordinary
-\code{mmes()} fitting. Parameter standard errors use the unblended
+is never inverted. \code{stepWeight} damps covariance-parameter proposals,
+while \code{blendWeight} blends EM/GEM or scalar PX-GEM with
+average-information update directions, selected through \code{blend},
+as in ordinary \code{mmes()} fitting. Parameter standard errors use the unblended
 average-information matrix at the final parameter values.
 Prediction errors are mapped back from the latent coefficient equations
 to the original random effects.

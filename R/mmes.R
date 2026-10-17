@@ -6,7 +6,8 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  naMethodX="exclude", naMethodY="exclude",
                  naMethodRandom="exclude", naMethodR="exclude",
                  returnParam=FALSE, dateWarning=TRUE,
-                 verbose=TRUE, stepWeight=NULL, emWeight=NULL,
+                 verbose=TRUE, stepWeight=NULL, blend=c("em", "pxem"),
+                 blendWeight=NULL,
                  contrasts=NULL, getPEV=TRUE, henderson=TRUE,
                  computeCi=0, solver="auto", REML=TRUE, vcc=NULL,
                  family=stats::gaussian(), pqlControl=list(),
@@ -21,6 +22,48 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   if(verbose && !returnParam) get(".mmes_thread_report", mode="function")(threadScope)
 
   dots <- list(...)
+  blend <- match.arg(blend)
+  if(length(nIters) != 1L || !is.numeric(nIters) || is.complex(nIters) || !is.finite(nIters) ||
+     nIters < 1L || nIters > .Machine$integer.max || nIters != as.integer(nIters)){
+    stop("nIters must be one positive integer.", call.=FALSE)
+  }
+  nIters <- as.integer(nIters)
+  if("emWeight" %in% names(dots)){
+    if(!missing(blendWeight)){
+      stop("Supply only blendWeight; emWeight is its deprecated alias.", call.=FALSE)
+    }
+    warning("emWeight is deprecated; use blendWeight instead.", call.=FALSE)
+    blendWeight <- dots$emWeight
+    dots$emWeight <- NULL
+  }
+  automaticBlendWeight <- is.null(blendWeight)
+  if(!automaticBlendWeight){
+    if(!is.numeric(blendWeight) || is.complex(blendWeight) || !length(blendWeight)){
+      stop("blendWeight must be a non-empty numeric scalar or vector.", call.=FALSE)
+    }
+    if(any(!is.finite(blendWeight)) || any(blendWeight < 0)){
+      stop("blendWeight must contain finite non-negative values.", call.=FALSE)
+    }
+    if(length(blendWeight) > 1L && any(blendWeight > 1)){
+      stop("blendWeight vectors must contain values between 0 and 1.", call.=FALSE)
+    }
+    if(length(blendWeight) == 1L && blendWeight > 1 &&
+       blendWeight != floor(blendWeight)){
+      stop("blendWeight above 1 must be a whole-number decay iteration count.", call.=FALSE)
+    }
+  }
+  if(automaticBlendWeight){
+    blendWeight <- 0
+  } else if(length(blendWeight) == 1L && blendWeight > 1){
+    taperIters <- min(nIters, blendWeight)
+    blendWeight <- if(taperIters <= 1L) 1 else {
+      taper <- rep(0.03, nIters)
+      taper[seq_len(taperIters)] <- exp(seq(log(1), log(0.03), length.out=taperIters))
+      taper
+    }
+  }
+  blendWeight <- rep(blendWeight, length.out=nIters)
+  directionBlend <- any(blendWeight > 0)
   .pqlInner <- isTRUE(.internal$pqlInner) || isTRUE(dots$.pqlInner)
   .pqlFixedDispersion <- if(!is.null(.internal$pqlFixedDispersion)) .internal$pqlFixedDispersion else dots$.pqlFixedDispersion
   if(is.null(.pqlFixedDispersion)) .pqlFixedDispersion <- FALSE
@@ -31,11 +74,8 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   .factorScoreParameters <- if(!is.null(.internal$factorScoreParameters)) .internal$factorScoreParameters else dots$.factorScoreParameters
 
   mergeControl <- get(".merge_mmes_control", mode="function")
-  engineControl <- mergeControl(
-    engine = engine,
-    solver = solver,
-    ...
-  )
+  engineControl <- do.call(mergeControl,
+    c(list(engine=engine, solver=solver), dots))
   solver <- engineControl$solver
   acceleration <- engineControl$acceleration
   factorScoreAugmentation <- engineControl$factorScoreAugmentation
@@ -55,7 +95,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     }
     get(".mmes_gpu_require", mode="function")()
   }
-  acceleration <- match.arg(acceleration, c("none", "aitken"))
+  acceleration <- match.arg(acceleration, c("none", "aitken", "hybrid-ai"))
   factorScoreAugmentation <- match.arg(factorScoreAugmentation,
     c("none", "fixed-shape", "profile"))
   pcgPreconditioner <- match.arg(pcgPreconditioner, c("diagonal", "nystrom"))
@@ -64,7 +104,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     stop("pcgNystromRank must be one positive integer.", call.=FALSE)
   }
   if(acceleration != "none" && (!henderson || identical(tolower(solver), "pcg"))){
-    stop("Aitken acceleration requires a deterministic Henderson factorization solver.", call.=FALSE)
+    stop("Covariance-update acceleration requires a deterministic Henderson factorization solver.", call.=FALSE)
   }
 
   if(!inherits(family, "family") && !inherits(family, "sommer_familym")){
@@ -74,8 +114,54 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   isGaussianIdentity <- inherits(family, "family") &&
     identical(family$family, "gaussian") &&
     identical(family$link, "identity")
+  supportsEM <- isGaussianIdentity && !.pqlInner && henderson &&
+    !identical(tolower(solver), "pcg") &&
+    acceleration == "none" && factorScoreAugmentation == "none" &&
+    !identical(engineControl$experimental$saddlePoint, "force")
+  adaptiveRecovery <- automaticBlendWeight && supportsEM && !isTRUE(solveOnly)
+  if(automaticBlendWeight && !supportsEM){
+    blendWeight <- rep(0, nIters)
+    directionBlend <- FALSE
+  }
+  if(directionBlend && !isTRUE(solveOnly)){
+    if(!isGaussianIdentity || .pqlInner){
+      stop("Positive blendWeight is not supported for PQL fits.", call.=FALSE)
+    }
+    if(!henderson){
+      stop("Positive blendWeight is not supported with direct inversion.", call.=FALSE)
+    }
+    if(is.character(solver) && length(solver) == 1L &&
+       identical(tolower(solver), "pcg")){
+      stop("Positive blendWeight requires a deterministic solver; solver='pcg' is unsupported.",
+           call.=FALSE)
+    }
+    if(acceleration != "none"){
+      stop("Positive blendWeight is not supported with covariance-update acceleration.",
+           call.=FALSE)
+    }
+    if(factorScoreAugmentation != "none"){
+      stop("Positive blendWeight is not supported with factorScoreAugmentation.",
+           call.=FALSE)
+    }
+    if(identical(engineControl$experimental$saddlePoint, "force")){
+      stop("Positive blendWeight is not supported with saddlePoint='force'.",
+           call.=FALSE)
+    }
+  }
   if(length(solveOnly) != 1L || !is.logical(solveOnly) || is.na(solveOnly)){
     stop("solveOnly must be a single TRUE/FALSE value.", call.=FALSE)
+  }
+  saddlePoint <- identical(engineControl$experimental$saddlePoint, "force")
+  if(saddlePoint && (!henderson || !isGaussianIdentity || .pqlInner || solveOnly ||
+                     factorScoreAugmentation != "none" || acceleration != "none" ||
+                     identical(tolower(solver), "pcg"))){
+    stop("saddlePoint='force' requires Gaussian Henderson fitting with a deterministic solver, without PQL, solveOnly, acceleration, or factor-score augmentation.",
+         call.=FALSE)
+  }
+  if(acceleration == "hybrid-ai" &&
+     (!isGaussianIdentity || .pqlInner || solveOnly || factorScoreAugmentation != "none")){
+    stop("acceleration='hybrid-ai' requires Gaussian Henderson fitting without solveOnly, PQL, or factor-score augmentation.",
+         call.=FALSE)
   }
   if(solveOnly){
     if(!isGaussianIdentity || .pqlInner){
@@ -111,7 +197,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
         naMethodX=naMethodX, naMethodY=naMethodY,
         naMethodRandom=naMethodRandom, naMethodR=naMethodR,
         dateWarning=dateWarning, verbose=verbose, stepWeight=stepWeight,
-        emWeight=emWeight, contrasts=contrasts, getPEV=getPEV,
+        blend=blend, blendWeight=blendWeight, contrasts=contrasts, getPEV=getPEV,
         henderson=henderson, computeCi=computeCi, solver=solver,
         REML=REML, vcc=vcc, weights=weights,
         engine=engineControl
@@ -531,6 +617,9 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     logical(1)
   ))
   rotationInfo <- NULL
+  if(saddlePoint && length(rotationTerms)){
+    stop("saddlePoint='force' does not support rotation=TRUE.", call.=FALSE)
+  }
   if(length(rotationTerms) && !is.null(weightBlocks)){
     stop("weights block formulas are not yet supported with rotation=TRUE.", call.=FALSE)
   }
@@ -973,25 +1062,11 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                            rcov=rcov)), threadScope, verbose))
   }
   
-  if (is.null(emWeight)) {
-    taperIters <- min(nIters, 20L)
-
-    if (taperIters <= 1L) {
-      emWeight <- 1
-    } else {
-      emWeight <- rep(0.03, nIters)
-      emWeight[seq_len(taperIters)] <- exp(seq(log(1), log(0.03), length.out = taperIters))
-    }
-  }
-  if(any(!is.finite(emWeight)) || any(emWeight < 0 | emWeight > 1))
-    stop("emWeight must contain finite values between 0 and 1.", call.=FALSE)
-  
   if(is.null(stepWeight)){
-    w <- which(emWeight <= .5)
-    stepWeight <- rep(.9, nIters)
-    if(nIters > 1){
-      if(length(w) > 1) stepWeight[w[1:2]] <- c(.5,.7)
-      else stepWeight[seq_len(min(2L,nIters))] <- c(.5,.7)[seq_len(min(2L,nIters))]
+    stepWeight <- if(directionBlend || adaptiveRecovery) rep(1, nIters) else {
+      damping <- rep(0.9, nIters)
+      if(nIters > 1L) damping[1:2] <- c(0.5, 0.7)
+      damping
     }
   }
   if(length(stepWeight) == 1L) stepWeight <- rep(stepWeight, nIters)
@@ -1115,6 +1190,12 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   attr(covStruct, "blockSchur") <- engineControl$experimental$blockSchur
   attr(covStruct, "traceBatch") <- engineControl$experimental$traceBatch
   attr(covStruct, "sparseFactors") <- engineControl$experimental$sparseFactors
+  attr(covStruct, "saddlePoint") <- engineControl$experimental$saddlePoint
+  if(directionBlend || adaptiveRecovery){
+    attr(covStruct, "directionBlend") <- TRUE
+    attr(covStruct, "blend") <- blend
+    attr(covStruct, "adaptiveRecovery") <- adaptiveRecovery
+  }
   for(structureIndex in seq_along(covStruct)){
     for(factorIndex in seq_along(covStruct[[structureIndex]]$factors)){
       covStruct[[structureIndex]]$factors[[factorIndex]]$sparse_kernels <-
@@ -1166,7 +1247,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                 residualIndex=localIndex, nIters=nIters,
                 tolParConvLL=tolParConvLL, tolParConvNorm=tolParConvNorm,
                 tolParInv=tolParInv, verbose=verbose, covStruct=covStruct,
-                stepWeight=stepWeight, emWeight=emWeight,
+                stepWeight=stepWeight, blend=blend, blendWeight=blendWeight,
                 rtermss=rtermss, partitionsX=partitionsX,
                 getPEV=getPEV, rTermsNames=rTermsNames,
                 obsInfo=obsInfo, solver=solver, REML=REML,
@@ -1184,7 +1265,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  X, Z, Zind, Ai, yvar, W, useH,
                  residualBlock, localIndex,
                  nIters, tolParConvLL, tolParConvNorm,
-                 tolParInv, covStruct, emWeight, stepWeight,
+                 tolParInv, covStruct, blendWeight, stepWeight,
                  verbose, computeCi, solver, pcgTol, pcgMaxIters,
                  pcgTraceProbes, pcgLanczosSteps, REML,
                  responsePrepared, preparedMean, preparedSd,
@@ -1195,7 +1276,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  X, Z, Zind, Ai, yvar, W, useH,
                  residualBlock, localIndex,
                  nIters, tolParConvLL, tolParConvNorm,
-                 tolParInv, covStruct, emWeight, stepWeight,
+                 tolParInv, covStruct, blendWeight, stepWeight,
                  verbose, computeCi, REML,
                  responsePrepared, preparedMean, preparedSd,
                  preparedIntercept)
@@ -1218,7 +1299,8 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   res$inputArgs <- list(naMethodX=naMethodX, naMethodY=naMethodY,
                         naMethodRandom=naMethodRandom, naMethodR=naMethodR,
                         contrasts=contrasts, henderson=henderson, REML=REML,
-                        vcc=vcc,
+                        blend=blend,
+                        blendWeight=if(adaptiveRecovery) NULL else blendWeight, vcc=vcc,
                         W=WInput,
                         engine=engineControl)
 

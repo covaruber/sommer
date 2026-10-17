@@ -1,5 +1,6 @@
 #ifndef SOMMER_MME_RR_H
 #define SOMMER_MME_RR_H
+#include "mme_progress.h"
 
 #include <functional>
 #include <Eigen/SparseLU>
@@ -10,6 +11,7 @@ struct RRAIResult {
   arma::vec score;
   arma::mat information;
   arma::uword randomTraceDirections = 0;
+  arma::uword sensitivityColumns = 0;
   arma::uword largestResidualBlock = 0;
   std::string residualEngine;
   arma::vec phaseSeconds = arma::vec(4, arma::fill::zeros);
@@ -19,11 +21,19 @@ struct RRConditionalOperators {
   arma::sp_mat W;
   arma::sp_mat C;
   arma::vec y;
+  arma::vec mean;
+  arma::sp_mat residualTransform;
   double scale;
   std::string residualEngine;
   std::function<arma::mat(const arma::mat &)> precision;
   std::function<arma::mat(const arma::mat &)> solve;
   std::function<arma::mat(const arma::mat &)> solveRandom;
+  std::function<arma::mat(const arma::mat &)> posteriorSolve;
+  std::function<arma::mat(int, bool)> posteriorRandomTraces;
+  std::function<double(const arma::sp_mat &)> posteriorTrace;
+  arma::vec score;
+  arma::mat information;
+  arma::uword sensitivityColumns = 0;
   std::function<arma::mat(arma::uword, const arma::mat &)> derivative;
   std::function<arma::mat(arma::uword)> residualContraction;
 };
@@ -46,6 +56,82 @@ inline arma::mat reducedRankCoefficientMap(const Rcpp::List & descriptor,
     mapping = arma::kron(mapping, axisMap);
   }
   return mapping;
+}
+
+struct LatentCovarianceModel {
+  Rcpp::List covariance;
+  Rcpp::List design;
+  arma::vec index;
+  std::vector<arma::mat> maps;
+  std::vector<arma::uword> widths;
+};
+
+inline LatentCovarianceModel latentCovarianceModel(
+    const Rcpp::List & descriptors, const Rcpp::List & Z,
+    const arma::vec & Zind, const arma::vec & parameters,
+    const std::vector<arma::uword> & offsets) {
+  LatentCovarianceModel out;
+  out.covariance = Rcpp::clone(descriptors);
+  std::vector<arma::sp_mat> designs;
+  std::vector<double> indices;
+  for(int term = 0; term < descriptors.size(); ++term) {
+    Rcpp::List descriptor = out.covariance[term];
+    const arma::vec par = parameters.subvec(offsets[term], offsets[term + 1] - 1);
+    descriptor["par"] = par;
+    if(term == descriptors.size() - 1) {
+      out.covariance[term] = descriptor;
+      continue;
+    }
+    Rcpp::List factors = Rcpp::clone(Rcpp::as<Rcpp::List>(descriptor["factors"]));
+    arma::mat mapping = reducedRankCoefficientMap(descriptor, par);
+    arma::uword dimension = 1;
+    for(int axis = 0; axis < factors.size(); ++axis) {
+      Rcpp::List factor = factors[axis];
+      if(zeroSpecificFactor(factor)) {
+        const int rank = Rcpp::as<int>(factor["order"]);
+        factor["dim"] = rank;
+        factor["zero_specific"] = false;
+        factor["representation"] = Rcpp::List::create(Rcpp::Named("kind") = "diagonal");
+        factor["evaluator"] = Rcpp::List::create(
+          Rcpp::Named("backend") = "fixed",
+          Rcpp::Named("matrix") = arma::eye<arma::mat>(rank, rank));
+        factor["derivative"] = Rcpp::List::create(Rcpp::Named("backend") = "numeric");
+        factor["structurally_diagonal"] = true;
+        factors[axis] = factor;
+      }
+      dimension *= Rcpp::as<int>(factor["dim"]);
+    }
+    descriptor["factors"] = factors;
+    descriptor["dim"] = static_cast<int>(dimension);
+    out.covariance[term] = descriptor;
+    const arma::uvec blocks = arma::find(Zind == term + 1);
+    if(blocks.is_empty() || blocks.n_elem != mapping.n_rows) {
+      Rcpp::stop("Latent covariance dimensions do not match random design blocks.");
+    }
+    const arma::sp_mat first = Rcpp::as<arma::sp_mat>(Z[blocks(0)]);
+    for(arma::uword column = 0; column < mapping.n_cols; ++column) {
+      arma::sp_mat design(first.n_rows, first.n_cols);
+      for(arma::uword row = 0; row < mapping.n_rows; ++row) {
+        if(mapping(row, column) != 0.0) {
+          const arma::sp_mat original = Rcpp::as<arma::sp_mat>(Z[blocks(row)]);
+          if(original.n_cols != first.n_cols) {
+            Rcpp::stop("Latent random design blocks must have equal widths.");
+          }
+          design += mapping(row, column) * original;
+        }
+      }
+      designs.push_back(std::move(design));
+      indices.push_back(term + 1);
+    }
+    out.maps.push_back(std::move(mapping));
+    out.widths.push_back(first.n_cols);
+  }
+  out.design = Rcpp::List(designs.size());
+  for(std::size_t block = 0; block < designs.size(); ++block) {
+    out.design[block] = designs[block];
+  }
+  out.index = arma::vec(indices);
+  return out;
 }
 
 inline RRAIResult reducedRankInformation(
@@ -451,6 +537,7 @@ inline RRAIResult reducedRankInformation(
     }
     applied[parameter] = derivatives[parameter](py);
     projected[parameter] = applyP(applied[parameter]);
+    ++out.sensitivityColumns;
     const double quadratic = arma::dot(py, applied[parameter]);
 
     out.score(parameter) = 0.5 * (quadratic - traces(parameter));
@@ -503,7 +590,7 @@ inline Rcpp::List fitReducedRank(
     const std::function<Rcpp::List(const Rcpp::List &, const arma::vec &,
                                  const Rcpp::List &, int,
                                  const RRConditionalCallback *)> & conditionalFit) {
-  if(!Rf_isNull(descriptors.attr("vcmap"))) {
+  if(!Rf_isNull(descriptors.attr("vcmap")) && iterations > 1) {
     Rcpp::stop("Latent reduced-rank Henderson fitting does not yet support vcc constraints.");
   }
   if(descriptors.hasAttribute("acceleration") &&
@@ -544,6 +631,8 @@ inline Rcpp::List fitReducedRank(
     }
   }
   const arma::uvec free = arma::find(freeFlags > 0.5);
+  const VarianceParameterMap parameterMap =
+    readVarianceParameterMap(descriptors, parameterCount);
   CovarianceFactorEngine engine;
   int evaluations = 0;
   std::vector<arma::mat> maps;
@@ -551,76 +640,18 @@ inline Rcpp::List fitReducedRank(
   auto evaluate = [&](const arma::vec & values, const int ci,
                       const RRConditionalCallback * callback = nullptr) -> Rcpp::List {
     ++evaluations;
-    Rcpp::List covariance = Rcpp::clone(descriptors);
+    LatentCovarianceModel model = latentCovarianceModel(descriptors, Z, Zind, values, offsets);
+    Rcpp::List covariance = model.covariance;
     covariance.attr("rrConditional") = true;
-    std::vector<arma::sp_mat> designs;
-    std::vector<double> designTerms;
-    maps.clear();
-    widths.clear();
+    maps = model.maps;
+    widths = model.widths;
     for(int term = 0; term < terms; ++term) {
       Rcpp::List descriptor = covariance[term];
-      const arma::vec par = values.subvec(offsets[term], offsets[term + 1] - 1);
-      descriptor["par"] = par;
+      const arma::vec par = Rcpp::as<arma::vec>(descriptor["par"]);
       descriptor["free"] = Rcpp::LogicalVector(par.n_elem, false);
-      if(term == terms - 1) {
-        covariance[term] = descriptor;
-        continue;
-      }
-      Rcpp::List factors = Rcpp::clone(Rcpp::as<Rcpp::List>(descriptor["factors"]));
-      arma::mat mapping = reducedRankCoefficientMap(descriptor, par);
-      arma::uword reducedDimension = 1;
-      for(int axis = 0; axis < factors.size(); ++axis) {
-        Rcpp::List factor = factors[axis];
-        const int dimension = Rcpp::as<int>(factor["dim"]);
-        arma::mat axisMap = arma::eye<arma::mat>(dimension, dimension);
-        if(zeroSpecificFactor(factor)) {
-          const int first = Rcpp::as<int>(factor["par_start"]);
-          const int last = Rcpp::as<int>(factor["par_end"]);
-          axisMap = normalizedFactorLoadings(factor, par.subvec(first - 1, last - 1));
-          const int rank = axisMap.n_cols;
-          factor["dim"] = rank;
-          factor["zero_specific"] = false;
-          factor["representation"] = Rcpp::List::create(Rcpp::Named("kind") = "diagonal");
-          factor["evaluator"] = Rcpp::List::create(
-            Rcpp::Named("backend") = "fixed",
-            Rcpp::Named("matrix") = arma::eye<arma::mat>(rank, rank));
-          factor["derivative"] = Rcpp::List::create(Rcpp::Named("backend") = "numeric");
-          factor["structurally_diagonal"] = true;
-          factors[axis] = factor;
-        }
-        reducedDimension *= axisMap.n_cols;
-      }
-      descriptor["factors"] = factors;
-      descriptor["dim"] = static_cast<int>(reducedDimension);
       covariance[term] = descriptor;
-      const arma::uvec indices = arma::find(Zind == term + 1);
-      if(indices.n_elem != mapping.n_rows || indices.is_empty()) {
-        Rcpp::stop("Reduced-rank covariance dimensions do not match the random design blocks.");
-      }
-      const arma::sp_mat first = Rcpp::as<arma::sp_mat>(Z[indices(0)]);
-      const arma::uword width = first.n_cols;
-      for(arma::uword column = 0; column < mapping.n_cols; ++column) {
-        arma::sp_mat design(first.n_rows, width);
-        for(arma::uword row = 0; row < mapping.n_rows; ++row) {
-          if(mapping(row, column) != 0.0) {
-            const arma::sp_mat original = Rcpp::as<arma::sp_mat>(Z[indices(row)]);
-            if(original.n_cols != width) {
-              Rcpp::stop("Reduced-rank random design blocks must have the same relationship dimension.");
-            }
-            design += mapping(row, column) * original;
-          }
-        }
-        designs.push_back(std::move(design));
-        designTerms.push_back(term + 1);
-      }
-      maps.push_back(std::move(mapping));
-      widths.push_back(width);
     }
-    Rcpp::List latentDesign(designs.size());
-    for(std::size_t block = 0; block < designs.size(); ++block) {
-      latentDesign[block] = designs[block];
-    }
-    return conditionalFit(latentDesign, arma::vec(designTerms), covariance, ci, callback);
+    return conditionalFit(model.design, model.index, covariance, ci, callback);
   };
   auto unpack = [&](const arma::vec & reduced) -> arma::vec {
     arma::vec result = parameters;
@@ -682,22 +713,7 @@ inline Rcpp::List fitReducedRank(
   double previousLikelihood = -std::numeric_limits<double>::infinity();
   double acceptedTrustScale = 1.0, acceptedLineAlpha = 1.0;
   const std::clock_t progressStart = std::clock();
-  const std::vector<int> progressWidths = {9, 16, 8, 14, 10, 10, 10, 17};
-  auto printProgressRow = [&](const std::vector<std::string> & values) {
-    std::ostringstream row;
-    for(std::size_t column = 0; column < values.size(); ++column) {
-      if(column > 0) { row << "  "; }
-      row << std::setw(progressWidths[column]) << values[column];
-    }
-    Rcpp::Rcout << row.str() << arma::endl;
-  };
-  auto progressNumber = [](const double value, const int precision,
-                           const bool scientific = false) -> std::string {
-    std::ostringstream text;
-    text << (scientific ? std::scientific : std::fixed)
-         << std::setprecision(precision) << value;
-    return text.str();
-  };
+  MMEProgress progressPrinter(terms);
   if(verbose) {
     Rcpp::Rcout << "MME path: exact latent reduced rank + shared analytic AI traces"
                 << arma::endl;
@@ -709,7 +725,8 @@ inline Rcpp::List fitReducedRank(
       rrInformation = reducedRankInformation(operators, X, Z, Zind, Ai,
         residualBlock, residualIndex, H, useH, descriptors, current, offsets, reml);
     };
-    result = evaluate(current, 0, &informationCallback);
+    result = evaluate(current, iterations == 1 && inverseMode == 2 ? 2 : 0,
+                      &informationCallback);
     const arma::vec likelihood = Rcpp::as<arma::vec>(result["llik"]);
     if(likelihood.is_empty() || !likelihood.is_finite()) {
       Rcpp::stop("Reduced-rank Henderson fit returned a non-finite likelihood.");
@@ -731,8 +748,7 @@ inline Rcpp::List fitReducedRank(
       }
       Rcpp::Rcout << "Residual engine: shared " << rrInformation.residualEngine
                   << " (likelihood and AI)." << arma::endl;
-      printProgressRow({"iteration", "LogLik", "wall", "cpu(sec)", "EMweight",
-                        "trustAlpha", "lineAlpha", "scoreNorm"});
+      progressPrinter.header();
     }
     const double currentLikelihood = likelihood(likelihood.n_elem - 1);
     likelihoodHistory.insert_rows(likelihoodHistory.n_elem,
@@ -769,14 +785,9 @@ inline Rcpp::List fitReducedRank(
     progressHistory.insert_cols(progressHistory.n_cols,
       arma::vec({emWeight, acceptedTrustScale, acceptedLineAlpha, cpuSeconds}));
     if(verbose) {
-      const std::time_t now = std::time(nullptr);
-      const std::tm * local = std::localtime(&now);
-      std::ostringstream wall;
-      wall << std::put_time(local, "%H:%M:%S");
-      printProgressRow({std::to_string(iteration + 1),
-        progressNumber(currentLikelihood, 6), wall.str(), progressNumber(cpuSeconds, 3),
-        progressNumber(emWeight, 3), progressNumber(acceptedTrustScale, 3),
-        progressNumber(acceptedLineAlpha, 3), progressNumber(norms(1), 6, true)});
+      progressPrinter.row(iteration + 1, currentLikelihood, previousLikelihood,
+        MMEProgress::update(emWeight), emWeight == 0.0 ? "off" : "scheduled",
+        acceptedTrustScale, acceptedLineAlpha);
     }
 
     if(free.is_empty()) {
@@ -847,7 +858,7 @@ inline Rcpp::List fitReducedRank(
     }
   }
   const arma::vec fitted = unpack(reduced);
-  result = evaluate(fitted, inverseMode == 2 ? 2 : 0);
+  if(iterations > 1) { result = evaluate(fitted, inverseMode == 2 ? 2 : 0); }
   const arma::vec latent = Rcpp::as<arma::vec>(result["bu"]);
   arma::uword originalSize = X.n_cols, latentSize = X.n_cols;
   for(std::size_t term = 0; term < maps.size(); ++term) {
@@ -1025,7 +1036,15 @@ inline Rcpp::List fitReducedRank(
     for(arma::uword i = 0; i < free.n_elem; ++i) {
       jacobianFree(free(i), i) = jacobian(free(i));
     }
-    uncertainty = jacobianFree * inverse * jacobianFree.t();
+    if(parameterMap.active) {
+      const arma::mat constrainedJacobian = arma::diagmat(jacobian) * parameterMap.T;
+      const arma::mat constrainedInformation =
+        parameterMap.T.t() * information * parameterMap.T;
+      uncertainty = constrainedJacobian * arma::pinv(constrainedInformation) *
+        constrainedJacobian.t();
+    } else {
+      uncertainty = jacobianFree * inverse * jacobianFree.t();
+    }
   }
   result["InfMat"] = 2.0 * information;
   result["InfMatInv"] = uncertainty;
@@ -1043,7 +1062,7 @@ inline Rcpp::List fitReducedRank(
   diagnostics["lineSearchStalled"] = lineSearchStalled;
   Rcpp::NumericMatrix progress = Rcpp::wrap(arma::mat(progressHistory.t()));
   Rcpp::colnames(progress) = Rcpp::CharacterVector::create(
-    "EMweight", "trustAlpha", "lineAlpha", "cpu(sec)");
+    "blendWeight", "trustAlpha", "lineAlpha", "cpu(sec)");
   diagnostics["iterationProgress"] = progress;
   diagnostics["invalidTrialEvaluations"] = invalidTrialEvaluations;
   Rcpp::IntegerVector invalidCounts(invalidTrialReasons.size());

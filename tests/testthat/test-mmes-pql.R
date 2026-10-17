@@ -32,6 +32,7 @@ test_that("PQL binomial and Poisson fits expose response and link scales", {
 
   for(fit in list(binomialFit, poissonFit)){
     expect_s3_class(fit, "mmes.glmm")
+    expect_equal(fit$inputArgs$blendWeight, rep(0, 8L))
     expect_true(all(is.finite(fitted(fit))))
     expect_true(all(is.finite(fitted(fit, type="link"))))
     expect_true(all(is.finite(residuals(fit, type="deviance"))))
@@ -49,6 +50,7 @@ test_that("PQL Poisson fit without random effects matches glm", {
 
   glmFit <- glm(y~x, data=data, family=poisson())
   pqlFit <- mmes(y~x, rcov=~units, data=data, family=poisson(),
+                 blendWeight=0,
                  nIters=15, verbose=FALSE,
                  pqlControl=list(maxit=20, tol=1e-8))
 
@@ -62,7 +64,7 @@ test_that("PQL honors offsets on the link scale", {
 
   glmFit <- glm(y~x+offset(log(exposure)), data=data, family=poisson())
   pqlFit <- mmes(y~x+offset(log(exposure)), rcov=~units, data=data,
-                 family=poisson(), nIters=15, verbose=FALSE,
+                 family=poisson(), blendWeight=0, nIters=15, verbose=FALSE,
                  pqlControl=list(maxit=20, tol=1e-8))
 
   expect_equal(as.numeric(pqlFit$b), unname(coef(glmFit)), tolerance=1e-4)
@@ -77,7 +79,7 @@ test_that("PQL covariance warm starts agree with converged cold starts", {
   data$y <- rpois(160L, exp(0.2 + 0.3 * data$x + effects[data$group]))
   fit <- function(warm){
     mmes(y~x, random=~group, rcov=~units, data=data, family=poisson(),
-      nIters=80, tolParConvLL=1e-9, tolParConvNorm=1e-9, verbose=FALSE,
+      blendWeight=0, nIters=80, tolParConvLL=1e-9, tolParConvNorm=1e-9, verbose=FALSE,
       dateWarning=FALSE, pqlControl=list(maxit=30, tol=1e-9, warmStart=warm))
   }
   warm <- fit(TRUE)
@@ -99,7 +101,7 @@ test_that("PQL covariance warm starts agree with converged cold starts", {
   cholmodData$y <- rpois(80L, exp(0.2 + 0.4 * cholmodData$x))
   fitCholmod <- function(warmStart){
     mmes(y~x, rcov=~units, data=cholmodData, family=poisson(),
-      solver="cholmod", nIters=4, verbose=FALSE, dateWarning=FALSE,
+      blendWeight=0, solver="cholmod", nIters=4, verbose=FALSE, dateWarning=FALSE,
       pqlControl=list(maxit=6, tol=1e-8, warmStart=warmStart))
   }
   cholmodWarm <- fitCholmod(TRUE)
@@ -124,7 +126,7 @@ test_that("PQL accepts sparse non-diagonal W after observation filtering", {
   data$y[7] <- NA_real_
 
   fit <- mmes(y~x, rcov=~units, data=data, W=precision, family=poisson(),
-              nIters=8, verbose=FALSE, pqlControl=list(maxit=4))
+              blendWeight=0, nIters=8, verbose=FALSE, pqlControl=list(maxit=4))
 
   expect_s3_class(fit, "mmes.glmm")
   expect_length(fitted(fit), n - 1L)
@@ -144,7 +146,7 @@ pqlGlmData <- function(){
 }
 
 pqlFit <- function(formula, family, data, ...){
-  mmes(formula, rcov=~units, data=data, family=family, verbose=FALSE,
+  mmes(formula, rcov=~units, data=data, family=family, blendWeight=0, verbose=FALSE,
        nIters=40, tolParConvLL=1e-8, tolParConvNorm=1e-8,
        pqlControl=utils::modifyList(list(maxit=50, tol=1e-12), list(...)))
 }
@@ -205,7 +207,7 @@ test_that("PQL fits do not report working-model likelihoods", {
   d <- pqlGlmData()
   d$g <- factor(rep(1:30, each=10))
   fit <- mmes(binm(succ, fail)~x, random=~g, data=d, family=binomial(),
-              verbose=FALSE)
+              blendWeight=0, verbose=FALSE)
   expect_true(is.na(fit$AIC))
   expect_true(all(is.na(fit$llik)))
   expect_error(anova(fit, fit), "not available for PQL")

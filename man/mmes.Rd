@@ -26,7 +26,8 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
      naMethodX="exclude", naMethodY="exclude",
      naMethodRandom="exclude", naMethodR="exclude",
      returnParam=FALSE, dateWarning=TRUE,
-     verbose=TRUE, stepWeight=NULL, emWeight=NULL,
+     verbose=TRUE, stepWeight=NULL, blend=c("em", "pxem"),
+     blendWeight=NULL,
      contrasts=NULL, getPEV=TRUE, henderson=TRUE,
      computeCi=0, solver="auto", REML=TRUE, vcc=NULL,
      family=stats::gaussian(), pqlControl=list(),
@@ -270,26 +271,78 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
    the model.}
    \item{dateWarning}{A TRUE/FALSE value to indicate if the program should warn 
    you when is time to update the sommer package.}
-  \item{verbose}{A TRUE/FALSE value to indicate if the program should return 
-  the progress of the iterative algorithm.}
-  \item{stepWeight}{A vector of values (of length equal to the number of 
-  iterations) indicating the weight used to multiply the update (delta) for
-  variance components at each iteration. If NULL the 1st iteration will be 
-  multiplied by 0.5, the 2nd by 0.7, and the rest by 0.9. This argument can
-  help to avoid that variance components go outside the parameter space in the 
-  initial iterations which happens very often with the AI method but it can be 
-  detected by looking at the behavior of the likelihood. In that case you may
-  want to give a smaller weight.}
-  \item{emWeight}{A vector of values (of length equal to the number of iterations)
-  indicating with values between 0 and 1 the weight assigned to the EM
-  information matrix; the values 1 - emWeight are applied to the AI information
-  matrix to produce the joint information matrix used in the variance-component
-  update. This creates an EM-heavy warm start early in the fit and gradually
-  transitions to an AI-dominated update as the optimizer approaches convergence.
-  The default schedule is a logarithmic decay from 1 to 0.03 over the first
-  \code{min(nIters, 20)} iterations, followed by a 0.03 floor.
-  Values outside \code{[0, 1]} are
-  rejected.}
+  \item{verbose}{A TRUE/FALSE value indicating whether to print iteration
+  progress. Fits share a compact table with likelihood, update method,
+  recovery policy, safeguards, and elapsed seconds. See \strong{Iteration output}.}
+  \item{stepWeight}{A positive scalar or vector recycled to the number of
+  iterations. It scales each covariance-parameter proposal; values below 1
+  damp the step. With positive blending weights the default is 1,
+  so proposals at \code{blendWeight=1} are undamped: exact EM when a
+  closed-form M-step is available, otherwise generalized EM.
+  Automatic AI-first recovery also defaults to 1, with working-coordinate
+  step caps and likelihood backtracking. Explicit \code{blendWeight=0}
+  fits retain their previous damping schedule: 0.5 and
+  0.7 for the first two iterations, then 0.9 (0.9 for a single iteration).}
+  \item{blend}{Recovery or direction-blending method. With omitted
+  \code{blendWeight}, \code{"em"} (default) selects on-demand EM/GEM recovery
+  and \code{"pxem"} selects scalar PX-GEM recovery. With explicit weights,
+  \code{"em"} combines the EM
+  and average-information (AI) covariance-update directions. \code{"pxem"} is
+  a scalar parameter-expanded generalized EM (PX-GEM) alternative, blended
+  with the same AI direction. Expansion uses one positive scalar per random
+  term and reduces back to the original covariance coordinates before blending.}
+  \item{blendWeight}{A finite scalar or vector recycled to \code{nIters}, with
+  values in \code{[0, 1]}. A value of 1 selects the EM/GEM or PX-GEM
+  direction chosen by \code{blend}, and 0 selects the AI direction;
+  intermediate values blend the proposal
+  directions. A single whole-number value greater than 1 instead specifies
+  the decay iteration count: weights decrease exponentially from 1 to 0.03
+  over the first \code{min(blendWeight, nIters)} iterations, then remain at
+  0.03. For example, \code{blendWeight=5} requests a five-iteration decay.
+  Fractional counts and vectors containing any value greater than 1 are
+  errors. The default \code{NULL} selects AI-first fitting with on-demand
+  recovery for supported fits, not a fixed blend schedule. Healthy iterations
+  compute no EM/PX moments or M-step objectives. Recovery triggers only with
+  a non-small scaled projected score: after three consecutive accepted AI
+  steps requiring at least four halvings each, three consecutive likelihood
+  gains below \code{tolParConvLL}, an exhausted AI line search, or an
+  unreliable information solve. One EM/GEM or PX-GEM recovery step must
+  increase the observed likelihood by more than \code{1e-10}; then AI resumes.
+  Recovery failure returns the last accepted point with a warning and
+  \code{convergence=FALSE}. Approaching a variance boundary alone is not a
+  trigger. Convergence requires a scaled projected score no greater than
+  \code{sqrt(max(tolParConvLL, tolParConvNorm))}, plus a small likelihood
+  change or relative parameter step. Projection respects fixed and tied
+  parameters and outward directions at variance floors.
+  Full explicit EM or PX-GEM
+  weights skip AI construction except for final inference. Generic
+  covariance structures use increasing-Q generalized EM updates. Positive
+  weights require deterministic Gaussian Henderson REML or ML fitting,
+  without PQL, direct inversion, acceleration, factor-score augmentation, or
+  saddle-point fitting. When weights are omitted, these unsupported modes
+  default to pure AI; explicitly positive weights are rejected.
+  Set all weights to zero to request the existing AI engine explicitly.
+  Explicit numeric schedules retain their existing semantics and disable
+  automatic recovery. Refit arguments preserve \code{NULL} for automatic fits.
+  Recovery diagnostics appear in \code{engineDiagnostics$recovery}: method, likelihood mode,
+  number of attempted and accepted recovery steps, one-based source iterations,
+  trigger reasons,
+  stop reason, final projected score norm, and score tolerance.
+  The thresholds are fixed initial heuristics, not a global-optimum guarantee;
+  use alternative starting values to investigate competing local optima.
+  Recovery uses the existing exact posterior-moment kernels and their
+  \code{denseMemoryMB} admission checks; it does not introduce approximate
+  moments when the budget is insufficient.
+  For ML, posterior moments condition on the current GLS fixed-effect estimate:
+  random-effect uncertainty uses \eqn{D^{-1}}, where
+  \eqn{D=Z'R^{-1}Z+G^{-1}}, and fixed effects have no posterior uncertainty.
+  Fixed effects stay fixed during the covariance Q/PX step, then are reprofiled
+  at each observed-likelihood trial. REML moments retain the joint coefficient
+  inverse. Final BLUE/BLUP uncertainty is unchanged in either likelihood mode.
+  Blend diagnostics are reported in \code{engineDiagnostics$blend},
+  including per-iteration numerical M-step convergence and evaluation counts.
+  Numerical M-steps may stop before convergence; their accepted proposals must
+  still increase the auxiliary objective.}
   \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
   \item{getPEV}{A logical value indicating whether prediction error variance
   results should be organized and returned when they are requested through
@@ -402,8 +455,9 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   and \code{MASS::negative.binomial(theta)}. Binomial counts out of a known
   number of trials are supplied as a single proportion response built with
   \code{\link{binm}}, whose trials are used as prior weights. Binomial,
-  Poisson and negative binomial working residual dispersions are fixed to one;
-  for other families the reported \code{dispersion} is the Pearson estimate.
+  Poisson and negative binomial working residual dispersions are fixed to one.
+  PQL requires \code{blendWeight=0}; positive EM-direction weights are unsupported.
+  For other families the reported \code{dispersion} is the Pearson estimate.
   The negative binomial \eqn{\theta} is estimated (conditional on the random
   effects) with \code{pqlControl=list(estimateTheta=TRUE)} and returned in
   \code{theta.nb} and \code{theta.nb.se}. Because the working-model
@@ -494,12 +548,114 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   \item{\dots}{Additional solver options or legacy arguments (such as \code{acceleration},
   \code{factorScoreAugmentation}, \code{pcgTol}, \code{pcgTraceProbes}, \code{pcgPreconditioner},
   \code{denseMemoryMB}, \code{gpu}, and \code{gpuMinSize}) automatically forwarded
-  to \code{\link{mmes_control}}.}
+  to \code{\link{mmes_control}}. The deprecated named argument \code{emWeight}
+  remains available as an alias for \code{blendWeight}; it warns, and cannot be
+  supplied with \code{blendWeight}.}
 
   \item{.internal}{Internal parameter list reserved for nested recursive calls (e.g. PQL inner fits).}
 }
 
 \details{
+
+\strong{EM, PX-GEM and AI direction blending}
+
+The EM E-step includes posterior uncertainty in both fixed coefficients and
+random effects. Closed-form M-steps update covariance scales and eligible
+fully free diagonal or unstructured random terms from their posterior
+moments. Complete, fully free unstructured residual blocks and diagonal
+residual factors also have closed-form updates. Models without a closed-form
+joint M-step, including free structured covariance shapes, reduced-rank
+loadings, and equality or ratio
+constraints or incomplete unstructured residual blocks, use the same
+auxiliary objective with a numerical generalized EM M-step.
+Every accepted numerical M-step must
+increase Q, even if the numerical optimizer stops before convergence.
+
+With \code{blend="pxem"}, each random term is expanded as
+\eqn{u_j=a_j v_j}, with \eqn{a_j>0} and expanded covariance
+\eqn{G_{*j}=G_j(\phi)/a_j^2}. The E-step starts at \eqn{a_j=1}.
+An ordinary EM/GEM proposal seeds joint numerical optimization over the
+original admissible covariance parameters \eqn{\phi} and \eqn{\log a_j}.
+The expanded residual objective includes fixed/random and cross-random
+posterior uncertainty. Reduction returns \eqn{G_j=a_j^2G_{*j}} and resets
+expansion to identity for the next E-step. Fixed parameters, equality/ratio
+constraints, and scale floors apply to the reduced parameters throughout,
+not through post-hoc clipping. All covariance families supported by ordinary
+EM/GEM, including latent reduced-rank terms, can use this scalar expansion.
+Residual-only models use the ordinary EM/GEM update because there is no
+random term to expand.
+
+This implementation is PX-GEM: every accepted expanded M-step increases Q,
+but numerical optimization need not reach its maximum. It is not a full
+matrix expansion or a claim to reproduce another package's PX algorithm.
+Non-reduced-rank models cache blockwise quadratic expansion moments.
+Reduced-rank models cache exact quadratic posterior moments in a normalized
+loading/design basis once per E-step, including cross-term uncertainty.
+Auxiliary-objective probes reuse these moments without coefficient solves.
+Both use existing coefficient-solver paths,
+but extra contractions can increase memory and runtime; fewer iterations
+do not guarantee faster fitting.
+
+The engine blends the selected EM-type and AI directions in working covariance coordinates,
+not their information matrices. Mixed proposals retain descriptor-defined
+working-coordinate trust caps. Mixed or damped proposals use observed
+likelihood backtracking; a rejected mixture also tries the selected EM-type
+direction. PX-GEM proposals always use likelihood backtracking and may
+fall back to their ordinary EM/GEM seed if rejected.
+Undamped closed-form EM steps evaluate their likelihood at the next E-step
+without a duplicate trial fit. Fixed parameters, scale floors, and
+\code{vcc} constraints remain in force. Numerically unfactorizable trial
+fits are rejected with a warning and recorded diagnostic reasons; unrelated
+evaluation errors propagate.
+
+Full EM or PX-GEM weights skip iterative scores and AI sensitivity solves. Zero weights
+skip posterior-moment and M-step work. Exact final AI is still computed for
+covariance-parameter standard errors. Non-reduced-rank AI directions, including
+zero-weight iterations inside a blended schedule, use the native exact AI
+trace and sensitivity kernels. Reduced-rank terms retain their shared latent
+AI kernels. Accepted trial fits can supply the next zero-weight iteration's
+likelihood, score, and information without another coefficient factorization.
+Final exact inference reuses such a fit when available. Blending guards,
+constraints, and likelihood backtracking remain active.
+The blend diagnostics \code{nativeAIEvaluations}, \code{latentAIEvaluations},
+and \code{acceptedAIFitReuses} report this dispatch and reuse.
+Random posterior moments reuse exact
+Schur inverse blocks or selected-inverse contractions when available.
+Structurally diagonal covariance updates request only diagonal moments.
+Scalar residual updates use a trace identity that includes fixed-effect
+uncertainty; scalar non-reduced-rank PX expansion moments reuse exact
+coefficient contractions when their sparse products fit the memory budget.
+Uncached contractions retain bounded exact panel solves as a fallback.
+Structured residuals can still require dense observed-block moment matrices.
+They obey \code{denseMemoryMB}; large blocks can require a larger budget.
+PX-GEM additionally budgets expansion contractions and optimizer workspace.
+For non-reduced-rank models, expansion-moment storage grows quadratically
+with the number of random terms.
+Reduced-rank moment-cache storage grows quadratically with the loading/design
+basis size. \code{latentMomentPreparations} and \code{latentMomentBases} report
+cache preparations and the largest basis size in \code{engineDiagnostics$blend}.
+The same list reports \code{randomMomentPairs},
+\code{randomOffDiagonalPairsSkipped}, \code{scalarResidualTraceSteps},
+\code{scalarResidualContractions}, and \code{momentPanelSolves}.
+Top-level \code{engineDiagnostics} counters \code{emInverseTraceCalls},
+\code{emInverseTraceFallbackPanels}, and \code{emDesignTraceCalls} distinguish
+backend contractions from their uncached exact-panel fallbacks.
+
+For PX-GEM, \code{engineDiagnostics$blend} includes \code{pxEvaluations},
+\code{pxExpansionTerms}, \code{pxLogExpansion} (random terms by iterations),
+\code{pxQGains} (expanded Q improvement beyond the ordinary seed),
+\code{pxMstepConverged}, \code{pxMstepEvaluations}, and \code{pxEMFallbacks}.
+Expansion values and Q gains describe proposed updates, before likelihood
+backtracking or fallback; the final iteration has no proposal.
+The existing \code{closedFormSteps}, \code{generalizedSteps}, and numerical
+M-step fields describe ordinary seeds. \code{qGains} includes the expanded
+improvement when PX is selected.
+
+All Henderson optimizer paths factor a full weight matrix in observation
+order. This fixes a previous pure-AI ordering discrepancy for correlated
+weights, ensuring that changing \code{blendWeight} does not change the
+weighted model. Correlated-weight results can therefore differ from earlier
+versions; diagonal-weight fits are unaffected by this correction.
 
 \strong{Optional GPU kernels}
 
@@ -526,35 +682,59 @@ so GPU availability alone does not imply faster fitting.
 
 \strong{Iteration output}
 
-With \code{verbose=TRUE} and \code{henderson=TRUE}, the iteration table reports:
+With \code{verbose=TRUE}, \code{mmes()} prints an
+iteration table with the same columns for ordinary AI, hybrid AI, reduced-rank
+AI, explicit EM/PX-GEM blending, automatic recovery, and direct inversion.
+Direct inversion reports \code{policy="off"} with unavailable safeguard fields.
+The table uses compact
+fixed-width fields and a single monotonic elapsed-time column, rather than
+local clock time and process CPU time.
 \describe{
-  \item{\code{iteration}}{The iteration number.}
+  \item{\code{iter}}{The iteration number.}
   \item{\code{LogLik}}{The log likelihood at the current accepted parameter
   values (restricted log likelihood when \code{REML=TRUE}).}
-  \item{\code{wall}}{The local clock time, displayed as \code{HH:MM:SS}.}
-  \item{\code{cpu(sec)}}{Cumulative elapsed seconds since the native fitting
-  routine started; despite the column name, this is not process CPU time.}
-  \item{\code{restrained}}{The number of variance parameters restrained at
-  a boundary during the iteration.}
-  \item{\code{EMweight}}{The weight of the EM information in the blended
-  AI/EM update; \code{1} uses EM information and \code{0} uses AI information.}
+  \item{\code{deltaLL}}{Change from the preceding printed accepted likelihood;
+  \code{-} on the first row.}
+  \item{\code{update}}{The selected proposal method: \code{AI}, \code{hybrid-AI},
+  \code{EM}, or \code{PXEM}. A mixture such as \code{AI+EM:0.40} shows the
+  EM-type direction weight. Fallbacks show the method actually tried last.
+  A final row may report a selected method without taking another step.}
+  \item{\code{policy}}{\code{auto:em} or \code{auto:pxem} means AI-first
+  monitoring with that recovery method available. A recovery row instead names
+  its trigger: \code{backtracking}, \code{low-gain}, \code{line-search}, or
+  \code{info-solve}. The \code{update} column identifies the recovery method.
+  Subsequent AI rows return to the automatic policy label.
+  \code{scheduled} denotes an explicit positive blend weight, not automatic
+  recovery; \code{off} denotes a path or explicit zero weight with no automatic
+  recovery. A trigger names an attempted recovery, not proof that it succeeded;
+  consult \code{engineDiagnostics$recovery} for acceptance and stop reasons.}
+  \item{\code{trust}}{Joint proposal scaling due to trust caps and feasibility
+  bounds, separate from likelihood backtracking. A value of \code{1} means no
+  such shortening.}
+  \item{\code{line}}{Likelihood line-search multiplier; \code{1} means no
+  halving. Standalone reduced-rank AI includes \code{stepWeight} in this field.}
   \item{\code{notPD}}{The one-based covariance structure indices whose proposed
   updates failed the positive-definiteness check and required local fallback.
   Multiple indices are comma-separated (e.g., \code{2,3}); \code{-} means none
-  failed. Indices follow the random terms, with the residual structure last.}
-  \item{\code{trustAlpha}}{The multiplier applied to the joint proposed step
-  in working parameter coordinates after local safeguards. A value of \code{1}
-  means no trust scaling was needed; smaller values shorten the step. This is
-  distinct from any subsequent likelihood line-search halving.}
-  \item{\code{pivot}}{For \code{solver="ldlt"} only, the smallest diagonal
-  pivot in the LDLT factorization of the mixed-model coefficient matrix,
-  a numerical diagnostic of positive definiteness.}
+  failed or this local-fallback diagnostic does not apply. Indices follow the
+  random terms, with the residual structure last. EM/PX and latent fitting use
+  candidate rejection rather than this local covariance repair.}
+  \item{\code{time(s)}}{Cumulative elapsed seconds since the optimizer started,
+  including time spent on rejected trials. This is not process CPU time.}
 }
-The safeguard columns describe the proposed update, whereas \code{LogLik}
-describes the current accepted fit. Floating-point values are displayed to
-three decimal places (scientific notation is used when needed to fit the column).
-This formatting does not round stored estimates; very small positive values
-may therefore appear as \code{0.000}.
+An unavailable or unattempted safeguard is printed as \code{-}, not a
+successful multiplier. Ordinary AI reports the current proposal's trust cap
+and the incoming accepted step's line search; standalone reduced-rank AI
+reports incoming accepted scales. The EM/PX/automatic driver reports the
+current row's outgoing attempted scales, after any recovery or fallback.
+Detailed Q gains, step norms, exact blend weights, and numerical work counters
+remain in the fit and \code{engineDiagnostics}; display formatting does not
+change optimization or the existing diagnostic fields.
+Legacy \code{mmer()} progress output and its \code{emWeight} argument retain
+their existing interface and are separate from \code{mmes()} direction blending.
+Likelihoods use six decimals, likelihood gains four, safeguard scales three,
+and elapsed seconds two; scientific notation is used when needed to fit.
+Stored estimates are not rounded; very small values may display as zero.
 
 \strong{Evaluation environments and observation filtering}
 

@@ -45,7 +45,7 @@ test_that("exact trace panels preserve AR2 fits, scores and uncertainty", {
                       policy = "speed"){
     mmes(workload$fixed, random = workload$random, rcov = workload$rcov, data = workload$data,
          nIters = iterations, nThreads = threads, computeCi = inverseMode, getPEV = inverseMode > 0L,
-         REML = reml, verbose = FALSE, dateWarning = FALSE,
+         REML = reml, blendWeight = 0, verbose = FALSE, dateWarning = FALSE,
          engine = mmes_control(solver = "ldlt", denseMemoryMB = budget, memoryPolicy = policy,
            experimental = list(profile = "force", blockSchur = "off", traceBatch = mode)))
   }

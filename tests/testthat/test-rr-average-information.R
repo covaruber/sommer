@@ -93,13 +93,13 @@ test_that("latent RR analytic scores and AI match independent dense formulas", {
   precision <- fixture$precision
   shape <- rrm(dataset$environment, 2L, loadings=fixture$loading)
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")){
-    fitModel <- function(returnParam){
+    fitModel <- function(returnParam, blendWeight=0){
       mmes(response~environment,
         random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9) +
           vsm(ism(replicate), sigma2=0.2),
         rcov=~vsm(dsm(environment, values=c(0.6, 0.8, 0.5, 0.9)), ism(units),
                   sigma2=0.6),
-        data=dataset, REML=reml, solver=solver, nIters=1L, emWeight=0,
+        data=dataset, REML=reml, solver=solver, nIters=1L, blendWeight=blendWeight,
         stepWeight=1, computeCi=0L, returnParam=returnParam,
         verbose=FALSE, dateWarning=FALSE)
     }
@@ -116,6 +116,15 @@ test_that("latent RR analytic scores and AI match independent dense formulas", {
     expect_equal(as.numeric(diagnostics$scoreWorking), reference$score, tolerance=2e-6)
     expect_equal(as.matrix(diagnostics$averageInformationWorking),
                  reference$information, tolerance=2e-6)
+    automatic <- fitModel(FALSE, blendWeight=NULL)
+    free <- unlist(lapply(setup$covStruct, function(term) term$free), use.names=FALSE)
+    expectedNorm <- max(abs(reference$score[free]) /
+      sqrt(pmax(setup$tolParInv, abs(diag(reference$information)[free]))))
+    expect_equal(automatic$engineDiagnostics$recovery$finalProjectedScoreNorm,
+      expectedNorm, tolerance=2e-6)
+    expect_equal(automatic$engineDiagnostics$recovery$steps, 0L)
+    expect_equal(automatic$engineDiagnostics$blend$emEvaluations, 0L)
+    expect_gt(automatic$engineDiagnostics$blend$latentAIEvaluations, 0L)
   }
 })
 
@@ -127,7 +136,7 @@ test_that("latent RR reports its path, coefficient solver, and accepted iteratio
     model <- function(verbose){
       mmes(response~environment,
         random=~vsm(rrm(environment, 1L), ism(id), Gu=precision),
-        data=dataset, solver=solver, nIters=3L, emWeight=c(0.8, 0.3, 0.1),
+        data=dataset, solver=solver, nIters=3L, blendWeight=0,
         stepWeight=0.5, verbose=verbose, dateWarning=FALSE)
     }
     output <- capture.output(fit <- model(TRUE))
@@ -138,7 +147,7 @@ test_that("latent RR reports its path, coefficient solver, and accepted iteratio
     expect_true(any(grepl("^Residual engine: shared diagonal \\(likelihood and AI\\).$", output)))
     expect_true(fit$engineDiagnostics$sharedConditionalOperators)
     expect_identical(fit$engineDiagnostics$residualEngine, "diagonal")
-    headerIndex <- grep("^iteration +LogLik +wall +cpu\\(sec\\) +EMweight +trustAlpha +lineAlpha +scoreNorm$",
+    headerIndex <- grep("^ *iter +LogLik +deltaLL +update +policy +trust +line +notPD +time\\(s\\)$",
                         output)
     expect_length(headerIndex, 1L)
     engineIndex <- grep("engine active|Latent coefficient solver:", output)
@@ -146,28 +155,28 @@ test_that("latent RR reports its path, coefficient solver, and accepted iteratio
     rows <- grep("^ +[0-9]+ +", output, value=TRUE)
     expect_length(rows, length(fit$llik))
     fields <- strsplit(trimws(rows), " +")
-    expect_true(all(lengths(fields) == 8L))
+    expect_true(all(lengths(fields) == 9L))
     expect_equal(as.numeric(vapply(fields, `[[`, character(1), 2L)),
                  as.numeric(fit$llik), tolerance=1e-6)
-    expect_true(all(grepl("^[0-9]{2}:[0-9]{2}:[0-9]{2}$",
-                         vapply(fields, `[[`, character(1), 3L))))
+    expect_identical(fields[[1L]][3L], "-")
+    expect_equal(as.numeric(vapply(fields[-1L], `[[`, character(1), 3L)),
+      diff(as.numeric(fit$llik)), tolerance=1e-4)
+    expect_true(all(vapply(fields, `[[`, character(1), 4L) == "AI"))
+    expect_true(all(vapply(fields, `[[`, character(1), 5L) == "off"))
     progress <- fit$engineDiagnostics$iterationProgress
     expect_equal(nrow(progress), length(fit$llik))
-    expect_identical(colnames(progress), c("EMweight", "trustAlpha", "lineAlpha", "cpu(sec)"))
-    expect_equal(as.numeric(progress[, "EMweight"]), c(0.8, 0.3, 0.1))
+    expect_identical(colnames(progress), c("blendWeight", "trustAlpha", "lineAlpha", "cpu(sec)"))
+    expect_equal(as.numeric(progress[, "blendWeight"]), rep(0, 3L))
     expect_equal(progress[1L, c("trustAlpha", "lineAlpha")],
                  c(trustAlpha=1, lineAlpha=1))
     expect_true(all(progress[, "trustAlpha"] > 0 & progress[, "trustAlpha"] <= 1))
     expect_true(all(progress[-1L, "lineAlpha"] > 0 & progress[-1L, "lineAlpha"] <= 0.5))
     expect_true(all(diff(progress[, "cpu(sec)"]) >= 0))
-    for(column in c("EMweight", "trustAlpha", "lineAlpha", "cpu(sec)")){
-      outputColumn <- match(column, c("iteration", "LogLik", "wall", "cpu(sec)",
-                                    "EMweight", "trustAlpha", "lineAlpha", "scoreNorm"))
+    for(column in c("trustAlpha", "lineAlpha")){
+      outputColumn <- if(column == "trustAlpha") 6L else 7L
       expect_lt(max(abs(as.numeric(vapply(fields, `[[`, character(1), outputColumn)) -
                           progress[, column])), 0.00051)
     }
-    expect_equal(as.numeric(vapply(fields, `[[`, character(1), 8L)),
-                 as.numeric(fit$normMonitor[2L, ]), tolerance=1e-6)
     columnEnds <- function(line){
       positions <- gregexpr("\\S+", line)[[1L]]
       as.integer(positions + attr(positions, "match.length") - 1L)
@@ -189,7 +198,7 @@ test_that("latent RR updates honor step weights and retain an iteration history"
   fitModel <- function(step, iterations, em=0){
     mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9),
       rcov=~vsm(ism(units), sigma2=0.6), data=dataset, nIters=iterations,
-      emWeight=rep(em, iterations), stepWeight=step, tolParConvLL=1e-12,
+      blendWeight=rep(em, iterations), stepWeight=step, tolParConvLL=1e-12,
       tolParConvNorm=1e-10, verbose=FALSE, dateWarning=FALSE)
   }
   full <- fitModel(1, 2L)
@@ -246,7 +255,7 @@ test_that("latent AI differentiates covariance-product axes and correlated resid
       mmes(response~environment, random=random,
         rcov=~vsm(ar1m(environment, rho=0.25), ism(record), sigma2=0.6),
         data=dataset, returnParam=returnParam, nIters=1L, stepWeight=1,
-        emWeight=0, verbose=FALSE, dateWarning=FALSE)
+        blendWeight=0, verbose=FALSE, dateWarning=FALSE)
     }
     setup <- fitModel(TRUE)
     fit <- fitModel(FALSE)
@@ -273,7 +282,7 @@ test_that("latent AI scores and information honor residual weights", {
     mmes(response~environment,
       random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9),
       rcov=residual, W=weights, data=dataset,
-      returnParam=returnParam, nIters=1L, emWeight=0, stepWeight=1,
+      returnParam=returnParam, nIters=1L, blendWeight=0, stepWeight=1,
       verbose=FALSE, dateWarning=FALSE)
   }
   correlated <- weights + 0.01 * 0.5^abs(outer(seq_len(nrow(dataset)),
@@ -410,7 +419,7 @@ test_that("latent RR AI reuses sparse and block-Schur conditional paths consiste
   fitModel <- function(path, returnParam=FALSE){
     mmes(response~environment,
       random=~vsm(rrm(environment, 1L), ism(id), Gu=precision),
-      data=dataset, nIters=3L, returnParam=returnParam,
+      data=dataset, nIters=3L, returnParam=returnParam, blendWeight=0,
       engine=mmes_control(solver="cholmod", experimental=list(blockSchur=path)),
       verbose=FALSE, dateWarning=FALSE)
   }
@@ -433,5 +442,41 @@ test_that("latent RR AI reuses sparse and block-Schur conditional paths consiste
     expect_identical(names(fit$engineDiagnostics$aiElapsedSeconds),
                      c("setup", "randomTraces", "residualTraces", "information"))
     expect_null(dim(fit$engineDiagnostics$aiElapsedSeconds))
+  }
+})
+
+test_that("hybrid AI final scores and information match independent dense formulas", {
+  fixture <- .rr_ai_fixture()
+  dataset <- fixture$data
+  dataset$record <- interaction(dataset$id, dataset$replicate, drop=TRUE)
+  precision <- fixture$precision
+  for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
+    model <- function(returnParam=FALSE){
+      mmes(response~environment,
+        random=~vsm(usm(environment), ism(id), Gu=precision, sigma2=0.9),
+        rcov=~vsm(ar1m(environment, rho=0.25), ism(record), sigma2=0.6),
+        W=diag(seq(0.8, 1.2, length.out=nrow(dataset))),
+        data=dataset, nIters=3L, blendWeight=rep(0, 3L), stepWeight=0.5,
+        REML=reml, returnParam=returnParam,
+        engine=mmes_control(solver=solver, acceleration="hybrid-ai"),
+        verbose=FALSE, dateWarning=FALSE)
+    }
+    setup <- model(TRUE)
+    fit <- model()
+    reference <- .rr_ai_dense_reference(setup,
+      unlist(fit$covParWorking, use.names=FALSE), reml)
+    expect_true(fit$engineDiagnostics$hybridAI$finalInformationExact)
+    expect_gt(fit$engineDiagnostics$hybridAI$bfgsUpdates, 0)
+    expect_equal(reference$score, reference$numericalScore, tolerance=2e-6)
+    expect_equal(as.numeric(fit$dLu), -2 * reference$score, tolerance=2e-6)
+    expect_equal(as.matrix(fit$InfMat), 2 * reference$information, tolerance=2e-6)
+    natural <- unlist(fit$covPar, use.names=FALSE)
+    jacobian <- rep(1, length(natural))
+    exponential <- fit$vcParams$kind %in% c("scale", "exp")
+    jacobian[exponential] <- natural[exponential]
+    correlation <- fit$vcParams$kind == "tanh"
+    jacobian[correlation] <- 1 - natural[correlation]^2
+    expected <- diag(jacobian) %*% solve(reference$information) %*% diag(jacobian)
+    expect_equal(as.matrix(fit$theta_se), expected, tolerance=2e-5)
   }
 })

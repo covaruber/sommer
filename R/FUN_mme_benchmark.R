@@ -359,7 +359,8 @@ run_mme_benchmark <- function(workloads,
   cols <- as.list(rep(NA_real_, length(.mme_phase_names)))
   names(cols) <- paste0("phase_", .mme_phase_names)
   counters <- list(nEffects = NA_real_, nnzC = NA_real_, freeParams = NA_real_,
-                   numericFactorSeconds = NA_real_)
+                   numericFactorSeconds = NA_real_, sensitivityRHSColumns = NA_real_,
+                   exactAIRefreshes = NA_real_)
   dominant <- NA_character_
   if(is.list(prof)){
     secs <- prof$seconds
@@ -368,6 +369,10 @@ run_mme_benchmark <- function(workloads,
     counters$nnzC <- prof$counters$nnzC
     counters$freeParams <- prof$counters$freeCovarianceParameters
     counters$numericFactorSeconds <- prof$counters$numericFactorSeconds
+    if(!is.null(prof$counters$sensitivityRHSColumns)){
+      counters$sensitivityRHSColumns <- prof$counters$sensitivityRHSColumns
+      counters$exactAIRefreshes <- prof$counters$exactAIRefreshes
+    }
     dominant <- names(which.max(secs))
   }
   as.data.frame(c(cols, counters, list(dominantPhase = dominant)), stringsAsFactors = FALSE)

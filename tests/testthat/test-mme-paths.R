@@ -26,7 +26,7 @@ test_that("dense storage budget controls coupled Schur admission", {
   attr(relationship, "inverse") <- TRUE
   fitModel <- function(){
     mmes(response~environment, random=~vsm(ar1m(environment), ism(id), Gu=relationship),
-      data=dataset, solver="cholmod", nIters=2L, computeCi=0L, getPEV=FALSE, verbose=FALSE)
+      data=dataset, solver="cholmod", nIters=2L, computeCi=0L, getPEV=FALSE, verbose=FALSE, blendWeight=0)
   }
   dense <- fitModel()
   expect_true(dense$engineDiagnostics$blockSchurActive)
@@ -52,7 +52,7 @@ test_that("LDLT selected-inverse dependency caching respects its budget and pres
   data(DT_example)
   fitModel <- function(){
     mmes(Yield~Env, random=~Name, data=DT_example, solver="ldlt",
-      nIters=3L, computeCi=1L, verbose=FALSE, dateWarning=FALSE)
+      nIters=3L, computeCi=1L, verbose=FALSE, dateWarning=FALSE, blendWeight=0)
   }
   cached <- fitModel()
   expect_gt(cached$engineDiagnostics$CselectedDependencyEntries, 0)
@@ -72,7 +72,7 @@ test_that("generic CHOLMOD trace fallbacks preserve fits under an exhausted cach
   data(DT_example)
   fitModel <- function(solver){
     mmes(Yield~Env, random=~Name, data=DT_example, solver=solver,
-      nIters=3L, computeCi=1L, verbose=FALSE, dateWarning=FALSE)
+      nIters=3L, computeCi=1L, verbose=FALSE, dateWarning=FALSE, blendWeight=0)
   }
   candidate <- fitModel("cholmod")
   reference <- fitModel("ldlt")
@@ -87,7 +87,7 @@ test_that("memoryPolicy speed stops with the required memory and limit falls bac
   data(DT_example)
   fitModel <- function(policy){
     mmes(Yield~Env, random=~Name, data=DT_example, solver="cholmod", nIters=2L,
-      computeCi=1L, verbose=FALSE, dateWarning=FALSE,
+      computeCi=1L, verbose=FALSE, dateWarning=FALSE, blendWeight=0,
       engine=mmes_control(solver="cholmod", memoryPolicy=policy))
   }
   expect_equal(mmes_control()$memoryPolicy, "speed")

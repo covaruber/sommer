@@ -1,4 +1,5 @@
 #include "mme_sp2_support.h"
+#include "mme_progress.h"
 #include <Matrix/stubs.c>
 
 // [[Rcpp::export]]
@@ -4323,9 +4324,6 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     return ok && eigval.n_elem > 0 && eigval.min() > tolParInv;
   };
 
-  time_t before = time(0);
-  localtime(&before);
-
   // Constant across iterations: only free (non-fixed) parameters are
   // updated, and their bounds never change.
   arma::vec freeUnlisted(nVcTotal), lowerUnlisted(nVcTotal), upperUnlisted(nVcTotal);
@@ -4352,6 +4350,7 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   arma::vec beta(nX, arma::fill::zeros);
   arma::mat VarBeta(nX, nX, arma::fill::zeros);
   arma::vec Py(nR, arma::fill::zeros);
+  sommer::MMEProgress progress(nRRe);
 
   for(int iIter = 0; iIter < nIters; ++iIter){
     lastIter = iIter;
@@ -4400,6 +4399,16 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     const double constTerm = reml ? (n - static_cast<double>(rankX)) * std::log(2.0*arma::datum::pi)
                                   : n * std::log(2.0*arma::datum::pi);
     llik(iIter) = -0.5 * (logDetV + logDetQ + yPy + constTerm) + llikScaleCorrection;
+
+    if(verbose){
+      if(iIter == 0){
+        Rcpp::Rcout << "Direct path: dense phenotypic V Cholesky ("
+                    << (residualCompact ? "compact" : "explicit") << " residual)" << arma::endl;
+        progress.header();
+      }
+      progress.row(iIter + 1, llik(iIter), iIter > 0 ? llik(iIter - 1) : NA_REAL,
+        "AI", "off");
+    }
 
     if(iIter > 0){
       const double deltaLL = llik(iIter) - llik(iIter-1);
@@ -4488,20 +4497,6 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     }
     monitor.col(iIter) = candidate;
 
-    if(verbose){
-      time_t now = time(0);
-      tm *ltm = localtime(&now);
-      double seconds = difftime(now, before);
-      before = time(0);
-      if(iIter == 0){
-        Rcpp::Rcout << "Direct path: dense phenotypic V Cholesky ("
-                    << (residualCompact ? "compact" : "explicit") << " residual)" << arma::endl;
-        Rcpp::Rcout << "iteration   LogLik   wall     cpu(sec)" << arma::endl;
-      }
-      Rcpp::Rcout << "    " << iIter+1 << "      " << llik(iIter) << "   "
-                  << ltm->tm_hour << ":" << ltm->tm_min << ":" << ltm->tm_sec
-                  << "      " << seconds << arma::endl;
-    }
   }
 
   // ------------------------------------------------------------

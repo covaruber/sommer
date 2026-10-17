@@ -265,24 +265,174 @@ the complete likelihood. Cross-derivatives between distinct covariance
 structures are zero where the structures are parameter-independent; within
 a structure, second derivative corrections are included as needed.
 
-## 4.2 Why blend AI with EM information?
+## 4.2 Why blend AI and EM update directions?
 
 AI steps are usually much faster than expectation-maximization (EM) near the
 optimum, but can be aggressive when a parameter is near a boundary or when
-the local curvature is poorly behaved. EM-style information tends to give
-more conservative, stable movement for simple variance parameters. The
-implementation combines them:
+the local curvature is poorly behaved. EM updates provide a stable alternative.
+`blendWeight` now combines covariance-update directions, not information matrices:
 
 $$
-\mathcal I_{used}
-= (1-w_{EM})\mathcal I_{AI}+w_{EM}\mathcal I_{EM}.
+\Delta_{blend}
+= (1-w)\Delta_{AI}+w\Delta_{EM}.
 $$
 
-`emWeight` controls $w_{EM}$ by iteration. By default it starts relatively
-conservatively and tapers toward a small value, so early updates get more
-stabilization and later updates rely more heavily on AI. `stepWeight`
-separately scales the score step. They are distinct controls: one blends
-information matrices; the other damps the proposed correction.
+`blendWeight` is $w$: 1 selects the EM direction, 0 selects AI, and intermediate
+values interpolate proposals. The default `blendWeight=NULL` instead starts
+with AI and computes no EM/PX moments while AI makes useful progress.
+At exact explicit EM
+endpoints, iterations skip AI construction except for final inference. Generic
+covariance structures use increasing-Q generalized EM updates.
+A single whole-number `blendWeight` greater than 1 sets the decay length.
+For example, `blendWeight=5` decays exponentially from 1 to 0.03 over five
+iterations, then holds at 0.03. The decay length is capped at `nIters`.
+Fractional counts and vectors containing values greater than 1 are errors.
+`stepWeight` damps the resulting proposal and defaults to 1 when blending is
+active or automatic recovery is selected, preserving exact standalone EM
+updates and allowing full AI proposals subject to trust caps and backtracking.
+Explicit pure-AI fits retain their
+previous damping schedule. Set `blendWeight=0` to request the existing pure-AI path.
+Positive blend weights require deterministic Gaussian Henderson REML or ML
+fitting; PCG, direct inversion, PQL, acceleration, factor-score augmentation,
+and saddle-point fitting do not support them. These modes default to pure AI
+when weights are omitted; explicitly positive weights are rejected.
+Diagnostics, including numerical M-step convergence, appear in
+`engineDiagnostics$blend`.
+
+### ML posterior moments and fixed effects
+
+The same AI-first policy applies to `REML=FALSE`. At each accepted covariance,
+the engine profiles the fixed effects by GLS. REML E-steps use the joint
+coefficient inverse, including fixed-effect uncertainty. ML instead conditions
+on that GLS estimate and uses random-effect posterior covariance
+$S=(Z'R^{-1}Z+G^{-1})^{-1}=D^{-1}$.
+The random moment is $mm'+S$; the residual moment is
+$rr'+ZSZ'$, where $r=y-X\hat\beta-Zm$.
+Weights apply the existing residual transformation to errors and designs.
+
+Fixed effects stay deterministic during covariance Q and PX optimization,
+including reduced-rank loading probes. Every likelihood trial then profiles
+fixed effects again at its proposed covariance. Acceptance uses the observed
+profile ML likelihood, not the auxiliary Q objective. The scalar residual
+update divides by $n$, not $n-p$; its uncertainty trace includes only random
+coefficients for ML. Final coefficient uncertainty still uses the joint
+inverse. Diagnostics identify the likelihood mode as `"ML"` or `"REML"`.
+
+### AI-first recovery
+
+With `verbose=TRUE`, all `mmes()` optimizer paths share a compact table:
+
+```
+ iter         LogLik    deltaLL       update          policy  trust   line notPD  time(s)
+```
+
+`update` identifies AI, EM, PXEM, or a weighted mixture such as `AI+EM:0.40`.
+`policy` shows `auto:em` or `auto:pxem` while AI-first monitoring is active.
+Recovery rows show `backtracking`, `low-gain`, `line-search`, or `info-solve`;
+the update column identifies the selected recovery method. `scheduled` means
+an explicit positive blend weight; `off` means automatic recovery is disabled.
+Trigger labels denote attempts, not successful recovery or convergence.
+Detailed acceptance and stop reasons remain in `engineDiagnostics$recovery`.
+
+`deltaLL` compares successive accepted likelihoods. `time(s)` is cumulative
+elapsed time, including rejected trials; redundant clock and CPU columns are
+removed. Trust, line-search and failed-structure diagnostics remain visible.
+`-` denotes unavailable/unattempted scales or no applicable local `notPD` repair.
+Q gains and step norms remain available in stored diagnostics.
+See `?mmes` for the timing of safeguard scales on each optimizer path.
+
+Automatic recovery uses `blend="em"` by default; `blend="pxem"` selects the
+scalar expanded alternative. Recovery requires a non-small projected score
+and one of these events:
+
+- Three consecutive accepted AI steps each require at least four halvings.
+- Three consecutive accepted AI steps gain less than `tolParConvLL`.
+- The AI line search exhausts its 25 trials.
+- The projected AI system fails a positive-definiteness, solve-residual, or
+  ascent-direction check.
+
+One recovery step must improve observed likelihood by more than `1e-10`.
+The next iteration retries AI. If recovery also stalls, the fit returns the
+last accepted parameters, warns, and reports `convergence=FALSE`. An approaching
+variance floor alone does not trigger recovery. These are initial fixed
+heuristics, not guarantees that recovery will improve speed on every model.
+
+Convergence requires both a small projected score and either a small likelihood
+change or relative parameter step. The score is projected through the free/tied
+parameter tangent and removes outward directions at variance floors. Each
+component is scaled by the square root of its projected AI diagonal, floored
+at `tolParInv`; the maximum must not exceed
+`sqrt(max(tolParConvLL, tolParConvNorm))`.
+
+`engineDiagnostics$recovery` records the method, attempted and accepted step
+counts, source iterations,
+trigger reasons, stop reason, and final score certificate. The existing blend
+counters report actual AI, moment, and M-step work. Explicit numeric
+`blendWeight` schedules disable automatic recovery and retain their semantics.
+
+AI, EM, and PXEM remain local methods. A feasible covariance and a small score
+do not establish a global maximum. Compare converged fits from alternative
+starting values when competing optima are a concern.
+
+### Scalar parameter expansion
+
+Set `blend="pxem"` to replace the EM/GEM direction with a scalar
+parameter-expanded generalized EM (PX-GEM) direction:
+
+$$
+\Delta_{blend}=(1-w)\Delta_{AI}+w\Delta_{PX}.
+$$
+
+Each random term uses $u_j=a_jv_j$, $a_j>0$, and
+$G_{*j}=G_j(\phi)/a_j^2$. The current E-step uses $a_j=1$.
+An ordinary EM/GEM update seeds joint numerical optimization over admissible
+original covariance parameters and log expansion factors. Reduction recovers
+$G_j=a_j^2G_{*j}$ before blending; expansion resets to identity each iteration.
+Keeping constraints on the original parameters preserves fixed values and
+equality/ratio ties without clipping a reduced proposal.
+
+```{r, eval=FALSE}
+# Standalone scalar PX-GEM
+fit <- mmes(y ~ 1, random = ~id, data = dat,
+            blend = "pxem", blendWeight = 1)
+
+# PX-GEM/AI with a five-iteration exponential taper
+fit <- mmes(y ~ 1, random = ~id, data = dat,
+            blend = "pxem", blendWeight = 5)
+```
+
+This is increasing-Q numerical PX-GEM, not full matrix expansion.
+All existing covariance families supported by EM/GEM can use it, including
+latent reduced-rank terms. Residual-only models have no expansion and retain
+their ordinary update. Solver and fitting-mode restrictions remain unchanged.
+Full weight skips iterative AI; zero weight skips all EM and PX work.
+Non-reduced-rank AI directions use native exact AI kernels even within a
+blended schedule. Reduced-rank AI uses the same latent kernels as standalone
+RR AI. Accepted trial fits can supply the next zero-weight iteration and
+final exact inference without repeated coefficient factorization. Existing
+blend constraints and likelihood guards remain active.
+
+The expanded residual objective includes cross-term posterior uncertainty.
+Non-reduced-rank models cache quadratic expansion moments, with storage
+quadratic in the number of random terms. Reduced-rank models cache exact
+quadratic moments in a normalized loading/design basis once per E-step;
+objective evaluations require no additional coefficient solves.
+Cache storage is quadratic in the basis size. Extra workspace obeys
+`denseMemoryMB`. PX proposals always pass observed-likelihood backtracking;
+rejected proposals can fall back to the ordinary EM/GEM seed.
+
+Both EM and PX reuse exact Schur inverse blocks or selected-inverse
+contractions for random moments. Diagonal covariance updates omit unused
+off-diagonal moments. Scalar residual updates use a trace identity, including
+fixed-effect uncertainty. Scalar non-reduced-rank PX expansion moments also
+reuse exact coefficient contractions when their sparse products fit the
+memory budget. Generic bounded panel solves remain the exact fallback.
+
+Diagnostics report `pxQGains`, `pxLogExpansion`, numerical PX convergence and
+evaluation counts, and `pxEMFallbacks`. These describe proposals before
+backtracking. Fewer iterations need not mean less wall time: compare PX-AI
+against EM-AI at the same final accuracy before choosing a method.
+The default remains `blend="em"`.
 
 ## 4.3 Safeguards around the proposed step
 

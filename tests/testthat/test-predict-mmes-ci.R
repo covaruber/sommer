@@ -51,7 +51,7 @@ test_that("generic CHOLMOD reuses its supernodal selected inverse for mode one",
     y=sin(seq_len(size) / 9) + cos(seq_len(size) / 17))
   fitModel <- function(solver, mode){
     mmes(y~1, random=~vsm(ar2m(id), ism(one)), rcov=~units, data=data,
-      solver=solver, nIters=2L, computeCi=mode, getPEV=TRUE,
+      solver=solver, nIters=2L, computeCi=mode, getPEV=TRUE, blendWeight=0,
       verbose=FALSE, dateWarning=FALSE)
   }
   selected <- fitModel("cholmod", 1L)

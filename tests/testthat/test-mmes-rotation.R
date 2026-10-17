@@ -136,6 +136,8 @@ test_that("rotation supports multi-trait Kronecker residuals", {
   common <- list(fixed=y~trait, rcov=~vsm(usm(trait), ism(units)), data=data,
                  nIters=15, verbose=FALSE, dateWarning=FALSE, computeCi=0)
   for(henderson in c(TRUE, FALSE)){
+    # Direct AI needs damping for this nearly singular covariance fixture.
+    common$stepWeight <- if(henderson) 1 else 0.1
     ordinary <- do.call(mmes, c(common, list(
       random=~vsm(usm(trait), ism(id), Gu=fixture$Gu), henderson=henderson
     )))

@@ -1,8 +1,29 @@
 # MME Numerical Paths
 
 `ai_mme_sp2()` selects algorithms from mathematical capabilities, not covariance
-model names. `mme_paths.h` owns the pure planning rules. Numerical kernels,
-factorization state, caches, and optimization safeguards remain in `MNR.cpp`.
+model names. `mme_paths.h` owns the pure planning rules. `ai_mme_sp2.cpp`
+orchestrates the covariance, residual, coefficient, trace, and optimizer paths.
+
+## Shared Sparse Solver Kernels
+
+`mme_sparse.h` owns R-independent sparse-pattern comparison and caching, plus
+the common LDLT symbolic-reuse and defensive-retry routine. Joint coefficients
+(`C`), random-only coefficients (`D`), generic residuals (`R`), and repeated
+Kronecker residual blocks (`R0`) use the same routine. Callbacks preserve each
+caller's numeric-only timing, symbolic-analysis counters, and selected-inverse
+topology invalidation. Initial symbolic failures remain distinct from numeric
+failures, including failures during a defensive retry.
+
+`mme_cholmod.h` owns the non-copyable CHOLMOD context and factor, zero-copy
+Eigen views, symbolic-pattern reuse, and dense vector/panel solves. `C`, `D`,
+and `R` retain separate state instances; only the joint state persists through
+the existing PQL cache. Solve wrappers retain their matrix-specific errors.
+
+These modules do not select statistical models or numerical paths.
+`ai_mme_sp2.cpp` still owns backend dispatch, block-Schur admission, determinant
+and pivot checks, covariance-error classification, trace preparation, and
+optimization safeguards. A new path can reuse the same factorization and solve
+kernels without duplicating lifecycle code or changing the path policies.
 
 ## Decision Layers
 
@@ -20,6 +41,93 @@ factorization state, caches, and optimization safeguards remain in `MNR.cpp`.
 Storage and engine selection are deliberately separate. Compact storage does
 not imply grid eligibility, and a diagonal covariance does not imply diagonal
 precision after a non-diagonal weight transformation.
+
+### EM and scalar PX-GEM updates
+
+Omitted `blendWeight` selects AI-first recovery on eligible deterministic
+Gaussian Henderson REML or ML fits. Explicit numeric schedules keep their previous
+meaning; zero disables automatic recovery. `mme_recovery.h` owns the fixed
+three-step poor-progress triggers (four halvings per accepted AI step, or
+likelihood gains below tolerance). A non-small projected score is required.
+Information-solve failure and exhausted AI line search can trigger immediately.
+One strictly likelihood-improving recovery step is followed by another AI
+attempt; failed recovery warns and returns an uncertified accepted point.
+Convergence requires a projected-score certificate, not merely a small move.
+These safeguards do not search across likelihood basins.
+
+Healthy non-reduced-rank iterations retain accepted exact-information fits,
+including final inference when the requested inverse mode is already available.
+A trigger can require an additional conditional pass at the accepted point
+to obtain moment operators; rejected trials may have overwritten numerical
+factors. This pass reuses symbolic caches and the existing exact inverse-block
+contractions, and shares its factorization across all moment work. It is not
+performed on healthy zero-weight iterations. Recovery retains the existing
+posterior-moment memory admission checks.
+
+`mme_em.h` owns the EM/GEM and scalar PX-GEM covariance optimizer, not a
+separate coefficient solver. Conditional E-steps and likelihood trials call
+the existing Henderson engine. Residual/assembly selection and eligible
+Schur, chain, banded, latent-factor, LDLT and CHOLMOD solves still follow
+the policies in `mme_paths.h`. Full EM-type weights skip iterative AI
+preparation; final inference uses exact AI at the reduced parameter point.
+For non-reduced-rank models, any iteration requiring an AI direction runs
+the native exact AI trace/sensitivity kernels, not the generic latent AI
+information routine. At zero weight no posterior-moment callback is built.
+Mixed iterations invoke their moment callback only after native information
+is ready, reusing the same coefficient factorization and inverse cache.
+Reduced-rank AI retains the same latent kernels used by standalone RR AI.
+If the next iteration has zero weight, trial fits compute native information
+and retain accepted fits for that iteration. Final inference also reuses
+an accepted exact-information fit, including requested inverse output.
+Rejected trials still follow the blend likelihood guards. The blend counters
+`nativeAIEvaluations`, `latentAIEvaluations`, and `acceptedAIFitReuses`
+separate information dispatch from accepted-fit reuse.
+PCG, direct inversion, PQL, competing accelerators, factor-score augmentation,
+and saddle-point fitting do not admit positive EM-type weights.
+
+PX-GEM adds one positive expansion scalar per random term and optimizes the
+expanded Q objective in original constrained covariance coordinates plus
+log expansion coordinates. Ordinary EM/GEM supplies an increasing-Q seed.
+Expanded designs and latent covariances are auxiliary only; likelihood
+acceptance always evaluates the reduced original model. Rejected PX updates
+may fall back to the ordinary seed.
+
+Random E-step moments reuse the current backend's exact Schur inverse blocks
+or selected-inverse entries through `RRConditionalOperators`. Structurally
+diagonal products request only diagonal relationship contractions. Missing
+inverse entries use `exactInverseBlockTraces` with bounded coefficient panels.
+No separate EM/PX coefficient path or approximate trace is introduced.
+`mme_posterior.h` separates posterior covariance actions from joint coefficient
+solves. REML uses `C^{-1}`. ML embeds `D^{-1}` in joint coefficient coordinates
+with zero fixed rows/columns. Random inverse traces and sparse design traces
+use the corresponding C or D subset, with exact bounded solve fallbacks.
+ML holds the accepted GLS fixed effects fixed during Q and PX probes, then
+reprofiles them for every observed-likelihood trial. Reduced-rank information
+uses the actual likelihood mode; latent loading moments use the same posterior
+action. Joint solves and final coefficient uncertainty remain unchanged.
+Retained CHOLMOD caches own separate C and D states and reuse both symbolic
+patterns across conditional fits.
+
+For a scalar residual `R0 = s I`, REML uses
+`e'e + s * (nEffects - tr(C^{-1} Q))`; ML uses
+`e'e + s * (Nu - tr(D^{-1} G^{-1}))`, with transformed errors under weights.
+All random prior terms contribute, including fixed covariance terms.
+The EM denominator remains `n`, not `n-p`, for both likelihood modes.
+Scalar non-reduced-rank PX expansion moments contract sparse design Gram
+matrices against the same inverse cache when budget permits; otherwise they
+retain generic observation panels. Cross-random and fixed/random uncertainty
+is retained for REML; ML includes only random-coefficient uncertainty.
+Work counters report requested/skipped moment pairs, scalar
+identities/contractions, and exact fallback panels.
+
+Posterior moments have their own additional `denseMemoryMB` admission check.
+Non-reduced-rank expansion caches blockwise quadratic moments, including
+cross-random and fixed/random uncertainty, with storage quadratic in the
+number of random terms. Reduced-rank models prepare exact quadratic moments
+in a normalized loading/design basis using existing coefficient solves once
+per E-step. Auxiliary-objective probes reuse these moments without coefficient
+solves. Cache storage is quadratic in the basis size. Sparse/grid solver admission
+does not imply these extra moment matrices fit the budget.
 
 ## Residual Rules
 
@@ -43,6 +151,68 @@ nonzero counts <= 4 * observations. Kronecker/grid precision with absent or
 diagonal weights uses block-local designs. Other cases use batched applications.
 
 ## Solver Rules
+
+### Experimental augmented equations
+
+`mmes_control(experimental=list(saddlePoint="force"))` bypasses coefficient
+normal-equation assembly and the SPD coefficient backends. Default and `"auto"`
+remain inactive. The requested LDLT/CHOLMOD backend still owns residual
+factorization; final mode-1 extraction uses Eigen's existing Takahashi path.
+
+`mme_saddle.h` owns an R-independent `SaddleSystem`: assembly, pivoted Eigen
+SparseLU, structural-pattern reuse, determinant sign and log-absolute-determinant,
+bounded solve panels, and per-column true-residual checks with at most two
+iterative refinements. It does not use SPD Cholesky on an indefinite matrix.
+The covariance engine and existing PD checks still own covariance admissibility.
+LU pivot fill is not a process-memory-limited operation.
+
+For design `W=[X Z]`, prior `Q=diag(0,G^-1)`, existing weight transform `T=Hs'`
+(identity without weights), residual covariance `R0`, and `A=T W`, it factors
+
+```
+K = [R0  A; A' -Q].
+```
+
+Solving `K [r;a]=[T y;0]` returns coefficients `a`. The coefficient block of
+`K^-1 [0;-h]` is `C^-1 h`; the observation block of `K^-1 [h;0]` is transformed
+`P h`. ML separately factors the random-only augmented system with `A=T Z`.
+Its observation block is the transformed marginal inverse, not REML's `P`.
+`log|det K|-log|R0|` supplies `log|C|`; the random-only counterpart supplies
+`log|D|`. Existing likelihood constants, response scaling, derivatives, AI,
+constraints, and optimizer acceptance remain unchanged.
+
+`mme_exact.h` contains reusable operator-based exact contractions:
+`exactInverseTraces` shares identity panels across derivative actions;
+`exactInverseBlockTraces` contracts coefficient inverse blocks against a shared
+relationship precision; `assembleNormalEquations` materializes compatibility
+output through bounded precision panels. None depends on R or a solver backend.
+Random traces and residual shape traces use these exact actions, without
+selected-inverse assumptions or stochastic estimates. The common residual scale
+uses `tr(P R)=n-p-q+tr(C^-1 Q)` for REML and the random-only ML counterpart.
+This reuses the trace identity already used by the reduced-rank engine.
+
+The initial scope includes Gaussian Henderson REML/ML, positive-definite random
+terms, multiple terms, fixed/tied parameters, weights, diagonal residuals,
+complete repeated blocks, and existing explicit sparse residuals. Compact grid
+layouts are rejected rather than materialized. PQL, solve-only, latent RR,
+rotation, acceleration, and factor-score augmentation remain unsupported.
+Forced requests fail explicitly; there is no silent fallback.
+
+For compatibility, final `C` is materialized exactly once. Prediction,
+post-fit inverse extraction, serialization, and inference consumers retain
+their stored-SPD-matrix contract. Mode 0 omits coefficient inverse work; mode 1
+returns the existing Eigen selected subset, not necessarily the same pattern as
+CHOLMOD; mode 2 uses augmented inverse actions for a full coefficient inverse.
+All modes still return exact covariance-parameter information.
+
+`engineDiagnostics$saddlePoint` reports the actual backend, augmented dimensions,
+input/factor nonzeros, symbolic/numeric counts, solve columns, maximum relative
+residual, factor time, and fitting/final normal-equation assembly counts.
+The sparse entry limit guards augmented inputs and final compatibility output;
+`denseMemoryMB` is not a bound on pivot-dependent LU fill.
+There is no automatic admission rule or established speedup.
+
+### Existing coefficient paths
 
 Zero-specific loading capabilities take a separate exact route in `mme_rr.h`.
 For each such random axis, the sparse random design is multiplied by its
@@ -95,18 +265,27 @@ Conditional equations retain ordinary solver and eligible block-Schur
 dispatch. The FA Woodbury Schur decomposition eliminates positive-specific
 blocks; exact RR has no such blocks and directly solves the smaller latent
 system instead. Verbose RR fits report the path before evaluation, the actual
-conditional coefficient engine, and each accepted likelihood and score norm.
+conditional coefficient engine, and each accepted likelihood.
 `engineDiagnostics$traceMethod` identifies the shared-contraction trace path.
 `engineDiagnostics$randomTraceDirections` reports the total loading-span
 directions used across random terms.
 
-The RR coefficient-engine message precedes its progress header. Progress rows
-include wall time, cumulative process CPU seconds, scheduled `EMweight`,
-accepted incoming `trustAlpha` and `lineAlpha`, and score norm. Incoming scales
-start at one; `lineAlpha` includes `stepWeight` and backtracking. Their numeric
-history and CPU times are in `engineDiagnostics$iterationProgress`.
-Ordinary boundary-restraint and `notPD` fields are not applicable to the
-latent optimizer and are omitted rather than populated with placeholders.
+The RR coefficient-engine message precedes its progress header.
+`mme_progress.h` owns the shared compact Henderson table: `iter`, `LogLik`,
+`deltaLL`, `update`, `policy`, `trust`, `line`, `notPD`, and `time(s)`.
+Ordinary AI, hybrid AI, RR AI, scheduled blends and automatic recovery use
+the same formatter. Only the `notPD` width grows for long structure-index lists.
+Elapsed time uses a monotonic clock; CPU time and local wall-clock columns
+are not printed. Existing stored diagnostics remain unchanged, including RR
+`engineDiagnostics$iterationProgress` scales and CPU times.
+RR incoming scales start at one; `line` includes `stepWeight` and backtracking.
+Ordinary AI retains current-proposal trust and incoming line-search semantics.
+The EM driver prints after searching so recovery/fallback labels and outgoing
+scales reflect the method actually tried, including late line-search recovery.
+Unattempted scales and inapplicable local `notPD` repairs print `-`.
+Policy labels distinguish automatic EM/PX monitoring, explicit schedules,
+disabled recovery, and each of the four recovery triggers. The detailed
+recovery diagnostics, not a trigger label alone, establish acceptance.
 
 `C` remains the SPD latent coefficient matrix. `coefficientMap` maps its
 coefficients into public coordinates; `bu`, `W`, partitions and BLUPs use public

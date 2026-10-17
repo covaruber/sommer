@@ -690,6 +690,115 @@ version 4.4.90 (2026-10-13)
    covariance actions through the latent Henderson identity. Verbose output
    identifies the shared residual engine; AI phase timings are retained.
 
+ + Opt-in mmes_control(acceleration="hybrid-ai") reduces repeated Henderson
+   sensitivity solves using Powell-damped BFGS between exact AI refreshes.
+   Scores, likelihood acceptance, bounds and PD safeguards remain unchanged;
+   intermediate stabilization uses the BFGS diagonal. Final InfMat and
+   covariance-parameter uncertainty always use exact AI, including at the
+   iteration limit. Convergence requires exact step and projected-score checks.
+   Gaussian LDLT/CHOLMOD fits are supported; vcc ties explicitly retain exact
+   AI. Other optimizers and the default behavior are unchanged. Diagnostics
+   expose refreshes, resets, certifications and sensitivity RHS counts.
+
+ + Experimental mmes_control(experimental=list(saddlePoint="force")) adds an
+   exact augmented Henderson MME solver using pivoted Eigen sparse LU.
+   Defaults and "auto" remain unchanged. Backend-independent exact panel
+   contractions and normal-equation output assembly are reusable in
+   mme_exact.h; the augmented factorization lives in mme_saddle.h.
+   REML/ML retain exact scores, AI, covariance SE and coefficient uncertainty.
+   Fitting avoids normal-equation cross-products; final C is assembled once
+   for prediction and saved-object compatibility. Unsupported routes fail
+   explicitly. Initial benchmarks do not establish a speed or memory gain;
+   the solver remains force-only, with no automatic admission rule.
+
+ + mmes() now blends genuine EM/GEM and AI proposal directions rather than
+   information matrices. blendWeight replaces emWeight (a deprecated named
+   alias), and blend="em" selects this method.
+   Scalar, fully free diagonal and unstructured terms use closed-form
+   posterior-moment updates when available; other structures and constraints
+   use numerical increasing-Q generalized EM. Complete unstructured residual
+   blocks also have closed-form M-steps. Mixtures use likelihood
+   backtracking with an EM fallback. Full EM weights skip iterative AI,
+   zero weights skip EM, and final inference always uses exact AI.
+   Positive weights require deterministic Gaussian Henderson REML or ML without
+   other accelerators, factor-score augmentation, PQL or saddle-point fitting.
+   Unsupported modes default to pure AI when blendWeight is omitted;
+   explicitly positive weights remain errors.
+   Blended fits default to stepWeight=1; pure AI retains its previous damping.
+   engineDiagnostics$blend reports work counts, Q gains and numerical
+   M-step convergence. Exact moments obey the denseMemoryMB budget.
+   Henderson weight factorizations now consistently preserve observation
+   order across EM and AI. This fixes a previous correlated-weight ordering
+   discrepancy; affected weighted estimates can differ from earlier versions.
+   A scalar whole-number blendWeight greater than 1 now sets the exponential
+   decay length from 1 to 0.03, capped at nIters, followed by constant 0.03.
+   Fractional counts and vectors containing values above 1 are rejected.
+
+ + blend="pxem" now selects scalar parameter-expanded generalized EM (PX-GEM)
+   blended with AI. Each random term has a positive expansion scalar; joint
+   numerical optimization preserves all covariance families, fixed values,
+   scale floors and vcc constraints in original reduced coordinates.
+   Existing EM/GEM updates seed the expanded M-step. Posterior moments include
+   fixed/random and cross-random uncertainty, and reuse existing MME paths.
+   PX proposals use observed-likelihood backtracking with ordinary EM/GEM
+   fallback. Full weight skips iterative AI; zero weight skips EM/PX work.
+   Final inference remains exact AI. Diagnostics expose expansion factors,
+   additional Q gains, numerical convergence/evaluation counts and fallbacks.
+   Additional moment/optimizer workspace obeys denseMemoryMB. This is scalar
+   numerical PX-GEM, not full matrix expansion; fewer iterations do not
+   guarantee lower runtime. The default remains blend="em".
+   Reduced-rank EM/PX-GEM now cache exact loading-basis posterior moments
+   once per E-step instead of repeating coefficient solves at every numerical
+   M-step objective probe. This fixes severe first-iteration latency in
+   models with many loading and residual parameters, without changing Q.
+   EM/PX random moments now reuse exact Schur/inverse-block and selected-inverse
+   contractions, requesting only diagonal moments for diagonal covariance
+   updates. Scalar residual moments reuse a fixed-effect-aware trace identity.
+   Scalar non-reduced-rank PX expansion moments reuse sparse coefficient
+   contractions when memory permits. Generic bounded exact panel solves remain
+   the fallback. New work counters expose contraction and fallback usage.
+   AI directions inside EM/PX schedules now use native exact AI kernels for
+   non-reduced-rank models instead of generic latent information calculations.
+   Zero-weight iterations skip moment callbacks. Mixed iterations share native
+   AI factorizations and inverse caches with posterior-moment work. Accepted
+   exact-information trials supply subsequent zero-weight iterations and final
+   inference without duplicate factorization. Reduced-rank AI retains its shared
+   latent kernels; blend guards and constraints remain unchanged.
+
+ + Omitted blendWeight now selects AI-first optimization with on-demand
+   EM/GEM recovery (or scalar PX-GEM with blend="pxem") for eligible Gaussian
+   Henderson REML or ML fits. Healthy AI iterations skip EM/PX moment and objective
+   work. Repeated poor progress, failed AI line search, or unreliable
+   information solves trigger one recovery step when the projected score
+   remains non-small. Recovery must improve likelihood before AI resumes.
+   Automatic convergence requires a scaled projected-score certificate.
+   Failed recovery warns and returns the last accepted point without
+   convergence. Explicit numeric blend schedules and unsupported-engine
+   defaults retain their behavior. Recovery diagnostics record triggers and
+   stop reasons; automatic refits retain blendWeight=NULL.
+
+ + ML now supports explicit EM/PX-GEM schedules and default AI-first recovery.
+   ML posterior moments use the random-only D inverse, with deterministic
+   current GLS fixed effects during covariance and loading Q/PX probes.
+   Likelihood trials reprofile fixed effects and accept against profile ML.
+   Random, residual, weighted and reduced-rank moment paths share a separate
+   posterior action; joint solves and final coefficient uncertainty are unchanged.
+   CHOLMOD retains independent C/D symbolic caches across conditional fits.
+   Diagnostics identify ML versus REML. Dense conditional-moment and expanded-Q
+   tests cover both likelihood modes.
+
+ + mmes() iteration output now shares one compact formatter across ordinary,
+   hybrid and reduced-rank AI, scheduled EM/PX blends, AI-first recovery and
+   direct inversion. Columns show accepted likelihood/gain, update method,
+   recovery policy/trigger, trust and line-search scales, notPD repairs, and
+   elapsed seconds. Redundant wall-clock/CPU columns are removed; detailed
+   stored diagnostics remain unchanged. Recovery rows identify the actual
+   method tried, including late line-search recovery and EM/PX fallbacks.
+
+ + Standalone sparse and saddle native tests now check for their private
+   source headers before compiling. They skip in installed-package check
+   layouts without src/, while source-tree runs retain the native checks.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes

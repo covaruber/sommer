@@ -1,6 +1,6 @@
 # `ai_mme_sp2`: Prioritized Improvement Roadmap
 
-**Target:** `src/MNR.cpp` (`ai_mme_sp2`)
+**Target:** `src/ai_mme_sp2.cpp` (`ai_mme_sp2`; shared support in `src/mme_sp2_support.h`)
 **Reviewed against:** synced `unified` source, 2026-10-13
 
 This roadmap replaces the separate review and acceleration-plan notes. It ranks remaining work by likely impact, implementation risk, and model coverage. Progress is tracked in the checklist below; completed items are not to be redone (see also `CHANGELOG`, version 4.4.90).
@@ -210,7 +210,10 @@ Open, in order (each starts from the current working tree):
 - [ ] 1b. `ar1_50L_100ID` (no relationship, Schur off): trace preparation costs 0.85 s with a large budget versus 0.06 s when the selected inverse is not built. The right choice between selected inverse and exact sparse solves depends on fill and requested support; needs the cost-model/autotune design below, not another threshold. `car_200L` also still selects Schur (0.82 s versus 0.60 s).
 - [x] 2. SAR/CAR exact sparse evaluation implemented opt-in above. At 1000 levels, proposal time drops from 0.426 s to 0.154 s for SAR and 0.433 s to 0.099 s for CAR in the paired four-iteration fixtures. Dense covariance outputs, dense constructor spectral bounds and automatic crossover calibration remain open; the PD-repair part was completed earlier.
 - [x] 3. AR2 exact trace-solve bottleneck: opt-in independent LDLT panels validated above, without the shared solve lock. The original 997 missed block columns per iteration remain exact, now handled in 200 panel calls at six IDs. Single-thread automatic acceleration is not established. `aiAssembly` and dense `fit$theta` storage remain unchanged.
-- [ ] Not started: Ranks 3, 5, 6; Rank 4 beyond the admission fixes above.
+- [ ] Not started: Ranks 3, 6; Rank 4 beyond the admission fixes above.
+- [x] Rank 5 first slice: opt-in hybrid AI with exact final information and
+  sensitivity-solve counters. Information opt-out and tied-coordinate reduction
+  remain deferred; see Rank 5 for scope and validation requirements.
 
 Measurement notes: forced `cholmod` on SAR/CAR 1000 levels is 2-3x slower than `ldlt` (`solver = "auto"` already picks `ldlt` there). The covariance-engine refactor adds explicit header dependencies and preserves `all: $(SHLIB)` as the default build target; manual source touching is no longer required.
 
@@ -268,7 +271,66 @@ The block-banded prototype is correctness-tested but slower on measured fixtures
 
 ### Rank 5: Reduce AI Work
 
-Only after profiling, consider sparse sensitivity directions or safeguarded SR1/L-BFGS updates between exact AI refreshes. Separately define an explicit covariance-information opt-out if callers can accept reduced public output. Common-scale profiling is a later model reparameterization requiring fixed/free, constraint, and uncertainty rules.
+Implementation (2026-10-15): opt-in `mmes_control(acceleration = "hybrid-ai")`
+uses damped BFGS between exact AI refreshes in `ai_mme_sp2.cpp`, where Henderson
+orchestration now lives. The default exact optimizer and Aitken mode are unchanged.
+Exact scores, likelihood acceptance, bounds, PD repair and trust caps remain.
+Both random and residual diagonal stabilizers depend on AI in the current
+engine; hybrid iterations explicitly use BFGS diagonals instead of silently
+retaining stale AI diagonals. Exact refreshes occur at most five accepted
+iterations apart, after invalid curvature, and for final certification.
+Only accepted displacements and unweighted score differences update BFGS.
+Final uncertainty always uses clean exact AI; final `InfMat` retains its
+exact AI/diagonal-blend semantics, including when the iteration budget expires.
+
+Intermediate exact refreshes omit model-fixed sensitivity solves, while retaining
+full assembly buffers and full final information. Tied `vcc` fits explicitly
+remain exact (`engineDiagnostics$hybridAI$fallbackReason = "constraint-map"`).
+Reduced tied-coordinate assembly and sparse-RHS reach are not implemented here.
+PCG, direct inversion, latent RR, PQL, solve-only and factor-score augmentation
+reject hybrid requests. Information opt-out and common-scale profiling remain
+deferred; `computeCi=0` does not opt out of covariance information.
+Diagnostics expose actual and skipped sensitivity columns, refreshes, updates,
+resets and final certification. No general speedup is claimed.
+
+Validation: the isolated candidate passes 216 test blocks with zero failures or
+errors and three skips (CUDA hardware and two unavailable BLAS-controller tests).
+Small-sample Wald/KR tests were enabled. Default mode preserves all 15 compared
+output fields bit-for-bit across 24 AR1, US, diagonal, FA, RR and SAR cases covering
+LDLT/CHOLMOD and REML/ML. Hybrid tests compare final scores and AI against independent
+dense formulas, reported-scale covariance uncertainty against exact same-point
+evaluation, fixed-direction proposals, tied constraints, backtracking, iteration
+limits, coefficient-inverse modes, covariance SE and Wald/KR consumers.
+
+Paired measurements use `benchmarks/benchmark_hybrid_ai.R`, one warmup per mode,
+five alternating paired repetitions, one requested OpenMP thread and single-thread
+BLAS environment settings. All fits converge at `tolParConvLL=1e-10` and
+`tolParConvNorm=1e-5`. The target is US covariance with 12 levels, 1000 IDs,
+two replicates and 79 covariance parameters, without a relationship matrix.
+Exact sensitivity plus AI-assembly work accounts for 78% of profiled native time.
+Median REML time is 4.180 s exact versus 1.697 s hybrid; sensitivity RHS columns
+fall from 2054 to 474, with 26 accepted iterations in both modes. ML medians are
+3.892 s versus 1.562 s. The 6-level, 30-ID sparse/dense relationship controls
+also converge, but have much smaller gains. Across all paired cases, maximum
+absolute likelihood difference is 7.57e-8; maximum relative parameter,
+coefficient and uncertainty differences are 4.90e-5, 1.53e-5 and 5.67e-6.
+
+Three fresh-process alternating pairs against the preserved pre-change build
+give REML medians 4.155 s versus 1.699 s (2.45x), with peak RSS medians
+480.5 MiB versus 447.4 MiB. RSS includes loading, warmup and the timed fit.
+These results are fixture-specific, not automatic admission rules. Tighter
+relative-step tolerances on the large fixture can stall at likelihood roundoff;
+hybrid correctly returns `convergence=FALSE` and exact final information when
+the requested certification does not pass. Tolerances are never relaxed by the
+optimizer. A larger dense-relationship timing run was stopped after sampling
+identified selected-inverse trace preparation as dominant; it is not counted
+as a completed benchmark. Logs, paired rows and RSS measurements are retained
+in `/tmp/sommer-hybrid-ai.ZgvqBD`.
+
+Further work requires profiling before adding sparse sensitivity directions or
+an SR1/L-BFGS alternative. Separately define an explicit covariance-information
+opt-out if callers can accept reduced public output. Common-scale profiling is
+a later model reparameterization requiring fixed/free, constraint, and uncertainty rules.
 
 **Potential win:** fewer sensitivity solves when free covariance parameters dominate runtime. Little gain when numeric factorization dominates. Quasi-Newton changes optimizer behavior; information opt-out and profiling alter output contracts.
 
@@ -276,7 +338,81 @@ Only after profiling, consider sparse sensitivity directions or safeguarded SR1/
 
 ### Rank 6: Saddle-Point Formulation
 
-Compare an augmented system retaining `W` and `R` with normal-equation assembly `C = W' R^-1 W + G^-1`. The augmented system may avoid some products, but it is indefinite and needs MINRES/SQMR plus block preconditioning.
+The first exact prototype is available through
+`mmes_control(experimental=list(saddlePoint="force"))`; default and `"auto"`
+remain inactive. `mme_saddle.h` owns pivoted sparse LU of the symmetric
+augmented equations, without adding a dependency. `mme_exact.h` owns reusable,
+backend-independent exact trace contractions and final normal-equation assembly.
+This is an exact direct feasibility implementation, not MINRES/SQMR.
+
+With the existing weight transform `T=Hs'`, design `A=T W`, and prior
+`Q=diag(0,G^-1)`, factor `[R0 A; A' -Q]`. Its coefficient inverse block is
+`-C^-1`, and `log|det K|=log|R0|+log|C|`. ML uses a separate random-only
+augmented factor for its determinant and traces. Exact AI sensitivity solves,
+score traces, acceptance, constraints, and covariance uncertainty are retained.
+Common residual scale traces reuse `tr(P V)=n-p`; shape traces use bounded
+observation panels. No normal-equation cross-products or global precision-design
+matrix are formed during fitting.
+
+Compatibility milestone E1 materializes final `C` once, including for mode 0.
+Modes 1/2, predictions, post-fit inverse extraction, and save/reload keep the
+existing object contract. Mode 1 uses the Eigen selected subset; its pattern
+can differ from CHOLMOD, while every retained entry and PEV diagonal remains exact.
+This is not a C-free fitted-object path.
+
+Scope: Gaussian Henderson REML/ML, multiple positive-definite random terms,
+sparse/dense relationships, fixed/tied parameters, diagonal, repeated-block and
+explicit sparse residuals, and weights. Compact grid/ragged layouts, latent RR,
+PQL, solve-only, rotation, acceleration, and factor-score augmentation are
+explicitly rejected. LU fill is pivot-dependent and not capped by the dense
+workspace budget. Matrix-free indefinite iterations, specialized symmetric
+indefinite factors, C-free objects, and automatic admission remain deferred.
+
+Reproduction: `benchmarks/validate_saddle.R` compares preserved baseline default
+outputs, same-fit exact outputs, and alternating paired converged fits. Native
+algebra tests independently check augmented solves, determinants, symbolic
+reuse, panel contractions and invalid inputs; R tests also compare marginal
+dense likelihood, score and AI formulas.
+
+#### First-prototype validation (2026-10-16)
+
+The isolated current-source build passes 226 test blocks with zero failures,
+errors, or testthat warnings, and three skips (CUDA hardware and two unavailable
+BLAS-controller checks). Saddle-specific tests cover independent marginal
+likelihood/score/AI formulas, fixed/tied coordinates, multiple random terms,
+weighted and repeated residuals, inverse modes, save/reload, prediction,
+covariance SE, Satterthwaite/KR, and emmeans. Windows compilation is unverified.
+
+Across 108 cases (six fixtures, auto/LDLT/CHOLMOD, REML/ML, and modes 0/1/2),
+all 15 compared default output fields are bit-for-bit identical to the preserved
+pre-change installation, including the pre-existing uncommitted hybrid-AI work.
+All paired fits converge. Maximum relative fitted-output difference is
+1.33e-12; selected mode-1 diagonals are compared across backends, and every
+retained selected entry is checked independently against the full inverse.
+Selected inverse sparsity patterns are not asserted equal.
+
+The benchmark has one warmup per backend and three alternating paired repetitions
+per solver/likelihood/fixture, totaling 216 timed fits at `computeCi=0`.
+Fixtures use 30 IDs, six levels, and two replicates (360 records), including
+identity/sparse/dense relationships, repeated AR1 residuals, and diagonal/sparse
+non-diagonal weights. OpenMP and BLAS environment settings request one thread;
+these are not measured thread-utilization assertions.
+
+No tested auto-dispatch fixture meets the proposed 1.2x speed threshold. REML
+median seconds, default versus saddle: iid 0.007 versus 0.042; dense relationship
+0.008 versus 0.020; repeated AR1 residual 0.012 versus 0.241; sparse non-diagonal
+weights 0.203 versus 0.213. Small timings are screening evidence, not precise
+latency estimates. Three alternating fresh-process pairs for the weighted
+fixture give median peak RSS 255.2 versus 259.8 MiB and median fit times 0.207
+versus 0.218 seconds. RSS includes loading and warmup. Maximum augmented
+relative solve residual in those processes is 1.21e-14.
+
+The existing phase-0 screen also shows that trace preparation, score traces and
+AI often dominate the larger fixtures. Avoiding normal-equation assembly alone
+does not remove those costs. The prototype is a correctness and modularity
+milestone, not a validated acceleration. Stop here: no automatic dispatch,
+new external indefinite solver, MINRES, or C-free object changes are justified
+by these measurements.
 
 **Potential win:** unknown. Better conditioning or lower fill is not guaranteed; uncertainty and prediction extraction may erase solver savings.
 

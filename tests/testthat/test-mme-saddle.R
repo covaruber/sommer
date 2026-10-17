@@ -1,0 +1,279 @@
+.saddle_dataset <- function(){
+  set.seed(892)
+  dataset <- expand.grid(id=factor(seq_len(8L)), level=factor(seq_len(3L)),
+                         replicate=seq_len(3L))
+  dataset$response <- as.integer(dataset$level) / 4 +
+    rep(rnorm(8L), 9L) + rnorm(nrow(dataset), sd=0.6)
+  dataset
+}
+
+.saddle_at <- function(setup, saddle=FALSE, mode=0L){
+  attr(setup$covStruct, "saddlePoint") <- if(saddle) "force" else "off"
+  sommer:::ai_mme_sp2(setup$X, setup$Z, setup$Zind, setup$Ai, setup$yvar,
+    setup$W, setup$useH, setup$residualBlock, setup$residualIndex,
+    1L, setup$tolParConvLL, setup$tolParConvNorm, setup$tolParInv,
+    setup$covStruct, 0, 1, FALSE, computeCi=mode, solver=setup$solver,
+    reml=setup$REML)
+}
+
+test_that("augmented numerical identities pass standalone native checks", {
+  root <- test_path("..", "..")
+  source <- file.path(root, "tests", "native", "test-mme-saddle.cpp")
+  headers <- file.path(root, "src", c("mme_saddle.h", "mme_exact.h"))
+  skip_if(!all(file.exists(c(source, headers))),
+    "Native checks require the package source tree")
+  compiler <- Sys.which("c++")
+  skip_if(!nzchar(compiler), "C++ compiler unavailable")
+  binary <- tempfile("sommer-saddle-")
+  on.exit(unlink(binary), add=TRUE)
+  includes <- system.file("include", package="RcppEigen")
+  output <- system2(compiler, c("-std=c++11", "-w",
+    paste0("-I", shQuote(includes)), shQuote(source), "-o", shQuote(binary)),
+    stdout=TRUE, stderr=TRUE)
+  expect_null(attr(output, "status"), info=paste(output, collapse="\n"))
+  if(!file.exists(binary)) return(invisible(NULL))
+  output <- system2(binary, stdout=TRUE, stderr=TRUE)
+  expect_null(attr(output, "status"), info=paste(output, collapse="\n"))
+})
+
+test_that("saddle controls are opt-in and reject unsupported routes", {
+  expect_equal(mmes_control()$experimental$saddlePoint, "off")
+  expect_equal(mmes_control(saddlePoint=TRUE)$experimental$saddlePoint, "force")
+  expect_equal(sommer:::.merge_mmes_control(saddlePoint=TRUE)$experimental$saddlePoint, "force")
+  expect_equal(sommer:::.merge_mmes_control(engine=mmes_control(),
+    experimental=list(saddlePoint=TRUE))$experimental$saddlePoint, "force")
+  expect_equal(sommer:::.merge_mmes_control(engine=mmes_control(),
+    saddlePoint=TRUE)$experimental$saddlePoint, "force")
+  dataset <- .saddle_dataset()
+  model <- function(...){
+    mmes(response~level, random=~id, data=dataset,
+      engine=mmes_control(experimental=list(saddlePoint="force")),
+      blendWeight=0, verbose=FALSE, dateWarning=FALSE, ...)
+  }
+  expect_error(model(solver="pcg"), "saddlePoint")
+  expect_error(model(henderson=FALSE), "saddlePoint")
+  expect_error(model(solveOnly=TRUE), "saddlePoint")
+  expect_error(model(acceleration="hybrid-ai"), "saddlePoint")
+  expect_error(model(family=poisson()), "saddlePoint")
+  expect_error(model(factorScoreAugmentation="fixed-shape"), "saddlePoint")
+  expect_error(model(.internal=list(pqlInner=TRUE)), "saddlePoint")
+  setup <- mmes(response~level, random=~id, data=dataset, returnParam=TRUE,
+    blendWeight=0, verbose=FALSE, dateWarning=FALSE)
+  reference <- .saddle_at(setup)
+  attr(setup$covStruct, "saddlePoint") <- "auto"
+  auto <- sommer:::ai_mme_sp2(setup$X, setup$Z, setup$Zind, setup$Ai, setup$yvar,
+    setup$W, setup$useH, setup$residualBlock, setup$residualIndex,
+    1L, setup$tolParConvLL, setup$tolParConvNorm, setup$tolParInv,
+    setup$covStruct, 0, 1, FALSE, solver=setup$solver)
+  expect_identical(auto$bu, reference$bu)
+  expect_null(auto$engineDiagnostics$saddlePoint)
+  expect_error(mmes(response~level,
+    random=~vsm(rrm(level, 1L), ism(id)), data=dataset,
+    blendWeight=0, engine=mmes_control(saddlePoint=TRUE), verbose=FALSE, dateWarning=FALSE),
+    "reduced rank")
+})
+
+test_that("exact saddle fits preserve same-point outputs across direct backends", {
+  dataset <- .saddle_dataset()
+  fields <- c("llik", "bu", "C", "covPar", "InfMat", "dLu", "theta_se")
+  for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
+    for(relationship in c("none", "sparse", "dense")){
+      random <- ~vsm(usm(level), ism(id))
+      if(relationship != "none"){
+        precision <- if(relationship == "dense") diag(8L) + matrix(0.05, 8L, 8L) else
+          Matrix::bandSparse(8L, k=c(-1L, 0L, 1L),
+            diagonals=list(rep(-0.1, 7L), rep(1, 8L), rep(-0.1, 7L)))
+        dimnames(precision) <- list(levels(dataset$id), levels(dataset$id))
+        attr(precision, "inverse") <- TRUE
+        random <- ~vsm(usm(level), ism(id), Gu=precision)
+      }
+      setup <- mmes(response~level, random=random, data=dataset, returnParam=TRUE,
+        solver=solver, REML=reml, blendWeight=0, verbose=FALSE, dateWarning=FALSE)
+      reference <- .saddle_at(setup)
+      candidate <- .saddle_at(setup, TRUE)
+      for(field in fields){
+        expect_equal(candidate[[field]], reference[[field]], tolerance=1e-8,
+          info=paste(solver, reml, relationship, field))
+      }
+      diagnostic <- candidate$engineDiagnostics$saddlePoint
+      expect_true(diagnostic$active)
+      expect_equal(diagnostic$normalEquationAssemblies, 0L)
+      expect_equal(diagnostic$compatibilityAssemblies, 1L)
+      expect_lte(diagnostic$maxRelativeResidual, 1e-10)
+      expect_equal(candidate$engineDiagnostics$CsymbolicAnalyses, 0L)
+    }
+  }
+})
+
+test_that("saddle likelihood score and AI match independent dense marginal formulas", {
+  dataset <- .saddle_dataset()
+  for(reml in c(TRUE, FALSE)){
+    setup <- mmes(response~level, random=~id, data=dataset, returnParam=TRUE,
+      REML=reml, blendWeight=0, verbose=FALSE, dateWarning=FALSE)
+    fit <- .saddle_at(setup, TRUE, 2L)
+    X <- as.matrix(setup$X)
+    Z <- as.matrix(setup$Z[[1L]])
+    y <- as.numeric(fit$yWorking)
+    scale <- fit$Cscale
+    su <- as.numeric(fit$covPar[[1L]]) / scale
+    se <- as.numeric(fit$covPar[[2L]]) / scale
+    derivatives <- list(su * tcrossprod(Z), se * diag(nrow(X)))
+    V <- derivatives[[1L]] + derivatives[[2L]]
+    Vi <- solve(V)
+    fixed <- crossprod(X, Vi %*% X)
+    P <- Vi - Vi %*% X %*% solve(fixed, t(X) %*% Vi)
+    Py <- P %*% y
+    quadratic <- as.numeric(crossprod(y, Py))
+    likelihood <- -0.5 * (as.numeric(determinant(V, logarithm=TRUE)$modulus) +
+      if(reml) as.numeric(determinant(fixed, logarithm=TRUE)$modulus) else 0)
+    likelihood <- likelihood - 0.5 * quadratic
+    expect_equal(as.numeric(fit$llik), likelihood, tolerance=1e-8)
+    score <- vapply(derivatives, function(derivative){
+      as.numeric(crossprod(Py, derivative %*% Py)) -
+        sum(diag((if(reml) P else Vi) %*% derivative))
+    }, numeric(1))
+    working <- do.call(cbind, lapply(derivatives, function(derivative) derivative %*% Py))
+    twiceAI <- crossprod(working, P %*% working)
+    expect_equal(as.numeric(fit$dLu), -score, tolerance=1e-7)
+    expect_equal(unname(fit$InfMat), unname(twiceAI), tolerance=1e-7)
+  }
+})
+
+test_that("weighted and repeated residual blocks retain exact saddle derivatives", {
+  dataset <- .saddle_dataset()
+  for(weight in c("none", "diagonal", "nondiagonal")){
+    for(reml in c(TRUE, FALSE)){
+      arguments <- list(fixed=response~level, random=~id,
+        rcov=~vsm(ar1m(level, rho=0.3), ism(units)), data=dataset,
+        returnParam=TRUE, REML=reml, blendWeight=0, verbose=FALSE, dateWarning=FALSE)
+      if(weight != "none"){
+        arguments$W <- if(weight == "diagonal") diag(seq(0.7, 1.3, length.out=nrow(dataset))) else
+          Matrix::bandSparse(nrow(dataset), k=c(-1L, 0L, 1L),
+            diagonals=list(rep(0.05, nrow(dataset)-1L), rep(1.2, nrow(dataset)),
+                           rep(0.05, nrow(dataset)-1L)))
+      }
+      setup <- do.call(mmes, arguments)
+      reference <- .saddle_at(setup)
+      candidate <- .saddle_at(setup, TRUE)
+      for(field in c("llik", "bu", "C", "dLu", "InfMat", "theta_se")){
+        expect_equal(candidate[[field]], reference[[field]], tolerance=1e-7,
+          info=paste(weight, reml, field))
+      }
+    }
+  }
+})
+
+test_that("saddle convergence and coefficient inverse modes preserve post-fit consumers", {
+  dataset <- .saddle_dataset()
+  model <- function(saddle, mode, reml=TRUE){
+    mmes(response~level, random=~id, data=dataset, computeCi=mode, REML=reml,
+      engine=mmes_control(experimental=list(saddlePoint=if(saddle) "force" else "off")),
+      blendWeight=0,
+      nIters=60L, tolParConvLL=1e-10, tolParConvNorm=1e-8,
+      verbose=FALSE, dateWarning=FALSE)
+  }
+  for(reml in c(TRUE, FALSE)) for(mode in 0:2){
+    reference <- model(FALSE, mode, reml)
+    candidate <- model(TRUE, mode, reml)
+    expect_equal(candidate$convergence, reference$convergence)
+    expect_true(candidate$convergence)
+    for(field in c("llik", "covPar", "bu", "theta_se", "Ci", "uPevList")){
+      expect_equal(candidate[[field]], reference[[field]], tolerance=1e-6,
+        info=paste(reml, mode, field))
+    }
+    expect_equal(candidate$engineDiagnostics$saddlePoint$compatibilityAssemblies, 1L)
+    expect_lte(candidate$engineDiagnostics$saddlePoint$symbolicAnalyses, if(reml) 1 else 2)
+    D <- Matrix::Diagonal(length(candidate$bu))[1:3, , drop=FALSE]
+    expect_equal(sommer:::predict_mmes_vcov_cpp(candidate, D),
+                 sommer:::predict_mmes_vcov_cpp(reference, D), tolerance=1e-6)
+    saved <- tempfile(fileext=".rds")
+    saveRDS(candidate, saved)
+    restored <- readRDS(saved)
+    unlink(saved)
+    expect_equal(sommer:::predict_mmes_vcov_cpp(restored, D),
+                 sommer:::predict_mmes_vcov_cpp(candidate, D), tolerance=1e-12)
+  }
+})
+
+test_that("saddle supports fixed and tied parameters and models without random effects", {
+  dataset <- .saddle_dataset()
+  for(reml in c(TRUE, FALSE)){
+    setup <- mmes(response~level, data=dataset, REML=reml, returnParam=TRUE,
+      blendWeight=0, verbose=FALSE, dateWarning=FALSE)
+    reference <- .saddle_at(setup)
+    candidate <- .saddle_at(setup, TRUE)
+    for(field in c("llik", "bu", "dLu", "InfMat", "theta_se")){
+      expect_equal(candidate[[field]], reference[[field]], tolerance=1e-8)
+    }
+  }
+  for(tied in c(FALSE, TRUE)){
+    model <- function(saddle){
+      mmes(response~level, random=~vsm(dsm(level), ism(id)), data=dataset,
+        blendWeight=0,
+        vcc=if(tied) data.frame(parameter=c(2L, 3L), group=1L) else NULL,
+        nIters=3L, engine=mmes_control(saddlePoint=saddle),
+        verbose=FALSE, dateWarning=FALSE)
+    }
+    if(!tied){
+      # Fixed descriptor coordinates still contribute exact final information.
+      setup <- mmes(response~level, random=~vsm(ar1m(level, rho=0.3, fixed=TRUE), ism(id)),
+        data=dataset, blendWeight=0, returnParam=TRUE, verbose=FALSE, dateWarning=FALSE)
+      reference <- .saddle_at(setup)
+      candidate <- .saddle_at(setup, TRUE)
+    }else{
+      reference <- model(FALSE)
+      candidate <- model(TRUE)
+    }
+    for(field in c("llik", "bu", "dLu", "InfMat", "theta_se")){
+      expect_equal(candidate[[field]], reference[[field]], tolerance=1e-7)
+    }
+  }
+})
+
+test_that("saddle rejects compact grids rather than materializing hidden covariance fill", {
+  dataset <- expand.grid(trial=factor(1:2), row=factor(1:3), column=factor(1:3))
+  dataset <- dataset[-1L, ]
+  dataset$response <- sin(seq_len(nrow(dataset)))
+  expect_error(mmes(response~trial,
+    rcov=~vsm(ar1m(row), ar1m(column), ism(units)), data=dataset,
+    blendWeight=0,
+    engine=mmes_control(saddlePoint=TRUE), verbose=FALSE, dateWarning=FALSE),
+    "grid/ragged")
+})
+
+test_that("saddle retains multiple-term covariance SE and small-sample inference", {
+  skip_on_cran()
+  data(DT_yatesoats, package="enhancer", envir=environment())
+  model <- function(saddle){
+    mmes(Y~V*N, random=~B+B:MP, data=DT_yatesoats,
+      nIters=100L, tolParConvLL=1e-12, tolParConvNorm=1e-10,
+      blendWeight=0,
+      engine=mmes_control(saddlePoint=saddle), verbose=FALSE, dateWarning=FALSE)
+  }
+  reference <- model(FALSE)
+  candidate <- model(TRUE)
+  expect_true(candidate$convergence)
+  expect_equal(covparams_mmes_se(candidate), covparams_mmes_se(reference), tolerance=1e-7)
+  for(method in c("satterthwaite", "kr")){
+    expect_equal(wald_mmes(candidate, denDF=method), wald_mmes(reference, denDF=method),
+      tolerance=1e-6)
+  }
+})
+
+test_that("saddle prediction and emmeans preserve their public coefficient contract", {
+  dataset <- .saddle_dataset()
+  model <- function(saddle){
+    mmes(response~level, random=~id, data=dataset, nIters=40L,
+      blendWeight=0,
+      engine=mmes_control(saddlePoint=saddle), verbose=FALSE, dateWarning=FALSE)
+  }
+  reference <- model(FALSE)
+  candidate <- model(TRUE)
+  for(classify in c("level", "id")){
+    expect_equal(predict(candidate, D=classify)$pvals, predict(reference, D=classify)$pvals,
+      tolerance=1e-7)
+  }
+  skip_if_not_installed("emmeans")
+  expect_equal(as.data.frame(emmeans::emmeans(candidate, ~level)),
+    as.data.frame(emmeans::emmeans(reference, ~level)), tolerance=1e-7)
+})

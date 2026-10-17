@@ -30,7 +30,7 @@ d <- data.frame(x = rnorm(60), g = factor(rep(1:12, each = 5)))
 d$n <- sample(5:10, 60, TRUE)
 d$s <- rbinom(60, d$n, plogis(0.3 * d$x))
 fit <- mmes(binm(s, trials = n) ~ x, random = ~ g, data = d,
-            family = binomial(), verbose = FALSE)
+            family = binomial(), blendWeight = 0, verbose = FALSE)
 fit$b
 }
 \keyword{models}

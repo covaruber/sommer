@@ -101,7 +101,8 @@ spatial_dsumm <- ~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial)
 test_that("dsumm() estimates section-specific parameters exactly", {
   dat <- sectioned_trials(7)
   fitFor <- function(henderson){
-    mmes(y ~ trial, rcov=spatial_dsumm, data=dat, nIters=40,
+    mmes(y ~ trial, rcov=spatial_dsumm, data=dat, nIters=80, blendWeight=0,
+         tolParConvLL=1e-10, tolParConvNorm=1e-10,
          verbose=FALSE, henderson=henderson)
   }
   grid <- fitFor(TRUE)
@@ -145,7 +146,7 @@ test_that("dsumm(levels=) gives unlisted sections an iid residual", {
   fitFor <- function(henderson){
     mmes(y ~ trial,
          rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial, levels=c("A", "B")),
-         data=dat, nIters=80, tolParConvLL=1e-10, tolParConvNorm=1e-10,
+         data=dat, nIters=80, tolParConvLL=1e-12, tolParConvNorm=1e-12,
          verbose=FALSE, henderson=henderson)
   }
   grid <- fitFor(TRUE)

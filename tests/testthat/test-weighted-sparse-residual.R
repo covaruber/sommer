@@ -27,13 +27,13 @@ test_that("sparse non-diagonal weights preserve diagonal-residual fits", {
                                     simplify=FALSE))
   sparse <- suppressMessages(mmes(y~1, random=~id, rcov=~units, data=data,
                                   W=weights, nIters=3, solver="ldlt",
-                                  verbose=FALSE, dateWarning=FALSE))
+                                  blendWeight=20, verbose=FALSE, dateWarning=FALSE))
   expect_equal(unname(unlist(sparse$theta)),
-               c(0.1532013323059318, 1.0711724582035496), tolerance=1e-8)
+               c(0.141923343971598, 1.24385475608586), tolerance=1e-8)
   expect_equal(head(as.numeric(sparse$bu), 5L),
-               c(0.21835699494394373, 0.09423111073305052,
-                 -0.19829464766940430, -0.30130806010703842,
-                 0.02750949952965763), tolerance=1e-8)
+               c(0.218356994943944, 0.0792772728361476,
+                 -0.16682663255206, -0.253492515401901,
+                 0.0231439286116111), tolerance=1e-8)
 })
 
 test_that("weights formula declares independent blocks without changing the fit", {
@@ -114,7 +114,7 @@ test_that("PCG retains off-diagonal weighted residual derivative traces", {
     matrix(c(1.4, -0.2, -0.2, 1.4), 2L), simplify=FALSE))
   fit <- function(solver){
     suppressMessages(mmes(y~1, random=~id, rcov=~units, data=data,
-      W=weights, nIters=3, solver=solver, pcgTraceProbes=512,
+      W=weights, nIters=3, solver=solver, pcgTraceProbes=512, blendWeight=0,
       pcgLanczosSteps=40, computeCi=if(solver == "pcg") 2 else 0,
       verbose=FALSE, dateWarning=FALSE))
   }
@@ -133,14 +133,15 @@ test_that("batched irregular weighted residual assembly preserves REML and ML", 
   weights <- Matrix::bdiag(replicate(40L,
     matrix(c(1.4, -0.2, -0.2, 1.4), 2L), simplify=FALSE))
   reference <- list(
-    c(0.117592930734105, 1.03075080183896, -0.467457634944157, 0.929889253815438),
-    c(0.112735152698391, 1.01003588929121, -0.451567555673451, 0.927177476757712)
+    c(0.223291894770803, 1.30307957166026, -0.829268180618696, 0.483128144582169),
+    c(0.220896144065077, 0.65129496259526, -0.683012787315524, 0.731017895495925)
   )
-  likelihood <- c(-54.9015401677679, -51.2584732333244)
+  likelihood <- c(-52.34982835241, -55.4451301835064)
   for(index in seq_along(reference)){
     fit <- suppressMessages(mmes(y~env, random=~id,
       rcov=~vsm(usm(env), ism(units)), data=data, W=weights,
       nIters=3, solver="ldlt", REML=index == 1L,
+      blendWeight=if(index == 1L) 20 else 0,
       verbose=FALSE, dateWarning=FALSE))
     expect_equal(unname(unlist(fit$covPar)), reference[[index]], tolerance=1e-8)
     expect_equal(tail(as.numeric(fit$llik), 1L), likelihood[index], tolerance=1e-8)

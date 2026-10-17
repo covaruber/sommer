@@ -15,7 +15,7 @@ test_that("latent heterogeneous/homogeneous FA Schur preserves AI trajectories a
         random=~vsm(shape, ism(id), Gu=precision) +
           vsm(dsm(environment), ism(replicate)) + vsm(ism(id)),
         rcov=~vsm(dsm(environment), ism(units)), data=dataset,
-        solver=solver, nIters=4L, computeCi=inverseMode,
+        solver=solver, nIters=4L, computeCi=inverseMode, blendWeight=0,
         getPEV=inverseMode > 0L, verbose=FALSE, dateWarning=FALSE)
     }
     reference <- fitModel("ldlt")
@@ -54,7 +54,7 @@ test_that("latent Schur handles multiple random terms, diagonal weights and miss
         random=~vsm(fam(environment, 2L), ism(id), Gu=precision) +
           vsm(secondShape, ism(replicate)),
         rcov=~vsm(dsm(environment), ism(units)), data=dataset, W=weightMatrix,
-        solver=solver, nIters=4L, computeCi=2L, getPEV=FALSE,
+        solver=solver, nIters=4L, computeCi=2L, getPEV=FALSE, blendWeight=0,
         verbose=FALSE, dateWarning=FALSE)
     }
     reference <- fitModel("ldlt")
@@ -79,7 +79,7 @@ test_that("latent Schur rejects incompatible residuals, ML and near-boundary spe
   attr(precision, "inverse") <- TRUE
   fitModel <- function(shape, residual=~units, reml=TRUE, solver="cholmod"){
     mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision),
-      rcov=residual, data=dataset, solver=solver, nIters=2L, computeCi=0L,
+      rcov=residual, data=dataset, solver=solver, nIters=2L, computeCi=0L, blendWeight=0,
       getPEV=FALSE, REML=reml, verbose=FALSE, dateWarning=FALSE)
   }
   shape <- fam(dataset$environment, 1L)
@@ -97,17 +97,17 @@ test_that("latent Schur rejects incompatible residuals, ML and near-boundary spe
   on.exit(options(previousMultiFactor), add=TRUE)
   extraFactorDefault <- mmes(response~environment,
     random=~vsm(fam(environment, 1L), dsm(replicate), ism(id), Gu=precision),
-    data=dataset, solver="cholmod", nIters=2L, computeCi=0L, getPEV=FALSE,
+    data=dataset, solver="cholmod", nIters=2L, computeCi=0L, getPEV=FALSE, blendWeight=0,
     verbose=FALSE, dateWarning=FALSE)
   expect_false(extraFactorDefault$engineDiagnostics$factorSchurActive)
   options(sommer.mme.factorSchurMultiFactor=TRUE)
   extraFactor <- mmes(response~environment,
     random=~vsm(fam(environment, 1L), dsm(replicate), ism(id), Gu=precision),
-    data=dataset, solver="cholmod", nIters=2L, computeCi=0L, getPEV=FALSE,
+    data=dataset, solver="cholmod", nIters=2L, computeCi=0L, getPEV=FALSE, blendWeight=0,
     verbose=FALSE, dateWarning=FALSE)
   extraFactorReference <- mmes(response~environment,
     random=~vsm(fam(environment, 1L), dsm(replicate), ism(id), Gu=precision),
-    data=dataset, solver="ldlt", nIters=2L, computeCi=0L, getPEV=FALSE,
+    data=dataset, solver="ldlt", nIters=2L, computeCi=0L, getPEV=FALSE, blendWeight=0,
     verbose=FALSE, dateWarning=FALSE)
   expect_true(extraFactor$engineDiagnostics$factorSchurActive)
   for(component in c("llik", "theta", "bu", "InfMat", "dLu", "theta_se")){
@@ -140,14 +140,14 @@ test_that("latent Schur supports a low-rank axis at any position in longer produ
     ~vsm(dsm(site), fam(environment, 1L), dsm(block), ism(id), Gu=relationship),
     ~vsm(dsm(site), dsm(block), fam(environment, 1L), ism(id), Gu=relationship))
   default <- mmes(response~site+environment+block, random=randomModels[[1L]],
-    rcov=~units, data=dataset, solver="cholmod", nIters=2L,
+    rcov=~units, data=dataset, solver="cholmod", nIters=2L, blendWeight=0,
     computeCi=0L, getPEV=FALSE, verbose=FALSE, dateWarning=FALSE)
   expect_false(default$engineDiagnostics$factorSchurActive)
   options(sommer.mme.factorSchurMultiFactor=TRUE)
   for(position in seq_along(randomModels)){
     fitModel <- function(solver){
       mmes(response~site+environment+block, random=randomModels[[position]],
-        rcov=~units, data=dataset, solver=solver, nIters=3L,
+        rcov=~units, data=dataset, solver=solver, nIters=3L, blendWeight=0,
         computeCi=0L, getPEV=FALSE, verbose=FALSE, dateWarning=FALSE)
     }
     latent <- fitModel("cholmod")

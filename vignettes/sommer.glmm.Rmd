@@ -39,7 +39,8 @@ fit <- mmes(
   random = ~ subject,
   rcov = ~ units,
   data = dat,
-  family = binomial()
+  family = binomial(),
+  blendWeight = 0
 )
 ```
 
@@ -96,7 +97,8 @@ fit <- mmes(
   random = ~ vsm(usm(environment), ism(genotype)),
   rcov = ~ units,
   data = dat,
-  family = poisson()
+  family = poisson(),
+  blendWeight = 0
 )
 ```
 
@@ -111,7 +113,8 @@ fit <- mmes(
   random = ~ site,
   rcov = ~ units,
   data = dat,
-  family = poisson()
+  family = poisson(),
+  blendWeight = 0
 )
 ```
 
@@ -168,7 +171,7 @@ probability <- plogis(-0.7 + 1.1 * dat$x)
 dat$y_binomial <- rbinom(nrow(dat), size = 1, prob = probability)
 fit_binomial <- mmes(
   y_binomial ~ x, random = ~ group, rcov = ~ units, data = dat,
-  family = binomial()
+  family = binomial(), blendWeight = 0
 )
 ```
 
@@ -180,7 +183,7 @@ dat$y_poisson <- rpois(nrow(dat), lambda = rate)
 fit_poisson <- mmes(
   y_poisson ~ x + offset(log(exposure)),
   random = ~ group, rcov = ~ units, data = dat,
-  family = poisson()
+  family = poisson(), blendWeight = 0
 )
 ```
 
@@ -193,7 +196,7 @@ mean_gamma <- exp(0.3 + 0.25 * dat$x)
 dat$y_gamma <- rgamma(nrow(dat), shape = 4, scale = mean_gamma / 4)
 fit_gamma <- mmes(
   y_gamma ~ x, random = ~ group, rcov = ~ units, data = dat,
-  family = Gamma(link = "log")
+  family = Gamma(link = "log"), blendWeight = 0
 )
 ```
 
@@ -206,7 +209,7 @@ response below is positive synthetic data for demonstrating the interface.
 dat$y_inverse_gaussian <- exp(0.2 + 0.3 * dat$x + rnorm(nrow(dat), sd = 0.2))
 fit_inverse_gaussian <- mmes(
   y_inverse_gaussian ~ x, random = ~ group, rcov = ~ units, data = dat,
-  family = inverse.gaussian(link = "log")
+  family = inverse.gaussian(link = "log"), blendWeight = 0
 )
 ```
 
@@ -221,18 +224,18 @@ such as AIC or likelihood-ratio tests are not appropriate.
 dat$y_quasi <- 1 + 0.5 * dat$x + rnorm(nrow(dat), sd = 0.5)
 fit_quasi <- mmes(
   y_quasi ~ x, random = ~ group, rcov = ~ units, data = dat,
-  family = quasi(link = "identity", variance = "constant")
+  family = quasi(link = "identity", variance = "constant"), blendWeight = 0
 )
 
 fit_quasibinomial <- mmes(
   y_binomial ~ x, random = ~ group, rcov = ~ units, data = dat,
-  family = quasibinomial()
+  family = quasibinomial(), blendWeight = 0
 )
 
 fit_quasipoisson <- mmes(
   y_poisson ~ x + offset(log(exposure)),
   random = ~ group, rcov = ~ units, data = dat,
-  family = quasipoisson()
+  family = quasipoisson(), blendWeight = 0
 )
 ```
 
@@ -254,9 +257,10 @@ fit_poisson$family
 ```
 
 Use `pqlControl` to set the outer PQL maximum iterations and relative
-devience tolerance. The usual `nIters`, `tolParConvLL`, `stepWeight`,
-`emWeight`, and solver arguments continue to control the Gaussian
-variance-component fit inside each outer iteration.
+deviance tolerance. Set `blendWeight = 0` to retain the pure-AI covariance
+updates used by PQL; positive EM-direction blending is not supported for PQL.
+The usual `nIters`, `tolParConvLL`, `stepWeight`, and solver arguments continue
+to control the Gaussian variance-component fit inside each outer iteration.
 
 ```{r pql-control, eval=FALSE}
 fit <- mmes(
@@ -265,6 +269,7 @@ fit <- mmes(
   rcov = ~ units,
   data = dat,
   family = poisson(),
+  blendWeight = 0,
   pqlControl = list(maxit = 30, tol = 1e-6),
   nIters = 20,
   solver = "auto"

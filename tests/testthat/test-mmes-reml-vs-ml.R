@@ -53,7 +53,8 @@ test_that("REML=FALSE with no random effects recovers the classical SSE/n MLE", 
   sse <- sum(residuals(lm(Yield~Env, data=DT))^2)
 
   fitReml <- mmes(Yield~Env, rcov=~units, data=DT, nIters=20, verbose=FALSE)
-  fitMl <- mmes(Yield~Env, rcov=~units, data=DT, nIters=20, verbose=FALSE, REML=FALSE)
+  fitMl <- mmes(Yield~Env, rcov=~units, data=DT, nIters=20, verbose=FALSE, REML=FALSE,
+    tolParConvLL=1e-10, tolParConvNorm=1e-10)
 
   expect_equal(as.numeric(fitReml$theta[[1]]), sse / (n - p), tolerance=1e-4)
   expect_equal(as.numeric(fitMl$theta[[1]]), sse / n, tolerance=1e-4)

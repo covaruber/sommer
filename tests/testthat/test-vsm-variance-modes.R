@@ -453,7 +453,7 @@ test_that("factor capabilities are label independent and spatial products have e
         sommer:::ai_mme_sp2(setup$X, setup$Z, setup$Zind, setup$Ai, setup$yvar,
           setup$W, setup$useH, setup$residualBlock, setup$residualIndex,
           setup$nIters, setup$tolParConvLL, setup$tolParConvNorm, setup$tolParInv,
-          descriptors, setup$emWeight, setup$stepWeight, FALSE,
+          descriptors, setup$blendWeight, setup$stepWeight, FALSE,
           responsePrepared = setup$responsePrepared, preparedMean = setup$preparedMean,
           preparedSd = setup$preparedSd, preparedIntercept = setup$preparedIntercept)
       }
@@ -523,4 +523,3 @@ test_that("large ANTE sparse derivative storage preserves fit outputs", {
     expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-7)
   }
 })
-

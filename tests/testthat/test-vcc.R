@@ -5,7 +5,7 @@ oatsVcc <- function(){
 
 vccFit <- function(..., henderson=TRUE){
   mmes(..., verbose=FALSE, tolParConvLL=1e-11, tolParConvNorm=1e-11, nIters=100,
-       henderson=henderson)
+       henderson=henderson, blendWeight=if(henderson) NULL else 0)
 }
 
 test_that("returnParam exposes the variance-parameter table", {

@@ -6,6 +6,36 @@
 
 namespace sommer {
 
+inline arma::vec covarianceWorkingStepCaps(const Rcpp::List & descriptors) {
+  std::vector<double> values;
+  for(int term = 0; term < descriptors.size(); ++term) {
+    const Rcpp::List descriptor = descriptors[term];
+    const arma::uword offset = values.size();
+    const arma::uword count = Rcpp::as<arma::vec>(descriptor["par"]).n_elem;
+    if(count == 0) { continue; }
+    values.resize(offset + count, 2.0);
+    values[offset] = 1.0;
+    const Rcpp::List factors = descriptor["factors"];
+    for(int axis = 0; axis < factors.size(); ++axis) {
+      const Rcpp::List factor = factors[axis];
+      const int first = Rcpp::as<int>(factor["par_start"]);
+      const int last = Rcpp::as<int>(factor["par_end"]);
+      if(last < first) { continue; }
+      const arma::vec caps = Rcpp::as<arma::vec>(factor["trust_cap"]);
+      if(caps.n_elem != static_cast<arma::uword>(last - first + 1)) {
+        Rcpp::stop("CovarianceFactor trust_cap has incompatible length.");
+      }
+      for(arma::uword j = 0; j < caps.n_elem; ++j) {
+        if(!std::isfinite(caps(j)) || caps(j) <= 0.0) {
+          Rcpp::stop("CovarianceFactor trust caps must be positive and finite.");
+        }
+        values[offset + first - 1 + j] = caps(j);
+      }
+    }
+  }
+  return arma::vec(values);
+}
+
 class CovarianceFactorEngine {
 public:
   typedef FactorPrecisionState DescriptorPrecisionState;

@@ -527,6 +527,70 @@ static inline bool eigenSpdInverse(const arma::mat & A, arma::mat & out,
 
 // Affine map between working covariance parameters and reduced parameters,
 // w = o + T phi, supplied by mmes(vcc=) as the "vcmap" attribute of covStructI.
+struct HybridAIState {
+  arma::mat metric;
+  arma::vec parameters;
+  arma::vec gradient;
+  arma::uvec free;
+  bool ready = false;
+
+  void initialize(const arma::mat & information, const arma::vec & point,
+                  const arma::vec & score, const arma::uvec & indices){
+    metric = information;
+    parameters = point;
+    gradient = score;
+    free = indices;
+    ready = free.n_elem > 0;
+    if(!ready){ return; }
+    arma::mat block = metric.submat(free, free);
+    block = 0.5 * (block + block.t());
+    arma::vec eigenvalues;
+    if(!arma::eig_sym(eigenvalues, block) || !eigenvalues.is_finite()){
+      Rcpp::stop("Unable to initialize hybrid AI curvature.");
+    }
+    const double floor = 1.0e-8 * std::max(1.0, arma::abs(eigenvalues).max());
+    if(eigenvalues.min() < floor){
+      block.diag() += floor - eigenvalues.min();
+    }
+    metric.submat(free, free) = block;
+  }
+
+  bool update(const arma::vec & point, const arma::vec & score,
+              const arma::uvec & indices){
+    if(!ready || indices.n_elem != free.n_elem || arma::any(indices != free)){
+      return false;
+    }
+    const arma::vec step = point(free) - parameters(free);
+    arma::vec change = score(free) - gradient(free);
+    if(!step.is_finite() || !change.is_finite() ||
+       arma::norm(step, 2) <= std::numeric_limits<double>::epsilon() *
+         (1.0 + arma::norm(point(free), 2))){
+      return false;
+    }
+    arma::mat block = metric.submat(free, free);
+    const arma::vec product = block * step;
+    const double predicted = arma::dot(step, product);
+    const double observed = arma::dot(step, change);
+    if(!std::isfinite(predicted) || !std::isfinite(observed) || predicted <= 0.0){
+      return false;
+    }
+    // Powell damping preserves positive curvature even away from a local minimum.
+    if(observed < 0.2 * predicted){
+      const double weight = 0.8 * predicted / (predicted - observed);
+      change = weight * change + (1.0 - weight) * product;
+    }
+    const double curvature = arma::dot(step, change);
+    if(!std::isfinite(curvature) || curvature <= 0.0){ return false; }
+    block += (change * change.t()) / curvature - (product * product.t()) / predicted;
+    block = 0.5 * (block + block.t());
+    if(!block.is_finite()){ return false; }
+    metric.submat(free, free) = block;
+    parameters = point;
+    gradient = score;
+    return true;
+  }
+};
+
 struct VarianceParameterMap {
   bool active = false;
   arma::mat T;

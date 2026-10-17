@@ -87,7 +87,8 @@ test_that("Wald tests are available for PQL fits but small-sample df are not", {
   set.seed(4)
   d <- data.frame(x=rnorm(120), g=factor(rep(1:12, each=10)))
   d$y <- rpois(120, exp(0.3 + 0.4 * d$x))
-  fit <- mmes(y~x, random=~g, data=d, family=poisson(), verbose=FALSE)
+  fit <- mmes(y~x, random=~g, data=d, family=poisson(),
+              blendWeight=0, verbose=FALSE)
   expect_true(all(is.finite(wald_mmes(fit)$p.value)))
   expect_error(wald_mmes(fit, denDF="kr"), "PQL")
 })
