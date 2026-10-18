@@ -98,7 +98,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   acceleration <- match.arg(acceleration, c("none", "aitken", "hybrid-ai"))
   factorScoreAugmentation <- match.arg(factorScoreAugmentation,
     c("none", "fixed-shape", "profile"))
-  pcgPreconditioner <- match.arg(pcgPreconditioner, c("diagonal", "nystrom"))
+  pcgPreconditioner <- match.arg(pcgPreconditioner, c("diagonal", "nystrom", "block-jacobi"))
   if(length(pcgNystromRank) != 1L || !is.finite(pcgNystromRank) ||
      pcgNystromRank < 1L || pcgNystromRank != as.integer(pcgNystromRank)){
     stop("pcgNystromRank must be one positive integer.", call.=FALSE)
@@ -1056,7 +1056,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                        pcgMaxIters, verbose, data, dataor, obsInfo, partitionsX,
                        mmesCall,
                        list(fixed=fixed, random=if(missing(random)) NULL else random,
-                           rcov=rcov)), threadScope, verbose))
+                           rcov=rcov), pcg=engineControl$pcg), threadScope, verbose))
   }
   
   if(is.null(stepWeight)){
@@ -1174,6 +1174,9 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   attr(covStruct, "acceleration") <- acceleration
   attr(covStruct, "pcgPreconditioner") <- pcgPreconditioner
   attr(covStruct, "pcgNystromRank") <- as.integer(pcgNystromRank)
+  if(identical(solver, "pcg")){
+    attr(covStruct, "pcgControl") <- engineControl$pcg
+  }
   attr(covStruct, "engineControl") <- engineControl
   attr(covStruct, "denseMemoryMB") <- engineControl$denseMemoryMB
   attr(covStruct, "memoryPolicy") <- engineControl$memoryPolicy

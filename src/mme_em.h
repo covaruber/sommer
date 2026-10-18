@@ -192,7 +192,20 @@ inline Rcpp::List fitEMBlend(
         profileSeconds += seconds;
         const Rcpp::List counters = profile["counters"];
         for(const char * name : {"numericFactorCalls", "numericFactorSeconds",
-                                "sensitivityRHSColumns", "traceFallbackSolves", "traceBatchSolves"}) {
+                                "sensitivityRHSColumns", "traceFallbackSolves", "traceBatchSolves",
+                                "traceDerivativePreparationSeconds",
+                                "traceRandomPrecisionDerivativeSeconds",
+                                "traceFactorCovarianceDerivativeSeconds",
+                                "traceFactorPrecisionDerivativeSeconds",
+                                "traceRandomPrecisionOtherSeconds",
+                                "traceResidualPrecisionDerivativeSeconds",
+                                "traceGridDerivativeBasisSeconds",
+                                "traceResidualDerivativeBasisSeconds",
+                                "traceDerivativeOtherSeconds",
+                                "traceSelectedInverseSeconds",
+                                "scoreTraceFallbackSeconds", "aiAssemblyWallSeconds",
+                                "aiRandomFirstTermSeconds", "aiRandomCurvatureSeconds",
+                                "aiResidualBlockSeconds"}) {
           if(counters.containsElementNamed(name)) {
             profileCounters[name] += Rcpp::as<double>(counters[name]);
           }

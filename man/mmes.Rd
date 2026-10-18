@@ -518,7 +518,12 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   \code{u}, \code{bu}, \code{uList}, \code{fitted}, \code{residuals},
   \code{theta} (covariance matrices used), \code{vcParams} (the natural-scale
   parameters used, reusable as \code{covPar}) and \code{pcg} diagnostics. No
-  PEV or likelihood is computed.}
+  PEV or likelihood is computed. The reported residual is verified by applying
+  the current operator to the final solution. Periodic residual replacement is
+  available through \code{engine=mmes_control(pcg=list(residualRefresh=25L))}.
+  Set \code{pcg$warmStart=TRUE} with a fitted \code{covPar} object to reuse
+  compatible coefficients; coefficient names must agree exactly. REML-only
+  PCG estimator, recycling and block-RHS settings are rejected by this path.}
   \item{covPar}{Known covariance parameters for \code{solveOnly=TRUE}. One of:
   a fitted \code{mmes} object with the same random and residual terms (its
   final estimates are used exactly); a list with one element per term, named by

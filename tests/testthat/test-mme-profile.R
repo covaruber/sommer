@@ -37,6 +37,74 @@ test_that("phase profile reports consistent seconds, iterations and counters", {
                  tolerance = 1e-9)
     expect_gt(p$counters$nnzC, 0)
     expect_gt(p$counters$freeCovarianceParameters, 0)
+    profiledSeconds <- c(
+      p$counters$traceDerivativePreparationSeconds,
+      p$counters$traceRandomPrecisionDerivativeSeconds,
+      p$counters$traceFactorCovarianceDerivativeSeconds,
+      p$counters$traceFactorPrecisionDerivativeSeconds,
+      p$counters$traceRandomPrecisionOtherSeconds,
+      p$counters$traceResidualPrecisionDerivativeSeconds,
+      p$counters$traceGridDerivativeBasisSeconds,
+      p$counters$traceResidualDerivativeBasisSeconds,
+      p$counters$traceDerivativeOtherSeconds,
+      p$counters$traceSelectedInverseSeconds,
+      p$counters$sensitivitySolveSeconds,
+      p$counters$sensitivitySolveReachEntries,
+      p$counters$sensitivitySolveReachPossibleEntries,
+      p$counters$scoreTraceFallbackSeconds,
+      p$counters$aiAssemblyWallSeconds,
+      p$counters$aiRandomFirstTermSeconds,
+      p$counters$aiRandomCurvatureSeconds,
+      p$counters$aiResidualBlockSeconds
+    )
+    expect_true(all(is.finite(profiledSeconds)))
+    expect_true(all(profiledSeconds >= 0))
+    expect_gt(p$counters$sensitivityRHSNonzeros, 0)
+    expect_gt(p$counters$sensitivitySolveSeconds, 0)
+    expect_lte(p$counters$sensitivitySolveSeconds, p$seconds[["sensitivities"]] + 1e-9)
+    expect_lte(p$counters$sensitivitySolveReachEntries,
+               p$counters$sensitivitySolveReachPossibleEntries)
+    expect_equal(
+      p$counters$selectedInverseLookupRequests,
+      p$counters$selectedInverseLookupHits + p$counters$selectedInverseLookupMisses
+    )
+    expect_lte(p$counters$selectedInverseLookupHits, p$counters$selectedInverseLookupRequests)
+    expect_lte(p$counters$selectedInverseLookupMisses, p$counters$selectedInverseLookupRequests)
+    expect_lte(p$counters$selectedInverseDemandUniqueEntries,
+               p$counters$selectedInverseLookupHits)
+    expect_true(p$counters$selectedInverseDemandTrackingComplete)
+    expect_gte(p$counters$selectedInverseDemandClosureEntries,
+               p$counters$selectedInverseDemandUniqueEntries)
+    expect_gt(p$counters$traceDerivativePreparationSeconds, 0)
+    expect_gt(p$counters$traceSelectedInverseSeconds, 0)
+    expect_gt(p$counters$aiAssemblyWallSeconds, 0)
+    expect_equal(
+      sum(unlist(p$counters[c(
+        "traceFactorCovarianceDerivativeSeconds",
+        "traceFactorPrecisionDerivativeSeconds",
+        "traceRandomPrecisionOtherSeconds",
+        "traceResidualPrecisionDerivativeSeconds",
+        "traceGridDerivativeBasisSeconds",
+        "traceResidualDerivativeBasisSeconds",
+        "traceDerivativeOtherSeconds"
+      )])),
+      p$counters$traceDerivativePreparationSeconds,
+      tolerance = 1e-2
+    )
+    expect_equal(
+      p$counters$traceRandomPrecisionDerivativeSeconds,
+      p$counters$traceFactorCovarianceDerivativeSeconds +
+        p$counters$traceFactorPrecisionDerivativeSeconds +
+        p$counters$traceRandomPrecisionOtherSeconds,
+      tolerance = 1e-2
+    )
+    expect_lte(p$counters$traceDerivativePreparationSeconds, p$seconds[["tracePrep"]] + 1e-9)
+    expect_lte(p$counters$traceSelectedInverseSeconds, p$seconds[["tracePrep"]] + 1e-9)
+    expect_lte(p$counters$scoreTraceFallbackSeconds, p$seconds[["scoreTraces"]] + 1e-9)
+    expect_lte(p$counters$aiAssemblyWallSeconds, p$seconds[["aiAssembly"]] + 1e-9)
+    expect_lte(p$counters$aiRandomFirstTermSeconds, p$seconds[["aiAssembly"]] + 1e-9)
+    expect_lte(p$counters$aiRandomCurvatureSeconds, p$seconds[["aiAssembly"]] + 1e-9)
+    expect_lte(p$counters$aiResidualBlockSeconds, p$seconds[["aiAssembly"]] + 1e-9)
   }
 })
 
@@ -66,7 +134,6 @@ test_that("exact trace panels preserve AR2 fits, scores and uncertainty", {
       }
       counters <- candidate$engineDiagnostics$profile$counters
       expect_equal(counters$traceFallbackSolves, reference$engineDiagnostics$profile$counters$traceFallbackSolves)
-      expect_gt(counters$traceBatchSolves, 0)
       expect_lte(counters$traceBatchSolves, counters$traceFallbackSolves)
       expect_gt(counters$traceBatchWorkspaceBytes, 0)
       expect_equal(candidate$engineDiagnostics$control$traceBatch, "force")

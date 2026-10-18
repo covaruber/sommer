@@ -2,6 +2,7 @@
 #define SOMMER_MME_COVARIANCE_H
 
 #include "mme_factors.h"
+#include <chrono>
 #include <mutex>
 
 namespace sommer {
@@ -1203,6 +1204,86 @@ public:
     return factorD1(state.factorDescriptor[axis], state.factorPar[axis], localParameter);
   }
 
+  bool buildStationaryARPrecision(const Rcpp::List & factor,
+                                  const arma::vec & shape,
+                                  const arma::mat & covariance,
+                                  arma::mat & precision,
+                                  double & logDet) {
+      const int order = Rcpp::as<int>(Rcpp::as<Rcpp::List>(factor["representation"])["order"]);
+      const arma::uword q = covariance.n_rows;
+      if(order < 1 || q <= static_cast<arma::uword>(order) ||
+         shape.n_elem < static_cast<arma::uword>(order)){
+        return false;
+      }
+
+      arma::vec phi;
+      for(int currentOrder = 1; currentOrder <= order; ++currentOrder){
+        const double reflection = std::tanh(shape(static_cast<arma::uword>(currentOrder - 1)));
+        arma::vec updated(static_cast<arma::uword>(currentOrder), arma::fill::zeros);
+        updated(static_cast<arma::uword>(currentOrder - 1)) = reflection;
+        if(currentOrder > 1){
+          for(int lag = 0; lag < currentOrder - 1; ++lag){
+            updated(static_cast<arma::uword>(lag)) =
+              phi(static_cast<arma::uword>(lag)) - reflection *
+                phi(static_cast<arma::uword>(currentOrder - 2 - lag));
+          }
+        }
+        phi = std::move(updated);
+      }
+
+      const arma::vec standardDeviation = arma::sqrt(covariance.diag());
+      if(!standardDeviation.is_finite() || standardDeviation.min() <= 0.0){
+        return false;
+      }
+      const arma::vec inverseSd = 1.0 / standardDeviation;
+      const arma::uword p = static_cast<arma::uword>(order);
+      arma::mat initial(p, p);
+      for(arma::uword column = 0; column < p; ++column){
+        for(arma::uword row = 0; row < p; ++row){
+          initial(row, column) = inverseSd(row) * covariance(row, column) *
+            inverseSd(column);
+        }
+      }
+      arma::mat initialPrecision;
+      double initialLogDet = 0.0;
+      if(!eigenSpdInverse(initial, initialPrecision, &initialLogDet)){
+        return false;
+      }
+
+      double innovationVariance = 1.0;
+      for(arma::uword lag = 0; lag < p; ++lag){
+        innovationVariance -= phi(lag) *
+          (inverseSd(0) * covariance(0, lag + 1) * inverseSd(lag + 1));
+      }
+      if(!std::isfinite(innovationVariance) || innovationVariance <= 0.0){
+        return false;
+      }
+
+      arma::mat direct(q, q, arma::fill::zeros);
+      for(arma::uword column = 0; column < p; ++column){
+        for(arma::uword row = 0; row < p; ++row){
+          direct(row, column) = initialPrecision(row, column) *
+            inverseSd(row) * inverseSd(column);
+        }
+      }
+      arma::vec innovation(p + 1, arma::fill::ones);
+      innovation.subvec(1, p) = -phi;
+      for(arma::uword record = p; record < q; ++record){
+        for(arma::uword column = 0; column <= p; ++column){
+          for(arma::uword row = 0; row <= p; ++row){
+            direct(record - row, record - column) +=
+              innovation(row) * innovation(column) / innovationVariance *
+              inverseSd(record - row) * inverseSd(record - column);
+          }
+        }
+      }
+      precision = std::move(direct);
+      logDet = initialLogDet + static_cast<double>(q - p) *
+        std::log(innovationVariance) + 2.0 * arma::accu(arma::log(standardDeviation));
+      return precision.is_finite() && precision.diag().min() > 0.0 &&
+        std::isfinite(logDet);
+    }
+
   bool buildDescriptorPrecision(const Rcpp::List & cs,
         const arma::vec & par,
         DescriptorPrecisionState & out) {
@@ -1439,79 +1520,10 @@ public:
           }
         }
         if(!inverseOK && family == PrecisionFamily::StationaryAR){
-          const Rcpp::List representation = f["representation"];
-          {
-            const int order = Rcpp::as<int>(representation["order"]);
-            const arma::uword q = covariance.n_rows;
-            const arma::vec & shape = factorPar[factorOffset];
-            if(order >= 1 && q > static_cast<arma::uword>(order) &&
-               shape.n_elem >= static_cast<arma::uword>(order)){
-              arma::vec phi;
-              for(int currentOrder = 1; currentOrder <= order; ++currentOrder){
-                const double reflection = std::tanh(
-                  shape(static_cast<arma::uword>(currentOrder - 1))
-                );
-                arma::vec updated(static_cast<arma::uword>(currentOrder),
-                                  arma::fill::zeros);
-                updated(static_cast<arma::uword>(currentOrder - 1)) = reflection;
-                if(currentOrder > 1){
-                  for(int lag = 0; lag < currentOrder - 1; ++lag){
-                    updated(static_cast<arma::uword>(lag)) =
-                      phi(static_cast<arma::uword>(lag)) - reflection *
-                      phi(static_cast<arma::uword>(currentOrder - 2 - lag));
-                  }
-                }
-                phi = std::move(updated);
-              }
-
-              const arma::vec standardDeviation = arma::sqrt(covariance.diag());
-              if(standardDeviation.is_finite() && standardDeviation.min() > 0.0){
-                const arma::vec inverseSd = 1.0 / standardDeviation;
-                const arma::uword p = static_cast<arma::uword>(order);
-                arma::mat initial(p, p);
-                for(arma::uword column = 0; column < p; ++column){
-                  for(arma::uword row = 0; row < p; ++row){
-                    initial(row, column) = inverseSd(row) * covariance(row, column) * inverseSd(column);
-                  }
-                }
-                arma::mat initialPrecision;
-                double initialLogDet = 0.0;
-                if(eigenSpdInverse(initial, initialPrecision, &initialLogDet)){
-                  double innovationVariance = 1.0;
-                  for(arma::uword lag = 0; lag < p; ++lag){
-                    innovationVariance -= phi(lag) * (inverseSd(0) * covariance(0, lag + 1) * inverseSd(lag + 1));
-                  }
-                  if(std::isfinite(innovationVariance) && innovationVariance > 0.0){
-                    arma::mat direct(q, q, arma::fill::zeros);
-                    for(arma::uword column = 0; column < p; ++column){
-                      for(arma::uword row = 0; row < p; ++row){
-                        direct(row, column) = initialPrecision(row, column) * inverseSd(row) * inverseSd(column);
-                      }
-                    }
-                    arma::vec innovation(p + 1, arma::fill::ones);
-                    innovation.subvec(1, p) = -phi;
-                    for(arma::uword record = p; record < q; ++record){
-                      for(arma::uword column = 0; column <= p; ++column){
-                        for(arma::uword row = 0; row <= p; ++row){
-                          direct(record - row, record - column) +=
-                            innovation(row) * innovation(column) / innovationVariance *
-                            inverseSd(record - row) * inverseSd(record - column);
-                        }
-                      }
-                    }
-                    factorPrecision[factorOffset] = std::move(direct);
-                    factorLogDet[factorOffset] = initialLogDet +
-                      static_cast<double>(q - p) * std::log(innovationVariance) +
-                      2.0 * arma::accu(arma::log(standardDeviation));
-                    inverseOK = factorPrecision[factorOffset].is_finite() &&
-                      factorPrecision[factorOffset].diag().min() > 0.0 &&
-                      std::isfinite(factorLogDet[factorOffset]);
-                    bandedPrecision = inverseOK;
-                  }
-                }
-              }
-            }
-          }
+          inverseOK = buildStationaryARPrecision(
+            f, factorPar[factorOffset], covariance,
+            factorPrecision[factorOffset], factorLogDet[factorOffset]);
+          bandedPrecision = inverseOK;
         }
 
         if(!inverseOK){
@@ -1722,7 +1734,9 @@ public:
 
   void buildDescriptorPrecisionDerivatives(const Rcpp::List & cs,
         const arma::vec & par,
-        DescriptorPrecisionState & state) {
+        DescriptorPrecisionState & state,
+        double * covarianceDerivativeSeconds = nullptr,
+        double * precisionDerivativeSeconds = nullptr) {
 
       if(!state.factorWise){
         return;
@@ -1756,13 +1770,41 @@ public:
         }
 
         Rcpp::List f = Rcpp::as<Rcpp::List>(factors[fidx]);
+        const sommer::PrecisionFamily family = sommer::precisionFamily(f);
+        const arma::uword arBandwidth = family == sommer::PrecisionFamily::StationaryAR
+          ? static_cast<arma::uword>(Rcpp::as<int>(f["order"]))
+          : 0;
+        arma::sp_mat stationaryARPrecision;
+        if(family == sommer::PrecisionFamily::StationaryAR &&
+           factorOffset < state.factorPrecision.size() &&
+           !state.factorPrecision[factorOffset].is_empty()){
+          const arma::mat & densePrecision = state.factorPrecision[factorOffset];
+          const arma::uword capacity = densePrecision.n_rows *
+            std::min(densePrecision.n_rows, 2 * arBandwidth + 1);
+          arma::umat locations(2, capacity);
+          arma::vec values(capacity);
+          arma::uword count = 0;
+          for(arma::uword column = 0; column < densePrecision.n_cols; ++column){
+            const arma::uword first = column > arBandwidth ? column - arBandwidth : 0;
+            const arma::uword last = std::min(densePrecision.n_rows - 1, column + arBandwidth);
+            for(arma::uword row = first; row <= last; ++row){
+              locations(0, count) = row;
+              locations(1, count) = column;
+              values(count) = densePrecision(row, column);
+              ++count;
+            }
+          }
+          locations.resize(2, count);
+          values.resize(count);
+          stationaryARPrecision = arma::sp_mat(
+            locations, values, densePrecision.n_rows, densePrecision.n_cols, true, true);
+        }
         for(int k1 = start1; k1 <= end1; ++k1){
           const arma::uword localK =
             static_cast<arma::uword>(k1 - start1);
           arma::mat factorCovarianceD1;
           arma::mat factorPrecisionD1;
           arma::sp_mat sparseFactorPrecisionD1;
-          const sommer::PrecisionFamily family = sommer::precisionFamily(f);
           const bool exactInnovationDerivative = sommer::FactorPolicy::innovationDerivative(
             family, sparseFactorKernelsEnabled(f));
           double analyticLogDetD1 = std::numeric_limits<double>::quiet_NaN();
@@ -1867,7 +1909,14 @@ public:
               state.factorPar[factorOffset],
               localK);
           }else if(!analyticSpatialDerivative){
+            const auto derivativeStart = covarianceDerivativeSeconds != nullptr
+              ? std::chrono::steady_clock::now()
+              : std::chrono::steady_clock::time_point();
             factorCovarianceD1 = factorD1(f, state.factorPar[factorOffset], localK);
+            if(covarianceDerivativeSeconds != nullptr){
+              *covarianceDerivativeSeconds += std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - derivativeStart).count();
+            }
           }
 
           if(!exactInnovationDerivative && !analyticSpatialDerivative){
@@ -1891,12 +1940,62 @@ public:
           }
 
           if(!exactInnovationDerivative && !analyticSpatialDerivative && factorPrecisionD1.is_empty()){
-            if(!state.sparseFactorPrecision[factorOffset].is_empty()){
+            const auto derivativeStart = precisionDerivativeSeconds != nullptr
+              ? std::chrono::steady_clock::now()
+              : std::chrono::steady_clock::time_point();
+            bool stationaryARDerivative = false;
+            if(!stationaryARPrecision.is_empty()){
+              const double step = 1.0e-6 *
+                (1.0 + std::abs(state.factorPar[factorOffset](localK)));
+              arma::vec plus = state.factorPar[factorOffset];
+              arma::vec minus = state.factorPar[factorOffset];
+              plus(localK) += step;
+              minus(localK) -= step;
+              arma::mat plusPrecision;
+              arma::mat minusPrecision;
+              double plusLogDet = 0.0;
+              double minusLogDet = 0.0;
+              if(buildStationaryARPrecision(f, plus, evalFactor(f, plus),
+                    plusPrecision, plusLogDet) &&
+                 buildStationaryARPrecision(f, minus, evalFactor(f, minus),
+                    minusPrecision, minusLogDet)){
+                const arma::uword capacity = plusPrecision.n_rows *
+                  std::min(plusPrecision.n_rows, 2 * arBandwidth + 1);
+                arma::umat locations(2, capacity);
+                arma::vec values(capacity);
+                arma::uword count = 0;
+                for(arma::uword column = 0; column < plusPrecision.n_cols; ++column){
+                  const arma::uword first = column > arBandwidth ? column - arBandwidth : 0;
+                  const arma::uword last = std::min(plusPrecision.n_rows - 1,
+                                                     column + arBandwidth);
+                  for(arma::uword row = first; row <= last; ++row){
+                    const double value = (plusPrecision(row, column) -
+                      minusPrecision(row, column)) / (2.0 * step);
+                    if(value == 0.0){ continue; }
+                    locations(0, count) = row;
+                    locations(1, count) = column;
+                    values(count) = value;
+                    ++count;
+                  }
+                }
+                locations.resize(2, count);
+                values.resize(count);
+                sparseFactorPrecisionD1 = arma::sp_mat(
+                  locations, values, plusPrecision.n_rows, plusPrecision.n_cols, true, true);
+                stationaryARDerivative = true;
+              }
+            }
+            if(!stationaryARDerivative &&
+               !state.sparseFactorPrecision[factorOffset].is_empty()){
               factorPrecisionD1 = -state.sparseFactorPrecision[factorOffset] *
                 factorCovarianceD1 * state.sparseFactorPrecision[factorOffset];
-            }else{
+            }else if(!stationaryARDerivative){
               factorPrecisionD1 = -state.factorPrecision[factorOffset] *
                 factorCovarianceD1 * state.factorPrecision[factorOffset];
+            }
+            if(precisionDerivativeSeconds != nullptr){
+              *precisionDerivativeSeconds += std::chrono::duration<double>(
+                std::chrono::steady_clock::now() - derivativeStart).count();
             }
           }
 
@@ -1906,7 +2005,11 @@ public:
           }
           if(!exactInnovationDerivative){
             state.localCovarianceD1[globalK] = factorCovarianceD1;
-            state.localPrecisionD1[globalK] = std::move(factorPrecisionD1);
+            if(!sparseFactorPrecisionD1.is_empty()){
+              state.sparseLocalPrecisionD1[globalK] = std::move(sparseFactorPrecisionD1);
+            }else{
+              state.localPrecisionD1[globalK] = std::move(factorPrecisionD1);
+            }
           }else{
             state.sparseLocalPrecisionD1[globalK] = std::move(sparseFactorPrecisionD1);
           }

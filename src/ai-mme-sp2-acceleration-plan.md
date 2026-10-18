@@ -241,6 +241,148 @@ Then assess direct sparse SAR/CAR evaluation and structured Toeplitz/MA operatio
 
 **Gate:** dense covariance, precision, determinant, derivative, fit, score, AI, and uncertainty parity; benchmark full fits across factor sizes and residual layouts.
 
+#### Iteration-speed baseline refresh (2026-10-17)
+
+Single-run screening profiles used the current source at `f755907`, four REML
+iterations, LDLT, one requested OpenMP thread, and single-thread BLAS settings.
+They are not converged-fit timings or speedup claims.
+
+| Workload | Effects | Free parameters | Trace prep | Sensitivities | AI assembly | Score traces | Sensitivity RHS / trace fallback |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| US, 12 levels, 1000 IDs, no relationship | 12012 | 79 | 0.043 s | 0.115 s | 0.347 s | 0.037 s | 316 / 0 |
+| AR2, 1000 levels, 6 IDs, no relationship | 7000 | 4 | 4.517 s | 0.060 s | 8.978 s | 3.049 s | 16 / 3988 |
+
+The US fit took 1.512 s overall; the AR2 fit took 18.064 s. On AR2, AI assembly
+accounts for about half the profiled iteration work. Trace preparation and score
+traces account for much of the rest; sensitivity solves are negligible. In the
+79-parameter US fit, AI assembly also exceeds sensitivity time, and score traces
+have no selected-inverse fallback. These measurements do not justify treating
+fewer sensitivity solves as the universal next optimization.
+
+Next step: instrument the dominant AI-assembly subwork and isolate exact trace
+preparation versus fallback costs. Optimize one measured operation at a time,
+then compare paired whole-fit timings and numerical outputs before recording a
+gain.
+
+#### AI and trace subphase profile (2026-10-17)
+
+Added opt-in timers under `experimental$profile="force"` for trace
+derivative/pre-index preparation, selected-inverse construction, random score-trace
+fallback solves, and AI assembly components. Timers remain absent when profiling
+is off. The EM/PX-GEM wrapper aggregates these counters across its one-iteration
+native fits. Focused profile tests pass.
+
+Three repeated runs used the same fixtures, four REML iterations, LDLT, one
+requested OpenMP thread, and single-thread BLAS settings. Values below are
+medians; these are profiled screening timings, not converged-fit comparisons or
+speedup claims.
+
+| Workload | Fit | Trace prep: total / pre-index prep / selected inverse | AI: total / random first term / random curvature | Score traces / fallback solve time / fallback solves |
+| --- | ---: | ---: | ---: | ---: |
+| US, 12 levels, 1000 IDs | 1.529 s | 0.0449 / 0.0025 / 0.0426 s | 0.3709 / 0.3197 / 0.0500 s | 0.0386 / 0 s / 0 |
+| AR2, 1000 levels, 6 IDs | 18.271 s | 4.596 / 4.577 / 0.0189 s | 9.140 / 0.00037 / 9.137 s | 3.075 / 2.829 s / 3988 |
+
+For AR2, exact random-covariance curvature consumes nearly all AI assembly;
+score-trace fallbacks consume most score-trace time. Selected-inverse
+construction is small. The broad derivative-preparation interval dominates
+trace preparation, but still needs a finer split before optimization.
+For high-parameter US, the random first-term matrix product dominates AI
+assembly, and selected-inverse construction dominates trace preparation.
+These workloads have different bottlenecks; do not add a global dispatch rule.
+
+#### Symmetric AI curvature pair reduction (2026-10-17)
+
+The exact random-covariance curvature term is symmetric in its parameter pair.
+Compute only its upper triangle, mirror each off-diagonal correction, and retain
+existing final random-block symmetrization. The non-symmetric first AI term is
+unchanged.
+
+Focused profile, hybrid-AI, and AI-recovery suites pass. Three alternating
+fresh-process pairs use `benchmarks/validate_ai_curvature.R`, baseline
+`/tmp/sommer-iteration-instrumented-v4`, and candidate
+`/tmp/sommer-iteration-candidate`. All fits use four REML iterations, LDLT,
+one requested OpenMP thread, one warmup, and single-thread BLAS settings.
+Maximum normalized difference across likelihood, monitor, covariance,
+coefficients, information, score, and uncertainty is `4.43e-10`.
+
+Median random-curvature time falls from 9.114 s to 6.828 s, about 25%.
+However, scheduler noise made candidate whole-fit times 943.1 s, 993.2 s, and
+15.9 s; baseline times were 18.5 s, 40.4 s, and 18.4 s. Phase-level outliers
+also moved between trace preparation and AI assembly. These are not credible
+whole-fit measurements. Keep the exact symmetry reduction, but claim no
+whole-fit speed gain until quieter-host validation.
+
+Next: optimize the measured random factor-wise precision derivative
+construction, then rerun isolated whole-fit confirmation. Keep workload
+specificity and profiling overhead visible.
+
+#### AR2 trace derivative preparation split (2026-10-17)
+
+Added opt-in counters to separate random and residual precision derivatives,
+grid and non-grid residual derivative bases, and remaining pre-index work.
+The focused profiling test checks counters remain nonnegative and within the
+trace-preparation phase.
+
+Three fresh-process runs used the same 1000-level AR2 fixture, four REML
+iterations, LDLT, one requested OpenMP thread, and single-thread BLAS:
+
+| Metric | Median | Range |
+| --- | ---: | ---: |
+| Fit elapsed | 15.957 s | 15.909-16.119 s |
+| Trace derivative preparation | 4.544 s | 4.536-4.606 s |
+| Random precision derivative construction | 4.544 s | 4.535-4.606 s |
+| Residual precision derivatives | 0 s | 0 s |
+| Grid / non-grid residual derivative bases | 0 / 0 s | 0 / 0 s |
+| Remaining pre-index work | 0 s | 0 s |
+| Selected-inverse construction | 0.019 s | 0.019 s |
+
+AR2's pre-index cost is entirely in random factor-wise precision derivative
+construction; selected-inverse construction and residual derivative work are
+negligible for this fixture. The next optimization should target this exact
+operation, then recheck numerical parity and paired whole-fit timings. No
+whole-fit speed gain is claimed from this profiling step.
+
+#### Banded stationary-AR precision derivatives (2026-10-17)
+
+The generic precision derivative computed `-Q (dK) Q` with dense matrices for
+stationary AR factors, despite their exact order-banded precision structure.
+The factor engine now builds each perturbed stationary-AR precision with its
+existing innovation representation, differences those matrices using the
+existing `1e-6` working-coordinate step, and stores only the exact order-wide
+band. Other covariance families retain their existing derivative path.
+
+The first analytic covariance-derivative trial did not reduce the measured
+precision-derivative phase, so that trial was removed. The direct banded
+precision derivative passed focused AR2/AR3 covariance safeguards and profile
+tests. Paired heterogeneous AR2 and AR3 fits also matched likelihood,
+parameters, coefficients, score, information, and uncertainty to at least
+`1.4e-9` relative difference.
+
+Three alternating fresh-process pairs used `benchmarks/validate_ai_curvature.R`,
+the same 1000-level AR2 workload, four REML iterations, LDLT, one requested
+OpenMP thread, and single-thread BLAS:
+
+| Metric | Baseline median | Banded derivative median | Median speedup |
+| --- | ---: | ---: | ---: |
+| Whole-fit elapsed | 15.573 s | 1.802 s | 8.63x |
+| AI random curvature | 6.685 s | 0.0865 s | 77.3x |
+| Trace derivative preparation | 4.460 s | 0.0930 s | 48.0x |
+
+Candidate random precision-derivative time split into 0.0408 s covariance
+derivatives, 0.0444 s precision derivatives, and 0.0077 s other work. Maximum
+normalized difference across likelihood, monitor, covariance, coefficients,
+information, score, and uncertainty was `4.02e-7`; `InfMat` and `dLu` use a
+`1e-6` acceptance threshold, while other outputs retain `1e-8`. Peak RSS rose
+from 786 MiB to 795 MiB. None of the four-iteration screening fits converged;
+these results establish a substantial speedup for this workload, not a
+converged-fit runtime estimate. Smaller heterogeneous AR2/AR3 parity checks
+remain below `1.4e-9`.
+
+More exact derivative sparsity can eliminate score-trace fallback solves when
+the selected inverse already covers all required entries. The trace-profile
+test now checks fallback and batch counts remain consistent without requiring
+a positive batch-solve count.
+
 ### Rank 2: Demand-Aware Direct Traces And Sensitivities
 
 Choose between selected inverse entries, cached blocks, and exact solves based on requested support, elimination-tree reach, reuse count, and aggregate workspace. Investigate sparse-RHS tree reach for AI sensitivities separately from already implemented matrix-free PCG panel batching. Consider touched-row or chunked CHOLMOD workspaces only where setup and packing costs pay back.
@@ -248,6 +390,56 @@ Choose between selected inverse entries, cached blocks, and exact solves based o
 **Potential win:** removes repeated work only for workloads where traces or sensitivity solves dominate and current selected-inverse/cache coverage misses. Worst-case reach can equal the full factor, yielding little or no gain.
 
 **Gate:** compare every result and true residual against current exact solves; benchmark including cache setup, misses, memory, and all sensitivity consumers.
+
+#### Rejected dense selected-inverse solve (2026-10-17)
+
+An exact multi-RHS solve for dense LDLT fill looked faster in a two-iteration
+screen, but regressed the converged target. On a dense-relationship US model
+with 6 levels and 30 IDs, three paired 15-iteration REML fits converged in both
+versions. Median whole-fit time rose from 0.127 s to 0.145 s, and selected
+inverse preparation rose from 0.0388 s to 0.0578 s. Maximum normalized output
+difference remained below `2.9e-13`. The dense-solve dispatch was removed; the
+screening result is not evidence of an accepted speedup.
+
+#### Sparse-US trace and sensitivity demand profile (2026-10-17)
+
+Added opt-in profile counters for selected-inverse lookups and their exact
+Takahashi dependency closure, plus sensitivity RHS nonzeros, direct-LDLT
+triangular reach, and solve time. Counters are inactive unless profiling is
+enabled. Lookup collection is synchronized because score-trace lookups may
+run in parallel; demand-key retention is capped at one million entries and
+reports when that cap prevents a complete closure measurement.
+
+Measured a six-level, 1,000-ID US model with sparse tridiagonal relationship
+precision, two replicates per ID, one requested OpenMP thread, and single-thread
+BLAS. LDLT REML and ML fits both converged in six iterations with 22 covariance
+parameters. The initial profiled runs took 0.524 s REML and 0.463 s ML.
+Profiling phases put score traces at 28-28 ms, selected-inverse preparation at
+17-32 ms, sensitivities at 25-26 ms, and AI assembly at 18-19 ms. Initial setup
+was about 302-307 ms, so this trace/sensitivity target is not the dominant
+whole-fit cost on this fixture.
+
+Exact demand counters show why the proposed sparse work reduction is not
+promising here:
+
+| Mode | Unique demanded inverse entries | Exact demand closure | Filled pattern entries | Closure operations | Sensitivity RHS density | Exact solve reach |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| REML | 67,975 | 92,966 | 92,966 | 1,364,640 | 16.7% | 100% |
+| ML | 56,964 | 56,964 | 56,964 | 501,568 | 16.7% | Not separately measured |
+
+All 90,974 REML and 68,958 ML selected-inverse lookups hit; neither mode used
+fallback solves. The demand closure equals the complete inverse pattern in
+both modes. Although sensitivity RHSs are sparse, every one of the 132 REML
+columns reaches all 6,006 factor coordinates, so sparse-RHS tree pruning would
+not reduce exact solve reach. Sensitivity factor solves themselves take about
+3.6 ms, only a small part of the 25 ms sensitivity phase.
+
+Conclusion: do not implement demand-pruned selected inverses or sparse-RHS
+sensitivity solves for this workload. These results are structural evidence,
+not a speedup claim. The remaining trace-loop indexing optimization would need
+separate profiling and paired timings before implementation. Next, subdivide
+the large setup phase and inspect its owners before selecting another runtime
+target.
 
 ### Rank 3: Accuracy-Aware PCG
 

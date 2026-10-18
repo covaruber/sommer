@@ -802,7 +802,7 @@ version 4.4.90 (2026-10-13)
    Progress reports AI-reg and diagnostics record regularized attempts,
    accepted steps, source iterations, and ridges.
 
- + Standalone sparse and saddle native tests now check for their private
+ + Standalone sparse, saddle, and PCG native tests now check for their private
    source headers before compiling. They skip in installed-package check
    layouts without src/, while source-tree runs retain the native checks.
 

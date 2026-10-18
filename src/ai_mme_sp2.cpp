@@ -7,6 +7,11 @@
 #include "mme_sparse.h"
 #include "mme_cholmod.h"
 #include "mme_posterior.h"
+#include "mme_pcg.h"
+#include "mme_pcg_estimators.h"
+#include <mutex>
+#include <numeric>
+#include <unordered_set>
 
 static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const arma::vec & Zind, const Rcpp::List & AiI,
@@ -22,8 +27,8 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const std::string & solver = "ldlt",
                      const double & pcgTol = 1.0e-8,
                      const int & pcgMaxIters = 0,
-                     const int & pcgTraceProbes = 8,
-                     const int & pcgLanczosSteps = 20,
+                     const int & pcgTraceProbesInput = 8,
+                     const int & pcgLanczosStepsInput = 20,
                      const bool & reml = true,
                      const bool & responsePrepared = false,
                      const double & preparedMean = 0.0,
@@ -33,6 +38,8 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
                      const int gpuMinSize = 256,
                      const sommer::RRConditionalCallback * rrCallback = nullptr
 ){
+  int pcgTraceProbes = pcgTraceProbesInput;
+  int pcgLanczosSteps = pcgLanczosStepsInput;
 
   const bool directionBlend = covStructI.hasAttribute("directionBlend") &&
     Rcpp::as<bool>(covStructI.attr("directionBlend"));
@@ -134,17 +141,88 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   }
   std::string pcgPreconditioner = "diagonal";
   int pcgNystromRank = static_cast<int>(sommer::WorkspacePolicy::nystromRank());
+  bool pcgWarmStart = false;
+  int pcgRecycleRank = 0;
+  std::string pcgRhsMethod = "independent";
+  int pcgBlockSize = 16;
+  int pcgResidualRefresh = 0;
+  std::string pcgLogDetScaling = "none";
+  std::string pcgTraceEstimator = "hutchinson";
+  int pcgTraceRank = 16;
+  std::string pcgAccuracy = "fixed";
+  int pcgMaxTraceProbes = pcgTraceProbes;
+  int pcgMaxLanczosSteps = pcgLanczosSteps;
+  double pcgLogDetTol = 1.0e-3;
+  double pcgScoreTol = 1.0e-3;
+  int pcgSeed = 0;
+  if(covStructI.hasAttribute("pcgControl")){
+    const Rcpp::List pcgControl = Rcpp::as<Rcpp::List>(covStructI.attr("pcgControl"));
+    if(pcgControl.size() > 0){
+      auto setString = [&pcgControl](const char * key, std::string & value) {
+        if(pcgControl.containsElementNamed(key)){
+          value = Rcpp::as<std::string>(pcgControl[key]);
+        }
+      };
+      auto setInteger = [&pcgControl](const char * key, int & value) {
+        if(pcgControl.containsElementNamed(key)){
+          value = Rcpp::as<int>(pcgControl[key]);
+        }
+      };
+      auto setDouble = [&pcgControl](const char * key, double & value) {
+        if(pcgControl.containsElementNamed(key)){
+          value = Rcpp::as<double>(pcgControl[key]);
+        }
+      };
+      auto setLogical = [&pcgControl](const char * key, bool & value) {
+        if(pcgControl.containsElementNamed(key)){
+          value = Rcpp::as<bool>(pcgControl[key]);
+        }
+      };
+      setString("preconditioner", pcgPreconditioner);
+      setInteger("nystromRank", pcgNystromRank);
+      setLogical("warmStart", pcgWarmStart);
+      setInteger("recycleRank", pcgRecycleRank);
+      setString("rhsMethod", pcgRhsMethod);
+      setInteger("blockSize", pcgBlockSize);
+      setInteger("residualRefresh", pcgResidualRefresh);
+      setString("logDetScaling", pcgLogDetScaling);
+      setString("traceEstimator", pcgTraceEstimator);
+      setInteger("traceRank", pcgTraceRank);
+      setString("accuracy", pcgAccuracy);
+      setInteger("maxTraceProbes", pcgMaxTraceProbes);
+      setInteger("maxLanczosSteps", pcgMaxLanczosSteps);
+      setDouble("logDetTol", pcgLogDetTol);
+      setDouble("scoreTol", pcgScoreTol);
+      setInteger("seed", pcgSeed);
+    }
+  }
   if(covStructI.hasAttribute("pcgPreconditioner")){
     pcgPreconditioner = Rcpp::as<std::string>(covStructI.attr("pcgPreconditioner"));
   }
   if(covStructI.hasAttribute("pcgNystromRank")){
     pcgNystromRank = Rcpp::as<int>(covStructI.attr("pcgNystromRank"));
   }
-  if(pcgPreconditioner != "diagonal" && pcgPreconditioner != "nystrom"){
-    Rcpp::stop("pcgPreconditioner must be 'diagonal' or 'nystrom'.");
+  if(pcgPreconditioner != "diagonal" && pcgPreconditioner != "nystrom" &&
+     pcgPreconditioner != "block-jacobi"){
+    Rcpp::stop("pcgPreconditioner must be 'diagonal', 'nystrom', or 'block-jacobi'.");
   }
   if(pcgNystromRank < 1){
     Rcpp::stop("pcgNystromRank must be positive.");
+  }
+  if(pcgBlockSize < 1){
+    Rcpp::stop("pcgControl$blockSize must be positive.");
+  }
+  if(pcgResidualRefresh < 0){
+    Rcpp::stop("pcgControl$residualRefresh must be non-negative.");
+  }
+  if(pcgRecycleRank < 0){
+    Rcpp::stop("pcgControl$recycleRank must be non-negative.");
+  }
+  if(pcgTraceRank < 1 || pcgMaxTraceProbes < 1 || pcgMaxLanczosSteps < 2){
+    Rcpp::stop("pcgControl accuracy settings are invalid.");
+  }
+  if(pcgLogDetTol <= 0.0 || pcgScoreTol <= 0.0){
+    Rcpp::stop("pcgControl logDetTol and scoreTol must be positive.");
   }
   if(!std::isfinite(pcgTol) || pcgTol <= 0.0){
     Rcpp::stop("pcgTol must be positive and finite.");
@@ -212,6 +290,44 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   std::string pdCertificatesMode = parseExpMode("pdCertificates", "sommer.mme.pdCertificates", "auto");
   const std::string profileMode = parseExpMode("profile", "sommer.mme.profile", "off");
   sommer::PhaseProfile phaseProfile(profileMode == "force");
+  struct ProfileTimer {
+    double * elapsedSeconds;
+    std::chrono::steady_clock::time_point started;
+    ProfileTimer(double & elapsed, bool enabled)
+      : elapsedSeconds(enabled ? &elapsed : nullptr),
+        started(enabled ? std::chrono::steady_clock::now()
+                        : std::chrono::steady_clock::time_point()) {}
+    void stop(){
+      if(elapsedSeconds != nullptr){
+        *elapsedSeconds += std::chrono::duration<double>(
+          std::chrono::steady_clock::now() - started).count();
+        elapsedSeconds = nullptr;
+      }
+    }
+    ~ProfileTimer(){ stop(); }
+  };
+  double traceDerivativePreparationSeconds = 0.0;
+  double traceRandomPrecisionDerivativeSeconds = 0.0;
+  double traceFactorCovarianceDerivativeSeconds = 0.0;
+  double traceFactorPrecisionDerivativeSeconds = 0.0;
+  double traceRandomPrecisionOtherSeconds = 0.0;
+  double traceResidualPrecisionDerivativeSeconds = 0.0;
+  double traceGridDerivativeBasisSeconds = 0.0;
+  double traceResidualDerivativeBasisSeconds = 0.0;
+  double traceDerivativeOtherSeconds = 0.0;
+  double traceSelectedInverseSeconds = 0.0;
+  double sensitivitySolveSeconds = 0.0;
+  double selectedInverseLookupRequests = 0.0;
+  double selectedInverseLookupHits = 0.0;
+  double selectedInverseLookupMisses = 0.0;
+  double sensitivityRHSNonzeros = 0.0;
+  double sensitivitySolveReachEntries = 0.0;
+  double sensitivitySolveReachPossibleEntries = 0.0;
+  double scoreTraceFallbackSeconds = 0.0;
+  double aiAssemblyWallSeconds = 0.0;
+  double aiRandomFirstTermSeconds = 0.0;
+  double aiRandomCurvatureSeconds = 0.0;
+  double aiResidualBlockSeconds = 0.0;
   std::string memoryPolicyMode = "speed";
   {
     SEXP policyValue = covStructI.hasAttribute("memoryPolicy")
@@ -1682,12 +1798,6 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     SommerSparseOrdering
   > EigenLDLT;
 
-  typedef Eigen::ConjugateGradient<
-    EigenSpMat,
-    Eigen::Lower | Eigen::Upper,
-    Eigen::DiagonalPreconditioner<double>
-  > EigenPCG;
-
   struct SelectedInverseSubset {
     std::vector< std::vector<int> > rows;
     std::vector< std::vector<double> > values;
@@ -1698,6 +1808,12 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     std::vector<int> originalToPermuted;
   };
   std::size_t selectedDependencyMaxEntries = 0;
+  std::unordered_map<const SelectedInverseSubset *, std::vector<std::uint64_t>>
+    selectedInverseDemandKeys;
+  constexpr std::size_t maxSelectedInverseDemandKeys = 1000000;
+  std::size_t selectedInverseDemandKeyCount = 0;
+  bool selectedInverseDemandTrackingComplete = true;
+  std::mutex selectedInverseDemandMutex;
 
   // Under memoryPolicy = "speed" a fast path that does not fit the dense budget
   // stops the fit instead of silently using a slower route.
@@ -1780,6 +1896,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
             }
           }
         }
+
         for(int col = n - 1; col >= 0; --col){
           const std::size_t neighbours = out.rows[col].size() - 1;
           const std::size_t remaining = selectedDependencyMaxEntries - out.dependencyEntries;
@@ -1878,29 +1995,63 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
         int originalCol,
         double & value) -> bool {
       if(originalRow < 0 || originalCol < 0 ||
-         originalRow >= static_cast<int>(subset.originalToPermuted.size()) ||
-         originalCol >= static_cast<int>(subset.originalToPermuted.size())){ return false; }
+     originalRow >= static_cast<int>(subset.originalToPermuted.size()) ||
+     originalCol >= static_cast<int>(subset.originalToPermuted.size())){
+    if(phaseProfile.enabled()){
+      std::lock_guard<std::mutex> lock(selectedInverseDemandMutex);
+      ++selectedInverseLookupRequests;
+      ++selectedInverseLookupMisses;
+    }
+    return false;
+      }
       const int a = subset.originalToPermuted[originalRow];
       const int b = subset.originalToPermuted[originalCol];
       const int col = std::min(a,b);
       const int row = std::max(a,b);
+      bool found = false;
       if(!subset.contiguous.empty() && subset.contiguous[col]){
-        if(row > subset.rows[col].back()){ return false; }
-        value = subset.values[col][static_cast<std::size_t>(row - col)];
-        return true;
-      }
-      if(!subset.rowLookup.empty() && !subset.rowLookup[col].empty()){
+        if(row <= subset.rows[col].back()){
+          value = subset.values[col][static_cast<std::size_t>(row - col)];
+          found = true;
+        }
+      }else if(!subset.rowLookup.empty() && !subset.rowLookup[col].empty()){
         const auto pos = subset.rowLookup[col].find(row);
-        if(pos == subset.rowLookup[col].end()){ return false; }
-        value = subset.values[col][pos->second];
-        return true;
+        if(pos != subset.rowLookup[col].end()){
+          value = subset.values[col][pos->second];
+          found = true;
+        }
+      }else{
+        const std::vector<int> & rr = subset.rows[col];
+        auto pos = std::lower_bound(rr.begin(), rr.end(), row);
+        if(pos != rr.end() && (*pos) == row){
+          const std::size_t idx = static_cast<std::size_t>(pos - rr.begin());
+          value = subset.values[col][idx];
+          found = true;
+        }
       }
-      const std::vector<int> & rr = subset.rows[col];
-      auto pos = std::lower_bound(rr.begin(), rr.end(), row);
-      if(pos == rr.end() || (*pos) != row){ return false; }
-      const std::size_t idx = static_cast<std::size_t>(pos - rr.begin());
-      value = subset.values[col][idx];
-      return true;
+      if(phaseProfile.enabled()){
+        std::lock_guard<std::mutex> lock(selectedInverseDemandMutex);
+        ++selectedInverseLookupRequests;
+        if(found){
+          ++selectedInverseLookupHits;
+          if(selectedInverseDemandTrackingComplete){
+            if(selectedInverseDemandKeyCount < maxSelectedInverseDemandKeys){
+              const std::uint64_t key =
+                (static_cast<std::uint64_t>(static_cast<std::uint32_t>(row)) << 32) |
+                static_cast<std::uint32_t>(col);
+              selectedInverseDemandKeys[&subset].push_back(key);
+              ++selectedInverseDemandKeyCount;
+            }else{
+              selectedInverseDemandKeys.clear();
+              selectedInverseDemandKeyCount = 0;
+              selectedInverseDemandTrackingComplete = false;
+            }
+          }
+        }else{
+          ++selectedInverseLookupMisses;
+        }
+      }
+      return found;
     };
 
   // ============================================================
@@ -1916,7 +2067,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   // MME linear-solver module
   //
   // Cfactor is the exact direct backend and also supplies the LDLT factors
-  // needed by log|C| and Takahashi.  Cpcg is an optional iterative backend
+  // needed by log|C| and Takahashi.  PCG is a factorisation-free backend
   // for the repeated C x = rhs solves (BLUE/BLUP, sensitivities and rare
   // selected-block fallbacks).  Keeping all solve dispatch here makes future
   // solver backends local to this module rather than the AI-REML code.
@@ -1947,7 +2098,6 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     ? Rcpp::XPtr<LDLTCache>(cacheInput)
     : Rcpp::XPtr<LDLTCache>(new LDLTCache(), true, Rf_install("sommer_ldlt_cache"));
   EigenLDLT & Cfactor = ldltCache->Cfactor;
-  EigenPCG Cpcg;
   bool & CsymbolicReady = ldltCache->CsymbolicReady;
   int CsymbolicAnalyses = 0;
   bool CnumericReady = false;
@@ -3555,8 +3705,32 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   Eigen::MatrixXd pcgNystromBasis;
   Eigen::MatrixXd pcgNystromWeightedBasis;
   Eigen::LLT<Eigen::MatrixXd> pcgNystromCoreFactor;
+  std::vector<std::vector<int>> pcgBlockIndices;
+  std::vector<Eigen::LLT<Eigen::MatrixXd>> pcgBlockFactors;
+  std::atomic<std::size_t> pcgOperatorCalls(0), pcgVectorEquivalent(0);
+  auto applyCurrentPCG = [&](const Eigen::MatrixXd & values) -> Eigen::MatrixXd {
+    ++pcgOperatorCalls;
+    pcgVectorEquivalent += static_cast<std::size_t>(values.cols());
+    return matrixFreePCGReady ? matrixFreeApplyCMatrix(values) : Eigen::MatrixXd(C * values);
+  };
   auto applyPCGPreconditioner = [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs)
       -> Eigen::MatrixXd {
+    if(!pcgBlockFactors.empty()){
+      Eigen::MatrixXd result = Eigen::MatrixXd::Zero(rhs.rows(), rhs.cols());
+      for(std::size_t block = 0; block < pcgBlockIndices.size(); ++block){
+        const std::vector<int> & indices = pcgBlockIndices[block];
+        Eigen::MatrixXd local(indices.size(), rhs.cols());
+        for(std::size_t row = 0; row < indices.size(); ++row){
+          local.row(row) = rhs.row(indices[row]);
+        }
+        const Eigen::MatrixXd solved = pcgBlockFactors[block].solve(local);
+        if(!solved.allFinite()){ Rcpp::stop("PCG block-Jacobi solve is non-finite."); }
+        for(std::size_t row = 0; row < indices.size(); ++row){
+          result.row(indices[row]) = solved.row(row);
+        }
+      }
+      return result;
+    }
     if(!pcgNystromReady){
       Eigen::MatrixXd result = rhs;
       for(Eigen::Index col = 0; col < result.cols(); ++col){
@@ -3577,35 +3751,85 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     return scaled;
   };
 
-  auto preparePCG = [&](const EigenSpMat & Ce){
-    matrixFreePCGReady = false;
-    CpcgReady = false;
-    if(solverName != "pcg"){ return; }
+  auto preparePCG = [&](const arma::field<arma::sp_mat> & lambda){
+    const Eigen::Index n = C.rows();
+    pcgBlockIndices.clear();
+    pcgBlockFactors.clear();
+    pcgPreconditionerDiagonal = matrixFreePCGReady ? matrixFreePCGDiagonal : Eigen::VectorXd(C.diagonal());
+    if(n == 0 || !pcgPreconditionerDiagonal.allFinite() ||
+       pcgPreconditionerDiagonal.minCoeff() <= 0.0){
+      Rcpp::stop("PCG requires a positive finite coefficient diagonal.");
+    }
+    CpcgReady = true;
     pcgNystromReady = false;
     pcgNystromRankUsed = 0;
-    if(pcgPreconditioner == "nystrom"){
-      const Eigen::Index n = Ce.rows();
-      const Eigen::VectorXd diagonal = Ce.diagonal();
-      if(n == 0 || !diagonal.allFinite() || diagonal.minCoeff() <= 0.0){
-        Rcpp::stop("Nyström PCG preconditioner requires a positive finite diagonal.");
+    if(pcgPreconditioner == "block-jacobi"){
+      double blockStorage = 0.0;
+      auto addBlock = [&](const std::vector<int> & indices, int random, int level,
+                          int coordinateStart){
+        const int size = static_cast<int>(indices.size());
+        blockStorage += static_cast<double>(size) * size;
+        const double needed = blockStorage + 3.0 * size * size;
+        if(needed > blockSchurPolicy.maxDoubles){
+          requireMemory("PCG block-Jacobi factors", needed);
+        }
+        Eigen::MatrixXd block(size, size);
+        for(int col = 0; col < size; ++col){
+          for(int row = 0; row < size; ++row){
+            block(row,col) = C.coeff(indices[row], indices[col]);
+            if(matrixFreePCGReady && random >= 0){
+              block(row,col) += lambda(random)(coordinateStart + row, coordinateStart + col) *
+                Ai(random)(level, level);
+            }
+          }
+        }
+        Eigen::LLT<Eigen::MatrixXd> factor(0.5 * (block + block.transpose()));
+        if(factor.info() != Eigen::Success){
+          Rcpp::stop("PCG block-Jacobi principal block is not positive definite.");
+        }
+        pcgBlockIndices.push_back(indices);
+        pcgBlockFactors.push_back(factor);
+      };
+      for(int first = 0; first < nX; first += pcgBlockSize){
+        std::vector<int> indices;
+        for(int j = first; j < std::min(nX, first + pcgBlockSize); ++j){ indices.push_back(j); }
+        addBlock(indices, -1, 0, 0);
       }
+      for(int random = 0; random < nRe; ++random){
+        const std::vector<arma::uvec> & partitions = partitionIndexCache[random];
+        for(arma::uword level = 0; level < Ai(random).n_rows; ++level){
+          for(int first = 0; first < static_cast<int>(partitions.size()); first += pcgBlockSize){
+            std::vector<int> indices;
+            for(int j = first; j < std::min<int>(partitions.size(), first + pcgBlockSize); ++j){
+              indices.push_back(partitions[j](level));
+            }
+            addBlock(indices, random, static_cast<int>(level), first);
+          }
+        }
+      }
+      return;
+    }
+    if(pcgPreconditioner == "nystrom"){
+      const Eigen::VectorXd diagonal = pcgPreconditionerDiagonal;
       const int rank = std::min<int>(pcgNystromRank, static_cast<int>(n));
+      const double needed = 4.0 * static_cast<double>(n) * rank + 5.0 * rank * rank;
+      if(needed > blockSchurPolicy.maxDoubles){ requireMemory("PCG Nystrom workspace", needed); }
       std::vector<int> landmarks(static_cast<std::size_t>(rank));
       for(int landmark = 0; landmark < rank; ++landmark){
         landmarks[static_cast<std::size_t>(landmark)] = static_cast<int>(
           (static_cast<long long>(2 * landmark + 1) * static_cast<long long>(n)) /
           static_cast<long long>(2 * rank));
       }
-      Eigen::MatrixXd columns(n, rank);
+      Eigen::MatrixXd unit = Eigen::MatrixXd::Zero(n, rank);
       for(int local = 0; local < rank; ++local){
         const int source = landmarks[static_cast<std::size_t>(local)];
-        columns.col(local) = Ce.col(source);
+        unit(source,local) = 1.0;
       }
+      const Eigen::MatrixXd columns = applyCurrentPCG(unit);
       Eigen::MatrixXd core(rank, rank);
       for(int col = 0; col < rank; ++col){
         for(int row = 0; row < rank; ++row){
-          core(row, col) = Ce.coeff(landmarks[static_cast<std::size_t>(row)],
-                                    landmarks[static_cast<std::size_t>(col)]);
+          core(row, col) = columns(landmarks[static_cast<std::size_t>(row)], col);
         }
       }
       core = 0.5 * (core + core.transpose());
@@ -3635,97 +3859,9 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
       CpcgReady = true;
       return;
     }
-    Cpcg.setTolerance(pcgTol);
-    const int automaticMax = std::max<int>(1000, static_cast<int>(Ce.rows()));
-    Cpcg.setMaxIterations(pcgMaxIters > 0 ? pcgMaxIters : automaticMax);
-    Cpcg.compute(Ce);
-    if(Cpcg.info() != Eigen::Success){
-      Rcpp::stop("PCG setup failed for the MME coefficient matrix C.");
-    }
-    pcgPreconditionerDiagonal = Ce.diagonal();
-    CpcgReady = true;
   };
 
   double pcgSolveMaxRelativeResidual = 0.0;
-  auto solveMatrixFreePCG =
-    [&](const Eigen::VectorXd & rhs,
-        const Eigen::VectorXd * initialGuess,
-        const std::string & context) -> Eigen::VectorXd {
-
-      if(!matrixFreePCGReady || !matrixFreeApplyC){
-        Rcpp::stop("Matrix-free PCG solve requested before operator setup.");
-      }
-      if(rhs.size() != matrixFreePCGDiagonal.size()){
-        Rcpp::stop("Matrix-free PCG RHS has incompatible dimensions.");
-      }
-
-      const double rhsNorm = rhs.norm();
-      if(rhsNorm == 0.0){
-        return Eigen::VectorXd::Zero(rhs.size());
-      }
-
-      Eigen::VectorXd solution =
-        initialGuess != nullptr && initialGuess->size() == rhs.size()
-        ? *initialGuess
-        : Eigen::VectorXd::Zero(rhs.size());
-      Eigen::VectorXd residual = rhs - matrixFreeApplyC(solution);
-      if(solution.allFinite() && residual.allFinite() && residual.norm() / rhsNorm <= pcgTol){
-        pcgSolveMaxRelativeResidual = std::max(
-          pcgSolveMaxRelativeResidual, residual.norm() / rhsNorm);
-        return solution;
-      }
-      Eigen::VectorXd preconditioned =
-        residual.cwiseQuotient(matrixFreePCGDiagonal);
-      Eigen::VectorXd direction = preconditioned;
-      double residualDotPreconditioned = residual.dot(preconditioned);
-      if(!std::isfinite(residualDotPreconditioned) ||
-         residualDotPreconditioned <= 0.0){
-        Rcpp::stop("Matrix-free PCG encountered a non-positive preconditioned residual in " + context + ".");
-      }
-
-      const int maximumIterations =
-        pcgMaxIters > 0
-        ? pcgMaxIters
-        : std::max<int>(1000, static_cast<int>(rhs.size()));
-
-      for(int iteration = 0; iteration < maximumIterations; ++iteration){
-        const Eigen::VectorXd operatorDirection = matrixFreeApplyC(direction);
-        const double curvature = direction.dot(operatorDirection);
-        if(!std::isfinite(curvature) || curvature <= 0.0){
-          Rcpp::stop("Matrix-free PCG encountered non-positive curvature in " + context + ".");
-        }
-
-        const double alpha = residualDotPreconditioned / curvature;
-        solution.noalias() += alpha * direction;
-        residual.noalias() -= alpha * operatorDirection;
-
-        if(residual.norm() / rhsNorm <= pcgTol){
-          const Eigen::VectorXd trueResidual = rhs - matrixFreeApplyC(solution);
-          if(trueResidual.allFinite() && trueResidual.norm() / rhsNorm <= pcgTol){
-            pcgSolveMaxRelativeResidual = std::max(
-              pcgSolveMaxRelativeResidual, trueResidual.norm() / rhsNorm);
-            return solution;
-          }
-          residual = trueResidual;
-        }
-
-        preconditioned = residual.cwiseQuotient(matrixFreePCGDiagonal);
-        const double nextResidualDotPreconditioned =
-          residual.dot(preconditioned);
-        if(!std::isfinite(nextResidualDotPreconditioned) ||
-           nextResidualDotPreconditioned <= 0.0){
-          Rcpp::stop("Matrix-free PCG encountered a non-positive residual update in " + context + ".");
-        }
-        const double beta =
-          nextResidualDotPreconditioned / residualDotPreconditioned;
-        direction = preconditioned + beta * direction;
-        residualDotPreconditioned = nextResidualDotPreconditioned;
-      }
-
-      Rcpp::stop("Matrix-free PCG failed to converge in " + context + ".");
-      return Eigen::VectorXd();
-    };
-
   std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &,
     const Eigen::MatrixXd *, const std::string &)> solvePCGBatchFn;
   auto solveCVector = [&](const Eigen::Ref<const Eigen::VectorXd> & rhs,
@@ -3745,11 +3881,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     if(solverName == "cholmod"){
       return solveCVectorCholmod(rhs, context);
     }
-    if(matrixFreePCGReady){
-      const Eigen::VectorXd rhsCopy = rhs;
-      return solveMatrixFreePCG(rhsCopy, nullptr, context);
-    }
-    if(!CpcgReady){
+    if(!CpcgReady && !matrixFreePCGReady){
       Rcpp::stop("PCG solve requested before the PCG backend was prepared.");
     }
     Eigen::MatrixXd rhsMatrix(rhs.size(), 1);
@@ -3759,109 +3891,76 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
 
   int pcgBatchSolves = 0;
   int pcgBatchIterations = 0;
+  sommer::pcg::Metrics pcgMetrics;
+  std::map<std::string, Eigen::MatrixXd> pcgAcceptedSolutions, pcgCandidateSolutions;
+  bool pcgEvaluationAccepted = false;
+  Eigen::MatrixXd pcgRecycleBasis, pcgRecycleApplied;
+  Eigen::LLT<Eigen::MatrixXd> pcgRecycleFactor;
+  int pcgWarmStarts = 0, pcgCoarseCorrections = 0;
+  double pcgSetupSeconds = 0.0, pcgSolveSeconds = 0.0;
+  double pcgLogDetSeconds = 0.0, pcgTraceSetupSeconds = 0.0;
   auto solvePCGBatch = [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs,
                            const Eigen::MatrixXd * initialGuess,
                            const std::string & context) -> Eigen::MatrixXd {
+    const auto started = std::chrono::steady_clock::now();
     if(!CpcgReady && !matrixFreePCGReady){
       Rcpp::stop("Batched PCG requested without a prepared coefficient operator.");
     }
     if(rhs.rows() != C.rows()){
       Rcpp::stop("Batched PCG right-hand side has incompatible dimensions in " + context + ".");
     }
-    if(rhs.cols() > static_cast<Eigen::Index>(sommer::WorkspacePolicy::panelColumns())){
-      Eigen::MatrixXd result(rhs.rows(), rhs.cols());
-      const Eigen::Index panelColumns = static_cast<Eigen::Index>(sommer::WorkspacePolicy::panelColumns());
-      for(Eigen::Index first = 0; first < rhs.cols(); first += panelColumns){
-        const Eigen::Index count = std::min(panelColumns, rhs.cols() - first);
-        const Eigen::MatrixXd panel = rhs.middleCols(first, count);
-        Eigen::MatrixXd guess;
-        const bool haveGuess = initialGuess != nullptr && initialGuess->rows() == rhs.rows() &&
-          initialGuess->cols() == rhs.cols();
-        if(haveGuess){ guess = initialGuess->middleCols(first, count); }
-        result.middleCols(first, count) = solvePCGBatchFn(panel, haveGuess ? &guess : nullptr, context);
-      }
-      return result;
-    }
     ++pcgBatchSolves;
     const Eigen::Index n = rhs.rows();
     const Eigen::Index nRhs = rhs.cols();
-    Eigen::MatrixXd solution = initialGuess != nullptr &&
+    const bool cacheable = context == "BLUE/BLUP calculation" || context == "Hutchinson trace probes";
+    Eigen::MatrixXd guess = initialGuess != nullptr &&
       initialGuess->rows() == n && initialGuess->cols() == nRhs
       ? *initialGuess : Eigen::MatrixXd::Zero(n, nRhs);
-    auto applyOperator = [&](const Eigen::MatrixXd & values) -> Eigen::MatrixXd {
-      return matrixFreePCGReady ? matrixFreeApplyCMatrix(values) : Eigen::MatrixXd(C * values);
+    const auto cached = pcgAcceptedSolutions.find(context);
+    if(pcgWarmStart && cacheable && cached != pcgAcceptedSolutions.end() &&
+       cached->second.rows() == n && cached->second.cols() == nRhs){
+      guess = cached->second;
+      ++pcgWarmStarts;
+    }
+    if(pcgRecycleBasis.cols() > 0){
+      const Eigen::MatrixXd residual = rhs - applyCurrentPCG(guess);
+      guess.noalias() += pcgRecycleBasis *
+        pcgRecycleFactor.solve(pcgRecycleBasis.transpose() * residual);
+      ++pcgCoarseCorrections;
+    }
+    sommer::pcg::Options options;
+    options.tolerance = pcgTol;
+    options.maxIterations = pcgMaxIters;
+    options.residualRefresh = pcgResidualRefresh;
+    options.blockSize = std::min<std::size_t>(pcgBlockSize, sommer::WorkspacePolicy::panelColumns());
+    options.maxWorkspaceBytes = static_cast<std::size_t>(std::min<double>(
+      blockSchurPolicy.maxDoubles * sizeof(double),
+      static_cast<double>(std::numeric_limits<std::size_t>::max() / 2)));
+    const double workspace = static_cast<double>(n) *
+      (4.0 * nRhs + 12.0 * std::min<Eigen::Index>(nRhs, options.blockSize));
+    if(workspace > blockSchurPolicy.maxDoubles){ requireMemory("PCG solve panels", workspace); }
+    auto applyVector = [&](const Eigen::VectorXd & value) -> Eigen::VectorXd {
+      Rcpp::checkUserInterrupt();
+      return applyCurrentPCG(Eigen::MatrixXd(value)).col(0);
     };
-    Eigen::MatrixXd residual = rhs - applyOperator(solution);
-    Eigen::MatrixXd preconditioned = applyPCGPreconditioner(residual);
-    Eigen::MatrixXd direction = preconditioned;
-    Eigen::RowVectorXd residualProducts =
-      (residual.array() * preconditioned.array()).colwise().sum();
-    Eigen::RowVectorXd rhsNorm = rhs.colwise().norm();
-    std::vector<bool> active(static_cast<std::size_t>(nRhs), true);
+    auto preconditionVector = [&](const Eigen::VectorXd & value) -> Eigen::VectorXd {
+      return applyPCGPreconditioner(Eigen::MatrixXd(value)).col(0);
+    };
+    auto applyPanel = [&](const Eigen::MatrixXd & values) -> Eigen::MatrixXd {
+      Rcpp::checkUserInterrupt();
+      return applyCurrentPCG(values);
+    };
+    const sommer::pcg::Result result = pcgRhsMethod == "block"
+      ? sommer::pcg::solveBlock(rhs, applyPanel, applyPCGPreconditioner,
+          applyVector, preconditionVector, options, &guess)
+      : sommer::pcg::solvePackedIndependent(rhs, applyPanel, applyPCGPreconditioner, options, &guess);
+    pcgMetrics.add(result.metrics);
+    pcgBatchIterations += result.metrics.iterations;
+    const Eigen::MatrixXd & solution = result.solution;
+    const Eigen::MatrixXd trueResidual = rhs - applyCurrentPCG(solution);
     for(Eigen::Index col = 0; col < nRhs; ++col){
-      if(rhsNorm(col) == 0.0){
-        solution.col(col).setZero();
-        residual.col(col).setZero();
-        direction.col(col).setZero();
-        active[static_cast<std::size_t>(col)] = false;
-      }else if(residual.col(col).norm() <= pcgTol * rhsNorm(col)){
-        direction.col(col).setZero();
-        active[static_cast<std::size_t>(col)] = false;
-      }else if(!std::isfinite(residualProducts(col)) || residualProducts(col) <= 0.0){
-        Rcpp::stop("Batched PCG encountered a non-positive preconditioned residual in " + context + ".");
-      }
-    }
-    const int maximumIterations = pcgMaxIters > 0
-      ? pcgMaxIters : std::max<int>(1000, static_cast<int>(n));
-    bool allConverged = std::none_of(active.begin(), active.end(), [](bool value){ return value; });
-    int iterationsUsed = 0;
-    for(int iteration = 0; iteration < maximumIterations && !allConverged; ++iteration){
-      const Eigen::MatrixXd operatorDirection = applyOperator(direction);
-      const Eigen::RowVectorXd curvature =
-        (direction.array() * operatorDirection.array()).colwise().sum();
-      Eigen::RowVectorXd alpha = Eigen::RowVectorXd::Zero(nRhs);
-      for(Eigen::Index col = 0; col < nRhs; ++col){
-        if(!active[static_cast<std::size_t>(col)]){ continue; }
-        if(!std::isfinite(curvature(col)) || curvature(col) <= 0.0){
-          Rcpp::stop("Batched PCG encountered non-positive curvature in " + context + ".");
-        }
-        alpha(col) = residualProducts(col) / curvature(col);
-      }
-      solution.noalias() += direction * alpha.asDiagonal();
-      residual.noalias() -= operatorDirection * alpha.asDiagonal();
-      iterationsUsed = iteration + 1;
-      allConverged = true;
-      for(Eigen::Index col = 0; col < nRhs; ++col){
-        if(active[static_cast<std::size_t>(col)] &&
-           residual.col(col).norm() > pcgTol * rhsNorm(col)){
-          allConverged = false;
-        }else if(active[static_cast<std::size_t>(col)]){
-          active[static_cast<std::size_t>(col)] = false;
-          direction.col(col).setZero();
-        }
-      }
-      if(allConverged){ break; }
-      for(Eigen::Index col = 0; col < nRhs; ++col){
-        if(!active[static_cast<std::size_t>(col)]){ continue; }
-        preconditioned.col(col) = applyPCGPreconditioner(
-          Eigen::MatrixXd(residual.col(col))).col(0);
-        const double nextProduct = residual.col(col).dot(preconditioned.col(col));
-        if(!std::isfinite(nextProduct) || nextProduct <= 0.0){
-          Rcpp::stop("Batched PCG encountered a non-positive residual update in " + context + ".");
-        }
-        const double beta = nextProduct / residualProducts(col);
-        direction.col(col) = preconditioned.col(col) + beta * direction.col(col);
-        residualProducts(col) = nextProduct;
-      }
-    }
-    pcgBatchIterations += iterationsUsed;
-    if(!allConverged){
-      Rcpp::stop("Batched PCG failed to converge in " + context + ".");
-    }
-    const Eigen::MatrixXd trueResidual = rhs - applyOperator(solution);
-    for(Eigen::Index col = 0; col < nRhs; ++col){
-      if(rhsNorm(col) > 0.0){
-        const double relativeResidual = trueResidual.col(col).norm() / rhsNorm(col);
+      if(rhs.col(col).norm() > 0.0){
+        const double relativeResidual = trueResidual.col(col).norm() / rhs.col(col).norm();
         pcgSolveMaxRelativeResidual = std::max(pcgSolveMaxRelativeResidual, relativeResidual);
         if(relativeResidual > pcgTol){
           Rcpp::stop("Batched PCG failed the true-residual check for RHS column " +
@@ -3872,6 +3971,11 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     if(!solution.allFinite()){
       Rcpp::stop("Batched PCG produced a non-finite solution in " + context + ".");
     }
+    if(cacheable && (pcgWarmStart || pcgRecycleRank > 0)){
+      pcgCandidateSolutions[context] = solution;
+    }
+    pcgSolveSeconds += std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - started).count();
     return solution;
   };
   solvePCGBatchFn = solvePCGBatch;
@@ -3985,9 +4089,10 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   // iterations.  This is important for the likelihood line search: changes
   // in the approximate log determinant then reflect C, not fresh Monte Carlo
   // noise at every iteration.
-  auto pcgProbeSign = [](const unsigned long long row,
+  auto pcgProbeSign = [pcgSeed](const unsigned long long row,
                          const unsigned long long probe) -> double {
-    unsigned long long x = row + 0x9e3779b97f4a7c15ULL * (probe + 1ULL);
+    unsigned long long x = row + 0x9e3779b97f4a7c15ULL * (probe + 1ULL) +
+      0xd1b54a32d192ed03ULL * static_cast<unsigned long long>(pcgSeed);
     x ^= x >> 30;
     x *= 0xbf58476d1ce4e5b9ULL;
     x ^= x >> 27;
@@ -3998,17 +4103,46 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
 
   Eigen::MatrixXd pcgLanczosInverseGuess;
   double pcgLogDetProbeStandardError = std::numeric_limits<double>::quiet_NaN();
+  std::vector<double> pcgLogDetProbeValues;
+  double pcgLogDetDepthDifference = std::numeric_limits<double>::quiet_NaN();
+  Eigen::MatrixXd pcgScoreProbeValues;
+  double pcgScoreMaxSE = std::numeric_limits<double>::quiet_NaN();
+  int pcgAccuracyRefinements = 0;
+  Eigen::VectorXd pcgLastSparseTraceSamples;
+  std::vector<double> pcgAcceptedLogDetValues;
+  double pcgPairedLogLikSE = std::numeric_limits<double>::quiet_NaN();
 
   auto pcgApproxLogDet =
     [&](const Eigen::Index n,
-        const std::function<Eigen::VectorXd(const Eigen::VectorXd &)> & applyC) -> double {
+        const std::function<Eigen::VectorXd(const Eigen::VectorXd &)> & rawOperator) -> double {
     if(n <= 0){ return 0.0; }
+    const auto started = std::chrono::steady_clock::now();
+    int workers = 1;
+#ifdef _OPENMP
+    workers = std::min(pcgTraceProbes, omp_get_max_threads());
+#endif
+    const double needed = 3.0 * static_cast<double>(n) *
+      (std::min<Eigen::Index>(pcgLanczosSteps, n) * static_cast<double>(workers) +
+       pcgTraceProbes + std::min<Eigen::Index>(n, pcgRecycleRank) +
+       (pcgTraceEstimator == "control-variate" ? std::min<Eigen::Index>(n, pcgTraceRank) : 0));
+    if(needed > blockSchurPolicy.maxDoubles){ requireMemory("PCG Lanczos and probe workspace", needed); }
+    const Eigen::VectorXd diagonal = matrixFreePCGReady ? matrixFreePCGDiagonal : Eigen::VectorXd(C.diagonal());
+    const bool scaled = pcgLogDetScaling == "diagonal";
+    Eigen::VectorXd root = Eigen::VectorXd::Ones(n);
+    if(scaled){ root = diagonal.array().sqrt().matrix(); }
+    const double correction = scaled ? diagonal.array().log().sum() : 0.0;
+    auto applyC = [&](const Eigen::VectorXd & value) -> Eigen::VectorXd {
+      ++pcgOperatorCalls;
+      ++pcgVectorEquivalent;
+      return scaled ? rawOperator(value.cwiseQuotient(root)).cwiseQuotient(root).eval() : rawOperator(value);
+    };
     const int mMax = std::min<int>(pcgLanczosSteps, static_cast<int>(n));
     std::vector<double> probeEstimates(
       static_cast<std::size_t>(pcgTraceProbes),
       0.0
     );
     pcgLanczosInverseGuess.resize(n, pcgTraceProbes);
+    std::vector<double> shallowEstimates(static_cast<std::size_t>(pcgTraceProbes), 0.0);
     std::atomic<bool> invalidProbe(false);
 
     // Each deterministic Rademacher probe is independent.  Keeping one
@@ -4073,6 +4207,21 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
           (normz * w0 / eval(j)) * evec.col(j);
       }
       probeEstimates[static_cast<std::size_t>(probe)] = normz*normz*quad;
+      if(pcgAccuracy == "adaptive"){
+        if(m == n){
+          shallowEstimates[probe] = probeEstimates[probe];
+        }else{
+          const int shallow = std::min(m, std::max(2, mMax / 2));
+          Eigen::SelfAdjointEigenSolver<Eigen::MatrixXd> nested(T.topLeftCorner(shallow, shallow));
+          if(nested.info() != Eigen::Success || nested.eigenvalues().minCoeff() <= 0.0){
+            invalidProbe.store(true, std::memory_order_relaxed);
+            continue;
+          }
+          shallowEstimates[probe] = normz * normz *
+            (nested.eigenvectors().row(0).array().square() *
+             nested.eigenvalues().transpose().array().log()).sum();
+        }
+      }
       pcgLanczosInverseGuess.col(probe).noalias() =
         lanczosBasis.leftCols(m) * inverseCoefficients;
     }
@@ -4084,6 +4233,13 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     double total = 0.0;
     for(int probe = 0; probe < pcgTraceProbes; ++probe){
       total += probeEstimates[static_cast<std::size_t>(probe)];
+    }
+    pcgLogDetProbeValues = probeEstimates;
+    for(double & estimate : pcgLogDetProbeValues){ estimate += correction; }
+    if(pcgAccuracy == "adaptive"){
+      const double shallowMean = std::accumulate(shallowEstimates.begin(), shallowEstimates.end(), 0.0) /
+        static_cast<double>(pcgTraceProbes);
+      pcgLogDetDepthDifference = std::abs(total / pcgTraceProbes - shallowMean);
     }
     if(pcgTraceProbes > 1){
       const double mean = total / static_cast<double>(pcgTraceProbes);
@@ -4098,7 +4254,9 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     }else{
       pcgLogDetProbeStandardError = std::numeric_limits<double>::quiet_NaN();
     }
-    return total / static_cast<double>(pcgTraceProbes);
+    pcgLogDetSeconds += std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - started).count();
+    return total / static_cast<double>(pcgTraceProbes) + correction;
   };
 
   // Z and X=C^{-1}Z are allocated only in PCG mode and reused by every
@@ -4111,6 +4269,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
 
   auto preparePCGTraceProbes = [&](const Eigen::Index n){
     if(solverName != "pcg"){ return; }
+    const auto started = std::chrono::steady_clock::now();
     pcgTraceZ.resize(n, pcgTraceProbes);
     pcgTraceX.resize(n, pcgTraceProbes);
     for(int p = 0; p < pcgTraceProbes; ++p){
@@ -4121,7 +4280,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
     const bool haveLanczosGuess =
       pcgLanczosInverseGuess.rows() == n &&
-      pcgLanczosInverseGuess.cols() == pcgTraceProbes;
+      pcgLanczosInverseGuess.cols() == pcgTraceProbes && pcgLogDetScaling == "none";
     pcgTraceX = solvePCGBatch(
       pcgTraceZ,
       haveLanczosGuess ? &pcgLanczosInverseGuess : nullptr,
@@ -4132,6 +4291,29 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
         Rcpp::stop("PCG failed while preparing Hutchinson trace probes for C^{-1}.");
       }
     }
+    if(pcgTraceEstimator == "control-variate"){
+      const int rank = std::min<int>(pcgTraceRank, n);
+      const double needed = 8.0 * static_cast<double>(n) * (rank + pcgTraceProbes) +
+        5.0 * rank * rank;
+      if(needed > blockSchurPolicy.maxDoubles){ requireMemory("PCG trace control variate", needed); }
+      auto applyVector = [&](const Eigen::VectorXd & value) -> Eigen::VectorXd {
+        Rcpp::checkUserInterrupt();
+        return applyCurrentPCG(Eigen::MatrixXd(value)).col(0);
+      };
+      const sommer::pcg_estimators::LandmarkControlVariate control =
+        sommer::pcg_estimators::makeLandmarkControlVariate(n, applyVector, rank,
+          static_cast<unsigned>(pcgSeed),
+          static_cast<std::size_t>(blockSchurPolicy.maxDoubles * sizeof(double)));
+      pcgTraceX.noalias() -= control.basis *
+        (control.projectedInverse * (control.basis.transpose() * pcgTraceZ));
+      pcgTraceZ.conservativeResize(n, pcgTraceProbes + rank);
+      pcgTraceX.conservativeResize(n, pcgTraceProbes + rank);
+      const double rootCount = std::sqrt(static_cast<double>(pcgTraceProbes));
+      pcgTraceZ.rightCols(rank) = rootCount * control.basis;
+      pcgTraceX.rightCols(rank).noalias() = rootCount * control.basis * control.projectedInverse;
+    }
+    pcgTraceSetupSeconds += std::chrono::duration<double>(
+      std::chrono::steady_clock::now() - started).count();
   };
 
 
@@ -4150,11 +4332,12 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
       reportedOpenMpSlq = true;
     }
   auto pcgTraceCInverseTimesSparse = [&](const arma::sp_mat & B) -> double {
-    if(solverName != "pcg" || pcgTraceX.cols() != pcgTraceProbes){
+    if(solverName != "pcg" || pcgTraceX.cols() < pcgTraceProbes){
       Rcpp::stop("PCG trace probes are not available.");
     }
     double out = 0.0;
-    for(int p = 0; p < pcgTraceProbes; ++p){
+    pcgLastSparseTraceSamples = Eigen::VectorXd::Zero(pcgTraceProbes);
+    for(Eigen::Index p = 0; p < pcgTraceX.cols(); ++p){
       double one = 0.0;
       for(arma::sp_mat::const_iterator it = B.begin(); it != B.end(); ++it){
         one += pcgTraceZ(static_cast<Eigen::Index>(it.row()), p)
@@ -4162,6 +4345,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
              * pcgTraceX(static_cast<Eigen::Index>(it.col()), p);
       }
       out += one;
+      if(p < pcgTraceProbes){ pcgLastSparseTraceSamples(p) = one; }
     }
     return out / static_cast<double>(pcgTraceProbes);
   };
@@ -5500,10 +5684,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
 
         bool useMatrixFreePCG = (matrixFreePcgMode != "off");
-        if(useMatrixFreePCG && matrixFreePcgMode == "auto"){
-          useMatrixFreePCG = solverPlan.matrixFree(nRe > 0, true);
-        } else if(useMatrixFreePCG && matrixFreePcgMode == "force"){
-          useMatrixFreePCG = solverPlan.matrixFreeEligible() && (nRe > 0);
+        if(useMatrixFreePCG){
+          useMatrixFreePCG = solverName == "pcg" && reml && computeCi == 0 && nRe > 0;
         }
 
         for(int i = 0; i < nRe && useMatrixFreePCG; ++i){
@@ -5935,8 +6117,38 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       // Genuine factorisation-free MME path: no analyzePattern(), factorize(),
       // vectorD(), matrixL(), or Takahashi call is made for C.
       CnumericReady = false;
-      if(!matrixFreePCGReady){
-        preparePCG(C);
+      if(pcgEvaluationAccepted){
+        pcgAcceptedSolutions = std::move(pcgCandidateSolutions);
+      }
+      pcgCandidateSolutions.clear();
+      pcgEvaluationAccepted = false;
+      const auto pcgSetupStarted = std::chrono::steady_clock::now();
+      preparePCG(lambda);
+      pcgRecycleBasis.resize(nEffects, 0);
+      if(pcgRecycleRank > 0 && !pcgAcceptedSolutions.empty()){
+        const int requestedRank = std::min(nEffects, pcgRecycleRank);
+        const double needed = 4.0 * nEffects * requestedRank + 3.0 * requestedRank * requestedRank;
+        if(needed > blockSchurPolicy.maxDoubles){ requireMemory("PCG recycled coarse space", needed); }
+        Eigen::MatrixXd candidates(nEffects, requestedRank);
+        int count = 0;
+        for(const auto & cached : pcgAcceptedSolutions){
+          for(Eigen::Index col = 0; col < cached.second.cols() && count < requestedRank; ++col){
+            candidates.col(count++) = cached.second.col(col);
+          }
+        }
+        Eigen::ColPivHouseholderQR<Eigen::MatrixXd> qr(candidates.leftCols(count));
+        const int rank = std::min<int>(pcgRecycleRank, qr.rank());
+        if(rank > 0){
+          pcgRecycleBasis = qr.householderQ() * Eigen::MatrixXd::Identity(nEffects, rank);
+          pcgRecycleApplied = applyCurrentPCG(pcgRecycleBasis);
+          const Eigen::MatrixXd gram = pcgRecycleBasis.transpose() * pcgRecycleApplied;
+          pcgRecycleFactor.compute(0.5 * (gram + gram.transpose()));
+          if(pcgRecycleFactor.info() != Eigen::Success){
+            Rcpp::stop("PCG recycled coarse operator is not positive definite.");
+          }
+        }
+        pcgSetupSeconds += std::chrono::duration<double>(
+          std::chrono::steady_clock::now() - pcgSetupStarted).count();
       }
       // Keep the historical verbose diagnostic column defined without
       // introducing a factorisation in PCG mode.
@@ -5948,13 +6160,21 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           minD = std::min(minD, C.coeff(jj,jj));
         }
       }
-      logDetC =
-        pcgApproxLogDet(
-          C.rows(),
-          [&](const Eigen::VectorXd & value) -> Eigen::VectorXd {
-            return matrixFreePCGReady ? matrixFreeApplyC(value) : C * value;
-          }
-        );
+      for(;;){
+        logDetC = pcgApproxLogDet(
+          C.rows(), [&](const Eigen::VectorXd & value) -> Eigen::VectorXd {
+              return matrixFreePCGReady ? matrixFreeApplyC(value) : C * value;
+            });
+        if(pcgAccuracy != "adaptive" || iIter != 0 || modelFreeCount != 0 ||
+           (std::isfinite(pcgLogDetProbeStandardError) && pcgLogDetProbeStandardError <= pcgLogDetTol &&
+            pcgLogDetDepthDifference <= pcgLogDetTol) ||
+           (pcgTraceProbes == pcgMaxTraceProbes && pcgLanczosSteps == pcgMaxLanczosSteps)){
+          break;
+        }
+        pcgTraceProbes = std::min<long long>(pcgMaxTraceProbes, 2LL * pcgTraceProbes);
+        pcgLanczosSteps = std::min<long long>(pcgMaxLanczosSteps, 2LL * pcgLanczosSteps);
+        ++pcgAccuracyRefinements;
+      }
     }
 
     // ------------------------------------------------------------
@@ -6081,6 +6301,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // ==========================================================
 
     if(!haveAcceptedLikelihood){
+      if(solverName == "pcg"){ pcgAcceptedLogDetValues = pcgLogDetProbeValues; }
 
       acceptedLikelihood =
         llik(iIter);
@@ -6089,6 +6310,16 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         true;
 
     }else if(pendingLineSearch){
+      if(solverName == "pcg" && pcgTraceProbes > 1 &&
+         pcgAcceptedLogDetValues.size() == pcgLogDetProbeValues.size()){
+        Eigen::VectorXd differences(pcgTraceProbes);
+        for(int probe = 0; probe < pcgTraceProbes; ++probe){
+          differences(probe) = pcgLogDetProbeValues[probe] - pcgAcceptedLogDetValues[probe];
+        }
+        pcgPairedLogLikSE = 0.5 * std::sqrt(
+          (differences.array() - differences.mean()).square().sum() /
+          (static_cast<double>(pcgTraceProbes - 1) * pcgTraceProbes));
+      }
 
       const double trialLikelihood =
         llik(iIter);
@@ -6213,41 +6444,69 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
         acceptedLikelihood =
           trialLikelihood;
+        if(solverName == "pcg"){ pcgAcceptedLogDetValues = pcgLogDetProbeValues; }
 
         pendingLineSearch =
           false;
       }
     }
 
+    if(solverName == "pcg"){ pcgEvaluationAccepted = true; }
     if(!rrConditional){ phaseProfile.enter(sommer::FitPhase::TracePrep); }
+    const double traceDerivativePhaseStart = traceDerivativePreparationSeconds;
+    const double traceRandomPrecisionStart = traceRandomPrecisionDerivativeSeconds;
+    const double traceFactorCovarianceStart = traceFactorCovarianceDerivativeSeconds;
+    const double traceFactorPrecisionStart = traceFactorPrecisionDerivativeSeconds;
+    const double traceResidualPrecisionStart = traceResidualPrecisionDerivativeSeconds;
+    const double traceGridDerivativeStart = traceGridDerivativeBasisSeconds;
+    const double traceResidualBasisStart = traceResidualDerivativeBasisSeconds;
+    const bool traceDerivativeProfile = phaseProfile.enabled() && !rrConditional;
+    ProfileTimer traceDerivativeTimer(traceDerivativePreparationSeconds,
+      traceDerivativeProfile);
     // Derivatives and trace/AI preparation are unnecessary for likelihood
     // trials rejected above. Reuse the factor covariance/precision state
     // already evaluated for the accepted likelihood rather than evaluating
     // descriptor factors again.
-    for(int iR = 0; !rrConditional && iR < nRe; ++iR){
-      DescriptorPrecisionState & precisionState =
-        randomPrecisionState[static_cast<std::size_t>(iR)];
-      if(precisionState.factorWise){
-        factorEngine.buildDescriptorPrecisionDerivatives(
-          covDescriptor[static_cast<std::size_t>(iR)],
-          covPar(iR),
-          precisionState
-        );
+    {
+      ProfileTimer timer(traceRandomPrecisionDerivativeSeconds, traceDerivativeProfile);
+      for(int iR = 0; !rrConditional && iR < nRe; ++iR){
+        DescriptorPrecisionState & precisionState =
+          randomPrecisionState[static_cast<std::size_t>(iR)];
+        if(precisionState.factorWise){
+          factorEngine.buildDescriptorPrecisionDerivatives(
+            covDescriptor[static_cast<std::size_t>(iR)],
+            covPar(iR),
+            precisionState,
+            traceDerivativeProfile ? &traceFactorCovarianceDerivativeSeconds : nullptr,
+            traceDerivativeProfile ? &traceFactorPrecisionDerivativeSeconds : nullptr
+          );
+        }
       }
     }
+    traceRandomPrecisionOtherSeconds += std::max(
+      0.0,
+      (traceRandomPrecisionDerivativeSeconds - traceRandomPrecisionStart) -
+        (traceFactorCovarianceDerivativeSeconds - traceFactorCovarianceStart) -
+        (traceFactorPrecisionDerivativeSeconds - traceFactorPrecisionStart)
+    );
 
-    if(!rrConditional && Rkron && residualPrecisionState.factorWise){
-      factorEngine.buildDescriptorPrecisionDerivatives(
-        covDescriptor[static_cast<std::size_t>(residualStruct)],
-        covPar(residualStruct),
-        residualPrecisionState
-      );
+    {
+      ProfileTimer timer(traceResidualPrecisionDerivativeSeconds, traceDerivativeProfile);
+      if(!rrConditional && Rkron && residualPrecisionState.factorWise){
+        factorEngine.buildDescriptorPrecisionDerivatives(
+          covDescriptor[static_cast<std::size_t>(residualStruct)],
+          covPar(residualStruct),
+          residualPrecisionState
+        );
+      }
     }
 
     const bool residualDerivativesBlockLocal = (Rkron || Rgrid) && !useH;
 
     const bool emMomentsOnly = covStructI.hasAttribute("emMomentsOnly") &&
       Rcpp::as<bool>(covStructI.attr("emMomentsOnly"));
+    ProfileTimer traceGridDerivativeTimer(traceGridDerivativeBasisSeconds,
+      traceDerivativeProfile);
     if(Rgrid && (!rrConditional || (rrCallback && !emMomentsOnly))){
       Rcpp::List rfactors =
         covDescriptor[static_cast<std::size_t>(residualStruct)]["factors"];
@@ -6292,6 +6551,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
       }
     }
+    traceGridDerivativeTimer.stop();
 
     auto invokeConditionalCallback = [&]() {
       if(rrCallback){
@@ -6545,32 +6805,45 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       return eigenSparseToArmaGlobal(transformed);
     };
 
-    for(arma::uword k = 0; k < nResidualPar && !Rgrid; ++k){
-      if(compactResidualCovariance && !residualDerivativesBlockLocal){
-        residualDerivativeBasis(k) =
-          buildCompactResidualSparse(covPar(residualStruct), static_cast<int>(k));
-      }else{
-        if(!(residualDerivativesBlockLocal && residualPrecisionState.factorWise)){
-          residualLocalD1(k) =
-            cachedCovarianceD1(
-              residualStruct,
-              k
-            );
-        }
-        if(!residualDerivativesBlockLocal){
+    {
+      ProfileTimer timer(traceResidualDerivativeBasisSeconds, traceDerivativeProfile);
+      for(arma::uword k = 0; k < nResidualPar && !Rgrid; ++k){
+        if(compactResidualCovariance && !residualDerivativesBlockLocal){
           residualDerivativeBasis(k) =
-            buildResidualSparseFromPattern(residualLocalD1(k));
+            buildCompactResidualSparse(covPar(residualStruct), static_cast<int>(k));
+        }else{
+          if(!(residualDerivativesBlockLocal && residualPrecisionState.factorWise)){
+            residualLocalD1(k) =
+              cachedCovarianceD1(
+                residualStruct,
+                k
+              );
+          }
+          if(!residualDerivativesBlockLocal){
+            residualDerivativeBasis(k) =
+              buildResidualSparseFromPattern(residualLocalD1(k));
+          }
         }
-      }
-      // The effective residual is R = Hs^{-T} R0 Hs^{-1}; its derivative
-      // carries the same weighting (the trace code relies on this).
-      if(useH){
-        residualDerivativeBasis(k) = weightBlockCount > 0
-          ? applyGroupedWeightDerivative(residualDerivativeBasis(k))
-          : HsInvT * residualDerivativeBasis(k) * HsInvT.t();
+        // The effective residual is R = Hs^{-T} R0 Hs^{-1}; its derivative
+        // carries the same weighting (the trace code relies on this).
+        if(useH){
+          residualDerivativeBasis(k) = weightBlockCount > 0
+            ? applyGroupedWeightDerivative(residualDerivativeBasis(k))
+            : HsInvT * residualDerivativeBasis(k) * HsInvT.t();
+        }
       }
     }
 
+    traceDerivativeTimer.stop();
+    traceDerivativeOtherSeconds += std::max(
+      0.0,
+      (traceDerivativePreparationSeconds - traceDerivativePhaseStart) -
+        (traceRandomPrecisionDerivativeSeconds - traceRandomPrecisionStart) -
+        (traceResidualPrecisionDerivativeSeconds - traceResidualPrecisionStart) -
+        (traceGridDerivativeBasisSeconds - traceGridDerivativeStart) -
+        (traceResidualDerivativeBasisSeconds - traceResidualBasisStart)
+    );
+    ProfileTimer tracePreparationTimer(traceSelectedInverseSeconds, phaseProfile.enabled());
     if(saddleActive){
       // Exact augmented inverse actions supply traces without an SPD C factor.
     }else if(solverPlan.traces() == sommer::TracePreparation::SelectedInverse){
@@ -6608,6 +6881,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         ++cholmodRSelectedBuilds;
       }
     }
+    tracePreparationTimer.stop();
 
     b = bu(bInd); // move BLUEs to a different vector
     if(nZs > 0){ // move BLUPs to a different vector
@@ -6984,6 +7258,77 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       )
     );
 
+    if(phaseProfile.enabled()){
+      for(arma::uword column = 0; column < sensitivityRHS.n_cols; ++column){
+        for(arma::uword row = 0; row < sensitivityRHS.n_rows; ++row){
+          sensitivityRHSNonzeros += sensitivityRHS(row, column) != 0.0;
+        }
+      }
+      if(solverName == "ldlt" && !saddleActive && !dFirstMLActive &&
+         Cfactor.info() == Eigen::Success &&
+         Cfactor.rows() == static_cast<Eigen::Index>(sensitivityRHS.n_rows)){
+        const std::size_t dimension = static_cast<std::size_t>(sensitivityRHS.n_rows);
+        EigenSpMat lower = Cfactor.matrixL();
+        lower.makeCompressed();
+        std::vector<std::vector<int>> forwardRows(dimension);
+        std::vector<std::vector<int>> backwardColumns(dimension);
+        for(int column = 0; column < lower.outerSize(); ++column){
+          for(EigenSpMat::InnerIterator entry(lower, column); entry; ++entry){
+            if(entry.row() > column){
+              forwardRows[static_cast<std::size_t>(column)].push_back(entry.row());
+              backwardColumns[static_cast<std::size_t>(entry.row())].push_back(column);
+            }
+          }
+        }
+        std::vector<int> forwardSeen(dimension, 0);
+        std::vector<int> backwardSeen(dimension, 0);
+        const auto & permutation = Cfactor.permutationP();
+        const bool reducedSensitivityColumns =
+          reduceFixed && hybridFree.n_elem < static_cast<arma::uword>(nVcTotal);
+        const arma::uword reachColumnCount = reducedSensitivityColumns
+          ? hybridFree.n_elem
+          : sensitivityRHS.n_cols;
+        for(arma::uword reachColumn = 0; reachColumn < reachColumnCount; ++reachColumn){
+          const arma::uword column = reducedSensitivityColumns
+            ? hybridFree(reachColumn)
+            : reachColumn;
+          const int marker = static_cast<int>(reachColumn + 1);
+          std::vector<int> forward;
+          for(arma::uword row = 0; row < sensitivityRHS.n_rows; ++row){
+            if(sensitivityRHS(row, column) == 0.0){ continue; }
+            const int permuted = permutation.indices()(static_cast<int>(row));
+            if(forwardSeen[static_cast<std::size_t>(permuted)] != marker){
+              forwardSeen[static_cast<std::size_t>(permuted)] = marker;
+              forward.push_back(permuted);
+            }
+          }
+          for(std::size_t cursor = 0; cursor < forward.size(); ++cursor){
+            for(const int row : forwardRows[static_cast<std::size_t>(forward[cursor])]){
+              if(forwardSeen[static_cast<std::size_t>(row)] != marker){
+                forwardSeen[static_cast<std::size_t>(row)] = marker;
+                forward.push_back(row);
+              }
+            }
+          }
+          std::vector<int> solveReach = forward;
+          for(const int row : solveReach){
+            backwardSeen[static_cast<std::size_t>(row)] = marker;
+          }
+          for(std::size_t cursor = 0; cursor < solveReach.size(); ++cursor){
+            for(const int parent : backwardColumns[
+                  static_cast<std::size_t>(solveReach[cursor])]){
+              if(backwardSeen[static_cast<std::size_t>(parent)] != marker){
+                backwardSeen[static_cast<std::size_t>(parent)] = marker;
+                solveReach.push_back(parent);
+              }
+            }
+          }
+          sensitivitySolveReachEntries += solveReach.size();
+          sensitivitySolveReachPossibleEntries += dimension;
+        }
+      }
+    }
+    ProfileTimer sensitivitySolveTimer(sensitivitySolveSeconds, phaseProfile.enabled());
     Eigen::MatrixXd dBuEig;
     if(reduceFixed && hybridFree.n_elem < static_cast<arma::uword>(nVcTotal)){
       // Only the free/free block is needed here; final refreshes solve every column.
@@ -7005,6 +7350,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       );
       sensitivityRHSColumns += nVcTotal;
     }
+    sensitivitySolveTimer.stop();
 
     // Zero-copy Armadillo view of Eigen's column-major result.  dBuEig owns
     // the memory and remains alive for the complete AI assembly below.
@@ -7020,6 +7366,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // Assemble the exact Average Information matrix.
     // ------------------------------------------------------------
     phaseProfile.enter(sommer::FitPhase::AIAssembly);
+    ProfileTimer aiAssemblyTimer(aiAssemblyWallSeconds, phaseProfile.enabled());
     avInf.zeros(
       nVcTotal,
       nVcTotal
@@ -7035,6 +7382,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // because sensitivityRHS_i = -C_i b.
     if(nRandomVc > 0){
 
+      ProfileTimer randomFirstTermTimer(aiRandomFirstTermSeconds, phaseProfile.enabled());
       arma::mat randomFirstTerm =
         (
           -sensitivityRHS.cols(
@@ -7052,10 +7400,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         static_cast<arma::uword>(nVcTotal - 1)
       ) =
         randomFirstTerm;
+      randomFirstTermTimer.stop();
 
       // Add 0.5 b' C_ij b for pairs of covariance parameters belonging
       // to the SAME random covariance structure.  Cross-structure second
       // derivatives are exactly zero.
+      ProfileTimer randomCurvatureTimer(aiRandomCurvatureSeconds, phaseProfile.enabled());
     #ifdef _OPENMP
       #pragma omp parallel for if(nRe > 1) schedule(static)
     #endif
@@ -7147,7 +7497,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         for(arma::uword localI = 0; localI < localNvc; ++localI){
           const int factorI = precisionState.derivativeFactor[static_cast<std::size_t>(localI)];
 
-          for(arma::uword localJ = 0; localJ < localNvc; ++localJ){
+            // The covariance curvature correction is symmetric in each parameter pair.
+            for(arma::uword localJ = localI; localJ < localNvc; ++localJ){
 
             // Average-information metric in generic coordinates:
             // J' AI(Sigma) J.  Build dLambda_j Sigma dLambda_i from
@@ -7251,6 +7602,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
               globalStart + localJ
             ) +=
               secondCorrection;
+            if(localI != localJ){
+              avInf(
+                globalStart + localJ,
+                globalStart + localI
+              ) +=
+                secondCorrection;
+            }
           }
         }
       }
@@ -7281,6 +7639,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         nRandomVc - 1
       ) =
         randomBlock;
+      randomCurvatureTimer.stop();
     }
 
     // Residual/residual block:
@@ -7290,6 +7649,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // and because db_j = -C^{-1} q_j,
     //
     // = w_i' R^{-1} w_j + q_i' db_j.
+    ProfileTimer residualBlockTimer(aiResidualBlockSeconds, phaseProfile.enabled());
     arma::mat residualGram =
       residualWorking.t()
       *
@@ -7353,6 +7713,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           )
         ).t();
     }
+    residualBlockTimer.stop();
 
     if(!avInf.is_finite()){
       Rcpp::stop(
@@ -7361,6 +7722,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       );
     }
     ++exactAIRefreshes;
+    aiAssemblyTimer.stop();
     };
 
     if(!exactAIThisIteration){
@@ -7386,6 +7748,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     arma::field<arma::mat> emInfList(nRRe);
     arma::vec dLu;
     double saddleInversePriorTrace = 0.0;
+    if(solverName == "pcg"){
+      pcgScoreProbeValues = Eigen::MatrixXd::Zero(nVcTotal, pcgTraceProbes);
+    }
 
     // ============================================================
     // CHANGE #3A: selected inverse blocks for random-effect traces
@@ -7401,6 +7766,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         );
 
         arma::mat partitionsP = partitions(iR);
+        std::vector<arma::mat> pcgRandomProbeTraces;
+        if(solverName == "pcg"){
+          const double needed = static_cast<double>(pcgTraceProbes) * traces.n_elem;
+          if(needed > blockSchurPolicy.maxDoubles){ requireMemory("PCG random trace diagnostics", needed); }
+          pcgRandomProbeTraces.assign(pcgTraceProbes,
+            arma::mat(traces.n_rows, traces.n_cols, arma::fill::zeros));
+        }
 
         arma::umat traceSupport;
         {
@@ -7616,6 +7988,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                 ).sum()
                 /
                 static_cast<double>(pcgTraceProbes);
+              for(int probe = 0; probe < pcgTraceProbes; ++probe){
+                const double sample = pcgAiZ.col(probe).dot(
+                  pcgTraceX.col(probe).segment(rowStart, blockHeight));
+                pcgRandomProbeTraces[probe](iRow,iCol) = sample;
+                pcgRandomProbeTraces[probe](iCol,iRow) = sample;
+              }
             }else{
               bool subsetComplete = true;
               for(arma::sp_mat::const_iterator ait = Ai(iR).begin();
@@ -7662,6 +8040,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                   #pragma omp critical(sommer_factor_solve)
 #endif
                   {
+                    ProfileTimer fallbackTimer(scoreTraceFallbackSeconds, phaseProfile.enabled());
                     ++traceFallbackSolves;
                     if(reml){
                       Eigen::MatrixXd selectedRHS = Eigen::MatrixXd::Zero(
@@ -7693,6 +8072,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                         }
                       }
                     }
+                    fallbackTimer.stop();
                   }
                   fallbackBlockAvailable = true;
                 }
@@ -7767,6 +8147,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                   derivativeFactors,
                   derivativeScale
                 );
+              if(solverName == "pcg"){
+                for(int probe = 0; probe < pcgTraceProbes; ++probe){
+                  pcgScoreProbeValues(static_cast<Eigen::Index>(nVcStart(iR) - 1 + k), probe) =
+                    factorEngine.contractKronecker(pcgRandomProbeTraces[probe],
+                      derivativeFactors, derivativeScale);
+                }
+              }
             }else{
               precisionContraction =
                 arma::accu(
@@ -7774,6 +8161,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                   %
                   precisionState.precisionD1[static_cast<std::size_t>(k)]
                 );
+              if(solverName == "pcg"){
+                for(int probe = 0; probe < pcgTraceProbes; ++probe){
+                  pcgScoreProbeValues(static_cast<Eigen::Index>(nVcStart(iR) - 1 + k), probe) =
+                    arma::accu(pcgRandomProbeTraces[probe] %
+                      precisionState.precisionD1[static_cast<std::size_t>(k)]);
+                }
+              }
             }
 
             structuredScore(k) =
@@ -7931,6 +8325,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       double traceSRi = 0.0;
       bool usedCTraceFallback = false;
       double traceCorrection = 0.0;
+      Eigen::VectorXd pcgResidualSamples;
+      if(solverName == "pcg"){ pcgResidualSamples = Eigen::VectorXd::Zero(pcgTraceProbes); }
 
       if(saddleActive){
         traceSRi = saddleResidualTraces(iP);
@@ -8052,12 +8448,16 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                 *
                 pcgRiWX.row(static_cast<Eigen::Index>(it.row())).array()
               ).sum();
+            for(int probe = 0; probe < pcgTraceProbes; ++probe){
+              pcgResidualSamples(probe) += (*it) *
+                pcgRiWZ(it.row(), probe) * pcgRiWX(it.row(), probe);
+            }
           }
         }
         traceCorrection /= static_cast<double>(pcgTraceProbes);
       }else if(solverName == "pcg" && RiWisSparse){
-        const arma::mat probeZ(pcgRiWZ.data(), nR, pcgTraceProbes, false, true);
-        const arma::mat probeX(pcgRiWX.data(), nR, pcgTraceProbes, false, true);
+        const arma::mat probeZ(pcgRiWZ.data(), nR, pcgTraceZ.cols(), false, true);
+        const arma::mat probeX(pcgRiWX.data(), nR, pcgTraceX.cols(), false, true);
         if(residualDerivativesBlockLocal){
           for(int block = 0; block < residualKronNBlocks; ++block){
             const arma::uvec & rows = residualKronRows[static_cast<std::size_t>(block)];
@@ -8071,10 +8471,19 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             }else{
               derivativeApplied = residualLocalD1(iP) * localX;
             }
-            traceCorrection += arma::accu(probeZ.rows(rows) % derivativeApplied);
+            const arma::mat localZ = probeZ.rows(rows);
+            traceCorrection += arma::accu(localZ % derivativeApplied);
+            for(int probe = 0; probe < pcgTraceProbes; ++probe){
+              pcgResidualSamples(probe) += arma::dot(localZ.col(probe),
+                derivativeApplied.col(probe));
+            }
           }
         }else{
-          traceCorrection = arma::accu(probeZ % arma::mat(Sprov * probeX));
+          const arma::mat derivativeApplied = arma::mat(Sprov * probeX);
+          traceCorrection = arma::accu(probeZ % derivativeApplied);
+          for(int probe = 0; probe < pcgTraceProbes; ++probe){
+            pcgResidualSamples(probe) = arma::dot(probeZ.col(probe), derivativeApplied.col(probe));
+          }
         }
         traceCorrection /= static_cast<double>(pcgTraceProbes);
         ++pcgResidualTraceContractions;
@@ -8189,6 +8598,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                   : 0.0)
             );
       }
+      if(solverName == "pcg"){
+        if(!RiWisSparse){ pcgResidualSamples = pcgLastSparseTraceSamples; }
+        pcgScoreProbeValues.row(nVcStart(residualStruct) - 1 + iP) = -pcgResidualSamples.transpose();
+      }
 
       if(verbose && solverName == "ldlt" && usedCTraceFallback && iIter == 0){
         Rcpp::Rcout
@@ -8275,6 +8688,50 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     phaseProfile.enter(sommer::FitPhase::Update);
     dLu = join_cols( dLu, dLe );// join the random and residual first derivatives in a single vector
+    if(solverName == "pcg"){
+      pcgScoreMaxSE = 0.0;
+      for(int parameter = 0; parameter < nVcTotal; ++parameter){
+        const double mean = pcgScoreProbeValues.row(parameter).mean();
+        pcgScoreProbeValues.row(parameter).array() += dLu(parameter) - mean;
+        pcgScoreProbeValues.row(parameter) *= -0.5;
+      }
+      if(modelFreeCount > 0 && pcgTraceProbes < 2){
+        pcgScoreMaxSE = std::numeric_limits<double>::quiet_NaN();
+      }else{
+        Eigen::MatrixXd freeScores(modelFreeCount, pcgTraceProbes);
+        for(arma::uword row = 0; row < modelFreeCount; ++row){
+          freeScores.row(row) = pcgScoreProbeValues.row(hybridFree(row));
+        }
+        if(vcMap.active){
+          const arma::mat map = vcMap.T.rows(hybridFree);
+          const Eigen::Map<const Eigen::MatrixXd> mapping(map.memptr(), map.n_rows, map.n_cols);
+          freeScores = (mapping.transpose() * freeScores).eval();
+        }
+        for(Eigen::Index parameter = 0; parameter < freeScores.rows(); ++parameter){
+          const Eigen::ArrayXd centered = freeScores.row(parameter).transpose().array() -
+            freeScores.row(parameter).mean();
+          pcgScoreMaxSE = std::max(pcgScoreMaxSE,
+            std::sqrt(centered.square().sum() / (static_cast<double>(pcgTraceProbes - 1) * pcgTraceProbes)));
+        }
+      }
+      const bool logDetReady = std::isfinite(pcgLogDetProbeStandardError) &&
+        pcgLogDetProbeStandardError <= pcgLogDetTol &&
+        std::isfinite(pcgLogDetDepthDifference) && pcgLogDetDepthDifference <= pcgLogDetTol;
+      const bool scoreReady = std::isfinite(pcgScoreMaxSE) && pcgScoreMaxSE <= pcgScoreTol;
+      if(pcgAccuracy == "adaptive" && iIter == 0 &&
+         ((!logDetReady && (pcgTraceProbes < pcgMaxTraceProbes || pcgLanczosSteps < pcgMaxLanczosSteps)) ||
+          (!scoreReady && pcgTraceProbes < pcgMaxTraceProbes))){
+        pcgTraceProbes = std::min<long long>(pcgMaxTraceProbes, 2LL * pcgTraceProbes);
+        pcgLanczosSteps = std::min<long long>(pcgMaxLanczosSteps, 2LL * pcgLanczosSteps);
+        ++pcgAccuracyRefinements;
+        // Calibrate once, then freeze common probes/depth before accepting any step.
+        haveAcceptedLikelihood = false;
+        pcgEvaluationAccepted = false;
+        pcgCandidateSolutions.clear();
+        --iIter;
+        continue;
+      }
+    }
     
     for(int i = 0; i < nRRe; ++i){
       emInf.submat(nVcStart(i)-1, nVcStart(i)-1, nVcEnd(i)-1, nVcEnd(i)-1 ) = emInfList(i);
@@ -10048,6 +10505,50 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
   Rcpp::RObject profileOut = R_NilValue;
   if(phaseProfile.enabled()){
     const std::vector<sommer::PhaseProfile::Row> & profileRows = phaseProfile.iterations();
+    std::size_t selectedInverseDemandUniqueEntries = 0;
+    std::size_t selectedInverseDemandClosureEntries = 0;
+    std::size_t selectedInverseDemandClosureOperations = 0;
+    if(selectedInverseDemandTrackingComplete){
+      for(auto & demand : selectedInverseDemandKeys){
+        std::vector<std::uint64_t> & keys = demand.second;
+        std::sort(keys.begin(), keys.end());
+        keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+        selectedInverseDemandUniqueEntries += keys.size();
+        std::unordered_set<std::uint64_t> closure(keys.begin(), keys.end());
+        std::vector<std::uint64_t> pending(keys.begin(), keys.end());
+        const SelectedInverseSubset & subset = *demand.first;
+        while(!pending.empty()){
+          const std::uint64_t key = pending.back();
+          pending.pop_back();
+          const int column = static_cast<int>(static_cast<std::uint32_t>(key));
+          const int row = static_cast<int>(static_cast<std::uint32_t>(key >> 32));
+          const std::vector<int> & columnRows = subset.rows[static_cast<std::size_t>(column)];
+          selectedInverseDemandClosureOperations += columnRows.size() - 1;
+          for(std::size_t neighbor = 1; neighbor < columnRows.size(); ++neighbor){
+            const int first = columnRows[neighbor];
+            const int dependencyColumn = std::min(first, row);
+            const int dependencyRow = std::max(first, row);
+            const std::vector<int> & dependencyRows =
+              subset.rows[static_cast<std::size_t>(dependencyColumn)];
+            const auto dependency = std::lower_bound(
+              dependencyRows.begin(), dependencyRows.end(), dependencyRow);
+            if(dependency == dependencyRows.end() || *dependency != dependencyRow){
+              Rcpp::stop("Selected-inverse demand closure is outside the filled LDLT pattern.");
+            }
+            const std::uint64_t dependencyKey =
+              (static_cast<std::uint64_t>(static_cast<std::uint32_t>(dependencyRow)) << 32) |
+              static_cast<std::uint32_t>(dependencyColumn);
+            if(closure.insert(dependencyKey).second){ pending.push_back(dependencyKey); }
+          }
+        }
+        selectedInverseDemandClosureEntries += closure.size();
+      }
+    }
+    auto selectedPatternEntries = [](const SelectedInverseSubset & subset) -> std::size_t {
+      std::size_t entries = 0;
+      for(const std::vector<int> & columnRows : subset.rows){ entries += columnRows.size(); }
+      return entries;
+    };
     Rcpp::CharacterVector phaseNames(sommer::kFitPhaseCount);
     Rcpp::NumericVector phaseTotals(sommer::kFitPhaseCount);
     Rcpp::NumericMatrix phaseByIteration(static_cast<int>(profileRows.size()),
@@ -10073,6 +10574,41 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         Rcpp::Named("hybridAIUpdates") = hybridAIUpdates,
         Rcpp::Named("sensitivityRHSColumns") = static_cast<double>(sensitivityRHSColumns),
         Rcpp::Named("sensitivityRHSColumnsSkipped") = static_cast<double>(sensitivityRHSColumnsSkipped),
+        Rcpp::Named("sensitivityRHSNonzeros") = sensitivityRHSNonzeros,
+        Rcpp::Named("sensitivitySolveSeconds") = sensitivitySolveSeconds,
+        Rcpp::Named("sensitivitySolveReachEntries") = sensitivitySolveReachEntries,
+        Rcpp::Named("sensitivitySolveReachPossibleEntries") =
+          sensitivitySolveReachPossibleEntries,
+        Rcpp::Named("traceDerivativePreparationSeconds") = traceDerivativePreparationSeconds,
+        Rcpp::Named("traceRandomPrecisionDerivativeSeconds") = traceRandomPrecisionDerivativeSeconds,
+        Rcpp::Named("traceFactorCovarianceDerivativeSeconds") = traceFactorCovarianceDerivativeSeconds,
+        Rcpp::Named("traceFactorPrecisionDerivativeSeconds") = traceFactorPrecisionDerivativeSeconds,
+        Rcpp::Named("traceRandomPrecisionOtherSeconds") = traceRandomPrecisionOtherSeconds,
+        Rcpp::Named("traceResidualPrecisionDerivativeSeconds") = traceResidualPrecisionDerivativeSeconds,
+        Rcpp::Named("traceGridDerivativeBasisSeconds") = traceGridDerivativeBasisSeconds,
+        Rcpp::Named("traceResidualDerivativeBasisSeconds") = traceResidualDerivativeBasisSeconds,
+        Rcpp::Named("traceDerivativeOtherSeconds") = traceDerivativeOtherSeconds,
+        Rcpp::Named("traceSelectedInverseSeconds") = traceSelectedInverseSeconds,
+        Rcpp::Named("selectedInverseLookupRequests") = selectedInverseLookupRequests,
+        Rcpp::Named("selectedInverseLookupHits") = selectedInverseLookupHits,
+        Rcpp::Named("selectedInverseLookupMisses") = selectedInverseLookupMisses,
+        Rcpp::Named("selectedInverseDemandTrackingComplete") =
+          selectedInverseDemandTrackingComplete,
+        Rcpp::Named("selectedInverseDemandUniqueEntries") =
+          static_cast<double>(selectedInverseDemandUniqueEntries),
+        Rcpp::Named("selectedInverseDemandClosureEntries") =
+          static_cast<double>(selectedInverseDemandClosureEntries),
+        Rcpp::Named("selectedInverseDemandClosureOperations") =
+          static_cast<double>(selectedInverseDemandClosureOperations),
+        Rcpp::Named("cSelectedPatternEntries") =
+          static_cast<double>(selectedPatternEntries(CselectedTopology)),
+        Rcpp::Named("dSelectedPatternEntries") =
+          static_cast<double>(selectedPatternEntries(DselectedTopology)),
+        Rcpp::Named("scoreTraceFallbackSeconds") = scoreTraceFallbackSeconds,
+        Rcpp::Named("aiAssemblyWallSeconds") = aiAssemblyWallSeconds,
+        Rcpp::Named("aiRandomFirstTermSeconds") = aiRandomFirstTermSeconds,
+        Rcpp::Named("aiRandomCurvatureSeconds") = aiRandomCurvatureSeconds,
+        Rcpp::Named("aiResidualBlockSeconds") = aiResidualBlockSeconds,
         Rcpp::Named("solver") = solverName,
         Rcpp::Named("numericFactorCalls") = cholmodTiming.calls + ldltTiming.calls + blockSchurTiming.calls +
           static_cast<int>(saddleJoint.numericFactorizations() + saddleRandom.numericFactorizations()),
@@ -10134,6 +10670,54 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 #else
   const int openmpMaxThreads = NA_INTEGER;
 #endif
+  const bool pcgAccuracyPassed = solverName == "pcg" &&
+    std::isfinite(pcgLogDetProbeStandardError) && pcgLogDetProbeStandardError <= pcgLogDetTol &&
+    std::isfinite(pcgLogDetDepthDifference) && pcgLogDetDepthDifference <= pcgLogDetTol &&
+    (modelFreeCount == 0 || (std::isfinite(pcgScoreMaxSE) && pcgScoreMaxSE <= pcgScoreTol));
+  if(solverName == "pcg" && pcgAccuracy == "adaptive" && !pcgAccuracyPassed){
+    convergence = false;
+    Rcpp::warning("PCG final empirical accuracy checks failed. Increase maxTraceProbes/maxLanczosSteps or inspect the reported log-determinant and score uncertainty; convergence is FALSE.");
+  }
+  Rcpp::List pcgDiagnostics = Rcpp::List::create();
+  if(solverName == "pcg"){
+    pcgDiagnostics = Rcpp::List::create(
+      Rcpp::Named("preconditioner") = pcgPreconditioner,
+      Rcpp::Named("rhsMethod") = pcgRhsMethod,
+      Rcpp::Named("operatorCalls") = static_cast<double>(pcgOperatorCalls.load()),
+      Rcpp::Named("operatorVectorEquivalent") = static_cast<double>(pcgVectorEquivalent.load()),
+      Rcpp::Named("matrixPanelApplications") = static_cast<double>(pcgMetrics.matrixPanelApplications),
+      Rcpp::Named("preconditionerApplications") = static_cast<double>(pcgMetrics.preconditionerApplications),
+      Rcpp::Named("trueResidualChecks") = static_cast<double>(pcgMetrics.trueResidualChecks),
+      Rcpp::Named("residualReplacements") = static_cast<double>(pcgMetrics.residualReplacements),
+      Rcpp::Named("deflatedColumns") = static_cast<double>(pcgMetrics.deflatedColumns),
+      Rcpp::Named("lockedColumns") = static_cast<double>(pcgMetrics.lockedColumns),
+      Rcpp::Named("blockFallbacks") = static_cast<double>(pcgMetrics.blockFallbacks),
+      Rcpp::Named("blockFallbackReason") = pcgMetrics.fallbackReason,
+      Rcpp::Named("warmStarts") = pcgWarmStarts,
+      Rcpp::Named("coarseCorrections") = pcgCoarseCorrections,
+      Rcpp::Named("recycleRank") = static_cast<int>(pcgRecycleBasis.cols()),
+      Rcpp::Named("traceProbes") = pcgTraceProbes,
+      Rcpp::Named("lanczosSteps") = pcgLanczosSteps,
+      Rcpp::Named("logDetScaling") = pcgLogDetScaling,
+      Rcpp::Named("logDetProbeEstimates") = pcgLogDetProbeValues,
+      Rcpp::Named("logDetProbeSE") = pcgLogDetProbeStandardError,
+      Rcpp::Named("logDetDepthDifference") = pcgLogDetDepthDifference,
+      Rcpp::Named("pairedLogLikProbeSE") = pcgPairedLogLikSE,
+      Rcpp::Named("scoreProbeEstimates") = arma::mat(pcgScoreProbeValues.data(),
+        pcgScoreProbeValues.rows(), pcgScoreProbeValues.cols()),
+      Rcpp::Named("scoreMaxSE") = pcgScoreMaxSE,
+      Rcpp::Named("traceEstimator") = pcgTraceEstimator,
+      Rcpp::Named("traceRank") = pcgTraceEstimator == "control-variate" ? std::min(pcgTraceRank, nEffects) : 0,
+      Rcpp::Named("seed") = pcgSeed,
+      Rcpp::Named("accuracy") = pcgAccuracy,
+      Rcpp::Named("accuracyRefinements") = pcgAccuracyRefinements,
+      Rcpp::Named("empiricalAccuracyPassed") = pcgAccuracy == "adaptive" && pcgAccuracyPassed,
+      Rcpp::Named("seconds") = Rcpp::List::create(
+        Rcpp::Named("preconditionerAndCoarseSetup") = pcgSetupSeconds,
+        Rcpp::Named("solves") = pcgSolveSeconds,
+        Rcpp::Named("logDeterminant") = pcgLogDetSeconds,
+        Rcpp::Named("tracePreparationIncludingSolves") = pcgTraceSetupSeconds));
+  }
   Rcpp::List result = Rcpp::List::create(
     Rcpp::Named("llik") = llik,
     // Rcpp::Named("M") = M,
@@ -10272,6 +10856,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     // Rcpp::Named("PMWu_mat") = PMWu_mat, 
     // Rcpp::Named("MWuchol") = MWuchol
   );
+  if(solverName == "pcg"){
+    Rcpp::List diagnostics = result["engineDiagnostics"];
+    diagnostics["pcg"] = pcgDiagnostics;
+    result["engineDiagnostics"] = diagnostics;
+  }
   if(saddleActive){
     Rcpp::List diagnostics = result["engineDiagnostics"];
     diagnostics["saddlePoint"] = saddleDiagnostics;

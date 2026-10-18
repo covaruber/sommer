@@ -71,8 +71,37 @@ mmes_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
     \item{\code{maxIters}}{Maximum iterations per solve (0 = automatic, default 0).}
     \item{\code{traceProbes}}{Number of stochastic probes for Hutchinson traces (default 8).}
     \item{\code{lanczosSteps}}{Lanczos quadrature steps for stochastic log-determinant (default 20).}
-    \item{\code{preconditioner}}{Preconditioner type: \code{"diagonal"} or \code{"nystrom"}.}
+    \item{\code{preconditioner}}{Preconditioner type: \code{"diagonal"},
+      \code{"nystrom"}, or \code{"block-jacobi"}. These approximate the solve
+      preconditioner, not the requested covariance model.}
     \item{\code{nystromRank}}{Rank for Nystrom preconditioner (default 32).}
+    \item{\code{warmStart}}{Reuse compatible initial guesses (default \code{FALSE}).
+      Every accepted solution must still satisfy the requested true-residual tolerance.}
+    \item{\code{recycleRank}}{Maximum retained coarse-space dimension (default 0,
+      disabled). Coarse products must be recomputed when the coefficient operator changes.}
+    \item{\code{rhsMethod}}{\code{"independent"} (default) or opt-in \code{"block"}
+      conjugate gradients for multiple right-hand sides.}
+    \item{\code{blockSize}}{Maximum block-CG panel width (default 16).}
+    \item{\code{residualRefresh}}{Periodic true-residual replacement interval
+      (default 0, no periodic replacement). Final true-residual verification remains required.}
+    \item{\code{logDetScaling}}{\code{"none"} (default) or \code{"diagonal"}.
+      Diagonal scaling applies symmetric congruence and includes its exact determinant
+      correction. Finite-probe estimates need not equal estimates without scaling.}
+    \item{\code{traceEstimator}}{\code{"hutchinson"} (default) or experimental
+      \code{"control-variate"} estimation. Estimator changes can change fitted estimates.}
+    \item{\code{traceRank}}{Low-rank trace control-variate dimension (default 16).}
+    \item{\code{accuracy}}{\code{"fixed"} (default) or \code{"adaptive"}.
+      Adaptive mode doubles probe/depth budgets at the initial covariance point
+      until empirical targets pass or their maxima are reached. It then freezes
+      those budgets before accepting covariance updates, preserving a common
+      stochastic objective throughout line search.}
+    \item{\code{maxTraceProbes}, \code{maxLanczosSteps}}{Upper accuracy budgets.
+      Defaults equal \code{traceProbes} and \code{lanczosSteps}; neither can be
+      smaller than its initial setting.}
+    \item{\code{logDetTol}, \code{scoreTol}}{Positive empirical accuracy targets
+      (defaults 1e-3). These are not rigorous bounds on total likelihood or score error.}
+    \item{\code{seed}}{Non-negative integer probe-stream identifier (default 0).
+      The default preserves the existing deterministic probe stream.}
   }}
 
   \item{acceleration}{Convergence accelerator: \code{"none"} (default),
@@ -118,6 +147,59 @@ mmes_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
   operations stay on CPU. GPU call counters appear in \code{fit$gpuDiagnostics}.}
 
   \item{\dots}{Additional named parameters or legacy experimental arguments.}
+}
+\details{
+PCG-specific numerical options do not change the LDLT or CHOLMOD numerical
+paths. They are opt-in; existing deterministic solver selection remains unchanged.
+Unknown PCG names and invalid, non-scalar, non-finite or fractional integer
+settings are errors, including settings merged into an existing engine object.
+
+The PCG solve tolerance controls the relative linear-system residual. It does
+not bound stochastic log-determinant, score, covariance-parameter, or uncertainty
+errors. Probe standard errors describe Monte Carlo variability only, not
+Lanczos truncation or total estimator bias. Compare final results with increased
+probe counts and quadrature depths, and with direct solvers on manageable models.
+
+REML PCG supports diagonal, model-aware block-Jacobi and operator-based Nystrom
+preconditioners on assembled and eligible matrix-free coefficient operators.
+Block-Jacobi groups random coefficients by relationship level and covariance
+coordinate, with blocks capped by \code{blockSize}. Fixed coefficients use
+bounded contiguous blocks. Every block must be positive definite.
+\code{rhsMethod="independent"} retains packed scalar CG recurrences;
+\code{"block"} uses coupled block CG with dependent-column deflation.
+Numerical block breakdowns have diagnosed scalar fallbacks; invalid operators
+and preconditioners remain errors. Aggressive periodic residual replacement can
+increase iteration counts. Dense workspace budgets also govern PCG panels,
+preconditioners, sketches and Lanczos storage.
+
+Warm starts and coarse recycling retain only accepted-point coefficient and
+probe solutions. Rejected line-search trials cannot replace accepted caches.
+Every new covariance operator recomputes the recycled coarse Gram matrix, and
+all returned solutions pass true-residual checks. Diagonally scaled SLQ does
+not reuse untransformed Lanczos inverse guesses.
+
+Trace control variates use an independently seeded low-rank space and an exact
+projected correction. The same corrected estimator feeds all random and residual
+score contractions, including weighted residual models. This identity does not
+require positive-semidefinite covariance derivatives and does not guarantee
+variance reduction for every model.
+
+\code{fit$engineDiagnostics$pcg} reports operator calls and vector-equivalent
+work, residual replacements, block fallbacks, warm/coarse reuse, probe estimates,
+Monte Carlo standard errors and actual accuracy budgets. Adaptive final checks
+require log-determinant probe standard error, nested half-depth sensitivity and
+maximum free-score standard error below the requested targets. Failure emits a
+warning and forces \code{convergence=FALSE}. Passing checks is empirical evidence,
+not a rigorous error bound, exact REML certification or a guaranteed speedup.
+Increasing budgets after initial calibration requires a new fit; budgets are not
+silently changed within likelihood comparisons. ML and selected-inverse PCG
+restrictions remain unchanged.
+
+The known-covariance \code{solveOnly=TRUE} path uses its existing block-Jacobi
+preconditioner. It additionally supports \code{warmStart} and
+\code{residualRefresh}, but not REML estimator, recycling or block-RHS options.
+Warm starts require a fitted \code{covPar} object with identical coefficient names;
+the current operator and response always determine the verified final solution.
 }
 \value{
 An object of class \code{"sommer_mmes_control"}.

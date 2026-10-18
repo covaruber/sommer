@@ -40,6 +40,76 @@
                as.character(val)), call.=FALSE)
 }
 
+.mme_pcg_control <- function(pcg = list(), checkLimits = TRUE){
+  defaults <- list(
+    tol = 1e-8, maxIters = 0L, traceProbes = 8L, lanczosSteps = 20L,
+    preconditioner = "diagonal", nystromRank = 32L, warmStart = FALSE,
+    recycleRank = 0L, rhsMethod = "independent", blockSize = 16L,
+    residualRefresh = 0L, logDetScaling = "none",
+    traceEstimator = "hutchinson", traceRank = 16L, accuracy = "fixed",
+    maxTraceProbes = NULL, maxLanczosSteps = NULL,
+    logDetTol = 1e-3, scoreTol = 1e-3, seed = 0L
+  )
+  if(!is.list(pcg) || (length(pcg) &&
+     (is.null(names(pcg)) || anyNA(names(pcg)) || any(!nzchar(names(pcg))) ||
+      anyDuplicated(names(pcg))))){
+    stop("pcg must be a list with unique, non-empty names.", call.=FALSE)
+  }
+  unknown <- setdiff(names(pcg), names(defaults))
+  if(length(unknown)){
+    stop("Unknown pcg settings: ", paste(unknown, collapse=", "), ".", call.=FALSE)
+  }
+  out <- utils::modifyList(defaults, pcg, keep.null=TRUE)
+  if(is.null(out$maxTraceProbes)) out$maxTraceProbes <- out$traceProbes
+  if(is.null(out$maxLanczosSteps)) out$maxLanczosSteps <- out$lanczosSteps
+  for(name in c("tol", "logDetTol", "scoreTol")){
+    value <- out[[name]]
+    if(!is.numeric(value) || is.complex(value) || length(value) != 1L ||
+       !is.finite(value) || value <= 0){
+      stop("pcg$", name, " must be one positive finite number.", call.=FALSE)
+    }
+  }
+  minima <- c(maxIters=0L, traceProbes=1L, lanczosSteps=2L, nystromRank=1L,
+              recycleRank=0L, blockSize=1L, residualRefresh=0L, traceRank=1L,
+              maxTraceProbes=1L, maxLanczosSteps=2L, seed=0L)
+  for(name in names(minima)){
+    value <- out[[name]]
+    if(!is.numeric(value) || is.complex(value) || length(value) != 1L ||
+       !is.finite(value) || value < minima[[name]] ||
+       value > .Machine$integer.max || value != floor(value)){
+      stop("pcg$", name, " must be one integer between ", minima[[name]],
+           " and ", .Machine$integer.max, ".", call.=FALSE)
+    }
+    out[[name]] <- as.integer(value)
+  }
+  choices <- list(
+    preconditioner=c("diagonal", "nystrom", "block-jacobi"),
+    rhsMethod=c("independent", "block"),
+    logDetScaling=c("none", "diagonal"),
+    traceEstimator=c("hutchinson", "control-variate"),
+    accuracy=c("fixed", "adaptive")
+  )
+  for(name in names(choices)){
+    value <- out[[name]]
+    if(!is.character(value) || length(value) != 1L || is.na(value) ||
+       !tolower(value) %in% choices[[name]]){
+      stop("pcg$", name, " must be one of ",
+           paste(shQuote(choices[[name]]), collapse=", "), ".", call.=FALSE)
+    }
+    out[[name]] <- tolower(value)
+  }
+  if(!is.logical(out$warmStart) || length(out$warmStart) != 1L ||
+     is.na(out$warmStart)){
+    stop("pcg$warmStart must be a single TRUE/FALSE value.", call.=FALSE)
+  }
+  if(checkLimits && (out$maxTraceProbes < out$traceProbes ||
+     out$maxLanczosSteps < out$lanczosSteps)){
+    stop("PCG accuracy limits must not be smaller than traceProbes and lanczosSteps.",
+         call.=FALSE)
+  }
+  out
+}
+
 #' Mixed Model Equation Engine Control
 #'
 #' Builds a structured control object defining solver algorithms, memory budgets,
@@ -91,8 +161,28 @@
 #'     \item \code{maxIters}: Maximum iterations for PCG solves (0 = automatic, default 0).
 #'     \item \code{traceProbes}: Number of stochastic probes for Hutchinson traces (default 8).
 #'     \item \code{lanczosSteps}: Lanczos quadrature steps for stochastic log determinant (default 20).
-#'     \item \code{preconditioner}: Preconditioner type, \code{"diagonal"} or \code{"nystrom"}.
+#'     \item \code{preconditioner}: \code{"diagonal"}, \code{"nystrom"}, or
+#'       \code{"block-jacobi"}.
 #'     \item \code{nystromRank}: Target rank for Nystrom preconditioner (default 32).
+#'     \item \code{warmStart}, \code{recycleRank}: Reuse compatible solve guesses
+#'       and a bounded coarse space (defaults FALSE and 0).
+#'     \item \code{rhsMethod}, \code{blockSize}: Independent or block CG and its
+#'       panel width (defaults \code{"independent"} and 16).
+#'     \item \code{residualRefresh}: Recursive-residual replacement interval;
+#'       zero disables periodic replacement. Final true residuals are checked.
+#'     \item \code{logDetScaling}: \code{"none"} or symmetric \code{"diagonal"}
+#'       congruence for stochastic log determinants.
+#'     \item \code{traceEstimator}, \code{traceRank}: Hutchinson or low-rank
+#'       \code{"control-variate"} trace estimation and its rank (default 16).
+#'     \item \code{accuracy}: \code{"fixed"} or opt-in \code{"adaptive"} accuracy.
+#'       Adaptive mode doubles probe/depth budgets at the initial covariance point,
+#'       then freezes the objective before line search. Final empirical checks
+#'       can refuse convergence; they do not certify total statistical error.
+#'     \item \code{maxTraceProbes}, \code{maxLanczosSteps}: Accuracy limits;
+#'       default to the initial probe count and Lanczos depth.
+#'     \item \code{logDetTol}, \code{scoreTol}: Positive empirical accuracy targets
+#'       (defaults 1e-3); these are not rigorous total-error bounds.
+#'     \item \code{seed}: Non-negative integer probe stream identifier (default 0).
 #'   }
 #' @param acceleration Convergence accelerator. One of \code{"none"}, \code{"aitken"},
 #'   or \code{"hybrid-ai"}. The opt-in hybrid uses damped BFGS between exact AI
@@ -236,16 +326,7 @@ mmes_control <- function(solver = c("auto", "ldlt", "cholmod", "pcg"),
       pcg[[pcgArg]] <- dots[[pcgArg]]
     }
   }
-  pcgResolved <- utils::modifyList(pcgDefaults, pcg)
-  if(!is.numeric(pcgResolved$tol) || pcgResolved$tol <= 0){
-    stop("pcg$tol must be a positive number.", call.=FALSE)
-  }
-  pcgResolved$preconditioner <- match.arg(tolower(pcgResolved$preconditioner[1L]),
-                                          c("diagonal", "nystrom"))
-  pcgResolved$maxIters <- as.integer(pcgResolved$maxIters)
-  pcgResolved$traceProbes <- as.integer(pcgResolved$traceProbes)
-  pcgResolved$lanczosSteps <- as.integer(pcgResolved$lanczosSteps)
-  pcgResolved$nystromRank <- as.integer(pcgResolved$nystromRank)
+  pcgResolved <- .mme_pcg_control(pcg)
 
   control <- list(
     solver = solver,
@@ -295,6 +376,7 @@ print.sommer_mmes_control <- function(x, ...){
   dots <- list(...)
   if(inherits(engine, "sommer_mmes_control")){
     ctrl <- engine
+    previousPcg <- ctrl$pcg
     gpuControl <- mmes_control(
       gpu = if("gpu" %in% names(dots)) dots$gpu else ctrl$gpu,
       gpuMinSize = if("gpuMinSize" %in% names(dots)) dots$gpuMinSize else ctrl$gpuMinSize)
@@ -311,23 +393,40 @@ print.sommer_mmes_control <- function(x, ...){
                                                 c("none", "fixed-shape", "profile"))
     }
     if("pcgTol" %in% names(dots) && !is.null(dots$pcgTol)){
-      ctrl$pcg$tol <- as.double(dots$pcgTol)
+      ctrl$pcg$tol <- dots$pcgTol
     }
     if("pcgMaxIters" %in% names(dots) && !is.null(dots$pcgMaxIters)){
-      ctrl$pcg$maxIters <- as.integer(dots$pcgMaxIters)
+      ctrl$pcg$maxIters <- dots$pcgMaxIters
     }
     if("pcgTraceProbes" %in% names(dots) && !is.null(dots$pcgTraceProbes)){
-      ctrl$pcg$traceProbes <- as.integer(dots$pcgTraceProbes)
+      ctrl$pcg$traceProbes <- dots$pcgTraceProbes
     }
     if("pcgLanczosSteps" %in% names(dots) && !is.null(dots$pcgLanczosSteps)){
-      ctrl$pcg$lanczosSteps <- as.integer(dots$pcgLanczosSteps)
+      ctrl$pcg$lanczosSteps <- dots$pcgLanczosSteps
     }
     if("pcgPreconditioner" %in% names(dots) && !is.null(dots$pcgPreconditioner)){
-      ctrl$pcg$preconditioner <- match.arg(tolower(dots$pcgPreconditioner[1L]), c("diagonal", "nystrom"))
+      ctrl$pcg$preconditioner <- dots$pcgPreconditioner
     }
     if("pcgNystromRank" %in% names(dots) && !is.null(dots$pcgNystromRank)){
-      ctrl$pcg$nystromRank <- as.integer(dots$pcgNystromRank)
+      ctrl$pcg$nystromRank <- dots$pcgNystromRank
     }
+    if("pcg" %in% names(dots)){
+      if(!is.list(dots$pcg) || (length(dots$pcg) &&
+         (is.null(names(dots$pcg)) || anyNA(names(dots$pcg)) ||
+          any(!nzchar(names(dots$pcg))) || anyDuplicated(names(dots$pcg))))){
+        stop("pcg must be a list with unique, non-empty names.", call.=FALSE)
+      }
+      ctrl$pcg <- utils::modifyList(ctrl$pcg, dots$pcg, keep.null=TRUE)
+    }
+    for(pair in list(c("traceProbes", "maxTraceProbes"),
+                     c("lanczosSteps", "maxLanczosSteps"))){
+      if(!pair[2L] %in% names(dots$pcg) &&
+         identical(previousPcg[[pair[1L]]], previousPcg[[pair[2L]]]) &&
+         !identical(ctrl$pcg[[pair[1L]]], previousPcg[[pair[1L]]])){
+        ctrl$pcg[pair[2L]] <- list(NULL)
+      }
+    }
+    ctrl$pcg <- .mme_pcg_control(ctrl$pcg)
     if("denseMemoryMB" %in% names(dots) && !is.null(dots$denseMemoryMB)){
       ctrl$denseMemoryMB <- as.double(dots$denseMemoryMB)
     }
@@ -348,13 +447,16 @@ print.sommer_mmes_control <- function(x, ...){
 
   # Build from solver and dots
   pcgArgs <- list()
-  if("pcgTol" %in% names(dots) && !is.null(dots$pcgTol)) pcgArgs$tol <- as.double(dots$pcgTol)
-  if("pcgMaxIters" %in% names(dots) && !is.null(dots$pcgMaxIters)) pcgArgs$maxIters <- as.integer(dots$pcgMaxIters)
-  if("pcgTraceProbes" %in% names(dots) && !is.null(dots$pcgTraceProbes)) pcgArgs$traceProbes <- as.integer(dots$pcgTraceProbes)
-  if("pcgLanczosSteps" %in% names(dots) && !is.null(dots$pcgLanczosSteps)) pcgArgs$lanczosSteps <- as.integer(dots$pcgLanczosSteps)
+  if("pcgTol" %in% names(dots) && !is.null(dots$pcgTol)) pcgArgs$tol <- dots$pcgTol
+  if("pcgMaxIters" %in% names(dots) && !is.null(dots$pcgMaxIters)) pcgArgs$maxIters <- dots$pcgMaxIters
+  if("pcgTraceProbes" %in% names(dots) && !is.null(dots$pcgTraceProbes)) pcgArgs$traceProbes <- dots$pcgTraceProbes
+  if("pcgLanczosSteps" %in% names(dots) && !is.null(dots$pcgLanczosSteps)) pcgArgs$lanczosSteps <- dots$pcgLanczosSteps
   if("pcgPreconditioner" %in% names(dots) && !is.null(dots$pcgPreconditioner)) pcgArgs$preconditioner <- dots$pcgPreconditioner
-  if("pcgNystromRank" %in% names(dots) && !is.null(dots$pcgNystromRank)) pcgArgs$nystromRank <- as.integer(dots$pcgNystromRank)
-  if("pcg" %in% names(dots) && is.list(dots$pcg)) pcgArgs <- utils::modifyList(pcgArgs, dots$pcg)
+  if("pcgNystromRank" %in% names(dots) && !is.null(dots$pcgNystromRank)) pcgArgs$nystromRank <- dots$pcgNystromRank
+  if("pcg" %in% names(dots)){
+    .mme_pcg_control(dots$pcg, checkLimits=FALSE)
+    pcgArgs <- utils::modifyList(pcgArgs, dots$pcg, keep.null=TRUE)
+  }
 
   accel <- if("acceleration" %in% names(dots) && !is.null(dots$acceleration)) dots$acceleration else "none"
   fsAug <- if("factorScoreAugmentation" %in% names(dots) && !is.null(dots$factorScoreAugmentation)) dots$factorScoreAugmentation else "none"

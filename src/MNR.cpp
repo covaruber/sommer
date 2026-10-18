@@ -5053,6 +5053,13 @@ Rcpp::List mme_pcg_solve(const Rcpp::S4 & design,
 
   typedef std::chrono::steady_clock Clock;
   const Clock::time_point setupBegin = Clock::now();
+  int residualRefresh = 0;
+  if(residualCovStruct.hasAttribute("pcgResidualRefresh")){
+    residualRefresh = Rcpp::as<int>(residualCovStruct.attr("pcgResidualRefresh"));
+    if(residualRefresh < 0){
+      Rcpp::stop("PCG residual refresh interval must be non-negative.");
+    }
+  }
 
   const SommerCsc D(design);
   const int n = D.nrow;
@@ -5363,7 +5370,9 @@ Rcpp::List mme_pcg_solve(const Rcpp::S4 & design,
 
   std::vector<double> tbuf(static_cast<std::size_t>(n));
   std::vector<double> sbuf(static_cast<std::size_t>(n));
+  std::uint64_t operatorApplications = 0;
   auto applyC = [&](const std::vector<double> & v, std::vector<double> & out){
+    ++operatorApplications;
     applyDesign(v.data(), tbuf.data());
     applyRinv(tbuf.data(), sbuf.data());
     applyDesignT(sbuf.data(), out.data());
@@ -5548,6 +5557,7 @@ Rcpp::List mme_pcg_solve(const Rcpp::S4 & design,
   if(start.size() == neq){
     std::copy(start.begin(), start.end(), x.begin());
   }
+  if(rhsNorm == 0.0){ std::fill(x.begin(), x.end(), 0.0); }
   std::vector<double> r(N), z(N), pdir(N), q(N);
   applyC(x, q);
   for(std::size_t j = 0; j < N; ++j){ r[j] = rhs[j] - q[j]; }
@@ -5559,6 +5569,7 @@ Rcpp::List mme_pcg_solve(const Rcpp::S4 & design,
   history.push_back(relres);
   bool converged = rhsNorm == 0.0 || relres < tol;
   int iterations = 0;
+  int residualReplacements = 0;
 
   const double setupSeconds = std::chrono::duration<double>(Clock::now() - setupBegin).count();
   const Clock::time_point solveBegin = Clock::now();
@@ -5571,6 +5582,9 @@ Rcpp::List mme_pcg_solve(const Rcpp::S4 & design,
     applyPrec(r, z);
     pdir = z;
     double rz = dot(r, z);
+    if(!(rz > 0.0) || !std::isfinite(rz)){
+      Rcpp::stop("PCG breakdown: non-positive preconditioned residual.");
+    }
     while(iterations < iterLimit){
       ++iterations;
       applyC(pdir, q);
@@ -5585,6 +5599,14 @@ Rcpp::List mme_pcg_solve(const Rcpp::S4 & design,
         r[static_cast<std::size_t>(j)] -= alpha * q[static_cast<std::size_t>(j)];
       }
       relres = std::sqrt(dot(r, r)) / rhsNorm;
+      const bool refresh = relres < tol ||
+        (residualRefresh > 0 && iterations % residualRefresh == 0);
+      if(refresh){
+        applyC(x, q);
+        for(std::size_t j = 0; j < N; ++j){ r[j] = rhs[j] - q[j]; }
+        relres = std::sqrt(dot(r, r)) / rhsNorm;
+        ++residualReplacements;
+      }
       history.push_back(relres);
       if(verbose && iterations % 50 == 0){
         Rcpp::Rcout << "  PCG iteration " << iterations << ": relative residual " << relres << std::endl;
@@ -5598,7 +5620,10 @@ Rcpp::List mme_pcg_solve(const Rcpp::S4 & design,
       }
       applyPrec(r, z);
       const double rzNew = dot(r, z);
-      const double beta = rzNew / rz;
+      if(!(rzNew > 0.0) || !std::isfinite(rzNew)){
+        Rcpp::stop("PCG breakdown: non-positive preconditioned residual update.");
+      }
+      const double beta = refresh ? 0.0 : rzNew / rz;
       rz = rzNew;
       #pragma omp parallel for schedule(static)
       for(int j = 0; j < neq; ++j){
@@ -5606,6 +5631,14 @@ Rcpp::List mme_pcg_solve(const Rcpp::S4 & design,
       }
     }
   }
+  applyC(x, q);
+  for(std::size_t j = 0; j < N; ++j){ r[j] = rhs[j] - q[j]; }
+  relres = rhsNorm > 0.0 ? std::sqrt(dot(r, r)) / rhsNorm : 0.0;
+  if(!std::isfinite(relres)){
+    Rcpp::stop("PCG produced a non-finite true residual.");
+  }
+  converged = relres <= tol;
+  if(!history.empty()){ history.back() = relres; }
   const double solveSeconds = std::chrono::duration<double>(Clock::now() - solveBegin).count();
 
   std::vector<double> fitted(static_cast<std::size_t>(n));
@@ -5623,6 +5656,10 @@ Rcpp::List mme_pcg_solve(const Rcpp::S4 & design,
     Rcpp::Named("fitted") = Rcpp::wrap(fitted),
     Rcpp::Named("iterations") = iterations,
     Rcpp::Named("relres") = relres,
+    Rcpp::Named("trueRelativeResidual") = relres,
+    Rcpp::Named("operatorApplications") = static_cast<double>(operatorApplications),
+    Rcpp::Named("residualReplacements") = residualReplacements,
+    Rcpp::Named("warmStarted") = start.size() == neq,
     Rcpp::Named("converged") = converged,
     Rcpp::Named("history") = Rcpp::wrap(history),
     Rcpp::Named("rhsNorm") = rhsNorm,

@@ -98,6 +98,7 @@
 # mmes(solveOnly=TRUE) result). NULL requires every parameter to be fixed in
 # the formula already.
 .mmes_known_covpar <- function(covStruct, labels, covPar){
+  if(inherits(covPar, "mmesSolve")) covPar <- covPar$vcParams
   if(is.null(covPar)){
     free <- vapply(covStruct, function(cs) any(as.logical(cs$free)), logical(1))
     if(any(free)){
@@ -175,9 +176,16 @@
 
 .mmes_solve <- function(X, Z, Zind, Ai, yvar, W, useH, residualBlock, localIndex,
                         covStruct, labels, covPar, pcgTol, pcgMaxIters, verbose,
-                        data, dataOriginal, obsInfo, partitionsX, call, args){
+                        data, dataOriginal, obsInfo, partitionsX, call, args,
+                        pcg = .mme_pcg_control()){
   if(ncol(yvar) != 1L){
     stop("solveOnly=TRUE requires one response column; use the long format with vsm(usm(trait), ...).",
+         call.=FALSE)
+  }
+  if(pcg$preconditioner == "nystrom" || pcg$rhsMethod != "independent" ||
+     pcg$recycleRank > 0L || pcg$logDetScaling != "none" ||
+     pcg$traceEstimator != "hutchinson" || pcg$accuracy != "fixed"){
+    stop("solveOnly=TRUE supports block-Jacobi, warmStart and residualRefresh, but not REML-only PCG estimator, recycling or block-RHS settings.",
          call.=FALSE)
   }
   covStruct <- .mmes_known_covpar(covStruct, labels, covPar)
@@ -229,19 +237,30 @@
 
   design <- to_sparse(do.call(cbind, c(list(X), Z)))
   y <- as.numeric(yvar[, 1L])
+  effectNames <- c(colnames(X), unlist(lapply(Z, colnames), use.names=FALSE))
+  start <- numeric(0)
+  if(pcg$warmStart){
+    if(!inherits(covPar, c("mmes", "mmesSolve")) ||
+       is.null(covPar$bu) || !identical(rownames(covPar$bu), effectNames) ||
+       ncol(covPar$bu) != 1L || any(!is.finite(covPar$bu))){
+      stop("solveOnly warmStart requires a fitted covPar object with identical coefficient names and finite coefficients.",
+           call.=FALSE)
+    }
+    start <- as.numeric(covPar$bu)
+  }
+  attr(residual, "pcgResidualRefresh") <- pcg$residualRefresh
 
   message(crayon::blue("Engine selected: known-covariance PCG (solveOnly=TRUE)"))
   sol <- mme_pcg_solve(design, y, nFixed, termStart, termLevels, AiGeneral, lambda,
                        residual, residual$par, as.integer(residualBlock),
                        as.integer(localIndex), weights, pcgTol, as.integer(pcgMaxIters),
-                       1000L, 10000L, numeric(0), verbose)
+                       1000L, 10000L, start, verbose)
   if(!sol$converged){
     warning("PCG did not reach the requested tolerance (relative residual ",
             signif(sol$relres, 3), " after ", sol$iterations,
             " iterations); increase pcgMaxIters.", call.=FALSE)
   }
 
-  effectNames <- c(colnames(X), unlist(lapply(Z, colnames), use.names=FALSE))
   bu <- matrix(sol$solution, ncol=1L, dimnames=list(effectNames, NULL))
   b <- bu[seq_len(nFixed), , drop=FALSE]
   u <- bu[-seq_len(nFixed), , drop=FALSE]
