@@ -13,10 +13,10 @@ H.mat(A, G, tau = 1, omega = 1, tolparinv=1e-6)
 
 \arguments{
   \item{A}{
-Additive relationship matrix based on pedigree.
+Finite symmetric additive relationship matrix based on pedigree. Row and column names must be identical, non-empty and unique.
 }
 \item{G}{
-Additive relationship matrix based on marker data.  
+Finite symmetric additive relationship matrix based on marker data. Row and column names must be identical, non-empty and unique; every individual must also occur in \code{A}.
 }
 \item{tau}{
 As described by Martini et al. (2018).
@@ -25,12 +25,18 @@ As described by Martini et al. (2018).
 As described by Martini et al. (2018). 
 }
 \item{tolparinv}{
-Tolerance parameter for matrix inverse used when singularities are encountered in the estimation procedure.
+Finite positive diagonal increment used for one retry when a required positive-definite factorization fails. An error is raised if the retry also fails.
 }
 }
 
 \details{
-See references 
+Let subscripts 1 and 2 denote non-genotyped and genotyped individuals, respectively. The genotyped block is
+\eqn{H_{22}=[\tau G_{22}^{-1}+(1-\omega)A_{22}^{-1}]^{-1}}.
+The remaining corrections are computed using Cholesky solves with \eqn{A_{22}}, rather than explicitly forming its inverse for the default weights.
+When \code{omega=1} and \code{tau>0}, \eqn{H_{22}=G_{22}/\tau}; redundant inversions are avoided while retaining the diagonal retry for singular inputs.
+The retry increment is applied separately to \eqn{A_{22}}, \eqn{G_{22}}, or the genotyped precision block when required.
+
+The returned matrix is dense. Its row and column order is \code{rev(unique(c(rownames(G), rownames(A))))}, including when there is just one genotyped individual.
 }
 \value{
 

@@ -7,7 +7,7 @@ PKG_LIBS = \
 	$(LAPACK_LIBS) \
 	$(BLAS_LIBS) \
 	$(FLIBS) \
-
+  -ldl
 
 all: $(SHLIB)
 

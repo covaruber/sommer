@@ -53,9 +53,19 @@ test_that("fit revalidates canonical controls and exposes public control schema"
   expect_error(mmes(Yield~Env, random=~Name, data=DT_example,
     control=invalid), "solve\\$method")
 
-  expect_false("..." %in% names(formals(mmes)))
+  expect_true("..." %in% names(formals(mmes)))
   expect_false("engine" %in% names(formals(mmes)))
   expect_true(".internal" %in% names(formals(mmes)))
+
+  legacyControl <- mmes_control(output=list(inverse=2L),
+    convergence=list(maxIters=2L),
+    diagnostics=list(verbose=FALSE, dateWarning=FALSE))
+  expect_warning(
+    legacyFit <- mmes(Yield~Env, random=~Name, data=DT_example, control=legacyControl,
+      getPEV=FALSE),
+    "deprecated"
+  )
+  expect_identical(legacyFit$control$output$inverse, 0L)
 })
 
 test_that("benchmarking framework generates workloads and checks solver parity", {

@@ -1862,6 +1862,44 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   std::size_t selectedInverseDemandKeyCount = 0;
   bool selectedInverseDemandTrackingComplete = true;
   std::mutex selectedInverseDemandMutex;
+  std::size_t selectedInverseDemandUniqueEntries = 0;
+  std::size_t selectedInverseDemandClosureEntries = 0;
+  std::size_t selectedInverseDemandClosureOperations = 0;
+
+  auto finalizeSelectedInverseDemand =
+    [&](const SelectedInverseSubset & subset,
+        std::vector<std::uint64_t> & keys) -> void {
+      std::sort(keys.begin(), keys.end());
+      keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+      selectedInverseDemandUniqueEntries += keys.size();
+      std::unordered_set<std::uint64_t> closure(keys.begin(), keys.end());
+      std::vector<std::uint64_t> pending(keys.begin(), keys.end());
+      while(!pending.empty()){
+        const std::uint64_t key = pending.back();
+        pending.pop_back();
+        const int column = static_cast<int>(static_cast<std::uint32_t>(key));
+        const int row = static_cast<int>(static_cast<std::uint32_t>(key >> 32));
+        const std::vector<int> & columnRows = subset.rows[static_cast<std::size_t>(column)];
+        selectedInverseDemandClosureOperations += columnRows.size() - 1;
+        for(std::size_t neighbor = 1; neighbor < columnRows.size(); ++neighbor){
+          const int first = columnRows[neighbor];
+          const int dependencyColumn = std::min(first, row);
+          const int dependencyRow = std::max(first, row);
+          const std::vector<int> & dependencyRows =
+            subset.rows[static_cast<std::size_t>(dependencyColumn)];
+          const auto dependency = std::lower_bound(
+            dependencyRows.begin(), dependencyRows.end(), dependencyRow);
+          if(dependency == dependencyRows.end() || *dependency != dependencyRow){
+            Rcpp::stop("Selected-inverse demand closure is outside the filled LDLT pattern.");
+          }
+          const std::uint64_t dependencyKey =
+            (static_cast<std::uint64_t>(static_cast<std::uint32_t>(dependencyRow)) << 32) |
+            static_cast<std::uint32_t>(dependencyColumn);
+          if(closure.insert(dependencyKey).second){ pending.push_back(dependencyKey); }
+        }
+      }
+      selectedInverseDemandClosureEntries += closure.size();
+    };
 
   // Under memoryPolicy = "speed" a fast path that does not fit the dense budget
   // stops the fit instead of silently using a slower route.
@@ -1885,6 +1923,18 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
       const int n = static_cast<int>(D.size());
       EigenSpMat Lmat = factor.matrixL();
       Lmat.makeCompressed();
+
+      // Flush demands while their subset address still refers to this pattern.
+      if(!reuseTopology && phaseProfile.enabled()){
+        std::lock_guard<std::mutex> lock(selectedInverseDemandMutex);
+        const auto demand = selectedInverseDemandKeys.find(&out);
+        if(demand != selectedInverseDemandKeys.end()){
+          const std::size_t recordedKeys = demand->second.size();
+          finalizeSelectedInverseDemand(out, demand->second);
+          selectedInverseDemandKeyCount -= recordedKeys;
+          selectedInverseDemandKeys.erase(demand);
+        }
+      }
 
       // When reuseTopology is set, `out` already holds the sparsity pattern
       // (rows/originalToPermuted) from a previous call with the same LDLT
@@ -10873,43 +10923,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
   Rcpp::RObject profileOut = R_NilValue;
   if(phaseProfile.enabled()){
     const std::vector<sommer::PhaseProfile::Row> & profileRows = phaseProfile.iterations();
-    std::size_t selectedInverseDemandUniqueEntries = 0;
-    std::size_t selectedInverseDemandClosureEntries = 0;
-    std::size_t selectedInverseDemandClosureOperations = 0;
     if(selectedInverseDemandTrackingComplete){
       for(auto & demand : selectedInverseDemandKeys){
-        std::vector<std::uint64_t> & keys = demand.second;
-        std::sort(keys.begin(), keys.end());
-        keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
-        selectedInverseDemandUniqueEntries += keys.size();
-        std::unordered_set<std::uint64_t> closure(keys.begin(), keys.end());
-        std::vector<std::uint64_t> pending(keys.begin(), keys.end());
         const SelectedInverseSubset & subset = *demand.first;
-        while(!pending.empty()){
-          const std::uint64_t key = pending.back();
-          pending.pop_back();
-          const int column = static_cast<int>(static_cast<std::uint32_t>(key));
-          const int row = static_cast<int>(static_cast<std::uint32_t>(key >> 32));
-          const std::vector<int> & columnRows = subset.rows[static_cast<std::size_t>(column)];
-          selectedInverseDemandClosureOperations += columnRows.size() - 1;
-          for(std::size_t neighbor = 1; neighbor < columnRows.size(); ++neighbor){
-            const int first = columnRows[neighbor];
-            const int dependencyColumn = std::min(first, row);
-            const int dependencyRow = std::max(first, row);
-            const std::vector<int> & dependencyRows =
-              subset.rows[static_cast<std::size_t>(dependencyColumn)];
-            const auto dependency = std::lower_bound(
-              dependencyRows.begin(), dependencyRows.end(), dependencyRow);
-            if(dependency == dependencyRows.end() || *dependency != dependencyRow){
-              Rcpp::stop("Selected-inverse demand closure is outside the filled LDLT pattern.");
-            }
-            const std::uint64_t dependencyKey =
-              (static_cast<std::uint64_t>(static_cast<std::uint32_t>(dependencyRow)) << 32) |
-              static_cast<std::uint32_t>(dependencyColumn);
-            if(closure.insert(dependencyKey).second){ pending.push_back(dependencyKey); }
-          }
-        }
-        selectedInverseDemandClosureEntries += closure.size();
+        finalizeSelectedInverseDemand(subset, demand.second);
       }
     }
     auto selectedPatternEntries = [](const SelectedInverseSubset & subset) -> std::size_t {

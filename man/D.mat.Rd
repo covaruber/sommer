@@ -20,7 +20,7 @@ coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are allowed.
 If TRUE, Nishio and Satoh (2014), which uses the orthogonal parameterization of Vitezica et al. (2013). Otherwise Su et al. (2012). See Details and references.
 }
 \item{min.MAF}{
-Minimum minor allele frequency. The D matrix is not sensitive to rare alleles, so by default only monomorphic markers are removed.
+Minimum minor allele frequency, a finite value between zero and 0.5. Markers at or below this threshold and all constant markers are removed.
 }
 \item{return.imputed}{
 When TRUE, the imputed marker matrix is returned.  
@@ -30,7 +30,7 @@ When TRUE, the imputed marker matrix is returned.
 }
 \details{
 
-Missing values are replaced by the column (marker) mean before the matrix is computed. Markers with minor allele frequency less than or equal to \code{min.MAF} (and therefore all monomorphic markers) are removed. For each marker \eqn{k}, \eqn{p_k} is the frequency of the allele counted by the code 1, estimated as the column mean of \eqn{(X+1)/2}, and \eqn{q_k = 1-p_k}.
+Missing values are replaced by the column (marker) mean before the matrix is computed. At least two individuals and one variable marker surviving the frequency filter are required. Genotypes must lie in \eqn{[-1,1]}; a marker with no observed genotypes cannot be imputed. Markers with minor allele frequency less than or equal to \code{min.MAF} and all constant markers are removed. For each marker \eqn{k}, \eqn{p_k} is the frequency of the allele counted by the code 1, estimated as the column mean of \eqn{(X+1)/2}, and \eqn{q_k = 1-p_k}.
 
 For the nishio method (Nishio and Satoh, 2014; Vitezica et al., 2013): genotypes are coded as \eqn{w_{ik} = -2q_k^2} for \eqn{x_{ik}=1}, \eqn{2p_kq_k} for \eqn{x_{ik}=0} and \eqn{-2p_k^2} for \eqn{x_{ik}=-1}, computed as \eqn{w_{ik} = -x_{ik}^2 + (p_k-q_k)x_{ik} + 2p_kq_k}. Fractional values are passed through the same formula; note that a mean-imputed value \eqn{x_{ik} = p_k-q_k} receives the heterozygote code \eqn{2p_kq_k}. Then \eqn{D = W W'/c}, where \eqn{c = \sum_k (2p_kq_k)^2}. Under Hardy-Weinberg equilibrium this coding is orthogonal to the additive coding.
 
@@ -74,4 +74,3 @@ for (i in 1:200) {
 D <- D.mat(X)
 
 }
-

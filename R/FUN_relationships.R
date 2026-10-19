@@ -1,14 +1,24 @@
-
+.relationship_impute <- function(X){
+  if(!is.matrix(X) || !is.numeric(X) || nrow(X) < 2L || ncol(X) < 1L){
+    stop("X must be a numeric matrix with at least two individuals and one marker.", call.=FALSE)
+  }
+  missingCounts <- colSums(is.na(X))
+  uniqueCols <- which(missingCounts > 0L)
+  if(length(uniqueCols)){
+    if(any(missingCounts == nrow(X))){
+      stop("Cannot mean-impute a marker with no observed genotypes.", call.=FALSE)
+    }
+    cat("Imputing markers with mean value\n")
+    for(j in uniqueCols){
+      missing <- is.na(X[,j])
+      X[missing,j] <- mean(X[,j], na.rm=TRUE)
+    }
+  }
+  X
+}
 
 A.mat <- function(X, min.MAF=0, return.imputed=FALSE){
-  ################
-  ## impute
-  missingCheck <- which(is.na(X), arr.ind = TRUE)
-  if(nrow(missingCheck) > 0){
-    cat("Imputing markers with mean value\n")
-    uniqueCols <- unique(missingCheck[,2])
-    X[,uniqueCols] <- apply(X[,uniqueCols],2,imputev)
-  }
+  X <- .relationship_impute(X)
   vanraden=TRUE
   ##################
   res <- .Call("_sommer_amat",PACKAGE = "sommer",
@@ -24,14 +34,7 @@ A.mat <- function(X, min.MAF=0, return.imputed=FALSE){
 }
 
 D.mat <- function(X, nishio=TRUE, min.MAF=0, return.imputed=FALSE){
-  ################
-  ## impute
-  missingCheck <- which(is.na(X), arr.ind = TRUE)
-  if(nrow(missingCheck) > 0){
-    cat("Imputing markers with mean value\n")
-    uniqueCols <- unique(missingCheck[,2])
-    X[,uniqueCols] <- apply(X[,uniqueCols,drop=FALSE],2,imputev,method="mean")
-  }
+  X <- .relationship_impute(X)
   ##################
   res <- .Call("_sommer_dmat",PACKAGE = "sommer", 
                X, nishio, min.MAF
@@ -131,39 +134,38 @@ APY <- function(G, core, tol=1e-10, return.details=FALSE){
 }
 
 E.mat <- function(X,nishio=TRUE,type="A#A",min.MAF=0.02){
-  
-  if(type == "A#A"){
-    A <- A.mat(X, min.MAF=min.MAF)
-    E <- .Call("_sommer_emat",PACKAGE = "sommer",
-               A, A
-    )
+  if(length(type) != 1L || is.na(type) || !type %in% c("A#A", "A#D", "D#D")){
+    stop("type must be one of 'A#A', 'A#D' or 'D#D'.", call.=FALSE)
   }
-  if(type == "A#D"){
-    A <- A.mat(X, min.MAF=min.MAF)
-    D <- D.mat(X, nishio=nishio,min.MAF=min.MAF)
-    E <- .Call("_sommer_emat",PACKAGE = "sommer",
-               A, D
-    )
-  }
-  if(type == "D#D"){
-    D <- D.mat(X, nishio=nishio,min.MAF=min.MAF)
-    E <- .Call("_sommer_emat",PACKAGE = "sommer",
-               D, D
-    )
-  }
+  X <- .relationship_impute(X)
+  E <- .Call("_sommer_emat_genotypes",PACKAGE = "sommer",
+             X, nishio, type, min.MAF)
   colnames(E) <- rownames(E) <- rownames(X)
   return(E)
 }
 
 H.mat <- function(A, G, tau = 1, omega = 1, tolparinv=1e-6){
-  
+  for(name in c("A", "G")){
+    M <- if(name == "A") A else G
+    ids <- rownames(M)
+    if(!is.matrix(M) || !is.numeric(M) || nrow(M) < 1L || nrow(M) != ncol(M)){
+      stop(name, " must be a non-empty square numeric matrix.", call.=FALSE)
+    }
+    if(is.null(ids) || anyNA(ids) || any(!nzchar(ids)) || anyDuplicated(ids) ||
+       !identical(colnames(M), ids)){
+      stop(name, " must have identical, non-missing, non-empty and unique row and column names.", call.=FALSE)
+    }
+  }
   idA <- rownames(A)
   idG <- rownames(G)
+  if(!all(idG %in% idA)){
+    stop("All individuals in G must also occur in A.", call.=FALSE)
+  }
   idH <- unique(c(idG, idA))
   idH <- rev(idH)
-  A <- A[idH, idH]
+  A <- A[idH, idH, drop=FALSE]
   index = is.na(match(idH, idG))
-  G22 <- G[idH[!index], idH[!index]]
+  G22 <- G[idH[!index], idH[!index], drop=FALSE]
   H <- .Call("_sommer_hmat",PACKAGE = "sommer",
              A, G22, index, tolparinv, tau, omega
   )

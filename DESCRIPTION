@@ -31,8 +31,7 @@ Suggests:
     lattice,
      emmeans (>= 1.4),
      estimability,
-    pkgload,
-    testthat (>= 3.0.0)
+     testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 RoxygenNote: 7.3.2

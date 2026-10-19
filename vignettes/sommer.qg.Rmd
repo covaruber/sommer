@@ -321,7 +321,7 @@ and takes advantage of the variance covariance matrix for the genotype effect kn
 
 data(DT_wheat, package="enhancer")
 DT <- DT_wheat
-GT <- apply(GT_wheat,2,as.numeric)
+GT <- apply(GT_wheat,2,as.numeric) - 1
 rownames(GT) <- rownames(GT_wheat)
 
 colnames(DT) <- paste0("X",1:ncol(DT))
@@ -674,7 +674,7 @@ An eigendecomposition of a symmetric relationship matrix can be written \(A=UDU^
 
 data("DT_wheat", package="enhancer")
 rownames(GT_wheat) <- rownames(DT_wheat)
-GT <- apply(GT_wheat,2,as.numeric)
+GT <- apply(GT_wheat,2,as.numeric) - 1
 rownames(GT) <- rownames(GT_wheat)
 A <- A.mat(GT)
 Ai <- solve(A + diag(1e-5, nrow(A)))
@@ -727,7 +727,7 @@ Another example of how usefult this can be is in the multi-trait models:
 
 data("DT_wheat", package="enhancer")
 rownames(GT_wheat) <- rownames(DT_wheat)
-GT <- apply(GT_wheat,2,as.numeric)
+GT <- apply(GT_wheat,2,as.numeric) - 1
 rownames(GT) <- rownames(GT_wheat)
 A <- A.mat(GT)
 Ai <- solve(A + diag(1e-5, nrow(A)))
@@ -738,7 +738,7 @@ isSymmetric(Ai)
 # One complete observation per relationship level gives a balanced example.
 data(DT_wheat)
 DT <- DT_wheat
-GT <- apply(GT_wheat,2,as.numeric)
+GT <- apply(GT_wheat,2,as.numeric) - 1
 rownames(GT) <- rownames(GT_wheat)
 DT <- data.frame(pheno=as.vector(DT),
                  env=as.factor(paste0("e", sort(rep(1:4,nrow(DT))))),

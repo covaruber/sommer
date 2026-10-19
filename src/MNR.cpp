@@ -221,115 +221,175 @@ bool isDiagonal_spmat(const arma::sp_mat x){
   return true;
 }
 
+namespace {
+
+struct RelationshipMarkers {
+  arma::uvec columns;
+  arma::vec frequencies;
+
+  RelationshipMarkers(const arma::mat & X, double minMAF)
+    : columns(X.n_cols), frequencies(X.n_cols) {
+    if(X.n_rows < 2 || X.n_cols == 0) {
+      Rcpp::stop("X must have at least two individuals and one marker.");
+    }
+    if(!std::isfinite(minMAF) || minMAF < 0 || minMAF > 0.5) {
+      Rcpp::stop("min.MAF must be finite and between zero and 0.5.");
+    }
+    arma::uword count = 0;
+    for(arma::uword j = 0; j < X.n_cols; ++j) {
+      if(j % 1024 == 0) { Rcpp::checkUserInterrupt(); }
+      const double * x = X.colptr(j);
+      double total = 0;
+      bool variable = false;
+      for(arma::uword i = 0; i < X.n_rows; ++i) {
+        if(!std::isfinite(x[i]) || x[i] < -1 || x[i] > 1) {
+          Rcpp::stop("X must contain finite genotypes in [-1, 1] after imputation.");
+        }
+        total += x[i] + 1;
+        variable = variable || x[i] != x[0];
+      }
+      const double p = total / (2.0 * X.n_rows);
+      if(variable && std::min(p, 1 - p) > minMAF) {
+        columns[count] = j;
+        frequencies[count++] = p;
+      }
+    }
+    if(count == 0) {
+      Rcpp::stop("No variable markers remain after min.MAF filtering.");
+    }
+    columns.resize(count);
+    frequencies.resize(count);
+  }
+};
+
+arma::mat relationshipKernel(const arma::mat & X,
+                             const RelationshipMarkers & markers,
+                             bool additive, bool method) {
+  arma::mat W(X.n_rows, markers.columns.n_elem);
+  double denominator = 0;
+  for(arma::uword k = 0; k < W.n_cols; ++k) {
+    if(k % 1024 == 0) { Rcpp::checkUserInterrupt(); }
+    const double p = markers.frequencies[k];
+    const double pq2 = 2 * p * (1 - p);
+    const double * x = X.colptr(markers.columns[k]);
+    double * w = W.colptr(k);
+    if(additive) {
+      const double center = method ? 2 * p : arma::mean(X.col(markers.columns[k]));
+      const double offset = method ? 1 : 0;
+      for(arma::uword i = 0; i < W.n_rows; ++i) {
+        w[i] = x[i] + offset - center;
+      }
+      denominator += pq2;
+    }else if(method) {
+      // Orthogonal dominance coding also applies to fractional genotypes.
+      for(arma::uword i = 0; i < W.n_rows; ++i) {
+        w[i] = (2 * p - 1) * x[i] - x[i] * x[i] + pq2;
+      }
+      denominator += pq2 * pq2;
+    }else{
+      for(arma::uword i = 0; i < W.n_rows; ++i) {
+        w[i] = 1 - std::abs(x[i]) - pq2;
+      }
+      denominator += pq2 * (1 - pq2);
+    }
+  }
+  arma::mat result = W * W.t();
+  if(additive && !method) {
+    denominator = arma::mean(result.diag());
+  }
+  if(!std::isfinite(denominator) || denominator <= 0) {
+    Rcpp::stop("The relationship matrix normalization must be finite and positive.");
+  }
+  result /= denominator;
+  return result;
+}
+
+void validateRelationshipMatrix(const arma::mat & matrix, const char * name) {
+  if(matrix.n_rows == 0 || matrix.n_rows != matrix.n_cols || !matrix.is_finite()) {
+    Rcpp::stop("%s must be a finite, non-empty square matrix.", name);
+  }
+  if(!matrix.is_symmetric() && !matrix.is_symmetric(1e-10)) {
+    Rcpp::stop("%s must be symmetric.", name);
+  }
+}
+
+arma::mat relationshipCholesky(arma::mat & matrix, double ridge, const char * name) {
+  if(!matrix.is_finite()) {
+    Rcpp::stop("%s must contain only finite values.", name);
+  }
+  arma::mat factor;
+  if(!arma::chol(factor, matrix)) {
+    matrix.diag() += ridge;
+    if(!matrix.is_finite() || !arma::chol(factor, matrix)) {
+      Rcpp::stop("%s is not positive definite even after adding tolparinv to its diagonal.", name);
+    }
+  }
+  return factor;
+}
+
+arma::mat relationshipSolve(const arma::mat & factor, const arma::mat & rhs) {
+  arma::mat intermediate, result;
+  const auto options = arma::solve_opts::fast + arma::solve_opts::no_approx;
+  if(!arma::solve(intermediate, arma::trimatl(factor.t()), rhs, options) ||
+     !arma::solve(result, arma::trimatu(factor), intermediate, options) ||
+     !result.is_finite()) {
+    Rcpp::stop("The relationship matrix Cholesky solve failed.");
+  }
+  return result;
+}
+
+arma::mat relationshipInverse(const arma::mat & factor) {
+  if(factor.n_rows > static_cast<arma::uword>(std::numeric_limits<arma::blas_int>::max())) {
+    Rcpp::stop("The relationship matrix exceeds the LAPACK integer limit.");
+  }
+  arma::mat result = factor;
+  arma::blas_int n = static_cast<arma::blas_int>(factor.n_rows);
+  char upper = 'U';
+  arma::blas_int info = 0;
+  // POTRI reuses the Cholesky factor without a second factorization.
+  arma::lapack::potri(&upper, &n, result.memptr(), &n, &info);
+  if(info != 0 || !result.is_finite()) {
+    Rcpp::stop("The relationship matrix Cholesky inverse failed.");
+  }
+  result = arma::symmatu(result);
+  return result;
+}
+
+}
+
 // [[Rcpp::export]]
 arma::mat amat(const arma::mat & Xo, const bool & vanraden, double minMAF) {
-  
-  // remove min.MAF
-  arma::rowvec pfreq = mean(Xo+1,0)/2; // frequency of p
-  arma::mat pqfreq = arma::join_cols(pfreq,1-pfreq); // frequencies of p and q
-  arma::rowvec MAF = min(pqfreq,0); // minor allele freqs
-  arma::uvec indexMAF = find(MAF > minMAF); // index for good markers > minMAF
-  arma::mat Xo2 = Xo.cols(indexMAF); // new X only with polymorphic markers
-  
-  // remove monomorphic markers
-  arma::rowvec xVar = var(Xo2,0); // column variance
-  arma::uvec index = find(xVar > 0); // index for good markers
-  arma::mat X = Xo2.cols(index); // new X only with polymorphic markers
-  
-  // initialize A
-  int p = X.n_cols;// number of markers
-  int n = X.n_rows;
-  arma::mat A(n,n);
-  
-  if(vanraden == true){ //  regular vanRaden 
-    
-    arma::rowvec ms012 = mean( X+1, 0 ); // means of columns
-    arma::rowvec freq = ms012/2;
-    double v = 2 * mean(freq % (1 - freq));
-    
-    arma::mat one(n, 1, arma::fill::ones);
-    arma::mat freqmat = one * freq;
-    arma::mat W = (X + 1) - (2 * freqmat);
-    //
-    arma::mat K = W * W.t();
-    A = K/v/p;
-    
-  }else{ // Endelman (currently we have a bug here)
-    
-    // IN R: M <- scale(X, center = TRUE, scale = FALSE)
-    arma::rowvec ms = mean( X, 0 ); // means of columns
-    arma::mat M = X.each_row() - ms;
-    // IN R: tcrossprod(M)
-    arma::mat K = M * M.t();
-    // IN R: K/mean(diag(K))   mean(K.diag())
-    double v = mean(diagvec(K));
-    A = K/v;
-    
-  }
-  
-  return A;
+  const RelationshipMarkers markers(Xo, minMAF);
+  return relationshipKernel(Xo, markers, true, vanraden);
 }
 
 // [[Rcpp::export]]
 arma::mat dmat(const arma::mat & Xo, const bool & nishio, double minMAF) {
-  
-  // remove min.MAF
-  arma::rowvec pfreq = mean(Xo+1,0)/2; // frequency of p
-  arma::mat pqfreq = arma::join_cols(pfreq,1-pfreq); // frequencies of p and q
-  arma::rowvec MAF = min(pqfreq,0); // minor allele freqs
-  arma::uvec indexMAF = find(MAF > minMAF); // index for good markers > minMAF
-  arma::mat Xo2 = Xo.cols(indexMAF); // new X only with polymorphic markers
-  
-  // remove monomorphic markers
-  arma::rowvec xVar = var(Xo2,0); // column variance
-  arma::uvec index = find(xVar > 0); // index for good markers
-  arma::mat X = Xo2.cols(index); // new X only with polymorphic markers
-  
-  // initialize A
-  // int p = X.n_cols;
-  int n = X.n_rows;
-  arma::mat D(n,n);
-  
-  arma::mat Xd = 1 - abs(X);
-  
-  if(nishio == true){ // Nishio and Satoh (2014); Vitezica et al. (2013) orthogonal coding
-    
-    arma::rowvec p = mean( X+1, 0 )/2; // frequency of the allele counted by x=1
-    arma::rowvec q = 1-p;
-    arma::rowvec p2q = 2*(p%q);
-    // w = -2q^2 (x=1), 2pq (x=0), -2p^2 (x=-1), i.e. w = -x^2 + (p-q)x + 2pq
-    arma::mat W = X.each_row() % (p-q) - arma::square(X);
-    W.each_row() += p2q;
-    double varHW = arma::accu(arma::square(p2q));
-    D = (W * W.t())/varHW;
-    
-  }else{ // Su et al. (2012)
-    
-    // IN R: M <- scale(X, center = TRUE, scale = FALSE)
-    // arma::rowvec ms = mean( Xd, 0 ); // means of columns
-    // arma::mat M = Xd.each_row() - ms; // centered Xd matrix
-    // IN R: p <- colSums(X+1)/(2*n) # from marker marix in 0,1,2 format
-    arma::rowvec p = sum( X+1, 0 )/(2*n); // means of columns
-    arma::rowvec q = 1-p;
-    // IN R: varHW <- sum(2*p*q * (1-(2*p*q)) )
-    arma::rowvec p2q = 2*(p%q);
-    double varHW = arma::accu( p2q % (1-p2q) );
-    // IN R: Xdpq <- apply(Xd, 1, function(x){ x - (2 * p * q)})
-    arma::mat M = Xd.each_row() - p2q;
-    // IN R: tcrossprod(M)
-    arma::mat K = M * M.t();
-    D = K/varHW;
-    
-  }
-  
-  return D;
+  const RelationshipMarkers markers(Xo, minMAF);
+  return relationshipKernel(Xo, markers, false, nishio);
 }
 
 // [[Rcpp::export]]
 arma::mat emat(const arma::mat & X1, const arma::mat & X2) {
-  
-  arma::mat E = X1 % X2;
-  
+  if(X1.n_rows != X2.n_rows || X1.n_cols != X2.n_cols) {
+    Rcpp::stop("Epistatic relationship matrices must have identical dimensions.");
+  }
+  return X1 % X2;
+}
+
+// [[Rcpp::export]]
+arma::mat emat_genotypes(const arma::mat & Xo, bool nishio,
+                         const std::string & type, double minMAF) {
+  if(type != "A#A" && type != "A#D" && type != "D#D") {
+    Rcpp::stop("type must be one of 'A#A', 'A#D' or 'D#D'.");
+  }
+  const RelationshipMarkers markers(Xo, minMAF);
+  arma::mat E = relationshipKernel(Xo, markers, type != "D#D", type != "D#D" || nishio);
+  if(type == "A#D") {
+    E %= relationshipKernel(Xo, markers, false, nishio);
+  }else{
+    E %= E;
+  }
   return E;
 }
 
@@ -337,53 +397,52 @@ arma::mat emat(const arma::mat & X1, const arma::mat & X2) {
 arma::mat hmat(const arma::mat & A, const arma::mat & G22,
                const arma::vec & index, double tolparinv,
                double tau, double omega) {
-  
-  arma::uvec index1 = find(index == true); // index for good markers
-  arma::uvec index2 = find(index == false); // index for good markers
-  // A11 <- A[index, index]
-  arma::mat A11 = A.submat(index1,index1);
-  // A12 <- A[index, !index]
-  arma::mat A12 = A.submat(index1,index2);
-  // A21 <- A[!index, index]
-  arma::mat A21 = A.submat(index2,index1);
-  // A22 <- A[!index, !index]
-  arma::mat A22 = A.submat(index2,index2);
-  // A22inv = solve(A22)
-  arma::mat A22inv(A22.n_cols,A22.n_cols);
-  arma::inv_sympd(A22inv,A22); // try to invert normally
-  arma::sp_mat Ia = arma::speye<arma::sp_mat>(A22.n_cols,A22.n_cols);
-  if(A22inv.n_rows == 0){ // if fails try to invert with diag(1e-3)
-    arma::mat A22b = A22 + (Ia*tolparinv);
-    arma::inv_sympd(A22inv,A22b);
+  validateRelationshipMatrix(A, "A");
+  validateRelationshipMatrix(G22, "G22");
+  if(index.n_elem != A.n_rows || !index.is_finite() ||
+     arma::any((index != 0) % (index != 1))) {
+    Rcpp::stop("index must contain one zero or one per individual in A.");
   }
-  // G22inv = try(solve(G22), silent = TRUE)
-  arma::mat G22inv(G22.n_cols,G22.n_cols);
-  arma::inv_sympd(G22inv,G22); // try to invert normally
-  arma::sp_mat Ig = arma::speye<arma::sp_mat>(G22.n_cols,G22.n_cols);
-  if(G22inv.n_rows == 0){ // if fails try to invert with diag(1e-3)
-    arma::mat G22b = G22 + (Ig*tolparinv);
-    arma::inv_sympd(G22inv,G22b);
+  if(!std::isfinite(tolparinv) || tolparinv <= 0 ||
+     !std::isfinite(tau) || !std::isfinite(omega)) {
+    Rcpp::stop("tolparinv must be finite and positive; tau and omega must be finite.");
   }
-  //   H22 = solve((tau * G22inv + (1 - omega) * A22inv))
-  arma::mat H22p = (tau * G22inv) + ((1 - omega) * A22inv); //constant by matrix product
-  arma::mat H22inv(H22p.n_cols,H22p.n_cols);
-  arma::inv_sympd(H22inv,H22p); // try to invert normally
-  arma::sp_mat Ih = arma::speye<arma::sp_mat>(H22p.n_cols,H22p.n_cols);
-  if(H22inv.n_rows == 0){ // if fails try to invert with diag(1e-3)
-    arma::mat H22pb = H22p + (Ih*tolparinv);
-    arma::inv_sympd(H22inv,H22pb);
+  const arma::uvec index1 = arma::find(index == 1);
+  const arma::uvec index2 = arma::find(index == 0);
+  if(index2.n_elem != G22.n_rows) {
+    Rcpp::stop("G22 dimensions must match the genotyped individuals in index.");
   }
-  //   H11 = A12 %*% A22inv %*% (H22 - A22) %*% A22inv %*% A21
-  arma::mat H11 = A12 * A22inv * (H22inv - A22) * A22inv * A21;
-  //   H12 = A12 %*% A22inv %*% (H22 - A22)
-  arma::mat H12 = A12 * A22inv * (H22inv - A22);
-  //   H21 = (H22 - A22) %*% A22inv %*% A21
-  arma::mat H21 = (H22inv - A22) * A22inv * A21;
-  //   H22 = (H22 - A22)
-  arma::mat H22 = (H22inv - A22);
-  //   H = A + cbind(rbind(H11, H21), rbind(H12, H22))
-  arma::mat H = A + join_rows(join_cols(H11, H21), join_cols(H12, H22));
-  
+  const arma::mat A22 = A.submat(index2, index2);
+  arma::mat regularizedA22 = A22;
+  const arma::mat factorA = relationshipCholesky(regularizedA22, tolparinv, "A22");
+  arma::mat H22 = G22;
+  const arma::mat factorG = relationshipCholesky(H22, tolparinv, "G22");
+  if(omega == 1 && tau > 0) {
+    // Preserve G's ridge retry, but avoid inverting G and then its inverse.
+    H22 /= tau;
+  }else{
+    arma::mat precision = tau * relationshipInverse(factorG) +
+      (1 - omega) * relationshipInverse(factorA);
+    const arma::mat factorH = relationshipCholesky(precision, tolparinv, "H22 precision");
+    H22 = relationshipInverse(factorH);
+  }
+  if(!H22.is_finite()) {
+    Rcpp::stop("The hybrid genotyped relationship block is not finite.");
+  }
+  arma::mat H = A;
+  if(!index1.is_empty()) {
+    const arma::mat B = relationshipSolve(factorA, A.submat(index2, index1));
+    const arma::mat cross = B.t() * (H22 - A22);
+    arma::mat correction = cross * B;
+    correction = arma::symmatu(correction);
+    H.submat(index1, index1) += correction;
+    H.submat(index1, index2) += cross;
+    H.submat(index2, index1) += cross.t();
+  }
+  H.submat(index2, index2) = H22;
+  if(!H.is_finite()) {
+    Rcpp::stop("The hybrid relationship matrix is not finite.");
+  }
   return H;
 }
 

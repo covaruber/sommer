@@ -311,6 +311,10 @@ ans2 <- mmer(Yield~Env,
              data=DT)
 summary(ans2)
 
+
+
+\donttest{
+
 ####===========================================####
 ####  Univariate unstructured variance models  ####
 ####===========================================####
@@ -320,8 +324,6 @@ ans3 <- mmer(Yield~Env,
              rcov=~vsr(dsr(Env),units), 
              data=DT)
 summary(ans3)
-
-\donttest{
 
 ####==========================================####
 #### Multivariate homogeneous variance models ####

@@ -185,6 +185,20 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// emat_genotypes
+arma::mat emat_genotypes(const arma::mat& Xo, bool nishio, const std::string& type, double minMAF);
+RcppExport SEXP _sommer_emat_genotypes(SEXP XoSEXP, SEXP nishioSEXP, SEXP typeSEXP, SEXP minMAFSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Xo(XoSEXP);
+    Rcpp::traits::input_parameter< bool >::type nishio(nishioSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type type(typeSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    rcpp_result_gen = Rcpp::wrap(emat_genotypes(Xo, nishio, type, minMAF));
+    return rcpp_result_gen;
+END_RCPP
+}
 // hmat
 arma::mat hmat(const arma::mat& A, const arma::mat& G22, const arma::vec& index, double tolparinv, double tau, double omega);
 RcppExport SEXP _sommer_hmat(SEXP ASEXP, SEXP G22SEXP, SEXP indexSEXP, SEXP tolparinvSEXP, SEXP tauSEXP, SEXP omegaSEXP) {
@@ -526,6 +540,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_amat", (DL_FUNC) &_sommer_amat, 3},
     {"_sommer_dmat", (DL_FUNC) &_sommer_dmat, 3},
     {"_sommer_emat", (DL_FUNC) &_sommer_emat, 2},
+    {"_sommer_emat_genotypes", (DL_FUNC) &_sommer_emat_genotypes, 4},
     {"_sommer_hmat", (DL_FUNC) &_sommer_hmat, 6},
     {"_sommer_scorecalc", (DL_FUNC) &_sommer_scorecalc, 7},
     {"_sommer_gwasForLoop", (DL_FUNC) &_sommer_gwasForLoop, 7},

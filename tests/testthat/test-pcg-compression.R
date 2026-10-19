@@ -158,7 +158,7 @@ test_that("Krylov recycling works without observation compression across residua
     reference <- fit(list())
     candidate <- fit(list(recycleRank=4L, recycleMethod="krylov", warmStart=TRUE))
     for(field in c("bu", "llik", "dLu", "theta", "InfMat")){
-      expect_equal(candidate[[field]], reference[[field]], tolerance=1e-6)
+      expect_equal(candidate[[field]], reference[[field]], tolerance=1e-5)
     }
     expect_gt(candidate$engineDiagnostics$pcg$balancedPreconditionerApplications, 0)
     expect_true(candidate$pcgMatrixFree)

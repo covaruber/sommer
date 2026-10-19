@@ -92,6 +92,8 @@ bool isDiagonal_spmat(const arma::sp_mat x);
 arma::mat amat(const arma::mat & Xo, const bool & vanraden, double minMAF);
 arma::mat dmat(const arma::mat & Xo, const bool & nishio, double minMAF);
 arma::mat emat(const arma::mat & X1, const arma::mat & X2);
+arma::mat emat_genotypes(const arma::mat & Xo, bool nishio,
+                         const std::string & type, double minMAF);
 arma::mat hmat(const arma::mat & A, const arma::mat & G22,
                const arma::vec & index, double tolparinv,
                double tau, double omega);

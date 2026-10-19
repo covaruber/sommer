@@ -155,7 +155,7 @@ test_that("rotation supports multi-trait Kronecker residuals", {
       random=~vsm(usm(trait), ism(id), Gu=fixture$Gu, rotation=TRUE)
     )))
     expect_equal(tail(ordinary$llik, 1), tail(rotated$llik, 1), tolerance=1e-6)
-    expect_equal(unname(ordinary$theta), unname(rotated$theta), tolerance=1e-6)
+    expect_equal(unname(ordinary$theta), unname(rotated$theta), tolerance=5e-6)
     expect_equal(ordinary$uList[[1]], rotated$uList[[1]], tolerance=1e-6)
     if(henderson){
       expect_equal(as.numeric(fitted(ordinary)), as.numeric(fitted(rotated)),

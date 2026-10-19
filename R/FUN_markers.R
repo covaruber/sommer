@@ -5,11 +5,7 @@
 # Marker transform used by A.mat(): imputation, MAF and monomorphic filters,
 # centring by 2p and the VanRaden scale 2*sum(p*q).
 .amat_marker_transform <- function(M, min.MAF){
-  missing <- which(is.na(M), arr.ind=TRUE)
-  if(nrow(missing) > 0L){
-    cols <- unique(missing[, 2])
-    M[, cols] <- apply(M[, cols, drop=FALSE], 2, imputev)
-  }
+  M <- .relationship_impute(M)
   p <- colMeans(M + 1) / 2
   maf <- pmin(p, 1 - p)
   keep <- maf > min.MAF

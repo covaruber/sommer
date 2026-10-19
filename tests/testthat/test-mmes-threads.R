@@ -51,16 +51,22 @@ test_that("mmes restores real BLAS settings after success, early return, and err
   previous <- controller$get()
   on.exit(controller$set(previous), add=TRUE)
   data(DT_example)
-  fit <- function(...) mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example, ..., control=mmes_control(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE, dateWarning=FALSE), execution=list(blasThreads=1L)))
-  result <- fit(solver="ldlt")
+  fit <- function(method="ldlt", setup=FALSE){
+    mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example,
+      control=mmes_control(solve=list(method=method),
+        convergence=list(maxIters=2), output=list(setup=setup),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE),
+        execution=list(blasThreads=1L)))
+  }
+  result <- fit()
   expect_equal(controller$get(), previous)
   expect_identical(result$threadingDiagnostics$blasThreadsConfigured, 1L)
   expect_gt(result$factorizationDiagnostics$timings$ldlt$calls, 0L)
   expect_gte(result$factorizationDiagnostics$timings$ldlt$elapsedSeconds, 0)
-  setup <- fit(returnParam=TRUE)
+  setup <- fit(setup=TRUE)
   expect_identical(setup$blasThreads, 1L)
   expect_equal(controller$get(), previous)
-  expect_error(fit(solver="invalid"), "solver must")
+  expect_error(fit(method="invalid"), "solve\\$method")
   expect_equal(controller$get(), previous)
 })
 
@@ -108,7 +114,7 @@ test_that("parallel AI contractions preserve serial fits and cache accounting", 
   on.exit(unlink(c(script, outputs)), add=TRUE)
   writeLines(deparse(substitute({
     arguments <- commandArgs(TRUE)
-    pkgload::load_all(arguments[2L], quiet=TRUE)
+    library(sommer)
     dataset <- expand.grid(trial=factor(seq_len(6L)),
       genotype=factor(seq_len(12L)), block=factor(seq_len(3L)))
     dataset$y <- 100 + c(45, -30, -12, 52, 18, -20)[dataset$trial] +
@@ -131,12 +137,12 @@ test_that("parallel AI contractions preserve serial fits and cache accounting", 
     }
     saveRDS(results, arguments[1L])
   })), script)
-  libraryPath <- pkgload::pkg_path()
   for(index in seq_along(outputs)){
     threads <- c(1L, 2L)[index]
     output <- system2(file.path(R.home("bin"), "Rscript"),
-      c("--vanilla", shQuote(script), shQuote(outputs[index]), shQuote(libraryPath)),
-      env=c(paste0("OMP_NUM_THREADS=", threads), "OMP_THREAD_LIMIT=2",
+      c("--vanilla", shQuote(script), shQuote(outputs[index])),
+      env=c(paste0("R_LIBS=", paste(.libPaths(), collapse=.Platform$path.sep)),
+        paste0("OMP_NUM_THREADS=", threads), "OMP_THREAD_LIMIT=2",
         "OPENBLAS_NUM_THREADS=1", "MKL_NUM_THREADS=1", "BLIS_NUM_THREADS=1"),
       stdout=TRUE, stderr=TRUE)
     expect_null(attr(output, "status"), info=paste(output, collapse="\n"))

@@ -23,12 +23,12 @@ If TRUE, Nishio and Satoh (2014) (orthogonal parameterization of Vitezica et al.
 An argument specifying the type of epistatic relationship matrix desired. The default is the second order epistasis (additive x additive) type="A#A". Other options are additive x dominant (type="A#D"), or dominant by dominant (type="D#D").  
 }
 \item{min.MAF}{
-Minimum minor allele frequency. The A matrix is not sensitive to rare alleles, so by default only monomorphic markers are removed.
+Minimum minor allele frequency, a finite value between zero and 0.5. Markers at or below this threshold and all constant markers are removed. The default is 0.02.
 }
 }
 
 \details{
-it is computed as the Hadamard product of the epistatic relationship matrix; E=A#A, E=A#D, E=D#D. 
+The result is the element-wise (Hadamard) product \eqn{E=A\circ A}, \eqn{E=A\circ D}, or \eqn{E=D\circ D}. Mean imputation, allele-frequency estimation and marker filtering are shared between the component matrices. Their definitions and input requirements are the same as in \code{\link{A.mat}} and \code{\link{D.mat}}. As in \code{A.mat}, the correction from inadvertent median imputation to mean imputation can change results for missing genotypes.
 }
 \value{
 The epistatic relationship matrix is returned.

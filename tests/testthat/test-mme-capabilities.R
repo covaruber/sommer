@@ -12,7 +12,7 @@ test_that("capability ownership covers every modular leaf and model formal", {
     paths <- c(paths, leafPaths(control[[module]], paste0("control.", module)))
   }
   expect_setequal(map$controls$path[startsWith(map$controls$path, "control.")], paths)
-  publicModel <- setdiff(names(formals(mmes)), c("control", ".internal"))
+  publicModel <- setdiff(names(formals(mmes)), c("control", ".internal", "..."))
   expect_setequal(sub("^mmes\\.", "", map$controls$path[
     startsWith(map$controls$path, "mmes.")]), publicModel)
   expect_false(anyDuplicated(map$controls$path) > 0L)

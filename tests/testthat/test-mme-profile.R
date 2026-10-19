@@ -140,8 +140,8 @@ test_that("exact trace panels preserve AR2 fits, scores and uncertainty", {
       }
       counters <- candidate$engineDiagnostics$profile$counters
       expect_equal(counters$traceFallbackSolves, reference$engineDiagnostics$profile$counters$traceFallbackSolves)
-      expect_lte(counters$traceBatchSolves, counters$traceFallbackSolves)
-      expect_gt(counters$traceBatchWorkspaceBytes, 0)
+      expect_true(all(counters$traceBatchSolves <= counters$traceFallbackSolves))
+      expect_true(all(counters$traceBatchWorkspaceBytes > 0))
       expect_equal(candidate$control$score$traceBatch, "force")
     }
   }
@@ -164,9 +164,9 @@ test_that("exact trace panels preserve AR2 fits, scores and uncertainty", {
   reference <- fitWith(workload, "off", 1L, 1L)
   candidate <- fitWith(workload, "force", 4L, 1L)
   for(field in fields){ expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-8) }
-  expect_error(fitWith(workload, "force", 1L, 0L, budget = 0.001), "Batched exact trace solves needs about")
+  expect_error(fitWith(workload, "force", 1L, 0L, budget = 0.001), "denseMemoryMB is 0")
   limited <- fitWith(workload, "force", 1L, 0L, budget = 0.001, policy = "limit")
   reference <- fitWith(workload, "off", 1L, 0L, budget = 0.001, policy = "limit")
   for(field in fields){ expect_equal(limited[[field]], reference[[field]], tolerance = 1e-10) }
-  expect_equal(limited$engineDiagnostics$profile$counters$traceBatchSolves, 0)
+  expect_equal(sum(limited$engineDiagnostics$profile$counters$traceBatchSolves), 0)
 })

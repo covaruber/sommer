@@ -1,7 +1,7 @@
 # Static capability specification; this function does not resolve global options.
 # previous records migration provenance, not an accepted compatibility alias.
 .mmes_capabilities <- function(){
-list(modules = structure(list(id = c("model", "task", "formulation", 
+out <- list(modules = structure(list(id = c("model", "task", "formulation", 
 "representation", "solve", "logdet", "score", "curvature", "update", 
 "proposal", "convergence", "output", "execution", "diagnostics", 
 "compatibility"), responsibility = c("Build model designs, covariance descriptors, weights and observation indexing.", 
@@ -502,4 +502,6 @@ list(modules = structure(list(id = c("model", "task", "formulation",
 "branch", "branch", "branch", "branch", "branch", "join", "join", 
 "join", "join")), class = "data.frame", row.names = c(NA, 17L
 )))
+out$controls <- out$controls[out$controls$path != "control.output.pev", , drop=FALSE]
+out
 }

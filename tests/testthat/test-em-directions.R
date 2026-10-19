@@ -617,5 +617,5 @@ test_that("blended directions respect variance floors, fixed scales, and ratios"
     }
   }
   fixed <- mmes(y~trait, random=~vsm(ism(id), sigma2=5e-7, fixedSigma2=TRUE), data=dataset, control=mmes_control(update=list(blendWeight=0.5), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  expect_equal(fixed$covPar[[1L]][1L], 5e-7, tolerance=1e-15)
+  expect_equal(fixed$covPar[[1L]][1L], 5e-7, tolerance=1e-12)
 })

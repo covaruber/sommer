@@ -17,7 +17,7 @@ Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} lines and \eqn{m} bi
 coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are allowed.
 }
 \item{min.MAF}{
-Minimum minor allele frequency. The A matrix is not sensitive to rare alleles, so by default only monomorphic markers are removed.
+Minimum minor allele frequency, a finite value between zero and 0.5. Markers at or below this threshold and all constant markers are removed.
 }
 \item{return.imputed}{
 When TRUE, the imputed marker matrix is returned.  
@@ -25,7 +25,11 @@ When TRUE, the imputed marker matrix is returned.
 }
 \details{
 
-For vanraden method: the marker matrix is centered by subtracting column means \eqn{M= X - ms} where ms is the coumn means. Then \eqn{A=M M'/c}, where \eqn{c = \sum_k{d_k}/k}, the mean value of the diagonal values of the \eqn{M M'} portion.
+Missing values are replaced by the column (marker) mean. At least two individuals and one variable marker surviving the frequency filter are required. Genotypes must lie in \eqn{[-1,1]}; a marker with no observed genotypes cannot be imputed.
+
+For the VanRaden method, let \eqn{p_k} be the column mean of \eqn{(X+1)/2} for each retained marker and \eqn{W_{ik}=X_{ik}+1-2p_k}. Then \eqn{A=WW'/c}, where \eqn{c=2\sum_k p_k(1-p_k)}.
+
+Mean imputation is explicit. Earlier implementations inadvertently used the imputation helper's default median despite reporting mean imputation; results with missing genotypes can therefore differ.
 
 }
 \value{
