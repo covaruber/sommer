@@ -1,0 +1,4280 @@
+vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
+                rotation=FALSE, isFixed=FALSE, verbose=TRUE){
+  
+  init <- list(...)
+  expr_names <- as.character(substitute(list(...)))[-1L]
+  
+  if(length(init) < 1L){
+    stop("vsm() requires at least one structured term.", call. = FALSE)
+  }
+  
+  if(!all(vapply(init, is.list, logical(1)))){
+    stop(
+      paste0(
+        "Every term supplied to vsm() must be wrapped in a covariance ",
+        "constructor returning a CovarianceFactor descriptor, such as ",
+        "ism(), dsm(), usm(), ar1m(), csm(), rrm(), fam(), ",
+        "maternm(), toeplitzm(), sar(), car(), or ownm()."
+      ),
+      call. = FALSE
+    )
+  }
+  
+  # sigma2=NULL (the default) is a marker meaning "let mmes() replace this
+  # with a data-driven starting value"; an explicit user value is always
+  # honored as-is and never overridden.
+  sigma2IsDefault <- is.null(sigma2)
+  if(sigma2IsDefault) sigma2 <- 0.15
+  
+  if(!is.finite(sigma2) || length(sigma2) != 1L || sigma2 <= 0){
+    stop("sigma2 in vsm() must be one positive finite value.",
+         call. = FALSE)
+  }
+  
+  if(length(fixedSigma2) != 1L){
+    stop("fixedSigma2 must have length one.", call. = FALSE)
+  }
+
+  if(length(rotation) != 1L || !is.logical(rotation) || is.na(rotation)){
+    stop("rotation must be a single TRUE/FALSE value.", call. = FALSE)
+  }
+  
+  
+  # ======================================================================
+  # Main-effect term and covariance-shaping factors
+  # ======================================================================
+  
+  # Last term is the main-effect incidence. Every preceding term is a
+  # covariance-shaping factor. This makes Kronecker depth unlimited.
+  main <- init[[length(init)]]
+  
+  if(is.null(main$Z)){
+    stop("The last vsm() term must provide a Z matrix.",
+         call. = FALSE)
+  }
+  
+  factor_terms <-
+    if(length(init) > 1L) init[-length(init)] else list()
+  
+  
+  main_vars <-
+    all.vars(
+      as.formula(
+        paste0("~", expr_names[length(expr_names)])
+      )
+    )
+  
+  all_vars <- unique(
+    unlist(
+      lapply(
+        expr_names,
+        function(z){
+          all.vars(as.formula(paste0("~", z)))
+        }
+      )
+    )
+  )
+  
+  is.residual <-
+    "units" %in% main_vars ||
+    "units" %in% all_vars
+  
+  n <- nrow(main$Z)
+  
+  
+  # ======================================================================
+  # Normalize main-effect design
+  # ======================================================================
+  
+  mainZ <- to_sparse(main$Z)
+  
+  
+  # ======================================================================
+  # Relationship / known precision matrix
+  #
+  # IMPORTANT:
+  # Matrix coercion and subsetting may drop arbitrary attributes.
+  # Therefore we record the precision status BEFORE doing any operation
+  # on Gu and explicitly restore it afterwards.
+  # ======================================================================
+  
+  Gu_is_inverse <- FALSE
+  Gu_was_supplied <- !is.null(Gu)
+  
+  if(.is_giv(Gu)) Gu <- .giv_to_precision(Gu)
+  
+  if(!is.null(Gu)){
+    
+    Gu_is_inverse <- isTRUE(attr(Gu, "inverse"))
+    
+    if(!Gu_is_inverse){
+      stop(
+        "Gu must have attr(Gu, 'inverse')=TRUE for the Henderson solver.",
+        call. = FALSE
+      )
+    }
+    
+    # Conversion can drop custom attributes.
+    Gu <- to_precision_sparse(Gu)
+    
+    # Restore immediately so the invariant is maintained throughout vsm().
+    attr(Gu, "inverse") <- TRUE
+    
+    if(is.null(colnames(Gu)) || is.null(rownames(Gu))){
+      stop(
+        "Gu must have row and column names matching the main-effect levels.",
+        call. = FALSE
+      )
+    }
+    
+    if(nrow(Gu) != ncol(Gu)){
+      stop("Gu must be a square precision matrix.",
+           call. = FALSE)
+    }
+    
+    if(!identical(rownames(Gu), colnames(Gu))){
+      stop(
+        "Gu must have identical row and column level names in the same order.",
+        call. = FALSE
+      )
+    }
+    
+    miss <- setdiff(colnames(mainZ), colnames(Gu))
+    
+    if(length(miss)){
+      stop(
+        paste(
+          "Levels missing from Gu:",
+          paste(miss, collapse=", ")
+        ),
+        call. = FALSE
+      )
+    }
+    
+    # Preserve historical ability to predict levels contained in Gu that
+    # are not observed in the data by adding zero incidence columns.
+    extra <- setdiff(colnames(Gu), colnames(mainZ))
+    
+    if(length(extra)){
+      
+      if(verbose){
+        cat(
+          "Adding", length(extra), "additional Gu levels to the main-effect model matrix:",
+          paste(utils::head(extra, 10L), collapse=", "),
+          if(length(extra) > 10L) "..." else "",
+          "\n"
+        )
+      }
+      
+      add <- Matrix::Matrix(
+        0,
+        nrow=nrow(mainZ),
+        ncol=length(extra),
+        sparse=TRUE
+      )
+      
+      colnames(add) <- extra
+      
+      mainZ <- cbind(mainZ, add)
+      mainZ <- to_sparse(mainZ)
+    }
+  }
+  
+  
+  # ======================================================================
+  # Row-wise Kronecker / Khatri-Rao product
+  #
+  # Ordering agrees with kronecker(K1,K2,...):
+  # earlier factors are slow indices and later factors are fast indices.
+  # ======================================================================
+  
+  row_kron <- function(A, B){
+    
+    A <- to_sparse(A)
+    B <- to_sparse(B)
+    
+    if(nrow(A) != nrow(B)){
+      stop(
+        paste0(
+          "All covariance factors inside vsm() must have ",
+          "the same number of rows."
+        ),
+        call. = FALSE
+      )
+    }
+    
+    sa <- Matrix::summary(A)
+    sb <- Matrix::summary(B)
+    m <- merge(
+      data.frame(i=sa$i, ja=sa$j, xa=sa$x),
+      data.frame(i=sb$i, jb=sb$j, xb=sb$x),
+      by="i", sort=FALSE
+    )
+    nb <- ncol(B)
+    ans <- Matrix::sparseMatrix(
+      i=m$i, j=(m$ja - 1L) * nb + m$jb, x=m$xa * m$xb,
+      dims=c(nrow(A), ncol(A) * nb)
+    )
+    colnames(ans) <- as.vector(t(outer(colnames(A), colnames(B), paste, sep=":")))
+    
+    to_sparse(ans)
+  }
+  
+  
+  # ======================================================================
+  # Compile covariance-shaping factors
+  # ======================================================================
+  
+  if(length(factor_terms) == 0L){
+    
+    Z0 <- Matrix::Matrix(
+      1,
+      nrow=n,
+      ncol=1,
+      sparse=TRUE
+    )
+    
+    colnames(Z0) <- "1"
+    
+    factors <- list()
+    
+  }else{
+    
+    if(any(
+      vapply(
+        factor_terms,
+        function(z) is.null(z$covFactor),
+        logical(1)
+      )
+    )){
+      stop(
+        paste0(
+          "Every covariance-shaping term in vsm() must ",
+          "supply a covFactor descriptor."
+        ),
+        call. = FALSE
+      )
+    }
+    
+    Z0 <- to_sparse(factor_terms[[1]]$Z)
+    
+    if(length(factor_terms) > 1L){
+      
+      for(i in 2:length(factor_terms)){
+        Z0 <- row_kron(
+          Z0,
+          factor_terms[[i]]$Z
+        )
+      }
+    }
+    
+    factors <- lapply(
+      factor_terms,
+      function(z){
+        
+        f <- .compile_covfactor(z$covFactor)
+        
+        .validate_covfactor(f)
+        
+        f
+      }
+    )
+  }
+  
+  
+  # ======================================================================
+  # Random-effect design
+  #
+  # Build one Z block for each covariance-product coordinate.
+  #
+  # Residual structures only need the product-coordinate layout and do not
+  # materialize an observation-identity random-effect design.
+  # ======================================================================
+  
+  if(is.residual){
+    
+    Z <- list()
+    
+  }else{
+    
+    Z <- vector(
+      "list",
+      ncol(Z0)
+    )
+    
+    for(j in seq_len(ncol(Z0))){
+      
+      # Row scaling keeps O(nnz); an outer-product mask would be dense n x levels.
+      Z[[j]] <-
+        to_sparse(
+          Matrix::drop0(
+            Matrix::Diagonal(x=as.numeric(Z0[,j])) %*% mainZ
+          )
+        )
+      
+      colnames(Z[[j]]) <-
+        colnames(mainZ)
+    }
+  }
+  
+  
+  # ======================================================================
+  # Final Gu normalization
+  #
+  # This section establishes an explicit invariant:
+  #
+  # Every vsm() object crossing the R/C++ or vsm()/covm() boundary has:
+  #
+  #   1. Gu represented as dgCMatrix
+  #   2. attr(Gu,"inverse") == TRUE
+  #
+  # Matrix operations above are never trusted to preserve the attribute.
+  # ======================================================================
+  
+  if(is.residual){
+    
+    Gu <- to_sparse(
+      Matrix::Matrix(
+        1,
+        1,
+        1,
+        sparse=TRUE
+      )
+    )
+    
+    attr(Gu, "inverse") <- TRUE
+    
+  }else if(is.null(Gu)){
+    
+    Gu <- to_sparse(
+      Matrix::Diagonal(
+        n=ncol(mainZ),
+        x=1
+      )
+    )
+    
+    colnames(Gu) <-
+      rownames(Gu) <-
+      colnames(mainZ)
+    
+    attr(Gu, "inverse") <- TRUE
+    
+  }else{
+    
+    # Subsetting is required to put Gu into exactly the same ordering as
+    # mainZ. Subsetting/coercion may drop custom attributes, so restore the
+    # precision marker AFTER the operation.
+    if(!identical(colnames(Gu), colnames(mainZ))){
+      guOrder <- match(colnames(mainZ), colnames(Gu))
+      Gu <- Gu[guOrder, guOrder, drop=FALSE]
+    }
+    
+    Gu <- to_precision_sparse(Gu)
+    
+    attr(Gu, "inverse") <- TRUE
+  }
+  
+  
+  # Final representation validation.
+  if(!inherits(Gu, c("dgCMatrix", "dsCMatrix"))){
+    stop(
+      paste0(
+        "Internal vsm() error: Gu was not normalized ",
+        "to a sparse precision matrix."
+      ),
+      call. = FALSE
+    )
+  }
+  
+  if(!isTRUE(attr(Gu, "inverse"))){
+    stop(
+      paste0(
+        "Internal vsm() error: Gu lost its ",
+        "inverse/precision attribute."
+      ),
+      call. = FALSE
+    )
+  }
+
+  rotationInfo <- NULL
+  GuRot <- NULL
+
+  if(isTRUE(rotation)){
+    if(is.residual){
+      stop("rotation=TRUE is only available for random-effect vsm() terms.",
+           call. = FALSE)
+    }
+    if(!Gu_was_supplied){
+      stop("rotation=TRUE requires a supplied Gu precision matrix.",
+           call. = FALSE)
+    }
+    if(!isSymmetric(Gu, tol=1e-10)){
+      stop("rotation=TRUE requires a symmetric Gu precision matrix.",
+           call. = FALSE)
+    }
+
+    eig <- eigen(as.matrix(Gu), symmetric=TRUE)
+    if(any(!is.finite(eig$values)) || any(eig$values <= 0)){
+      stop("rotation=TRUE requires a positive-definite Gu precision matrix.",
+           call. = FALSE)
+    }
+
+    U <- eig$vectors
+    for(j in seq_len(ncol(U))){
+      pivot <- which.max(abs(U[,j]))
+      if(U[pivot,j] < 0) U[,j] <- -U[,j]
+    }
+    modeNames <- paste0(".eigen", seq_along(eig$values))
+    rownames(U) <- colnames(Gu)
+    colnames(U) <- modeNames
+
+    GuRot <- to_sparse(Matrix::Diagonal(x=eig$values))
+    rownames(GuRot) <- colnames(GuRot) <- modeNames
+    attr(GuRot, "inverse") <- TRUE
+
+    rotationInfo <- list(
+      vectors=U,
+      precision=eig$values,
+      covariance=1/eig$values,
+      levels=colnames(Gu),
+      modes=modeNames
+    )
+  }
+  
+  
+  # ======================================================================
+  # Flatten covariance-product descriptor
+  #
+  # All optimizer coordinates are unconstrained working parameters:
+  #
+  #   log(sigma2)
+  #   atanh(rho)
+  #   log variance ratios
+  #   normalized-Cholesky coordinates
+  #   etc.
+  # ======================================================================
+  
+  par <- c(
+    log_sigma2=log(sigma2)
+  )
+  
+  free <- c(
+    !isTRUE(fixedSigma2)
+  )
+  
+  par_names <- "sigma2"
+  
+  
+  if(length(factors)){
+    
+    for(i in seq_along(factors)){
+      
+      f <- .compile_covfactor(
+        factors[[i]]
+      )
+      
+      .validate_covfactor(f)
+      
+      f$par_start <-
+        length(par) + 1L
+      
+      if(length(f$par)){
+        
+        par <- c(
+          par,
+          f$par
+        )
+        
+        free <- c(
+          free,
+          f$free
+        )
+        
+        prefix <-
+          if(length(expr_names) >= i){
+            expr_names[i]
+          }else{
+            paste0("factor", i)
+          }
+        
+        par_names <- c(
+          par_names,
+          paste(
+            prefix,
+            f$par_names,
+            sep=":"
+          )
+        )
+      }
+      
+      f$par_end <- length(par)
+      f$label <- if(length(expr_names) >= i) expr_names[i] else paste0("factor", i)
+      
+      factors[[i]] <- f
+    }
+  }
+  
+  
+  product_dim <-
+    if(length(factors)){
+      prod(
+        vapply(
+          factors,
+          `[[`,
+          numeric(1),
+          "dim"
+        )
+      )
+    }else{
+      1L
+    }
+  
+  
+  if(product_dim != ncol(Z0)){
+    stop(
+      paste0(
+        "Internal vsm() error: covariance product dimension ",
+        "does not match the combined design."
+      ),
+      call. = FALSE
+    )
+  }
+  
+  
+  covStruct <- list(
+    
+    type="kron",
+    
+    par=as.numeric(par),
+    
+    free=as.logical(free),
+    
+    par_names=par_names,
+    
+    factors=factors,
+    
+    dim=as.integer(product_dim),
+    
+    levels=colnames(Z0),
+    
+    scale_index=1L,
+    
+    descriptor_version=2L,
+    
+    factor_interface="CovarianceFactor",
+    
+    parameterization="working",
+    
+    main_levels=colnames(mainZ),
+    
+    # Lets mmes() know it may replace par[1] (log_sigma2) with a
+    # data-driven starting value; never set when the user supplied sigma2.
+    sigma2_is_default=sigma2IsDefault
+  )
+  
+  names(covStruct$par) <-
+    par_names
+  
+  
+  # ======================================================================
+  # Residual product-coordinate mapping
+  #
+  # Residual covariance factors must define exactly one covariance-product
+  # coordinate for every observation.
+  # ======================================================================
+  
+  residualLocalIndex <- NULL
+  
+  if(is.residual){
+    
+    ss <- Matrix::summary(Z0)
+    
+    if(anyDuplicated(ss$i) || any(abs(ss$x - 1) > 1e-12)){
+      stop(
+        paste0(
+          "Residual covariance factors must define exactly ",
+          "one covariance-product level per observation."
+        ),
+        call. = FALSE
+      )
+    }
+    
+    residualLocalIndex <- rep(NA_integer_, nrow(Z0))
+    residualLocalIndex[ss$i] <- as.integer(ss$j)
+  }
+  
+  
+  # ======================================================================
+  # Return object
+  # ======================================================================
+  
+  output <- list(
+    
+    Z=Z,
+    
+    Gu=Gu,
+
+    GuRot=GuRot,
+
+    rotation=rotationInfo,
+    
+    covStruct=covStruct,
+    
+    residualLocalIndex=residualLocalIndex,
+    
+    productDesign=Z0,
+    
+    partitionsR=NULL
+  )
+  
+  
+  if(isFixed){
+    
+    return(
+      as.matrix(
+        do.call(
+          cbind,
+          Z
+        )
+      )
+    )
+  }
+  
+  
+  output
+}
+
+to_sparse <- function(z){
+  if(!inherits(z, "dgCMatrix")){
+    z <- as(as(z, "generalMatrix"), "CsparseMatrix") # methods::as(z, "dgCMatrix")
+  }
+  z
+}
+
+# Symmetric precision matrices keep one triangle (dsCMatrix); C++ expands them.
+to_precision_sparse <- function(z){
+  if(inherits(z, "dsCMatrix")) return(z)
+  if(!inherits(z, "Matrix")) z <- Matrix::Matrix(z, sparse=TRUE)
+  if(Matrix::isSymmetric(z)){
+    z <- as(Matrix::forceSymmetric(as(z, "CsparseMatrix")), "CsparseMatrix")
+    if(inherits(z, "dsCMatrix")) return(z)
+  }
+  to_sparse(z)
+}
+
+# 3-column (row, column, value) precision input, e.g. ASReml ainverse()/nadiv
+# listAinv. A 3x3 full matrix with dimnames and no rowNames attr is not giv.
+.is_giv <- function(x){
+  if(is.null(x) || inherits(x, "Matrix")) return(FALSE)
+  if(!(is.matrix(x) || is.data.frame(x)) || ncol(x) != 3L) return(FALSE)
+  if(!is.null(attr(x, "rowNames")) || is.data.frame(x)) return(TRUE)
+  !(nrow(x) == 3L && !is.null(rownames(x)) && !is.null(colnames(x)))
+}
+
+.giv_to_precision <- function(x){
+  levs <- attr(x, "rowNames")
+  if(is.null(levs)){
+    stop("Gu supplied in 3-column (row, column, value) format must carry a ",
+         "'rowNames' attribute with the level names.", call. = FALSE)
+  }
+  levs <- as.character(levs)
+  if(anyNA(levs) || anyDuplicated(levs)){
+    stop("attr(Gu, 'rowNames') must contain unique, non-missing level names.",
+         call. = FALSE)
+  }
+  if(isFALSE(attr(x, "inverse")) || isFALSE(attr(x, "INVERSE"))){
+    stop("Gu in 3-column format must be a precision (inverse) matrix.",
+         call. = FALSE)
+  }
+  nl <- length(levs)
+  ri <- x[, 1L]; ci <- x[, 2L]; v <- x[, 3L]
+  if(!is.numeric(ri) || !is.numeric(ci) || !is.numeric(v)){
+    stop("All three columns of a 3-column Gu must be numeric.", call. = FALSE)
+  }
+  if(anyNA(ri) || anyNA(ci) || any(ri != round(ri)) || any(ci != round(ci)) ||
+     any(ri < 1) || any(ci < 1) || any(ri > nl) || any(ci > nl)){
+    stop("Row/Column indices of a 3-column Gu must be integers between 1 and ",
+         "length(attr(Gu, 'rowNames')) = ", nl, ".", call. = FALSE)
+  }
+  if(any(!is.finite(v))){
+    stop("Values of a 3-column Gu must be finite.", call. = FALSE)
+  }
+  # Canonicalize to the upper triangle; lower-only, upper-only or both are fine.
+  i <- as.integer(pmin(ri, ci)); j <- as.integer(pmax(ri, ci))
+  key <- (as.numeric(j) - 1) * nl + i
+  dup <- duplicated(key)
+  if(any(dup)){
+    first <- v[match(key[dup], key)]
+    if(any(abs(v[dup] - first) > 1e-8 * pmax(1, abs(first)))){
+      stop("3-column Gu contains conflicting values for the same cell ",
+           "(e.g. (i,j) and (j,i) differ); the matrix must be symmetric.",
+           call. = FALSE)
+    }
+    i <- i[!dup]; j <- j[!dup]; v <- v[!dup]
+  }
+  missDiag <- setdiff(seq_len(nl), i[i == j])
+  if(length(missDiag)){
+    stop("3-column Gu is missing diagonal values for ", length(missDiag),
+         " level(s), e.g.: ", paste(head(levs[missDiag], 5), collapse=", "),
+         call. = FALSE)
+  }
+  out <- Matrix::sparseMatrix(i=i, j=j, x=as.numeric(v), dims=c(nl, nl),
+                              dimnames=list(levs, levs), symmetric=TRUE)
+  attr(out, "inverse") <- TRUE
+  out
+}
+
+## small matrix constructors
+unsm <- function(x, reps=NULL){
+  mm <- matrix(1,x,x)
+  mm[upper.tri(mm)] <- 2
+  mm[lower.tri(mm)] <- 2
+  if(!is.null(reps)){
+    return(rep(list(mm),reps))
+  }else{return(mm)}
+}
+
+unsm2 <- function (x, reps = NULL) {
+  mm <- matrix(1, x, x)
+  mm[upper.tri(mm)] <- 2
+  mm[lower.tri(mm)] <- 0
+  if (!is.null(reps)) {
+    return(rep(list(mm), reps))
+  }
+  else {
+    return(mm)
+  }
+}
+
+fixm <- function(x, reps=NULL){
+  mm <- matrix(3,x,x)
+  if(!is.null(reps)){
+    return(rep(list(mm),reps))
+  }else{return(mm)}
+}
+
+# Combine two vsm() random-effect structures into one correlated random structure.
+#
+# The returned object uses exactly the same CovarianceFactor-v2 contract as vsm().
+# ai_mme_sp2() therefore does not require any covm-specific code.
+#
+# Current implementation intentionally requires SIMPLE vsm() structures
+# (one covariance-product coordinate on each side).  Thus the two effects may
+# have different incidence matrices, but they must act on the same coefficient
+# space and use the same Gu precision matrix.
+#
+# Covariance model:
+#
+#   Var([u1',u2']') = sigma2 * K_effect %x% A
+#
+# where K_effect is a normalized 2 x 2 unstructured covariance shape and
+# sigma2 is the variance of the first effect.  The normalized-Cholesky
+# parameterization guarantees positive definiteness.
+#
+covm <- function(ran1, ran2, thetaC=NULL, theta=NULL,
+                 fixed=NULL, fixedSigma2=FALSE,
+                 labels=c("ran1","ran2"), tol=1e-10){
+  
+  # ======================================================================
+  # Validate vsm() objects
+  # ======================================================================
+  
+  check_vsm <- function(x, nm){
+    
+    if(
+      !is.list(x) ||
+      is.null(x$Z) ||
+      is.null(x$Gu) ||
+      is.null(x$covStruct)
+    ){
+      stop(
+        nm,
+        " must be the result of vsm().",
+        call.=FALSE
+      )
+    }
+    
+    cs <- x$covStruct
+    
+    if(
+      !identical(cs$type, "kron") ||
+      is.null(cs$descriptor_version) ||
+      cs$descriptor_version < 2L
+    ){
+      stop(
+        nm,
+        " must use the CovarianceFactor-v2 vsm() interface.",
+        call.=FALSE
+      )
+    }
+    
+    # Current implementation intentionally handles simple random effects.
+    if(
+      length(x$Z) != 1L ||
+      cs$dim != 1L ||
+      length(cs$factors) != 0L
+    ){
+      stop(
+        paste0(
+          "The current covm() implementation combines simple vsm() ",
+          "random effects only. Each side must have one covariance-product ",
+          "coordinate, e.g. vsm(ism(effect), Gu=Ai). Shared structured ",
+          "factors can be added later without changing ai_mme_sp2()."
+        ),
+        call.=FALSE
+      )
+    }
+    
+    if(!isTRUE(attr(x$Gu, "inverse"))){
+      stop(
+        nm,
+        "$Gu must be an inverse/precision matrix with ",
+        "attr(Gu,'inverse')=TRUE.",
+        call.=FALSE
+      )
+    }
+    
+    invisible(TRUE)
+  }
+  
+  
+  check_vsm(ran1, "ran1")
+  check_vsm(ran2, "ran2")
+  
+  
+  # ======================================================================
+  # Effect labels
+  # ======================================================================
+  
+  if(
+    length(labels) != 2L ||
+    anyNA(labels) ||
+    any(!nzchar(labels)) ||
+    anyDuplicated(labels)
+  ){
+    stop(
+      "labels must contain two different non-empty names.",
+      call.=FALSE
+    )
+  }
+  
+  labels <- as.character(labels)
+  
+  
+  # ======================================================================
+  # Capture precision status BEFORE Matrix operations
+  # ======================================================================
+  
+  inv1 <- isTRUE(
+    attr(ran1$Gu, "inverse")
+  )
+  
+  inv2 <- isTRUE(
+    attr(ran2$Gu, "inverse")
+  )
+  
+  if(!inv1 || !inv2){
+    stop(
+      paste0(
+        "Both Gu matrices must be inverse/precision matrices ",
+        "for the Henderson solver."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Normalize matrices
+  #
+  # to_sparse() is not assumed to preserve arbitrary R attributes.
+  # ======================================================================
+  
+  Z1 <- to_sparse(
+    ran1$Z[[1L]]
+  )
+  
+  Z2 <- to_sparse(
+    ran2$Z[[1L]]
+  )
+  
+  G1 <- to_precision_sparse(
+    ran1$Gu
+  )
+  
+  G2 <- to_precision_sparse(
+    ran2$Gu
+  )
+  
+  # Explicitly restore precision metadata after coercion.
+  attr(G1, "inverse") <- TRUE
+  attr(G2, "inverse") <- TRUE
+  
+  
+  # ======================================================================
+  # Incidence compatibility
+  # ======================================================================
+  
+  if(nrow(Z1) != nrow(Z2)){
+    stop(
+      paste0(
+        "The two random-effect incidence matrices must ",
+        "have the same number of observations."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  if(ncol(Z1) != ncol(Z2)){
+    stop(
+      paste0(
+        "The two random effects must have the same ",
+        "coefficient dimension."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Main-effect level compatibility
+  # ======================================================================
+  
+  lev1 <- ran1$covStruct$main_levels
+  lev2 <- ran2$covStruct$main_levels
+  
+  if(is.null(lev1)){
+    lev1 <- colnames(Z1)
+  }
+  
+  if(is.null(lev2)){
+    lev2 <- colnames(Z2)
+  }
+  
+  lev1 <- as.character(lev1)
+  lev2 <- as.character(lev2)
+  
+  
+  if(!identical(lev1, lev2)){
+    stop(
+      paste0(
+        "The two random effects must have identical ",
+        "main-effect levels in the same order."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Gu compatibility
+  # ======================================================================
+  
+  if(
+    !all(dim(G1) == dim(G2)) ||
+    !identical(rownames(G1), rownames(G2)) ||
+    !identical(colnames(G1), colnames(G2))
+  ){
+    stop(
+      "ran1 and ran2 must use the same Gu coefficient space.",
+      call.=FALSE
+    )
+  }
+  
+  
+  DG <- Matrix::drop0(
+    G1 - G2,
+    tol=tol
+  )
+  
+  if(length(DG@x)){
+    stop(
+      "ran1 and ran2 must use the same Gu precision matrix.",
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Initial natural-scale 2 x 2 covariance
+  #
+  # Preserve the historical covm() starting covariance.
+  # ======================================================================
+  
+  if(is.null(theta)){
+    
+    theta <-
+      diag(2) * 0.15 +
+      matrix(
+        0.015,
+        2,
+        2
+      )
+    
+  }else{
+    
+    theta <- as.matrix(theta)
+  }
+  
+  
+  if(
+    !all(dim(theta) == c(2L,2L)) ||
+    any(!is.finite(theta))
+  ){
+    stop(
+      "theta must be a finite 2 x 2 covariance matrix.",
+      call.=FALSE
+    )
+  }
+  
+  
+  theta <-
+    (theta + t(theta)) / 2
+  
+  
+  ev <- eigen(
+    theta,
+    symmetric=TRUE,
+    only.values=TRUE
+  )$values
+  
+  
+  if(min(ev) <= tol){
+    stop(
+      "theta supplied to covm() must be positive definite.",
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Convert natural covariance to the standard vsm() representation
+  #
+  #     Sigma = sigma2 * K_effect %x% A
+  #
+  # K_effect is normalized so K[1,1] = 1.
+  # ======================================================================
+  
+  sigma2 <- theta[1L,1L]
+  
+  if(
+    !is.finite(sigma2) ||
+    sigma2 <= 0
+  ){
+    stop(
+      "theta[1,1] must be positive.",
+      call.=FALSE
+    )
+  }
+  
+  
+  K <- theta / sigma2
+  
+  
+  ch <- try(
+    chol(K),
+    silent=TRUE
+  )
+  
+  if(inherits(ch, "try-error")){
+    stop(
+      "theta supplied to covm() must be positive definite.",
+      call.=FALSE
+    )
+  }
+  
+  
+  L <- t(ch)
+  
+  # Numerical normalization guarantees L11 = 1.
+  L <- L / L[1L,1L]
+  
+  
+  # ======================================================================
+  # Normalized-Cholesky coordinates
+  #
+  # For q=2:
+  #
+  #     L = [ 1       0       ]
+  #         [ L21   exp(eta22) ]
+  #
+  # Thus there are two factor coordinates:
+  #
+  #     L21
+  #     log(L22)
+  # ======================================================================
+  
+  us_par <- c(
+    L[2L,1L],
+    log(L[2L,2L])
+  )
+  
+  
+  us_names <- c(
+    
+    paste0(
+      "chol[",
+      labels[2L],
+      ",",
+      labels[1L],
+      "]"
+    ),
+    
+    paste0(
+      "chol_diag[",
+      labels[2L],
+      "]"
+    )
+  )
+  
+  
+  # ======================================================================
+  # Fixed parameters
+  # ======================================================================
+  
+  if(is.null(fixed)){
+    fixed <- c(
+      FALSE,
+      FALSE
+    )
+  }
+  
+  
+  if(
+    length(fixed) != 2L ||
+    anyNA(fixed)
+  ){
+    stop(
+      paste0(
+        "fixed must be a logical vector of length 2 for ",
+        "the normalized-Cholesky coordinates."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  fixed <- as.logical(fixed)
+  
+  
+  # ======================================================================
+  # Legacy thetaC
+  #
+  # Cell-wise thetaC constraints cannot generally be mapped exactly onto
+  # normalized-Cholesky coordinates.
+  # ======================================================================
+  
+  if(!is.null(thetaC)){
+    
+    stop(
+      paste0(
+        "thetaC is not supported by the CovarianceFactor-v2 covm() ",
+        "parameterization. Use fixedSigma2 to fix the first-effect ",
+        "variance and fixed to fix the two normalized-Cholesky ",
+        "coordinates. Cell-wise thetaC codes cannot in general be ",
+        "translated exactly to Cholesky-coordinate constraints."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Construct generic effect covariance factor
+  #
+  # This is exactly the same generic 'us' factor consumed by the covariance
+  # engine. ai_mme_sp2() therefore has no knowledge of covm().
+  # ======================================================================
+  
+  effectFactor <- .compile_covfactor(
+    list(
+      
+      type="us",
+      
+      dim=2L,
+      
+      levels=labels,
+      
+      par=us_par,
+      
+      free=!fixed,
+      
+      par_names=us_names,
+      
+      us_row=c(
+        2L,
+        2L
+      ),
+      
+      us_col=c(
+        1L,
+        2L
+      ),
+      
+      us_diag=c(
+        FALSE,
+        TRUE
+      )
+    )
+  )
+  
+  
+  .validate_covfactor(
+    effectFactor
+  )
+  
+  
+  # ======================================================================
+  # Flatten into standard vsm() CovarianceFactor-v2 descriptor
+  # ======================================================================
+  
+  par <- c(
+    log_sigma2=log(sigma2),
+    effectFactor$par
+  )
+  
+  
+  free <- c(
+    !isTRUE(fixedSigma2),
+    effectFactor$free
+  )
+  
+  
+  par_names <- c(
+    "sigma2",
+    effectFactor$par_names
+  )
+  
+  
+  effectFactor$par_start <- 2L
+  effectFactor$par_end <- length(par)
+  
+  
+  covStruct <- list(
+    
+    type="kron",
+    
+    par=as.numeric(par),
+    
+    free=as.logical(free),
+    
+    par_names=par_names,
+    
+    factors=list(
+      effectFactor
+    ),
+    
+    dim=2L,
+    
+    levels=labels,
+    
+    scale_index=1L,
+    
+    descriptor_version=2L,
+    
+    factor_interface="CovarianceFactor",
+    
+    parameterization="working",
+    
+    main_levels=lev1
+  )
+  
+  
+  names(covStruct$par) <-
+    par_names
+  
+  
+  # ======================================================================
+  # Final Gu
+  #
+  # K_effect %x% A uses one shared precision matrix A.
+  # Explicitly preserve precision metadata in the returned object.
+  # ======================================================================
+  
+  Gu <- G1
+  
+  attr(Gu, "inverse") <- TRUE
+  
+  
+  if(!inherits(Gu, c("dgCMatrix", "dsCMatrix"))){
+    stop(
+      paste0(
+        "Internal covm() error: Gu was not normalized ",
+        "to a sparse precision matrix."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  if(!isTRUE(attr(Gu, "inverse"))){
+    stop(
+      paste0(
+        "Internal covm() error: Gu lost its ",
+        "inverse/precision attribute."
+      ),
+      call.=FALSE
+    )
+  }
+  
+  
+  # ======================================================================
+  # Return standard random-structure object
+  #
+  # Ordering:
+  #
+  #     effect coordinate first
+  #     coefficient level second
+  #
+  # giving
+  #
+  #     K_effect %x% A
+  #
+  # Z1 and Z2 are therefore the two covariance-product coordinates.
+  # ======================================================================
+  
+  list(
+    
+    Z=list(
+      Z1,
+      Z2
+    ),
+    
+    Gu=Gu,
+    
+    covStruct=covStruct,
+    
+    residualLocalIndex=NULL,
+    
+    productDesign=NULL,
+    
+    partitionsR=NULL,
+    
+    covm=TRUE,
+    
+    covm_labels=labels
+  )
+}
+
+# -------------------------------------------------------------------------
+# Covariance structure spanning several random terms (ASReml str()):
+#   Var(u_1,...,u_T) = sigma2 * K_terms %x% K_inner %x% A
+# Terms must share the coefficient space, Gu and inner covariance factors.
+# -------------------------------------------------------------------------
+strm <- function(..., cov=usm, Gu=NULL, labels=NULL, sigma2=NULL,
+                 fixedSigma2=FALSE){
+  terms <- list(...)
+  exprs <- vapply(as.list(substitute(list(...)))[-1L],
+                  function(e) paste(deparse(e), collapse=""), character(1))
+  nT <- length(terms)
+  if(nT < 2L) stop("strm() needs at least two vsm() terms.", call.=FALSE)
+  for(t in seq_len(nT)){
+    x <- terms[[t]]
+    if(!is.list(x) || is.null(x$covStruct) || !identical(x$covStruct$type, "kron") ||
+       is.null(x$covStruct$descriptor_version) || x$covStruct$descriptor_version < 2L){
+      stop("Every argument of strm() must be a vsm() term.", call.=FALSE)
+    }
+    if(!length(x$Z)) stop("strm() terms must be random effects, not residual terms.", call.=FALSE)
+    if(!is.null(x$rotation)) stop("rotation=TRUE is not available inside strm().", call.=FALSE)
+    if(isFALSE(x$covStruct$sigma2_is_default) || !isTRUE(x$covStruct$free[1L])){
+      warning("sigma2/fixedSigma2 of individual strm() terms are ignored; use those of strm().",
+              call.=FALSE)
+    }
+  }
+  if(is.null(labels)){
+    labels <- if(!is.null(names(terms)) && all(nzchar(names(terms)))) names(terms) else
+      paste0("t", seq_len(nT))
+  }
+  labels <- as.character(labels)
+  if(length(labels) != nT || anyDuplicated(labels) || any(!nzchar(labels))){
+    stop("labels must contain one distinct non-empty name per term.", call.=FALSE)
+  }
+
+  # inner covariance factors must coincide across terms
+  inner <- terms[[1L]]$covStruct$factors
+  signature <- function(fs) vapply(fs, function(f) paste(f$model, f$dim,
+                                   paste(f$levels, collapse="\r")), character(1))
+  for(t in seq_len(nT)[-1L]){
+    if(!identical(signature(terms[[t]]$covStruct$factors), signature(inner))){
+      stop("All strm() terms must use the same covariance factors (same constructors and levels).",
+           call.=FALSE)
+    }
+  }
+  qInner <- length(terms[[1L]]$Z)
+
+  isIdentity <- function(G){
+    Matrix::isDiagonal(G) && all(abs(Matrix::diag(G) - 1) < 1e-12)
+  }
+  if(!is.null(Gu)){
+    if(.is_giv(Gu)) Gu <- .giv_to_precision(Gu)
+    if(!isTRUE(attr(Gu, "inverse"))){
+      stop("Gu must have attr(Gu, 'inverse')=TRUE for the Henderson solver.", call.=FALSE)
+    }
+    Gu <- to_precision_sparse(Gu)
+    if(is.null(rownames(Gu)) || !identical(rownames(Gu), colnames(Gu))){
+      stop("Gu must have identical row and column names.", call.=FALSE)
+    }
+    common <- rownames(Gu)
+  }else{
+    termGu <- lapply(terms, `[[`, "Gu")
+    known <- which(!vapply(termGu, isIdentity, logical(1)))
+    if(length(known)){
+      Gu <- termGu[[known[1L]]]
+      common <- rownames(Gu)
+      for(k in known[-1L]){
+        Gk <- termGu[[k]]
+        if(!identical(rownames(Gk), common) ||
+           length(Matrix::drop0(Gk - Gu, tol=1e-10)@x)){
+          stop("strm() terms with a Gu must share the same Gu; supply it once through strm(Gu=).",
+               call.=FALSE)
+        }
+      }
+    }else{
+      common <- unique(unlist(lapply(terms, function(x) x$covStruct$main_levels)))
+      Gu <- to_sparse(Matrix::Diagonal(n=length(common), x=1))
+      rownames(Gu) <- colnames(Gu) <- common
+    }
+  }
+  missing <- setdiff(unlist(lapply(terms, function(x) x$covStruct$main_levels)), common)
+  if(length(missing)){
+    stop("Levels missing from Gu: ", paste(utils::head(missing, 10), collapse=", "), call.=FALSE)
+  }
+  Gu <- to_precision_sparse(Gu[common, common, drop=FALSE])
+  attr(Gu, "inverse") <- TRUE
+
+  align <- function(Zt){
+    s <- Matrix::summary(to_sparse(Zt))
+    Zc <- Matrix::sparseMatrix(i=s$i, j=match(colnames(Zt)[s$j], common), x=s$x,
+                               dims=c(nrow(Zt), length(common)))
+    colnames(Zc) <- common
+    to_sparse(Zc)
+  }
+  Z <- unlist(lapply(terms, function(x) lapply(x$Z, align)), recursive=FALSE)
+  n <- vapply(Z, nrow, integer(1))
+  if(length(unique(n)) != 1L){
+    stop("All strm() terms must have the same number of observations.", call.=FALSE)
+  }
+
+  if(!is.function(cov)) stop("cov must be a covariance constructor such as usm or function(x) fam(x, 1).",
+                             call.=FALSE)
+  termFactor <- cov(factor(labels, levels=labels))$covFactor
+  if(is.null(termFactor)) stop("cov must return a CovarianceFactor descriptor.", call.=FALSE)
+  if(termFactor$dim != nT) stop("The term covariance factor must have one level per term.", call.=FALSE)
+  factors <- c(list(termFactor), inner)
+
+  sigma2IsDefault <- is.null(sigma2)
+  if(sigma2IsDefault) sigma2 <- 0.15
+  par <- c(log_sigma2=log(sigma2))
+  free <- !isTRUE(fixedSigma2)
+  parNames <- "sigma2"
+  factorLabels <- c(paste0("strm(", paste(labels, collapse=","), ")"),
+                    vapply(inner, function(f) if(!is.null(f$label)) f$label else f$model,
+                           character(1)))
+  for(i in seq_along(factors)){
+    f <- .compile_covfactor(factors[[i]])
+    .validate_covfactor(f)
+    f$par_start <- length(par) + 1L
+    if(length(f$par)){
+      par <- c(par, f$par)
+      free <- c(free, f$free)
+      parNames <- c(parNames, paste(factorLabels[i], f$par_names, sep=":"))
+    }
+    f$par_end <- length(par)
+    f$label <- factorLabels[i]
+    factors[[i]] <- f
+  }
+  innerLevels <- terms[[1L]]$covStruct$levels
+  coordLevels <- if(qInner == 1L) labels else
+    as.vector(t(outer(labels, innerLevels, paste, sep=":")))
+
+  covStruct <- list(
+    type="kron", par=stats::setNames(as.numeric(par), parNames), free=as.logical(free),
+    par_names=parNames, factors=factors, dim=as.integer(nT*qInner),
+    levels=coordLevels, scale_index=1L, descriptor_version=2L,
+    factor_interface="CovarianceFactor", parameterization="working",
+    main_levels=common, sigma2_is_default=sigma2IsDefault
+  )
+
+  list(Z=Z, Gu=Gu, GuRot=NULL, rotation=NULL, covStruct=covStruct,
+       residualLocalIndex=NULL, productDesign=NULL, partitionsR=NULL,
+       strm_labels=labels, strm_terms=exprs)
+}
+
+
+replace.values <- function(Values,Search,Replace){
+  dd0 <- data.frame(Values)
+  vv <- which(Values%in%Search)
+  dd <- data.frame(Search,Replace)
+  rownames(dd) <- Search
+  dd0[vv,"Values"] <- as.character(dd[Values[vv],"Replace"])
+  return(dd0[,1])
+}
+
+myformula <- function(x){
+  expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
+  expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=T)}
+  yuyuf <- strsplit(as.character(x[3]), split = "[+]")[[1]]
+  termss <- apply(data.frame(yuyuf),1,function(x){
+    strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
+  })
+  newtermss <- apply(data.frame(yuyuf),1,function(y){
+    newy <- expi(y)
+    if(length(newy) > 0){
+      newy <- gsub(",.*","",newy)
+    }else{newy <- y}
+    return(newy)
+  })
+  resp <- strsplit(as.character(x[2]), split = "[+]")[[1]]
+  newx <- paste(resp, "~",paste(newtermss,collapse = "+"))
+  return(newx)
+}
+
+##############
+## na.methods
+
+subdata <- function(data,fixed,na.method.Y=NULL,na.method.X=NULL){
+  
+  # silently change all columns that are defined as character into factors
+  # columnTypes <- unlist(lapply(data, class))
+  # columnTypesC <- which(columnTypes == "character")
+  # if(length(columnTypesC) > 0){ # if there's character types change them to factor
+  #   for(cti in 1:length(columnTypesC)){
+  #     data[,cti] <- as.factor(data[,cti])
+  #   }
+  # }
+  ####
+  expi <- function(j){gsub("[\\(\\)]", "", regmatches(j, gregexpr("\\(.*?\\)", j))[[1]])}
+  expi2 <- function(x){gsub("(?<=\\()[^()]*(?=\\))(*SKIP)(*F)|.", "", x, perl=T)}
+  response <- strsplit(as.character(fixed[2]), split = "[+]")[[1]]
+  responsef <- as.formula(paste(response,"~1"))
+  mfna <- try(model.frame(responsef, data = data, na.action = na.pass), silent = TRUE)
+  if (is(mfna, "try-error") ) { # class(mfna) == "try-error"
+    stop("Please provide the 'data' argument for your specified variables.\nYou may be specifying some variables in your model not present in your dataset.", call. = FALSE)
+  }
+  mfna <- eval(mfna, parent.frame())
+  yvar <- as.matrix(model.response(mfna))
+  nt <- ncol(yvar)
+  good <- 1:nrow(data)
+  if(nt==1){colnames(yvar) <- response}
+  if(na.method.Y=="include"){
+    touse <- colnames(yvar)
+    for(i in 1:length(touse)){
+      use <- touse[i]
+      # print(iname)
+      data[,use] <- imputev(data[,use])
+    }
+  }else if(na.method.Y=="include2"){
+    tlist <- list()
+    touse <- colnames(yvar)
+    for(i in 1:length(touse)){
+      # print(touse[i])
+      use <- touse[i]
+      vivi <- as.vector(data[,use])
+      tlist[[i]] <- which(!is.na(vivi))
+    }
+    # print(tlist)
+    good <- sort(unique(unlist(tlist)))
+    data <- data[good,]
+    for(i in 1:length(touse)){
+      use <- touse[i]
+      # print(iname)
+      data[,use] <- imputev(data[,use])
+    }
+  }else if(na.method.Y=="exclude"){
+    tlist <- list()
+    touse <- colnames(yvar)
+    for(i in 1:length(touse)){
+      # print(touse[i])
+      use <- touse[i]
+      vivi <- as.vector(data[,use])
+      tlist[[i]] <- which(!is.na(vivi))
+    }
+    # print(tlist)
+    if(length(tlist)==1){ #only one trait
+      good <- tlist[[1]]
+    }else{#more than one trait
+      good <- Reduce(intersect,tlist)
+    }
+    data <- data[good,]
+  }else{stop("na.method.Y not recognized")}
+  data <- data.frame(data)
+  
+  ##########
+  ## na.method x
+  yuyu <- strsplit(as.character(fixed[3]), split = "[+]")[[1]]
+  xtermss <- apply(data.frame(yuyu),1,function(x){
+    strsplit(as.character((as.formula(paste("~",x)))[2]), split = "[+]")[[1]]
+  })
+  xtermss2 <- apply(data.frame(xtermss),1,function(x){gsub(",.*","",expi2(x))})
+  xtermss2[which(xtermss2 == "")] <- xtermss[which(xtermss2 == "")]
+  
+  xtermss2 <- intersect(colnames(data),xtermss2) # only focus on the terms that are in teh dataset so we can skip overlay and weird vs structures
+  
+  # print(xtermss2)
+  if(length(xtermss2) > 0){
+    mycl <- as.vector(unlist(lapply(data.frame(data[,xtermss2]),class)))
+    
+    if(na.method.X=="include"){
+      touse <- xtermss2
+      for(i in 1:length(touse)){
+        use <- touse[i]
+        usecl <- mycl[i]
+        if(usecl == "factor"){data[,use] <- as.factor(imputev(data[,use]))}else{data[,use] <- imputev(data[,use])}
+      }
+    }else if(na.method.X=="exclude"){
+      tlist <- list()
+      touse <- xtermss2
+      for(i in 1:length(touse)){
+        # print(touse[i])
+        use <- touse[i]
+        vivi <- as.vector(data[,use])
+        tlist[[i]] <- which(!is.na(vivi))
+      }
+      # print(tlist)
+      if(length(tlist)==1){ #only one trait
+        good <- tlist[[1]]
+      }else{#more than one trait
+        good <- Reduce(intersect,tlist)
+      }
+      data <- data[good,]
+    }else{stop("na.method.Y not recognized")}
+    data <- data.frame(data)
+  }
+  
+  return(list(datar=data,good=good))
+  
+}
+
+###############
+## VS structures for mmec
+
+H <- function(timevar=NULL, idvar=NULL, response=NULL, Gu=NULL){
+  if(is.null(timevar) ){stop("Please provide the timevar argument.", call. = FALSE)}
+  if(is.null(idvar) ){stop("Please provide the idvar argument.", call. = FALSE)}
+  if(is.null(response) ){stop("Please provide the response argument.", call. = FALSE)}
+  
+  dtx <- data.frame(timevar=timevar, idvar=idvar, v.names=response)
+  dtx2 <- aggregate(v.names~timevar+idvar, data=dtx, FUN=mean, na.rm=TRUE)
+  wide <- reshape(dtx2, direction = "wide", idvar = "idvar",
+                  timevar = "timevar", v.names = "v.names", sep= "_")
+  rowNamesWide <-  wide[,1]
+  rownames(wide) <- rowNamesWide
+  wide <- wide[,-1]
+  # if user doesn't provide the a Gu we impute simply and use the correlation matrix as a Gu
+  if(is.null(Gu)){ 
+    X <- apply(wide, 2, imputev)
+    Gu <- cor(t(X))
+  }else{
+    Gu = cov2cor(Gu)
+  } 
+  # impute missing data using a relationship matrix 
+  if(is.null(rownames(Gu))){stop("Gu needs to have row names.", call. = FALSE)}
+  if(is.null(colnames(Gu))){stop("Gu needs to have column names.", call. = FALSE)}
+  for(iEnv in 1:ncol(wide)){ # iEnv=1
+    withData <- which(!is.na(wide[,iEnv]))
+    withoutData <- which(is.na(wide[,iEnv]))
+    imputationVector <- as.numeric(Gu[as.character(rowNamesWide),as.character(rowNamesWide[withData])] %*% as.matrix(wide[withData,iEnv]))
+    wide[,iEnv] <- imputationVector  # wide[withoutData,iEnv] <- imputationVector[withoutData]
+    # scaleFactor=imputationVector[withData[1]] / wide[withData[1],iEnv]
+  }
+  colnames(wide) <- gsub("v.names_","", colnames(wide))
+  return(wide)
+}
+
+
+# -------------------------------------------------------------------------
+# Descriptor-based covariance constructors for the Henderson/Kronecker engine.
+# -------------------------------------------------------------------------
+
+# Compound symmetry / uniform correlation:
+#   K_ii = 1
+#   K_ij = rho, i != j
+# with rho mapped from an unconstrained working coordinate to the exact
+# positive-definite interval (-1/(q-1), 1).
+csm <- function(x, rho=0.10, fixed=FALSE,
+                variance=c("homogeneous", "heterogeneous"), values=NULL){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  labs <- colnames(dummy)
+  variance <- match.arg(variance)
+  
+  if(q < 2L){
+    stop("csm() requires at least two levels.", call. = FALSE)
+  }
+  
+  lo <- -1/(q-1)
+  if(length(rho) != 1L || !is.finite(rho) || rho <= lo || rho >= 1){
+    stop(sprintf("rho in csm() must lie strictly between %.6g and 1.", lo),
+         call. = FALSE)
+  }
+  if(variance == "heterogeneous"){
+    if(is.null(values)) values <- rep(1, q)
+    if(length(values) != q || any(!is.finite(values)) || any(values <= 0)){
+      stop("values in csm() must contain one positive finite variance per level.",
+           call. = FALSE)
+    }
+
+    ratios <- values / values[1]
+    eta_var <- log(ratios[-1])
+    p <- (rho-lo)/(1-lo)
+    eta_rho <- qlogis(p)
+    par <- c(eta_rho, eta_var)
+
+    if(is.null(fixed) || identical(fixed, FALSE)) fixed <- rep(FALSE, length(par))
+    if(identical(fixed, TRUE)) fixed <- rep(TRUE, length(par))
+    if(length(fixed) != length(par)){
+      stop("fixed in heterogeneous csm() must have length q: rho plus q-1 variance ratios.",
+           call. = FALSE)
+    }
+
+    return(list(
+      Z=dummy,
+      covFactor=.compile_covfactor(list(
+        type="csm",
+        variance="heterogeneous",
+        dim=as.integer(q),
+        levels=labs,
+        par=par,
+        free=!as.logical(fixed),
+        par_names=c("rho", paste0("variance_ratio[", labs[-1], "]"))
+      ))
+    ))
+  }
+
+  if(length(fixed) != 1L){
+    stop("fixed in homogeneous csm() must have length one.", call. = FALSE)
+  }
+  
+  # inverse-logit map from (lo,1) to R
+  p <- (rho-lo)/(1-lo)
+  eta <- qlogis(p)
+  
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+        type="csm",
+        variance="homogeneous",
+      dim=as.integer(q),
+      levels=labs,
+      par=c(eta_rho=eta),
+      free=c(!isTRUE(fixed)),
+      par_names="rho"
+    ))
+  )
+}
+
+# atm(): selected-level diagonal heterogeneity.
+#
+# The first level remains the product-scale reference (=1).  Among the
+# remaining levels, only entries named in levs are estimable; all others are
+# fixed at ratio 1.  If the first level is included in levs it remains the
+# reference because vsm() owns the single overall scale.
+atm <- function(x, levs, values=NULL, fixed=NULL){
+  expr <- as.character(substitute(x))
+  full_dummy <- .cov_dummy(x, expr)
+  all_levels <- colnames(full_dummy)
+  
+  if(missing(levs) || is.null(levs)){
+    stop("atm() requires levs: the levels to retain in this diagonal structure.",
+         call. = FALSE)
+  }
+  
+  if(is.numeric(levs)){
+    if(any(levs < 1L | levs > ncol(full_dummy))){
+      stop("Numeric levs in atm() are outside the available level range.",
+           call. = FALSE)
+    }
+    levs <- all_levels[as.integer(levs)]
+  }else{
+    levs <- as.character(levs)
+  }
+  
+  bad <- setdiff(levs, all_levels)
+  if(length(bad)){
+    stop(paste("Unknown levels in atm():", paste(bad, collapse=", ")),
+         call. = FALSE)
+  }
+  
+  # Preserve the user-requested level order. Observations belonging to levels
+  # outside levs receive zeros in this factor design, matching the historical
+  # purpose of atm(): fit the diagonal structure only for selected levels.
+  dummy <- full_dummy[, levs, drop=FALSE]
+  dummy <- to_sparse(dummy)
+  q <- ncol(dummy)
+  
+  if(is.null(values)) values <- rep(1, q)
+  if(length(values) != q || any(!is.finite(values)) || any(values <= 0)){
+    stop("values in atm() must contain one positive finite value per selected level.",
+         call. = FALSE)
+  }
+  
+  ratios <- values / values[1]
+  eta <- if(q > 1L) log(ratios[-1]) else numeric()
+  
+  if(is.null(fixed)) fixed <- rep(FALSE, length(eta))
+  if(length(fixed) != length(eta)){
+    stop("fixed in atm() must have length length(levs)-1.", call. = FALSE)
+  }
+  
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="diag",
+      dim=as.integer(q),
+      levels=colnames(dummy),
+      par=eta,
+      free=!as.logical(fixed),
+      par_names=if(q > 1L)
+        paste0("variance_ratio[", colnames(dummy)[-1], "]")
+      else
+        character(),
+      selected_levels=levs,
+      reference_level=colnames(dummy)[1]
+    ))
+  )
+}
+
+# -------------------------------------------------------------------------
+# Generic covariance-factor constructors for the Henderson-only interface.
+# Each constructor supplies a dimensionless covariance SHAPE. vsm() owns the
+# single overall variance scale, which avoids non-identifiability in arbitrary
+# Kronecker products.
+# -------------------------------------------------------------------------
+
+.cov_dummy <- function(x, expr){
+  if(is.matrix(x) || inherits(x, "Matrix")){
+    dummy <- x
+    if(is.null(colnames(dummy))) colnames(dummy) <- paste0("L", seq_len(ncol(dummy)))
+  }else if(!is.character(x) && !is.factor(x)){
+    dummy <- Matrix::Matrix(x, ncol=1, sparse=TRUE)
+    colnames(dummy) <- expr
+  }else{
+    if(is.factor(x)){
+      # Unused levels would add unidentifiable, data-free blocks to K (x) Gu.
+      levs <- levels(x)[tabulate(as.integer(x), nlevels(x)) > 0L]
+    }else{
+      levs <- unique(na.omit(x))
+    }
+    if(length(levs) > 1L){
+      xf <- factor(x, levels=levs)
+      observed <- !is.na(xf)
+      # Build the incidence matrix directly from (row, level) index pairs so
+      # NA rows are simply omitted from the triplet list (zero row), instead
+      # of allocating a full zero sparse matrix and using submatrix<-
+      # assignment (dummy[observed,]<-...), which forces CHOLMOD/Matrix to
+      # rebuild the whole sparse pattern and is O(n) per assigned column.
+      dummy <- Matrix::sparseMatrix(i=which(observed), j=as.integer(xf[observed]),
+                                    x=1, dims=c(length(x), length(levs)))
+      colnames(dummy) <- levs
+    }else{
+      observed <- !is.na(x)
+      dummy <- Matrix::sparseMatrix(i=which(observed), j=rep(1L, sum(observed)),
+                                    x=1, dims=c(length(x), 1L))
+      colnames(dummy) <- as.character(levs)
+    }
+  }
+  if(!inherits(dummy, "dgCMatrix")){
+    dummy <- as(as(as(dummy, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+  }
+  dummy
+}
+
+
+# -------------------------------------------------------------------------
+# Low-level universal CovarianceFactor constructor.
+#
+# Package developers can use this directly for future covariance structures.
+# In particular, evaluator=list(backend="R", fun=...) plus either an R
+# derivative callback or derivative=list(backend="numeric") creates a new
+# covariance model without any change to ai_mme_sp2().
+# -------------------------------------------------------------------------
+.covfactor_representation <- function(model, factor=list(),
+                                     structurally_diagonal=FALSE){
+  model <- if(length(model)) as.character(model)[1] else ""
+  supplied <- factor$representation
+  if(is.list(supplied) && is.character(supplied$kind) &&
+     length(supplied$kind) == 1L){
+    return(supplied)
+  }
+
+  kind <- if(isTRUE(structurally_diagonal) ||
+             model %in% c("identity", "diag")){
+    "diagonal"
+  }else if(model %in% c("fa", "rr")){
+    "lowrank_diagonal"
+  }else if(model %in% c("csm")){
+    "compound_symmetry"
+  }else if(model == "ar1" && !isTRUE(factor$heterogeneous)){
+    "banded_precision"
+  }else if(model %in% c("arp", "ar1", "ar2", "ar3")){
+    "autoregressive_precision"
+  }else if(model == "ante"){
+    "modified_cholesky_precision"
+  }else if(model %in% c("sar", "car")){
+    "spatial_precision"
+  }else if(model == "ma"){
+    "banded_covariance"
+  }else if(model %in% c("us", "corg")){
+    "dense_cholesky"
+  }else{
+    "dense"
+  }
+
+  out <- list(kind=kind)
+  form <- switch(model,
+    ar1=if(isTRUE(factor$heterogeneous)) "stationary_ar" else "ar1",
+    arp="stationary_ar",
+    ar2="stationary_ar",
+    ar3="stationary_ar",
+    ante="modified_cholesky",
+    csm="compound_symmetry",
+    sar="normalized_normal_equations",
+    car="normalized_affine_precision",
+    NULL
+  )
+  if(!is.null(form)) out$form <- form
+  if(model == "ante"){
+    out$innovation <- list(rows=factor$ante_row, columns=factor$ante_col,
+                           coefficient_count=factor$ante_ncoef)
+  }
+  if(model %in% c("fa", "rr")){
+    prefix <- paste0(model, "_")
+    out$loadings <- list(rank=factor$order,
+      count=factor[[paste0(prefix, "nload")]],
+      rows=factor[[paste0(prefix, "row")]],
+      columns=factor[[paste0(prefix, "col")]],
+      diagonal=factor[[paste0(prefix, "diag")]],
+      heterogeneous_specific=identical(model, "fa") &&
+        !identical(factor$variance, "homogeneous"),
+      zero_specific=isTRUE(factor$zero_specific))
+  }
+  if(model %in% c("sar", "car")){
+    out$spatial <- list(weights=factor$W,
+      lower=if(model == "sar") -factor$rho_bound else factor$rho_lower,
+      upper=if(model == "sar") factor$rho_bound else factor$rho_upper,
+      degree=if(model == "car") factor$degree else NULL)
+  }
+  if(kind %in% c("lowrank_diagonal", "autoregressive_precision",
+                 "banded_covariance") && !is.null(factor$order)){
+    out$order <- as.integer(factor$order)[1]
+  }
+  out
+}
+
+.make_covfactor <- function(dim, levels, par=numeric(), free=logical(),
+                            par_names=character(), evaluator,
+                            derivative=list(backend="numeric", rel_step=1e-6),
+                            report=NULL, native_report=NULL, trust_cap=NULL,
+                            structurally_diagonal=FALSE, model=NULL,
+                            metadata=list()){
+  dim <- as.integer(dim)[1]
+  par <- as.numeric(par)
+  free <- as.logical(free)
+  par_names <- as.character(par_names)
+  if(length(par) != length(free) || length(par) != length(par_names)){
+    stop("CovarianceFactor par/free/par_names lengths differ.", call. = FALSE)
+  }
+  if(is.null(report)){
+    report <- list(
+      backend="builtin",
+      transform=rep("identity", length(par)),
+      lower=rep(NA_real_, length(par)),
+      upper=rep(NA_real_, length(par))
+    )
+  }
+  customNativeReport <- native_report
+  if(is.null(trust_cap)) trust_cap <- rep(1.5, length(par))
+  if(length(trust_cap) != length(par)){
+    stop("CovarianceFactor trust_cap must have one value per parameter.",
+         call. = FALSE)
+  }
+  out <- c(list(
+    dim=dim,
+    levels=as.character(levels),
+    par=par,
+    free=free,
+    par_names=par_names,
+    evaluator=evaluator,
+    derivative=derivative,
+    report=report,
+    native_report=customNativeReport,
+    trust_cap=as.numeric(trust_cap),
+    structurally_diagonal=isTRUE(structurally_diagonal),
+    representation=.covfactor_representation(
+      model, metadata, structurally_diagonal
+    ),
+    descriptor_version=2L,
+    model=model
+  ), metadata)
+  if(is.null(out$native_report)){
+    out$native_report <- list(
+      backend="R",
+      fun=.covfactor_native_report(model, out)
+    )
+  }else if(is.function(out$native_report)){
+    out$native_report <- list(backend="R", fun=out$native_report)
+  }
+  class(out) <- c("sommer_covfactor", "list")
+  .validate_covfactor(out)
+  out
+}
+
+.covfactor_native_report <- function(model, f){
+  levels <- as.character(f$levels)
+
+  if(model == "identity"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      if(absorb_scale) c(sigma2=scale) else numeric()
+    })
+  }
+
+  if(model == "diag"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "variance" else "relative_variance"
+      stats::setNames(multiplier * c(1, par), paste0(prefix, "[", levels, "]"))
+    })
+  }
+
+  if(model %in% c("ar1", "ar2", "ar3", "arp")){
+    order <- if(model == "arp") as.integer(f$order) else
+      as.integer(sub("ar", "", model))
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      dependence <- par[seq_len(order)]
+      dependenceNames <- if(order == 1L) "rho" else paste0("pacf[", seq_len(order), "]")
+      names(dependence) <- dependenceNames
+      if(length(par) == order){
+        return(c(if(absorb_scale) c(variance=scale), dependence))
+      }
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "variance" else "relative_variance"
+      variances <- multiplier * c(1, par[-seq_len(order)])
+      c(dependence,
+        stats::setNames(variances, paste0(prefix, "[", levels, "]")))
+    })
+  }
+
+  if(model == "csm"){
+    heterogeneous <- identical(f$variance, "heterogeneous")
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      if(!heterogeneous){
+        return(c(if(absorb_scale) c(variance=scale), rho=par[1]))
+      }
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "variance" else "relative_variance"
+      c(rho=par[1], stats::setNames(multiplier * c(1, par[-1]),
+                                    paste0(prefix, "[", levels, "]")))
+    })
+  }
+
+  if(model == "us"){
+    rows <- as.integer(f$us_row)
+    cols <- as.integer(f$us_col)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      q <- length(levels)
+      L <- matrix(0, q, q)
+      L[1,1] <- 1
+      for(k in seq_along(par)) L[rows[k], cols[k]] <- par[k]
+      Sigma <- tcrossprod(L) * if(absorb_scale) scale else 1
+      idx <- which(lower.tri(Sigma, diag=TRUE), arr.ind=TRUE)
+      labels <- ifelse(idx[,1] == idx[,2],
+                       paste0(if(absorb_scale) "variance" else "relative_variance",
+                              "[", levels[idx[,1]], "]"),
+                       paste0(if(absorb_scale) "covariance" else "relative_covariance",
+                              "[", levels[idx[,1]], ",", levels[idx[,2]], "]"))
+      stats::setNames(Sigma[idx], labels)
+    })
+  }
+
+  if(model == "ma"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale),
+        stats::setNames(par, factor$par_names))
+    })
+  }
+
+  if(model == "corg"){
+    rows <- as.integer(f$corg_row)
+    cols <- as.integer(f$corg_col)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      q <- length(levels)
+      A <- diag(q)
+      for(k in seq_along(par)) A[rows[k], cols[k]] <- par[k]
+      R <- stats::cov2cor(tcrossprod(A))
+      idx <- which(lower.tri(R), arr.ind=TRUE)
+      correlations <- stats::setNames(
+        R[idx], paste0("correlation[", levels[idx[,1]], ",", levels[idx[,2]], "]"))
+      c(if(absorb_scale) c(variance=scale), correlations)
+    })
+  }
+
+  if(model == "fa"){
+    rows <- as.integer(f$fa_row)
+    cols <- as.integer(f$fa_col)
+    nload <- as.integer(f$fa_nload)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      rawLoading <- par[seq_len(nload)]
+      normalization <- rawLoading[1L]^2 + 1
+      multiplier <- if(absorb_scale) sqrt(scale / normalization) else
+        1 / sqrt(normalization)
+      loading <- multiplier * rawLoading
+      names(loading) <- paste0("loading[", levels[rows], ",F", cols, "]")
+      specificRaw <- if(identical(factor$variance, "homogeneous")) rep(1, length(levels)) else
+        c(1, par[-seq_len(nload)])
+      specific <- (if(absorb_scale) scale else 1) * specificRaw / normalization
+      if(identical(factor$variance, "homogeneous")){
+        return(c(loading, common_specific_variance=specific[1L]))
+      }
+      names(specific) <- paste0(if(absorb_scale) "specific_variance" else
+                                  "relative_specific_variance", "[", levels, "]")
+      c(loading, specific)
+    })
+  }
+
+  if(model == "rr"){
+    rows <- as.integer(f$rr_row)
+    cols <- as.integer(f$rr_col)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      remainder <- if(isTRUE(factor$zero_specific)) 0 else 1
+      normalization <- par[1L]^2 + remainder
+      multiplier <- if(absorb_scale) sqrt(scale / normalization) else
+        1 / sqrt(normalization)
+      loading <- multiplier * par
+      names(loading) <- paste0("loading[", levels[rows], ",F", cols, "]")
+      if(remainder > 0){
+        return(c(loading,
+          common_specific_variance=(if(absorb_scale) scale else 1) / normalization))
+      }
+      specific <- stats::setNames(rep(0, length(levels)),
+        paste0(if(absorb_scale) "specific_variance" else
+          "relative_specific_variance", "[", levels, "]"))
+      c(loading, specific)
+    })
+  }
+
+  if(model == "ante"){
+    ncoef <- as.integer(f$ante_ncoef)
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      coefficients <- if(ncoef) par[seq_len(ncoef)] else numeric()
+      names(coefficients) <- factor$par_names[seq_len(ncoef)]
+      ratios <- if(ncoef < length(par)) par[(ncoef+1L):length(par)] else numeric()
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "innovation_variance" else
+        "relative_innovation_variance"
+      innovations <- stats::setNames(multiplier * c(1, ratios),
+                                     paste0(prefix, "[", levels, "]"))
+      c(coefficients, innovations)
+    })
+  }
+
+  if(model == "matern"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale),
+        stats::setNames(as.numeric(par), factor$par_names))
+    })
+  }
+
+  if(model == "metric"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale),
+        stats::setNames(as.numeric(par), factor$par_names))
+    })
+  }
+
+  if(model == "toeplitz"){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale),
+        stats::setNames(par, paste0("pacf[", seq_along(par), "]")))
+    })
+  }
+
+  if(model %in% c("sar", "car")){
+    return(function(scale, par, factor, absorb_scale=TRUE){
+      c(if(absorb_scale) c(variance=scale), rho=par[1])
+    })
+  }
+
+  function(scale, par, factor, absorb_scale=TRUE){
+    values <- stats::setNames(as.numeric(par), factor$par_names)
+    if(absorb_scale) c(sigma2=scale, values) else values
+  }
+}
+
+# -------------------------------------------------------------------------
+# Universal CovarianceFactor compiler.
+#
+# Public covariance constructors create their convenient model-specific
+# metadata in R, then this compiler converts it into the single interface
+# consumed by vsm() and ai_mme_sp2():
+#
+#   evaluator  : how K(eta) is evaluated
+#   derivative : how dK/deta_k is obtained
+#   report     : transformation from working to reported coordinates
+#   native_report: covariance-model interpretation on its natural scale
+#   trust_cap  : per-parameter maximum proposal size in working coordinates
+#
+# ai_mme_sp2() never needs to know the statistical model label.  Built-in
+# high-use structures use the native covariance backend; user-defined and new
+# experimental structures can use R callbacks without changing the solver.
+# -------------------------------------------------------------------------
+.compile_covfactor <- function(f){
+  if(inherits(f, "sommer_covfactor") &&
+     !is.null(f$evaluator) && !is.null(f$derivative) &&
+     !is.null(f$report) && !is.null(f$native_report) &&
+     !is.null(f$trust_cap)){
+    representation <- f$representation
+    legacySpatial <- isTRUE(f$model %in% c("sar", "car")) &&
+      identical(representation$kind, "dense") && is.null(representation$form)
+    needsCapabilities <- is.null(representation) || legacySpatial ||
+      (identical(representation$kind, "lowrank_diagonal") && is.null(representation$loadings)) ||
+      (identical(representation$kind, "modified_cholesky_precision") && is.null(representation$innovation))
+    if(needsCapabilities){
+      metadata <- f
+      metadata$representation <- NULL
+      defaults <- .covfactor_representation(f$model, metadata, f$structurally_diagonal)
+      if(legacySpatial) representation$kind <- defaults$kind
+      f$representation <- if(is.null(representation)) defaults else utils::modifyList(defaults, representation)
+      .validate_covfactor(f)
+    }
+    return(f)
+  }
+
+  if(is.null(f$type) || is.null(f$dim) || is.null(f$par) ||
+     is.null(f$free) || is.null(f$par_names)){
+    stop("Malformed covariance factor supplied to .compile_covfactor().",
+         call. = FALSE)
+  }
+
+  model <- as.character(f$type)[1]
+  q <- as.integer(f$dim)[1]
+  p <- length(f$par)
+
+  if(length(f$free) != p || length(f$par_names) != p){
+    stop("Covariance factor par/free/par_names have inconsistent lengths.",
+         call. = FALSE)
+  }
+
+  # Defaults: a native evaluator, numerical first derivative, identity
+  # reporting, and a moderate working-coordinate trust cap.
+  evaluator <- list(backend="native", op=model)
+  derivative <- list(backend="numeric", rel_step=1e-6)
+  transform <- rep("identity", p)
+  lower <- rep(NA_real_, p)
+  upper <- rep(NA_real_, p)
+  trust <- rep(1.5, p)
+  structurally_diagonal <- FALSE
+
+  if(model == "identity"){
+    evaluator <- list(backend="native", op="identity")
+    derivative <- list(backend="none")
+    trust <- numeric()
+    structurally_diagonal <- TRUE
+
+  }else if(model == "diag"){
+    derivative <- list(backend="native", op="diag")
+    structurally_diagonal <- TRUE
+    transform[] <- "exp"
+    trust[] <- 1.0
+
+  }else if(model == "ar1"){
+    derivative <- list(backend="native", op="ar1")
+    transform[] <- "tanh"
+    trust[] <- 1.0
+
+  }else if(model == "us"){
+    derivative <- list(backend="native", op="us")
+    dd <- as.logical(f$us_diag)
+    if(length(dd) != p) stop("Malformed US covariance metadata.", call. = FALSE)
+    transform[dd] <- "exp"
+    trust[dd] <- 1.0
+    trust[!dd] <- 2.0
+
+  }else if(model == "csm"){
+    lo <- -1/(q-1)
+    variance <- match.arg(f$variance, c("homogeneous", "heterogeneous"))
+    if(variance == "homogeneous"){
+      if(p != 1L) stop("Malformed homogeneous CSM covariance metadata.", call. = FALSE)
+      evaluator$op <- "cor_uniform"
+      transform[] <- "bounded_logit"
+      lower[] <- lo
+      upper[] <- 1
+    }else{
+      if(p != q) stop("Malformed heterogeneous CSM covariance metadata.", call. = FALSE)
+      evaluator$op <- "corh"
+      transform[1] <- "bounded_logit"
+      lower[1] <- lo
+      upper[1] <- 1
+      if(p > 1) transform[2:p] <- "exp"
+    }
+    trust[] <- 1.0
+
+  }else if(model == "arp"){
+    transform[] <- "tanh"
+    trust[] <- 1.0
+
+  }else if(model == "ma"){
+    trust[] <- 1.5
+
+  }else if(model == "corg"){
+    trust[] <- 1.5
+
+  }else if(model == "fa"){
+    nload <- as.integer(f$fa_nload)
+    dd <- as.logical(f$fa_diag)
+    if(length(dd) != nload || p < nload){
+      stop("Malformed FA covariance metadata.", call. = FALSE)
+    }
+    if(nload){
+      idx <- seq_len(nload)
+      transform[idx[dd]] <- "exp"
+      trust[idx[dd]] <- 1.0
+      trust[idx[!dd]] <- 1.5
+    }
+    if(p > nload){
+      transform[(nload+1L):p] <- "exp"
+      trust[(nload+1L):p] <- 1.0
+    }
+    derivative <- list(backend="native", op="fa")
+
+  }else if(model == "ante"){
+    ncoef <- as.integer(f$ante_ncoef)
+    if(ncoef < 0L || ncoef > p) stop("Malformed ANTE covariance metadata.", call. = FALSE)
+    if(ncoef) trust[seq_len(ncoef)] <- 1.5
+    if(p > ncoef){
+      transform[(ncoef+1L):p] <- "exp"
+      trust[(ncoef+1L):p] <- 1.0
+    }
+
+  }else if(model == "own"){
+    if(!is.null(f$fixed_matrix)){
+      evaluator <- list(backend="fixed", matrix=f$fixed_matrix)
+      derivative <- list(backend="none")
+      trust <- numeric()
+      fm <- as.matrix(f$fixed_matrix)
+      structurally_diagonal <- all(abs(fm[row(fm) != col(fm)]) <= 1e-14)
+    }else{
+      if(is.null(f$fun) || !is.function(f$fun)){
+        stop("User covariance factor is missing fun(par).", call. = FALSE)
+      }
+      evaluator <- list(backend="R", fun=f$fun)
+      if(!is.null(f$dfun)){
+        derivative <- list(backend="R", fun=f$dfun)
+      }else{
+        derivative <- list(backend="numeric", rel_step=1e-6)
+      }
+      trust[] <- 1.5
+    }
+
+  }else if(model == "rr"){
+    order <- as.integer(f$order)
+    rows <- as.integer(f$rr_row)
+    cols <- as.integer(f$rr_col)
+    dd <- as.logical(f$rr_diag)
+    nload <- as.integer(f$rr_nload)
+    remainder <- if(isTRUE(f$zero_specific)) 0 else 1
+    if(length(rows) != nload || length(cols) != nload ||
+       length(dd) != nload || p != nload){
+      stop("Malformed reduced-rank covariance metadata.", call. = FALSE)
+    }
+
+    rr_eval <- local({
+      q0 <- q; k0 <- order; r0 <- rows; c0 <- cols; d0 <- dd; psi0 <- remainder
+      function(par){
+        L <- matrix(0, q0, k0)
+        for(a in seq_along(par)){
+          L[r0[a], c0[a]] <- if(d0[a]) exp(par[a]) else par[a]
+        }
+        M <- tcrossprod(L) + diag(psi0, q0)
+        M / M[1,1]
+      }
+    })
+
+    rr_d1 <- local({
+      q0 <- q; k0 <- order; r0 <- rows; c0 <- cols; d0 <- dd; psi0 <- remainder
+      function(par, k){
+        L <- matrix(0, q0, k0)
+        for(a in seq_along(par)){
+          L[r0[a], c0[a]] <- if(d0[a]) exp(par[a]) else par[a]
+        }
+        dL <- matrix(0, q0, k0)
+        dL[r0[k], c0[k]] <- if(d0[k]) exp(par[k]) else 1
+        M <- tcrossprod(L) + diag(psi0, q0)
+        D <- dL %*% t(L) + L %*% t(dL)
+        s <- M[1,1]
+        ds <- D[1,1]
+        (D*s - M*ds)/(s*s)
+      }
+    })
+
+    evaluator <- list(backend="R", fun=rr_eval)
+    derivative <- list(backend="R", fun=rr_d1)
+    transform[dd] <- "exp"
+    trust[dd] <- 1.0
+    trust[!dd] <- 1.5
+    derivative <- list(backend="native", op="rr")
+
+  }else{
+    stop(paste0("Unknown covariance model label '", model,
+                "'. New models should provide a sommer_covfactor descriptor ",
+                "or use ownm()."), call. = FALSE)
+  }
+
+  f$model <- model                 # human-readable/debugging only
+  f$type <- NULL                   # model label never crosses as solver dispatch
+  f$evaluator <- evaluator
+  f$derivative <- derivative
+  f$representation <- .covfactor_representation(
+    model, f, structurally_diagonal
+  )
+  if(f$representation$kind == "lowrank_diagonal"){
+    f$precision <- list(backend="woodbury", kind=model)
+  }else if(f$representation$kind == "compound_symmetry"){
+    f$precision <- list(backend="woodbury", kind="compound_symmetry")
+  }
+  f$report <- list(
+    backend="builtin",
+    transform=as.character(transform),
+    lower=as.numeric(lower),
+    upper=as.numeric(upper)
+  )
+  if(is.function(f$native_report)){
+    f$native_report <- list(backend="R", fun=f$native_report)
+  }
+  if(is.null(f$native_report)){
+    f$native_report <- list(
+      backend="R",
+      fun=.covfactor_native_report(model, f)
+    )
+  }
+  f$trust_cap <- as.numeric(trust)
+  f$structurally_diagonal <- isTRUE(structurally_diagonal)
+  f$descriptor_version <- 2L
+  class(f) <- c("sommer_covfactor", "list")
+  f
+}
+
+.validate_covfactor <- function(f){
+  required <- c("dim","levels","par","free","par_names","evaluator",
+                "derivative","report","native_report","trust_cap",
+                "structurally_diagonal","representation","descriptor_version")
+  miss <- setdiff(required, names(f))
+  if(length(miss)){
+    stop(paste("Incomplete CovarianceFactor descriptor; missing:",
+               paste(miss, collapse=", ")), call. = FALSE)
+  }
+  if(length(f$par) != length(f$free) || length(f$par) != length(f$par_names)){
+    stop("CovarianceFactor par/free/par_names lengths differ.", call. = FALSE)
+  }
+  if(length(f$trust_cap) != length(f$par)){
+    stop("CovarianceFactor trust_cap must have one value per working parameter.",
+         call. = FALSE)
+  }
+  if(!is.list(f$representation) ||
+     !is.character(f$representation$kind) ||
+     length(f$representation$kind) != 1L ||
+     !nzchar(f$representation$kind)){
+    stop("CovarianceFactor representation must declare one family kind.",
+         call. = FALSE)
+  }
+  innovation <- f$representation$innovation
+  if(!is.null(innovation)){
+    count <- innovation$coefficient_count
+    rows <- innovation$rows
+    columns <- innovation$columns
+    if(length(count) != 1L || !is.finite(count) || count < 0 || count != as.integer(count) ||
+       length(rows) != count || length(columns) != count ||
+       anyNA(rows) || anyNA(columns) || any(rows != as.integer(rows)) ||
+       any(columns != as.integer(columns)) || any(columns < 1L) ||
+       any(rows > f$dim) || any(rows <= columns) ||
+       anyDuplicated(data.frame(rows=rows, columns=columns))){
+      stop("Invalid modified-Cholesky innovation capability.", call. = FALSE)
+    }
+    if(is.null(f$section_npar) && length(f$par) != count + f$dim - 1L){
+      stop("Innovation capability has incompatible parameter count.", call. = FALSE)
+    }
+  }
+  loadings <- f$representation$loadings
+  if(!is.null(loadings)){
+    count <- loadings$count
+    rank <- loadings$rank
+    rows <- loadings$rows
+    columns <- loadings$columns
+    if(length(count) != 1L || length(rank) != 1L || !is.finite(count) || !is.finite(rank) ||
+       count < 1L || rank < 1L || count != as.integer(count) || rank != as.integer(rank) ||
+       length(rows) != count || length(columns) != count || length(loadings$diagonal) != count ||
+       anyNA(rows) || anyNA(columns) || anyNA(loadings$diagonal) ||
+       any(rows != as.integer(rows)) || any(columns != as.integer(columns)) ||
+       any(rows < 1L | rows > f$dim) || any(columns < 1L | columns > rank) ||
+       anyDuplicated(data.frame(rows=rows, columns=columns)) ||
+       !is.logical(loadings$diagonal) || !is.logical(loadings$heterogeneous_specific) ||
+       length(loadings$heterogeneous_specific) != 1L || is.na(loadings$heterogeneous_specific)){
+      stop("Invalid low-rank loading capability.", call. = FALSE)
+    }
+  }
+  spatial <- f$representation$spatial
+  if(!is.null(spatial)){
+    if(!is.matrix(spatial$weights) || !is.numeric(spatial$weights) ||
+       !identical(dim(spatial$weights), rep(as.integer(f$dim), 2L)) ||
+       any(!is.finite(spatial$weights)) || length(spatial$lower) != 1L ||
+       length(spatial$upper) != 1L || !is.finite(spatial$lower) ||
+       !is.finite(spatial$upper) || spatial$lower >= spatial$upper){
+      stop("Invalid normalized spatial precision capability.", call. = FALSE)
+    }
+    if(identical(f$representation$form, "normalized_affine_precision") &&
+       (length(spatial$degree) != f$dim || any(!is.finite(spatial$degree)) || any(spatial$degree <= 0))){
+      stop("Affine spatial precision requires positive finite degrees.", call. = FALSE)
+    }
+  }
+  if(!is.list(f$native_report) || !identical(f$native_report$backend, "R") ||
+     !is.function(f$native_report$fun)){
+    stop("CovarianceFactor native_report must contain an R callback function.",
+         call. = FALSE)
+  }
+  invisible(TRUE)
+}
+
+# Direct sum of a residual vsm() term over the levels of `by`:
+#   R = blockdiag_t sigma2_t * kron_f K_f(theta_{f,t})
+# Levels outside `levels` receive an iid residual sigma2_t * I.
+dsumm <- function(x, by, levels=NULL){
+  byExpr <- deparse(substitute(by))
+
+  if(!is.list(x) || is.null(x$covStruct) || !identical(x$covStruct$type, "kron") ||
+     is.null(x$residualLocalIndex)){
+    stop("dsumm() expects a residual vsm() term, e.g. ",
+         "dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial).", call. = FALSE)
+  }
+  inner <- x$covStruct
+  if(any(vapply(inner$factors, function(f) !is.null(f$section_levels), logical(1)))){
+    stop("dsumm() terms cannot be nested.", call. = FALSE)
+  }
+
+  n <- length(x$residualLocalIndex)
+  if(length(by) != n){
+    stop("by in dsumm() must have one value per observation.", call. = FALSE)
+  }
+  byFactor <- if(is.factor(by)) droplevels(by) else factor(by)
+  sections <- levels(byFactor)
+  nSections <- length(sections)
+  if(nSections < 1L){
+    stop("by in dsumm() has no non-missing levels.", call. = FALSE)
+  }
+
+  listed <- if(is.null(levels)) sections else unique(as.character(levels))
+  unknown <- setdiff(listed, sections)
+  if(length(unknown)){
+    stop("Unknown levels in dsumm(): ", paste(unknown, collapse=", "), call. = FALSE)
+  }
+  if(!length(listed)){
+    stop("levels in dsumm() must select at least one level of by.", call. = FALSE)
+  }
+  nListed <- length(listed)
+  sectionIndex <- match(sections, listed) - 1L
+  sectionIndex[is.na(sectionIndex)] <- -1L
+
+  qInner <- as.integer(inner$dim)
+  byIndex <- as.integer(byFactor)
+  local <- rep(NA_integer_, n)
+  isListed <- !is.na(byIndex) & sectionIndex[pmax(byIndex, 1L)] >= 0L
+  local[isListed] <- (byIndex[isListed] - 1L) * qInner + x$residualLocalIndex[isListed]
+  for(t in which(sectionIndex < 0L)){
+    rows <- which(byIndex == t)
+    if(length(rows) > qInner){
+      stop("Level '", sections[t], "' of dsumm(by=) has more observations than ",
+           "coordinates in the inner vsm() term.", call. = FALSE)
+    }
+    # iid sections need only distinct coordinates, not their spatial labels.
+    local[rows] <- (t - 1L) * qInner + seq_along(rows)
+  }
+
+  owner <- .compile_covfactor(list(
+    type="diag",
+    dim=nSections,
+    levels=sections,
+    par=rep(0, nSections - 1L),
+    free=rep(TRUE, nSections - 1L),
+    par_names=if(nSections > 1L) paste0("variance_ratio[", sections[-1L], "]") else character()
+  ))
+  owner$label <- byExpr
+  owner$section_owner <- TRUE
+
+  par <- inner$par[1L]
+  free <- inner$free[1L]
+  parNames <- "sigma2"
+  append_factor <- function(f){
+    f$par_start <- length(par) + 1L
+    par <<- c(par, f$par)
+    free <<- c(free, f$free)
+    if(length(f$par)) parNames <<- c(parNames, paste(f$label, f$par_names, sep=":"))
+    f$par_end <- length(par)
+    f
+  }
+
+  factors <- list(append_factor(owner))
+  for(f in inner$factors){
+    if(identical(f$model, "identity")){
+      factors[[length(factors) + 1L]] <- append_factor(f)
+      next
+    }
+    localIdx <- if(f$par_end >= f$par_start) seq.int(f$par_start, f$par_end) else integer()
+    nPar <- length(localIdx)
+    reportOne <- f$native_report$fun
+    template <- f
+
+    g <- f
+    g$par <- rep(inner$par[localIdx], nListed)
+    g$free <- rep(inner$free[localIdx], nListed)
+    g$par_names <- paste0(rep(f$par_names, nListed), "[", rep(listed, each=nPar), "]")
+    g$trust_cap <- rep(f$trust_cap, nListed)
+    g$report$transform <- rep(f$report$transform, nListed)
+    g$report$lower <- rep(f$report$lower, nListed)
+    g$report$upper <- rep(f$report$upper, nListed)
+    g$section_var <- byExpr
+    g$section_levels <- sections
+    g$section_index <- sectionIndex
+    g$section_npar <- nPar
+    g$section_factor <- 1L
+    g$native_report <- list(backend="R", fun=function(scale, par, factor, absorb_scale=TRUE){
+      values <- lapply(seq_len(nListed), function(s){
+        v <- reportOne(scale=scale, par=par[(s - 1L) * nPar + seq_len(nPar)],
+                       factor=template, absorb_scale=absorb_scale)
+        stats::setNames(v, paste0(names(v), "[", listed[s], "]"))
+      })
+      unlist(values)
+    })
+    .validate_covfactor(g)
+    factors[[length(factors) + 1L]] <- append_factor(g)
+  }
+
+  covStruct <- inner
+  covStruct$par <- stats::setNames(as.numeric(par), parNames)
+  covStruct$free <- as.logical(free)
+  covStruct$par_names <- parNames
+  covStruct$factors <- factors
+  covStruct$dim <- as.integer(nSections * qInner)
+  covStruct$levels <- paste(rep(sections, each=qInner), rep(inner$levels, nSections), sep=":")
+
+  observed <- which(!is.na(local))
+  productDesign <- Matrix::sparseMatrix(
+    i=observed, j=local[observed], x=1, dims=c(n, nSections * qInner)
+  )
+
+  list(
+    Z=list(),
+    Gu=x$Gu,
+    GuRot=NULL,
+    rotation=NULL,
+    covStruct=covStruct,
+    residualLocalIndex=local,
+    residualSelfMasked=TRUE,
+    productDesign=productDesign,
+    partitionsR=NULL
+  )
+}
+
+ism <- function(x){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="identity",
+      dim=as.integer(q),
+      levels=colnames(dummy),
+      par=numeric(),
+      free=logical(),
+      par_names=character()
+    ))
+  )
+}
+
+ar1m <- function(x, rho=0.30, fixed=FALSE,
+                 variance=c("homogeneous", "heterogeneous"), values=NULL){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  variance <- match.arg(variance)
+  if(q < 2L) stop("ar1m() requires at least two ordered levels.", call. = FALSE)
+  levNum <- suppressWarnings(as.numeric(colnames(dummy)))
+  if(!anyNA(levNum) && is.unsorted(levNum)){
+    warning("ar1m(", expr, "): numeric levels are not in increasing order; AR1 lags follow levels(), ",
+            "so reorder with factor(x, levels=sort(unique(as.numeric(as.character(x))))).",
+            call. = FALSE)
+  }
+  if(length(rho) != 1L || !is.finite(rho) || abs(rho) >= 1){
+    stop("rho in ar1m() must be finite and strictly between -1 and 1.", call. = FALSE)
+  }
+  if(variance == "heterogeneous"){
+    ar_fixed <- if(missing(fixed)) NULL else fixed
+    return(.arp_m(dummy, order=1L, pacf=rho, fixed=ar_fixed, values=values,
+                  heterogeneous=TRUE))
+  }
+  if(length(fixed) != 1L) stop("fixed in homogeneous ar1m() must have length one.", call. = FALSE)
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="ar1",
+      dim=as.integer(q),
+      levels=colnames(dummy),
+      par=c(atanh_rho=atanh(rho)),
+      free=c(!isTRUE(fixed)),
+      par_names="rho"
+    ))
+  )
+}
+
+dsm <- function(x, values=NULL, fixed=NULL, theta=NULL){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  
+  if(!is.null(theta)){
+    theta <- as.matrix(theta)
+    if(!all(dim(theta) == c(q,q))){
+      stop("theta supplied to dsm() must be q x q.", call. = FALSE)
+    }
+    if(any(abs(theta[row(theta) != col(theta)]) > 1e-10)){
+      stop("theta supplied to dsm() must be diagonal.", call. = FALSE)
+    }
+    values <- diag(theta)
+  }
+  defaultStart <- is.null(values)
+  if(is.null(values)) values <- rep(1, q)
+  if(length(values) != q || any(!is.finite(values)) || any(values <= 0)){
+    stop("values in dsm() must contain one positive finite value per level.", call. = FALSE)
+  }
+  
+  # The first diagonal is the scale reference (=1). Remaining entries are
+  # positive relative variances represented by log ratios.
+  ratios <- values / values[1]
+  eta <- if(q > 1L) log(ratios[-1]) else numeric()
+  
+  if(is.null(fixed)) fixed <- rep(FALSE, length(eta))
+  if(length(fixed) != length(eta)){
+    stop("fixed in dsm() must have length q-1.", call. = FALSE)
+  }
+  
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="diag",
+      dim=as.integer(q),
+      levels=colnames(dummy),
+      par=eta,
+      free=!as.logical(fixed),
+      par_names=if(q > 1L) paste0("variance_ratio[", colnames(dummy)[-1], "]") else character(),
+      default_start=defaultStart,
+      ratio_index=seq_len(q - 1L)
+    ))
+  )
+}
+
+usm <- function(x, theta=NULL, fixed=NULL){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  
+  if(is.null(theta)){
+    K <- matrix(0.10, q, q)
+    diag(K) <- 1
+  }else{
+    K <- as.matrix(theta)
+    if(!all(dim(K) == c(q,q))){
+      stop("theta supplied to usm() must be q x q.", call. = FALSE)
+    }
+    K <- (K + t(K))/2
+    if(!is.finite(K[1,1]) || K[1,1] <= 0){
+      stop("theta[1,1] supplied to usm() must be positive.", call. = FALSE)
+    }
+    K <- K / K[1,1]
+  }
+  
+  ch <- try(chol(K), silent=TRUE)
+  if(inherits(ch, "try-error")){
+    stop("Initial theta supplied to usm() must be positive definite.", call. = FALSE)
+  }
+  L <- t(ch)
+  # Numerical normalization guarantees L[1,1] == 1.
+  L <- L / L[1,1]
+  
+  vals <- numeric()
+  nm <- character()
+  rows <- integer()
+  cols <- integer()
+  isdiag <- logical()
+  
+  for(i in seq_len(q)){
+    for(j in seq_len(i)){
+      if(i == 1L && j == 1L) next
+      rows <- c(rows, i)
+      cols <- c(cols, j)
+      if(i == j){
+        vals <- c(vals, log(L[i,i]))
+        nm <- c(nm, paste0("chol_diag[", colnames(dummy)[i], "]"))
+        isdiag <- c(isdiag, TRUE)
+      }else{
+        vals <- c(vals, L[i,j])
+        nm <- c(nm, paste0("chol[", colnames(dummy)[i], ",", colnames(dummy)[j], "]"))
+        isdiag <- c(isdiag, FALSE)
+      }
+    }
+  }
+  
+  if(is.null(fixed)) fixed <- rep(FALSE, length(vals))
+  if(length(fixed) != length(vals)){
+    stop("fixed in usm() must have length q(q+1)/2 - 1.", call. = FALSE)
+  }
+  
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="us",
+      dim=as.integer(q),
+      levels=colnames(dummy),
+      par=vals,
+      free=!as.logical(fixed),
+      par_names=nm,
+      us_row=rows,
+      us_col=cols,
+      us_diag=isdiag,
+      default_start=is.null(theta)
+    ))
+  )
+}
+
+
+# -------------------------------------------------------------------------
+# Additional covariance-shape constructors.
+#
+# All structures are dimensionless shapes.  vsm() continues to own exactly
+# one product-level sigma^2, preventing scale confounding in arbitrary
+# Kronecker products.
+# -------------------------------------------------------------------------
+
+# Stable AR(p), p=2 or 3, parameterized through partial autocorrelations.
+# PACF coordinates are tanh-transformed in C++, guaranteeing stationarity.
+.ar_correlation_from_pacf <- function(pacf, q){
+  order <- length(pacf)
+  phi <- numeric()
+  for(m in seq_len(order)){
+    next_phi <- numeric(m)
+    next_phi[m] <- pacf[m]
+    if(m > 1L){
+      next_phi[-m] <- phi - pacf[m] * rev(phi)
+    }
+    phi <- next_phi
+  }
+
+  A <- matrix(0, order, order)
+  b <- numeric(order)
+  for(k in seq_len(order)){
+    A[k, k] <- A[k, k] + 1
+    for(j in seq_len(order)){
+      distance <- abs(k - j)
+      if(distance == 0L){
+        b[k] <- b[k] + phi[j]
+      }else{
+        A[k, distance] <- A[k, distance] - phi[j]
+      }
+    }
+  }
+  rho <- numeric(q)
+  rho[1] <- 1
+  rho[seq_len(order) + 1L] <- solve(A, b)
+  if(q > order + 1L){
+    for(h in (order + 1L):(q - 1L)){
+      rho[h + 1L] <- sum(phi * rev(rho[(h - order + 1L):h]))
+    }
+  }
+  rho[abs(row(matrix(0, q, q)) - col(matrix(0, q, q))) + 1L]
+}
+
+.arp_m <- function(x, order, pacf=NULL, fixed=NULL, values=NULL,
+                   heterogeneous=FALSE){
+  if(is.matrix(x) || inherits(x, "Matrix")){
+    dummy <- x
+  }else{
+    expr <- as.character(substitute(x))
+    dummy <- .cov_dummy(x, expr)
+  }
+  q <- ncol(dummy)
+  
+  order <- as.integer(order)
+  if(length(order) != 1L || !order %in% c(1L,2L,3L)){
+    stop("AR order must be 1, 2, or 3.", call. = FALSE)
+  }
+  if(q <= order){
+    stop(sprintf("AR(%d) requires more than %d ordered levels.", order, order),
+         call. = FALSE)
+  }
+  
+  if(is.null(pacf)) pacf <- rep(0.20, order)
+  if(length(pacf) != order || any(!is.finite(pacf)) || any(abs(pacf) >= 1)){
+    stop("pacf must contain one finite value in (-1,1) per AR order.",
+         call. = FALSE)
+  }
+  
+  if(!heterogeneous){
+    if(is.null(fixed)) fixed <- rep(FALSE, order)
+    if(length(fixed) != order){
+      stop("fixed must have length equal to the AR order.", call. = FALSE)
+    }
+
+    return(list(
+      Z=dummy,
+      covFactor=.compile_covfactor(list(
+        type="arp",
+        dim=as.integer(q),
+        levels=colnames(dummy),
+        order=order,
+        par=atanh(pacf),
+        free=!as.logical(fixed),
+        par_names=paste0("pacf[", seq_len(order), "]")
+      ))
+    ))
+  }
+
+  if(is.null(values)) values <- rep(1, q)
+  if(length(values) != q || any(!is.finite(values)) || any(values <= 0)){
+    stop("values in heterogeneous AR() must contain one positive finite variance per level.",
+         call. = FALSE)
+  }
+  par <- c(atanh(pacf), log((values / values[1])[-1]))
+  if(is.null(fixed) || identical(fixed, FALSE)){
+    fixed <- rep(FALSE, length(par))
+  }
+  if(identical(fixed, TRUE)){
+    fixed <- rep(TRUE, length(par))
+  }
+  if(length(fixed) != length(par)){
+    stop("fixed in heterogeneous AR() must have length order + q - 1.",
+         call. = FALSE)
+  }
+
+  ar_eval <- local({
+    q0 <- q
+    order0 <- order
+    function(eta){
+      C <- .ar_correlation_from_pacf(tanh(eta[seq_len(order0)]), q0)
+      variances <- c(1, exp(eta[order0 + seq_len(q0 - 1L)]))
+      tcrossprod(sqrt(variances)) * C
+    }
+  })
+
+  list(
+    Z=dummy,
+    covFactor=.make_covfactor(
+      dim=as.integer(q),
+      levels=colnames(dummy),
+      par=par,
+      free=!as.logical(fixed),
+      par_names=c(paste0("pacf[", seq_len(order), "]"),
+                  paste0("variance_ratio[", colnames(dummy)[-1], "]")),
+      evaluator=list(backend="R", fun=ar_eval),
+      derivative=list(backend="numeric", rel_step=1e-6),
+      report=list(
+        backend="builtin",
+        transform=c(rep("tanh", order), rep("exp", q - 1L)),
+        lower=rep(NA_real_, length(par)),
+        upper=rep(NA_real_, length(par))
+      ),
+      trust_cap=rep(1, length(par)),
+      model=paste0("ar", order),
+      metadata=list(order=order, heterogeneous=TRUE)
+    )
+  )
+}
+
+ar2m <- function(x, pacf=c(0.20,0.10), fixed=NULL,
+                 variance=c("homogeneous", "heterogeneous"), values=NULL){
+  .arp_m(x, order=2L, pacf=pacf, fixed=fixed, values=values,
+         heterogeneous=match.arg(variance) == "heterogeneous")
+}
+
+ar3m <- function(x, pacf=c(0.20,0.10,0.05), fixed=NULL,
+                 variance=c("homogeneous", "heterogeneous"), values=NULL){
+  .arp_m(x, order=3L, pacf=pacf, fixed=fixed, values=values,
+         heterogeneous=match.arg(variance) == "heterogeneous")
+}
+
+
+# Stationary moving-average covariance of order 1 or 2.
+#
+# theta are the ordinary MA polynomial coefficients in
+#   e_t + theta[1] e_{t-1} + theta[2] e_{t-2}.
+# Any finite coefficients produce a valid covariance; invertibility is not
+# required to define the covariance matrix.
+mam <- function(x, order=1L, theta=NULL, fixed=NULL){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  
+  order <- as.integer(order)
+  if(length(order) != 1L || !order %in% c(1L,2L)){
+    stop("mam() currently supports order=1 or order=2.", call. = FALSE)
+  }
+  if(q <= order){
+    stop(sprintf("MA(%d) requires more than %d ordered levels.", order, order),
+         call. = FALSE)
+  }
+  
+  if(is.null(theta)) theta <- rep(0.15, order)
+  if(length(theta) != order || any(!is.finite(theta))){
+    stop("theta in mam() must contain one finite coefficient per MA order.",
+         call. = FALSE)
+  }
+  
+  if(is.null(fixed)) fixed <- rep(FALSE, order)
+  if(length(fixed) != order){
+    stop("fixed in mam() must have length equal to order.", call. = FALSE)
+  }
+  
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="ma",
+      dim=as.integer(q),
+      levels=colnames(dummy),
+      order=order,
+      par=as.numeric(theta),
+      free=!as.logical(fixed),
+      par_names=paste0("ma[", seq_len(order), "]")
+    ))
+  )
+}
+
+ma1m <- function(x, theta=0.15, fixed=FALSE){
+  mam(x, order=1L, theta=theta, fixed=fixed)
+}
+
+ma2m <- function(x, theta=c(0.15,0.05), fixed=NULL){
+  mam(x, order=2L, theta=theta, fixed=fixed)
+}
+
+
+# General positive-definite correlation matrix.
+#
+# We use an unconstrained unit-diagonal lower factor A and standardize
+# A A' to correlation scale.  This spans the SPD correlation cone without
+# requiring pairwise-correlation boundary repairs.
+corgm <- function(x, theta=NULL, fixed=NULL,
+                  variance=c("homogeneous", "heterogeneous"), values=NULL){
+  variance <- match.arg(variance)
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  labs <- colnames(dummy)
+  
+  if(q < 2L){
+    stop("corgm() requires at least two levels.", call. = FALSE)
+  }
+  
+  rows <- integer()
+  cols <- integer()
+  for(i in 2:q){
+    for(j in 1:(i-1L)){
+      rows <- c(rows, i)
+      cols <- c(cols, j)
+    }
+  }
+  
+  if(is.null(theta)){
+    vals <- rep(0.05, length(rows))
+  }else{
+    K <- as.matrix(theta)
+    if(!all(dim(K) == c(q,q))){
+      stop("theta supplied to corgm() must be q x q.", call. = FALSE)
+    }
+    K <- (K+t(K))/2
+    if(any(diag(K) <= 0) || any(!is.finite(K))){
+      stop("theta supplied to corgm() must have positive finite diagonal.",
+           call. = FALSE)
+    }
+    if(variance == "heterogeneous" && is.null(values)) values <- diag(K)
+    K <- stats::cov2cor(K)
+    ch <- try(chol(K), silent=TRUE)
+    if(inherits(ch, "try-error")){
+      stop("theta supplied to corgm() must be positive definite.", call. = FALSE)
+    }
+    A <- t(ch)
+    A <- sweep(A, 1, diag(A), "/")
+    vals <- mapply(function(i,j) A[i,j], rows, cols)
+  }
+
+  if(variance == "heterogeneous"){
+    defaultStart <- is.null(values)
+    if(is.null(values)) values <- rep(1, q)
+    if(length(values) != q || any(!is.finite(values)) || any(values <= 0)){
+      stop("values in corgm() must contain one positive variance per level.", call. = FALSE)
+    }
+    ratioPar <- log(values[-1] / values[1])
+    nCor <- length(vals)
+    if(is.null(fixed)) fixed <- rep(FALSE, nCor + q - 1L)
+    if(length(fixed) != nCor + q - 1L){
+      stop("fixed in heterogeneous corgm() must have length q(q-1)/2 + q-1 ",
+           "(correlation coordinates, then variance ratios).", call. = FALSE)
+    }
+    corOf <- function(par){
+      A <- diag(q)
+      A[cbind(rows, cols)] <- par[seq_len(nCor)]
+      S <- tcrossprod(A)
+      s <- sqrt(diag(S))
+      S / outer(s, s)
+    }
+    eval_fun <- function(par){
+      d <- sqrt(c(1, exp(par[nCor + seq_len(q - 1L)])))
+      d * t(d * corOf(par))
+    }
+    report_fun <- function(scale, par, factor, absorb_scale=TRUE){
+      R <- corOf(par)
+      multiplier <- if(absorb_scale) scale else 1
+      prefix <- if(absorb_scale) "variance" else "relative_variance"
+      c(stats::setNames(R[cbind(rows, cols)], paste0("correlation[", labs[rows], ",", labs[cols], "]")),
+        stats::setNames(multiplier * c(1, par[nCor + seq_len(q - 1L)]),
+                        paste0(prefix, "[", labs, "]")))
+    }
+    cf <- .make_covfactor(
+      dim=q, levels=labs, par=c(as.numeric(vals), ratioPar),
+      free=!as.logical(fixed),
+      par_names=c(paste0("cor_chol[", labs[rows], ",", labs[cols], "]"),
+                  paste0("variance_ratio[", labs[-1], "]")),
+      evaluator=list(backend="R", fun=eval_fun),
+      derivative=list(backend="numeric", rel_step=1e-6),
+      report=list(backend="builtin",
+                  transform=c(rep("identity", nCor), rep("exp", q - 1L)),
+                  lower=rep(NA_real_, nCor + q - 1L), upper=rep(NA_real_, nCor + q - 1L)),
+      native_report=report_fun,
+      trust_cap=rep(1.0, nCor + q - 1L),
+      structurally_diagonal=FALSE,
+      model="corgh",
+      metadata=list(ratio_index=nCor + seq_len(q - 1L), default_start=defaultStart)
+    )
+    return(list(Z=dummy, covFactor=cf))
+  }
+  
+  if(is.null(fixed)) fixed <- rep(FALSE, length(vals))
+  if(length(fixed) != length(vals)){
+    stop("fixed in corgm() must have length q(q-1)/2.", call. = FALSE)
+  }
+  
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="corg",
+      dim=as.integer(q),
+      levels=labs,
+      par=as.numeric(vals),
+      free=!as.logical(fixed),
+      par_names=paste0("cor_chol[", labs[rows], ",", labs[cols], "]"),
+      corg_row=rows,
+      corg_col=cols
+    ))
+  )
+}
+
+
+# Factor analytic covariance shape of rank k:
+#   M = Lambda Lambda' + Psi,  Psi diagonal positive,
+# then K = M / M[1,1].
+#
+# Lambda is lower-triangular in its leading k x k block for rotational
+# identification. Leading loading diagonals are positive (log parameterized).
+fam <- function(x, k=1L, loadings=NULL, specific=NULL, fixed=NULL,
+                variance=c("heterogeneous", "homogeneous")){
+  variance <- match.arg(variance)
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  labs <- colnames(dummy)
+  
+  k <- as.integer(k)
+  if(length(k) != 1L || k < 1L || k >= q){
+    stop("k in fam() must satisfy 1 <= k < number of levels.", call. = FALSE)
+  }
+  
+  rows <- integer()
+  cols <- integer()
+  diag_loading <- logical()
+  
+  for(j in seq_len(k)){
+    for(i in j:q){
+      rows <- c(rows, i)
+      cols <- c(cols, j)
+      diag_loading <- c(diag_loading, i == j)
+    }
+  }
+  
+  nload <- length(rows)
+  
+  if(is.null(loadings)){
+    L <- matrix(0, q, k)
+    for(j in seq_len(k)){
+      L[j,j] <- 0.60
+      if(j < q) L[(j+1L):q,j] <- 0.10
+    }
+  }else{
+    L <- as.matrix(loadings)
+    if(!all(dim(L) == c(q,k)) || any(!is.finite(L))){
+      stop("loadings in fam() must be a finite q x k matrix.", call. = FALSE)
+    }
+    for(j in seq_len(k)){
+      if(j > 1L) L[seq_len(j-1L),j] <- 0
+      if(L[j,j] <= 0){
+        stop("Leading diagonal loadings in fam() must be positive.", call. = FALSE)
+      }
+    }
+  }
+  
+  if(is.null(specific)) specific <- rep(0.50, q)
+  if(variance == "homogeneous" && length(specific) == 1L){
+    specific <- rep(specific, q)
+  }
+  if(length(specific) != q || any(!is.finite(specific)) || any(specific <= 0)){
+    stop("specific in fam() must contain q positive finite specific variances (or one value when variance='homogeneous').",
+         call. = FALSE)
+  }
+  if(variance == "homogeneous" && any(specific != specific[1L])){
+    stop("specific in homogeneous fam() must be a single value or q equal values.",
+         call. = FALSE)
+  }
+  
+  # Remove the otherwise redundant internal FA scale.  The first specific
+  # variance is the reference (=1); loadings are expressed in its SD units.
+  specific_scale <- specific[1]
+  specific <- specific / specific_scale
+  L <- L / sqrt(specific_scale)
+  
+  load_par <- numeric(nload)
+  load_names <- character(nload)
+  
+  for(a in seq_len(nload)){
+    i <- rows[a]; j <- cols[a]
+    if(diag_loading[a]){
+      load_par[a] <- log(L[i,j])
+      load_names[a] <- paste0("loading_diag[", labs[i], ",F", j, "]")
+    }else{
+      load_par[a] <- L[i,j]
+      load_names[a] <- paste0("loading[", labs[i], ",F", j, "]")
+    }
+  }
+  
+  par <- if(variance == "heterogeneous") c(load_par, log(specific[-1])) else load_par
+  par_names <- if(variance == "heterogeneous"){
+    c(load_names, paste0("specific_ratio[", labs[-1], "]"))
+  }else load_names
+  
+  if(is.null(fixed)) fixed <- rep(FALSE, length(par))
+  if(length(fixed) != length(par)){
+    stop("fixed in fam() must match the number of loading plus specific-variance parameters.",
+         call. = FALSE)
+  }
+  
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="fa",
+      dim=as.integer(q),
+      levels=labs,
+      order=k,
+      par=par,
+      free=!as.logical(fixed),
+      par_names=par_names,
+      fa_nload=as.integer(nload),
+      fa_row=rows,
+      fa_col=cols,
+      fa_diag=diag_loading,
+      variance=variance,
+      fa_specific_reference=labs[1]
+    ))
+  )
+}
+
+
+# Antedependence of order k using a modified-Cholesky representation
+#
+#   T y = e,  Cov(e)=D,
+#   K = T^{-1} D T^{-T},
+#
+# with T unit lower triangular and regression coefficients only in the
+# requested k subdiagonals. D[1,1]=1 is the scale reference.
+antem <- function(x, order=1L, beta=NULL, innovations=NULL, fixed=NULL){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  labs <- colnames(dummy)
+  
+  order <- as.integer(order)
+  if(length(order) != 1L || order < 1L || order >= q){
+    stop("order in antem() must satisfy 1 <= order < number of levels.",
+         call. = FALSE)
+  }
+  
+  rows <- integer()
+  cols <- integer()
+  for(i in 2:q){
+    j0 <- max(1L, i-order)
+    for(j in j0:(i-1L)){
+      rows <- c(rows, i)
+      cols <- c(cols, j)
+    }
+  }
+  
+  ncoef <- length(rows)
+  
+  if(is.null(beta)) beta <- rep(0.10, ncoef)
+  if(length(beta) != ncoef || any(!is.finite(beta))){
+    stop("beta in antem() has the wrong length or contains non-finite values.",
+         call. = FALSE)
+  }
+  
+  if(is.null(innovations)) innovations <- rep(1, q)
+  if(length(innovations) != q || any(!is.finite(innovations)) ||
+     any(innovations <= 0)){
+    stop("innovations in antem() must contain q positive finite values.",
+         call. = FALSE)
+  }
+  
+  ratios <- innovations / innovations[1]
+  par <- c(as.numeric(beta), log(ratios[-1]))
+  par_names <- c(
+    paste0("ante[", labs[rows], "<-", labs[cols], "]"),
+    paste0("innovation_ratio[", labs[-1], "]")
+  )
+  
+  if(is.null(fixed)) fixed <- rep(FALSE, length(par))
+  if(length(fixed) != length(par)){
+    stop("fixed in antem() must match the antedependence parameter count.",
+         call. = FALSE)
+  }
+  
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="ante",
+      dim=as.integer(q),
+      levels=labs,
+      order=order,
+      par=par,
+      free=!as.logical(fixed),
+      par_names=par_names,
+      ante_ncoef=as.integer(ncoef),
+      ante_row=rows,
+      ante_col=cols
+    ))
+  )
+}
+
+
+# User-defined covariance shape.
+#
+# Either:
+#   ownm(x, K=<known SPD matrix>)
+# or
+#   ownm(x, fun=function(par) ..., par=..., dfun=function(par,k) ...)
+#
+# The wrapper automatically normalizes fun(par) by [1,1], so vsm() retains the
+# unique overall sigma2. If dfun is omitted, ai_mme_sp2 uses a central numerical
+# derivative of the normalized user function.
+ownm <- function(x, K=NULL, fun=NULL, par=numeric(), fixed=NULL,
+                 dfun=NULL, par_names=NULL, native_report=NULL){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  labs <- colnames(dummy)
+  
+  normalize_matrix <- function(M){
+    M <- as.matrix(M)
+    if(!all(dim(M) == c(q,q)) || any(!is.finite(M))){
+      stop("ownm covariance function must return a finite q x q matrix.",
+           call. = FALSE)
+    }
+    M <- (M+t(M))/2
+    if(!is.finite(M[1,1]) || M[1,1] <= 0){
+      stop("ownm covariance shape must have a positive [1,1] element.",
+           call. = FALSE)
+    }
+    M / M[1,1]
+  }
+  
+  if(!is.null(K)){
+    if(!is.null(fun) || length(par)){
+      stop("When K is supplied to ownm(), do not also supply fun or par.",
+           call. = FALSE)
+    }
+    K0 <- normalize_matrix(K)
+    if(any(eigen(K0, symmetric=TRUE, only.values=TRUE)$values <= 0)){
+      stop("K supplied to ownm() must be positive definite.", call. = FALSE)
+    }
+    return(list(
+      Z=dummy,
+      covFactor=.compile_covfactor(list(
+        type="own",
+        dim=as.integer(q),
+        levels=labs,
+        par=numeric(),
+        free=logical(),
+        par_names=character(),
+        fixed_matrix=K0
+      ))
+    ))
+  }
+  
+  if(!is.function(fun)){
+    stop("ownm() requires either K or a covariance function fun(par).",
+         call. = FALSE)
+  }
+  
+  par <- as.numeric(par)
+  if(any(!is.finite(par))){
+    stop("par in ownm() must be finite.", call. = FALSE)
+  }
+  
+  raw_fun <- fun
+  wrapped_fun <- function(p){
+    M <- raw_fun(p)
+    M <- as.matrix(M)
+    M <- (M+t(M))/2
+    M / M[1,1]
+  }
+  
+  wrapped_dfun <- NULL
+  if(!is.null(dfun)){
+    if(!is.function(dfun)){
+      stop("dfun in ownm() must be NULL or a function(par, k).", call. = FALSE)
+    }
+    raw_dfun <- dfun
+    wrapped_dfun <- function(p, k){
+      M <- as.matrix(raw_fun(p))
+      M <- (M+t(M))/2
+      D <- as.matrix(raw_dfun(p, k))
+      D <- (D+t(D))/2
+      s <- M[1,1]
+      ds <- D[1,1]
+      (D*s - M*ds)/(s*s)
+    }
+  }
+  
+  K0 <- normalize_matrix(raw_fun(par))
+  if(any(eigen(K0, symmetric=TRUE, only.values=TRUE)$values <= 0)){
+    stop("Initial ownm() covariance shape must be positive definite.",
+         call. = FALSE)
+  }
+  
+  if(is.null(fixed)) fixed <- rep(FALSE, length(par))
+  if(length(fixed) != length(par)){
+    stop("fixed in ownm() must have length(par).", call. = FALSE)
+  }
+  
+  if(is.null(par_names)) par_names <- paste0("own[", seq_along(par), "]")
+  if(length(par_names) != length(par)){
+    stop("par_names in ownm() must have length(par).", call. = FALSE)
+  }
+  
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="own",
+      dim=as.integer(q),
+      levels=labs,
+      par=par,
+      free=!as.logical(fixed),
+      par_names=as.character(par_names),
+      fun=wrapped_fun,
+      dfun=wrapped_dfun,
+      native_report=native_report
+    ))
+  )
+}
+
+
+
+# Pure reduced-rank covariance: K = Lambda Lambda', with Lambda[1,1]=1.
+# The reference loading removes the internal scale already supplied by vsm().
+rrm <- function(x, k=1L, loadings=NULL, fixed=NULL){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  labs <- colnames(dummy)
+  
+  if(length(k) != 1L || !is.finite(k) || k != as.integer(k) || k < 1L || k >= q){
+    stop("k in rrm() must satisfy 1 <= k < number of levels.", call. = FALSE)
+  }
+  k <- as.integer(k)
+  
+  rows <- integer()
+  cols <- integer()
+  diag_loading <- logical()
+  
+  for(j in seq_len(k)){
+    for(i in j:q){
+      rows <- c(rows, i)
+      cols <- c(cols, j)
+      diag_loading <- c(diag_loading, i == j)
+    }
+  }
+  
+  nload <- length(rows)
+  
+  if(is.null(loadings)){
+    L <- matrix(0, q, k)
+    for(j in seq_len(k)){
+      L[j,j] <- 0.60
+      if(j < q) L[(j+1L):q,j] <- 0.10
+    }
+  }else{
+    L <- as.matrix(loadings)
+    if(!all(dim(L) == c(q,k)) || any(!is.finite(L))){
+      stop("loadings in rrm() must be a finite q x k matrix.", call. = FALSE)
+    }
+    for(j in seq_len(k)){
+      if(j > 1L) L[seq_len(j-1L),j] <- 0
+      if(L[j,j] <= 0){
+        stop("Leading diagonal loadings in rrm() must be positive.", call. = FALSE)
+      }
+    }
+  }
+  
+  L <- L / L[1L, 1L]
+  vals <- numeric(nload)
+  nm <- character(nload)
+  
+  for(a in seq_len(nload)){
+    i <- rows[a]; j <- cols[a]
+    if(diag_loading[a]){
+      vals[a] <- log(L[i,j])
+      nm[a] <- paste0("loading_diag[", labs[i], ",F", j, "]")
+    }else{
+      vals[a] <- L[i,j]
+      nm[a] <- paste0("loading[", labs[i], ",F", j, "]")
+    }
+  }
+  
+  if(is.null(fixed)) fixed <- rep(FALSE, length(vals))
+  if(length(fixed) != length(vals)){
+    stop("fixed in rrm() must match the number of loading parameters.", call. = FALSE)
+  }
+  if(!is.logical(fixed) || anyNA(fixed)){
+    stop("fixed in rrm() must be a logical vector without missing values.", call. = FALSE)
+  }
+  fixed[1L] <- TRUE
+  
+  list(
+    Z=dummy,
+    covFactor=.compile_covfactor(list(
+      type="rr",
+      dim=as.integer(q),
+      levels=labs,
+      order=k,
+      par=vals,
+      free=!as.logical(fixed),
+      par_names=nm,
+      rr_nload=as.integer(nload),
+      rr_row=rows,
+      rr_col=cols,
+      rr_diag=diag_loading,
+      zero_specific=TRUE
+    ))
+  )
+}
+
+# =========================================================================
+# Additional generic CovarianceFactor structures
+#   maternm(), toeplitzm(), sar(), car()
+#
+# These constructors intentionally use the universal CovarianceFactor v2
+# callback interface.  No ai_mme_sp2() change is required.
+# =========================================================================
+
+# Build an incidence matrix for unique spatial coordinates and return the
+# coordinate matrix in exactly the same column order as the incidence matrix.
+.spatial_cov_dummy <- function(x, expr){
+  if(is.data.frame(x)) x <- as.matrix(x)
+
+  if(is.vector(x) && !is.list(x)){
+    x <- matrix(as.numeric(x), ncol=1)
+  }else{
+    x <- as.matrix(x)
+  }
+
+  if(!is.numeric(x) || nrow(x) < 1L || ncol(x) < 1L || any(!is.finite(x))){
+    stop("Spatial coordinates must be a finite numeric vector, matrix, or data frame.",
+         call. = FALSE)
+  }
+
+  # unique.data.frame() preserves first occurrence, which keeps model ordering
+  # deterministic and consistent with the observation design.
+  ux <- unique(as.data.frame(x, check.names=FALSE))
+  coords <- as.matrix(ux)
+  storage.mode(coords) <- "double"
+
+  key <- function(M){
+    apply(M, 1L, function(z) paste(format(z, digits=17, scientific=FALSE,
+                                           trim=TRUE), collapse="\r"))
+  }
+  lev_key <- key(coords)
+  obs_key <- key(x)
+  idx <- match(obs_key, lev_key)
+  if(anyNA(idx)){
+    stop("Internal spatial-coordinate matching failure.", call. = FALSE)
+  }
+
+  Z <- Matrix::sparseMatrix(i=seq_len(nrow(x)), j=idx, x=1,
+                            dims=c(nrow(x), nrow(coords)))
+
+  if(ncol(coords) == 1L){
+    labs <- format(coords[,1], digits=12, trim=TRUE)
+  }else{
+    labs <- apply(coords, 1L, function(z) paste(format(z, digits=10,
+                                                        trim=TRUE), collapse=":"))
+  }
+  colnames(Z) <- make.unique(as.character(labs))
+  Z <- to_sparse(Z)
+
+  list(Z=Z, coords=coords, levels=colnames(Z), expr=expr)
+}
+
+# Align a user-supplied spatial weights/adjacency matrix to the levels of x.
+# Named matrices are reordered by level name.  Unnamed matrices are assumed
+# already to follow the incidence-column order.
+.align_spatial_weights <- function(W, levels, symmetric=FALSE,
+                                   nonnegative=FALSE,
+                                   zero_diagonal=FALSE,
+                                   name="W"){
+  W <- as.matrix(W)
+  q <- length(levels)
+  if(!all(dim(W) == c(q,q)) || any(!is.finite(W))){
+    stop(sprintf("%s must be a finite %d x %d matrix.", name, q, q),
+         call. = FALSE)
+  }
+
+  if(!is.null(rownames(W)) || !is.null(colnames(W))){
+    if(is.null(rownames(W)) || is.null(colnames(W))){
+      stop(sprintf("If %s has dimnames, both row and column names are required.", name),
+           call. = FALSE)
+    }
+    miss <- union(setdiff(levels, rownames(W)), setdiff(levels, colnames(W)))
+    if(length(miss)){
+      stop(sprintf("Levels missing from %s: %s", name, paste(miss, collapse=", ")),
+           call. = FALSE)
+    }
+    W <- W[levels, levels, drop=FALSE]
+  }
+
+  if(symmetric && max(abs(W-t(W))) > 1e-10){
+    stop(sprintf("%s must be symmetric for this covariance structure.", name),
+         call. = FALSE)
+  }
+  if(nonnegative && any(W < -1e-12)){
+    stop(sprintf("%s must contain non-negative adjacency weights.", name),
+         call. = FALSE)
+  }
+  if(zero_diagonal && any(abs(diag(W)) > 1e-12)){
+    stop(sprintf("%s must have a zero diagonal.", name), call. = FALSE)
+  }
+
+  W
+}
+
+# -------------------------------------------------------------------------
+# Matern correlation covariance shape.
+#
+# x can be a numeric coordinate vector or an n x d coordinate matrix/data
+# frame. Repeated coordinates share one covariance-product level.
+#
+# K(d) = 2^(1-nu)/Gamma(nu) * z^nu * BesselK_nu(z),
+# z = sqrt(2*nu) * d/range, with K(0)=1.
+# -------------------------------------------------------------------------
+maternm <- function(x, range=NULL, nu=0.5, fixed=c(FALSE,FALSE),
+                    distance=NULL, anisotropy=c("none", "geometric"),
+                    angle=pi/2, ratio=1.5){
+  anisotropy <- match.arg(anisotropy)
+  expr <- paste(deparse(substitute(x)), collapse="")
+  sx <- .spatial_cov_dummy(x, expr)
+  Z <- sx$Z
+  coords <- sx$coords
+  q <- ncol(Z)
+  geometric <- anisotropy == "geometric"
+  if(geometric && (ncol(coords) != 2L || !is.null(distance))){
+    stop("Geometric anisotropy in maternm() needs two-dimensional coordinates and no distance matrix.",
+         call. = FALSE)
+  }
+
+  if(q < 2L){
+    stop("maternm() requires at least two distinct spatial locations.", call. = FALSE)
+  }
+
+  if(is.null(distance)){
+    D <- as.matrix(stats::dist(coords))
+  }else{
+    D <- as.matrix(distance)
+    if(!all(dim(D) == c(q,q)) || any(!is.finite(D)) ||
+       max(abs(D-t(D))) > 1e-10 || any(D < -1e-12) ||
+       any(abs(diag(D)) > 1e-10)){
+      stop("distance in maternm() must be a finite symmetric q x q distance matrix with zero diagonal.",
+           call. = FALSE)
+    }
+  }
+
+  posd <- D[D > 0]
+  if(!length(posd)){
+    stop("maternm() requires at least one positive inter-location distance.",
+         call. = FALSE)
+  }
+  if(is.null(range)) range <- stats::median(posd)
+
+  if(length(range) != 1L || !is.finite(range) || range <= 0){
+    stop("range in maternm() must be one positive finite value.", call. = FALSE)
+  }
+  if(length(nu) != 1L || !is.finite(nu) || nu <= 0){
+    stop("nu in maternm() must be one positive finite value.", call. = FALSE)
+  }
+  nPar <- if(geometric) 4L else 2L
+  if(length(fixed) == 1L) fixed <- rep(fixed, nPar)
+  if(length(fixed) == 2L && geometric) fixed <- c(fixed, FALSE, FALSE)
+  if(length(fixed) != nPar){
+    stop("fixed in maternm() must have length 1 or ", nPar,
+         if(geometric) " (range, nu, angle, ratio)." else " (range, nu).",
+         call. = FALSE)
+  }
+  if(geometric){
+    if(length(angle) != 1L || !is.finite(angle) || angle <= 0 || angle >= pi){
+      stop("angle in maternm() must lie strictly between 0 and pi.", call. = FALSE)
+    }
+    if(length(ratio) != 1L || !is.finite(ratio) || ratio <= 0){
+      stop("ratio in maternm() must be one positive value.", call. = FALSE)
+    }
+  }
+
+  eval_fun <- local({
+    D0 <- D
+    C0 <- coords
+    function(par){
+      r <- exp(par[1])
+      v <- exp(par[2])
+      if(geometric) D0 <- .geometric_distance(C0, pi*stats::plogis(par[3]), exp(par[4]))$d
+      z <- sqrt(2*v) * D0 / r
+      K <- matrix(1, nrow(D0), ncol(D0))
+      use <- z > 1e-10
+      if(any(use)){
+        zu <- z[use]
+        # Scaled Bessel K avoids premature underflow; exp(-z) restores K_nu.
+        bk <- besselK(zu, nu=v, expon.scaled=TRUE)
+        logc <- (1-v)*log(2) - lgamma(v) + v*log(zu) + log(bk) - zu
+        val <- exp(logc)
+        val[!is.finite(val)] <- 0
+        K[use] <- val
+      }
+      diag(K) <- 1
+      K <- (K+t(K))/2
+      K
+    }
+  })
+
+  maternPar <- c(log_range=log(range), log_nu=log(nu))
+  maternNames <- c("range","nu")
+  maternTransform <- c("exp","exp")
+  maternLower <- c(NA_real_,NA_real_)
+  maternUpper <- c(NA_real_,NA_real_)
+  if(geometric){
+    maternPar <- c(maternPar, eta_angle=stats::qlogis(angle/pi), log_ratio=log(ratio))
+    maternNames <- c(maternNames, "angle", "ratio")
+    maternTransform <- c(maternTransform, "bounded_logit", "exp")
+    maternLower <- c(maternLower, 0, NA_real_)
+    maternUpper <- c(maternUpper, pi, NA_real_)
+  }
+
+  cf <- .make_covfactor(
+    dim=q,
+    levels=sx$levels,
+    par=maternPar,
+    free=!as.logical(fixed),
+    par_names=maternNames,
+    evaluator=list(backend="R", fun=eval_fun),
+    derivative=list(backend="numeric", rel_step=1e-6),
+    report=list(backend="builtin",
+                transform=maternTransform,
+                lower=maternLower,
+                upper=maternUpper),
+    trust_cap=c(1.0,0.75,rep(1.0, nPar-2L)),
+    structurally_diagonal=FALSE,
+    model="matern",
+    metadata=list(distance=D, coordinates=coords)
+  )
+
+  list(Z=Z, covFactor=cf)
+}
+
+# Rotated/stretched pairwise distances for geometric anisotropy; also returns
+# the pieces needed for analytic derivatives with respect to angle and ratio.
+.geometric_distance <- function(coords, angle, ratio){
+  dx <- outer(coords[,1], coords[,1], "-")
+  dy <- outer(coords[,2], coords[,2], "-")
+  u <- dx*cos(angle) + dy*sin(angle)
+  v <- -dx*sin(angle) + dy*cos(angle)
+  d <- sqrt(u^2 + (v/ratio)^2)
+  list(d=d, u=u, v=v)
+}
+
+.metric_shape <- function(model){
+  switch(model,
+    exponential=list(g=function(h) exp(-h), dg=function(h) -exp(-h)),
+    gaussian=list(g=function(h) exp(-h^2), dg=function(h) -2*h*exp(-h^2)),
+    spherical=list(g=function(h) ifelse(h < 1, 1 - 1.5*h + 0.5*h^3, 0),
+                   dg=function(h) ifelse(h < 1, -1.5 + 1.5*h^2, 0)),
+    circular=list(g=function(h){
+                    hh <- pmin(h, 1)
+                    ifelse(h < 1, (2/pi)*(acos(hh) - hh*sqrt(1 - hh^2)), 0)
+                  },
+                  dg=function(h) ifelse(h < 1, -(4/pi)*sqrt(1 - pmin(h, 1)^2), 0)))
+}
+
+# -------------------------------------------------------------------------
+# Distance-based (metric) correlation structures: exponential, power,
+# gaussian, spherical and circular, isotropic or anisotropic.
+# -------------------------------------------------------------------------
+metricm <- function(x, model=c("exponential", "power", "gaussian", "spherical", "circular"),
+                    range=NULL, rho=NULL, anisotropy=c("none", "product", "geometric"),
+                    angle=pi/2, ratio=1.5, metric=c("euclidean", "manhattan"),
+                    distance=NULL, fixed=NULL){
+  model <- match.arg(model)
+  anisotropy <- match.arg(anisotropy)
+  metric <- match.arg(metric)
+  expr <- paste(deparse(substitute(x)), collapse="")
+  sx <- .spatial_cov_dummy(x, expr)
+  coords <- sx$coords
+  q <- ncol(sx$Z)
+  nd <- ncol(coords)
+  if(q < 2L) stop("metricm() requires at least two distinct locations.", call. = FALSE)
+  if(anisotropy != "none" && nd != 2L){
+    stop("Anisotropic metricm() models require two-dimensional coordinates.", call. = FALSE)
+  }
+  if(anisotropy == "product" && !(model %in% c("exponential", "power", "gaussian"))){
+    stop("Product anisotropy is available for the exponential, power and gaussian models.",
+         call. = FALSE)
+  }
+  if(model == "spherical" && nd > 3L){
+    stop("The spherical model is only valid in up to three dimensions.", call. = FALSE)
+  }
+  if(model == "circular" && nd > 2L){
+    stop("The circular model is only valid in up to two dimensions.", call. = FALSE)
+  }
+  if(metric == "manhattan" && (anisotropy != "none" || !(model %in% c("exponential", "power")))){
+    stop("The manhattan metric is only valid for isotropic exponential and power models.",
+         call. = FALSE)
+  }
+  if(!is.null(distance) && anisotropy != "none"){
+    stop("A user distance matrix can only be used with anisotropy='none'.", call. = FALSE)
+  }
+
+  if(!is.null(distance)){
+    D <- as.matrix(distance)
+    if(!all(dim(D) == c(q,q)) || any(!is.finite(D)) || max(abs(D-t(D))) > 1e-10 ||
+       any(D < -1e-12) || any(abs(diag(D)) > 1e-10)){
+      stop("distance in metricm() must be a finite symmetric q x q distance matrix with zero diagonal.",
+           call. = FALSE)
+    }
+  }else{
+    D <- as.matrix(stats::dist(coords, method=metric))
+  }
+  posd <- D[D > 0]
+  if(!length(posd)) stop("metricm() requires a positive inter-location distance.", call. = FALSE)
+  med <- stats::median(posd)
+  isPower <- model == "power"
+
+  # one parameter per axis for product anisotropy, otherwise one
+  nAxis <- if(anisotropy == "product") 2L else 1L
+  axisDist <- if(anisotropy == "product"){
+    list(abs(outer(coords[,1], coords[,1], "-")), abs(outer(coords[,2], coords[,2], "-")))
+  }else NULL
+  if(isPower){
+    if(is.null(rho)) rho <- rep(exp(-1/med), nAxis)
+    if(length(rho) == 1L) rho <- rep(rho, nAxis)
+    if(length(rho) != nAxis || any(!is.finite(rho)) || any(rho <= 0 | rho >= 1)){
+      stop("rho in metricm() must lie strictly between 0 and 1 (one value per axis).",
+           call. = FALSE)
+    }
+    base <- stats::qlogis(rho)
+    baseNames <- if(nAxis == 2L) c("rho_x", "rho_y") else "rho"
+    baseReport <- rep("bounded_logit", nAxis)
+  }else{
+    if(is.null(range)) range <- rep(med, nAxis)
+    if(length(range) == 1L) range <- rep(range, nAxis)
+    if(length(range) != nAxis || any(!is.finite(range)) || any(range <= 0)){
+      stop("range in metricm() must be positive (one value per axis).", call. = FALSE)
+    }
+    base <- log(range)
+    baseNames <- if(nAxis == 2L) c("range_x", "range_y") else "range"
+    baseReport <- rep("exp", nAxis)
+  }
+  par <- base
+  parNames <- baseNames
+  transform <- baseReport
+  lower <- ifelse(baseReport == "bounded_logit", 0, NA_real_)
+  upper <- ifelse(baseReport == "bounded_logit", 1, NA_real_)
+  if(anisotropy == "geometric"){
+    if(length(angle) != 1L || !is.finite(angle) || angle <= 0 || angle >= pi){
+      stop("angle in metricm() must lie strictly between 0 and pi.", call. = FALSE)
+    }
+    if(length(ratio) != 1L || !is.finite(ratio) || ratio <= 0){
+      stop("ratio in metricm() must be one positive value.", call. = FALSE)
+    }
+    par <- c(par, stats::qlogis(angle/pi), log(ratio))
+    parNames <- c(parNames, "angle", "ratio")
+    transform <- c(transform, "bounded_logit", "exp")
+    lower <- c(lower, 0, NA_real_)
+    upper <- c(upper, pi, NA_real_)
+  }
+  if(is.null(fixed)) fixed <- rep(FALSE, length(par))
+  if(length(fixed) == 1L) fixed <- rep(fixed, length(par))
+  if(length(fixed) != length(par)){
+    stop("fixed in metricm() must have one value per parameter: ",
+         paste(parNames, collapse=", "), call. = FALSE)
+  }
+  shape <- if(isPower) NULL else .metric_shape(model)
+
+  # K and dK/dpar for the current working parameters.
+  kernel <- function(par, k=0L){
+    if(anisotropy == "product"){
+      if(isPower){
+        r <- stats::plogis(par[1:2])
+        K <- r[1]^axisDist[[1]] * r[2]^axisDist[[2]]
+        if(k == 0L) return(K)
+        return(K * axisDist[[k]] * (1 - r[k]))
+      }
+      ph <- exp(par[1:2])
+      h <- lapply(1:2, function(a) axisDist[[a]]/ph[a])
+      if(model == "exponential"){
+        K <- exp(-h[[1]] - h[[2]])
+        if(k == 0L) return(K)
+        return(K * h[[k]])
+      }
+      K <- exp(-h[[1]]^2 - h[[2]]^2)
+      if(k == 0L) return(K)
+      return(K * 2 * h[[k]]^2)
+    }
+    if(anisotropy == "geometric"){
+      a <- pi*stats::plogis(par[2]); lam <- exp(par[3])
+      gd <- .geometric_distance(coords, a, lam)
+      d <- gd$d
+    }else{
+      d <- D
+    }
+    if(isPower){
+      r <- stats::plogis(par[1])
+      K <- r^d
+      dKdd <- K*log(r)
+      dK1 <- K*d*(1 - r)
+    }else{
+      ph <- exp(par[1])
+      h <- d/ph
+      K <- shape$g(h)
+      dKdd <- shape$dg(h)/ph
+      dK1 <- -shape$dg(h)*h
+    }
+    if(k == 0L){ diag(K) <- 1; return(K) }
+    if(k == 1L){ diag(dK1) <- 0; return(dK1) }
+    safe <- d > 0
+    dd <- matrix(0, q, q)
+    if(k == 2L){
+      sa <- stats::plogis(par[2])
+      dd[safe] <- (gd$u*gd$v*(1 - 1/lam^2))[safe]/d[safe] * pi*sa*(1 - sa)
+    }else{
+      dd[safe] <- -(gd$v^2/lam^2)[safe]/d[safe]
+    }
+    dKdd * dd
+  }
+
+  K0 <- kernel(par)
+  if(model == "gaussian" && rcond(K0) < 1e-10){
+    warning("The starting gaussian correlation matrix is nearly singular; ",
+            "keep a residual (nugget) term or use a smaller starting range.", call. = FALSE)
+  }
+
+  cf <- .make_covfactor(
+    dim=q,
+    levels=sx$levels,
+    par=stats::setNames(par, parNames),
+    free=!as.logical(fixed),
+    par_names=parNames,
+    evaluator=list(backend="R", fun=function(par) kernel(par)),
+    derivative=list(backend="R", fun=function(par, k) kernel(par, as.integer(k))),
+    report=list(backend="builtin", transform=transform, lower=lower, upper=upper),
+    trust_cap=rep(1.0, length(par)),
+    structurally_diagonal=FALSE,
+    model="metric",
+    metadata=list(distance=D, coordinates=coords, metric_model=model,
+                  anisotropy=anisotropy)
+  )
+
+  list(Z=sx$Z, covFactor=cf)
+}
+
+# -------------------------------------------------------------------------
+# General positive-definite Toeplitz correlation covariance.
+#
+# A q x q Toeplitz correlation matrix is parameterized by q-1 reflection
+# coefficients / partial autocorrelations in (-1,1).  This gives an
+# unconstrained working parameterization through atanh(pacf) while preserving
+# positive definiteness.
+# -------------------------------------------------------------------------
+toeplitzm <- function(x, pacf=NULL, fixed=NULL){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  if(q < 2L){
+    stop("toeplitzm() requires at least two ordered levels.", call. = FALSE)
+  }
+
+  p <- q-1L
+  if(is.null(pacf)) pacf <- rep(0.10, p)
+  if(length(pacf) != p || any(!is.finite(pacf)) || any(abs(pacf) >= 1)){
+    stop("pacf in toeplitzm() must contain q-1 finite values strictly inside (-1,1).",
+         call. = FALSE)
+  }
+  if(is.null(fixed)) fixed <- rep(FALSE, p)
+  if(length(fixed) != p){
+    stop("fixed in toeplitzm() must have length q-1.", call. = FALSE)
+  }
+
+  eval_fun <- local({
+    q0 <- q
+    function(par){
+      kappa <- tanh(par)
+      phi <- numeric()
+      for(m in seq_along(kappa)){
+        nxt <- numeric(m)
+        nxt[m] <- kappa[m]
+        if(m > 1L){
+          for(j in seq_len(m-1L)){
+            nxt[j] <- phi[j] - kappa[m] * phi[m-j]
+          }
+        }
+        phi <- nxt
+      }
+
+      ord <- length(phi)
+      A <- matrix(0, ord, ord)
+      b <- numeric(ord)
+      for(kk in seq_len(ord)){
+        A[kk,kk] <- A[kk,kk] + 1
+        for(jj in seq_len(ord)){
+          d <- abs(kk-jj)
+          if(d == 0L) b[kk] <- b[kk] + phi[jj]
+          else A[kk,d] <- A[kk,d] - phi[jj]
+        }
+      }
+      rho <- c(1, as.numeric(solve(A,b)))
+      stats::toeplitz(rho[seq_len(q0)])
+    }
+  })
+
+  cf <- .make_covfactor(
+    dim=q,
+    levels=colnames(dummy),
+    par=atanh(pacf),
+    free=!as.logical(fixed),
+    par_names=paste0("pacf[", seq_len(p), "]"),
+    evaluator=list(backend="R", fun=eval_fun),
+    derivative=list(backend="numeric", rel_step=1e-6),
+    report=list(backend="builtin",
+                transform=rep("tanh",p),
+                lower=rep(NA_real_,p),
+                upper=rep(NA_real_,p)),
+    trust_cap=rep(1.0,p),
+    structurally_diagonal=FALSE,
+    model="toeplitz"
+  )
+
+  list(Z=dummy, covFactor=cf)
+}
+
+# -------------------------------------------------------------------------
+# Simultaneous autoregressive (SAR) covariance.
+#
+#   B = I - rho W
+#   M = B^{-1} B^{-T}
+#   K = M / M[1,1]
+#
+# rho is restricted to (-1/r(W), 1/r(W)), where r(W) is the spectral radius.
+# This conservative interval guarantees B is nonsingular for any real square W.
+# -------------------------------------------------------------------------
+sar <- function(x, W, rho=0.10, fixed=FALSE){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  if(q < 2L) stop("sar() requires at least two spatial levels.", call. = FALSE)
+
+  W <- .align_spatial_weights(W, colnames(dummy), symmetric=FALSE,
+                              nonnegative=FALSE, zero_diagonal=FALSE,
+                              name="W")
+  ev <- eigen(W, only.values=TRUE)$values
+  radius <- max(Mod(ev))
+  if(!is.finite(radius) || radius <= 0){
+    stop("W in sar() must have a positive finite spectral radius.", call. = FALSE)
+  }
+  bound <- 1/radius
+  if(length(rho) != 1L || !is.finite(rho) || abs(rho) >= bound){
+    stop(sprintf("rho in sar() must lie strictly between %.6g and %.6g.",
+                 -bound, bound), call. = FALSE)
+  }
+  if(length(fixed) != 1L) stop("fixed in sar() must have length one.", call. = FALSE)
+
+  # Symmetric bounded-logit map (-bound,bound) -> R.
+  p0 <- (rho + bound)/(2*bound)
+  eta <- qlogis(p0)
+
+  eval_fun <- local({
+    W0 <- W; b0 <- bound; q0 <- q
+    function(par){
+      s <- plogis(par[1])
+      r <- -b0 + 2*b0*s
+      A <- solve(diag(q0) - r*W0)
+      M <- tcrossprod(A)
+      M / M[1,1]
+    }
+  })
+
+  d1_fun <- local({
+    W0 <- W; b0 <- bound; q0 <- q
+    function(par, k){
+      if(k != 1L) stop("Invalid SAR derivative index.", call. = FALSE)
+      s <- plogis(par[1])
+      r <- -b0 + 2*b0*s
+      dr <- 2*b0*s*(1-s)
+      A <- solve(diag(q0) - r*W0)
+      dA <- dr * A %*% W0 %*% A
+      M <- tcrossprod(A)
+      D <- dA %*% t(A) + A %*% t(dA)
+      sc <- M[1,1]; dsc <- D[1,1]
+      (D*sc - M*dsc)/(sc*sc)
+    }
+  })
+
+  cf <- .make_covfactor(
+    dim=q,
+    levels=colnames(dummy),
+    par=c(eta_rho=eta),
+    free=c(!isTRUE(fixed)),
+    par_names="rho",
+    evaluator=list(backend="R", fun=eval_fun),
+    derivative=list(backend="R", fun=d1_fun),
+    report=list(backend="builtin",
+                transform="bounded_logit",
+                lower=-bound,
+                upper=bound),
+    trust_cap=1.0,
+    structurally_diagonal=FALSE,
+    model="sar",
+    metadata=list(W=W, rho_bound=bound)
+  )
+
+  list(Z=dummy, covFactor=cf)
+}
+
+# -------------------------------------------------------------------------
+# Proper conditional autoregressive (CAR) covariance.
+#
+# For a symmetric nonnegative adjacency matrix W with zero diagonal:
+#   D = diag(rowSums(W))
+#   Q = D - rho W
+#   M = Q^{-1}
+#   K = M / M[1,1]
+#
+# Using S = D^{-1/2} W D^{-1/2}, rho is mapped to the exact open interval
+# for which I-rho*S (and hence Q) is positive definite.
+# -------------------------------------------------------------------------
+car <- function(x, W, rho=0.10, fixed=FALSE){
+  expr <- as.character(substitute(x))
+  dummy <- .cov_dummy(x, expr)
+  q <- ncol(dummy)
+  if(q < 2L) stop("car() requires at least two spatial levels.", call. = FALSE)
+
+  W <- .align_spatial_weights(W, colnames(dummy), symmetric=TRUE,
+                              nonnegative=TRUE, zero_diagonal=TRUE,
+                              name="W")
+  rs <- rowSums(W)
+  if(any(!is.finite(rs)) || any(rs <= 0)){
+    stop("Every level in car() must have positive total adjacency weight (no isolated levels).",
+         call. = FALSE)
+  }
+  S <- diag(1/sqrt(rs)) %*% W %*% diag(1/sqrt(rs))
+  lam <- eigen(S, symmetric=TRUE, only.values=TRUE)$values
+  lam_pos <- lam[lam > 1e-12]
+  lam_neg <- lam[lam < -1e-12]
+  upper <- if(length(lam_pos)) 1/max(lam_pos) else Inf
+  lower <- if(length(lam_neg)) 1/min(lam_neg) else -Inf
+
+  # A finite two-sided transform is desirable for optimizer/reporting.  For
+  # ordinary undirected adjacency matrices S has both signs; if not, use a
+  # conservative symmetric finite interval based on the spectral radius.
+  if(!is.finite(lower) || !is.finite(upper)){
+    rad <- max(abs(lam))
+    if(!is.finite(rad) || rad <= 0){
+      stop("Unable to determine a valid CAR dependence interval.", call. = FALSE)
+    }
+    lower <- -1/rad
+    upper <-  1/rad
+  }
+
+  eps <- 1e-12 * max(1, abs(lower), abs(upper))
+  if(length(rho) != 1L || !is.finite(rho) ||
+     rho <= lower+eps || rho >= upper-eps){
+    stop(sprintf("rho in car() must lie strictly between %.6g and %.6g.",
+                 lower, upper), call. = FALSE)
+  }
+  if(length(fixed) != 1L) stop("fixed in car() must have length one.", call. = FALSE)
+
+  p0 <- (rho-lower)/(upper-lower)
+  eta <- qlogis(p0)
+  Dmat <- diag(rs)
+
+  eval_fun <- local({
+    W0 <- W; D0 <- Dmat; lo0 <- lower; hi0 <- upper
+    function(par){
+      s <- plogis(par[1])
+      r <- lo0 + (hi0-lo0)*s
+      M <- solve(D0 - r*W0)
+      M <- (M+t(M))/2
+      M / M[1,1]
+    }
+  })
+
+  d1_fun <- local({
+    W0 <- W; D0 <- Dmat; lo0 <- lower; hi0 <- upper
+    function(par, k){
+      if(k != 1L) stop("Invalid CAR derivative index.", call. = FALSE)
+      s <- plogis(par[1])
+      r <- lo0 + (hi0-lo0)*s
+      dr <- (hi0-lo0)*s*(1-s)
+      M <- solve(D0 - r*W0)
+      D <- dr * M %*% W0 %*% M
+      M <- (M+t(M))/2
+      D <- (D+t(D))/2
+      sc <- M[1,1]; dsc <- D[1,1]
+      (D*sc - M*dsc)/(sc*sc)
+    }
+  })
+
+  cf <- .make_covfactor(
+    dim=q,
+    levels=colnames(dummy),
+    par=c(eta_rho=eta),
+    free=c(!isTRUE(fixed)),
+    par_names="rho",
+    evaluator=list(backend="R", fun=eval_fun),
+    derivative=list(backend="R", fun=d1_fun),
+    report=list(backend="builtin",
+                transform="bounded_logit",
+                lower=lower,
+                upper=upper),
+    trust_cap=1.0,
+    structurally_diagonal=FALSE,
+    model="car",
+    metadata=list(W=W, degree=rs,
+                  rho_lower=lower, rho_upper=upper)
+  )
+
+  list(Z=dummy, covFactor=cf)
+}

@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Interactive sommer mmes_control decision tree: accepted options, defaults, examples, model eligibility and compatibility rules.">
+<title>mmes_control decision tree | sommer</title>
+<style>
+:root{color-scheme:light;--ink:#182c40;--muted:#4b6077;--line:#d5dfeb;--blue:#245dcc;--paper:#f3f6fa}
+*{box-sizing:border-box}body{margin:0;font:15px/1.5 system-ui,-apple-system,sans-serif;color:var(--ink);background:var(--paper)}
+header{padding:20px 28px;background:#fff;border-bottom:1px solid var(--line)}h1{font-size:27px;margin:12px 0 5px}h2{font-size:21px;margin:0 0 10px}h3{font-size:17px;margin:12px 0 5px}
+p{margin:6px 0 12px}a{color:#174fae}header nav{display:flex;gap:20px;flex-wrap:wrap}.muted{color:var(--muted)}.badge{display:inline-block;border-radius:20px;padding:3px 10px;background:#eaf0fe;font-size:13px}
+.notice{padding:12px;background:#fff5dc;border:1px solid #efd597;border-radius:8px}
+.toolbar{display:flex;align-items:center;flex-wrap:wrap;gap:8px;padding:14px 28px;background:white;border-bottom:1px solid var(--line)}
+button,input,select{font:inherit;border:1px solid #b9c8da;border-radius:7px;padding:8px 12px;background:#fff;color:var(--ink)}
+button{cursor:pointer}button:hover{background:#edf3fc}button[aria-pressed="true"]{color:#fff;background:var(--blue);border-color:var(--blue)}
+:focus-visible{outline:3px solid #245dcc;outline-offset:3px}.spacer{flex:1}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,440px)}
+.canvas{position:relative;background:radial-gradient(#cdd8e6 1px,transparent 1px);background-size:20px 20px;border-right:1px solid var(--line);min-width:0}
+svg{width:100%;height:850px;display:block;touch-action:pan-y;cursor:grab}svg.dragging{cursor:grabbing}
+.edge{fill:none;stroke:#8a9db4;stroke-width:2}.edge.join{stroke:#8570bc;stroke-dasharray:7 5}
+.edge-label{font:12px system-ui,sans-serif;fill:#43576c;paint-order:stroke;stroke:var(--paper);stroke-width:5px}
+.node{cursor:pointer}.node rect{stroke:#a9bed8;stroke-width:1.5}
+.node:hover rect,.node:focus rect,.node[aria-pressed="true"] rect{stroke:var(--blue);stroke-width:3}
+.node text{pointer-events:none;fill:var(--ink);font:13px system-ui,sans-serif}.node .title{font-size:16px;font-weight:650}
+.node .sub{font-size:11px;fill:var(--muted)}
+aside{padding:22px;background:#fff;max-height:900px;overflow:auto;scroll-margin-top:12px}
+.legend{padding:12px 18px;font-size:13px}.legend span{display:inline-block;width:24px;border-top:2px solid #8a9db4;margin-right:5px}.legend .join{border-color:#8570bc;border-top-style:dashed}
+.node-picker{padding:12px 18px;background:#fff}.node-picker select{width:100%;margin-top:5px}
+.control,.panel{border:1px solid var(--line);border-radius:8px;padding:14px;margin:12px 0;background:#fff;overflow-wrap:anywhere}
+.control h3{margin:0 0 8px}.control summary{cursor:pointer;font-weight:600}.values{margin:8px 0}
+dl{margin:8px 0}dt{font-weight:650;margin-top:9px}dd{margin:2px 0 8px;color:#43576c}
+code,pre{font:13px/1.6 ui-monospace,SFMono-Regular,monospace;background:#eef3f9;border-radius:4px}
+code{padding:2px 4px}pre{padding:12px;white-space:pre-wrap;overflow-wrap:anywhere}pre code{padding:0}
+.catalog{padding:24px 28px;max-width:1400px;margin:auto}.filters{display:flex;gap:10px;flex-wrap:wrap;margin:15px 0}.filters input{flex:1;min-width:180px}
+.catalog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,330px),1fr));gap:12px}.catalog-grid .control{margin:0}
+[hidden]{display:none!important}footer{padding:18px 28px;color:var(--muted);border-top:1px solid var(--line);font-size:13px}
+@media(max-width:1000px){.workspace{grid-template-columns:1fr}.canvas{border-right:0}aside{max-height:none;border-top:1px solid var(--line)}svg{height:680px}.toolbar{padding:12px}}
+@media(max-width:600px){header,.catalog{padding:16px}svg{height:560px}.toolbar button{padding:7px 9px;font-size:14px}}
+@media print{.toolbar,.legend,.node-picker{display:none}.workspace{display:block}svg{height:auto;aspect-ratio:1440/1450}aside{max-height:none}.canvas{border:0}}
+</style>
+</head>
+<body>
+<header>
+  <nav aria-label="Website"><a href="index.html">sommer home</a><a href="index.html#features">Features</a><a href="reference/mmes_control.html">mmes_control reference</a><a href="articles/sommer.mmes.options.html">Detailed vignette</a></nav>
+  <h1>mmes_control decision tree</h1>
+  <p>Choose a box to see its arguments, accepted options, defaults and R examples. Start with <code>mmes_control()</code> and change one module at a time.</p>
+  <p class="badge" id="snapshot"></p>
+  <p class="notice">A connected path is not a promise that every combination is supported. Controls record requests; model-specific validation during fitting remains authoritative. This guide does not fit or validate models. Defaults below assume no <code>sommer.mme.*</code> global overrides.</p>
+</header>
+<noscript><p class="notice">Enable JavaScript to use the interactive tree. The <a href="reference/mmes_control.html">function reference</a> and <a href="articles/sommer.mmes.options.html">vignette</a> document all controls without JavaScript.</p></noscript>
+<nav class="toolbar" aria-label="Guide views">
+  <button data-view="decision" aria-pressed="true">Decision tree</button>
+  <button data-view="modules" aria-pressed="false">By argument</button>
+  <button data-view="catalog" aria-pressed="false">All options</button>
+  <button data-view="structures" aria-pressed="false">Model structures</button>
+  <button data-view="rules" aria-pressed="false">Compatibility</button>
+  <span class="spacer"></span>
+  <button id="zoomOut" aria-label="Zoom out">Zoom -</button><button id="zoomIn" aria-label="Zoom in">Zoom +</button><button id="reset">Fit graph</button>
+</nav>
+<main>
+  <div class="workspace" id="workspace">
+    <section class="canvas" aria-label="Interactive decision map">
+      <div class="node-picker"><label for="nodePicker">Jump to a box (also useful on small screens)</label><select id="nodePicker"></select></div>
+      <svg id="graph" role="group" aria-label="Decision graph. Tab to a box and press Enter or Space to display options.">
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#8a9db4"/></marker></defs>
+        <g id="edges"></g><g id="nodes"></g>
+      </svg>
+      <p class="legend"><span></span>Branch / data flow &nbsp; <span class="join"></span>Shared stage<br>Drag the background to pan; use the zoom buttons to inspect the graph.</p>
+    </section>
+    <aside id="detail" aria-label="Selected box options" tabindex="-1"></aside>
+  </div>
+  <section id="catalog" class="catalog" hidden>
+    <h2>All current options</h2><p>Search the public numerical controls and the model arguments that determine eligibility. Removed flat arguments and private transport are not accepted aliases.</p>
+    <div class="filters"><input id="search" type="search" placeholder="Search options, values or requirements" aria-label="Search options"><select id="owner" aria-label="Filter by argument"><option value="">All arguments</option></select></div>
+    <p id="count" role="status"></p><div class="catalog-grid" id="entries"></div>
+  </section>
+  <section id="structures" class="catalog" hidden><h2>Model structures and numerical paths</h2><p>Structure can enable shortcuts without changing the statistical model. Each path has its own admission checks.</p><div id="structureEntries" class="catalog-grid"></div></section>
+  <section id="rules" class="catalog" hidden><h2>Compatibility and fit-time checks</h2><p>These rules and error messages come from the working-tree implementation. Eligibility also depends on the model and data; this is not an exhaustive model validator.</p><div id="ruleEntries"></div><h2>Additional fit-time validation messages</h2><div id="fitChecks"></div></section>
+</main>
+<footer>Self-contained interactive guide; no external scripts, fonts, or model fitting. Generated from the current control constructor, capability catalog and compatibility rules. <a href="https://github.com/covaruber/sommer">Source code</a></footer>
+<script id="catalogData" type="application/json">__MMES_OPTIONS_JSON__</script>
+<script>
+"use strict";
+const data=JSON.parse(document.getElementById("catalogData").textContent);
+const $=id=>document.getElementById(id), ns="http://www.w3.org/2000/svg";
+const list=value=>value==null?[]:Array.isArray(value)?value:[value];
+const positions={model:[560,20],task:[560,150],known:[60,280],family:[560,280],pql:[1060,410],domain:[560,440],direct:[60,580],henderson:[810,580],pcg:[1060,720],deterministic:[560,720],representation:[560,860],curvature:[560,1000],optimizer:[60,1000],convergence:[60,1140],outputs:[560,1280],policy:[1060,1280]};
+const colors={model:"#e2f5ef",task:"#e6f2ff",formulation:"#e9e9ff",representation:"#e2f5ef",solve:"#e4efff",logdet:"#e4efff",score:"#e2f5ef",curvature:"#f0e8ff",update:"#fff0da",proposal:"#fff0da",convergence:"#fff0da",output:"#e4f4f8",execution:"#edf0f4",diagnostics:"#edf0f4"};
+const modules=data.modules.filter(m=>m.id!=="compatibility");
+const modulePositions=Object.fromEntries(modules.map((m,i)=>[m.id,[70+(i%3)*450,30+Math.floor(i/3)*170]]));
+let mode="decision",selected=null,box=[0,0,1440,1450],drag=null;
+function html(tag,text,cls){const e=document.createElement(tag);if(text!==undefined)e.textContent=text;if(cls)e.className=cls;return e;}
+function svg(tag,attrs,text){const e=document.createElementNS(ns,tag);for(const [key,value] of Object.entries(attrs))e.setAttribute(key,value);if(text!==undefined)e.textContent=text;return e;}
+function pair(dl,label,value){if(value==null||value==="")return;dl.append(html("dt",label),html("dd",list(value).join(", ")));}
+function example(text){const pre=html("pre");pre.append(html("code",text));return pre;}
+function card(row){
+ const article=html("article",undefined,"control"),heading=html("h3");heading.append(html("code",row.option));article.append(heading);
+ article.append(html("p",row.kind+" | "+row.module,"muted"));
+ const dl=html("dl");pair(dl,"Accepted options / values",row.values);pair(dl,"Default",row.default);pair(dl,"What it does",row.effect);article.append(dl);
+ article.append(example(row.usage));
+ const more=html("details"),summary=html("summary","Requirements, limitations and implementation");more.append(summary);
+ const details=html("dl");for(const [key,label] of Object.entries({requires:"Requires",excludes:"Excludes / limitations",fallback:"Admission / fallback",previous:"Historical name (not accepted)",source:"Implementation evidence"}))pair(details,label,row[key]);
+ more.append(details);article.append(more);return article;
+}
+function ruleCard(rule){
+ const section=html("section",undefined,"panel");section.append(html("h3",rule.when),html("p",rule.message),html("p",rule.hint));
+ const dl=html("dl");pair(dl,"Checked at",rule.stage);pair(dl,"Conflicting or unused settings",rule.offending);section.append(dl);return section;
+}
+function structureCard(row){
+ const section=html("article",undefined,"panel");section.append(html("h3",row.pattern),example(row.example),html("p",row.path));
+ const dl=html("dl");pair(dl,"Controls",row.options);pair(dl,"Requires",row.requires);section.append(dl);return section;
+}
+function currentNodes(){return mode==="modules"?modules.map(m=>({id:m.id,title:m.id,subtitle:m.id==="model"?"mmes() model inputs":"mmes_control() argument",text:m.responsibility,controls:data.controls.filter(c=>c.module===m.id).map(c=>c.path)})):data.nodes;}
+function setBox(){$("graph").setAttribute("viewBox",box.join(" "));}
+function fit(){box=mode==="modules"?[0,0,1440,880]:[0,0,1440,1450];setBox();}
+function render(){
+ $("edges").replaceChildren();$("nodes").replaceChildren();$("nodePicker").replaceChildren();
+ const pos=mode==="modules"?modulePositions:positions;
+ if(mode==="decision")for(const edge of data.edges){
+  const a=pos[edge.from],b=pos[edge.to];let sx=a[0]+145,sy=a[1]+90,tx=b[0]+145,ty=b[1],path;
+  if(a[1]===b[1]){sx=a[0]+(a[0]<b[0]?290:0);sy=a[1]+45;tx=b[0]+(a[0]<b[0]?0:290);ty=b[1]+45;path=`M ${sx} ${sy} L ${tx} ${ty}`;}
+  else if(edge.from==="known"||edge.from==="direct"||edge.from==="pcg"){
+   const lane=edge.from==="known"?20:edge.from==="direct"?390:1390;
+   sx=a[0]+(edge.from==="pcg"?290:0);sy=a[1]+45;tx=b[0]+(edge.from==="pcg"?290:0);ty=b[1]+45;
+   path=`M ${sx} ${sy} C ${lane} ${sy},${lane} ${ty},${tx} ${ty}`;
+  }else{const mid=(sy+ty)/2;path=`M ${sx} ${sy} C ${sx} ${mid},${tx} ${mid},${tx} ${ty}`;}
+  $("edges").append(svg("path",{d:path,class:"edge"+(edge.kind==="join"?" join":""),"marker-end":"url(#arrow)"}));
+  if(edge.label)$("edges").append(svg("text",{x:(sx+tx)/2+8,y:(sy+ty)/2-8,class:"edge-label"},edge.label));
+ }
+ for(const n of currentNodes()){
+  const [x,y]=pos[n.id],owner=mode==="modules"?n.id:(data.controls.find(c=>list(n.controls).includes(c.path))||{}).module;
+  const g=svg("g",{class:"node",transform:`translate(${x},${y})`,tabindex:"0",role:"button","aria-label":n.title+". Show options","aria-controls":"detail","aria-pressed":"false","data-node":n.id});
+  g.append(svg("rect",{width:290,height:90,rx:12,fill:colors[owner]||"#fff"}),svg("text",{x:12,y:27,class:"title"},n.title),svg("text",{x:12,y:50,class:"sub"},n.subtitle),svg("text",{x:12,y:74,class:"sub"},`${list(n.controls).length} options - select to inspect`));
+  g.addEventListener("click",()=>select(n.id,true));g.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();select(n.id,true);}});
+  $("nodes").append(g);const option=html("option",n.title);option.value=n.id;$("nodePicker").append(option);
+ }
+}
+function select(id,move=false){
+ const node=currentNodes().find(n=>n.id===id);if(!node)return;
+ selected=id;for(const g of $("nodes").children)g.setAttribute("aria-pressed",String(g.dataset.node===id));$("nodePicker").value=id;
+ const aside=$("detail");aside.replaceChildren(html("h2",node.title));if(node.question)aside.append(html("h3",node.question));aside.append(html("p",node.text));
+ if(node.example)aside.append(example(node.example));
+ const link=html("a","Link to this box");link.href="#"+(mode==="modules"?"argument-":"")+id;aside.append(link);
+ const rows=data.controls.filter(c=>list(node.controls).includes(c.path));aside.append(html("h3",`Options (${rows.length})`));
+ rows.forEach(row=>aside.append(card(row)));
+ const rules=data.rules.filter(r=>list(node.rules).includes(r.id)||list(r.nodes).includes(id));
+ if(rules.length){aside.append(html("h3","Compatibility"));rules.forEach(r=>aside.append(ruleCard(r)));}
+ const tips=data.tips.filter(t=>list(t.nodes).includes(id));if(tips.length){aside.append(html("h3","Practical guidance"));tips.forEach(t=>aside.append(html("p",t.text,"notice")));}
+ aside.scrollTop=0;
+ if(move){history.replaceState(null,"","#"+(mode==="modules"?"argument-":"")+id);if(matchMedia("(max-width: 1000px)").matches)aside.scrollIntoView({block:"start"});aside.focus({preventScroll:true});}
+}
+function filter(){
+ const q=$("search").value.toLowerCase().trim(),owner=$("owner").value;
+ const rows=data.controls.filter(r=>(!owner||r.module===owner)&&(!q||Object.values(r).join(" ").toLowerCase().includes(q)));
+ $("count").textContent=`${rows.length} of ${data.controls.length} options`;$("entries").replaceChildren(...rows.map(card));
+}
+function show(view,id){
+ mode=view;const graph=view==="decision"||view==="modules";$("workspace").hidden=!graph;
+ for(const key of ["catalog","structures","rules"])$(key).hidden=view!==key;
+ for(const button of document.querySelectorAll("[data-view]"))button.setAttribute("aria-pressed",String(button.dataset.view===view));
+ for(const key of ["zoomIn","zoomOut","reset"])$(key).disabled=!graph;
+ if(graph){render();fit();select(id||(view==="modules"?"formulation":"model"));}
+ if(view==="catalog")filter();
+}
+function zoom(factor){const [x,y,w,h]=box;box=[x+w*(1-factor)/2,y+h*(1-factor)/2,w*factor,h*factor];setBox();}
+$("zoomIn").onclick=()=>zoom(.8);$("zoomOut").onclick=()=>zoom(1.25);$("reset").onclick=fit;
+for(const button of document.querySelectorAll("[data-view]"))button.onclick=()=>{show(button.dataset.view);history.replaceState(null,"","#"+button.dataset.view);};
+$("nodePicker").onchange=()=>select($("nodePicker").value,true);
+for(const id of ["search","owner"])$(id).addEventListener("input",filter);
+for(const m of modules){const option=html("option",m.id);option.value=m.id;$("owner").append(option);}
+$("structureEntries").replaceChildren(...data.structures.map(structureCard));$("ruleEntries").replaceChildren(...data.rules.map(ruleCard));
+for(const check of data.fitChecks){const details=html("details",undefined,"panel");details.append(html("summary",check.message),html("p","Source: "+check.file));$("fitChecks").append(details);}
+$("graph").addEventListener("pointerdown",e=>{if(e.target.closest(".node")||e.pointerType==="touch"||e.button!==0)return;drag={x:e.clientX,y:e.clientY,box:[...box]};$("graph").setPointerCapture(e.pointerId);$("graph").classList.add("dragging");});
+$("graph").addEventListener("pointermove",e=>{if(!drag)return;const rect=$("graph").getBoundingClientRect(),scale=Math.min(rect.width/drag.box[2],rect.height/drag.box[3]);box=[drag.box[0]-(e.clientX-drag.x)/scale,drag.box[1]-(e.clientY-drag.y)/scale,drag.box[2],drag.box[3]];setBox();});
+for(const event of ["pointerup","pointercancel"])$("graph").addEventListener(event,()=>{drag=null;$("graph").classList.remove("dragging");});
+$("snapshot").textContent=`sommer ${data.meta.version} | Updated ${data.meta.generated} | ${data.controls.length} options | ${data.nodes.length} decision boxes`;
+function openHash(){
+ const hash=location.hash.slice(1);
+ if(["catalog","structures","rules","modules","decision"].includes(hash))show(hash);
+ else if(hash.startsWith("argument-")&&modules.some(m=>m.id===hash.slice(9)))show("modules",hash.slice(9));
+ else show("decision",data.nodes.some(n=>n.id===hash)?hash:"model");
+}
+window.addEventListener("hashchange",openHash);openHash();
+</script>
+</body>
+</html>

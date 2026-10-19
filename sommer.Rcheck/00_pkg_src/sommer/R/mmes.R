@@ -1,0 +1,1506 @@
+# Refactored mmes front end: unified formula environments, centralized
+# observation filtering, and language-object parsing for random/residual terms.
+.mmes_fit <- function(fixed, random, rcov, data, W, weights=NULL,
+                 nIters=30, tolParConvLL=1e-04,
+                 tolParConvNorm=1e-04, tolParInv=1e-06,
+                 naMethodX="exclude", naMethodY="exclude",
+                 naMethodRandom="exclude", naMethodR="exclude",
+                 returnParam=FALSE, dateWarning=TRUE,
+                 verbose=TRUE, stepWeight=NULL, blend=c("em", "pxem"),
+                 blendWeight=NULL,
+                 contrasts=NULL, getPEV=TRUE, henderson=TRUE,
+                 computeCi=0, solver="auto", REML=TRUE, vcc=NULL,
+                 family=stats::gaussian(), pqlControl=list(),
+                 solveOnly=FALSE, covPar=NULL, blasThreads=NULL,
+                 engine=NULL, .internal=NULL){
+  WWasMissing <- missing(W)
+  WInput <- if(WWasMissing) NULL else W
+  mmesCall <- match.call()
+  finishThreads <- get(".mmes_thread_finish", mode="function")
+  threadScope <- get(".mmes_blas_scope", mode="function")(blasThreads)
+  on.exit(threadScope$restore(), add=TRUE)
+  if(verbose && !returnParam) get(".mmes_thread_report", mode="function")(threadScope)
+
+  blend <- match.arg(blend)
+  if(length(nIters) != 1L || !is.numeric(nIters) || is.complex(nIters) || !is.finite(nIters) ||
+     nIters < 1L || nIters > .Machine$integer.max || nIters != as.integer(nIters)){
+    stop("nIters must be one positive integer.", call.=FALSE)
+  }
+  nIters <- as.integer(nIters)
+  automaticBlendWeight <- is.null(blendWeight)
+  blendWeight <- .mme_blend_weight(blendWeight)
+  if(automaticBlendWeight){
+    blendWeight <- 0
+  } else if(length(blendWeight) == 1L && blendWeight > 1){
+    taperIters <- min(nIters, blendWeight)
+    blendWeight <- if(taperIters <= 1L) 1 else {
+      taper <- rep(0.03, nIters)
+      taper[seq_len(taperIters)] <- exp(seq(log(1), log(0.03), length.out=taperIters))
+      taper
+    }
+  }
+  blendWeight <- rep(blendWeight, length.out=nIters)
+  directionBlend <- any(blendWeight > 0)
+  .pqlInner <- isTRUE(.internal$pqlInner)
+  .pqlFixedDispersion <- .internal$pqlFixedDispersion
+  if(is.null(.pqlFixedDispersion)) .pqlFixedDispersion <- FALSE
+  .pqlWorkingPrecision <- .internal$pqlWorkingPrecision
+  .pqlBaseW <- .internal$pqlBaseW
+  .pqlBaseFactor <- .internal$pqlBaseFactor
+  .pqlStart <- .internal$pqlStart
+  .factorScoreParameters <- .internal$factorScoreParameters
+
+  engineControl <- engine
+  if(!inherits(engineControl, "sommer_mmes_engine")){
+    stop("Internal fitting requires a compiled modular control.", call.=FALSE)
+  }
+  solver <- engineControl$solver
+  compression <- engineControl$compression
+  if(identical(solver, "pcg") && compression == "off"){
+    compression <- engineControl$pcg$compression
+  }
+  acceleration <- engineControl$acceleration
+  factorScoreAugmentation <- engineControl$factorScoreAugmentation
+  pcgPreconditioner <- engineControl$pcg$preconditioner
+  pcgNystromRank <- engineControl$pcg$nystromRank
+  pcgTol <- engineControl$pcg$tol
+  pcgMaxIters <- engineControl$pcg$maxIters
+  pcgTraceProbes <- engineControl$pcg$traceProbes
+  pcgLanczosSteps <- engineControl$pcg$lanczosSteps
+
+  if(length(henderson) != 1L || !is.logical(henderson) || is.na(henderson)){
+    stop("henderson must be a single TRUE/FALSE value.", call.=FALSE)
+  }
+  if(isTRUE(engineControl$gpu)){
+    if(!henderson || solveOnly){
+      stop("execution$gpu=TRUE requires formulation='henderson' with task$mode='fit'; direct inversion and solve mode remain CPU-only.", call.=FALSE)
+    }
+    get(".mmes_gpu_require", mode="function")()
+  }
+  acceleration <- match.arg(acceleration, c("none", "aitken", "hybrid-ai"))
+  factorScoreAugmentation <- match.arg(factorScoreAugmentation,
+    c("none", "fixed-shape", "profile"))
+  pcgPreconditioner <- match.arg(pcgPreconditioner, c("diagonal", "nystrom", "block-jacobi"))
+  if(length(pcgNystromRank) != 1L || !is.finite(pcgNystromRank) ||
+     pcgNystromRank < 1L || pcgNystromRank != as.integer(pcgNystromRank)){
+    stop("solve$nystromRank must be one positive integer.", call.=FALSE)
+  }
+  if(acceleration != "none" && (!henderson || identical(tolower(solver), "pcg"))){
+    stop("proposal$extrapolation='aitken' and curvature$method='hybrid-ai' require formulation='henderson' with a deterministic solve$method ('auto', 'ldlt' or 'cholmod').", call.=FALSE)
+  }
+
+  if(!inherits(family, "family") && !inherits(family, "sommer_familym")){
+    stop("family must be a family object, such as stats::binomial() or stats::poisson(), or familym().",
+         call.=FALSE)
+  }
+  isGaussianIdentity <- inherits(family, "family") &&
+    identical(family$family, "gaussian") &&
+    identical(family$link, "identity")
+  if(!engineControl$retainCoefficientMatrix &&
+     (!isGaussianIdentity || .pqlInner || !henderson || solveOnly ||
+      factorScoreAugmentation != "none" ||
+      !identical(engineControl$experimental$saddlePoint, "force") ||
+      computeCi != 0L)){
+    stop("output$coefficientMatrix=FALSE requires a Gaussian identity-link Henderson fit with representation$equations='saddle-point' and output$inverse=0, without PQL, task$mode='solve' or representation$factorScores.",
+         call.=FALSE)
+  }
+  if(engineControl$covarianceInformation == "none" &&
+     (!isGaussianIdentity || .pqlInner || !henderson || solveOnly ||
+      factorScoreAugmentation != "none")){
+    stop("output$covariance='none' requires a Gaussian identity-link Henderson fit without PQL, task$mode='solve' or representation$factorScores.",
+         call.=FALSE)
+  }
+  recycleTransfer <- engineControl$pcg$exportRecycle ||
+    !is.null(engineControl$pcg$recycleState)
+  if(recycleTransfer &&
+     (!identical(solver, "pcg") || !henderson || solveOnly ||
+      !isGaussianIdentity || .pqlInner || factorScoreAugmentation != "none")){
+    stop("solve$recycleState and solve$exportRecycle require a Gaussian identity-link Henderson REML fit with solve$method='pcg', without PQL, task$mode='solve' or representation$factorScores.",
+         call.=FALSE)
+  }
+  if(compression != "off" &&
+     (!isGaussianIdentity || .pqlInner || solveOnly || !henderson ||
+      factorScoreAugmentation != "none")){
+    stop("representation$compression requires a Gaussian identity-link Henderson fit without PQL, rotation, task$mode='solve' or representation$factorScores.",
+         call.=FALSE)
+  }
+  supportsEM <- isGaussianIdentity && !.pqlInner &&
+    (!henderson || !identical(tolower(solver), "pcg")) &&
+    acceleration == "none" && factorScoreAugmentation == "none" &&
+    !identical(engineControl$experimental$saddlePoint, "force")
+  adaptiveRecovery <- automaticBlendWeight && supportsEM && !isTRUE(solveOnly)
+  commonScaleReason <- ""
+  if(engineControl$experimental$commonScale != "off"){
+    if(!supportsEM || !henderson || solveOnly || directionBlend){
+      commonScaleReason <- paste("requires a Gaussian identity-link Henderson fit with a deterministic solve$method, without PQL,",
+        "task$mode='solve', Aitken or hybrid AI, saddle-point equations, factor scores or positive update$blendWeight")
+    }
+    if(nzchar(commonScaleReason) && engineControl$experimental$commonScale == "force"){
+      stop("update$commonScale='force' ", commonScaleReason, ".", call.=FALSE)
+    }
+  }
+  reducedAIReason <- ""
+  if(engineControl$experimental$reducedAI != "off"){
+    if(!supportsEM || !henderson || solveOnly){
+      reducedAIReason <- "requires a Gaussian identity-link Henderson fit with a deterministic solve$method, without PQL, task$mode='solve', Aitken or hybrid AI, saddle-point equations or factor scores"
+    }else if(!adaptiveRecovery && !directionBlend &&
+             engineControl$experimental$commonScale == "off"){
+      reducedAIReason <- "requires AI-first recovery or positive EM/PXEM direction blending; explicit update$blendWeight=0 uses the legacy optimizer"
+    }else if(is.null(vcc)){
+      reducedAIReason <- "requires vcc constraints"
+    }
+    if(nzchar(reducedAIReason) && engineControl$experimental$reducedAI == "force"){
+      stop("curvature$reduced='force' ", reducedAIReason, ".", call.=FALSE)
+    }
+  }
+  if(automaticBlendWeight && !supportsEM){
+    blendWeight <- rep(0, nIters)
+    directionBlend <- FALSE
+  }
+  if(directionBlend && !isTRUE(solveOnly)){
+    if(!isGaussianIdentity || .pqlInner){
+      stop("Positive update$blendWeight is not supported for PQL fits.", call.=FALSE)
+    }
+    if(henderson && is.character(solver) && length(solver) == 1L &&
+       identical(tolower(solver), "pcg")){
+      stop("Positive update$blendWeight requires a deterministic solve$method; solve$method='pcg' is unsupported.",
+           call.=FALSE)
+    }
+    if(acceleration != "none"){
+      stop("Positive update$blendWeight is not supported with proposal$extrapolation='aitken' or curvature$method='hybrid-ai'.",
+           call.=FALSE)
+    }
+    if(factorScoreAugmentation != "none"){
+      stop("Positive update$blendWeight is not supported with representation$factorScores.",
+           call.=FALSE)
+    }
+    if(identical(engineControl$experimental$saddlePoint, "force")){
+      stop("Positive update$blendWeight is not supported with representation$equations='saddle-point'.",
+           call.=FALSE)
+    }
+  }
+  if(length(solveOnly) != 1L || !is.logical(solveOnly) || is.na(solveOnly)){
+    stop("solveOnly must be a single TRUE/FALSE value.", call.=FALSE)
+  }
+  saddlePoint <- identical(engineControl$experimental$saddlePoint, "force")
+  if(saddlePoint && (!henderson || !isGaussianIdentity || .pqlInner || solveOnly ||
+                     factorScoreAugmentation != "none" || acceleration != "none" ||
+                     identical(tolower(solver), "pcg"))){
+    stop("representation$equations='saddle-point' requires a Gaussian identity-link Henderson fit with a deterministic solve$method, without PQL, task$mode='solve', Aitken, hybrid AI or representation$factorScores.",
+         call.=FALSE)
+  }
+  if(acceleration == "hybrid-ai" &&
+     (!isGaussianIdentity || .pqlInner || solveOnly || factorScoreAugmentation != "none")){
+    stop("curvature$method='hybrid-ai' requires a Gaussian identity-link Henderson fit without task$mode='solve', PQL or representation$factorScores.",
+         call.=FALSE)
+  }
+  if(solveOnly){
+    if(!isGaussianIdentity || .pqlInner){
+      stop("task$mode='solve' requires a Gaussian identity-link model.", call.=FALSE)
+    }
+    if(factorScoreAugmentation != "none" || !is.null(vcc)){
+      stop("task$mode='solve' does not use representation$factorScores or vcc; supply the final parameters in covPar.",
+           call.=FALSE)
+    }
+    if(computeCi != 0L){
+      stop("task$mode='solve' does not compute C inverse/PEV; use output$inverse=0.", call.=FALSE)
+    }
+  }else if(!is.null(covPar)){
+    stop("covPar is only used with task$mode='solve'.", call.=FALSE)
+  }
+  if(factorScoreAugmentation == "profile"){
+    return(finishThreads(
+      .mmes_factor_score_profile(match.call(), parent.frame(), family,
+        nIters, REML, henderson, computeCi, vcc, solver), threadScope, verbose))
+  }
+  if(!.pqlInner && !isGaussianIdentity){
+    return(finishThreads(get(".mmes_pql", mode="function")(
+      fixed=fixed,
+      random=if(missing(random)) NULL else random,
+      rcov=if(missing(rcov)) NULL else rcov,
+      data=if(missing(data)) NULL else data,
+      W=if(missing(W)) NULL else W,
+      family=family,
+      pqlControl=pqlControl,
+      mmesArgs=list(
+        nIters=nIters, tolParConvLL=tolParConvLL,
+        tolParConvNorm=tolParConvNorm, tolParInv=tolParInv,
+        naMethodX=naMethodX, naMethodY=naMethodY,
+        naMethodRandom=naMethodRandom, naMethodR=naMethodR,
+        dateWarning=dateWarning, verbose=verbose, stepWeight=stepWeight,
+        blend=blend, blendWeight=blendWeight, contrasts=contrasts, getPEV=getPEV,
+        henderson=henderson, computeCi=computeCi, solver=solver,
+        REML=REML, vcc=vcc, weights=weights,
+        engine=engineControl
+      )
+    ), threadScope, verbose))
+  }
+  
+  desc <- utils::packageDescription("sommer")
+  my.date <- as.Date(desc$Date) + 90
+  if(dateWarning && Sys.Date() > my.date){
+    cat("Version out of date. Please update sommer to the newest version using:\n",
+        "install.packages('sommer') in a new session\n",
+        "Use the 'dateWarning' argument to disable the warning message.\n", sep="")
+  }
+  
+  # ---- Helpers ---------------------------------------------------------
+  formula_env <- function(f, fallback){
+    e <- if(inherits(f, "formula")) environment(f) else NULL
+    if(is.null(e)) fallback else e
+  }
+  
+  # Split only top-level additions. '+' inside I(), vsm(), etc. is untouched.
+  split_plus <- function(expr){
+    if(is.call(expr) && identical(expr[[1L]], as.name("+"))){
+      c(split_plus(expr[[2L]]), split_plus(expr[[3L]]))
+    } else list(expr)
+  }
+  
+  expr_label <- function(x) paste(deparse(x, width.cutoff=500L), collapse="")
+
+  call_name <- function(expr){
+    if(!is.call(expr)) return(NULL)
+    head <- expr[[1L]]
+    if(is.symbol(head)) return(as.character(head))
+    if(is.call(head) && length(head) == 3L &&
+       as.character(head[[1L]]) %in% c("::", ":::")){
+      return(as.character(head[[3L]]))
+    }
+    NULL
+  }
+  
+  has_call <- function(expr, names){
+    if(!is.call(expr)) return(FALSE)
+    head <- call_name(expr)
+    if(length(head) == 1L && head %in% names) return(TRUE)
+    any(vapply(as.list(expr)[-1L], has_call, logical(1), names=names))
+  }
+  
+  eval_model_expr <- function(expr, data_full, enclos){
+    if(is.null(data_full)) eval(expr, envir=enclos)
+    else eval(expr, envir=data_full, enclos=enclos)
+  }
+  
+  # Observation-level variables are symbols resolving to vectors of length n,
+  # or matrices/data.frames with n rows. Objects such as Gu/Ai are therefore
+  # not mistaken for observation variables unless they actually have n rows.
+  observation_ok <- function(expr, data_full, enclos, n){
+    vars <- unique(all.vars(expr))
+    if(!length(vars)) return(rep(TRUE, n))
+    ok <- rep(TRUE, n)
+    for(v in vars){
+      val <- tryCatch({
+        if(!is.null(data_full) && v %in% names(data_full)) data_full[[v]]
+        else get(v, envir=enclos, inherits=TRUE)
+      }, error=function(e) NULL)
+      if(is.null(val)) next
+      if(is.data.frame(val) || is.matrix(val)){
+        if(nrow(val) == n) ok <- ok & stats::complete.cases(val)
+      } else if(length(val) == n){
+        ok <- ok & !is.na(val)
+      }
+    }
+    ok
+  }
+  
+  method_keep <- function(ok, method, what){
+    method <- tolower(method)
+    if(method %in% c("exclude", "omit")) return(ok)
+    if(method %in% c("include", "pass")) return(rep(TRUE, length(ok)))
+    if(method == "fail" && any(!ok))
+      stop("Missing values found in ", what, ".", call.=FALSE)
+    if(method == "fail") return(rep(TRUE, length(ok)))
+    stop("Unknown missing-data method '", method, "' for ", what, ".", call.=FALSE)
+  }
+  
+  # ---- Unified evaluation context -------------------------------------
+  callEnv <- parent.frame()
+  fixedEnv <- formula_env(fixed, callEnv)
+  if(missing(rcov)){
+    rcov <- stats::as.formula("~units", env=fixedEnv)
+  } else if(is.null(environment(rcov))){
+    environment(rcov) <- fixedEnv
+  }
+  if(!missing(random) && is.null(environment(random))) environment(random) <- fixedEnv
+  
+  dataSupplied <- !missing(data)
+  data_full <- if(dataSupplied) as.data.frame(data) else NULL
+  
+  # Build the fixed model frame before filtering. model.frame follows normal
+  # R lookup rules: data first, then the formula environment.
+  mf_full <- try(stats::model.frame(fixed, data=data_full,
+                                    na.action=stats::na.pass,
+                                    drop.unused.levels=FALSE), silent=TRUE)
+  if(inherits(mf_full, "try-error")){
+    stop("Unable to evaluate the fixed formula. Variables may be supplied in 'data' or in the formula/calling environment.\n",
+         as.character(mf_full), call.=FALSE)
+  }
+  nObs <- nrow(mf_full)
+  if(nObs < 1L) stop("No observations are available for model fitting.", call.=FALSE)
+  if(!is.null(data_full) && nrow(data_full) != nObs){
+    stop("The fixed formula and 'data' do not describe the same number of observations.", call.=FALSE)
+  }
+  
+  # If data was omitted, create a row scaffold. Formula variables remain
+  # available through the formula environment and are not copied unnecessarily.
+  if(is.null(data_full)) data_full <- data.frame(.sommer_row=seq_len(nObs))
+  data_full$.sommer_row <- seq_len(nObs)
+  data_full$units <- structure(seq_len(nObs), levels=paste0("u", seq_len(nObs)),
+                               class="factor")
+  weightBlocksFull <- NULL
+  if(!is.null(weights)){
+    if(!inherits(weights, "formula") || length(weights) != 2L){
+      stop("weights must be a one-sided formula describing independent blocks of W, e.g. ~trial.", call.=FALSE)
+    }
+    if(is.null(environment(weights))) environment(weights) <- fixedEnv
+    weightFrame <- stats::model.frame(weights, data=data_full,
+      na.action=stats::na.pass, drop.unused.levels=FALSE)
+    weightBlocksFull <- as.integer(do.call(interaction,
+      c(lapply(weightFrame, as.factor), list(drop=TRUE, lex.order=TRUE))))
+  }
+  
+  # ---- Parse/evaluate random and residual expressions on full rows -----
+  randomExprs <- if(missing(random)) list() else split_plus(random[[2L]])
+  randomLabels <- vapply(randomExprs, expr_label, character(1))
+  randomFits <- vector("list", length(randomExprs))
+  
+  if(length(randomExprs)){
+    randomEnv <- formula_env(random, fixedEnv)
+    for(u in seq_along(randomExprs)){
+      ex <- randomExprs[[u]]
+      if(!has_call(ex, c("vsm", "covm", "strm", "spl2Dc"))){
+        ex <- as.call(list(as.name("vsm"), as.call(list(as.name("ism"), ex))))
+      }
+      randomExprs[[u]] <- ex
+      randomLabels[u] <- expr_label(ex)
+      randomFits[[u]] <- eval_model_expr(ex, data_full, randomEnv)
+      ff <- randomFits[[u]]
+      if(is.null(ff$covStruct) || !identical(ff$covStruct$type, "kron") ||
+         is.null(ff$covStruct$descriptor_version) || ff$covStruct$descriptor_version < 2L){
+        stop("All random covariance terms must use the CovarianceFactor v2 vsm() descriptor interface.",
+             call.=FALSE)
+      }
+      if(!is.null(.factorScoreParameters) && !is.null(.factorScoreParameters[[u]])){
+        override <- .factorScoreParameters[[u]]
+        if(length(override) != length(ff$covStruct$par) - 1L || any(!is.finite(override))){
+          stop("Internal factor-score profile override has incompatible length or non-finite values.", call.=FALSE)
+        }
+        ff$covStruct$par[-1L] <- override
+        ff$covStruct$free[-1L] <- FALSE
+        for(factorIndex in seq_along(ff$covStruct$factors)){
+          factor <- ff$covStruct$factors[[factorIndex]]
+          start <- as.integer(factor$par_start)
+          end <- as.integer(factor$par_end)
+          if(end >= start){
+            factor$par <- ff$covStruct$par[start:end]
+            ff$covStruct$factors[[factorIndex]] <- factor
+          }
+        }
+        randomFits[[u]] <- ff
+      }
+    }
+  }
+  
+  rcovExprs <- split_plus(rcov[[2L]])
+  if(length(rcovExprs) != 1L){
+    stop("The Henderson interface accepts one residual vsm() term. Use arbitrary Kronecker products inside that vsm() term instead of summing residual terms.",
+         call.=FALSE)
+  }
+  residualExpr <- rcovExprs[[1L]]
+  if(!has_call(residualExpr, c("vsm", "gvs", "spl2Da", "spl2Db"))){
+    residualExpr <- as.call(list(as.name("vsm"), as.call(list(as.name("ism"), residualExpr))))
+  }
+  residualLabel <- expr_label(residualExpr)
+  # A final ism(key) other than ism(units) names the residual pairing key.
+  residualKeyExpr <- NULL
+  swap_key <- function(ex){
+    nm <- call_name(ex)
+    if(identical(nm, "dsumm")){
+      ex[[2L]] <- swap_key(ex[[2L]])
+      return(ex)
+    }
+    if(!identical(nm, "vsm")) return(ex)
+    argNames <- names(ex)
+    if(is.null(argNames)) argNames <- rep("", length(ex))
+    positional <- which(argNames == "")[-1L]
+    if(!length(positional)) return(ex)
+    last <- positional[length(positional)]
+    term <- ex[[last]]
+    if(identical(call_name(term), "ism") && length(term) == 2L &&
+       !identical(term[[2L]], as.name("units")) && length(positional) > 1L){
+      residualKeyExpr <<- term[[2L]]
+      ex[[last]] <- quote(ism(units))
+    }
+    ex
+  }
+  residualExpr <- swap_key(residualExpr)
+  residualEnv <- formula_env(rcov, fixedEnv)
+  residualKeyFull <- NULL
+  if(!is.null(residualKeyExpr)){
+    residualKeyFull <- eval_model_expr(residualKeyExpr, data_full, residualEnv)
+    if(length(residualKeyFull) != nObs){
+      stop("The residual pairing key must have one value per observation.", call.=FALSE)
+    }
+  }
+  rf_full <- eval_model_expr(residualExpr, data_full, residualEnv)
+  if(is.null(rf_full$covStruct) || !identical(rf_full$covStruct$type, "kron") ||
+     is.null(rf_full$covStruct$descriptor_version) || rf_full$covStruct$descriptor_version < 2L){
+    stop("The residual covariance term must use the CovarianceFactor v2 vsm() descriptor interface.",
+         call.=FALSE)
+  }
+  if(is.null(rf_full$residualLocalIndex)) rf_full$residualLocalIndex <- rep(1L, nObs)
+  if(length(rf_full$residualLocalIndex) != nObs){
+    stop("Residual local-index vector has incompatible length.", call.=FALSE)
+  }
+  
+  # ---- Centralized observation map ------------------------------------
+  # Response and fixed RHS are separated so naMethodY and naMethodX retain
+  # their historical meaning.
+  responseMF <- mf_full[, 1L, drop=FALSE]
+  responseOK <- stats::complete.cases(responseMF)
+  fixedOK <- if(ncol(mf_full) > 1L) stats::complete.cases(mf_full[, -1L, drop=FALSE]) else rep(TRUE, nObs)
+  
+  randomOK <- rep(TRUE, nObs)
+  if(length(randomExprs)){
+    for(ex in randomExprs) randomOK <- randomOK & observation_ok(ex, data_full, formula_env(random, fixedEnv), nObs)
+  }
+  residualOK <- if(isTRUE(rf_full$residualSelfMasked)) !is.na(rf_full$residualLocalIndex) else
+    observation_ok(residualExpr, data_full, residualEnv, nObs) & !is.na(rf_full$residualLocalIndex)
+  if(!is.null(residualKeyFull)) residualOK <- residualOK & !is.na(residualKeyFull)
+  
+  keepY <- method_keep(responseOK, naMethodY, "the response")
+  keepX <- method_keep(fixedOK, naMethodX, "fixed-effect variables")
+  keepRandom <- method_keep(randomOK, naMethodRandom, "random-effect variables")
+  keepResidual <- method_keep(residualOK, naMethodR, "residual covariance variables")
+  keep <- keepY & keepX & keepRandom & keepResidual
+  if(!is.null(weightBlocksFull) && any(keep & is.na(weightBlocksFull))){
+    stop("The weights block formula has missing values on retained observations.", call.=FALSE)
+  }
+  weightBlocks <- if(is.null(weightBlocksFull)) NULL else
+    as.integer(droplevels(factor(weightBlocksFull[keep])))
+  
+  reason <- rep("included", nObs)
+  reason[!keepY] <- "missing response"
+  reason[keepY & !keepX] <- "missing fixed covariate"
+  reason[keepY & keepX & !keepRandom] <- "missing random-effect variable"
+  reason[keepY & keepX & keepRandom & !keepResidual] <- "missing residual coordinate"
+  
+  obsInfo <- data.frame(originalRow=seq_len(nObs), responseOK=responseOK,
+                        fixedOK=fixedOK, randomOK=randomOK,
+                        residualOK=residualOK, included=keep,
+                        reason=reason, stringsAsFactors=FALSE)
+  if(!any(keep)) stop("No observations remain after applying the missing-data rules.", call.=FALSE)
+  
+  # The model frame is the authoritative fixed/response representation.
+  # Unused factor levels would create all-zero, non-estimable columns in X.
+  mf <- droplevels(mf_full[keep, , drop=FALSE])
+  data <- data_full[keep, , drop=FALSE]
+  dataor <- data_full
+  
+  # Response matrix: preserve multivariate/model.frame response behavior.
+  yobj <- stats::model.response(mf)
+  if(is.null(dim(yobj))) yobj <- matrix(yobj, ncol=1L)
+  yvar <- Matrix::Matrix(yobj, sparse=TRUE)
+  responseNames <- colnames(yobj)
+  if(is.null(responseNames)) responseNames <- as.character(fixed[[2L]])
+  if(ncol(yvar) == 1L) colnames(yvar) <- responseNames[1L]
+  
+  # ---- Random structures, now subset exactly once ---------------------
+  Z <- list(); Ai <- list(); covStruct <- list(); Zind <- numeric()
+  rTermsNames <- list(); rtermss <- randomLabels
+  randomPrecision <- vector("list", length(randomFits))
+  
+  if(length(randomFits)){
+    for(u in seq_along(randomFits)){
+      ff <- randomFits[[u]]
+      Zi <- lapply(ff$Z, function(x){
+        if(nrow(x) == nObs && !all(keep)) x[keep, , drop=FALSE]
+        else if(nrow(x) == nObs || nrow(x) == sum(keep)) x
+        else stop("Random-effect design has incompatible number of rows in term: ", rtermss[u], call.=FALSE)
+      })
+      Z <- c(Z, Zi)
+      pGu <- to_precision_sparse(ff$Gu)
+      attr(pGu, "inverse") <- TRUE
+      Ai[[u]] <- pGu
+      randomPrecision[[u]] <- pGu
+      covStruct[[u]] <- ff$covStruct
+      Zind <- c(Zind, rep(u, length(Zi)))
+      s2 <- paste(all.vars(randomExprs[[u]]), collapse=":")
+      rTermsNames[[u]] <- paste(s2, ff$covStruct$par_names, sep=":")
+    }
+  }
+  nRandomStruct <- length(covStruct)
+  
+  # ---- Residual structure ---------------------------------------------
+  rf <- rf_full
+  if(isTRUE(rf$covStruct$free[1])) rf$covStruct$par[1] <- rf$covStruct$par[1] + log(5)
+  if(isTRUE(.pqlFixedDispersion)){
+    rf$covStruct$par[1L] <- 0
+    rf$covStruct$free[1L] <- FALSE
+  }else if(is.list(.pqlFixedDispersion)){
+    rf$covStruct <- .pql_fix_levels(rf$covStruct, .pqlFixedDispersion$levels,
+                                    .pqlFixedDispersion$by)
+  }
+  residualStructIndex <- nRandomStruct + 1L
+  covStruct[[residualStructIndex]] <- rf$covStruct
+  hasReducedRank <- function(structure){
+    any(vapply(structure$factors, function(factor)
+      isTRUE(factor$representation$loadings$zero_specific), logical(1)))
+  }
+  if(hasReducedRank(rf$covStruct)){
+    stop("rrm() fixes specific variances at zero and is only supported for random effects, not rcov.",
+         call.=FALSE)
+  }
+  reducedRankRandom <- any(vapply(covStruct[seq_len(nRandomStruct)],
+                                  hasReducedRank, logical(1)))
+  if(reducedRankRandom && solveOnly){
+    stop("task$mode='solve' does not support singular rrm() covariance structures; use task$mode='fit' with fixed covariance parameters.",
+         call.=FALSE)
+  }
+  if(reducedRankRandom && factorScoreAugmentation != "none"){
+    stop("rrm() uses native reduced-rank fitting, not representation$factorScores. Use representation$factorScores='none'.",
+         call.=FALSE)
+  }
+  localIndex <- as.integer(rf$residualLocalIndex[keep])
+  
+  # Preserve the established residual-block pairing semantics for this
+  # refactor. The important change here is that it is applied after the
+  # single centralized observation mask, so R, X, Z and y see identical rows.
+  # .sommer_row is internal and must never participate in pairing.
+  residualVars <- unique(all.vars(residualExpr))
+  residualVars <- setdiff(residualVars, "units")
+  pairingVariables <- setdiff(names(data),
+                              c(responseNames, residualVars, "units", ".sommer_row"))
+  if(length(pairingVariables)){
+    baseKey <- do.call(paste, c(data[pairingVariables], sep="\r"))
+  } else {
+    baseKey <- rep("all", nrow(data))
+  }
+  
+  pairLocal <- paste(baseKey, localIndex, sep="\r")
+  pairGroup <- match(pairLocal, pairLocal)
+  pairOrder <- order(pairGroup)
+  occurrence <- integer(length(pairGroup))
+  occurrence[pairOrder] <- sequence(rle(pairGroup[pairOrder])$lengths)
+  blockKey <- paste(baseKey, occurrence, sep="\r")
+  residualFactors <- rf$covStruct$factors
+  dims <- vapply(residualFactors, function(f) as.integer(f$dim), integer(1))
+  trailing <- rev(cumprod(rev(c(dims[-1L], 1L))))
+  factorDigit <- function(fidx) ((localIndex - 1L) %/% trailing[fidx]) %% dims[fidx]
+  if(!anyDuplicated(localIndex)){
+    # Unique coordinates identify observations; only diagonal factors can split blocks exactly.
+    diagonalDigits <- lapply(which(vapply(residualFactors, function(f)
+      isTRUE(f$structurally_diagonal), logical(1))), factorDigit)
+    blockKey <- if(length(diagonalDigits)) do.call(paste, c(diagonalDigits, sep="\r"))
+                else rep("all", length(localIndex))
+  }
+  if(!is.null(residualKeyFull)){
+    blockKey <- as.character(residualKeyFull[keep])
+  }else if(anyDuplicated(localIndex) && any(occurrence > 1L) &&
+           any(!vapply(residualFactors, function(f) isTRUE(f$structurally_diagonal), logical(1)))){
+    warning("Some residual records were paired by their order in the data because the other ",
+            "data columns do not identify them; state the pairing key explicitly, e.g. ",
+            "rcov = ~vsm(usm(trait), ism(record)) (see stackTraits()).", call.=FALSE)
+  }
+  sectionOwner <- which(vapply(residualFactors, function(f) isTRUE(f$section_owner), logical(1)))
+  if(length(sectionOwner)){
+    # dsumm() sections are independent by definition, whatever the pairing.
+    blockKey <- paste(blockKey, factorDigit(sectionOwner[1L]), sep="\r")
+  }
+  residualBlock <- match(blockKey, unique(blockKey))
+  if(anyDuplicated(as.double(residualBlock) * (max(localIndex) + 1) + localIndex)){
+    if(!is.null(residualKeyFull)){
+      stop("Records sharing a value of the residual pairing key must have different residual coordinates ",
+           "(e.g. one record per trait within each key).", call.=FALSE)
+    }
+    stop("Internal residual-layout error: a block contains duplicate local covariance coordinates.", call.=FALSE)
+  }
+  blockSizes <- tabulate(residualBlock)
+  rf$covStruct$complete_residual_blocks <-
+    length(blockSizes) > 0L &&
+    all(blockSizes == rf$covStruct$dim)
+  covStruct[[residualStructIndex]] <- rf$covStruct
+  s2 <- paste(all.vars(residualExpr), collapse=":")
+  rTermsNames[[residualStructIndex]] <- paste(s2, rf$covStruct$par_names, sep=":")
+  
+  # ---- Fixed-effect design using terms()/assign -----------------------
+  X <- .sparse_model_matrix_by_rows(fixed, mf, contrasts)
+  tt <- attr(mf, "terms")
+  fixedTerms <- attr(tt, "term.labels")
+  assignX <- attr(X, "assign")
+  if(is.null(assignX)) assignX <- attr(stats::model.matrix(tt, mf, contrasts.arg=contrasts), "assign")
+  partitionsX <- list()
+  if(attr(tt, "intercept") == 1L){
+    ii <- which(assignX == 0L)
+    if(length(ii)) partitionsX[["1"]] <- matrix(ii, nrow=1L)
+  }
+  for(ix in seq_along(fixedTerms)){
+    ii <- which(assignX == ix)
+    if(length(ii)) partitionsX[[fixedTerms[ix]]] <- matrix(ii, nrow=1L)
+  }
+  if("(Intercept)" %in% colnames(X)) colnames(X)[colnames(X) == "(Intercept)"] <- "Intercept"
+
+  # ---- Optional Lee-van der Werf observation rotation -----------------
+  rotationTerms <- which(vapply(
+    randomFits,
+    function(z) !is.null(z$rotation),
+    logical(1)
+  ))
+  rotationInfo <- NULL
+  if(compression != "off" && length(rotationTerms)){
+    stop("representation$compression does not support observation rotation.", call.=FALSE)
+  }
+  if(saddlePoint && length(rotationTerms)){
+    stop("representation$equations='saddle-point' does not support rotation=TRUE.", call.=FALSE)
+  }
+  if(length(rotationTerms) && !is.null(weightBlocks)){
+    stop("weights block formulas are not yet supported with rotation=TRUE.", call.=FALSE)
+  }
+  responsePrepared <- FALSE
+  preparedMean <- 0
+  preparedSd <- 1
+  preparedIntercept <- FALSE
+
+  if(length(rotationTerms)){
+    if(solveOnly){
+      stop("rotation=TRUE is not available with task$mode='solve'.", call.=FALSE)
+    }
+    if(length(rotationTerms) != 1L){
+      stop("Only one random-effect term may request rotation.", call.=FALSE)
+    }
+    if(!isGaussianIdentity || isTRUE(.pqlInner)){
+      stop("rotation=TRUE currently requires a Gaussian identity-link model.",
+           call.=FALSE)
+    }
+    if(!isTRUE(henderson) && ncol(yvar) != 1L){
+      stop("The direct rotation path currently requires one response column.",
+           call.=FALSE)
+    }
+    if(!is.null(.pqlWorkingPrecision) ||
+       !is.null(.pqlBaseW) || !is.null(.pqlBaseFactor)){
+      stop("rotation=TRUE is not available with PQL working weights.",
+           call.=FALSE)
+    }
+    if(computeCi != 0L){
+      stop("rotation=TRUE currently requires output$inverse=0; rotated PEV support is not yet available.",
+           call.=FALSE)
+    }
+
+    rotationTerm <- rotationTerms[[1L]]
+    focal <- randomFits[[rotationTerm]]$rotation
+    U <- focal$vectors
+    focalBlocks <- which(Zind == rotationTerm)
+    focalZ <- Z[focalBlocks]
+    nLevels <- nrow(U)
+
+    if(!length(focalZ) || any(vapply(focalZ, ncol, integer(1)) != nLevels)){
+      stop("The rotated random term has incompatible incidence dimensions.",
+           call.=FALSE)
+    }
+
+    rowsByLevelList <- list()
+    observationBlockTerm <- integer()
+    for(j in seq_along(focalZ)){
+      ss <- Matrix::summary(focalZ[[j]])
+      counts <- tabulate(ss$j, nbins=nLevels)
+      if(!nrow(ss) || any(abs(ss$x - 1) > 1e-12) ||
+         any(counts == 0L) || length(unique(counts)) != 1L){
+        stop(
+          paste0(
+            "rotation=TRUE requires each covariance coordinate to contain ",
+            "every Gu level equally often with unit incidence."
+          ),
+          call.=FALSE
+        )
+      }
+      rows <- split(ss$i, factor(ss$j, levels=seq_len(nLevels)))
+      rows <- lapply(rows, function(r) r[order(localIndex[r], r)])
+      rowsByLevelList[[j]] <- do.call(rbind, rows)
+      observationBlockTerm <- c(
+        observationBlockTerm,
+        rep(j, counts[[1L]])
+      )
+    }
+    rowsByLevel <- do.call(cbind, rowsByLevelList)
+    if(length(rowsByLevel) != nrow(yvar) ||
+       !identical(sort(as.integer(rowsByLevel)), seq_len(nrow(yvar)))){
+      stop(
+        paste0(
+          "rotation=TRUE requires a complete balanced layout: every retained ",
+          "observation must belong to exactly one relationship-level block."
+        ),
+        call.=FALSE
+      )
+    }
+
+    # Rotation is exact only when R[(i,a),(l,b)] = c_ab * delta_il.
+    levelOfRow <- integer(nrow(yvar))
+    levelOfRow[as.vector(rowsByLevel)] <- as.vector(row(rowsByLevel))
+    levelsPerBlock <- tapply(levelOfRow, residualBlock,
+                             function(x) length(unique(x)))
+    if(any(levelsPerBlock > 1L)){
+      stop(
+        paste0(
+          "rotation=TRUE requires residuals of different relationship levels ",
+          "to be independent. Residual structures that correlate observations ",
+          "of different levels (e.g., ar1m(), maternm(), sar(), car() over ",
+          "plots) are not rotation invariant."
+        ),
+        call.=FALSE
+      )
+    }
+    for(a in seq_len(ncol(rowsByLevel))){
+      if(length(unique(localIndex[rowsByLevel[,a]])) != 1L){
+        stop(
+          paste0(
+            "rotation=TRUE requires every relationship level to share the ",
+            "same residual covariance coordinate within each rotation block. ",
+            "Residual variances or covariances that differ among levels are ",
+            "not rotation invariant."
+          ),
+          call.=FALSE
+        )
+      }
+    }
+    residualGroups <- t(vapply(
+      seq_len(nLevels),
+      function(k){
+        b <- residualBlock[rowsByLevel[k,]]
+        match(b, unique(b))
+      },
+      integer(ncol(rowsByLevel))
+    ))
+    if(ncol(rowsByLevel) == 1L) residualGroups <- t(residualGroups)
+    if(any(sweep(residualGroups, 2, residualGroups[1,], "!="))){
+      stop(
+        paste0(
+          "rotation=TRUE requires the same residual covariance pattern for ",
+          "every relationship level."
+        ),
+        call.=FALSE
+      )
+    }
+
+    if(!WWasMissing){
+      Wcheck <- W
+      if(nrow(Wcheck) == nObs && ncol(Wcheck) == nObs){
+        Wcheck <- Wcheck[keep, keep, drop=FALSE]
+      }
+      Wcheck <- Matrix::Matrix(Wcheck)
+      weightsConstant <- nrow(Wcheck) == nrow(yvar) &&
+        Matrix::isDiagonal(Wcheck) &&
+        all(apply(rowsByLevel, 2, function(rr){
+          w <- Matrix::diag(Wcheck)[rr]
+          max(abs(w - w[1L])) <= 1e-12 * max(1, abs(w[1L]))
+        }))
+      if(!weightsConstant){
+        stop(
+          paste0(
+            "rotation=TRUE requires W to be diagonal with a constant weight ",
+            "within each rotation block."
+          ),
+          call.=FALSE
+        )
+      }
+    }
+
+    residualBlockOriginal <- residualBlock
+    residualBlock[as.vector(rowsByLevel)] <-
+      (as.vector(row(rowsByLevel)) - 1L) * max(residualGroups[1,]) +
+      rep(residualGroups[1,], each=nLevels)
+    residualBlock <- match(residualBlock, unique(residualBlock))
+
+    rotateRows <- function(M){
+      out <- as.matrix(M)
+      for(j in seq_len(ncol(rowsByLevel))){
+        rr <- rowsByLevel[,j]
+        out[rr,] <- crossprod(U, out[rr,,drop=FALSE])
+      }
+      to_sparse(Matrix::Matrix(out, sparse=TRUE))
+    }
+
+    yOriginal <- yvar
+    XOriginal <- X
+    ZOriginal <- Z
+
+    yvar <- rotateRows(yvar)
+    X <- rotateRows(X)
+    for(j in seq_along(Z)){
+      if(!j %in% focalBlocks) Z[[j]] <- rotateRows(Z[[j]])
+    }
+    for(j in seq_along(focalBlocks)){
+      blockColumns <- which(observationBlockTerm == j)
+      selectedRows <- as.integer(rowsByLevel[,blockColumns,drop=FALSE])
+      selectedModes <- rep(seq_len(nLevels), length(blockColumns))
+      Z[[focalBlocks[j]]] <- Matrix::sparseMatrix(
+        i=selectedRows,
+        j=selectedModes,
+        x=1,
+        dims=c(nrow(yvar), nLevels),
+        dimnames=list(NULL, focal$modes)
+      )
+    }
+    Ai[[rotationTerm]] <- randomFits[[rotationTerm]]$GuRot
+    attr(Ai[[rotationTerm]], "inverse") <- TRUE
+
+    rotationInfo <- list(
+      term=rotationTerm,
+      termName=rtermss[[rotationTerm]],
+      vectors=U,
+      precision=focal$precision,
+      covariance=focal$covariance,
+      levels=focal$levels,
+      modes=focal$modes,
+      rowsByLevel=rowsByLevel,
+      residualBlockOriginal=residualBlockOriginal,
+      residualBlock=residualBlock,
+      formulation=if(isTRUE(henderson)) "henderson-eigen-coefficients" else "direct-observation-covariance",
+      yOriginal=yOriginal,
+      XOriginal=XOriginal,
+      ZOriginal=ZOriginal
+    )
+    responsePrepared <- TRUE
+    preparedSd <- stats::sd(as.numeric(yOriginal))
+    if(!is.finite(preparedSd) || preparedSd <= 0){
+      stop("rotation=TRUE requires a response with positive finite variance.",
+           call.=FALSE)
+    }
+    ones <- rep(1, nrow(XOriginal))
+    qrX <- qr(as.matrix(XOriginal))
+    cShift <- as.vector(qr.coef(qrX, ones))
+    cShift[is.na(cShift)] <- 0
+    fitOnes <- as.vector(as.matrix(XOriginal) %*% cShift)
+    hasIntercept <- max(abs(fitOnes - 1)) < 1e-4
+    if(hasIntercept && ("(Intercept)" %in% colnames(XOriginal) || "Intercept" %in% colnames(XOriginal))){
+      preparedMean <- mean(as.numeric(yOriginal))
+      preparedIntercept <- TRUE
+    }else{
+      preparedMean <- 0
+      preparedIntercept <- FALSE
+    }
+  }
+  
+  # ---- Data-driven starting values for variance-component scales ------
+  # Replaces vsm()'s flat sigma2 default (0.15 random / 0.75 residual, both
+  # scale-blind) with values informed by the data. Only touches par[1]
+  # (log_sigma2) entries still flagged sigma2_is_default with free[1]=TRUE;
+  # user-supplied or fixedSigma2=TRUE values are always left untouched. Any
+  # failure here is silently ignored and the old flat defaults are kept,
+  # since this only affects the optimization starting point, never the
+  # converged answer.
+  startResid <- NULL
+  if(!solveOnly) tryCatch({
+    if(ncol(X) >= 1L && ncol(X) <= 2000L){
+      Yd <- as.matrix(yvar)
+      lsq <- .mmes_start_lsq(X, Yd)
+      dfResid <- nrow(Yd) - lsq$rank
+      if(dfResid >= 1L){
+        beta <- lsq$beta
+        if(!anyNA(beta)){
+          resid <- lsq$resid
+          varResid0 <- mean(colSums(resid^2)) / dfResid
+          if(is.finite(varResid0) && varResid0 > 0){
+            floorVar <- 1e-6 * varResid0
+            residShare <- if(nRandomStruct > 0L) 0.5 * varResid0 else varResid0
+            randomPoolShare <- 0.5 * varResid0
+            r <- rowMeans(resid)
+            startResid <- r
+            
+            # Phase 2: for plain ism()-only random terms with an identity
+            # relationship matrix, use a one-way ANOVA method-of-moments
+            # variance-component estimate (classical unequal-n formula)
+            # from the fixed-effects-only residuals, instead of an
+            # arbitrary equal split.
+            anovaEst <- rep(NA_real_, nRandomStruct)
+            if(nRandomStruct > 0L){
+              for(u in seq_len(nRandomStruct)){
+                ff <- randomFits[[u]]
+                isSimpleGrouping <-
+                  length(ff$covStruct$factors) == 0L &&
+                  Matrix::isDiagonal(ff$Gu) &&
+                  isTRUE(all(Matrix::diag(ff$Gu) == 1)) &&
+                  length(all.vars(randomExprs[[u]])) == 1L
+                if(isSimpleGrouping){
+                  gvar <- all.vars(randomExprs[[u]])[1]
+                  if(gvar %in% names(data)){
+                    grp <- as.factor(data[[gvar]])
+                    k <- nlevels(grp)
+                    if(k > 1L && k < length(r)){
+                      grpMeans <- tapply(r, grp, mean)
+                      grpN <- as.numeric(table(grp))
+                      grandMean <- mean(r)
+                      msBetween <- sum(grpN * (grpMeans - grandMean)^2) / (k - 1L)
+                      dfWithin <- length(r) - k
+                      if(dfWithin > 0L){
+                        msWithin <- sum((r - grpMeans[as.character(grp)])^2) / dfWithin
+                        n0 <- (length(r) - sum(grpN^2) / length(r)) / (k - 1L)
+                        if(is.finite(n0) && n0 > 0){
+                          vcEst <- (msBetween - msWithin) / n0
+                          if(is.finite(vcEst) && vcEst > 0) anovaEst[u] <- vcEst
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            
+            # Phase 1 fallback: split the remaining pool evenly across
+            # every random term that Phase 2 could not estimate directly.
+            nFallback <- sum(is.na(anovaEst))
+            fallbackShare <- if(nFallback > 0L) randomPoolShare / nFallback else NA_real_
+            
+            if(isTRUE(rf$covStruct$sigma2_is_default) && isTRUE(rf$covStruct$free[1])){
+              rf$covStruct$par[1] <- log(max(residShare, floorVar))
+              covStruct[[residualStructIndex]] <- rf$covStruct
+            }
+            if(nRandomStruct > 0L){
+              for(u in seq_len(nRandomStruct)){
+                cs <- covStruct[[u]]
+                if(isTRUE(cs$sigma2_is_default) && isTRUE(cs$free[1])){
+                  share <- if(!is.na(anovaEst[u])) anovaEst[u] else fallbackShare
+                  if(is.finite(share)){
+                    cs$par[1] <- log(max(share, floorVar))
+                    covStruct[[u]] <- cs
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }, error=function(e) NULL)
+
+  # Heterogeneous starting shapes for default usm()/dsm() factors (e.g. traits
+  # on different scales); only the optimizer starting point is affected.
+  if(!is.null(startResid)){
+    tryCatch({
+      covStruct[[residualStructIndex]] <-
+        .mv_start_shapes(covStruct[[residualStructIndex]], localIndex, startResid)
+      for(u in seq_len(nRandomStruct)){
+        Zu <- Z[Zind == u]
+        if(length(Zu) != covStruct[[u]]$dim) next
+        coord <- rep(NA_integer_, length(startResid))
+        for(j in seq_along(Zu)){
+          coord[Matrix::rowSums(abs(Zu[[j]])) > 0] <- j
+        }
+        covStruct[[u]] <- .mv_start_shapes(covStruct[[u]], coord, startResid)
+      }
+    }, error=function(e) NULL)
+  }
+
+  pqlWarmStarted <- FALSE
+  if(.pqlInner && !is.null(.pqlStart) &&
+     identical(.pqlStart$included, obsInfo$included) &&
+     length(.pqlStart$covStruct) == length(covStruct)){
+    compatible <- vapply(seq_along(covStruct), function(index){
+      old <- .pqlStart$covStruct[[index]]
+      current <- covStruct[[index]]
+      identical(old$par_names, current$par_names) && identical(old$dim, current$dim) &&
+        identical(old$levels, current$levels) && identical(old$free, current$free) &&
+        length(.pqlStart$parameters[[index]]) == length(current$par) &&
+        all(is.finite(.pqlStart$parameters[[index]]))
+    }, logical(1))
+    if(all(compatible)){
+      for(index in seq_along(covStruct)){
+        free <- covStruct[[index]]$free
+        covStruct[[index]]$par[free] <- .pqlStart$parameters[[index]][free]
+      }
+      pqlWarmStarted <- TRUE
+    }
+  }
+
+  if(responsePrepared){
+    standardizedResponse <- (rotationInfo$yOriginal - preparedMean) / preparedSd
+    yvar <- rotateRows(standardizedResponse)
+  }
+  
+  # ---- Weights ---------------------------------------------------------
+  if(!is.null(.pqlWorkingPrecision)){
+    if(length(.pqlWorkingPrecision) == nObs){
+      workingPrecision <- .pqlWorkingPrecision[keep]
+    }else if(length(.pqlWorkingPrecision) == sum(keep)){
+      workingPrecision <- .pqlWorkingPrecision
+    }else{
+      stop("PQL working precision must have one value per original or retained observation.",
+           call.=FALSE)
+    }
+    if(any(!is.finite(workingPrecision)) || any(workingPrecision <= 0)){
+      stop("PQL working precision must be finite and positive.", call.=FALSE)
+    }
+
+    if(!is.null(.pqlBaseFactor)){
+      if(nrow(.pqlBaseFactor) != length(workingPrecision) ||
+         ncol(.pqlBaseFactor) != length(workingPrecision)){
+        stop("Cached PQL base factor has incompatible dimensions.", call.=FALSE)
+      }
+      baseFactor <- .pqlBaseFactor
+    }else if(is.null(.pqlBaseW)){
+      baseW <- Matrix::Diagonal(n=length(workingPrecision), x=1)
+    }else if(nrow(.pqlBaseW) == nObs && ncol(.pqlBaseW) == nObs){
+      baseW <- .pqlBaseW[keep, keep, drop=FALSE]
+    }else if(nrow(.pqlBaseW) == sum(keep) && ncol(.pqlBaseW) == sum(keep)){
+      baseW <- .pqlBaseW
+    }else{
+      stop("PQL base W must have dimensions equal to either the original or retained number of observations.",
+           call.=FALSE)
+    }
+    if(is.null(.pqlBaseFactor)){
+      baseW <- as(as(as(baseW, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+      if(!isSymmetric(baseW)){
+        stop("PQL base W must be symmetric positive definite.", call.=FALSE)
+      }
+      baseFactor <- tryCatch(Matrix::chol(baseW), error=function(e) NULL)
+      if(is.null(baseFactor)){
+        stop("PQL base W must be positive definite.", call.=FALSE)
+      }
+    }
+    weightedFactor <- Matrix::Diagonal(n=length(workingPrecision),
+                                       x=sqrt(workingPrecision)) %*% baseFactor
+    W <- Matrix::crossprod(weightedFactor)
+    W <- as(as(as(W, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+    useH <- TRUE
+  }else if(missing(W)){
+    W <- Matrix::Diagonal(n=nrow(yvar), x=1)
+    useH <- FALSE
+  }else{
+    # W may be supplied for all original rows or already-filtered rows.
+    if(nrow(W) == nObs && ncol(W) == nObs) W <- W[keep, keep, drop=FALSE]
+    else if(nrow(W) != sum(keep) || ncol(W) != sum(keep))
+      stop("W must have dimensions equal to either the original or retained number of observations.", call.=FALSE)
+    W <- as(as(as(W, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+    useH <- TRUE
+  }
+  if(!is.null(weightBlocks)){
+    if(WWasMissing && is.null(.pqlWorkingPrecision)){
+      stop("weights block formulas describe a supplied W matrix; provide W as well.", call.=FALSE)
+    }
+    if(length(weightBlocks) != nrow(W)){
+      stop("The weights block formula does not match the retained W dimensions.", call.=FALSE)
+    }
+    nonzeroWeights <- Matrix::summary(W)
+    if(nrow(nonzeroWeights) && any(weightBlocks[nonzeroWeights$i] !=
+                                   weightBlocks[nonzeroWeights$j])){
+      stop("W contains nonzero entries across groups declared independent by weights.", call.=FALSE)
+    }
+  }
+
+  if(solveOnly){
+    return(finishThreads(.mmes_solve(X, Z, Zind, Ai, yvar, W, useH, residualBlock, localIndex,
+                       covStruct, c(rtermss, residualLabel), covPar, pcgTol,
+                       pcgMaxIters, verbose, data, dataor, obsInfo, partitionsX,
+                       mmesCall,
+                       list(fixed=fixed, random=if(missing(random)) NULL else random,
+                           rcov=rcov), pcg=engineControl$pcg), threadScope, verbose))
+  }
+  
+  if(is.null(stepWeight)){
+    stepWeight <- if(directionBlend || adaptiveRecovery) rep(1, nIters) else {
+      damping <- rep(0.9, nIters)
+      if(nIters > 1L) damping[1:2] <- c(0.5, 0.7)
+      damping
+    }
+  }
+  if(length(stepWeight) == 1L) stepWeight <- rep(stepWeight, nIters)
+  if(length(stepWeight) != nIters) stepWeight <- rep(stepWeight, length.out = nIters)
+  if(any(!is.finite(stepWeight)) || any(stepWeight <= 0))
+    stop("proposal$stepWeight must contain finite positive values.", call.=FALSE)
+  
+  if(length(Ai)){
+    nInverses <- sum(vapply(Ai, function(x) isTRUE(attr(x,"inverse")), logical(1)))
+    if(nInverses != length(Ai)){
+      stop("The Henderson algorithm requires every Gu relationship matrix to be supplied as an inverse matrix with attr(Gu,'inverse')=TRUE.", call.=FALSE)
+    }
+  }
+
+  if(length(REML) != 1L || !is.logical(REML) || is.na(REML)){
+    stop("REML must be a single TRUE/FALSE value.", call.=FALSE)
+  }
+
+  factorScoreInfo <- NULL
+  originalRandomZ <- Z
+  factorProfileWarmStarted <- FALSE
+  if(factorScoreAugmentation != "none"){
+    if(!isTRUE(henderson) || !isTRUE(REML) || computeCi != 0L ||
+       !is.null(vcc) || length(rotationTerms)){
+      stop("representation$factorScores currently requires Henderson REML, output$inverse=0, no user vcc constraints and no rotation.", call.=FALSE)
+    }
+    if(!length(randomFits)) stop("representation$factorScores requires a low-rank or compound-symmetry random term.", call.=FALSE)
+    residualCovStruct <- covStruct[[length(covStruct)]]
+    residualTermNames <- rTermsNames[[length(rTermsNames)]]
+    factorScoreInfo <- .factor_score_augment(
+      Z, Ai, covStruct[-length(covStruct)], Zind, rtermss,
+      rTermsNames[-length(rTermsNames)],
+      allowFree=factorScoreAugmentation == "profile"
+    )
+    if(!any(vapply(factorScoreInfo$mappings, function(x) isTRUE(x$augmented), logical(1)))){
+      stop("No eligible positive low-rank-plus-diagonal random term was available for factor-score augmentation.", call.=FALSE)
+    }
+    Z <- factorScoreInfo$Z
+    Ai <- factorScoreInfo$Ai
+    Zind <- factorScoreInfo$Zind
+    covStruct <- c(factorScoreInfo$covStruct, list(residualCovStruct))
+    rtermss <- factorScoreInfo$terms
+    rTermsNames <- c(factorScoreInfo$termNames, list(residualTermNames))
+  }
+  if(factorScoreAugmentation == "fixed-shape" && .pqlInner && !is.null(.pqlStart) &&
+     length(.pqlStart$covStruct) == length(covStruct)){
+    compatible <- vapply(seq_along(covStruct), function(index){
+      old <- .pqlStart$covStruct[[index]]
+      current <- covStruct[[index]]
+      identical(old$par_names, current$par_names) && identical(old$dim, current$dim) &&
+        identical(old$levels, current$levels) && length(.pqlStart$parameters[[index]]) == length(current$par) &&
+        all(is.finite(.pqlStart$parameters[[index]]))
+    }, logical(1))
+    if(all(compatible)){
+      for(index in seq_along(covStruct)){
+        free <- covStruct[[index]]$free
+        covStruct[[index]]$par[free] <- .pqlStart$parameters[[index]][free]
+      }
+      factorProfileWarmStarted <- TRUE
+    }
+  }
+
+  if(isTRUE(henderson)){
+    # ---- Solver selection ------------------------------------------------
+    # "auto" (the default) picks a solver based on the density of the random-
+    # effect relationship matrices actually supplied: pedigree-style Ai
+    # matrices are typically sparse (a handful of nonzeros per row), while
+    # genomic/marker-based relationship matrices are essentially fully dense.
+    # The supernodal CHOLMOD factorization amortizes dense fill-in with
+    # threaded BLAS-3 kernels and tends to outperform the simplicial LDLT path
+    # once any random effect has a dense Gu; otherwise LDLT stays the default.
+    solverChoices <- c("auto", "ldlt", "pcg", "cholmod")
+    if(length(solver) != 1L || !is.character(solver) || is.na(solver) ||
+       !(tolower(solver) %in% solverChoices)){
+      stop("solve$method must be one of 'auto', 'ldlt', 'pcg', or 'cholmod'.", call.=FALSE)
+    }
+    solver <- tolower(solver)
+    if(factorScoreAugmentation != "none"){
+      if(!(solver %in% c("auto", "ldlt", "cholmod"))){
+        stop("representation$factorScores currently supports deterministic solve$method 'auto', 'ldlt' or 'cholmod'.", call.=FALSE)
+      }
+    }
+    if(solver == "auto"){
+      hasDenseGu <- length(Ai) > 0L && any(vapply(Ai, function(a){
+        n <- nrow(a)
+        if(n <= 1L) return(FALSE)
+        (Matrix::nnzero(a) / (as.double(n) * as.double(n))) > 0.2
+      }, logical(1)))
+      solver <- if(hasDenseGu) "cholmod" else "ldlt"
+    }
+    if(!REML && !(solver %in% c("ldlt", "cholmod"))){
+      stop("task$objective='ml' currently requires solve$method='ldlt' or ",
+           "'cholmod' ('auto' resolves to one of these already).",
+           call.=FALSE)
+    }
+    # if(verbose){message(crayon::blue(paste("Solver selected:", solver)))}
+  }else{
+    # The direct-inversion engine has no Henderson-style sparse solver
+    # choice; it always inverts the n x n phenotypic covariance directly.
+    solver <- "direct"
+    if(!(computeCi %in% c(0L, 2L))){
+      stop("With formulation='direct', output$inverse must be 0 (no PEV) or 2 (full PEV, small models only); output$inverse=1 (Takahashi selected inverse) is Henderson-only.",
+           call.=FALSE)
+    }
+    if(verbose){message(crayon::blue("Engine selected: direct inversion (formulation='direct')"))}
+  }
+
+  attr(covStruct, "acceleration") <- acceleration
+  attr(covStruct, "compression") <- compression
+  attr(covStruct, "covarianceInformation") <- engineControl$covarianceInformation
+  attr(covStruct, "retainCoefficientMatrix") <- engineControl$retainCoefficientMatrix
+  attr(covStruct, "pcgPreconditioner") <- pcgPreconditioner
+  attr(covStruct, "pcgNystromRank") <- as.integer(pcgNystromRank)
+  if(identical(solver, "pcg")){
+    if(recycleTransfer){
+      if(length(rotationTerms)){
+        stop("solve$recycleState and solve$exportRecycle do not support observation rotation.", call.=FALSE)
+      }
+      recycleCoordinates <- list(
+        fixed=colnames(X), contrasts=attr(X, "contrasts"),
+        fixedTerms=fixedTerms, randomTerms=rtermss,
+        random=lapply(Z, colnames),
+        randomDimensions=vapply(Z, ncol, integer(1)),
+        randomAxes=lapply(covStruct[seq_along(rtermss)], function(cs)
+          list(dim=cs$dim, levels=cs$levels,
+            factors=lapply(cs$factors, function(f)
+              list(dim=f$dim, levels=f$levels))))
+      )
+      state <- engineControl$pcg$recycleState
+      if(!is.null(state) &&
+         (!identical(state$coordinates, recycleCoordinates) ||
+          nrow(state$basis) != ncol(X) + sum(vapply(Z, ncol, integer(1))))){
+        stop("solve$recycleState coefficient coordinates do not match this model; no automatic remapping is performed.",
+             call.=FALSE)
+      }
+    }
+    attr(covStruct, "pcgControl") <- engineControl$pcg
+  }
+  attr(covStruct, "engineControl") <- engineControl
+  attr(covStruct, "denseMemoryMB") <- engineControl$denseMemoryMB
+  attr(covStruct, "memoryPolicy") <- engineControl$memoryPolicy
+  attr(covStruct, "blockBanded") <- engineControl$experimental$blockBanded
+  attr(covStruct, "factorSchurMultiFactor") <- engineControl$experimental$factorSchurMultiFactor
+  attr(covStruct, "dFirstML") <- engineControl$experimental$dFirstML
+  attr(covStruct, "matrixFreePcg") <- engineControl$experimental$matrixFreePcg
+  attr(covStruct, "cholmodFinalSelected") <- engineControl$experimental$cholmodFinalSelected
+  attr(covStruct, "pdCertificates") <- engineControl$experimental$pdCertificates
+  attr(covStruct, "profile") <- engineControl$experimental$profile
+  attr(covStruct, "blockSchur") <- engineControl$experimental$blockSchur
+  attr(covStruct, "traceBatch") <- engineControl$experimental$traceBatch
+  attr(covStruct, "sparseFactors") <- engineControl$experimental$sparseFactors
+  attr(covStruct, "saddlePoint") <- engineControl$experimental$saddlePoint
+  attr(covStruct, "reducedAI") <- if(nzchar(reducedAIReason)) "off" else
+    engineControl$experimental$reducedAI
+  if(directionBlend || adaptiveRecovery){
+    attr(covStruct, "directionBlend") <- TRUE
+    attr(covStruct, "blend") <- blend
+    attr(covStruct, "adaptiveRecovery") <- adaptiveRecovery
+  }
+  for(structureIndex in seq_along(covStruct)){
+    for(factorIndex in seq_along(covStruct[[structureIndex]]$factors)){
+      covStruct[[structureIndex]]$factors[[factorIndex]]$sparse_kernels <-
+        identical(engineControl$experimental$sparseFactors, "force")
+    }
+  }
+  attr(covStruct, "panelCi2") <- as.integer(engineControl$experimental$panelCi2)
+  if(!is.null(weightBlocks)) attr(covStruct, "weightBlocks") <- weightBlocks
+  attr(covStruct, "retainLDLTCache") <- .pqlInner && identical(solver, "ldlt")
+  attr(covStruct, "retainCholmodCache") <- .pqlInner && identical(solver, "cholmod")
+  attr(covStruct, "retainCholmodCache") <- .pqlInner && identical(solver, "cholmod")
+  if(pqlWarmStarted && !is.null(.pqlStart$ldltCache)){
+    attr(covStruct, "ldltCache") <- .pqlStart$ldltCache
+  }
+  if(pqlWarmStarted && !is.null(.pqlStart$cholmodCache)){
+    attr(covStruct, "cholmodCache") <- .pqlStart$cholmodCache
+  }
+  if(factorProfileWarmStarted && !is.null(.pqlStart$ldltCache)){
+    attr(covStruct, "ldltCache") <- .pqlStart$ldltCache
+  }
+  if(factorProfileWarmStarted && !is.null(.pqlStart$cholmodCache)){
+    attr(covStruct, "cholmodCache") <- .pqlStart$cholmodCache
+  }
+  if(pqlWarmStarted && !is.null(.pqlStart$cholmodCache)){
+    attr(covStruct, "cholmodCache") <- .pqlStart$cholmodCache
+  }
+
+  vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
+  if(!is.null(factorScoreInfo)){
+    factorScoreConstraints <- lapply(seq_along(factorScoreInfo$constrainedStructures), function(index){
+      structures <- factorScoreInfo$constrainedStructures[[index]]
+      rows <- which(vcParams$structure %in% structures & vcParams$position == 1L)
+      data.frame(parameter=vcParams$index[rows], group=paste0("factorScore", index), scale=1)
+    })
+    vcc <- do.call(rbind, factorScoreConstraints)
+  }
+  if(!is.null(vcc)){
+    vcSpec <- .vc_constraint_map(covStruct, vcParams, vcc)
+    covStruct <- vcSpec$covStruct
+    vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
+    vcParams$group <- vcSpec$group
+    attr(covStruct, "vcmap") <- list(T=vcSpec$T, o=vcSpec$o)
+  }
+  if(engineControl$experimental$commonScale != "off" && !nzchar(commonScaleReason)){
+    scaleRows <- vcParams$position == 1L
+    if(any(!vcParams$free[scaleRows])){
+      commonScaleReason <- "requires every product-level variance scale to be free; fixed covariance shapes are allowed"
+    }else if(any(vapply(covStruct, function(cs) any(vapply(cs$factors,
+      function(f) isTRUE(f$zero_specific) ||
+        isTRUE(f$representation$loadings$zero_specific), logical(1))), logical(1)))){
+      commonScaleReason <- "does not support latent reduced-rank covariance"
+    }else if(.sparse_rank(X) < ncol(X)){
+      commonScaleReason <- "requires a full-column-rank fixed design; remove aliased fixed effects"
+    }else{
+      mapping <- attr(covStruct, "vcmap")$T
+      if(!is.null(mapping)){
+        common <- as.numeric(scaleRows)
+        fittedCommon <- mapping %*% qr.coef(qr(mapping), common)
+        if(any(!is.finite(fittedCommon)) ||
+           max(abs(fittedCommon - common)) > 1e-8){
+          commonScaleReason <- "requires vcc constraints that preserve a common variance scale"
+        }
+      }
+    }
+    if(nzchar(commonScaleReason) && engineControl$experimental$commonScale == "force"){
+      stop("update$commonScale='force' ", commonScaleReason, ".", call.=FALSE)
+    }
+  }
+  if(nzchar(commonScaleReason) && !nzchar(reducedAIReason) &&
+     engineControl$experimental$reducedAI != "off" && !adaptiveRecovery && !directionBlend){
+    reducedAIReason <- "requires AI-first recovery, positive EM/PXEM direction blending or active common-scale profiling"
+    if(engineControl$experimental$reducedAI == "force"){
+      stop("curvature$reduced='force' ", reducedAIReason, ".", call.=FALSE)
+    }
+    attr(covStruct, "reducedAI") <- "off"
+  }
+  attr(covStruct, "commonScale") <- if(nzchar(commonScaleReason)) "off" else
+    engineControl$experimental$commonScale
+
+  if(returnParam){
+    return(list(yvar=yvar, X=X, Z=Z, Zind=Zind, Ai=Ai,
+                vcParams=vcParams,
+                W=W, useH=useH, residualBlock=residualBlock,
+                residualIndex=localIndex, nIters=nIters,
+                tolParConvLL=tolParConvLL, tolParConvNorm=tolParConvNorm,
+                tolParInv=tolParInv, verbose=verbose, covStruct=covStruct,
+                stepWeight=stepWeight, blend=blend, blendWeight=blendWeight,
+                rtermss=rtermss, partitionsX=partitionsX,
+                getPEV=getPEV, rTermsNames=rTermsNames,
+                obsInfo=obsInfo, solver=solver, REML=REML,
+                blasThreads=blasThreads,
+                henderson=henderson, weights=weights,
+                weightBlocks=weightBlocks, rotation=rotationInfo,
+                factorScoreInfo=factorScoreInfo,
+                responsePrepared=responsePrepared, preparedMean=preparedMean,
+                preparedSd=preparedSd, preparedIntercept=preparedIntercept,
+                engine=engineControl))
+  }
+
+  if(isTRUE(henderson)){
+    res <- .Call("_sommer_ai_mme_sp2", PACKAGE="sommer",
+                 X, Z, Zind, Ai, yvar, W, useH,
+                 residualBlock, localIndex,
+                 nIters, tolParConvLL, tolParConvNorm,
+                 tolParInv, covStruct, blendWeight, stepWeight,
+                 verbose, computeCi, solver, pcgTol, pcgMaxIters,
+                 pcgTraceProbes, pcgLanczosSteps, REML,
+                 responsePrepared, preparedMean, preparedSd,
+                 preparedIntercept, engineControl$gpu, engineControl$gpuMinSize)
+
+  }else{
+    res <- .Call("_sommer_ai_reml_direct_sp2", PACKAGE="sommer",
+                 X, Z, Zind, Ai, yvar, W, useH,
+                 residualBlock, localIndex,
+                 nIters, tolParConvLL, tolParConvNorm,
+                 tolParInv, covStruct, blendWeight, stepWeight,
+                 verbose, computeCi, REML,
+                 responsePrepared, preparedMean, preparedSd,
+                 preparedIntercept)
+  }
+  if(nzchar(reducedAIReason)){
+    res$engineDiagnostics$reducedAI <- list(active=FALSE,
+      fallbackReason=reducedAIReason)
+  }
+  if(nzchar(commonScaleReason)){
+    res$engineDiagnostics$commonScale <- list(active=FALSE,
+      fallbackReason=commonScaleReason)
+  }
+  res$pqlWarmStarted <- pqlWarmStarted
+  if(isTRUE(engineControl$pcg$exportRecycle)){
+    basis <- res$pcgRecycleBasis
+    res$pcgRecycleBasis <- NULL
+    if(!is.matrix(basis) || !ncol(basis)){
+      stop("PCG did not produce an accepted recycle basis for export.", call.=FALSE)
+    }
+    res$pcgRecycleState <- structure(list(version=1L,
+      coordinates=recycleCoordinates, basis=basis), class="sommer_pcg_recycle")
+  }
+  res$factorProfileWarmStarted <- factorProfileWarmStarted
+  if(!is.null(factorScoreInfo)){
+    res <- .factor_score_restore(res, factorScoreInfo, X, originalRandomZ,
+                   residualCovStruct)
+    rtermss <- factorScoreInfo$originalTerms
+    rTermsNames <- c(factorScoreInfo$originalTermNames,
+                     list(rTermsNames[[length(rTermsNames)]]))
+    covStruct <- res$covStruct
+    vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
+    res$InfMatAugmented <- res$InfMat
+    res$factorScoreAugmentation <- "fixed-shape"
+  }
+  res$engine <- if(isTRUE(henderson)) "henderson" else "direct"
+  res$call <- mmesCall
+  res$inputArgs <- list(naMethodX=naMethodX, naMethodY=naMethodY,
+                        naMethodRandom=naMethodRandom, naMethodR=naMethodR,
+                        contrasts=contrasts, henderson=henderson, REML=REML,
+                        blend=blend,
+                        blendWeight=if(adaptiveRecovery) NULL else blendWeight, vcc=vcc,
+                        W=WInput,
+                        engine=engineControl)
+
+  rownames(res$b) <- colnames(X)
+  if(length(randomFits) && length(res$u)){
+    randomZForNames <- if(is.null(factorScoreInfo)) Z else originalRandomZ
+    rownames(res$u) <- unlist(lapply(randomZForNames, colnames))
+  }
+  rownames(res$bu) <- c(rownames(res$b), rownames(res$u))
+  rownames(res$monitor) <- unlist(rTermsNames)
+  if(!is.null(res$monitorOriginalScale)) rownames(res$monitorOriginalScale) <- unlist(rTermsNames)
+  
+  res$data <- data
+  res$dataOriginal <- dataor
+  res$obsInfo <- obsInfo
+  res$randomPrecision <- randomPrecision
+  res$y <- yvar
+  res$partitionsX <- partitionsX
+  res$covStruct <- covStruct
+  res$vcParams <- vcParams
+  res$REML <- REML
+  res$engineControl <- engineControl
+  if(is.list(res$engineDiagnostics)){
+    res$engineDiagnostics$controlObject <- engineControl
+  }
+  
+  if(length(randomFits) && length(rtermss)){
+    names(res$theta) <- c(rtermss, residualLabel)
+    names(res$covPar) <- c(rtermss, residualLabel)
+    names(res$covStruct) <- c(rtermss, residualLabel)
+    names(res$partitions) <- rtermss
+    names(res$uList) <- rtermss
+    if(getPEV && computeCi > 0) names(res$uPevList) <- rtermss
+    for(i in seq_along(res$partitions)){
+      colnames(res$uList[[i]]) <- covStruct[[i]]$levels
+      rr <- res$partitions[[i]][1,1]:res$partitions[[i]][1,2]
+      rownames(res$uList[[i]]) <- rownames(res$bu)[rr]
+      if(getPEV && computeCi > 0){
+        colnames(res$uPevList[[i]]) <- covStruct[[i]]$levels
+        rownames(res$uPevList[[i]]) <- rownames(res$bu)[rr]
+      }
+    }
+    res$args <- list(fixed=fixed, random=random, rcov=rcov)
+    res$Dtable <- data.frame(type=c(rep("fixed",length(res$partitionsX)),rep("random",length(res$partitions))),
+                             term=c(names(res$partitionsX),names(res$partitions)),
+                             include=FALSE, average=FALSE)
+  }else{
+    names(res$theta) <- residualLabel
+    names(res$covPar) <- residualLabel
+    names(res$covStruct) <- residualLabel
+    res$args <- list(fixed=fixed, rcov=rcov)
+    res$Dtable <- data.frame(type=rep("fixed",length(res$partitionsX)),
+                             term=names(res$partitionsX), include=FALSE, average=FALSE)
+  }
+  res$Dtable$levels <- vector("list", nrow(res$Dtable))
+
+  if(!is.null(rotationInfo)){
+    res$buEngine <- res$bu
+    res$uEngine <- res$u
+    res$uListEngine <- res$uList
+
+    rotationTerm <- rotationInfo$term
+    rotated <- rotationInfo$vectors %*% res$uList[[rotationTerm]]
+    rownames(rotated) <- rotationInfo$levels
+    colnames(rotated) <- colnames(res$uList[[rotationTerm]])
+    res$uList[[rotationTerm]] <- rotated
+
+    publicUNames <- unlist(lapply(rotationInfo$ZOriginal, colnames))
+    publicU <- unlist(lapply(res$uList, as.vector), use.names=FALSE)
+    res$u <- matrix(publicU, ncol=1L, dimnames=list(publicUNames, NULL))
+    res$bu <- rbind(res$b, res$u)
+    res$W <- do.call(cbind, c(list(rotationInfo$XOriginal), rotationInfo$ZOriginal))
+    res$y <- rotationInfo$yOriginal
+    res$rotation <- rotationInfo
+  }
+  
+  class(res) <- "mmes"
+  if(engineControl$covarianceInformation == "none"){
+    res$covarianceInformation <- "none"
+    res$covParNative <- get(".covparams_mmes", mode="function")(res)
+    res$covParNative$StdError <- NA_real_
+    res$covParNative$Zratio <- NA_real_
+  }else{
+    res$covParNative <- get(".covparams_mmes_se", mode="function")(res)
+  }
+  finishThreads(res, threadScope, verbose)
+}

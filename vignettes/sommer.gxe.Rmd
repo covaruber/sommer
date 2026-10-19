@@ -193,7 +193,8 @@ mix2 <- mmes(y~ envIndex,
   random=~ Name + vsm(ism(envIndex),ism(Name)),
   data=DT2,
   rcov=~vsm(dsm(Name),ism(units)),
-  control = mmes_control(convergence = list(maxIters = 50),
+  control = mmes_control(
+    # convergence = list(maxIters = 50),
   diagnostics = list(verbose = FALSE)))
 # summary(mix2)$varcomp
 
@@ -240,7 +241,8 @@ ansFA2 <- mmes(y~Env,
   random=~vsm( fam(Env, 2) , ism(Name)),
   rcov=~units,
   data=DT,
-  control = mmes_control(convergence = list(maxIters = 100),
+  control = mmes_control(
+    # convergence = list(maxIters = 100),
   diagnostics = list(verbose = FALSE)))
 
 Dt <- ansFA2$Dtable; Dt
@@ -264,7 +266,7 @@ ansRR2 <- mmes(y~Env,
               rcov=~units,
   data=DT,
   control = mmes_control(formulation = "henderson",
-  convergence = list(maxIters = 100),
+  # convergence = list(maxIters = 100),
   diagnostics = list(verbose = FALSE)))
 
 
@@ -285,15 +287,15 @@ Last but not least, it is possible to avoid the estimation of loadings by defini
 ```{r}
 
 # fit diagonal model first to produce H matrix
-ansDG <- mmes(y~Env,
-  random=~ vsm(dsm(Env), ism(Name)),
-  rcov=~units,
-  data=DT,
-  control = mmes_control(formulation = "henderson",
-  convergence = list(maxIters = 100),
-  diagnostics = list(verbose = FALSE)))
-
-H0 <- ansDG$uList$`vsm(dsm(Env), ism(Name))` # GxE table
+# ansDG <- mmes(y~Env,
+#   random=~ vsm(dsm(Env), ism(Name)),
+#   rcov=~units,
+#   data=DT,
+#   control = mmes_control(formulation = "henderson",
+#   # convergence = list(maxIters = 100),
+#   diagnostics = list(verbose = FALSE)))
+# 
+# H0 <- ansDG$uList$`vsm(dsm(Env), ism(Name))` # GxE table
 
 # # reduced rank model
 # ansFA <- mmes(y~Env,

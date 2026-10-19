@@ -1,13 +1,12 @@
 # Builds pkgdown/assets/mmes-options.html, the interactive guide to
-# mmes() options. Run from the package root with sommer installed:
+# mmes() options. Run from the package root with jsonlite installed:
 #   Rscript pkgdown/mmes-options/build-mmes-options.R [extra output path ...]
 # Option metadata (capability catalog, defaults, compatibility table and
 # fit-time error messages) is read from the working-tree R sources, so rebuild
 # the page whenever those change.
 
 stopifnot(file.exists("DESCRIPTION"), requireNamespace("jsonlite", quietly=TRUE))
-suppressMessages(library(sommer))
-src <- new.env(parent=asNamespace("sommer"))
+src <- new.env(parent=baseenv())
 for(file in c("R/FUN_mme_control.R", "R/FUN_mme_capabilities.R", "R/FUN_mme_modules.R")){
   sys.source(file, envir=src, keep.source=FALSE)
 }
@@ -16,6 +15,37 @@ capabilities <- src$.mmes_capabilities()
 build <- src$.mmes_control_build
 controls <- capabilities$controls
 defaults <- build()
+
+# Check the catalog against the public API, including nested PQL fields.
+leaf_paths <- function(x, prefix="control"){
+  unlist(lapply(names(x), function(name){
+    path <- paste(prefix, name, sep=".")
+    if(is.list(x[[name]]) && length(x[[name]])) leaf_paths(x[[name]], path) else path
+  }), use.names=FALSE)
+}
+current <- leaf_paths(defaults)
+controls <- controls[!controls$path %in% "control.output.pev", ]
+catalog_controls <- controls$path[startsWith(controls$path, "control.")]
+if(!setequal(current, catalog_controls)){
+  stop("Control catalog differs from mmes_control(); update the catalog: ",
+    paste(union(setdiff(current, catalog_controls), setdiff(catalog_controls, current)), collapse=", "))
+}
+for(i in which(startsWith(controls$path, "control."))){
+  parts <- strsplit(sub("^control\\.", "", controls$path[i]), ".", fixed=TRUE)[[1]]
+  value <- Reduce(function(x, part) x[[part]], parts, defaults)
+  controls$default[i] <- paste(deparse(value), collapse="")
+}
+controls$default[controls$path %in% c("control.convergence.maxTraceProbes",
+  "control.convergence.maxLanczosSteps")] <- "NULL (resolves to initial probes / Lanczos steps)"
+controls$values[controls$path == "control.execution.memoryPolicy"] <- "speed, limit."
+controls$values[controls$path == "control.execution.denseMemoryMB"] <- "Positive finite MB budget."
+controls$values[controls$path == "control.execution.gpu"] <- "TRUE or FALSE; requires a CUDA-enabled build."
+controls$values[controls$path == "control.execution.gpuMinSize"] <- "Positive integer."
+controls$values[controls$path == "control.task.pql.estimateTheta"] <- "TRUE or FALSE."
+controls$values[controls$path == "control.output.inverse"] <-
+  "0: no fit-time PEVs or inverse; 1: selected inverse and PEVs; 2: full inverse and PEVs."
+controls$effect[controls$path == "control.output.inverse"] <-
+  "Controls both fit-time PEV computation and the coefficient inverse. With mode 0 and coefficientMatrix=TRUE, postPEV() can compute these after fitting."
 
 public_path <- function(path){
   path <- sub("^control\\.", "", path)
@@ -46,7 +76,11 @@ catalog_path <- function(option){
   path[option == "formulation"] <- "control.formulation"
   path
 }
-present <- function(paths) intersect(paths, controls$path)
+present <- function(paths){
+  unknown <- setdiff(paths, controls$path)
+  if(length(unknown)) stop("Unknown guide options: ", paste(unknown, collapse=", "))
+  paths
+}
 
 # Settings each engine actually reads are derived from the compatibility table.
 rules_src <- src$.mmes_compatibility_rules()
@@ -147,7 +181,7 @@ nodes <- list(
     example='mmes_control(convergence = list(maxIters = 50L, likelihoodTol = 1e-6))'),
   node("outputs", "Outputs", "Coefficient and covariance uncertainty",
     "Which inference products should be returned?",
-    "Coefficient uncertainty, covariance-parameter information and the retained coefficient matrix are separate requests with their own eligibility; none substitutes for another.",
+    "output$inverse = 0 skips fit-time PEVs and coefficient inversion; 1 computes selected-inverse PEVs; 2 computes the full inverse and PEVs. To defer this work, retain coefficientMatrix = TRUE and call postPEV(fit, mode = 1L or 2L). There is no separate output$pev control. Covariance-parameter information is a separate request.",
     grep("^control\\.output\\.", controls$path, value=TRUE), c("coefficient-matrix"),
     'mmes_control(output = list(inverse = 1L))'),
   node("policy", "Execution and diagnostics", "Memory, threads, GPU, messages",
@@ -324,7 +358,7 @@ tips <- list(
   tip("Start simple", "Begin with mmes_control() defaults and change one module at a time. Restating a default is always accepted; a non-default setting that the selected path would ignore stops the call and names the offending options.", "model"),
   tip("Solver", "Use solve$method = 'auto' (or 'ldlt') for sparse pedigree-like relationship precision. Try 'cholmod' when the relationship precision is dense or the LDLT factor fills in.", c("henderson", "deterministic")),
   tip("Solver", "Use solve$method = 'pcg' only when factor memory or factorization time is the bottleneck and approximate log-determinants and traces are acceptable. Check sensitivity to solve$tol, score$traceProbes and logdet$lanczosSteps.", "pcg"),
-  tip("Solver", "With PCG, set update$blendWeight = 0 explicitly: EM/PXEM blending needs a deterministic factorization.", c("pcg", "optimizer")),
+  tip("Solver", "With PCG, leave update$blendWeight at NULL or set it to 0: positive EM/PXEM blending needs a deterministic factorization.", c("pcg", "optimizer")),
   tip("Formulation", "Use formulation = 'direct' when records are few relative to random-effect levels; keep Henderson otherwise. Direct accepts only the short list on its node.", c("domain", "direct")),
   tip("Outputs", "Keep output$inverse = 0 unless you need coefficient uncertainty from the inverse. Mode 1 (selected inverse) suits LDLT; mode 2 (full inverse) can be very expensive in time and memory.", "outputs"),
   tip("Model size", "Unstructured covariance factors make the AI solve grow quadratically in the number of free parameters even when the MME solve is fast. Prefer FA or diagonal structures where they fit the biology.", c("model", "curvature")),

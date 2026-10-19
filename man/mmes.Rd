@@ -22,7 +22,7 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
      naMethodX="exclude", naMethodY="exclude",
      naMethodRandom="exclude", naMethodR="exclude",
      contrasts=NULL, family=stats::gaussian(), vcc=NULL,
-     covPar=NULL, control=mmes_control(), .internal=NULL)
+     covPar=NULL, control=mmes_control(), .internal=NULL, ...)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -292,6 +292,12 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
 
   \item{.internal}{Reserved for package-internal recursive fitting state.
   Users should not set this argument.}
+
+ \item{...}{Deprecated legacy arguments. The supported arguments are
+ \code{getPEV}, \code{tolParInv}, and \code{verbose}; they map respectively to
+ \code{control$output$inverse}, \code{control$execution$inverseTol}, and
+ \code{control$diagnostics$verbose}. These arguments override matching
+ settings in \code{control} and issue a deprecation warning.}
 }
 \details{
 

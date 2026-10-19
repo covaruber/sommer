@@ -1,0 +1,90 @@
+test_that("predict.mmes gives exact SEs without requiring the full Ci inverse", {
+  data(DT_example)
+  DT <- DT_example
+
+  m0 <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE)))
+  expect_identical(m0$CiMode, 0L)
+  expect_false(isTRUE(m0$CiComputed))
+
+  m1 <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE), output=list(inverse=1)))
+  expect_identical(m1$CiMode, 1L)
+  expect_false(isTRUE(m1$CiComputed))
+
+  m2 <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE), output=list(inverse=2)))
+  expect_identical(m2$CiMode, 2L)
+  expect_true(isTRUE(m2$CiComputed))
+
+  # predict_mmes_vcov_cpp() solves C %*% X = t(D) for the requested rows
+  # instead of using Ci, so all three computeCi modes must agree exactly
+  # with the full-inverse reference, for both a fixed-effect (Env) and a
+  # random-effect (Name) classify.
+  p0 <- predict(m0, D="Env")
+  p1 <- predict(m1, D="Env")
+  p2 <- predict(m2, D="Env")
+  expect_true(all(p2$pvals$std.error > 0))
+  expect_equal(p0$pvals$predicted.value, p2$pvals$predicted.value)
+  expect_equal(p0$pvals$std.error, p2$pvals$std.error)
+  expect_equal(p1$pvals$predicted.value, p2$pvals$predicted.value)
+  expect_equal(p1$pvals$std.error, p2$pvals$std.error)
+
+  p0n <- predict(m0, D="Name")
+  p2n <- predict(m2, D="Name")
+  expect_equal(p0n$pvals$std.error, p2n$pvals$std.error)
+
+  envColumns <- as.vector(m0$partitionsX[["Env"]])
+  interceptColumn <- as.vector(m0$partitionsX[["1"]])
+  expect_equal(unname(as.matrix(p0n$D[, envColumns, drop=FALSE])),
+               matrix(1 / (length(envColumns) + 1L),
+                      nrow=nrow(p0n$D), ncol=length(envColumns)))
+  expect_equal(as.numeric(p0n$D[, interceptColumn]), rep(1, nrow(p0n$D)))
+})
+
+test_that("generic CHOLMOD reuses its supernodal selected inverse for mode one", {
+  previous <- options(sommer.mme.denseMemoryMB=0.1, sommer.mme.blockBanded=FALSE,
+                      sommer.mme.memoryPolicy="limit")
+  on.exit(options(previous), add=TRUE)
+  size <- 64L
+  data <- data.frame(id=factor(seq_len(size)), one=factor(rep("all", size)),
+    y=sin(seq_len(size) / 9) + cos(seq_len(size) / 17))
+  fitModel <- function(solver, mode){
+    mmes(y~1, random=~vsm(ar2m(id), ism(one)), rcov=~units, data=data, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=2L), output=list(inverse=mode), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  }
+  selected <- fitModel("cholmod", 1L)
+  full <- fitModel("cholmod", 2L)
+  expect_false(selected$engineDiagnostics$blockSchurActive)
+  expect_true(selected$engineDiagnostics$cholmodFinalSelectedInverse)
+  selectedEntries <- Matrix::summary(selected$Ci)
+  fullDense <- as.matrix(full$Ci)
+  expect_equal(selectedEntries$x,
+    fullDense[cbind(selectedEntries$i, selectedEntries$j)], tolerance=1e-7)
+  expect_equal(selected$uPevList, full$uPevList, tolerance=1e-7)
+  expect_equal(as.numeric(diag(selected$Ci)), as.numeric(diag(full$Ci)), tolerance=1e-7)
+  predictionSelected <- predict(selected, D="id")
+  predictionFull <- predict(full, D="id")
+  expect_equal(predictionSelected$pvals$std.error,
+    predictionFull$pvals$std.error, tolerance=1e-7)
+
+  options(sommer.mme.denseMemoryMB=1e-7)
+  fallback <- fitModel("cholmod", 1L)
+  expect_false(fallback$engineDiagnostics$cholmodFinalSelectedInverse)
+  fallbackEntries <- Matrix::summary(fallback$Ci)
+  expect_equal(fallbackEntries$x,
+    fullDense[cbind(fallbackEntries$i, fallbackEntries$j)], tolerance=1e-7)
+  expect_equal(fallback$uPevList, full$uPevList, tolerance=1e-7)
+})
+
+test_that("predict.mmes averages fixed interactions over their full level space", {
+  data(DT_yatesoats)
+
+  model <- mmes(Y ~ B + B:MP, random=~V, rcov=~units, data=DT_yatesoats, control=mmes_control(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE)))
+  prediction <- predict(model, D="V")
+
+  bColumns <- as.vector(model$partitionsX[["B"]])
+  interactionColumns <- as.vector(model$partitionsX[["B:MP"]])
+  randomRange <- model$partitions[[1L]][1L, ]
+  randomColumns <- seq.int(randomRange[1L], randomRange[2L])
+
+  expect_equal(unique(as.numeric(prediction$D[, bColumns])), 1 / 6)
+  expect_equal(unique(as.numeric(prediction$D[, interactionColumns])), 1 / 18)
+  expect_equal(unname(as.matrix(prediction$D[, randomColumns])), diag(3))
+})

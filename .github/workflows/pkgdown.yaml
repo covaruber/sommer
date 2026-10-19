@@ -11,6 +11,9 @@ on:
       - "vignettes/**"
       - "man/**"
       - "DESCRIPTION"
+      - "pkgdown/**"
+      - "R/**"
+      - ".github/workflows/pkgdown.yaml"
   workflow_dispatch:
 
 permissions:
@@ -36,7 +39,7 @@ jobs:
           use-public-rspm: true
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::pkgdown, any::ragg, local::.
+          extra-packages: any::pkgdown, any::ragg, any::jsonlite, local::.
           needs: website
       - uses: actions/configure-pages@v5
       - name: Build pkgdown site

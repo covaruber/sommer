@@ -1,0 +1,327 @@
+---
+title: "Modular numerical controls for sommer::mmes"
+author: "sommer development team"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{sommer.mmes.options}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Purpose
+
+For a clickable decision tree with searchable controls, defaults, examples,
+and compatibility checks, open the
+[interactive mmes_control guide](https://covaruber.github.io/sommer/mmes-options.html).
+
+`mmes()` separates statistical model specification from numerical policy.
+Formulas, data, weights, family, constraints, and known covariance parameters
+remain `mmes()` arguments. Numerical choices belong in one validated object:
+
+```r
+fit <- mmes(
+  fixed = trait ~ environment,
+  random = ~ genotype,
+  rcov = ~ units,
+  data = trial_data,
+  control = mmes_control()
+)
+```
+
+This vignette documents the modular API, defaults, mathematical ownership,
+eligibility constraints, and migration from the removed numerical formals.
+It is explanation only: code is displayed, not run. Building this vignette does
+not fit models, benchmark methods, or change hardware settings.
+
+# Public interfaces
+
+The current public numerical interface is:
+
+```r
+mmes(fixed, random, rcov, data, W, weights = NULL,
+     naMethodX = "exclude", naMethodY = "exclude",
+     naMethodRandom = "exclude", naMethodR = "exclude",
+     contrasts = NULL, family = stats::gaussian(), vcc = NULL,
+     covPar = NULL, control = mmes_control(), .internal = NULL)
+
+mmes_control(
+  formulation = "henderson", task = list(), representation = list(),
+  solve = list(), logdet = list(), score = list(), curvature = list(),
+  update = list(), proposal = list(), convergence = list(),
+  output = list(), execution = list(), diagnostics = list()
+)
+```
+
+`fixed`, `random`, `rcov`, `data`, and `W` remain model inputs. `weights`
+declares independent blocks in a supplied `W`; it does not create weights.
+`family`, `vcc`, `covPar`, missing-data policies, and `contrasts` retain their
+statistical or data-preparation roles. `.internal` is reserved for package
+recursion and is not a user control.
+
+`mmes_control()` validates top-level and nested module names. Unknown fields,
+duplicate names, and malformed named lists error. Removed options are not
+accepted through `...`, aliases, or a legacy `engine` argument. Controls record
+requests; they do not fit a model or establish model-specific eligibility.
+Fitting validation remains authoritative.
+
+# Ownership and defaults
+
+The default control retains the established numerical bundle: Henderson
+formulation, REML fitting, exact AI curvature, EM recovery, no extrapolation,
+30 inner iterations, full covariance information, coefficient-matrix
+retention, and inherited solver/resource defaults. These defaults preserve
+the prior numerical bundle; they do not authorize new combinations.
+
+| Module | Mathematical ownership | Fields and defaults |
+|:--|:--|:--|
+| `formulation` | Equation domain | `"henderson"`; `"henderson"` or `"direct"`. |
+| `task` | Fit versus known-covariance solve; objective; outer PQL | `mode="fit"`, `objective="reml"`, `pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)`. |
+| `representation` | Equation/covariance representation | `compression="off"`, `factorScores="none"`, `equations="normal"`, `sparseFactors="off"`, `matrixFree="auto"`; modes can inherit global options, and `equations` defaults to `"saddle-point"` if that mode is globally forced. |
+| `solve` | Linear solves, preconditioning, reuse, elimination | `method="auto"`; PCG fields below; `blockSchur`, `blockBanded`, `factorSchurMultiFactor`, and `dFirstML` default to `"auto"`. |
+| `logdet` | Determinant approximation | `scaling="none"`, `lanczosSteps=20L`. |
+| `score` | Covariance derivatives and trace estimation | `traceProbes=8L`, `estimator="hutchinson"`, `rank=16L`, `covarianceChecks="auto"`, `traceBatch="off"`. |
+| `curvature` | AI metric and reduced-direction assembly | `method="exact-ai"`, `reduced="off"`. |
+| `update` | Covariance-coordinate update and recovery | `recovery="em"`, `blendWeight=NULL`, `commonScale="off"`. |
+| `proposal` | Proposal scaling and extrapolation | `stepWeight=NULL`, `extrapolation="none"`. |
+| `convergence` | Inner iterations and stochastic accuracy | `maxIters=30L`, `likelihoodTol=1e-4`, `parameterTol=1e-4`, `accuracy="fixed"`, `maxTraceProbes=NULL`, `maxLanczosSteps=NULL`, `logDetTol=1e-3`, `scoreTol=1e-3`. |
+| `output` | Coefficient and covariance uncertainty; setup output | `inverse=0L`, `covariance="full"`, `coefficientMatrix=TRUE`, `setup=FALSE`, `selectedInverse="auto"`, `panelSize=64L`. |
+| `execution` | Memory, hardware, threads, precision, seed | `denseMemoryMB=1000`, `memoryPolicy="speed"`, `gpu=FALSE`, `gpuMinSize=256L`, `blasThreads=NULL`, `inverseTol=1e-6`, `seed=0L`. |
+| `diagnostics` | Messages, package-age warning, profiling | `verbose=TRUE`, `dateWarning=TRUE`, `profile="off"`. |
+
+The PCG fields under `solve` default to `tol=1e-8`, `maxIters=0L`,
+`preconditioner="diagonal"`, `nystromRank=32L`, `warmStart=FALSE`,
+`recycleRank=0L`, `recycleMethod="coarse"`, `recycleState=NULL`,
+`exportRecycle=FALSE`, `rhsMethod="independent"`, `blockSize=16L`, and
+`residualRefresh=0L`. `maxIters=0L` selects the solver's automatic limit.
+PCG-specific requests matter only when an eligible PCG path uses them.
+
+`output$inverse` controls final coefficient-inverse work and fit-time PEVs.
+Mode `0L` computes neither. Mode `1L` computes random-effect PEVs from the
+selected inverse without forming full `Ci`. Mode `2L` forms full `Ci` and
+computes PEVs. To defer this work, retain the default mode `0L` and
+`output$coefficientMatrix=TRUE`, then call `postPEV(fit, mode=1L)` for PEVs
+only or `postPEV(fit, mode=2L)` for PEVs and full `Ci`.
+
+Options may supply defaults for experimental modes, memory budget/policy, and
+GPU settings. For example, a non-`NULL` `sommer.mme.denseMemoryMB` option
+replaces the `1000` MB default. Explicit control values override option-derived
+mode defaults. Use them for reproducible intent. Hardware and library
+availability can still affect execution.
+
+Constructors and valid values:
+
+* `solve$method`: `"auto"`, `"ldlt"`, `"cholmod"`, or `"pcg"`.
+* `representation$compression`: `"off"`, `"groups"`, or `"classes"`.
+* `representation$factorScores`: `"none"`, `"fixed-shape"`, or `"profile"`.
+* `representation$equations`: `"normal"` or `"saddle-point"`.
+* `logdet$scaling`: `"none"` or `"diagonal"`.
+* `score$estimator`: `"hutchinson"` or `"control-variate"`.
+* `curvature$method`: `"exact-ai"` or `"hybrid-ai"`.
+* `update$recovery`: `"em"` or `"pxem"`.
+* `proposal$extrapolation`: `"none"` or `"aitken"`.
+* `convergence$accuracy`: `"fixed"` or `"adaptive"`.
+* `output$inverse`: `0`, `1`, or `2`; `output$covariance`: `"full"` or `"none"`.
+* `execution$memoryPolicy`: `"speed"` or `"limit"`.
+* Experimental mode fields accept `"auto"`, `"off"`, `"force"`, or logical
+  `TRUE`/`FALSE`. A forced request still obeys mathematical, structural, and
+  memory checks.
+
+The complete field reference and mapping from old names are in
+`?mmes_control`.
+
+# Decision graph and constraints
+
+The sequence below shows dependencies, not a sequence of arbitrary method
+switches. Several paths dispatch early, and later choices remain gated by the
+model, task, solver, and output request.
+
+```text
+Model formulas, covariance descriptors, data and weights
+|
++-- task$mode = "solve"
+|   +-- Known covariance parameters; no covariance estimation
+|   +-- Gaussian identity and restricted solve/output requests
+|
++-- task$mode = "fit"
+    |
+    +-- Non-Gaussian family
+    |   +-- Outer PQL uses task$pql
+    |   +-- Inner fits remain subject to Gaussian-path restrictions
+    |
+    +-- Gaussian identity / inner Gaussian fit
+        |
+        +-- formulation = "direct"
+        |   +-- Observation-space fitting
+        |   +-- No Henderson solver selection
+        |
+        +-- formulation = "henderson"
+            +-- solve$method = "pcg"
+            |   +-- REML estimation; iterative solves and stochastic
+            |       determinant/score evaluation
+            +-- solve$method = "auto", "ldlt", or "cholmod"
+                +-- Deterministic sparse-factorization paths
+                +-- Exact determinant/score paths when eligible
+
+Representation, evaluation, update, proposal, convergence, output,
+execution, and diagnostics requests apply within those branches only
+when their model-dependent admission checks pass.
+```
+
+Model-independent combinations are checked by one compatibility table when
+`mmes_control()` builds the object and again in `mmes()`. A supplied setting
+that conflicts with another, or that the selected path would ignore, stops
+the call. The error names every offending setting and suggests a fix.
+Restating a default is always accepted. Rules that depend on the data,
+family, `vcc` or rotation are checked at fit time. See
+`?mmes_control` (section Compatibility) for the rule list.
+
+```r
+mmes_control(solve = list(method = "ldlt"), score = list(traceProbes = 32L))
+#> Error: Incompatible mmes_control() settings:
+#> * PCG preconditioning, recycling, stochastic log-determinant and
+#>   trace-estimation settings only apply when solve$method='pcg' ...
+#>   Offending: score$traceProbes. Remove them or set solve$method='pcg'.
+```
+
+Examples of coupled prerequisites:
+
+* `formulation="direct"` uses observation-space equations. Henderson
+  settings such as `solve$method`, `representation`, `curvature` or PCG
+  estimators have no effect there and stop the call when supplied.
+* For covariance estimation, PCG is a Henderson REML bundle. It combines
+  iterative linear solves with stochastic determinant and score work, and
+  supports `output$inverse` 0 or 2, not selected-inverse mode 1. The known-
+  covariance solve task has its own restricted PCG path and requires
+  `output$inverse=0`. Solve tolerance does not bound stochastic estimator error.
+* `proposal$extrapolation="aitken"` and
+  `curvature$method="hybrid-ai"` cannot be requested together.
+* `representation$compression` requires an eligible Gaussian Henderson model,
+  independent residuals, fixed diagonal weights, and matching design rows.
+  PQL, known-covariance solving, rotation, correlated residuals, saddle-point
+  equations, factor-score augmentation, and latent reduced rank are excluded.
+* `representation$equations="saddle-point"` requires an eligible deterministic
+  Gaussian Henderson path. It is not compatible with PCG, PQL, known-
+  covariance solving, acceleration, rotation, compression, factor-score
+  augmentation, or latent reduced rank.
+* `representation$factorScores` requires a compatible deterministic Henderson
+  REML model and eligible covariance structure. It excludes known-covariance
+  solving, PCG, user covariance constraints, rotation, compression, positive
+  EM blending, and latent reduced rank.
+* `representation$sparseFactors` applies only to eligible supported structured
+  factors, including selected AR, ANTE, SAR, and CAR structures. It does not
+  introduce new covariance models. `representation$matrixFree` avoids eligible
+  tensor-prior assembly for PCG; it does not make every model operation
+  matrix-free.
+* `solve$blockSchur`, `blockBanded`, `factorSchurMultiFactor`, and `dFirstML`
+  request specialized elimination only for eligible coefficient graphs,
+  likelihoods, backends, and workspaces. Forcing a request does not bypass
+  structural or memory checks.
+* `score$traceBatch` requires an eligible exact LDLT score path and panel
+  workspace. `score$covarianceChecks` can use available certificates, but no
+  certificate bypasses positive-definiteness validation.
+* `curvature$reduced` needs an eligible reducing constraint map and supported
+  update path. `update$commonScale` needs free product scales, a full-rank fixed
+  design, and scale-preserving constraints. Both exclude several accelerated,
+  PCG, PQL, and special-representation paths.
+* `output$covariance="none"` is restricted to supported Gaussian Henderson
+  fits; it does not disable curvature needed by optimization. Setting
+  `output$coefficientMatrix=FALSE` requires the eligible saddle-point path and
+  `output$inverse=0`. These output requests do not substitute for one another.
+  `output$selectedInverse` matters only for eligible Henderson selected-inverse
+  output (`output$inverse=1`); `output$panelSize` controls full-inverse panels
+  (`output$inverse=2`).
+* GPU requests require a CUDA-enabled Henderson build and usable CUDA runtime
+  and device. Direct inversion and the known-covariance solve path remain CPU
+  paths.
+* `output$inverse` controls coefficient-matrix uncertainty.
+  `output$covariance` controls covariance-parameter information.
+  `output$coefficientMatrix` controls retained coefficient-matrix output.
+  These are separate requests with separate eligibility conditions.
+* `"auto"` records a request for policy-based selection, not a promise that a
+  specialized method will be selected. `"force"` cannot bypass mathematical
+  or structural restrictions.
+
+For the descriptive capability inventory and conceptual decision graph, inspect
+the internal catalog:
+
+```r
+capabilities <- sommer:::.mmes_capabilities()
+capabilities$modules
+capabilities$controls
+capabilities$decisions
+capabilities$edges
+```
+
+This inventory does not inspect a fitted model, resolve eligibility, or predict
+the selected execution path. It complements, but does not replace, control
+validation and fit-time diagnostics.
+
+# Migration from removed numerical formals
+
+Move every numerical choice into `control`; do not pass old formals to
+`mmes()`. Use one control object rather than conflicting duplicated values.
+
+| Former argument or path | Current setting |
+|:--|:--|
+| `henderson=TRUE/FALSE` | `formulation="henderson"/"direct"` |
+| `solver` | `solve$method` |
+| `nIters` | `convergence$maxIters` |
+| `tolParConvLL` | `convergence$likelihoodTol` |
+| `tolParConvNorm` | `convergence$parameterTol` |
+| `tolParInv` | `execution$inverseTol` |
+| `REML=TRUE/FALSE` | `task$objective="reml"/"ml"` |
+| `solveOnly=TRUE/FALSE` | `task$mode="solve"/"fit"` |
+| `pqlControl` | `task$pql` |
+| `computeCi` | `output$inverse` |
+| `getPEV` | No separate replacement; `output$inverse` controls fit-time PEVs. Use `postPEV()` to compute PEVs after fitting. |
+| `returnParam` | `output$setup` |
+| `blend`, `blendWeight` | `update$recovery`, `update$blendWeight` |
+| `stepWeight` | `proposal$stepWeight` |
+| `acceleration="aitken"` | `proposal$extrapolation="aitken"` |
+| `acceleration="hybrid-ai"` | `curvature$method="hybrid-ai"` |
+| `compression` | `representation$compression` |
+| `factorScoreAugmentation` | `representation$factorScores` |
+| `experimental$sparseFactors`, `matrixFreePcg`, `saddlePoint` | `representation$sparseFactors`, `representation$matrixFree`, `representation$equations` |
+| `experimental$blockSchur`, `blockBanded`, `factorSchurMultiFactor`, `dFirstML` | Same-named `solve` fields |
+| `experimental$pdCertificates`, `traceBatch` | `score$covarianceChecks`, `score$traceBatch` |
+| `experimental$reducedAI`, `commonScale` | `curvature$reduced`, `update$commonScale` |
+| `experimental$cholmodFinalSelected`, `panelCi2` | `output$selectedInverse`, `output$panelSize` |
+| `experimental$profile` | `diagnostics$profile` |
+| `covarianceInformation` | `output$covariance` |
+| `retainCoefficientMatrix` | `output$coefficientMatrix` |
+| PCG `tol`, `maxIters`, preconditioner, reuse | `solve` fields |
+| PCG determinant scaling and Lanczos depth | `logdet$scaling`, `logdet$lanczosSteps` |
+| PCG trace probes, estimator, rank | `score$traceProbes`, `score$estimator`, `score$rank` |
+| PCG covariance checks and trace batching | `score$covarianceChecks`, `score$traceBatch` |
+| PCG accuracy budgets | `convergence` fields |
+| PCG seed | `execution$seed` |
+| Experimental elimination requests | Corresponding `solve` fields |
+| Experimental sparse factors, matrix-free, saddle point | Corresponding `representation` fields |
+| Experimental trace checks/batching | `score$covarianceChecks`, `score$traceBatch` |
+| Experimental reduced AI | `curvature$reduced` |
+| Experimental common scale | `update$commonScale` |
+| Experimental inverse selection/panel size | `output$selectedInverse`, `output$panelSize` |
+| Experimental profiling | `diagnostics$profile` |
+| `denseMemoryMB`, `memoryPolicy`, `gpu`, `gpuMinSize`, `blasThreads` | Same-named `execution` fields |
+| `verbose`, `dateWarning` | Same-named `diagnostics` fields |
+| `recordDiagnostics`, `verboseDiagnostics` | Removed flags; use `diagnostics$verbose` for fit output and `diagnostics$profile` for profiling |
+| `engine` | Pass the complete object as `control` |
+| `...` legacy/pass-through options | No replacement; set documented module fields only |
+
+For example, former settings spread across top-level formals and engine lists
+now have one canonical owner:
+
+```r
+control <- mmes_control(
+  formulation = "henderson",
+  task = list(objective = "reml"),
+  solve = list(method = "pcg", tol = 1e-8, maxIters = 0L),
+  score = list(traceProbes = 16L),
+  convergence = list(accuracy = "adaptive", maxIters = 40L),
+  output = list(inverse = 0L, covariance = "full")
+)
+```
+
+The statistical model is unchanged by choosing a numerical representation or
+solver only when that method is mathematically equivalent and eligible. Do not
+interpret the module structure as permission to combine unsupported methods.

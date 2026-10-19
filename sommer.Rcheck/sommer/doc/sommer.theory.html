@@ -1,0 +1,1260 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+<title>Theory: how sommer parameterizes and optimizes covariance structures</title>
+<style type="text/css">
+/**
+ * Prism.s theme ported from highlight.js's xcode style
+ */
+pre code {
+  padding: 1em;
+}
+.token.comment {
+  color: #007400;
+}
+.token.punctuation {
+  color: #999;
+}
+.token.tag,
+.token.selector {
+  color: #aa0d91;
+}
+.token.boolean,
+.token.number,
+.token.constant,
+.token.symbol {
+  color: #1c00cf;
+}
+.token.property,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin {
+  color: #c41a16;
+}
+.token.inserted {
+  background-color: #ccffd8;
+}
+.token.deleted {
+  background-color: #ffebe9;
+}
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string {
+  color: #9a6e3a;
+}
+.token.atrule,
+.token.attr-value,
+.token.keyword {
+  color: #836c28;
+}
+.token.function,
+.token.class-name {
+  color: #DD4A68;
+}
+.token.regex,
+.token.important,
+.token.variable {
+  color: #5c2699;
+}
+.token.important,
+.token.bold {
+  font-weight: bold;
+}
+.token.italic {
+  font-style: italic;
+}
+</style>
+<style type="text/css">
+body {
+  font-family: sans-serif;
+  max-width: 800px;
+  margin: auto;
+  padding: 1em;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+body, .footnotes, code { font-size: .9em; }
+li li { font-size: .95em; }
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+pre, img { max-width: 100%; }
+pre, pre:hover {
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+pre code {
+  display: block;
+  overflow-x: auto;
+}
+code { font-family: 'DejaVu Sans Mono', 'Droid Sans Mono', 'Lucida Console', Consolas, Monaco, monospace; }
+:not(pre) > code, code[class] { background-color: #F8F8F8; }
+code.language-undefined, pre > code:not([class]) {
+  background-color: inherit;
+  border: 1px solid #eee;
+}
+table {
+  margin: auto;
+  border-top: 1px solid #666;
+}
+table thead th { border-bottom: 1px solid #ddd; }
+th, td { padding: 5px; }
+thead, tfoot, tr:nth-child(even) { background: #eee; }
+blockquote {
+  color: #666;
+  margin: 0;
+  padding-left: 1em;
+  border-left: 0.5em solid #eee;
+}
+hr, .footnotes::before { border: 1px dashed #ddd; }
+.frontmatter { text-align: center; }
+#TOC .numbered li { list-style: none; }
+#TOC .numbered { padding-left: 0; }
+#TOC .numbered ul { padding-left: 1em; }
+table, .body h2 { border-bottom: 1px solid #666; }
+.body .appendix, .appendix ~ h2 { border-bottom-style: dashed; }
+.footnote-ref a::before { content: "["; }
+.footnote-ref a::after { content: "]"; }
+section.footnotes::before {
+  content: "";
+  display: block;
+  max-width: 20em;
+}
+
+@media print {
+  body {
+    font-size: 12pt;
+    max-width: 100%;
+  }
+  tr, img { page-break-inside: avoid; }
+}
+@media only screen and (min-width: 992px) {
+  pre { white-space: pre; }
+}
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex/dist/katex.min.css">
+</head>
+<body>
+<div class="frontmatter">
+<div class="title"><h1>Theory: how sommer parameterizes and optimizes covariance structures</h1></div>
+<div class="author"><h2>sommer development team</h2></div>
+<div class="date"><h3>2026-10-19</h3></div>
+</div>
+<div class="body">
+<p>This vignette is written like a short book. Each chapter builds on the
+previous one, and all chapters share the same notation so formulas can be
+compared directly across chapters:</p>
+<ul>
+<li>\(\theta\) : a <strong>natural parameter</strong> — a variance, a correlation, a range —
+the thing that has a real statistical meaning but also has to obey a rule
+(e.g. “must be positive”).</li>
+<li>\(\eta\) : a <strong>working parameter</strong> — the same information, but recoded so it
+is allowed to be <em>any</em> real number, with no rule to break.</li>
+<li>\(g\) : the <strong>transform</strong> connecting them, \(\theta = g(\eta)\).</li>
+<li>\(K(\eta)\) : the (dimensionless) <strong>covariance shape</strong>, normalized so
+\(K_{11}=1\).</li>
+<li>\(\sigma^2\) : the single overall <strong>scale</strong>, owned by <code>vsm()</code>.</li>
+<li>\(\Lambda = K^{-1}\) : the <strong>precision</strong> (inverse covariance shape).</li>
+<li>\(B_k = \partial K/\partial \eta_k\) : the <strong>structural derivative</strong> of the
+shape with respect to working parameter \(k\).</li>
+</ul>
+<p><strong>Table of contents</strong></p>
+<ul>
+<li>Chapter 1: The linear mixed model and Henderson’s equations</li>
+<li>Chapter 2: Parameterization theory, explained from first principles</li>
+<li>Chapter 3: Catalog of covariance structures</li>
+<li>Chapter 4: REML, AI-REML, and <code>ai_mme_sp2()</code></li>
+<li>Chapter 5: Worked examples, one per structure</li>
+<li>Chapter 6: End-to-end numerical trace, from \(\eta\) to the REML objective</li>
+</ul>
+<p>\newpage</p>
+<h1 id="chapter-1-the-linear-mixed-model-and-henderson-s-equations">Chapter 1: The linear mixed model and Henderson’s equations</h1>
+<h2 id="1-1-the-model">1.1 The model</h2>
+<pre><code class="language-r">mmes(fixed = y ~ 1, random = ~ vsm(...), rcov = ~ vsm(...), data = ...)
+</code></pre>
+<p>fits</p>
+<p>$$
+y = X\beta + \sum_{i=1}^{r} Z_i u_i + e,
+\qquad
+u_i \sim N(0, G_i), \quad e \sim N(0, R)
+$$</p>
+<ul>
+<li>\(\beta\): fixed effects.</li>
+<li>\(u_i\): random effects, one term per <code>random=~...</code> entry.</li>
+<li>\(G_i = \mathrm{var}(u_i)\), \(R = \mathrm{var}(e)\): the covariance matrices
+this whole vignette is about.</li>
+</ul>
+<p>sommer never treats \(G_i\) or \(R\) as free unconstrained matrices. Every one
+is built from a small number of variance components \(\theta\) (Chapter 2),
+and REML estimates \(\theta\), not the matrix entries directly.</p>
+<h2 id="1-2-henderson-s-mixed-model-equations-mme">1.2 Henderson’s Mixed Model Equations (MME)</h2>
+<p>Rather than maximizing the marginal likelihood of \(y\) directly (which needs
+\(V = ZGZ' + R\), generally dense and huge), Henderson’s equations solve for
+\(\beta,u\) jointly using only \(R^{-1}\) and \(G_i^{-1}\):</p>
+<h1>$$
+C\begin{pmatrix}\hat\beta\ \hat u\end{pmatrix}</h1>
+<p>\begin{pmatrix}X’R^{-1}y\ Z’R^{-1}y\end{pmatrix},
+\qquad
+C =
+\begin{pmatrix}
+X’R^{-1}X &amp; X’R^{-1}Z\
+Z’R^{-1}X &amp; Z’R^{-1}Z + G^{-1}
+\end{pmatrix}
+$$</p>
+<p>with \(G^{-1} = \mathrm{blockdiag}(G_1^{-1}, \dots, G_r^{-1})\).</p>
+<p><strong>Why this matters for parameterization:</strong> every quantity sommer actually
+needs — \(C\), its log-determinant, and the REML score/AI-matrix — is built
+from <strong>inverses</strong> (\(R^{-1}\), \(G_i^{-1}\)) and their <strong>derivatives with
+respect to \(\theta\)</strong>, never from \(G_i\) or \(R\) themselves except to invert
+them once per structure per iteration. This is why sommer’s internal name
+for \(G_i^{-1}\) within a structure is <code>Lambda</code> (\(\Lambda = K^{-1}\)).</p>
+<h2 id="1-3-where-covariance-structures-come-in">1.3 Where covariance structures come in</h2>
+<p>For a random term built with <code>vsm(dsm(Env), usm(Trait), ism(Line))</code>, sommer
+constructs</p>
+<p>$$
+G = \sigma^2 \cdot K_{dsm} \otimes K_{usm} \otimes K_{ism}
+$$</p>
+<ul>
+<li>Exactly <strong>one</strong> free scale \(\sigma^2\) per <code>vsm()</code> call (its <code>sigma2</code>
+argument).</li>
+<li>Every other factor (<code>dsm</code>, <code>usm</code>, <code>ism</code>, …) supplies a <strong>dimensionless
+shape</strong> \(K\) with \(K_{11}=1\).</li>
+</ul>
+<p>This separation of <em>scale</em> (one parameter, always variance-like) from
+<em>shape</em> (any number of parameters, some variance-like, some
+correlation-like) is the central design decision explored in the rest of
+this vignette, and it directly determines how derivatives are computed in
+<code>ai_mme_sp2()</code>.</p>
+<h2 id="1-4-preview-of-the-key-distinction-developed-in-chapter-4">1.4 Preview of the key distinction (developed in Chapter 4)</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>Variance-type parameter</th>
+<th>Correlation-type parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Example</td>
+<td><code>sigma2</code>, <code>dsm()</code> ratios, <code>fam()</code> specific variances</td>
+<td><code>csm()</code>/<code>ar1m()</code> <code>rho</code>, <code>usm()</code>/<code>corgm()</code> off-diagonal terms</td>
+</tr>
+<tr>
+<td>Effect on \(K\)</td>
+<td>rescales one or few diagonal blocks</td>
+<td>reshapes the <em>entire</em> matrix jointly</td>
+</tr>
+<tr>
+<td>\(B_k=\partial K/\partial \eta_k\)</td>
+<td>sparse / diagonal</td>
+<td>dense</td>
+</tr>
+<tr>
+<td>Average vs Expected Information</td>
+<td>typically agree closely</td>
+<td>can diverge — needs EM/AI blending</td>
+</tr>
+<tr>
+<td>Practical consequence</td>
+<td>fast trace/derivative shortcuts available</td>
+<td>full dense chain-rule required</td>
+</tr>
+</tbody>
+</table>
+<p>\newpage</p>
+<h1 id="chapter-2-parameterization-theory-explained-from-first-principles">Chapter 2: Parameterization theory, explained from first principles</h1>
+<h2 id="2-1-why-we-can-t-just-let-the-computer-search-freely">2.1 Why we can’t just let the computer search freely</h2>
+<p>Imagine you are tuning two dials for a model:</p>
+<ul>
+<li>Dial A controls a <strong>variance</strong>. It must always stay strictly positive —
+a “negative amount of variability” makes no sense.</li>
+<li>Dial B controls a <strong>correlation</strong>. It must always stay strictly between
+\(-1\) and \(1\) — a correlation of \(2\) or \(-3\) makes no sense either.</li>
+</ul>
+<p>If you let an optimization algorithm (the computer’s “hill-climbing”
+procedure that tries to improve the fit step by step) move these dials by
+any amount, in any direction, it will sooner or later try an illegal value:
+a negative variance, or a correlation bigger than 1. At that point the model
+is broken (the covariance matrix stops being a valid one — technically it
+is no longer <em>positive definite</em>, which is the mathematical way of saying
+“this could actually occur as a covariance of real data”).</p>
+<p>sommer’s answer to this problem is always the same trick, used for every
+single covariance structure in the package:</p>
+<blockquote>
+<p>Never let the optimizer touch the real dial (\(\theta\)). Instead, give it
+a <strong>fake dial</strong> (\(\eta\)) that can be turned all the way in either
+direction, forever, without ever breaking anything. Then use a fixed
+<strong>recipe</strong> (\(g\)) to translate the fake dial’s position into a legal value
+of the real dial.</p>
+</blockquote>
+<p>Formally: \(\theta = g(\eta)\), where \(\eta\) ranges over all real numbers
+(\(-\infty\) to \(\infty\)) and \(g\) is built so that \(g(\eta)\) <em>always</em> lands in
+the legal range for \(\theta\), no matter what \(\eta\) is.</p>
+<p>This is exactly the same idea used elsewhere in statistics: for example,
+when you model a probability (which must stay in \([0,1]\)) with a logistic
+regression, you don’t optimize the probability directly — you optimize an
+unconstrained “logit” score and convert it to a probability at the very end.
+sommer does the same thing, systematically, for every variance and
+correlation in every covariance structure it supports.</p>
+<h2 id="2-2-the-working-parameter-vector">2.2 The working-parameter vector</h2>
+<p>In sommer’s code, the collection of fake dials for one covariance structure
+is called <code>par</code> (short for “working parameters”), and it always lives in
+the <code>CovarianceFactor</code> descriptor returned by every constructor
+(<code>csm()</code>, <code>ar1m()</code>, <code>usm()</code>, …). Three related pieces travel together:</p>
+<ul>
+<li><code>par</code> — the current numeric values of \(\eta\).</li>
+<li><code>free</code> — a logical flag per entry: is this \(\eta_k\) estimated by REML, or
+is the user holding it fixed (<code>fixed=TRUE</code>)?</li>
+<li><code>par_names</code> — a human-readable label per entry, e.g. <code>&quot;rho&quot;</code> or
+<code>&quot;variance_ratio[B]&quot;</code>, used when you call <code>summary()</code> on a fitted model.</li>
+</ul>
+<p>REML (Chapter 4) works entirely with <code>par</code>/$\eta$. It never sees \(\theta\)
+directly; \(\theta = g(\eta)\) is only computed when sommer needs to actually
+<em>build</em> the covariance matrix \(K\), or when it reports results back to you in
+a human-readable form.</p>
+<h2 id="2-3-transform-family-1-variances-the-exponential-map">2.3 Transform family 1 — variances: the exponential map</h2>
+<p><strong>The rule:</strong> \(\theta &gt; 0\).</p>
+<p><strong>The recipe:</strong> \(\theta = \exp(\eta) = e^{\eta}\).</p>
+<p>Why this works: no matter what real number \(\eta\) is — very negative, zero,
+very positive — \(e^\eta\) is <em>always</em> a positive number. As \(\eta\to-\infty\),
+\(\theta\to 0\) (but never reaches it); as \(\eta\to+\infty\), \(\theta\to\infty\).
+Every positive number is reachable by exactly one \(\eta\) (the inverse recipe
+is \(\eta=\log(\theta)\)).</p>
+<p>A nice bonus: the “speed” at which \(\theta\) changes as you nudge \(\eta\)
+(its derivative, \(\partial\theta/\partial\eta = e^\eta = \theta\)) is
+proportional to \(\theta\) itself. This means equal steps in \(\eta\)-space are
+equal-percentage steps in \(\theta\)-space (multiplicative, like moving up a
+musical scale in octaves) rather than equal-amount steps — exactly the
+natural way variances tend to move (a variance going from 1 to 2 “feels”
+like the same size change as going from 10 to 20).</p>
+<p>sommer almost never applies this to a <em>raw</em> variance, though. Instead it
+applies it to a <strong>ratio relative to a reference level</strong> — this detail
+matters because of scale confounding (see 2.6), so let’s define it now
+since you will see it in almost every structure in Chapter 3:</p>
+<p>$$
+\eta_j = \log!\left(\frac{\theta_j}{\theta_1}\right), \quad j=2,\dots,q
+$$</p>
+<p>Level 1 is always the <em>reference</em>: \(\theta_1\) is fixed at 1 by definition,
+so only \(q-1\) working parameters are needed to describe \(q\) relative
+variances.</p>
+<h2 id="2-4-transform-family-2-bounded-quantities-logit-and-tanh">2.4 Transform family 2 — bounded quantities: logit and tanh</h2>
+<p><strong>The rule:</strong> \(\theta \in (lo, hi)\), a bounded open interval — e.g. a
+correlation \(\rho\in(-1,1)\), or a compound-symmetry \(\rho\in(-1/(q-1), 1)\).</p>
+<p><strong>The recipe (general bounded interval):</strong></p>
+<p>$$
+\theta = lo + (hi-lo)\cdot s(\eta), \qquad
+s(\eta) = \frac{1}{1+e^{-\eta}} \ \ (\text{the logistic/“sigmoid” function})
+$$</p>
+<p>The sigmoid function \(s(\eta)\) is the same S-shaped curve used in logistic
+regression: it always outputs a number strictly between 0 and 1, approaching
+0 as \(\eta\to-\infty\) and approaching 1 as \(\eta\to+\infty\), and it is
+smooth and increasing everywhere. Stretching and shifting its output
+(\(lo + (hi-lo)\cdot s(\eta)\)) maps it onto <em>any</em> open interval \((lo,hi)\)
+instead of just \((0,1)\).</p>
+<p><strong>The recipe (symmetric interval \((-1,1)\)):</strong> when the bounds are exactly
+\(-1\) and \(1\) (as for a plain correlation), sommer often uses the equivalent
+but more compact hyperbolic tangent:</p>
+<p>$$
+\theta = \tanh(\eta) = \frac{e^{\eta}-e^{-\eta}}{e^{\eta}+e^{-\eta}}
+$$</p>
+<p>which is just the logit recipe above rescaled — same S-shape, same
+guarantee (\(\tanh(\eta)\) is always strictly between \(-1\) and \(1\)), just
+centered at 0 instead of at \(&amp;frac12;\).</p>
+<p><strong>Why bother with a whole interval instead of just “positive,” like
+variances?</strong> Because a correlation has <em>two</em> walls (an upper <em>and</em> a lower
+limit), while a variance only has one (a floor at 0, no ceiling). The
+sigmoid/tanh family is the natural tool whenever there are two walls to
+respect simultaneously.</p>
+<p><strong>A subtlety that matters in Chapter 4:</strong> near the middle of the interval,
+\(s(\eta)\) changes quickly as \(\eta\) moves — a small step in \(\eta\) makes a
+decent-sized change in \(\theta\). But near the two walls (as \(\eta\) gets very
+large in either direction), \(s(\eta)\) becomes almost flat: huge changes in
+\(\eta\) barely move \(\theta\) at all. This is deliberate and useful — it means
+that if REML tries to push a correlation toward its boundary, the working
+scale automatically resists further movement (the “gas pedal” stops doing
+much once you’re already flooring it), rather than needing an artificial
+rule bolted on afterward.</p>
+<h2 id="2-5-transform-family-3-many-correlated-quantities-at-once-factorizations">2.5 Transform family 3 — many correlated quantities at once (factorizations)</h2>
+<p>Families 1 and 2 work great for a single variance or a single correlation,
+one dial at a time. But some structures have many correlations that all
+have to be <em>jointly</em> consistent with each other — for example, an
+unstructured \(3\times 3\) correlation matrix has 3 pairwise correlations, but
+not every combination of 3 numbers in \((-1,1)\) is a valid correlation
+matrix (try \(\rho_{12}=0.9,\ \rho_{13}=0.9,\ \rho_{23}=-0.9\) — no data set
+can ever produce that).</p>
+<p>So instead of transforming each correlation separately, sommer
+reparameterizes the <em>whole matrix at once</em> through a <strong>factorization</strong> — a
+recipe that builds the matrix out of simpler unconstrained ingredients in
+such a way that the result is automatically valid, no matter what those
+ingredients are. The two building blocks used throughout the package are:</p>
+<ul>
+<li><strong>Cholesky factor</strong>: any covariance/correlation matrix \(K\) can be written
+as \(K = LL'\) for some lower-triangular matrix \(L\) with positive diagonal.
+Conversely, <em>any</em> lower-triangular \(L\) with positive diagonal, multiplied
+by its own transpose, automatically produces a valid (positive definite)
+\(K = LL'\) — there is no combination of entries of \(L\) that can break this.
+So sommer parameterizes \(L\) instead of \(K\): the off-diagonal entries of
+\(L\) are unconstrained working parameters directly, and the diagonal
+entries of \(L\) go through the family-1 exponential recipe (to keep them
+positive). Used by <code>usm()</code> (Chapter 3.7) and, restricted to unit-diagonal
+\(L\), by <code>corgm()</code> (Chapter 3.8).</li>
+<li><strong>Loadings + diagonal (“factor-analytic”) factor</strong>: $K \propto \Lambda
+\Lambda’ + \Psi$ for a rectangular loading matrix \(\Lambda\) (any real
+numbers) and a diagonal matrix \(\Psi\) with positive entries (again via the
+family-1 recipe). A sum of “something squared” (\(\Lambda\Lambda'\), always
+positive semi-definite) and “something positive on the diagonal” (\(\Psi\))
+is always positive definite — again, automatically, for <em>any</em> real
+\(\Lambda\). Used by <code>fam()</code>/<code>rrm()</code> (Chapter 3.8) and, in a
+triangular/banded variant, by <code>antem()</code> (Chapter 3.10).</li>
+</ul>
+<p><strong>The common thread across all three families:</strong> every recipe in this
+chapter is a <em>one-way-safe</em> translation from “any real number(s) at all”
+to “a legal \(\theta\)/$K$.” This is why sommer’s optimizer (Chapter 4) can
+take a Newton step of any size, in any direction, in \(\eta\)-space, and
+<em>never</em> produce an invalid model — the only thing that can still go wrong is
+that the <em>fit</em> gets worse, which is a completely different (and much
+easier to handle) problem than <em>breaking the math</em>.</p>
+<h2 id="2-6-why-the-reference-level-matters-avoiding-scale-confounding">2.6 Why the reference level matters: avoiding scale confounding</h2>
+<p>Recall from Chapter 1 that a <code>vsm()</code> term is a Kronecker product
+\(G = \sigma^2\cdot K_1\otimes K_2\otimes\cdots\). If every \(K_i\) were allowed
+to carry its own free overall scale (instead of being pinned to \(K_{i,11}=1\)
+via a reference level), the model would have infinitely many
+\((\sigma^2, K_1,K_2,\dots)\) combinations that produce the <em>exact same</em> \(G\)
+— for instance doubling \(\sigma^2\) while halving every entry of \(K_1\)
+changes nothing observable. This is called <strong>non-identifiability</strong>: REML
+would have no way to choose among the infinitely many equally-good answers,
+and the optimizer would wander aimlessly or fail to converge.</p>
+<p>sommer avoids this by a strict convention, applied without exception: every
+covariance-shaping factor is normalized so its first diagonal entry is
+exactly 1 (\(K_{11}=1\)), and the <em>one and only</em> free overall scale lives in
+<code>vsm()</code>’s <code>sigma2</code> argument. This is why, throughout Chapter 3, you will see
+“$\theta_1$ is the reference, fixed at 1” repeated for structure after
+structure — it is not a coincidence, it is the mechanism that keeps the
+whole model identifiable.</p>
+<p>\newpage</p>
+<h1 id="chapter-3-catalog-of-covariance-structures">Chapter 3: Catalog of covariance structures</h1>
+<p>For each structure: the <strong>shape formula</strong> \(K(\eta)\) (normalized so
+\(K_{11}=1\)), the <strong>working parameters</strong> \(\eta\) and their transform (from
+Chapter 2), and whether it is fundamentally a <em>variance-type</em> or
+<em>correlation/shape-type</em> parameterization (this label is used again in
+Chapter 4 and in the matching worked example of Chapter 5).</p>
+<h2 id="3-1-ism-x-identity">3.1 <code>ism(x)</code> — identity</h2>
+<p>$$K = I_q, \qquad \text{no free parameters.}$$</p>
+<p>Simplest possible shape: independent, homoscedastic levels. Used as the
+“main effect” incidence in most <code>vsm()</code> calls, or as a Kronecker factor when
+no structure is desired on one dimension.</p>
+<h2 id="3-2-dsm-x-values-fixed-theta-atm-x-levs-values-fixed-heterogeneous-diagonal-variances">3.2 <code>dsm(x, values, fixed, theta)</code> / <code>atm(x, levs, values, fixed)</code> — heterogeneous diagonal variances</h2>
+<p>$$
+K = \mathrm{diag}(1, \theta_2/\theta_1, \dots, \theta_q/\theta_1),
+\qquad \eta_j = \log(\theta_j/\theta_1),\ j=2,\dots,q
+$$</p>
+<p>Family-1 (exponential/log-ratio) transform, applied to every level except
+the reference. Pure <strong>variance-type</strong> structure: \(q-1\) free log-variance
+ratios, no correlation at all (off-diagonal is exactly 0). <code>atm()</code> is the
+same construction restricted to a user-selected subset of levels (<code>levs</code>);
+unselected levels get zero columns in the design matrix and are excluded
+from \(\eta\).</p>
+<h2 id="3-3-csm-x-rho-fixed-variance-values-compound-symmetry">3.3 <code>csm(x, rho, fixed, variance, values)</code> — compound symmetry</h2>
+<p>$$
+K_{ii}=1,\quad K_{ij}=\rho\ (i\neq j), \qquad
+lo=\frac{-1}{q-1} &lt; \rho &lt; 1
+$$</p>
+<p>Family-2 (bounded logit) transform: $\eta_\rho = \mathrm{logit}!\left(
+\frac{\rho-lo}{1-lo}\right)$.</p>
+<ul>
+<li><code>variance=&quot;homogeneous&quot;</code> (default): only \(\eta_\rho\) is free — a single
+<strong>correlation-type</strong> parameter.</li>
+<li><code>variance=&quot;heterogeneous&quot;</code>: additionally appends \(q-1\) family-1
+log-variance-ratios \(\eta_j=\log(\theta_j/\theta_1)\), so
+\(K=\mathrm{diag}(\sqrt\theta)\, R\, \mathrm{diag}(\sqrt\theta)\) with \(R\)
+the homogeneous compound-symmetric correlation. A <strong>mixed</strong>
+parameterization: 1 correlation-type + \((q-1)\) variance-type parameters.</li>
+</ul>
+<h2 id="3-4-ar1m-ar2m-ar3m-toeplitzm-autoregressive-amp-general-toeplitz-correlation">3.4 <code>ar1m</code>/<code>ar2m</code>/<code>ar3m</code>/<code>toeplitzm</code> — autoregressive &amp; general Toeplitz correlation</h2>
+<p>All parameterize an ordered correlation matrix through <strong>partial
+autocorrelations (PACF)</strong> \(\kappa\in(-1,1)^{order}\), family-2 (tanh)
+transform \(\eta=\mathrm{atanh}(\kappa)\), reconstructed to full correlations
+\(\rho_h\) (lag \(h\)) via the Durbin–Levinson recursion:</p>
+<p>$$
+K_{ij} = \rho_{|i-j|}
+$$</p>
+<ul>
+<li><code>ar1m()</code>: order 1, \(\rho_h=\rho^h\) (the classical AR(1) correlation), 1
+correlation-type parameter.</li>
+<li><code>ar2m()</code>/<code>ar3m()</code>: order ⅔, PACF vector of length ⅔ mapped through
+Durbin–Levinson to \(\rho_h\) for all lags up to \(q-1\).</li>
+<li><code>toeplitzm()</code>: order \(q-1\) (fully general stationary Toeplitz
+correlation, no autoregressive-order restriction) — the most flexible
+member of this family, still guaranteed valid for any PACF in
+\((-1,1)^{q-1}\) (this is exactly the joint-validity guarantee discussed in
+Chapter 2.5, achieved here through PACF rather than through a matrix
+factorization).</li>
+<li>All four support <code>variance = &quot;heterogeneous&quot;</code> (AR family only;
+<code>toeplitzm()</code> is shape-only) the same way as <code>csm()</code>: append \(q-1\)
+family-1 log-variance-ratios after the PACF working parameters.</li>
+</ul>
+<h2 id="3-5-mam-ma1m-ma2m-moving-average-covariance">3.5 <code>mam</code>/<code>ma1m</code>/<code>ma2m</code> — moving-average covariance</h2>
+<p>$$
+K \propto \mathrm{Cov}!\left(e_t + \theta_1 e_{t-1} + \theta_2 e_{t-2}\right)
+$$</p>
+<p>Working parameters are the <strong>raw MA coefficients themselves</strong>
+(\(\eta=\theta\), no transform at all) — unlike AR, <em>any</em> finite MA
+coefficients produce a valid covariance; invertibility of the MA polynomial
+is not required to define the covariance matrix, so no bounding transform is
+needed. This is the one “ordered” structure whose working parameter equals
+its natural parameter directly. Purely a correlation/shape-type structure
+(no variance option).</p>
+<h2 id="3-6-corgm-x-theta-fixed-general-correlation-matrix">3.6 <code>corgm(x, theta, fixed)</code> — general correlation matrix</h2>
+<p>$$
+K = AA’, \qquad A \text{ unit-diagonal lower-triangular} \ (A_{ii}=1)
+$$</p>
+<p>Family-3 (factorization) transform: the strictly-lower-triangular entries
+of \(A\) are working parameters directly (no further per-entry transform is
+needed — Chapter 2.5 explains why any real lower-triangular \(A\) with unit
+diagonal automatically gives a valid \(K\)). \(q(q-1)/2\) purely
+<strong>correlation-type</strong> parameters, no variance component at all (contrast
+with <code>usm()</code> below, which also carries diagonal/variance information).</p>
+<h2 id="3-7-usm-x-theta-fixed-general-unstructured-covariance">3.7 <code>usm(x, theta, fixed)</code> — general unstructured covariance</h2>
+<p>$$
+K = LL’, \qquad L \text{ lower-triangular}, L_{11}=1
+$$</p>
+<p>Family-3 (Cholesky factorization) transform: for each free entry of \(L\)
+below the diagonal — the off-diagonal entries are working parameters
+directly (\(\eta=L_{ij}\)), the diagonal entries go through the family-1
+log transform (\(\eta=\log L_{ii}\), keeping \(L_{ii}&gt;0\) hence \(K\)
+nonsingular). Total \(q(q+1)/2 - 1\) free parameters (the \(-1\) is
+\(L_{11}=1\), fixed by the Chapter 2.6 reference-level convention).</p>
+<p>This is the maximally flexible valid shape for \(q\) levels — every possible
+covariance shape is reachable, at the cost of \(O(q^2)\) parameters. It mixes
+<strong>variance-type</strong> (log-diagonal) and <strong>correlation-type</strong> (off-diagonal)
+working parameters in a single structure.</p>
+<h2 id="3-8-fam-x-k-loadings-specific-fixed-variance-rrm-x-k-loadings-fixed-factor-analytic-covariance">3.8 <code>fam(x, k, loadings, specific, fixed, variance)</code> / <code>rrm(x, k, loadings, fixed)</code> — factor-analytic covariance</h2>
+<p>$$
+M = \Lambda\Lambda’ + \Psi, \qquad K = M / M_{11}
+$$</p>
+<p>Family-3 (loadings + diagonal) transform:</p>
+<ul>
+<li>\(\Lambda\): \(q\times k\) loadings, lower-triangular in its leading
+\(k\times k\) block (for a unique, “rotationally identified” solution),
+diagonal entries family-1 log-parameterized (must be positive by
+convention), off-diagonal loadings unconstrained working parameters.</li>
+<li>\(\Psi=\mathrm{diag}(\psi_1,\dots,\psi_q)\): specific variances,
+family-1 parameterized as \(q-1\) log-ratios relative to \(\psi_1\) (the
+reference level, per Chapter 2.6).</li>
+</ul>
+<p>A rank-$k$ <strong>correlation-type</strong> structure (loadings) plus a genuinely
+<strong>variance-type</strong> component (specific variances) — a compact alternative to
+<code>usm()</code> when \(q\) is large and a low-rank + diagonal approximation is
+statistically reasonable (the standard “FA” model for many traits or many
+environments). <code>fam(..., variance=&quot;homogeneous&quot;)</code> uses \(\Psi=I\) internally,
+estimating a common specific variance on the fitted scale. <code>rrm()</code> instead
+fixes \(\Psi=0\) for a genuine rank-$k$ covariance and fixes the first loading
+to one to remove the internal scale. Its singular random covariance is fitted
+using latent-factor Henderson equations or the direct-inversion engine.</p>
+<h2 id="3-9-antem-x-order-beta-innovations-fixed-antedependence">3.9 <code>antem(x, order, beta, innovations, fixed)</code> — antedependence</h2>
+<p>$$
+Ty = e,\quad \mathrm{Cov}(e)=D \text{ diagonal},\qquad
+K = T^{-1} D T^{-T},\quad D_{11}=1
+$$</p>
+<p>\(T\) is unit lower-triangular with <strong>regression coefficients</strong>
+\(\beta_{ij}\) only in the requested <code>order</code> subdiagonals (working parameters
+= \(\beta\) directly, unconstrained — a banded relative of the family-3
+factorization idea). \(D\)’s remaining diagonal entries are \(q-1\) family-1
+log-innovation-ratios (variance-type). A mixed structure like <code>usm()</code> but
+banded/order-limited rather than fully dense, useful for
+longitudinal/repeated-measures data where dependence should decay with
+temporal order but need not follow a strict AR form.</p>
+<h2 id="3-10-maternm-x-range-nu-fixed-distance-mat-rn-spatial-correlation">3.10 <code>maternm(x, range, nu, fixed, distance)</code> — Matérn spatial correlation</h2>
+<p>$$
+K_{ij} = \frac{2^{1-\nu}}{\Gamma(\nu)}
+\left(\frac{\sqrt{2\nu},d_{ij}}{r}\right)^{!\nu}
+K_\nu!\left(\frac{\sqrt{2\nu},d_{ij}}{r}\right)
+$$</p>
+<p>Family-1 (log) transform on both parameters: \(\eta = (\log r, \log \nu)\)
+(both must be positive: range and smoothness). Distance \(d_{ij}\) comes from
+supplied coordinates or a user-supplied distance matrix. Two
+<strong>correlation-type</strong> (in the “shape” sense — they reshape the whole matrix,
+not just rescale one entry) parameters governing decay rate and smoothness
+of spatial dependence.</p>
+<h2 id="3-11-sar-x-w-rho-fixed-simultaneous-autoregressive-spatial-covariance">3.11 <code>sar(x, W, rho, fixed)</code> — simultaneous autoregressive spatial covariance</h2>
+<p>$$
+B = I - \rho W, \qquad M = B^{-1}B^{-T}, \qquad K = M/M_{11}
+$$</p>
+<p>Family-2 (bounded logit) transform: \(\rho\) bounded by the inverse spectral
+radius of \(W\) (guarantees \(B\) nonsingular). One <strong>correlation-type</strong>
+(shape) parameter that reshapes the entire spatial covariance through
+matrix inversion.</p>
+<h2 id="3-12-car-x-w-rho-fixed-proper-conditional-autoregressive-covariance">3.12 <code>car(x, W, rho, fixed)</code> — proper conditional autoregressive covariance</h2>
+<p>$$
+Q = D-\rho W,\quad D=\mathrm{diag}(\text{rowSums}(W)),\qquad
+M=Q^{-1},\qquad K=M/M_{11}
+$$</p>
+<p>Family-2 (bounded logit) transform: \(\rho\) bounded by the reciprocal extreme
+eigenvalues of the normalized adjacency \(S=D^{-&amp;frac12;}WD^{-&amp;frac12;}\) (the exact
+condition for \(Q\) to stay valid). Same flavor as <code>sar()</code>: one
+correlation/shape-type parameter, whole-matrix reshaping via inversion.</p>
+<h2 id="3-13-ownm-x-k-fun-par-fixed-dfun-user-defined-shape">3.13 <code>ownm(x, K, fun, par, fixed, dfun)</code> — user-defined shape</h2>
+<p>Either a fixed known valid matrix <code>K</code> (zero free parameters, sommer only
+normalizes it by its \([1,1]\) entry), or a user function <code>fun(par)</code> returning
+a valid matrix, normalized the same way. Here the user is responsible for
+choosing their own transform family from Chapter 2 (or inventing a new one);
+sommer only imposes the final \(K_{11}=1\) normalization. If <code>dfun(par,k)</code>
+(analytic \(B_k=\partial K/\partial\eta_k\)) is not supplied, <code>ai_mme_sp2()</code>
+falls back to a numerical derivative. This is the escape hatch for any
+structure not already covered — it plugs into the exact same
+<code>CovarianceFactor</code> interface as <code>maternm()</code>/<code>toeplitzm()</code>/<code>sar()</code>/<code>car()</code>.</p>
+<h2 id="3-14-covm-ran1-ran2-thetac-theta-legacy-two-random-effect-helper">3.14 <code>covm(ran1, ran2, thetaC, theta, ...)</code> — legacy two-random-effect helper</h2>
+<p>Predates the general <code>vsm()</code> Kronecker interface; builds a
+<code>CovarianceFactor</code> directly from two random-effect terms and an explicit
+correlation-structure matrix <code>thetaC</code>/<code>theta</code>. Internally normalized and
+compiled through the same descriptor contract as every structure above, so
+it participates in REML identically once compiled — retained mainly for
+backward compatibility with older model specifications.</p>
+<h2 id="3-15-summary-table">3.15 Summary table</h2>
+<table>
+<thead>
+<tr>
+<th>Constructor</th>
+<th>Free working parameters \(\eta\)</th>
+<th>Transform family (Ch. 2)</th>
+<th>Type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ism</code></td>
+<td>0</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>dsm</code>/<code>atm</code></td>
+<td>\(q-1\)</td>
+<td>1 (log-ratio)</td>
+<td>variance</td>
+</tr>
+<tr>
+<td><code>csm</code> (homogeneous)</td>
+<td>1 (<code>rho</code>)</td>
+<td>2 (bounded logit)</td>
+<td>correlation</td>
+</tr>
+<tr>
+<td><code>csm</code> (heterogeneous)</td>
+<td>\(1+(q-1)\)</td>
+<td>2 + 1</td>
+<td>mixed</td>
+</tr>
+<tr>
+<td><code>ar1m</code></td>
+<td>1 (<code>rho</code>)</td>
+<td>2 (tanh)</td>
+<td>correlation</td>
+</tr>
+<tr>
+<td><code>ar2m</code>/<code>ar3m</code></td>
+<td>2 / 3 (PACF), +$(q-1)$ if heterogeneous</td>
+<td>2 (+1)</td>
+<td>correlation / mixed</td>
+</tr>
+<tr>
+<td><code>toeplitzm</code></td>
+<td>\(q-1\) (PACF)</td>
+<td>2 (tanh)</td>
+<td>correlation</td>
+</tr>
+<tr>
+<td><code>mam</code>/<code>ma1m</code>/<code>ma2m</code></td>
+<td>order (1 or 2)</td>
+<td>none (identity)</td>
+<td>correlation</td>
+</tr>
+<tr>
+<td><code>usm</code></td>
+<td>\(q(q+1)/2-1\)</td>
+<td>3 (Cholesky) + 1 (diag)</td>
+<td>mixed (dense)</td>
+</tr>
+<tr>
+<td><code>corgm</code></td>
+<td>\(q(q-1)/2\)</td>
+<td>3 (unit-diag factor)</td>
+<td>correlation (dense)</td>
+</tr>
+<tr>
+<td><code>fam</code></td>
+<td>loadings (\(k\)-rank) + \((q-1)\) specific</td>
+<td>3 (loadings) + 1</td>
+<td>mixed</td>
+</tr>
+<tr>
+<td><code>rrm</code></td>
+<td>loadings (\(k\)-rank), first loading fixed</td>
+<td>3 (loadings)</td>
+<td>singular shape</td>
+</tr>
+<tr>
+<td><code>antem</code></td>
+<td>banded regression coeffs + \((q-1)\) innovations</td>
+<td>3 (banded) + 1</td>
+<td>mixed</td>
+</tr>
+<tr>
+<td><code>maternm</code></td>
+<td>2 (range, nu)</td>
+<td>1 (log) x2</td>
+<td>correlation (shape)</td>
+</tr>
+<tr>
+<td><code>sar</code>/<code>car</code></td>
+<td>1 (<code>rho</code>)</td>
+<td>2 (bounded logit)</td>
+<td>correlation (shape)</td>
+</tr>
+<tr>
+<td><code>ownm</code></td>
+<td>user-defined</td>
+<td>user-defined</td>
+<td>user-defined</td>
+</tr>
+</tbody>
+</table>
+<p>\newpage</p>
+<h1 id="chapter-4-reml-ai-reml-and-ai-mme-sp2">Chapter 4: REML, AI-REML, and <code>ai_mme_sp2()</code></h1>
+<h2 id="4-1-the-reml-log-likelihood-sommer-maximizes">4.1 The REML log-likelihood sommer maximizes</h2>
+<p>For the Henderson system of Chapter 1, the (restricted) log-likelihood
+<code>ai_mme_sp2()</code> evaluates every iteration is</p>
+<p>$$
+\ell(\eta) = -\tfrac12\Big(
+\log|C| ;+; \log|R| ;+; \sum_i n_i\log|A_i| ;+; y’Py
+\Big)
+$$</p>
+<p>mapped directly onto the code:</p>
+<ul>
+<li><code>logDetC</code> — \(\log|C|\), from the sparse Cholesky/LDLT factorization of
+Henderson’s \(C\) matrix (or CHOLMOD/PCG-approximated for large sparse \(C\)).</li>
+<li><code>logDetR</code> — \(\log|R|\), computed per residual-structure branch (diagonal
+fast path, Kronecker-residual branch, or dense fallback).</li>
+<li><code>logDetA(i)</code> — \(-\log|A_i^{-1}|\) per random effect (relationship/precision
+matrices), via sparse LDLT.</li>
+<li><code>yPy</code> — the quadratic form \(y'Py\) from absorbing \(y\) into the MME solve.</li>
+</ul>
+<p>REML maximizes \(\ell(\eta)\) over the <strong>working parameters</strong> \(\eta\) from
+Chapter 2 (not the natural parameters \(\theta\)), using a Newton-type
+<strong>Average-Information (AI) REML</strong> algorithm.</p>
+<h2 id="4-2-the-ai-reml-update">4.2 The AI-REML update</h2>
+<p>$$
+\eta^{(t+1)} = \eta^{(t)} + \mathrm{InfMat}^{-1}, s(\eta^{(t)})
+$$</p>
+<ul>
+<li>\(s(\eta)\): the score vector, \(\partial\ell/\partial\eta\).</li>
+<li><code>InfMat</code>: a convex blend of the <strong>Average Information</strong> matrix (<code>avInf</code>)
+and the <strong>Expected Information</strong> matrix (<code>emInf</code>):</li>
+</ul>
+<pre><code class="language-cpp">InfMat = (weightAiInfMat * avInf) + (weightEmInfMat * emInf);
+</code></pre>
+<p>with per-iteration weights (<code>emweight</code>/<code>weightEmInf</code>, user/schedule
+controlled) trading off AI-REML’s fast quadratic convergence against
+classical EM-REML’s guaranteed monotone ascent and better global behavior
+when the AI matrix is momentarily ill-conditioned. This blending is exactly
+the mechanism that absorbs the numerical differences between variance-type
+and correlation-type parameters described below — when the AI block for a
+dense correlation structure is poorly conditioned, increasing the EM weight
+locally stabilizes the step without touching the well-behaved variance
+blocks.</p>
+<h2 id="4-3-the-core-object-precision-and-its-derivative">4.3 The core object: precision and its derivative</h2>
+<p>For a covariance shape \(K(\eta)\), sommer works with its inverse (precision)
+\(\Lambda = K^{-1}\) (<code>lambdaDense</code> in <code>ai_mme_sp2()</code>). All REML derivatives
+route through the standard matrix-inverse identity:</p>
+<p>$$
+\frac{\partial \Lambda}{\partial \eta_k}
+= -\Lambda B_k \Lambda, \qquad B_k = \frac{\partial K}{\partial \eta_k}
+$$</p>
+<p>implemented essentially verbatim:</p>
+<pre><code class="language-cpp">arma::mat dLambda = -lambdaDense * Bk * lambdaDense;   // Bk = dK/d(eta_k)
+dLambda = 0.5 * (dLambda + dLambda.t());               // symmetrize (roundoff)
+</code></pre>
+<p><code>Bk</code> (called <code>cachedCovarianceD1()</code>/<code>covarianceD1()</code> in the code) is where
+<strong>every</strong> structure-specific formula from Chapter 3 actually enters the
+optimizer — for analytic structures (diag, AR, CSM, US, …) it’s a
+closed-form matrix; for generic-interface structures (<code>maternm</code>,
+<code>toeplitzm</code>, <code>sar</code>, <code>car</code>, <code>ownm</code> without <code>dfun</code>) it’s a numerical
+derivative of the R-level <code>evaluator</code> function. Either way, from this point
+on <code>ai_mme_sp2()</code> treats <code>Bk</code> identically regardless of structure — <strong>the
+only thing that changes the downstream numerics is what <code>Bk</code> looks like</strong>,
+which is precisely the variance-vs-correlation distinction below.</p>
+<h2 id="4-4-variance-type-parameters-sparse-diagonal-b-k">4.4 Variance-type parameters: sparse/diagonal \(B_k\)</h2>
+<p>For a pure variance-ratio working parameter (e.g. <code>dsm()</code>’s
+\(\eta_j=\log(\theta_j/\theta_1)\), or <code>vsm()</code>’s own outer <code>sigma2</code>):</p>
+<p>$$
+K = \mathrm{diag}(1,\theta_2/\theta_1,\dots),\qquad
+B_j = \frac{\partial K}{\partial \eta_j} = \theta_j/\theta_1 \cdot e_j e_j’
+$$</p>
+<p>\(B_k\) is <strong>rank-one and diagonal</strong> — a single nonzero entry. Consequences:</p>
+<ul>
+<li>\(\mathrm{d}\Lambda_k = -\Lambda B_k \Lambda\) collapses to a rank-one
+update restricted to row/column \(j\): cheap to form, cheap to multiply
+against other quantities.</li>
+<li>The <strong>trace terms</strong> needed for the score and for <code>avInf</code>/<code>emInf</code>
+(generically \(\mathrm{tr}(P\,\mathrm{d}C_k)\) and
+\(\mathrm{tr}(P\,\mathrm{d}C_i\,P\,\mathrm{d}C_j)\)) reduce to a small
+number of scalar row/column contractions instead of full dense matrix
+products — this is exactly the “diagonal residual fast path”
+specialization used for pure-variance residual structures, which only
+exists because the <em>derivative</em> itself is diagonal, not because the
+covariance is diagonal per se.</li>
+<li>For the single overall <code>sigma2</code> in <code>vsm()</code>, $\partial G/\partial\sigma^2 =
+K$ exactly (the whole shape, undifferentiated) — the classical textbook
+variance-component REML derivative. This is the parameter for which
+<strong>Average Information and Expected Information coincide most closely</strong> in
+well-behaved models, which is part of why classical variance-components
+REML (pre-AI, EM-only) worked well for decades on models built purely
+from <code>ism()</code>/<code>dsm()</code>-type structures.</li>
+</ul>
+<h2 id="4-5-correlation-type-parameters-dense-b-k">4.5 Correlation-type parameters: dense \(B_k\)</h2>
+<p>For a correlation/shape working parameter (e.g. <code>csm()</code>’s
+\(\eta_\rho=\mathrm{logit}(\cdot)\), <code>ar1m()</code>’s \(\eta=\mathrm{atanh}(\rho)\),
+<code>usm()</code>/<code>corgm()</code>’s Cholesky-factor entries):</p>
+<p>$$
+\frac{\partial K}{\partial \eta_\rho}
+= \frac{\partial K}{\partial \rho}\cdot\frac{\partial \rho}{\partial \eta_\rho}
+$$</p>
+<p>Both factors are <strong>dense in general</strong>: changing a single correlation
+parameter perturbs <em>every</em> off-diagonal entry of \(K\) simultaneously (e.g.
+for <code>ar1m()</code>, \(K_{ij}=\rho^{|i-j|}\) so $\partial K_{ij}/\partial\rho =
+|i-j|,\rho^{|i-j|-1}$ is nonzero for every \(i\neq j\)). Consequences:</p>
+<ul>
+<li>\(B_k\) is a full \(q\times q\) matrix with no exploitable sparsity in
+general (compound symmetry and AR have some exploitable <em>structure</em>, but
+not the sparsity a diagonal derivative gives).</li>
+<li>\(\mathrm{d}\Lambda_k=-\Lambda B_k\Lambda\) is a genuinely dense matrix
+product, \(O(q^3)\) per parameter per iteration — no shortcut analogous to
+the diagonal case.</li>
+<li>The chain-rule factor \(\partial\rho/\partial\eta_\rho\) (derivative of the
+logit-inverse or \(\tanh\) from Chapter 2.4) is itself <strong>not constant</strong>: for
+the bounded-logit map, \(\partial\rho/\partial\eta = (1-lo)\cdot s(1-s)\)
+where \(s=\mathrm{logit}^{-1}(\eta)\), which <strong>vanishes as
+\(\eta\to\pm\infty\)</strong> (i.e. as \(\rho\) approaches its boundary). This is the
+same “flattening near the walls” property described in Chapter 2.4 — it
+naturally damps REML steps that would otherwise push \(\rho\) against its
+feasible limit — but it also means the <strong>information matrix entries for
+correlation parameters shrink near the boundary</strong>, unlike variance
+parameters, whose exponential-family Jacobian never vanishes (only
+grows as \(\theta\) grows).</li>
+<li>Because dense \(B_k\) products couple every pair \((i,k)\) of structure
+parameters through \(\mathrm{tr}(P\,\mathrm{d}C_i\,P\,\mathrm{d}C_j)\), the
+resulting <code>avInf</code> block for correlation parameters is <strong>fully dense and
+more prone to near-singularity</strong> (e.g. when a correlation parameter is
+weakly identified, or two correlation parameters trade off against each
+other, as in <code>usm()</code> with many levels and modest sample size) — this is
+precisely the situation the EM/AI blending in Section 4.2 exists to
+stabilize: <code>emInf</code> (expected information) is guaranteed valid and
+typically better conditioned than <code>avInf</code> in these dense/boundary-adjacent
+regimes, so increasing its weight recovers a well-defined,
+descent-guaranteeing step even when <code>avInf</code> alone would not.</li>
+</ul>
+<h2 id="4-6-trust-cap-a-second-reml-stability-mechanism-tied-to-parameter-type">4.6 <code>trust_cap</code>: a second REML-stability mechanism tied to parameter type</h2>
+<p>Independent of AI/EM blending, <code>ai_mme_sp2()</code> also enforces a per-parameter
+<strong>trust-region cap</strong> (<code>trust_cap</code> in each <code>CovarianceFactor</code>) that bounds
+how far a single working parameter may move in one iteration:</p>
+<pre><code class="language-cpp">arma::vec caps = Rcpp::as&lt;arma::vec&gt;(f[&quot;trust_cap&quot;]);
+</code></pre>
+<ul>
+<li>Variance-type parameters (unbounded exponential map) are typically given
+a <strong>larger</strong> cap — <code>sigma2</code>-like parameters can safely take large
+multiplicative steps early in REML with little risk of overshoot causing
+invalidity — only the likelihood itself, not validity, is at stake.</li>
+<li>Correlation-type / bounded-map parameters (e.g. <code>maternm()</code>‘s range/nu use
+<code>c(1.0, 0.75)</code>, <code>sar()</code>/<code>car()</code> use <code>1.0</code>) are given <strong>tighter</strong> caps,
+because a large step on the working scale, pushed through a saturating
+transform (logit/tanh), can still correspond to a <em>huge</em> change in the
+reconstructed matrix’s conditioning even though the value itself stays
+valid — the cap prevents a technically-valid but wildly-overshooting
+proposal from destabilizing the next likelihood evaluation.</li>
+</ul>
+<p>This is a purely numerical safeguard layered on top of the
+always-valid-by-construction guarantee from Chapter 2 — validity is never
+at risk, but <em>good conditioning</em> and <em>monotone likelihood ascent</em> are, and
+they are protected differently for the two parameter families.</p>
+<h2 id="4-7-summary-the-full-chain-per-parameter-type">4.7 Summary: the full chain per parameter type</h2>
+<pre><code class="language-mermaid">flowchart TD
+    A[&quot;Working parameter eta (unconstrained, R)&quot;] --&gt;|transform g| B[&quot;Natural parameter theta (variance / correlation)&quot;]
+    B --&gt;|reconstruction formula| C[&quot;Covariance shape K(eta)&quot;]
+    C --&gt;|invert| D[&quot;Precision Lambda = K^-1&quot;]
+    D --&gt;|analytic identity dLambda = -Lambda Bk Lambda| E[&quot;dLambda/d(eta_k)&quot;]
+    E --&gt; F[&quot;Score s(eta), avInf, emInf&quot;]
+    F --&gt;|blend + trust_cap| G[&quot;AI-REML Newton step&quot;]
+    G --&gt; A
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Variance-type parameter</th>
+<th>Correlation-type parameter</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Transform (Ch. 2)</td>
+<td>family 1: exponential (unbounded above)</td>
+<td>family ⅔: logit/tanh/factorization (saturating, bounded)</td>
+</tr>
+<tr>
+<td>\(B_k = \partial K/\partial \eta_k\)</td>
+<td>sparse/diagonal, rank-1</td>
+<td>dense, full matrix</td>
+</tr>
+<tr>
+<td>Cost of \(\mathrm{d}\Lambda_k\)</td>
+<td>cheap (structured update)</td>
+<td>\(O(q^3)\) dense product</td>
+</tr>
+<tr>
+<td>avInf conditioning</td>
+<td>usually well-behaved</td>
+<td>can be near-singular, especially near boundary or weak identifiability</td>
+</tr>
+<tr>
+<td>EM/AI blend role</td>
+<td>rarely needed</td>
+<td>often needed for stability</td>
+</tr>
+<tr>
+<td><code>trust_cap</code></td>
+<td>looser</td>
+<td>tighter</td>
+</tr>
+</tbody>
+</table>
+<p>This is the concrete, code-level answer to “how does the REML process
+differ between a variance parameter and a correlation parameter”: both are
+optimized by the <em>same</em> AI-REML machinery over unconstrained working
+parameters (Chapter 2), but the <strong>structure of their derivative</strong> (\(B_k\),
+hence \(\mathrm{d}\Lambda_k\), hence the AI/EM information blocks) is
+fundamentally sparser and better-conditioned for variance parameters than
+for correlation parameters, which is why sommer layers EM/AI blending and
+per-parameter trust caps on top of a uniform derivative framework rather
+than hard-coding structure-specific optimizers.</p>
+<p>\newpage</p>
+<h1 id="chapter-5-worked-examples-one-per-structure">Chapter 5: Worked examples, one per structure</h1>
+<p>Every example below reuses the exact notation from Chapter 2 (\(\theta\),
+\(\eta\), \(g\), \(K\), \(\sigma^2\), \(\Lambda\), \(B_k\)) so you can trace each
+structure’s entry in Chapter 3 all the way to a concrete number.</p>
+<h2 id="5-1-ism">5.1 <code>ism()</code></h2>
+<p>\(q=2\) levels, no working parameters at all: $K=I_2=\begin{pmatrix}1&amp;0\0&amp;1
+\end{pmatrix}$, \(\Lambda = K^{-1} = I_2\). There is no \(\eta\) to iterate on
+for this factor — it contributes only through the Kronecker product with
+the other factors in the same <code>vsm()</code> term.</p>
+<h2 id="5-2-dsm">5.2 <code>dsm()</code></h2>
+<p>\(q=3\) levels, natural variances \(\theta=(1, 2.25, 0.81)\) (already showing
+\(\theta_1=1\), the reference from Chapter 2.6). Family-1 transform:</p>
+<p>$$
+\eta_2=\log(2.25/1)=0.8109,\qquad \eta_3=\log(0.81/1)=-0.2107
+$$</p>
+<p>$$
+K=\mathrm{diag}(1,\ 2.25,\ 0.81),\qquad
+\Lambda = K^{-1} = \mathrm{diag}(1,\ 0.4444,\ 1.2346)
+$$</p>
+<p>Structural derivative for \(\eta_2\): $B_2 = \partial K/\partial \eta_2 =
+2.25\cdot e_2e_2’ = \mathrm{diag}(0,2.25,0)$ — a single nonzero entry, the
+sparse/diagonal pattern of Chapter 4.4.</p>
+<h2 id="5-3-csm-homogeneous">5.3 <code>csm()</code>, homogeneous</h2>
+<p>\(q=3\), \(lo=-1/(q-1)=-0.5\). Suppose \(\rho=0.4\). Family-2 transform:</p>
+<p>$$
+p=\frac{\rho-lo}{1-lo}=\frac{0.4+0.5}{1.5}=0.6,\qquad
+\eta_\rho=\mathrm{logit}(0.6)=\log\frac{0.6}{0.4}=0.4055
+$$</p>
+<p>$$
+K=\begin{pmatrix}1&amp;0.4&amp;0.4\0.4&amp;1&amp;0.4\0.4&amp;0.4&amp;1\end{pmatrix}
+$$</p>
+<p>\(B_1=\partial K/\partial\eta_\rho\) is dense (every off-diagonal entry
+moves together) — matching Chapter 4.5’s correlation-type pattern.</p>
+<h2 id="5-4-csm-heterogeneous">5.4 <code>csm()</code>, heterogeneous</h2>
+<p>Same \(\rho=0.4\) (\(\eta_\rho=0.4055\)), plus variances
+\(\theta=(1,\ 1.5,\ 0.6)\) giving \(\eta_2=\log(1.5)=0.4055\),
+\(\eta_3=\log(0.6)=-0.5108\) (family-1, exactly as in 5.2). Full working
+vector: \(\eta=(0.4055,\ 0.4055,\ -0.5108)\) — 1 correlation-type entry
+followed by 2 variance-type entries, the “mixed” row of the Chapter 3.15
+table.</p>
+<h2 id="5-5-ar1m">5.5 <code>ar1m()</code></h2>
+<p>\(q=4\), \(\rho=0.5\). Family-2 (tanh) transform: $\eta=\mathrm{atanh}(0.5)=
+0.5493$.</p>
+<p>$$
+K=\begin{pmatrix}
+1 &amp; 0.5 &amp; 0.25 &amp; 0.125\
+0.5 &amp; 1 &amp; 0.5 &amp; 0.25\
+0.25 &amp; 0.5 &amp; 1 &amp; 0.5\
+0.125 &amp; 0.25 &amp; 0.5 &amp; 1
+\end{pmatrix}
+$$</p>
+<p>\(K_{ij}=\rho^{|i-j|}\); the single working parameter reshapes every
+off-diagonal band simultaneously (dense \(B_1\), Chapter 4.5).</p>
+<h2 id="5-6-ar2m-ar3m-toeplitzm">5.6 <code>ar2m()</code> / <code>ar3m()</code> / <code>toeplitzm()</code></h2>
+<p>\(q=4\), order-2 PACF \(\kappa=(0.3,-0.2)\). Family-2 transform:
+\(\eta=(\mathrm{atanh}(0.3), \mathrm{atanh}(-0.2)) = (0.3095,\ -0.2027)\). The
+Durbin–Levinson recursion (Chapter 3.4) turns \(\kappa\) into full lag
+correlations \(\rho_1,\rho_2,\rho_3\), which then fill \(K_{ij}=\rho_{|i-j|}\)
+exactly like <code>ar1m()</code> above but allowing a richer decay pattern.
+<code>toeplitzm()</code> with \(q=4\) would use 3 PACF values (one per lag up to \(q-1\))
+instead of being capped at a fixed AR order.</p>
+<h2 id="5-7-mam-ma1m-ma2m">5.7 <code>mam()</code> / <code>ma1m()</code> / <code>ma2m()</code></h2>
+<p>\(q=3\), order 1, \(\theta_1=0.3\) (the raw MA coefficient — recall from
+Chapter 3.5 there is <strong>no transform</strong>, so \(\eta=\theta=0.3\) directly). The
+resulting \(K\) is built from
+\(\mathrm{Cov}(e_t+\theta_1 e_{t-1})\), giving a banded correlation matrix
+with only lag-1 correlation nonzero. Because \(g\) is the identity map here,
+\(B_1=\partial K/\partial\eta_1 = \partial K/\partial\theta_1\) directly — no
+chain rule factor to track, unlike every bounded/positive structure above.</p>
+<h2 id="5-8-usm">5.8 <code>usm()</code></h2>
+<p>\(q=2\) (the case from the original single-structure example, reproduced here
+in the shared notation). Working parameters
+\(\eta=(\eta_{21},\ \eta_{22})=(0.30,\ \log(0.95))\), i.e.
+\(L_{21}=0.30\) (family-3, off-diagonal, no transform) and
+\(L_{22}=\exp(\eta_{22})=0.95\) (family-3 diagonal, family-1 log transform):</p>
+<p>$$
+L=\begin{pmatrix}1&amp;0\0.30&amp;0.95\end{pmatrix},\qquad
+K=LL’=\begin{pmatrix}1.0000&amp;0.3000\0.3000&amp;0.9925\end{pmatrix}
+$$</p>
+<p>$$
+\Lambda=K^{-1}=\frac{1}{|K|}\begin{pmatrix}K_{22}&amp;-K_{12}\-K_{12}&amp;K_{11}
+\end{pmatrix},\qquad |K|=0.9025
+$$</p>
+<p>$$
+\Lambda\approx\begin{pmatrix}1.0997&amp;-0.3325\-0.3325&amp;1.1080\end{pmatrix}
+$$</p>
+<p>Structural derivatives (\(B_1=\partial K/\partial\eta_{21}\),
+\(B_2=\partial K/\partial\eta_{22}\), chain rule
+\(\partial K/\partial\eta_{22} = \partial K/\partial L_{22}\cdot L_{22}\)
+since \(L_{22}=\exp(\eta_{22})\)):</p>
+<p>$$
+B_1=\begin{pmatrix}0&amp;1\1&amp;0.60\end{pmatrix},\qquad
+B_2=\begin{pmatrix}0&amp;0\0&amp;1.805\end{pmatrix}
+$$</p>
+<p>\(B_1\) (off-diagonal, correlation-type) is dense; \(B_2\) (log-diagonal,
+variance-type in flavor) is sparse/rank-one — Chapter 4.4/4.5’s pattern,
+both appearing inside the <em>same</em> structure.</p>
+<h2 id="5-9-corgm">5.9 <code>corgm()</code></h2>
+<p>\(q=3\), unit-diagonal lower factor entries \(A_{21}=0.2\), \(A_{31}=0.1\),
+\(A_{32}=0.15\) (family-3, no per-entry transform — any real numbers here
+give a valid unit-diagonal \(K\)):</p>
+<p>$$
+A=\begin{pmatrix}1&amp;0&amp;0\0.2&amp;\sqrt{1-0.2^2}&amp;0\0.1&amp;\ (\dots)&amp;(\dots)
+\end{pmatrix}
+$$</p>
+<p>(rows are renormalized to unit length internally so \(K_{ii}=1\) exactly);
+working parameters are simply \(\eta=(0.2,\ 0.1,\ 0.15)\), i.e. <code>par</code> equals
+the lower-triangular entries directly, with no chain-rule factor to apply
+when differentiating \(K\) with respect to \(\eta\).</p>
+<h2 id="5-10-fam-rrm">5.10 <code>fam()</code> / <code>rrm()</code></h2>
+<p>\(q=3\), rank \(k=1\). Loadings \(\Lambda=(0.6,\ 0.4,\ 0.2)'\) (with the leading
+entry \(\Lambda_{11}=0.6&gt;0\) log-parameterized:
+\(\eta_{load,1}=\log(0.6)=-0.5108\); the remaining loadings unconstrained:
+\(\eta_{load,2}=0.4\), \(\eta_{load,3}=0.2\)), specific variances
+\(\psi=(1,\ 0.5,\ 0.3)\) (family-1 log-ratio on levels 2-3:
+\(\eta_{spec,2}=\log(0.5)=-0.6931\), \(\eta_{spec,3}=\log(0.3)=-1.2040\)):</p>
+<p>$$
+M=\Lambda\Lambda’+\Psi=
+\begin{pmatrix}0.36+1&amp;0.24&amp;0.12\0.24&amp;0.16+0.5&amp;0.08\0.12&amp;0.08&amp;0.04+0.3
+\end{pmatrix},
+\qquad K=M/M_{11}
+$$</p>
+<p><code>fam(..., variance=&quot;homogeneous&quot;)</code> drops the \(\psi\) working parameters
+(using \(\Psi=I\) internally). <code>rrm()</code> instead sets \(\Psi=0\) and normalizes
+the supplied loadings to \((1,\ &amp;frac23;,\ &amp;frac13;)'\), fixing the first loading.
+The overall variance remains owned by <code>vsm()</code>.</p>
+<h2 id="5-11-antem">5.11 <code>antem()</code></h2>
+<p>\(q=3\), order 1. Regression coefficients on the first subdiagonal only,
+\(\beta_{21}=0.4\), \(\beta_{32}=0.3\) (unconstrained, \(\eta=\beta\) directly —
+same “no per-entry transform” logic as <code>corgm()</code>’s off-diagonal factor
+entries), innovations \(D=\mathrm{diag}(1,\ 0.7,\ 0.5)\) (family-1 log-ratio:
+\(\eta_{D,2}=\log(0.7)=-0.3567\), \(\eta_{D,3}=\log(0.5)=-0.6931\)):</p>
+<p>$$
+T=\begin{pmatrix}1&amp;0&amp;0\-0.4&amp;1&amp;0\0&amp;-0.3&amp;1\end{pmatrix},\qquad
+K=T^{-1}DT^{-T}\ /\ (T^{-1}DT^{-T})_{11}
+$$</p>
+<h2 id="5-12-maternm">5.12 <code>maternm()</code></h2>
+<p>\(q=3\) spatial points, distances \(d_{12}=1,\ d_{13}=2,\ d_{23}=1\). Suppose
+\(r=1.5\), \(\nu=0.5\) (Matérn with \(\nu=0.5\) reduces to the exponential
+correlation \(K_{ij}=\exp(-d_{ij}/r)\)). Family-1 transform on both:
+\(\eta=(\log 1.5,\ \log 0.5)=(0.4055,\ -0.6931)\).</p>
+<p>$$
+K_{12}=e^{-1/1.5}=0.5134,\quad K_{13}=e^{-2/1.5}=0.2636,\quad
+K_{23}=e^{-1/1.5}=0.5134
+$$</p>
+<p>Both working parameters are correlation/shape-type: changing either \(r\) or
+\(\nu\) reshapes every pairwise entry of \(K\) at once (dense \(B_k\), as in
+Chapter 4.5).</p>
+<h2 id="5-13-sar">5.13 <code>sar()</code></h2>
+<p>\(q=3\) areal units, adjacency \(W\) with spectral radius (largest eigenvalue
+magnitude) \(=2\), so the valid range is \(\rho\in(-0.5,0.5)\). Suppose
+\(\rho=0.2\). Family-2 (symmetric bounded logit) transform:</p>
+<p>$$
+p=\frac{\rho+0.5}{1.0}=0.7,\qquad \eta=\mathrm{logit}(0.7)=0.8473
+$$</p>
+<p>$$
+K = M/M_{11},\qquad M=(I-0.2W)^{-1}(I-0.2W)^{-T}
+$$</p>
+<h2 id="5-14-car">5.14 <code>car()</code></h2>
+<p>\(q=3\) areal units, symmetric non-negative adjacency \(W\), row sums
+\(D=\mathrm{diag}(3,2,2)\). Suppose the valid range works out to
+\(\rho\in(-1.2,\ 1.0)\) and \(\rho=0.3\). Family-2 transform:</p>
+<p>$$
+p=\frac{0.3+1.2}{2.2}=0.6818,\qquad \eta=\mathrm{logit}(0.6818)=0.7677
+$$</p>
+<p>$$
+K = M/M_{11},\qquad M = (D-0.3W)^{-1}
+$$</p>
+<h2 id="5-15-ownm">5.15 <code>ownm()</code></h2>
+<p>A user supplies <code>fun &lt;- function(par) matrix(c(1, par[1], par[1], 1), 2, 2)</code>
+with <code>par=c(0.25)</code> — here the user has <em>chosen</em> to reuse the family-2
+(bounded) idea manually by ensuring <code>par[1]</code> always stays in \((-1,1)\) some
+other way (sommer does not enforce this for <code>ownm()</code>); \(\eta=\theta=0.25\)
+directly, sommer only performs the \(K_{11}=1\) normalization from Chapter
+2.6 and, since no <code>dfun</code> was supplied, computes \(B_1\) by a numerical
+(finite-difference) derivative of <code>fun</code>.</p>
+<p>\newpage</p>
+<h1 id="chapter-6-end-to-end-numerical-trace-from-eta-to-the-reml-objective">Chapter 6: End-to-end numerical trace, from \(\eta\) to the REML objective</h1>
+<p>Chapters 2-5 showed <em>how</em> a working parameter \(\eta\) turns into a shape \(K\)
+and a precision \(\Lambda\). This chapter shows <em>where in the computation</em>
+those numbers actually get used, by carrying one tiny, fully-numeric example
+all the way from \(\eta\) to the REML log-likelihood \(\ell(\eta)\) itself —
+reusing the exact <code>usm()</code> numbers from Section 5.8.</p>
+<h2 id="6-1-a-4-observation-2-line-x-2-trait-toy-data-set">6.1 A 4-observation, 2-line x 2-trait toy data set</h2>
+<p>Two lines (\(L_1,L_2\)), two traits (\(A,B\)), one observation per
+line-trait combination, model \(y=\mathbf{1}\beta + u + e\) (a single fixed
+intercept \(\beta\), one random effect per line-trait cell, and residual
+noise). Take the random-effect design as <code>vsm(usm(Trait), ism(Line))</code>,
+which makes each line’s 2-vector of trait effects
+\(u_{l}=(u_{l,A},u_{l,B})\) independent across lines with common covariance
+\(\sigma^2 K\):</p>
+<p>$$
+y = \begin{pmatrix}10\12\8\9\end{pmatrix}\ \ (\text{order: } L_1A,\ L_1B,\ L_2A,\ L_2B),
+\qquad X=\begin{pmatrix}1\1\1\1\end{pmatrix},\qquad Z=I_4,\qquad R=I_4
+$$</p>
+<p>To isolate exactly what the <em>shape</em> working parameters do, fix the scale at
+\(\sigma^2=1\) and the residual variance at \(1\) (in a real <code>mmes()</code> fit these
+would be extra variance-type working parameters of their own, following
+Section 4.4).</p>
+<h2 id="6-2-step-1-working-parameters-to-the-shape-and-its-precision-chapter-2-3">6.2 Step 1 — working parameters to the shape and its precision (Chapter 2-3)</h2>
+<p>Exactly the Section 5.8 <code>usm()</code> example: $\eta=(\eta_{21},\eta_{22}) =
+(0.30,\ \log 0.95)$, so \(L_{21}=0.30\), \(L_{22}=0.95\), and</p>
+<p>$$
+K=\begin{pmatrix}1.0000&amp;0.3000\0.3000&amp;0.9925\end{pmatrix},
+\qquad
+\Lambda=K^{-1}=\begin{pmatrix}1.0997&amp;-0.3324\-0.3324&amp;1.1080\end{pmatrix}
+$$</p>
+<h2 id="6-3-step-2-precision-to-henderson-s-c-matrix-chapter-1">6.3 Step 2 — precision to Henderson’s \(C\) matrix (Chapter 1)</h2>
+<p>Because lines are independent (<code>ism(Line)</code>), the random-effect precision
+\(G^{-1}=\sigma^{-2}\,(I_2\otimes\Lambda)\) is block-diagonal, one copy of
+\(\Lambda\) per line — this is literally the only place \(\eta\) enters the
+whole computation; every quantity from here on is arithmetic built on top of
+these four numbers. Henderson’s \(C\) (Section 1.2), with \(R=I_4\) so
+\(Z'R^{-1}Z=I_4\):</p>
+<p>$$
+C=\begin{pmatrix}
+4 &amp; 1&amp;1&amp;1&amp;1\
+1 &amp; 2.0997&amp;-0.3324&amp;0&amp;0\
+1 &amp; -0.3324&amp;2.1080&amp;0&amp;0\
+1 &amp; 0&amp;0&amp;2.0997&amp;-0.3324\
+1 &amp; 0&amp;0&amp;-0.3324&amp;2.1080
+\end{pmatrix}
+$$</p>
+<p>rows/columns ordered \((\beta,\,u_{L_1A},\,u_{L_1B},\,u_{L_2A},\,u_{L_2B})\).
+The \(\Lambda\) blocks sit exactly where \(Z'R^{-1}Z\) would otherwise be left
+alone — \(\eta\)’s only job, computationally, is to determine these four
+numbers added into \(C\).</p>
+<h2 id="6-4-step-3-solving-the-mme-blues-blups-depend-on-eta">6.4 Step 3 — solving the MME (BLUEs/BLUPs depend on \(\eta\))</h2>
+<p>Solving \(C\,(\hat\beta,\hat u)' = (X'R^{-1}y,\ Z'R^{-1}y)' = (39,\,10,\,12,\,8,\,9)'\)
+gives</p>
+<p>$$
+\hat\beta \approx 9.752,\quad
+\hat u_{L_1A}\approx 0.294,\ \hat u_{L_1B}\approx 1.113,\quad
+\hat u_{L_2A}\approx -0.914,\ \hat u_{L_2B}\approx -0.501
+$$</p>
+<p>If \(\eta\) had been different, \(\Lambda\) would differ, the four numbers
+inserted in Section 6.3 would differ, and <strong>every one of these five
+solutions would come out different</strong> — this is the concrete meaning of
+“the BLUPs/BLUEs depend on the covariance parameters.”</p>
+<h2 id="6-5-step-4-from-the-mme-solution-to-the-reml-ingredients-chapter-4-1">6.5 Step 4 — from the MME solution to the REML ingredients (Chapter 4.1)</h2>
+<p>Using the identity \(y'Py = y'R^{-1}y - (X'R^{-1}y,\,Z'R^{-1}y)\cdot(\hat\beta,\hat u)\):</p>
+<p>$$
+y’R^{-1}y = 10^2+12^2+8^2+9^2 = 389,
+\qquad
+y’Py \approx 389 - 384.81 \approx 4.19
+$$</p>
+<p>and, from the same \(C\) matrix of Section 6.3 (a block-determinant
+calculation, done in practice by sparse Cholesky, not shown here step by
+step),</p>
+<p>$$
+\log|C| \approx 3.48
+$$</p>
+<p>With <code>ism(Line)</code> contributing \(\log|A^{-1}|=0\) and \(R=I_4\) contributing
+\(\log|R|=0\), Chapter 4.1’s REML log-likelihood becomes a single concrete
+number:</p>
+<p>$$
+\ell(\eta) = -\tfrac12\big(\log|C| + \log|R| + \textstyle\sum_i n_i\log|A_i| + y’Py\big)
+\approx -\tfrac12(3.48+0+0+4.19) \approx -3.83
+$$</p>
+<p><strong>This is the number AI-REML is trying to make as large as possible</strong>, and
+every term in it was produced starting from the two numbers in \(\eta\).</p>
+<h2 id="6-6-step-5-perturbing-eta-where-the-score-ai-matrix-machinery-lives">6.6 Step 5 — perturbing \(\eta\): where the score/AI-matrix machinery lives</h2>
+<p>Section 4.3 gives the analytic derivative
+\(\partial\Lambda/\partial\eta_k = -\Lambda B_k\Lambda\). We can check this
+numerically instead of trusting the formula blindly, using the same finite-
+difference idea a high-school calculus class would use for any derivative:
+nudge \(\eta_{21}\) from \(0.30\) to \(0.31\) (holding \(\eta_{22}\) fixed), rebuild
+\(K\) and \(\Lambda\) exactly as in Section 6.2, and see how much \(\Lambda\)
+moved.</p>
+<p>Nudged value: \(L_{21}=0.31,\ L_{22}=0.95\), giving
+\(K_{22}=0.31^2+0.95^2=0.9986\) (note \(\det K = (L_{11}L_{22})^2=0.9025\) is
+<em>unchanged</em>, since only the off-diagonal \(\eta_{21}\) moved) and</p>
+<p>$$
+\Lambda_{\text{nudged}} \approx
+\begin{pmatrix}1.1064&amp;-0.3435\-0.3435&amp;1.1080\end{pmatrix}
+$$</p>
+<p>Finite-difference estimate of the derivative:</p>
+<p>$$
+\frac{\Lambda_{\text{nudged}}-\Lambda}{0.01} \approx
+\begin{pmatrix}0.668&amp;-1.108\-1.108&amp;0.000\end{pmatrix}
+$$</p>
+<p>Compare this to the <em>analytic</em> formula from Section 4.⅗.8,
+\(B_1=\partial K/\partial\eta_{21}=\begin{pmatrix}0&amp;1\\1&amp;0.60\end{pmatrix}\),
+plugged into \(-\Lambda B_1 \Lambda\):</p>
+<p>$$
+-\Lambda B_1 \Lambda \approx
+\begin{pmatrix}0.665&amp;-1.108\-1.108&amp;0.000\end{pmatrix}
+$$</p>
+<p>The two match (up to the expected finite-step-size rounding). This is
+exactly the object <code>ai_mme_sp2()</code> forms internally as <code>dLambda</code> (Section
+4.3), and it is what turns into the score \(s(\eta)\) and the <code>avInf</code>/<code>emInf</code>
+blocks of Section 4.2 that decide the <em>next</em> value of \(\eta\) — closing the
+loop: \(\eta \to K \to \Lambda \to C \to (\hat\beta,\hat u) \to \ell(\eta)\)
+for the forward pass (Sections 6.2-6.5), and
+$\eta \to B_k \to \mathrm{d}\Lambda_k \to s(\eta),,\mathrm{InfMat}
+\to \eta^{(t+1)}$ for the update that drives REML to convergence (Chapter
+4.2).</p>
+<p>\newpage</p>
+<h1 id="where-to-go-from-here">Where to go from here</h1>
+<ul>
+<li>To fit a model with any of these structures, see <code>?vsm</code> and the
+constructor’s own help page (e.g. <code>?csm</code>, <code>?ar1m</code>, <code>?usm</code>).</li>
+<li>For the descriptor-level API details (fields of a <code>CovarianceFactor</code>,
+<code>free</code>, <code>par_names</code>, <code>trust_cap</code>), see <code>using-covariance-structures.Rmd</code>.</li>
+<li>For a deeper look at the specific performance optimizations inside
+<code>ai_mme_sp2()</code> referenced in Chapter 4 (sparse LDLT, CHOLMOD, PCG,
+selected-inverse traces), see the package’s C++ source comments in
+<code>src/MNR.cpp</code>.</li>
+</ul>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
+<script src="https://cdn.jsdelivr.net/combine/npm/katex/dist/katex.min.js,npm/katex/dist/contrib/auto-render.min.js,npm/@xiee/utils/js/render-katex.js" defer></script>
+</body>
+</html>

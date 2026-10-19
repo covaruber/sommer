@@ -105,7 +105,8 @@ fitFA <- mmes(y ~ Env,
   random = ~ vsm(fam(Env, 2), ism(Name)),
   rcov = ~ units,
   data = DT,
-  control = mmes_control(convergence = list(maxIters = 150),
+  control = mmes_control(
+    # convergence = list(maxIters = 150),
   diagnostics = list(verbose = FALSE)))
 summary(fitFA)$varcomp
 ```
@@ -117,7 +118,8 @@ fitRR <- mmes(y ~ Env,
   random = ~ vsm(rrm(Env, 2), ism(Name)),
   rcov = ~ units,
   data = DT,
-  control = mmes_control(convergence = list(maxIters = 150),
+  control = mmes_control(
+    # convergence = list(maxIters = 150),
   diagnostics = list(verbose = FALSE)))
 summary(fitRR)$varcomp
 ```

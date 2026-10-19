@@ -8,5 +8,9 @@ home:
   title: sommer - Mixed Models for Quantitative Genetics
 navbar:
   structure:
-    left: [reference, articles, news]
+    left: [reference, decision-tree, articles, news]
     right: [search, github]
+  components:
+    decision-tree:
+      text: Decision tree
+      href: mmes-options.html

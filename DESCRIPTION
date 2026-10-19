@@ -1,7 +1,7 @@
 Package: sommer
 Type: Package
 Title: Solving Mixed Model Equations in R
-Version: 4.4.99
+Version: 4.5.00
 Date: 2026-09-30
 Authors@R: c(
     person("Giovanny","Covarrubias-Pazaran", email="cova_ruber@live.com.mx", role=c("aut","cre"),
@@ -31,6 +31,7 @@ Suggests:
     lattice,
      emmeans (>= 1.4),
      estimability,
+    pkgload,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3

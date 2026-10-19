@@ -10,6 +10,10 @@ vignette: >
 
 # Purpose
 
+For a clickable decision tree with searchable controls, defaults, examples,
+and compatibility checks, open the
+[interactive mmes_control guide](https://covaruber.github.io/sommer/mmes-options.html).
+
 `mmes()` separates statistical model specification from numerical policy.
 Formulas, data, weights, family, constraints, and known covariance parameters
 remain `mmes()` arguments. Numerical choices belong in one validated object:

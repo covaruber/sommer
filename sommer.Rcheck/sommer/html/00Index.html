@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head><title>R: Solving Mixed Model Equations in R</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+<link rel="stylesheet" type="text/css" href="R.css" />
+</head><body><div class="container">
+<h1> Solving Mixed Model Equations in R
+<img class="toplogo" src="../../../doc/html/Rlogo.svg" alt="[R logo]" />
+</h1>
+<hr/>
+<div style="text-align: center;">
+<a href="../../../doc/html/packages.html"><img class="arrow" src="../../../doc/html/left.jpg" alt="[Up]" /></a>
+<a href="../../../doc/html/index.html"><img class="arrow" src="../../../doc/html/up.jpg" alt="[Top]" /></a>
+</div><h2>Documentation for package &lsquo;sommer&rsquo; version 4.5.00</h2>
+
+<ul><li><a href="../DESCRIPTION">DESCRIPTION file</a>.</li>
+<li><a href="../doc/index.html">User guides, package vignettes and other documentation.</a></li>
+</ul>
+
+<h2>Help Pages</h2>
+
+
+<table style="width: 100%;">
+<tr><td style="width: 25%;"><a href="A.mat.html">A.mat</a></td>
+<td>Additive relationship matrix</td></tr>
+<tr><td style="width: 25%;"><a href="analyze_mme_crossovers.html">analyze_mme_crossovers</a></td>
+<td>Analyze Crossover Frontiers from MME Benchmarks</td></tr>
+<tr><td style="width: 25%;"><a href="anova_mmes.html">anova.mmer</a></td>
+<td>anova form a GLMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="anova_mmes.html">anova.mmes</a></td>
+<td>anova form a GLMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="antem.html">antem</a></td>
+<td>Antedependence covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="APY.html">APY</a></td>
+<td>Construct an APY Relationship Precision Matrix</td></tr>
+<tr><td style="width: 25%;"><a href="ar1m.html">ar1m</a></td>
+<td>First-order autoregressive covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="ar2m.html">ar2m</a></td>
+<td>Second-order autoregressive covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="ar3m.html">ar3m</a></td>
+<td>Third-order autoregressive covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="atm.html">atm</a></td>
+<td>Selected-level diagonal covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="atr.html">atr</a></td>
+<td>Selected-level diagonal covariance structure for 'mmer' and 'vsr'</td></tr>
+<tr><td style="width: 25%;"><a href="binm.html">binm</a></td>
+<td>Binomial proportion response with its number of trials</td></tr>
+<tr><td style="width: 25%;"><a href="car.html">car</a></td>
+<td>Proper conditional autoregressive spatial covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="coef_mmes.html">coef.mmer</a></td>
+<td>coef form a GLMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="coef_mmes.html">coef.mmes</a></td>
+<td>coef form a GLMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="corgm.html">corgm</a></td>
+<td>General positive-definite correlation structure</td></tr>
+<tr><td style="width: 25%;"><a href="corImputation.html">corImputation</a></td>
+<td>Imputing a matrix using correlations</td></tr>
+<tr><td style="width: 25%;"><a href="covm.html">covm</a></td>
+<td>Covariance Between Two Random Effects</td></tr>
+<tr><td style="width: 25%;"><a href="covmatrix_mmes.html">covmatrix_mmes</a></td>
+<td>Covariance and correlation matrix of a fitted term with standard errors</td></tr>
+<tr><td style="width: 25%;"><a href="covparams_mmes.html">covparams_mmes</a></td>
+<td>Extract native-scale covariance parameters from an mmes fit</td></tr>
+<tr><td style="width: 25%;"><a href="covparams_mmes_se.html">covparams_mmes_se</a></td>
+<td>Native-scale covariance parameters and standard errors</td></tr>
+<tr><td style="width: 25%;"><a href="csm.html">csm</a></td>
+<td>Compound-symmetry covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="csr.html">csr</a></td>
+<td>User-specified covariance-component structure for 'mmer' and 'vsr'</td></tr>
+<tr><td style="width: 25%;"><a href="D.mat.html">D.mat</a></td>
+<td>Dominance relationship matrix</td></tr>
+<tr><td style="width: 25%;"><a href="dfToMatrix.html">dfToMatrix</a></td>
+<td>data frame to matrix</td></tr>
+<tr><td style="width: 25%;"><a href="dsm.html">dsm</a></td>
+<td>Diagonal heterogeneous covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="dsr.html">dsr</a></td>
+<td>Diagonal covariance structure for 'mmer' and 'vsr'</td></tr>
+<tr><td style="width: 25%;"><a href="dsumm.html">dsumm</a></td>
+<td>Direct sum of residual covariance structures across sections</td></tr>
+<tr><td style="width: 25%;"><a href="E.mat.html">E.mat</a></td>
+<td>Epistatic relationship matrix</td></tr>
+<tr><td style="width: 25%;"><a href="fam.html">fam</a></td>
+<td>Factor-analytic covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="familym.html">familym</a></td>
+<td>Different distribution families for the traits of a multi-trait model</td></tr>
+<tr><td style="width: 25%;"><a href="fitted_mmes.html">fitted.mmer</a></td>
+<td>fitted form a LMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="fitted_mmes.html">fitted.mmes</a></td>
+<td>fitted form a LMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="fixm.html">fixm</a></td>
+<td>fixed indication matrix</td></tr>
+<tr><td style="width: 25%;"><a href="generate_mme_workload.html">generate_mme_workload</a></td>
+<td>Generate Parameterized MME Workloads for Solver Evaluation</td></tr>
+<tr><td style="width: 25%;"><a href="DEPRECATED_GWAS.html">GWAS</a></td>
+<td>Genome wide association study analysis</td></tr>
+<tr><td style="width: 25%;"><a href="H.mat.html">H.mat</a></td>
+<td>Combined relationship matrix H</td></tr>
+<tr><td style="width: 25%;"><a href="ism.html">ism</a></td>
+<td>Identity covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="loadings_mmes.html">loadings_mmes</a></td>
+<td>Extract factor-analytic loadings from a fitted mmes model</td></tr>
+<tr><td style="width: 25%;"><a href="mam.html">ma1m</a></td>
+<td>Moving-average covariance structures of order one or two</td></tr>
+<tr><td style="width: 25%;"><a href="mam.html">ma2m</a></td>
+<td>Moving-average covariance structures of order one or two</td></tr>
+<tr><td style="width: 25%;"><a href="mam.html">mam</a></td>
+<td>Moving-average covariance structures of order one or two</td></tr>
+<tr><td style="width: 25%;"><a href="maternm.html">maternm</a></td>
+<td>Matern spatial covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="meffects_mmes.html">meffects_mmes</a></td>
+<td>Marker effects recovered from a fitted relationship-based term</td></tr>
+<tr><td style="width: 25%;"><a href="metricm.html">metricm</a></td>
+<td>Distance-based (metric) spatial correlation structures</td></tr>
+<tr><td style="width: 25%;"><a href="mmer.html">mmer</a></td>
+<td>*m*ixed *m*odel *e*quations for *r* records</td></tr>
+<tr><td style="width: 25%;"><a href="mmes.html">mmes</a></td>
+<td>*m*ixed *m*odel *e*quations *s*olver</td></tr>
+<tr><td style="width: 25%;"><a href="mmes_control.html">mmes_control</a></td>
+<td>Modular Numerical Controls for Mixed Models</td></tr>
+<tr><td style="width: 25%;"><a href="mme_workload_grid.html">mme_workload_grid</a></td>
+<td>Generate a Factorial Grid of MME Workloads</td></tr>
+<tr><td style="width: 25%;"><a href="MNR.html">MNR</a></td>
+<td>Multivariate Newton-Raphson algorithm</td></tr>
+<tr><td style="width: 25%;"><a href="ownm.html">ownm</a></td>
+<td>User-defined covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="plot_mmes.html">plot.mmer</a></td>
+<td>plot form a LMM plot with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="plot_mmes.html">plot.mmes</a></td>
+<td>plot form a LMM plot with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="plot.monitor.html">pmonitor</a></td>
+<td>plot the change of VC across iterations</td></tr>
+<tr><td style="width: 25%;"><a href="postPEV.html">postPEV</a></td>
+<td>Post-fit prediction error variances and inverse coefficient matrix</td></tr>
+<tr><td style="width: 25%;"><a href="postVarU.html">postVarU</a></td>
+<td>Post-fit Sampling Covariance of BLUPs</td></tr>
+<tr><td style="width: 25%;"><a href="predict_mmes.html">predict.mmer</a></td>
+<td>Predict form of a LMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="predict_mmes.html">predict.mmes</a></td>
+<td>Predict form of a LMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="DEPRECATED_summary_mmer.html">print.mmer</a></td>
+<td>summary form a GLMM fitted with mmer</td></tr>
+<tr><td style="width: 25%;"><a href="summary_mmes.html">print.mmes</a></td>
+<td>summary form a GLMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="print.sommer_mmes_control.html">print.sommer_mmes_control</a></td>
+<td>Print Modular Numerical Controls</td></tr>
+<tr><td style="width: 25%;"><a href="print.sommer_mme_benchmark.html">print.sommer_mme_benchmark</a></td>
+<td>Print method for sommer_mme_benchmark</td></tr>
+<tr><td style="width: 25%;"><a href="print.sommer_mme_crossover.html">print.sommer_mme_crossover</a></td>
+<td>Print method for sommer_mme_crossover</td></tr>
+<tr><td style="width: 25%;"><a href="print.sommer_mme_profile.html">print.sommer_mme_profile</a></td>
+<td>Print method for sommer_mme_profile</td></tr>
+<tr><td style="width: 25%;"><a href="DEPRECATED_summary_mmer.html">print.summary.mmer</a></td>
+<td>summary form a GLMM fitted with mmer</td></tr>
+<tr><td style="width: 25%;"><a href="summary_mmes.html">print.summary.mmes</a></td>
+<td>summary form a GLMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="wald_mmes.html">print.wald.mmes</a></td>
+<td>Wald tests for fixed effects with optional small-sample denominator df</td></tr>
+<tr><td style="width: 25%;"><a href="profile_mme_workload.html">profile_mme_workload</a></td>
+<td>Profile an MME Workload by Phase</td></tr>
+<tr><td style="width: 25%;"><a href="r2.html">r2</a></td>
+<td>Reliability</td></tr>
+<tr><td style="width: 25%;"><a href="randef.html">randef</a></td>
+<td>extracting random effects</td></tr>
+<tr><td style="width: 25%;"><a href="residuals_mmes.html">residuals.mmer</a></td>
+<td>Residuals form a GLMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="residuals_mmes.html">residuals.mmes</a></td>
+<td>Residuals form a GLMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="rotate_back_mmes.html">rotate_back_mmes</a></td>
+<td>Back-transform rotated mmes random effects</td></tr>
+<tr><td style="width: 25%;"><a href="rrm.html">rrm</a></td>
+<td>Reduced-rank covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="run_mme_benchmark.html">run_mme_benchmark</a></td>
+<td>Run Experimental MME Benchmark Suite</td></tr>
+<tr><td style="width: 25%;"><a href="sar.html">sar</a></td>
+<td>Simultaneous autoregressive spatial covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="scores_mmes.html">scores_mmes</a></td>
+<td>Predict factor-analytic scores from a fitted mmes model</td></tr>
+<tr><td style="width: 25%;"><a href="sommer-package.html">sommer</a></td>
+<td>*So*lving *M*ixed *M*odel *E*quations in *R*</td></tr>
+<tr><td style="width: 25%;"><a href="spl2Dc.html">spl2Da</a></td>
+<td>Two-dimensional penalised tensor-product of marginal B-Spline basis.</td></tr>
+<tr><td style="width: 25%;"><a href="spl2Dc.html">spl2Db</a></td>
+<td>Two-dimensional penalised tensor-product of marginal B-Spline basis.</td></tr>
+<tr><td style="width: 25%;"><a href="spl2Dc.html">spl2Dc</a></td>
+<td>Two-dimensional penalised tensor-product of marginal B-Spline basis.</td></tr>
+<tr><td style="width: 25%;"><a href="spl2Dmats.html">spl2Dmats</a></td>
+<td>Get Tensor Product Spline Mixed Model Incidence Matrices</td></tr>
+<tr><td style="width: 25%;"><a href="stackTraits.html">stackTraits</a></td>
+<td>Stack several trait columns into the long format used by multi-trait models</td></tr>
+<tr><td style="width: 25%;"><a href="strm.html">strm</a></td>
+<td>Covariance structure spanning several random terms</td></tr>
+<tr><td style="width: 25%;"><a href="DEPRECATED_summary_mmer.html">summary.mmer</a></td>
+<td>summary form a GLMM fitted with mmer</td></tr>
+<tr><td style="width: 25%;"><a href="summary_mmes.html">summary.mmes</a></td>
+<td>summary form a GLMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="toeplitzm.html">toeplitzm</a></td>
+<td>General positive-definite Toeplitz correlation structure</td></tr>
+<tr><td style="width: 25%;"><a href="tpsmmbwrapper.html">tpsmmbwrapper</a></td>
+<td>Get Tensor Product Spline Mixed Model Incidence Matrices</td></tr>
+<tr><td style="width: 25%;"><a href="unsm.html">unsm</a></td>
+<td>unstructured indication matrix</td></tr>
+<tr><td style="width: 25%;"><a href="unsm.html">unsm2</a></td>
+<td>unstructured indication matrix</td></tr>
+<tr><td style="width: 25%;"><a href="usm.html">usm</a></td>
+<td>Unstructured positive-definite covariance structure</td></tr>
+<tr><td style="width: 25%;"><a href="usr.html">usr</a></td>
+<td>Unstructured covariance structure for 'mmer' and 'vsr'</td></tr>
+<tr><td style="width: 25%;"><a href="vcc.html">vcc</a></td>
+<td>Equality and scaling constraints between variance parameters</td></tr>
+<tr><td style="width: 25%;"><a href="vcc.html">vcParams</a></td>
+<td>Equality and scaling constraints between variance parameters</td></tr>
+<tr><td style="width: 25%;"><a href="vpredict.html">vpredict</a></td>
+<td>vpredict form of a LMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="vpredict.html">vpredict.mmes</a></td>
+<td>vpredict form of a LMM fitted with mmes</td></tr>
+<tr><td style="width: 25%;"><a href="DEPRECATED_VS.html">vs</a></td>
+<td>variance structure specification</td></tr>
+<tr><td style="width: 25%;"><a href="vsm.html">vsm</a></td>
+<td>Variance-structure model with arbitrary Kronecker covariance factors</td></tr>
+<tr><td style="width: 25%;"><a href="DEPRECATED_VSR.html">vsr</a></td>
+<td>variance structure specification</td></tr>
+<tr><td style="width: 25%;"><a href="wald_mmes.html">wald_mmes</a></td>
+<td>Wald tests for fixed effects with optional small-sample denominator df</td></tr>
+</table>
+</div></body></html>

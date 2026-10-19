@@ -431,11 +431,49 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  naMethodX="exclude", naMethodY="exclude",
                  naMethodRandom="exclude", naMethodR="exclude",
                  contrasts=NULL, family=stats::gaussian(), vcc=NULL,
-                 covPar=NULL, control=mmes_control(), .internal=NULL){
+                 covPar=NULL, control=mmes_control(), .internal=NULL, ...){
   if(!inherits(control, "sommer_mmes_control")){
     stop("control must be created by mmes_control().", call.=FALSE)
   }
+  legacy <- list(...)
+  if(length(legacy)){
+    if(is.null(names(legacy)) || anyNA(names(legacy)) ||
+       any(!nzchar(names(legacy))) || anyDuplicated(names(legacy))){
+      stop("Legacy mmes() arguments in ... must have unique, non-empty names.",
+           call.=FALSE)
+    }
+    unknown <- setdiff(names(legacy), c("getPEV", "tolParInv", "verbose"))
+    if(length(unknown)){
+      stop("unused argument(s): ", paste(unknown, collapse=", "), call.=FALSE)
+    }
+  }
   supplied <- attr(control, "supplied")
+  if(length(legacy)){
+    if(is.null(supplied)) supplied <- c("formulation", .mme_control_paths(control))
+    replacements <- c(getPEV="output$inverse", tolParInv="execution$inverseTol",
+      verbose="diagnostics$verbose")
+    if("getPEV" %in% names(legacy)){
+      getPEV <- .mme_flag(legacy$getPEV, "getPEV")
+      # getPEV only disabled PEV; TRUE did not request an inverse by itself.
+      if(!getPEV) control$output$inverse <- 0L
+    }
+    if("tolParInv" %in% names(legacy)){
+      control$execution["inverseTol"] <- legacy["tolParInv"]
+    }
+    if("verbose" %in% names(legacy)){
+      control$diagnostics["verbose"] <- legacy["verbose"]
+    }
+    supplied <- unique(c(supplied, unname(replacements[names(legacy)])))
+    control <- do.call(mmes_control, unclass(control))
+    warning("Passing ", paste(names(legacy), collapse=", "),
+      " through mmes(...) is deprecated. Start using control=mmes_control() with ",
+      paste(paste0(names(legacy), " -> ", replacements[names(legacy)]),
+        collapse=", "),
+      ". Legacy arguments override the corresponding control settings.",
+      if("getPEV" %in% names(legacy))
+        " getPEV=FALSE sets output$inverse=0, while getPEV=TRUE leaves it unchanged.",
+      call.=FALSE)
+  }
   control <- do.call(.mmes_control_build, unclass(control))
   if(is.null(supplied)) supplied <- c("formulation", .mme_control_paths(control))
   .mmes_check_compatibility(control, supplied)
@@ -443,7 +481,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   .mmes_check_family_controls(control, supplied, family, .internal)
   call <- match.call()
   model <- as.list(call)[-1L]
-  model[c("control", ".internal")] <- NULL
+  model[c("control", ".internal", names(legacy))] <- NULL
   args <- lapply(model, eval, envir=parent.frame())
   args <- c(args, .mmes_control_args(control), list(.internal=.internal))
   result <- do.call(".mmes_fit", args, envir=environment(mmes))

@@ -1,0 +1,11 @@
+
+bibentry(
+   bibtype = "Article",
+   title = "Genome assisted prediction of quantitative traits using the R package sommer",
+   author = as.person("Covarrubias-Pazaran Giovanny"),
+   journal="PLoS ONE",
+	year=2016,
+	volume="11",
+	pages="1-15"
+     )
+

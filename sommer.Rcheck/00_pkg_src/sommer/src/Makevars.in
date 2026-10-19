@@ -1,0 +1,19 @@
+PKG_CPPFLAGS = @SOMMER_METIS_CPPFLAGS@ @SOMMER_CUDA_CPPFLAGS@
+
+PKG_CXXFLAGS = $(SHLIB_OPENMP_CXXFLAGS)
+
+PKG_LIBS = \
+	$(SHLIB_OPENMP_CXXFLAGS) \
+	$(LAPACK_LIBS) \
+	$(BLAS_LIBS) \
+	$(FLIBS) \
+@SOMMER_METIS_LIBS@ @SOMMER_CUDA_LIBS@ @SOMMER_GPU_LOADER_LIBS@
+
+all: $(SHLIB)
+
+MNR.o ai_mme_sp2.o: mme_control.h mme_control_r.h
+MNR.o: mme_paths.h mme_factors.h mme_covariance.h mme_sp2_support.h mme_progress.h mme_direct_em.h mme_em_optimizer.h mme_recovery.h mme_ai_recovery.h
+ai_mme_sp2.o: mme_paths.h mme_factors.h mme_covariance.h mme_sp2_support.h mme_gpu.h mme_cuda_runtime.h mme_rr.h mme_saddle.h mme_exact.h mme_em.h mme_em_optimizer.h mme_recovery.h mme_sparse.h mme_cholmod.h mme_posterior.h mme_progress.h mme_ai_recovery.h mme_pcg.h mme_pcg_estimators.h mme_sufficient.h
+ai_mme_sp2.o: mme_pcg_recycle.h
+ai_mme_sp2.o: mme_scale.h
+mme_gpu.o: mme_gpu.h mme_cuda_runtime.h
