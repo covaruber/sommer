@@ -15,10 +15,11 @@ knitr::opts_chunk$set(collapse=TRUE, comment="#>")
 
 # What the error means
 
-An explicit request such as `mmes(..., blasThreads="auto")` can produce:
+An explicit request such as
+`mmes(..., control=mmes_control(execution=list(blasThreads="auto")))` can produce:
 
 ```text
-Error: Runtime BLAS control is unavailable. Install flexiblas for a FlexiBLAS R installation, or RhpcBLASctl for a supported BLAS; alternatively configure BLAS before launching R and leave blasThreads=NULL.
+Error: Runtime BLAS control is unavailable. Install flexiblas for a FlexiBLAS R installation, or RhpcBLASctl for a supported BLAS; alternatively configure BLAS before launching R and leave execution$blasThreads=NULL.
 ```
 
 This is a thread-control availability error, not an error in the model formula
@@ -31,12 +32,12 @@ or covariance structures. Three separate components are involved:
    implementation uses `flexiblas` for an available FlexiBLAS installation,
    or `RhpcBLASctl` for a recognized supported BLAS installation.
 3. **Allocation-aware CPU detection.** `parallelly` is needed specifically for
-   `blasThreads="auto"`. An explicit positive integer does not require it.
+   `execution$blasThreads="auto"`. An explicit positive integer does not require it.
 
 These packages are optional dependencies. Installing `sommer` does not
 necessarily install them, and installing a control package does not replace
 R's BLAS library. No separate CHOLMOD installation is needed for
-`solver="cholmod"`; that solver uses the CHOLMOD bundled with R's Matrix package.
+`solve$method="cholmod"`; that solver uses the CHOLMOD bundled with R's Matrix package.
 
 # Identify the R installation and BLAS
 
@@ -169,7 +170,7 @@ argument. Older installed builds can coexist with the current source folder:
 library(sommer)
 packageVersion("sommer")
 find.package("sommer")
-stopifnot("blasThreads" %in% names(formals(mmes)))
+stopifnot("control" %in% names(formals(mmes)))
 ```
 
 The following example runs only when the required controller and
@@ -188,7 +189,7 @@ hasDirectControl <- !is.na(blas) &&
   requireNamespace("RhpcBLASctl", quietly=TRUE)
 
 if(requireNamespace("sommer", quietly=TRUE) &&
-   "blasThreads" %in% names(formals(sommer::mmes)) &&
+   "control" %in% names(formals(sommer::mmes)) &&
    requireNamespace("parallelly", quietly=TRUE) &&
    (hasFlexiBLAS || hasDirectControl)){
   local({
@@ -201,9 +202,14 @@ if(requireNamespace("sommer", quietly=TRUE) &&
     exampleData$Yield <- as.integer(exampleData$Env) +
       sin(as.integer(exampleData$Name)) + cos(seq_len(nrow(exampleData)))
     for(request in list(1L, "auto")){
-      fit <- sommer::mmes(Yield~Env, random=~Name, rcov=~units,
-        data=exampleData, solver="cholmod", nIters=2,
-        dateWarning=FALSE, verbose=FALSE, blasThreads=request)
+      fit <- sommer::mmes(Yield~Env,
+  random=~Name,
+  rcov=~units,
+  data=exampleData,
+  control = mmes_control(solve = list(method = "cholmod"),
+  convergence = list(maxIters = 2),
+  diagnostics = list(dateWarning = FALSE, verbose = FALSE),
+  execution = list(blasThreads = request)))
       print(fit$threadingDiagnostics[c("blasBackend", "controller",
         "blasThreadsRequested", "blasThreadsConfigured", "availableCPUs",
         "openmpMaxThreads", "numericalPath", "averageCPUs")])
@@ -228,17 +234,20 @@ can be fitted without changing its statistical specification:
 
 ```{r user-model, eval=FALSE}
 library(sommer)
-mixm2 <- mmes(value~envf, nIters=5,
+mixm2 <- mmes(value~envf,
   random=~vsm(fam(envf, 1), ism(id), Gu=MMTi) +
            vsm(dsm(envf), ism(repf)),
   rcov=~vsm(dsm(envf), ism(units)),
-  data=DT, blasThreads="auto")
+  data=DT,
+  control = mmes_control(convergence = list(maxIters = 5),
+  execution = list(blasThreads = "auto")))
 
 mixm2$threadingDiagnostics
 ```
 
 Here `DT` and `MMTi` are your existing data and inverse relationship matrix.
-Alternatively, request an explicit count such as `blasThreads=4L`. Installing
+Alternatively, request an explicit count such as
+`execution$blasThreads=4L`. Installing
 `parallelly` alone only resolves automatic CPU detection; it does not supply
 BLAS control.
 
@@ -262,7 +271,8 @@ export OMP_NUM_THREADS=1
 Rscript fit.R
 ```
 
-With a working runtime controller, `fit.R` can use `blasThreads="auto"`.
+With a working runtime controller, `fit.R` can use
+`execution$blasThreads="auto"`.
 Setting OpenMP to one isolates BLAS threading and avoids many OpenMP workers
 each launching a BLAS team; it is a starting point to benchmark, not a
 universally optimal setting. BLAS and Sommer's OpenMP loops are separate
@@ -270,7 +280,8 @@ threading layers. Some BLAS builds themselves use OpenMP, so startup variables
 and runtime setters can interact.
 
 If runtime control is unavailable but your BLAS supports startup thread
-configuration, leave `blasThreads=NULL` and configure it **before starting R**.
+configuration, leave `execution$blasThreads=NULL` and configure it
+**before starting R**.
 For a pthread-based OpenBLAS backend, for example:
 
 ```bash
@@ -289,11 +300,11 @@ even when startup configuration works.
 | Symptom | Check or action |
 |---|---|
 | `Runtime BLAS control is unavailable` | Check the BLAS identity in this R session; install its matching adapter in an active `.libPaths()` library. |
-| `blasThreads='auto' requires ... parallelly` | Install `parallelly`, or supply a positive integer instead. |
+| `execution$blasThreads='auto' requires ... parallelly` | Install `parallelly`, or supply a positive integer instead. |
 | `flexiblas_avail()` is `FALSE` | Use R linked to FlexiBLAS; installing its R interface does not relink R. |
-| Adapter installed but BLAS has a generic name | Current detection may not recognize that installation; use startup settings with `blasThreads=NULL` or an explicitly identified supported R build. |
+| Adapter installed but BLAS has a generic name | Current detection may not recognize that installation; use startup settings with `execution$blasThreads=NULL` or an explicitly identified supported R build. |
 | Backend did not accept the requested setting | Check whether it is serial or has a thread limit; select a supported threaded backend or use an accepted count. |
-| `unused argument (blasThreads=...)` | The loaded Sommer is older than the source tree; install the current tree and restart R. |
+| `unused argument (control=...)` | The loaded Sommer is older than the source tree; install the current tree and restart R. |
 | Packages available interactively but missing in a job | Check the job's R module, `.libPaths()` and `R_LIBS_USER`; install or expose packages for that R installation. |
 
 Configured counts are not actual utilization. `openmpMaxThreads` is an OpenMP
@@ -303,7 +314,7 @@ of active threads. Factorization measurements are in
 `threadingDiagnostics$factorizations`; their `measurement` fields distinguish
 numeric CHOLMOD/LDLT work from the broader block-Schur workload.
 
-Even `solver="cholmod"` can select a structure-aware Schur engine for an
+Even `solve$method="cholmod"` can select a structure-aware Schur engine for an
 eligible model. Small blocks, serial work, memory bandwidth and thread startup
 overhead can prevent speedups. Confirm the numerical path and benchmark several
 counts on representative data rather than assuming that `"auto"` is fastest.

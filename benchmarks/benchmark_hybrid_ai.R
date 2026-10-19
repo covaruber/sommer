@@ -29,11 +29,15 @@ for(relationship in c("none", "sparse", "dense")){
   workload <- fixture(relationship)
   for(reml in c(TRUE, FALSE)){
     fitModel <- function(mode){
-      mmes(workload$fixed, random=workload$random, rcov=workload$rcov,
-        data=workload$data, REML=reml, nIters=150L,
-        tolParConvLL=1e-10, tolParConvNorm=1e-5,
-        engine=mmes_control(acceleration=mode, experimental=list(profile="force")),
-        verbose=FALSE, dateWarning=FALSE)
+      mmes(workload$fixed,
+  random=workload$random,
+  rcov=workload$rcov,
+  data=workload$data,
+  control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(proposal=list(extrapolation=if(mode == "aitken") "aitken" else "none"),
+  curvature=list(method=if(mode == "hybrid-ai") "hybrid-ai" else "exact-ai"),
+  diagnostics=list(profile="force")
+)), list(task=list(objective=if(reml) "reml" else "ml"), convergence=list(maxIters=150L, likelihoodTol=1e-10, parameterTol=1e-5), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
     }
     invisible(fitModel("none"))
     invisible(fitModel("hybrid-ai"))

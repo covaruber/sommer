@@ -1,222 +1,254 @@
 \name{mmes_control}
 \alias{mmes_control}
-\title{Mixed Model Equation Solver Control and Experimental Options}
+\title{Modular Numerical Controls for Mixed Models}
 \description{
-Constructs a structured configuration object for \code{\link{mmes}}, encapsulating
-solver algorithms, memory budgets, iterative PCG parameters, and experimental numerical
-paths without modifying global options.
+Creates a strictly validated \code{sommer_mmes_control} object for the
+numerical methods used by \code{\link{mmes}}. Model formulas remain separate.
+Every module accepts only its documented fields; unknown module or field names
+are errors. Constructing controls does not fit a model or establish that
+requested methods are eligible for a particular model.
 }
 \usage{
-mmes_control(solver = c("auto", "ldlt", "cholmod", "pcg"),
-             denseMemoryMB = NULL,
-             experimental = list(),
-             pcg = list(),
-             acceleration = c("none", "aitken", "hybrid-ai"),
-             factorScoreAugmentation = c("none", "fixed-shape", "profile"),
-             recordDiagnostics = TRUE,
-             verboseDiagnostics = FALSE,
-             memoryPolicy = NULL,
-             gpu = NULL,
-             gpuMinSize = NULL,
-             \dots)
+mmes_control(formulation = "henderson", task = list(),
+             representation = list(), solve = list(), logdet = list(),
+             score = list(), curvature = list(), update = list(),
+             proposal = list(), convergence = list(), output = list(),
+             execution = list(), diagnostics = list())
 }
 \arguments{
-  \item{solver}{Backend linear solver for coefficient matrix factorization.
-  Options are \code{"auto"} (default; automatically selects \code{"cholmod"} when
-  dense relationship precision is detected, otherwise \code{"ldlt"}),
-  \code{"ldlt"} (simplicial LDLT), \code{"cholmod"} (supernodal blocked Cholesky),
-  or \code{"pcg"} (preconditioned conjugate gradient with stochastic log-determinant).}
-
-  \item{denseMemoryMB}{Upper bound on dense allocations (in megabytes) used by
-  Schur-complement engines, block-chain/banded paths, and selected-inverse caches.
-  Default is 1000 MB.}
-
-  \item{memoryPolicy}{\code{"speed"} (default) stops with the memory needed when a fast path
-  does not fit \code{denseMemoryMB}, instead of falling back to a slower path; \code{"limit"}
-  keeps the fit within \code{denseMemoryMB} by accepting slower fallbacks. Currently enforced for
-  the CHOLMOD selected-inverse caches, whose fallback (per-request solves) was measured several
-  times slower, and opt-in exact LDLT trace panels. This is not a process-memory cap.}
-
-  \item{experimental}{A named list of experimental solver paths. Each toggle accepts
-  \code{"auto"} (policy-driven crossover), \code{"off"} (disabled), or \code{"force"}
-  (enabled when structurally eligible):
-  \describe{
-    \item{\code{blockBanded}}{Exact block-banded elimination for assembled coefficient graphs with bandwidth \eqn{\le 4}.}
-    \item{\code{factorSchurMultiFactor}}{Multi-factor latent Woodbury Schur complement engine.}
-    \item{\code{dFirstML}}{D-first Schur complement elimination for maximum likelihood (ML) estimation.}
-    \item{\code{matrixFreePcg}}{Matrix-free tensor operator for PCG random effect priors.}
-    \item{\code{cholmodFinalSelected}}{Supernodal CHOLMOD Takahashi selected inverse for \code{computeCi=1}.}
-    \item{\code{pdCertificates}}{Fast-path sufficient positive-definiteness certificates.}
-    \item{\code{panelCi2}}{Batch panel size for full inverse computation in \code{computeCi=2} (default 64).}
-    \item{\code{profile}}{\code{"force"} records per-phase timings and workload counters in \code{engineDiagnostics$profile}; default \code{"off"}.}
-    \item{\code{blockSchur}}{Block elimination engines (dense Schur, chain, banded, latent): \code{"off"} uses the generic sparse factorization, \code{"force"} skips the density and group-size admission rules (memory limits still apply).}
-    \item{\code{traceBatch}}{\code{"force"} batches exact LDLT random-score fallback solves in independent parallel panels; default \code{"off"}. No derivative entries are thresholded.}
-    \item{\code{sparseFactors}}{\code{"force"} enables exact sparse AR(p)/ANTE precision operands, innovation-row ANTE covariance evaluation, and sparse SAR/CAR evaluation; default \code{"off"}. Dense covariance and derivative compatibility outputs remain available.}
-    \item{\code{saddlePoint}}{\code{"force"} selects an experimental exact augmented MME
-    factorization using pivoted sparse LU. Default and \code{"auto"} remain inactive.
-    Gaussian Henderson REML/ML fits support diagonal, repeated-block, and explicit sparse
-    residual covariance, including weights. Compact grid/ragged residuals, latent reduced rank,
-    PQL, solve-only, rotation, acceleration, and factor-score augmentation are rejected.
-    The deterministic solver setting still selects residual and final selected-inverse support;
-    PCG is incompatible. Fitting avoids normal-equation products and retains exact traces and AI.
-    Final \code{C} is assembled once for compatibility; this is not a C-free memory path.
-    Mode 1 retains the Eigen selected-inverse subset, which can differ from the CHOLMOD subset.
-    Diagnostics are in \code{engineDiagnostics$saddlePoint}. LU pivot fill is not bounded by
-    \code{denseMemoryMB}; no speedup is guaranteed.}
-  }}
-
-  \item{pcg}{A named list of settings for the iterative PCG solver:
-  \describe{
-    \item{\code{tol}}{Convergence tolerance for iterative solves (default 1e-8).}
-    \item{\code{maxIters}}{Maximum iterations per solve (0 = automatic, default 0).}
-    \item{\code{traceProbes}}{Number of stochastic probes for Hutchinson traces (default 8).}
-    \item{\code{lanczosSteps}}{Lanczos quadrature steps for stochastic log-determinant (default 20).}
-    \item{\code{preconditioner}}{Preconditioner type: \code{"diagonal"},
-      \code{"nystrom"}, or \code{"block-jacobi"}. These approximate the solve
-      preconditioner, not the requested covariance model.}
-    \item{\code{nystromRank}}{Rank for Nystrom preconditioner (default 32).}
-    \item{\code{warmStart}}{Reuse compatible initial guesses (default \code{FALSE}).
-      Every accepted solution must still satisfy the requested true-residual tolerance.}
-    \item{\code{recycleRank}}{Maximum retained coarse-space dimension (default 0,
-      disabled). Coarse products must be recomputed when the coefficient operator changes.}
-    \item{\code{rhsMethod}}{\code{"independent"} (default) or opt-in \code{"block"}
-      conjugate gradients for multiple right-hand sides.}
-    \item{\code{blockSize}}{Maximum block-CG panel width (default 16).}
-    \item{\code{residualRefresh}}{Periodic true-residual replacement interval
-      (default 0, no periodic replacement). Final true-residual verification remains required.}
-    \item{\code{logDetScaling}}{\code{"none"} (default) or \code{"diagonal"}.
-      Diagonal scaling applies symmetric congruence and includes its exact determinant
-      correction. Finite-probe estimates need not equal estimates without scaling.}
-    \item{\code{traceEstimator}}{\code{"hutchinson"} (default) or experimental
-      \code{"control-variate"} estimation. Estimator changes can change fitted estimates.}
-    \item{\code{traceRank}}{Low-rank trace control-variate dimension (default 16).}
-    \item{\code{accuracy}}{\code{"fixed"} (default) or \code{"adaptive"}.
-      Adaptive mode doubles probe/depth budgets at the initial covariance point
-      until empirical targets pass or their maxima are reached. It then freezes
-      those budgets before accepting covariance updates, preserving a common
-      stochastic objective throughout line search.}
-    \item{\code{maxTraceProbes}, \code{maxLanczosSteps}}{Upper accuracy budgets.
-      Defaults equal \code{traceProbes} and \code{lanczosSteps}; neither can be
-      smaller than its initial setting.}
-    \item{\code{logDetTol}, \code{scoreTol}}{Positive empirical accuracy targets
-      (defaults 1e-3). These are not rigorous bounds on total likelihood or score error.}
-    \item{\code{seed}}{Non-negative integer probe-stream identifier (default 0).
-      The default preserves the existing deterministic probe stream.}
-  }}
-
-  \item{acceleration}{Convergence accelerator: \code{"none"} (default),
-  \code{"aitken"}, or opt-in \code{"hybrid-ai"}. Hybrid AI uses Powell-damped
-  BFGS curvature between exact average-information (AI) refreshes, at most five
-  accepted iterations apart. Scores and likelihood acceptance remain unchanged.
-  Between refreshes, the diagonal stabilizer follows the BFGS metric rather than
-  exact AI. Fixed-parameter sensitivity solves are omitted on intermediate exact
-  refreshes; full exact AI is restored before returning.
-
-  Hybrid AI requires Gaussian identity-link Henderson fitting with \code{"ldlt"},
-  \code{"cholmod"}, or \code{"auto"}. PCG, direct inversion, latent reduced-rank
-  models, PQL, \code{solveOnly}, and factor-score augmentation are not supported.
-  Fits with \code{vcc} ties retain exact AI and report \code{"constraint-map"} in
-  \code{engineDiagnostics$hybridAI$fallbackReason}.
-
-  Hybrid convergence requires an exact final relative proposal norm below
-  \code{tolParConvNorm} and a projected, AI-diagonal-scaled score maximum no larger
-  than \code{sqrt(max(tolParConvLL, tolParConvNorm))}. Reaching \code{nIters} or
-  stalling without certification does not imply convergence. Final \code{InfMat}
-  remains the exact AI/diagonal blend; \code{theta_se} always uses clean exact AI,
-  independently of \code{computeCi}. Diagnostics report refreshes, BFGS updates,
-  resets, certifications, actual sensitivity RHS columns, and skipped columns.
-  This changes the optimization path, not the fitted covariance model; speedups
-  depend on sensitivity costs and total iterations. Tolerances are never
-  relaxed automatically; very tight requested step tolerances can return
-  non-convergence when likelihood roundoff prevents further improvement.}
-
-  \item{factorScoreAugmentation}{Factor-score augmentation: \code{"none"}, \code{"fixed-shape"}, or \code{"profile"}.}
-
-  \item{recordDiagnostics}{Logical; whether to capture internal solver diagnostics in \code{fit$engineDiagnostics}. Default is \code{TRUE}.}
-
-  \item{verboseDiagnostics}{Logical; whether to print diagnostic details during execution. Default is \code{FALSE}.}
-
-  \item{gpu}{Logical; enable eligible CUDA dense kernels in the unified Henderson
-  solver. Defaults to \code{getOption("sommer.mme.gpu", FALSE)}. Requires accessible
-  NVIDIA hardware, compatible CUDA runtime, cuBLAS and cuSOLVER libraries, and a
-  CUDA-enabled sommer build. Explicit requests stop when unavailable; CPU remains
-  the default. Direct inversion and \code{solveOnly} remain CPU-only.}
-
-  \item{gpuMinSize}{Positive integer; minimum matrix size for CUDA kernels.
-  Defaults to \code{getOption("sommer.mme.gpuMinSize", 256L)}. Small eligible
-  operations stay on CPU. GPU call counters appear in \code{fit$gpuDiagnostics}.}
-
-  \item{\dots}{Additional named parameters or legacy experimental arguments.}
+\item{formulation}{Equation domain: \code{"henderson"} (default) or
+\code{"direct"}. Henderson forms coefficient-space mixed-model equations;
+direct uses observation-space inversion.}
+\item{task}{Named list with \code{mode}, \code{objective}, and \code{pql}.
+Defaults: \code{mode="fit"}, \code{objective="reml"}, and
+\code{pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)}.
+\code{mode} is \code{"fit"} or \code{"solve"}; \code{objective} is
+\code{"reml"} or \code{"ml"}. The nested \code{pql} list accepts only
+\code{maxit}, \code{tol}, \code{estimateTheta}, and \code{warmStart}, with
+the defaults shown. These fields own task selection and outer PQL iteration,
+not inner covariance iterations.}
+\item{representation}{Named list with \code{compression="off"},
+\code{factorScores="none"}, \code{equations="normal"},
+\code{sparseFactors="off"}, and \code{matrixFree="auto"} by default,
+unless corresponding \code{sommer.mme.*} options override experimental modes.
+If \code{sommer.mme.saddlePoint} resolves to \code{"force"}, the default
+\code{equations} becomes \code{"saddle-point"}.
+\code{compression} is \code{"off"}, \code{"groups"}, or \code{"classes"};
+\code{factorScores} is \code{"none"}, \code{"fixed-shape"}, or
+\code{"profile"}; \code{equations} is \code{"normal"} or
+\code{"saddle-point"}. The remaining fields use experimental mode values
+\code{"auto"}, \code{"off"}, or \code{"force"} (logical TRUE/FALSE are
+accepted). This module owns equation, compression, covariance-factor, and
+factor-score representations.}
+\item{solve}{Named list. \code{method="auto"} selects among
+\code{"auto"}, \code{"ldlt"}, \code{"cholmod"}, and \code{"pcg"}.
+PCG fields default to \code{tol=1e-8}, \code{maxIters=0L},
+\code{preconditioner="diagonal"}, \code{nystromRank=32L},
+\code{warmStart=FALSE}, \code{recycleRank=0L},
+\code{recycleMethod="coarse"}, \code{recycleState=NULL},
+\code{exportRecycle=FALSE}, \code{rhsMethod="independent"},
+\code{blockSize=16L}, and \code{residualRefresh=0L}.
+Also accepts the experimental solve requests \code{blockSchur="auto"},
+\code{blockBanded="auto"}, \code{factorSchurMultiFactor="auto"}, and
+\code{dFirstML="auto"}; global \code{sommer.mme.*} options may override
+these mode defaults. The method owns checked linear solves,
+preconditioning, reuse, and eligible elimination. PCG settings apply only
+when an eligible PCG path uses them.}
+\item{logdet}{Named list with \code{scaling="none"} and
+\code{lanczosSteps=20L} by default. Scaling is \code{"none"} or
+\code{"diagonal"}. This module owns determinant approximation and its
+correction, not linear-solve accuracy.}
+\item{score}{Named list with \code{traceProbes=8L},
+\code{estimator="hutchinson"}, \code{rank=16L},
+\code{covarianceChecks="auto"}, and \code{traceBatch="off"} by default.
+The estimator is \code{"hutchinson"} or \code{"control-variate"}.
+\code{covarianceChecks} and \code{traceBatch} accept experimental mode
+values. This module owns covariance derivatives, trace estimation, and
+covariance checks.}
+\item{curvature}{Named list with \code{method="exact-ai"} and
+\code{reduced="off"} by default. The method is \code{"exact-ai"} or
+\code{"hybrid-ai"}; \code{reduced} accepts experimental mode values.
+This module owns the AI metric and reduced-direction assembly.}
+\item{update}{Named list with \code{recovery="em"},
+\code{blendWeight=NULL}, and \code{commonScale="off"} by default.
+\code{recovery} is \code{"em"} or \code{"pxem"}; \code{commonScale}
+accepts experimental mode values. This module owns covariance-coordinate
+updates, EM/PXEM recovery, blending, and common-scale profiling.}
+\item{proposal}{Named list with \code{stepWeight=NULL} and
+\code{extrapolation="none"} by default. Extrapolation is \code{"none"} or
+\code{"aitken"}. This module owns proposal scaling and extrapolation.
+Aitken extrapolation cannot be combined with
+\code{curvature$method="hybrid-ai"}.}
+\item{convergence}{Named list with \code{maxIters=30L},
+\code{likelihoodTol=1e-4}, \code{parameterTol=1e-4},
+\code{accuracy="fixed"}, \code{maxTraceProbes=NULL},
+\code{maxLanczosSteps=NULL}, \code{logDetTol=1e-3}, and
+\code{scoreTol=1e-3}. Accuracy is \code{"fixed"} or \code{"adaptive"};
+NULL stochastic limits resolve to the initial \code{traceProbes} and
+\code{lanczosSteps}. This module owns inner iteration convergence and
+stochastic accuracy requests.}
+\item{output}{Named list with \code{inverse=0L}, \code{covariance="full"},
+\code{coefficientMatrix=TRUE},
+\code{setup=FALSE}, \code{selectedInverse="auto"}, and
+\code{panelSize=64L} by default. \code{inverse} is 0 (no final coefficient
+inverse or fit-time PEV computation),
+1 (selected inverse and random-effect PEVs), or 2 (full inverse and
+random-effect PEVs). Modes 1 and 2 compute PEVs during fitting; mode 1
+does not form the complete coefficient-matrix inverse. With mode 0, use
+\code{\link{postPEV}} after fitting to compute PEVs or the full inverse,
+provided \code{coefficientMatrix=TRUE};
+\code{covariance} is \code{"full"} or \code{"none"}; \code{selectedInverse}
+accepts experimental mode values. This module owns coefficient uncertainty,
+covariance-parameter uncertainty, retained coefficient-matrix output, and
+setup output.}
+\item{execution}{Named list with \code{denseMemoryMB=1000},
+\code{memoryPolicy="speed"}, \code{gpu=FALSE}, \code{gpuMinSize=256L},
+\code{blasThreads=NULL}, \code{inverseTol=1e-6}, and \code{seed=0L} by
+default. A non-NULL \code{sommer.mme.denseMemoryMB},
+\code{sommer.mme.memoryPolicy}, \code{sommer.mme.gpu}, or
+\code{sommer.mme.gpuMinSize} option supplies its corresponding default.
+This module owns resource policy, hardware, threading, numerical inverse
+tolerance, and stochastic seed.}
+\item{diagnostics}{Named list with \code{verbose=TRUE},
+\code{dateWarning=TRUE}, and \code{profile="off"} by default.
+\code{profile} accepts experimental mode values. This module owns ordinary
+fit messages, package-age warnings, and phase profiling.}
 }
 \details{
-PCG-specific numerical options do not change the LDLT or CHOLMOD numerical
-paths. They are opt-in; existing deterministic solver selection remains unchanged.
-Unknown PCG names and invalid, non-scalar, non-finite or fractional integer
-settings are errors, including settings merged into an existing engine object.
+Module ownership describes mathematical responsibility, not a promise that
+every cross-module combination is supported. For example, formulation and
+solver choices are model-dependent; PCG has REML and output restrictions;
+compression, saddle-point equations, factor-score augmentation, common-scale
+profiling, and reduced AI each have additional prerequisites. Consult
+\code{vignette("sommer.mmes.options", package="sommer")} and the internal
+\code{.mmes_capabilities()} catalog for the current conceptual decision graph
+and capability inventory. The catalog is descriptive; fitting validation
+remains authoritative. The modular API does not imply a kernel rewrite or
+arbitrary method composition.
 
-The PCG solve tolerance controls the relative linear-system residual. It does
-not bound stochastic log-determinant, score, covariance-parameter, or uncertainty
-errors. Probe standard errors describe Monte Carlo variability only, not
-Lanczos truncation or total estimator bias. Compare final results with increased
-probe counts and quadrature depths, and with direct solvers on manageable models.
+\code{task$mode="solve"} selects a known-covariance path rather than ordinary
+variance-component fitting; it requires an eligible Gaussian identity model
+and has narrower PCG/output options. \code{task$pql$estimateTheta=TRUE}
+requires a negative-binomial family. \code{representation$compression} needs
+eligible matching designs and independent residuals. Saddle-point equations,
+factor-score representation, sparse factors, and matrix-free PCG each have
+separate model and backend gates. PCG fitting is a Henderson REML path;
+selected-inverse output mode 1 is not supported by PCG. The vignette and
+capability catalog describe these prerequisites, but the fit-time validator
+decides eligibility.
 
-REML PCG supports diagonal, model-aware block-Jacobi and operator-based Nystrom
-preconditioners on assembled and eligible matrix-free coefficient operators.
-Block-Jacobi groups random coefficients by relationship level and covariance
-coordinate, with blocks capped by \code{blockSize}. Fixed coefficients use
-bounded contiguous blocks. Every block must be positive definite.
-\code{rhsMethod="independent"} retains packed scalar CG recurrences;
-\code{"block"} uses coupled block CG with dependent-column deflation.
-Numerical block breakdowns have diagnosed scalar fallbacks; invalid operators
-and preconditioners remain errors. Aggressive periodic residual replacement can
-increase iteration counts. Dense workspace budgets also govern PCG panels,
-preconditioners, sketches and Lanczos storage.
+Within PCG, \code{solve$preconditioner="nystrom"} uses
+\code{solve$nystromRank}; \code{solve$recycleState} and
+\code{solve$exportRecycle} require \code{solve$recycleMethod="krylov"} and a
+positive \code{solve$recycleRank}. \code{logdet$scaling} and Lanczos depth
+apply to stochastic determinant evaluation. \code{score$rank} is used by the
+control-variate estimator. Adaptive trace and Lanczos budgets apply to
+stochastic PCG accuracy. \code{output$panelSize} applies to full inverse
+panels, not selected-inverse mode.
 
-Warm starts and coarse recycling retain only accepted-point coefficient and
-probe solutions. Rejected line-search trials cannot replace accepted caches.
-Every new covariance operator recomputes the recycled coarse Gram matrix, and
-all returned solutions pass true-residual checks. Diagonally scaled SLQ does
-not reuse untransformed Lanczos inverse guesses.
+Experimental mode fields accept \code{"auto"}, \code{"off"}, or
+\code{"force"}; logical TRUE and FALSE mean force and off. Package options
+may supply defaults for these requests. \code{"force"} requests a path but
+does not bypass mathematical, structural, or memory eligibility checks.
+Nested lists reject unknown names and duplicate or empty names.
 
-Trace control variates use an independently seeded low-rank space and an exact
-projected correction. The same corrected estimator feeds all random and residual
-score contractions, including weighted residual models. This identity does not
-require positive-semidefinite covariance derivatives and does not guarantee
-variance reduction for every model.
+Defaults retain the established numerical bundle. Aitken belongs to
+\code{proposal$extrapolation}; hybrid AI belongs to
+\code{curvature$method}; they are mutually exclusive.
 
-\code{fit$engineDiagnostics$pcg} reports operator calls and vector-equivalent
-work, residual replacements, block fallbacks, warm/coarse reuse, probe estimates,
-Monte Carlo standard errors and actual accuracy budgets. Adaptive final checks
-require log-determinant probe standard error, nested half-depth sensitivity and
-maximum free-score standard error below the requested targets. Failure emits a
-warning and forces \code{convergence=FALSE}. Passing checks is empirical evidence,
-not a rigorous error bound, exact REML certification or a guaranteed speedup.
-Increasing budgets after initial calibration requires a new fit; budgets are not
-silently changed within likelihood comparisons. ML and selected-inverse PCG
-restrictions remain unchanged.
+\strong{Migration from removed numerical arguments}
 
-The known-covariance \code{solveOnly=TRUE} path uses its existing block-Jacobi
-preconditioner. It additionally supports \code{warmStart} and
-\code{residualRefresh}, but not REML estimator, recycling or block-RHS options.
-Warm starts require a fitted \code{covPar} object with identical coefficient names;
-the current operator and response always determine the verified final solution.
+\code{mmes()} now takes numerical settings through \code{control}. The old
+formals are not compatibility aliases and must not be passed to \code{mmes()}.
+Map former settings to canonical module paths:
+\describe{
+\item{\code{henderson}}{\code{formulation="henderson"} or
+\code{formulation="direct"}.}
+\item{\code{solver}, \code{engine}}{\code{solve$method}; pass the complete
+control object as \code{control=...}.}
+\item{\code{nIters}, \code{tolParConvLL}, \code{tolParConvNorm},
+\code{tolParInv}}{\code{convergence$maxIters},
+\code{convergence$likelihoodTol}, \code{convergence$parameterTol}, and
+\code{execution$inverseTol}, respectively.}
+\item{\code{REML}, \code{solveOnly}, \code{pqlControl}}{\code{task$objective}
+(\code{"reml"} or \code{"ml"}), \code{task$mode}
+(\code{"fit"} or \code{"solve"}), and \code{task$pql}.}
+\item{\code{computeCi}, \code{getPEV}, \code{returnParam}}{\code{output$inverse}
+and \code{output$setup}. PEV output is controlled by \code{output$inverse};
+the former \code{getPEV} flag has no separate replacement.}
+\item{\code{blend}, \code{blendWeight}, \code{stepWeight}}{\code{update$recovery},
+\code{update$blendWeight}, and \code{proposal$stepWeight}.}
+\item{\code{acceleration="aitken"}}{\code{proposal$extrapolation="aitken"}.}
+\item{\code{acceleration="hybrid-ai"}}{\code{curvature$method="hybrid-ai"}.
+Do not combine with Aitken.}
+\item{\code{compression}, \code{factorScoreAugmentation},
+\code{covarianceInformation}, \code{retainCoefficientMatrix}}{
+\code{representation$compression}, \code{representation$factorScores},
+\code{output$covariance}, and \code{output$coefficientMatrix}.}
+\item{Former \code{pcg} settings}{Map solve tolerances, iteration limits,
+preconditioning, and reuse to \code{solve}; determinant scaling and Lanczos
+depth to \code{logdet}; trace probes, estimator, rank, and covariance checks
+to \code{score}; stochastic accuracy budgets to \code{convergence}; seed to
+\code{execution}.}
+\item{Former \code{experimental} settings}{Map structured representation
+requests to \code{representation}, elimination requests to \code{solve},
+trace batching to \code{score}, reduced AI to \code{curvature},
+common-scale profiling to \code{update}, selected/full inverse requests to
+\code{output}, and profiling to \code{diagnostics}.}
+\item{\code{denseMemoryMB}, \code{memoryPolicy}, \code{gpu},
+\code{gpuMinSize}, \code{blasThreads}}{\code{execution} fields with the same
+names.}
+\item{\code{verbose}, \code{dateWarning}}{\code{diagnostics} fields with the
+same names.}
+\item{\code{recordDiagnostics}, \code{verboseDiagnostics}}{Removed flags with
+no direct replacement. Use \code{diagnostics$verbose} for fit messages and
+\code{diagnostics$profile} for implemented phase profiling.}
+}
+}
+\section{Compatibility}{
+Settings are checked against one compatibility table when the control is
+built and again in \code{\link{mmes}}. A supplied setting that conflicts with
+another, or that would have no effect on the selected path, stops the call with
+a message that names every offending setting and how to fix it. A setting counts
+as supplied only when it differs from its default, so restating defaults is
+always accepted. The main rules are:
+\itemize{
+\item \code{formulation="direct"} accepts only \code{task}, \code{update$recovery},
+\code{update$blendWeight},
+\code{proposal$stepWeight}, convergence iterations and tolerances,
+\code{output$setup}, \code{output$inverse} 0 or 2, memory
+and threading \code{execution} settings, and \code{diagnostics}.
+\item \code{task$mode="solve"} accepts only \code{solve$tol}, \code{solve$maxIters},
+\code{solve$warmStart}, \code{solve$residualRefresh}, a non-Nystrom
+\code{solve$preconditioner}, \code{output$setup}, CPU \code{execution} settings and
+\code{diagnostics}.
+\item PCG-only settings (solve tolerances, preconditioner, recycling,
+\code{logdet}, \code{score} estimators, adaptive accuracy,
+\code{representation$matrixFree}, \code{execution$seed}) require
+\code{solve$method="pcg"}; \code{"auto"} never selects PCG.
+\item \code{solve$method="pcg"} rejects EM/PXEM recovery, blending,
+common-scale profiling, reduced AI, Aitken, hybrid AI, saddle-point
+equations, factor scores and \code{task$objective="ml"}.
+\item Aitken extrapolation, hybrid AI, saddle-point equations, factor scores,
+blending and \code{output$coefficientMatrix=FALSE} each reject the modules
+they cannot combine with.
+}
+Rules that depend on the data, family, \code{vcc} or rotation are checked by
+\code{\link{mmes}} at fit time; for example a Gaussian identity fit stops when
+\code{task$pql} is changed.
 }
 \value{
 An object of class \code{"sommer_mmes_control"}.
 }
 \seealso{
-\code{\link{mmes}}, \code{\link{generate_mme_workload}}, \code{\link{run_mme_benchmark}}
+\code{\link{mmes}}; \code{vignette("sommer.mmes.options", package="sommer")}
 }
 \examples{
-# Default engine configuration
-ctrl <- mmes_control()
-print(ctrl)
-
-# Force block-banded experimental path with custom memory budget
-ctrl_banded <- mmes_control(
-  solver = "cholmod",
-  denseMemoryMB = 2000,
-  experimental = list(blockBanded = "force")
+ctrl <- mmes_control(
+  formulation = "henderson",
+  solve = list(method = "pcg", tol = 1e-8),
+  score = list(traceProbes = 16L),
+  convergence = list(accuracy = "adaptive")
 )
-print(ctrl_banded)
+print(ctrl)
 }

@@ -72,7 +72,14 @@ G <- 0.95 * A.mat(M) + 0.05 * diag(40)
 Gi <- solve(G); attr(Gi, "inverse") <- TRUE
 d <- data.frame(id = factor(rep(rownames(M), each = 2), levels = rownames(M)))
 d$y <- rnorm(80)
-fit <- mmes(y ~ 1, random = ~ vsm(ism(id), Gu = Gi), data = d, verbose = FALSE)
-head(meffects_mmes(fit, 1, M, blend = 0.05, se = TRUE))
+fit <- mmes(y ~ 1,
+  random = ~ vsm(ism(id), Gu = Gi),
+  data = d,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
+head(meffects_mmes(fit,
+  1,
+  M,
+  blend = 0.05,
+  se = TRUE))
 }
 \keyword{models}

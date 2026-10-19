@@ -47,10 +47,15 @@ run_child <- function(library, output, model, levels, density, mode){
   shape <- if(model == "sar") sar(dataset$level, weights, rho = rho) else
     car(dataset$level, weights, rho = rho)
   fit_model <- function(){
-    mmes(response ~ 1, random = ~vsm(shape, ism(id)), rcov = ~units, data = dataset,
-         nIters = 3L, nThreads = 4L, verbose = FALSE, dateWarning = FALSE,
-         engine = mmes_control(solver = "ldlt", experimental = list(
-           profile = "force", blockSchur = "off", sparseFactors = mode)))
+    mmes(response ~ 1,
+  random=~vsm(shape, ism(id)),
+  rcov=~units,
+  data=dataset,
+  control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(solve=list(method="ldlt", blockSchur="off"),
+  diagnostics=list(profile="force"),
+  representation=list(sparseFactors=mode)
+)), list(convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
   }
   invisible(fit_model())
   invisible(gc())

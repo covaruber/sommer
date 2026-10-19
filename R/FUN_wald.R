@@ -3,6 +3,7 @@
 #### =========== ####
 
 .wald_fixed_vcov <- function(object){
+  .mmes_require_coefficient_matrix(object)
   p <- nrow(object$b)
   if(identical(object$engine, "direct")){
     if(is.null(object$VarBeta)) stop("The fitted object does not contain VarBeta.", call.=FALSE)
@@ -68,7 +69,7 @@
                  dateWarning=FALSE),
             object$inputArgs[!vapply(object$inputArgs, is.null, logical(1))])
   if(!is.null(object$args$random)) args$random <- object$args$random
-  inputs <- tryCatch(do.call(mmes, args), error=function(e){
+  inputs <- tryCatch(do.call(.mmes_fit, args), error=function(e){
     stop("Could not rebuild the model inputs: ", conditionMessage(e), call.=FALSE)
   })
   if(nrow(inputs$X) != nrow(object$W) || ncol(inputs$X) != nrow(object$b)){
@@ -109,6 +110,7 @@
 # Information of the fixed effects, X'V^{-1}X, at natural covariance parameters.
 .mmes_fixed_information_at <- function(object, inputs, thetaList){
   cs <- inputs$covStruct
+  attr(cs, "commonScale") <- "off"
   for(i in seq_along(cs)){
     cs[[i]]$par <- .natural_to_working(cs[[i]], thetaList[[i]])
     cs[[i]]$free[] <- FALSE
@@ -142,6 +144,8 @@
 # Numerical derivatives of M = X'V^{-1}X with respect to the free covariance
 # parameters on their reported scale (the scale of theta_se).
 .mmes_df_machinery <- function(object, second=FALSE, rel_step=1e-3){
+  .mmes_require_coefficient_matrix(object)
+  .mmes_require_covariance_information(object)
   if(inherits(object, "mmes.glmm")){
     stop("Satterthwaite and Kenward-Roger degrees of freedom are not available for PQL fits.",
          call.=FALSE)

@@ -36,12 +36,16 @@ suppressPackageStartupMessages({
 # here: "force" vs "off" gives the cleanest on/off contrast; admission rules are
 # calibrated from this contrast).
 engine_on <- function(){
-  mmes_control(solver="cholmod", denseMemoryMB=1000, memoryPolicy="limit",
-               experimental=list(blockSchur="force", profile="force"))
+  mmes_control(solve=list(method="cholmod", blockSchur="force"),
+  execution=list(denseMemoryMB=1000, memoryPolicy="limit"),
+  diagnostics=list(profile="force")
+)
 }
 engine_off <- function(){
-  mmes_control(solver="cholmod", denseMemoryMB=1000, memoryPolicy="limit",
-               experimental=list(blockSchur="off", profile="force"))
+  mmes_control(solve=list(method="cholmod", blockSchur="off"),
+  execution=list(denseMemoryMB=1000, memoryPolicy="limit"),
+  diagnostics=list(profile="force")
+)
 }
 
 # pattern = "random": random sparse pattern (heavy Cholesky fill); "banded": band of
@@ -90,9 +94,11 @@ fit_once <- function(workload, engine){
   shape <- ar1m(workload$data$environment, rho=workload$rho)
   precision <- workload$precision
   start <- proc.time()[["elapsed"]]
-  fit <- mmes(workload$fixed, random=~vsm(shape, ism(id), Gu=precision),
-              data=workload$data, solver="cholmod", nIters=4L, computeCi=0L,
-              getPEV=FALSE, verbose=FALSE, dateWarning=FALSE, engine=engine)
+  fit <- mmes(workload$fixed,
+  random=~vsm(shape, ism(id), Gu=precision),
+  data=workload$data,
+  control=do.call(mmes_control, utils::modifyList(unclass(engine), list(solve=list(method="cholmod"), convergence=list(maxIters=4L), output=list(inverse=0L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
   list(time=proc.time()[["elapsed"]] - start, fit=fit)
 }
 

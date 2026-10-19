@@ -2,7 +2,7 @@
 % Please edit documentation in R/FUN_mme_control.R
 \name{print.sommer_mmes_control}
 \alias{print.sommer_mmes_control}
-\title{Print method for sommer_mmes_control}
+\title{Print Modular Numerical Controls}
 \usage{
 \method{print}{sommer_mmes_control}(x, ...)
 }
@@ -12,5 +12,7 @@
 \item{...}{Ignored.}
 }
 \description{
-Print method for sommer_mmes_control
+Prints the formulation and each named numerical-control module. Nested lists
+are summarized rather than expanded; long vectors are represented by their
+length. The method returns the control object invisibly.
 }

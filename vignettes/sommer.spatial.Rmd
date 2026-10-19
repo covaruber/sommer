@@ -114,19 +114,32 @@ All models share the same fixed effects (an intercept) and a random genotype eff
 ```{r}
 fits <- list(
   # M0: no spatial model
-  iid    = mmes(yield ~ 1, random=~geno, data=field, verbose=FALSE),
+  iid    = mmes(yield ~ 1,
+  random=~geno,
+  data=field,
+  control = mmes_control(diagnostics = list(verbose = FALSE))),
   # M1: independent random range and row effects (large-scale strips)
-  rowcol = mmes(yield ~ 1, random=~geno + rangef + rowf, data=field, verbose=FALSE),
+  rowcol = mmes(yield ~ 1,
+  random=~geno + rangef + rowf,
+  data=field,
+  control = mmes_control(diagnostics = list(verbose = FALSE))),
   # M2: a smooth 2D surface built from tensor-product P-splines
-  spline = mmes(yield ~ 1, random=~geno + vsm(ism(spl2Dc(row, range)$Z$`A:all`)),
-                data=field, verbose=FALSE),
+  spline = mmes(yield ~ 1,
+  random=~geno + vsm(ism(spl2Dc(row, range)$Z$`A:all`)),
+  data=field,
+  control = mmes_control(diagnostics = list(verbose = FALSE))),
   # M3: correlated residuals (R side)
-  ar1Res = mmes(yield ~ 1, random=~geno,
-                rcov=~vsm(ar1m(rangef), ar1m(rowf), ism(units)),
-                data=field, verbose=FALSE),
+  ar1Res = mmes(yield ~ 1,
+  random=~geno,
+  rcov=~vsm(ar1m(rangef), ar1m(rowf), ism(units)),
+  data=field,
+  control = mmes_control(diagnostics = list(verbose = FALSE))),
   # M4: a random AR1 x AR1 spatial field (G side) plus an iid nugget
-  ar1Fld = mmes(yield ~ 1, random=~geno + vsm(ar1m(rangef), ar1m(rowf), ism(site)),
-                rcov=~units, data=field, verbose=FALSE)
+  ar1Fld = mmes(yield ~ 1,
+  random=~geno + vsm(ar1m(rangef), ar1m(rowf), ism(site)),
+  rcov=~units,
+  data=field,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 )
 ```
 
@@ -210,12 +223,14 @@ DT$C <- as.factor(DT$col)
 M <- spl2Dmats(x.coord.name = "col", y.coord.name = "row", data=DT, 
                nseg =c(14,21), degree = c(3,3), penaltyord = c(2,2) 
                )
-mix <- mmes(Y~V, henderson = TRUE,
-            random=~ R + C + vsm(ism(M$fC)) + vsm(ism(M$fR)) + 
+mix <- mmes(Y~V,
+  random=~ R + C + vsm(ism(M$fC)) + vsm(ism(M$fR)) +
               vsm(ism(M$fC.R)) + vsm(ism(M$C.fR)) +
               vsm(ism(M$fC.fR)),
-            rcov=~units, verbose=FALSE,
-            data=M$data)
+  rcov=~units,
+  data=M$data,
+  control = mmes_control(formulation = "henderson",
+  diagnostics = list(verbose = FALSE)))
 summary(mix)$varcomp
 
 ```
@@ -271,9 +286,11 @@ $$
 Because this is a Kronecker product, each factor appears **once**: there is a single $\rho_\text{range}$ and a single $\rho_\text{row}$, shared by all trials.
 
 ```{r}
-mShared <- mmes(yield ~ trial, random=~geno,
-                rcov=~vsm(dsm(trial), ar1m(range), ar1m(row), ism(units)),
-                data=MET, verbose=FALSE)
+mShared <- mmes(yield ~ trial,
+  random=~geno,
+  rcov=~vsm(dsm(trial), ar1m(range), ar1m(row), ism(units)),
+  data=MET,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 knitr::kable(covparams_mmes(mShared)[, c("factor", "parameter", "estimate")], digits=3)
 ```
 
@@ -291,9 +308,11 @@ $$
 `dsumm()` takes a residual `vsm()` term describing *one* trial and replicates it, with all its parameters, for every level of `by`. The trial-specific variances come from the scale of each copy, so `dsm(trial)` is not needed.
 
 ```{r}
-mDsum <- mmes(yield ~ trial, random=~geno,
-              rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
-              data=MET, verbose=FALSE)
+mDsum <- mmes(yield ~ trial,
+  random=~geno,
+  rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
+  data=MET,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 knitr::kable(covparams_mmes(mDsum)[, c("factor", "section", "parameter", "estimate")],
              digits=3)
 ```
@@ -327,10 +346,12 @@ MET2 <- MET
 MET2$range[MET2$trial == "T3"] <- NA  # T3 has no field coordinates
 MET2$row[MET2$trial == "T3"] <- NA
 
-mLevels <- mmes(yield ~ trial, random=~geno,
-                rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)),
+mLevels <- mmes(yield ~ trial,
+  random=~geno,
+  rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)),
                             by=trial, levels=c("T1", "T2")),
-                data=MET2, verbose=FALSE)
+  data=MET2,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 knitr::kable(covparams_mmes(mLevels)[, c("factor", "section", "parameter", "estimate")],
              digits=3)
 c(used = nrow(mLevels$y), available = nrow(MET2))
@@ -353,7 +374,7 @@ and trial-specific spline surfaces are obtained with `` vsm(dsm(trial), ism(spl2
 * **Watch for boundary estimates.** A correlation estimated very close to 1 (e.g. 0.99) often means a smooth trend across the whole field. Adding a linear trend in that direction as a fixed effect, random row/column effects, or a spline usually gives a better-behaved model.
 * **Use the design.** Replicates and incomplete blocks are part of the design and are usually kept as fixed or random effects alongside the spatial terms.
 * **Sort factor levels in field order** before using `ar1m()`.
-* **Computation.** The spatial residual models above never form the dense plot-by-plot covariance matrix, so trials with thousands of plots run in seconds. The default Henderson engine is recommended; `henderson = FALSE` (direct inversion) also works, but needs memory proportional to the square of the number of plots.
+* **Computation.** The spatial residual models above never form the dense plot-by-plot covariance matrix, so trials with thousands of plots run in seconds. The default Henderson formulation is recommended; `control$formulation = "direct"` uses observation-space inversion, but needs memory proportional to the square of the number of plots.
 
 ### Translating from ASReml-R
 

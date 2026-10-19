@@ -40,7 +40,7 @@
   }
   if(isTRUE(status$available)){
     return(paste0("sommer: NVIDIA GPU and CUDA are ready. Enable eligible GPU kernels with ",
-      "options(sommer.mme.gpu=TRUE) or mmes_control(gpu=TRUE). CPU remains the default."))
+      "options(sommer.mme.gpu=TRUE) or mmes_control(execution=list(gpu=TRUE)). CPU remains the default."))
   }
   if(!isTRUE(status$libraries)){
     return(paste0("sommer: NVIDIA GPU detected, but CUDA runtime, cuBLAS or cuSOLVER cannot be loaded. ",

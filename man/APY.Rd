@@ -92,8 +92,11 @@ phenotypes <- data.frame(
   id = factor(rep(ids, each = 3), levels = ids),
   y = rnorm(length(ids) * 3)
 )
-fit <- mmes(y ~ 1, random = ~vsm(ism(id), Gu = Ginv.apy),
-            rcov = ~units, data = phenotypes, verbose = FALSE)
+fit <- mmes(y ~ 1,
+  random = ~vsm(ism(id), Gu = Ginv.apy),
+  rcov = ~units,
+  data = phenotypes,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 
 ## In a single-step evaluation, this APY approximation supplies G^{-1} for
 ## the genotyped block correction; it is not itself the complete H^{-1}.

@@ -821,6 +821,67 @@ version 4.4.90 (2026-10-13)
    Henderson algorithms are unchanged; the existing numerical Q minimizer
    is shared without changing its implementation.
 
+ + Opt-in experimental=list(reducedAI="force") now packs independent vcc
+   directions before Henderson sensitivity solves and assembles exact reduced
+   AI without full sensitivity or AI buffers. Default AI-first recovery and
+   positive EM/PXEM direction blending support Gaussian deterministic REML/ML,
+   preserving fixed/tied coordinates, boundary restrictions, trust units,
+   regularized AI recovery and exact score certification. Full covariance
+   reporting retains a full exact final evaluation. covarianceInformation="none"
+   avoids report-only full information while preserving coefficient uncertainty.
+   Default remains off. Auto admission reports unsupported-path fallbacks;
+   force rejects them. Legacy explicit blendWeight=0, acceleration, latent
+   reduced rank, PCG, PQL, solve-only, saddle-point and factor-score augmentation
+   are not supported. Full score traces and active local curvature-pair work
+   remain unchanged; small full-reporting fits can be slower. Diagnostics expose
+   actual/skipped sensitivity columns and reduced workspace sizes.
+
+ + Opt-in experimental=list(commonScale="force") profiles the overall covariance
+   scale analytically in eligible Gaussian deterministic Henderson REML/ML fits.
+   Independent shape sensitivities incorporate vcc ties directly; exact profile
+   scores and AI scale Schur elimination need no extra factorization per candidate.
+   The dedicated optimizer uses trust caps, regularized AI, likelihood backtracking
+   and exact final score certification, not EM recovery. Product-level variance
+   scales must be free, fixed designs full column rank, and ties common-scale
+   compatible. Fixed shapes and positive variance-ratio ties are supported.
+   Only interior product variances above max(1e-8,tolParInv) are supported:
+   initial floor violations error, trial violations backtrack and stalls warn
+   without declaring convergence. Refit with commonScale="off" for boundary
+   fitting or ordinary AI/EM recovery. Positive blendWeight, PCG, PQL, solve-only,
+   acceleration, latent reduced rank, saddle-point and factor-score augmentation
+   are excluded; omitted or zero blendWeight is accepted. Default remains off.
+   Auto admission exposes static fallback reasons rather than hiding runtime
+   failures. A final ordinary evaluation preserves original-coordinate outputs,
+   coefficient uncertainty and requested full covariance scale/shape information.
+   Information omission still performs that final evaluation. Wald/KR perturbed
+   fixed-parameter evaluations bypass scale profiling. Common-scale diagnostics
+   expose total work and certification; no general speedup is claimed.
+
+ + Breaking numerical-control API: mmes() now accepts one modular control
+   object through control=mmes_control(). Numerical arguments and the former
+   engine/experimental/pcg containers are replaced by task, formulation,
+   representation, solve, logdet, score, curvature, update, proposal,
+   convergence, output, execution and diagnostics settings. Unknown names
+   are errors; legacy public aliases are not accepted. Model formulas,
+   families, covariance constraints and known covariance inputs remain
+   model arguments. See sommer.mmes.options for migration examples.
+   Default algorithms, schedules, tolerances, work budgets and output requests
+   retain the previous numerical bundle. Aitken extrapolation belongs to
+   proposal; hybrid AI belongs to curvature. Their combination remains
+   unsupported. Shared typed native policy separates those responsibilities
+   without changing numerical kernels. Fitted objects retain control and an
+   executionPlan; detailed native diagnostics remain the eligibility evidence.
+
+ + mmes_control() and mmes() check model-independent option combinations
+   against one compatibility table. Supplied settings that conflict, or that
+   the selected path would ignore (for example PCG estimator settings with a
+   deterministic solver, Henderson settings with formulation="direct", or
+   estimation modules with task$mode="solve"), stop with one message naming
+   every offending setting and a fix. Restated defaults are accepted.
+   Changing task$pql on a Gaussian identity fit is an error. Fit-time
+   eligibility messages now use module option names (e.g. solve$method,
+   output$inverse, representation$equations) instead of removed arguments.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes

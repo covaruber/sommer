@@ -10,14 +10,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
   data$BLUEs <- 100 + trial_effect[data$trial] +
     genotype_effect[data$genotype] + interaction
 
-  fit_fa <- mmes(
-    BLUEs ~ trial,
-    random=~vsm(fam(trial, 2), ism(genotype)),
-    rcov=~units,
-    data=data,
-    nIters=20,
-    verbose=FALSE
-  )
+  fit_fa <- mmes(BLUEs ~ trial, random=~vsm(fam(trial, 2), ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=20), diagnostics=list(verbose=FALSE)))
 
   term_fa <- names(fit_fa$uList)[1]
   fa <- loadings_mmes(fit_fa, term_fa, varianceScale = FALSE, rotation = FALSE)
@@ -48,14 +41,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
   expect_equal(dim(scores_fa_bartlett), c(24L, 2L))
   expect_true(all(is.finite(scores_fa_bartlett)))
 
-  fit_rr <- mmes(
-    BLUEs ~ trial,
-    random=~vsm(rrm(trial, 1), ism(genotype)),
-    rcov=~units,
-    data=data,
-    nIters=20,
-    verbose=FALSE
-  )
+  fit_rr <- mmes(BLUEs ~ trial, random=~vsm(rrm(trial, 1), ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=20), diagnostics=list(verbose=FALSE)))
 
   term_rr <- names(fit_rr$uList)[1]
   rr <- loadings_mmes(fit_rr, term_rr, varianceScale = FALSE, rotation = FALSE)
@@ -90,14 +76,7 @@ test_that("loadings_mmes gives an informative error for unsupported terms", {
   )
   data$BLUEs <- rnorm(nrow(data))
 
-  fit <- mmes(
-    BLUEs ~ trial,
-    random=~vsm(ism(genotype)),
-    rcov=~units,
-    data=data,
-    nIters=2,
-    verbose=FALSE
-  )
+  fit <- mmes(BLUEs ~ trial, random=~vsm(ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE)))
 
   expect_error(loadings_mmes(fit, varianceScale = FALSE, rotation = FALSE), "No fam\\(\\)/rrm\\(\\) covariance term")
 })

@@ -1,7 +1,14 @@
-.recovery_fit <- function(...){
+.recovery_fit <- function(solver="auto", blend="em", nIters=30L, REML=TRUE,
+                          stepWeight=NULL, blendWeight=NULL, tolParInv=1e-6){
   data(DT_example, envir=environment())
-  mmes(Yield~Env, random=~Name, data=DT_example,
-    verbose=FALSE, dateWarning=FALSE, ...)
+  mmes(Yield~Env, random=~Name, data=DT_example, control=mmes_control(
+    solve=list(method=solver),
+    task=list(objective=if(REML) "reml" else "ml"),
+    convergence=list(maxIters=nIters),
+    execution=list(inverseTol=tolParInv),
+    update=list(recovery=blend, blendWeight=blendWeight),
+    proposal=list(stepWeight=stepWeight),
+    diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
 }
 
 test_that("regularized AI solves in trust units and preserves fixed and tied tangent directions", {
@@ -103,8 +110,7 @@ test_that("singular AI information tries regularized AI before computing EM mome
   dataset <- DT_example
   dataset$Name2 <- dataset$Name
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")){
-    fit <- mmes(Yield~Env, random=~Name+Name2, data=dataset, solver=solver,
-      nIters=4L, REML=reml, verbose=FALSE, dateWarning=FALSE)
+    fit <- mmes(Yield~Env, random=~Name+Name2, data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=4L), task=list(objective=if(reml) "reml" else "ml"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     diagnostics <- fit$engineDiagnostics
     expect_gt(diagnostics$recovery$regularizedAttempts, 0L)
     expect_gt(diagnostics$recovery$regularizedAcceptedSteps, 0L)
@@ -137,9 +143,7 @@ test_that("failed regularized line search still falls back to EM without accepti
   dataset <- DT_example
   dataset$Name2 <- dataset$Name
   for(reml in c(TRUE, FALSE)) for(method in c("em", "pxem")){
-    expect_warning(fit <- mmes(Yield~Env, random=~Name+Name2, data=dataset,
-      nIters=4L, stepWeight=1e-12, REML=reml, blend=method,
-      verbose=FALSE, dateWarning=FALSE), "AI-first optimization stalled")
+    expect_warning(fit <- mmes(Yield~Env, random=~Name+Name2, data=dataset, control=mmes_control(convergence=list(maxIters=4L), proposal=list(stepWeight=1e-12), task=list(objective=if(reml) "reml" else "ml"), update=list(recovery=method), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "AI-first optimization stalled")
     recovery <- fit$engineDiagnostics$recovery
     expect_gt(recovery$regularizedAttempts, 0L)
     expect_equal(recovery$regularizedAcceptedSteps, 0L)
@@ -149,8 +153,7 @@ test_that("failed regularized line search still falls back to EM without accepti
     expect_gt(fit$engineDiagnostics$blend$emEvaluations, 0L)
     expect_equal(recovery$stopReason, "recovery-stalled")
     expect_false(fit$convergence)
-    initial <- mmes(Yield~Env, random=~Name+Name2, data=dataset,
-      nIters=1L, REML=reml, verbose=FALSE, dateWarning=FALSE)
+    initial <- mmes(Yield~Env, random=~Name+Name2, data=dataset, control=mmes_control(convergence=list(maxIters=1L), task=list(objective=if(reml) "reml" else "ml"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     for(field in c("theta", "bu", "llik")){
       expect_equal(fit[[field]], initial[[field]], tolerance=1e-9)
     }
@@ -163,8 +166,7 @@ test_that("DT_h2 FA retry avoids repeated EM recovery and improves accepted like
   fits <- list()
   for(solver in c("ldlt", "cholmod")){
     fit <- mmes(y~Env, random=~vsm(fam(Env, 1L), ism(Name)) +
-      vsm(dsm(Env), ism(Block)), rcov=~vsm(dsm(Env), ism(units)), data=dataset,
-      solver=solver, nIters=30L, verbose=FALSE, dateWarning=FALSE)
+      vsm(dsm(Env), ism(Block)), rcov=~vsm(dsm(Env), ism(units)), data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=30L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     diagnostics <- fit$engineDiagnostics
     expect_gt(diagnostics$recovery$regularizedAcceptedSteps, 0L)
     expect_equal(diagnostics$recovery$steps, 0L)
@@ -208,8 +210,7 @@ test_that("a boundary solution does not itself trigger recovery", {
   dataset <- expand.grid(id=factor(seq_len(10L)), replicate=seq_len(4L))
   dataset$y <- rep(c(-1, 1, -1, 1), each=10L)
   for(reml in c(TRUE, FALSE)){
-  fit <- mmes(y~1, random=~vsm(ism(id), sigma2=1e-6), data=dataset, nIters=80L,
-    tolParInv=1e-6, REML=reml, verbose=FALSE, dateWarning=FALSE)
+  fit <- mmes(y~1, random=~vsm(ism(id), sigma2=1e-6), data=dataset, control=mmes_control(convergence=list(maxIters=80L), execution=list(inverseTol=1e-6), task=list(objective=if(reml) "reml" else "ml"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_true(fit$convergence)
   expect_equal(fit$engineDiagnostics$recovery$steps, 0L)
   expect_lte(fit$theta[[1L]][1L], 1e-4)
@@ -223,15 +224,13 @@ test_that("ML recovery with no random coefficients uses deterministic residual m
   response <- DT_example$Yield
   expected <- sum(residuals(lm(Yield~Env, data=DT_example))^2) / length(response)
   for(solver in c("ldlt", "cholmod")) for(method in c("em", "pxem")){
-    fit <- mmes(Yield~Env, data=DT_example, REML=FALSE, solver=solver,
-      nIters=7L, blend=method, stepWeight=1e-7, verbose=FALSE, dateWarning=FALSE)
+    fit <- mmes(Yield~Env, data=DT_example, control=mmes_control(task=list(objective=if(FALSE) "reml" else "ml"), solve=list(method=solver), convergence=list(maxIters=7L), update=list(recovery=method), proposal=list(stepWeight=1e-7), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     diagnostics <- fit$engineDiagnostics
     expect_equal(diagnostics$recovery$acceptedSteps, 1L)
     expect_equal(diagnostics$recovery$reasons, "negligible-gains")
     expect_true(all(diff(as.numeric(fit$llik)) >= -1e-10))
     expect_equal(diagnostics$DsymbolicAnalyses, 0)
-    em <- mmes(Yield~Env, data=DT_example, REML=FALSE, solver=solver,
-      nIters=2L, blend=method, blendWeight=1, verbose=FALSE, dateWarning=FALSE)
+    em <- mmes(Yield~Env, data=DT_example, control=mmes_control(task=list(objective=if(FALSE) "reml" else "ml"), solve=list(method=solver), convergence=list(maxIters=2L), update=list(recovery=method, blendWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_equal(as.numeric(em$theta[[1L]]), expected, tolerance=1e-10)
     expect_equal(diagnostics$blend$momentPanelSolves, 0L)
   }

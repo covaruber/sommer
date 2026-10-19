@@ -30,14 +30,7 @@ test_that("native covariance reporting returns model-scale parameters", {
   envFixed <- rep(FALSE, nlevels(DT_example$Env) - 1L)
   envFixed[1L] <- TRUE
 
-  fitDiag <- mmes(
-    Yield ~ Env,
-    random=~vsm(dsm(Env, fixed=envFixed), ism(Name)),
-    rcov=~units,
-    data=DT_example,
-    verbose=FALSE,
-    nIters=3
-  )
+  fitDiag <- mmes(Yield ~ Env, random=~vsm(dsm(Env, fixed=envFixed), ism(Name)), rcov=~units, data=DT_example, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=3)))
   diagNative <- covparams_mmes(fitDiag, 1L)
   expect_equal(nrow(diagNative), nlevels(DT_example$Env))
   expect_true(all(grepl("^variance\\[", diagNative$parameter)))
@@ -61,14 +54,7 @@ test_that("native covariance reporting returns model-scale parameters", {
   analyticSE <- sqrt(pmax(diag(analyticJacobian %*% localCovariance %*%
                                  t(analyticJacobian)), 0))
 
-  fitUs <- mmes(
-    Yield ~ Env,
-    random=~vsm(usm(Env), ism(Name)),
-    rcov=~units,
-    data=DT_example,
-    verbose=FALSE,
-    nIters=3
-  )
+  fitUs <- mmes(Yield ~ Env, random=~vsm(usm(Env), ism(Name)), rcov=~units, data=DT_example, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=3)))
   usNative <- covparams_mmes(fitUs, 1L)
   expected <- fitUs$theta[[1]][lower.tri(fitUs$theta[[1]], diag=TRUE)]
   expect_equal(usNative$estimate, expected, tolerance=1e-8)
@@ -77,14 +63,7 @@ test_that("native covariance reporting returns model-scale parameters", {
   expect_true(all(is.finite(usSE$StdError)))
   expect_equal(usSE$parameter, usNative$parameter)
 
-  fitCorrelation <- mmes(
-    Yield ~ Env,
-    random=~vsm(csm(Env, rho=0.2, fixed=TRUE), ism(Name)),
-    rcov=~units,
-    data=DT_example,
-    verbose=FALSE,
-    nIters=3
-  )
+  fitCorrelation <- mmes(Yield ~ Env, random=~vsm(csm(Env, rho=0.2, fixed=TRUE), ism(Name)), rcov=~units, data=DT_example, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=3)))
   correlationSE <- covparams_mmes_se(fitCorrelation, 1L)
   expect_equal(correlationSE$StdError[correlationSE$parameter == "rho"], 0)
   expect_true(is.na(correlationSE$Zratio[correlationSE$parameter == "rho"]))
@@ -102,15 +81,8 @@ test_that("ownm native reporting callback is dispatched generically", {
     c(variance=scale, correlation=tanh(par[1]))
   }
 
-  fit <- mmes(
-    y ~ 1,
-    random=~vsm(ownm(group, fun=covariance, par=0.1,
-                     par_names="rho_work", native_report=reporter), ism(id)),
-    rcov=~units,
-    data=data.frame(y, group, id),
-    verbose=FALSE,
-    nIters=2
-  )
+  fit <- mmes(y ~ 1, random=~vsm(ownm(group, fun=covariance, par=0.1,
+                     par_names="rho_work", native_report=reporter), ism(id)), rcov=~units, data=data.frame(y, group, id), control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=2)))
   native <- covparams_mmes(fit, 1L)
   expect_equal(native$parameter, c("variance", "correlation"))
   expect_true(all(is.finite(native$estimate)))
@@ -252,9 +224,7 @@ test_that("normalized SAR and CAR precision paths match the observation-space re
     expect_equal(logDetDerivative, numericLogDetDerivative, tolerance=1e-7)
 
     fitModel <- function(solver){
-      mmes(response~site, random=~vsm(shape, ism(id), Gu=relationship),
-        rcov=~units, data=dataset, solver=solver,
-        nIters=1L, verbose=FALSE, dateWarning=FALSE)
+      mmes(response~site, random=~vsm(shape, ism(id), Gu=relationship), rcov=~units, data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     coefficient <- fitModel("ldlt")
     supernodal <- fitModel("cholmod")
@@ -267,14 +237,7 @@ test_that("normalized SAR and CAR precision paths match the observation-space re
 
 test_that("heterogeneous AR1 reports rho and environment variances", {
   DT_example <- get("DT_example", envir=asNamespace("sommer"))
-  fit <- mmes(
-    Yield ~ Env,
-    random=~vsm(ar1m(Env, variance="heterogeneous"), ism(Name)),
-    rcov=~vsm(dsm(Env), ism(units)),
-    data=DT_example,
-    verbose=FALSE,
-    nIters=5
-  )
+  fit <- mmes(Yield ~ Env, random=~vsm(ar1m(Env, variance="heterogeneous"), ism(Name)), rcov=~vsm(dsm(Env), ism(units)), data=DT_example, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=5)))
   native <- covparams_mmes(fit, 1L)
   varianceRows <- grepl("^variance\\[", native$parameter)
   expect_equal(native$parameter[1L], "rho")
@@ -301,14 +264,7 @@ test_that("covariance representations are shared across random and residual fact
   ))
 
   DT_example <- get("DT_example", envir=asNamespace("sommer"))
-  setup <- mmes(
-    Yield ~ Env,
-    random=~vsm(usm(Env), ism(Name)),
-    rcov=~vsm(ar1m(Env), ism(units)),
-    data=DT_example,
-    returnParam=TRUE,
-    verbose=FALSE
-  )
+  setup <- mmes(Yield ~ Env, random=~vsm(usm(Env), ism(Name)), rcov=~vsm(ar1m(Env), ism(units)), data=DT_example, control=mmes_control(output=list(setup=TRUE), diagnostics=list(verbose=FALSE)))
   expect_identical(setup$covStruct[[1]]$factors[[1]]$representation$kind,
                    "dense_cholesky")
   expect_identical(setup$covStruct[[2]]$factors[[1]]$representation$kind,
@@ -333,11 +289,11 @@ test_that("sparse factor kernels preserve covariance fits and uncertainty", {
     sar(dataset$level, directed, rho = 0.2),
     car(dataset$level, adjacency, rho = 0.9, fixed = TRUE))
   cases <- list(
-    list(solver = "ldlt", REML = TRUE, computeCi = 0L),
-    list(solver = "ldlt", REML = FALSE, computeCi = 1L, missing = TRUE),
-    list(solver = "cholmod", REML = TRUE, computeCi = 2L, weighted = TRUE),
-    list(solver = "ldlt", REML = TRUE, computeCi = 0L, henderson = FALSE),
-    list(solver = "ldlt", REML = TRUE, computeCi = 2L, residual = TRUE, missing = TRUE))
+    list(solver="ldlt", objective="reml", inverse=0L),
+    list(solver="ldlt", objective="ml", inverse=1L, missing=TRUE),
+    list(solver="cholmod", objective="reml", inverse=2L, weighted=TRUE),
+    list(solver="ldlt", objective="reml", inverse=0L, formulation="direct"),
+    list(solver="ldlt", objective="reml", inverse=2L, residual=TRUE, missing=TRUE))
   fields <- c("llik", "monitor", "theta", "covPar", "bu", "InfMat", "dLu", "theta_se", "uPevList")
   for(shapeIndex in seq_along(shapes)){
     shape <- shapes[[shapeIndex]]
@@ -345,13 +301,17 @@ test_that("sparse factor kernels preserve covariance fits and uncertainty", {
       modelData <- dataset
       if(isTRUE(configuration$missing)) modelData$response[c(3L, 17L, 55L)] <- NA_real_
       fitWith <- function(mode){
-        arguments <- list(fixed = response ~ level, random = ~vsm(shape, ism(id)), rcov = ~units,
-          data = modelData, REML = configuration$REML, computeCi = configuration$computeCi,
-          getPEV = configuration$computeCi > 0L, nIters = 2L, verbose = FALSE, dateWarning = FALSE,
-          engine = mmes_control(solver = configuration$solver,
-            experimental = list(sparseFactors = mode, blockSchur = "off")))
+        arguments <- list(fixed=response~level, random=~vsm(shape, ism(id)),
+          rcov=~units, data=modelData,
+          control=mmes_control(
+            formulation=if(identical(configuration$formulation, "direct")) "direct" else "henderson",
+            solve=if(identical(configuration$formulation, "direct")) list() else
+              list(method=configuration$solver, blockSchur="off"),
+            task=list(objective=configuration$objective),
+            convergence=list(maxIters=2L),
+            output=list(inverse=configuration$inverse),
+            diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
         if(isTRUE(configuration$weighted)) arguments$W <- Matrix::Diagonal(nrow(dataset), x = seq(0.8, 1.2, length.out = nrow(dataset)))
-        if(isFALSE(configuration$henderson)) arguments$henderson <- FALSE
         if(isTRUE(configuration$residual)){
           arguments$random <- ~id
           arguments$rcov <- ~vsm(shape, ism(section))
@@ -361,9 +321,9 @@ test_that("sparse factor kernels preserve covariance fits and uncertainty", {
       reference <- fitWith("off")
       candidate <- fitWith("force")
       for(field in fields){ expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-6, info = shape$covFactor$model) }
-      if(configuration$computeCi == 2L){
+      if(configuration$inverse == 2L){
         expect_equal(as.matrix(candidate$Ci), as.matrix(reference$Ci), tolerance = 1e-6)
-        if(!isFALSE(configuration$henderson)){
+        if(!identical(configuration$formulation, "direct")){
           product <- as.matrix(candidate$C %*% candidate$Ci)
           expect_lt(max(abs(product / mean(diag(product)) - diag(nrow(product)))), 1e-7)
         }
@@ -372,9 +332,11 @@ test_that("sparse factor kernels preserve covariance fits and uncertainty", {
   }
   for(shape in shapes[c(1L, 2L, 3L)]){
     fitWith <- function(mode){
-      mmes(response ~ level, random = ~vsm(shape, ism(id)), rcov = ~units, data = dataset,
-           nIters = 2L, nThreads = 1L, computeCi = 0L, verbose = FALSE, dateWarning = FALSE,
-           engine = mmes_control(solver = "pcg", experimental = list(sparseFactors = mode, matrixFreePcg = "force")))
+      mmes(response ~ level, random=~vsm(shape, ism(id)), rcov=~units, data=dataset,
+        control=mmes_control(representation=list(matrixFree=mode),
+          solve=list(method="pcg"), update=list(blendWeight=0),
+          convergence=list(maxIters=2L), output=list(inverse=0L),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     reference <- fitWith("off")
     candidate <- fitWith("force")
@@ -382,9 +344,10 @@ test_that("sparse factor kernels preserve covariance fits and uncertainty", {
   }
   for(shape in shapes[c(1L, 3L)]){
     fitWith <- function(mode){
-      mmes(response ~ level, random = ~vsm(shape, ism(id)), rcov = ~units, data = dataset,
-           nIters = 4L, nThreads = 1L, computeCi = 0L, verbose = FALSE, dateWarning = FALSE,
-           engine = mmes_control(solver = "ldlt", experimental = list(sparseFactors = mode, blockSchur = "off")))
+      mmes(response ~ level, random=~vsm(shape, ism(id)), rcov=~units, data=dataset,
+        control=mmes_control(solve=list(blockSchur=mode),
+          convergence=list(maxIters=4L), output=list(inverse=0L),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     reference <- fitWith("off")
     candidate <- fitWith("force")
@@ -418,11 +381,10 @@ test_that("complete innovation residual blocks preserve sparse derivative output
   dataset$response <- rnorm(nrow(dataset))
   shape <- antem(dataset$level, order = 1L)
   fitWith <- function(mode){
-    mmes(response ~ 1, random = ~id, rcov = ~vsm(shape, ism(section)),
-         data = dataset, nIters = 2L, nThreads = 1L, computeCi = 0L,
-         getPEV = FALSE, verbose = FALSE, dateWarning = FALSE,
-         engine = mmes_control(solver = "ldlt",
-           experimental = list(sparseFactors = mode, blockSchur = "off")))
+    mmes(response ~ 1, random=~id, rcov=~vsm(shape, ism(section)), data=dataset,
+      control=mmes_control(solve=list(blockSchur=mode),
+        convergence=list(maxIters=2L), output=list(inverse=0L),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   reference <- fitWith("off")
   candidate <- fitWith("force")
@@ -444,11 +406,11 @@ test_that("factor capabilities are label independent and spatial products have e
                  antem(dataset$site), fam(dataset$site, 1L), rrm(dataset$site, 1L))
   for(shape in shapes){
     for(mode in c("off", "force")){
-      setup <- mmes(response ~ 1, random = ~vsm(shape, ar1m(environment, rho = 0.3), ism(id)),
-        data = dataset, nIters = 2L, nThreads = 1L, computeCi = 0L,
-        getPEV = FALSE, verbose = FALSE, dateWarning = FALSE, returnParam = TRUE,
-        engine = mmes_control(solver = "ldlt",
-          experimental = list(sparseFactors = mode, blockSchur = "off")))
+      setup <- mmes(response ~ 1, random=~vsm(shape, ar1m(environment, rho=0.3), ism(id)),
+        data=dataset, control=mmes_control(solve=list(blockSchur="off"),
+          convergence=list(maxIters=2L),
+          output=list(inverse=0L, setup=TRUE),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       runEngine <- function(descriptors){
         sommer:::ai_mme_sp2(setup$X, setup$Z, setup$Zind, setup$Ai, setup$yvar,
           setup$W, setup$useH, setup$residualBlock, setup$residualIndex,
@@ -513,9 +475,7 @@ test_that("large ANTE sparse derivative storage preserves fit outputs", {
   dataset$response <- rnorm(nrow(dataset)) + as.integer(dataset$id) / 5 + as.integer(dataset$level) / 20
   shape <- antem(dataset$level, order = 2L)
   fitWith <- function(mode){
-    mmes(response ~ 1, random = ~vsm(shape, ism(id)), rcov = ~units, data = dataset,
-         nIters = 2L, computeCi = 0L, verbose = FALSE, dateWarning = FALSE,
-         engine = mmes_control(solver = "ldlt", experimental = list(blockSchur = "off", sparseFactors = mode)))
+    mmes(response ~ 1, random=~vsm(shape, ism(id)), rcov=~units, data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(representation=list(sparseFactors=mode))), list(convergence=list(maxIters=2L), output=list(inverse=0L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
   }
   reference <- fitWith("off")
   candidate <- fitWith("force")

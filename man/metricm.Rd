@@ -59,8 +59,10 @@ set.seed(1)
 co <- cbind(x = runif(30, 0, 10), y = runif(30, 0, 10))
 d <- data.frame(x = rep(co[, 1], each = 2), y = rep(co[, 2], each = 2), one = factor(1))
 d$yield <- rnorm(60)
-fit <- mmes(yield ~ 1, random = ~ vsm(metricm(cbind(x, y), model = "power"), ism(one)),
-            data = d, verbose = FALSE)
+fit <- mmes(yield ~ 1,
+  random = ~ vsm(metricm(cbind(x, y), model = "power"), ism(one)),
+  data = d,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 covparams_mmes(fit)
 }
 \seealso{\code{\link{maternm}}, \code{\link{ar1m}}, \code{\link{sar}}, \code{\link{car}}, \code{\link{vsm}}.}

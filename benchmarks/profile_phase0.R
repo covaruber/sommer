@@ -27,7 +27,8 @@ for(i in seq_len(nrow(fixtures))){
   for(solver in solvers){
     cat(sprintf("%-32s %-8s ... ", wl$name, solver))
     p <- tryCatch(
-      profile_mme_workload(wl, mmes_control(solver = solver), nIters = nIters),
+      profile_mme_workload(wl, mmes_control(solve=list(method=solver)
+), nIters = nIters),
       error = function(e) conditionMessage(e))
     if(is.character(p)){ cat("ERROR:", p, "\n"); next }
     secs <- stats::setNames(p$table$seconds, p$table$phase)

@@ -24,18 +24,13 @@ for(q in q_sizes){
   for(ps in panel_sizes){
     cat(sprintf("Running computeCi=2, N=%d, panel=%-3d ... ", q + 1L, ps))
     t0 <- proc.time()
-    m_fit <- mmes(
-      response ~ 1,
-      random = ~ vsm(ism(id), Gu = precision),
-      data = df,
-      solver = "cholmod",
-      nIters = 2L,
-      computeCi = 2L,
-      getPEV = FALSE,
-      verbose = FALSE,
-      dateWarning = FALSE,
-      engine = mmes_control(solver = "cholmod", experimental = list(panelCi2 = ps))
-    )
+    m_fit <- mmes(response ~ 1,
+  random=~ vsm(ism(id), Gu = precision),
+  data=df,
+  control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(solve=list(method="cholmod"),
+  output=list(panelSize=ps)
+)), list(solve=list(method="cholmod"), convergence=list(maxIters=2L), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
     t1 <- proc.time()
     elapsed <- (t1 - t0)[3L]
     cat(sprintf("Elapsed: %.4fs | Ci dim: %dx%d\n", elapsed, nrow(m_fit$Ci), ncol(m_fit$Ci)))
@@ -69,34 +64,24 @@ for(q in pcg_sizes){
   
   # Assembled PCG
   t0 <- proc.time()
-  m_asm <- mmes(
-    response ~ 1,
-    random = ~ vsm(ism(id), Gu = precision),
-    data = df,
-    solver = "pcg",
-    nIters = 3L,
-    computeCi = 0L,
-    getPEV = FALSE,
-    verbose = FALSE,
-    dateWarning = FALSE,
-    engine = mmes_control(solver = "pcg", experimental = list(matrixFreePcg = "off"))
-  )
+  m_asm <- mmes(response ~ 1,
+  random=~ vsm(ism(id), Gu = precision),
+  data=df,
+  control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(solve=list(method="pcg"),
+  representation=list(matrixFree="off")
+)), list(solve=list(method="pcg"), convergence=list(maxIters=3L), output=list(inverse=0L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
   t_asm <- (proc.time() - t0)[3L]
   
   # Matrix-Free PCG
   t0 <- proc.time()
-  m_mf <- mmes(
-    response ~ 1,
-    random = ~ vsm(ism(id), Gu = precision),
-    data = df,
-    solver = "pcg",
-    nIters = 3L,
-    computeCi = 0L,
-    getPEV = FALSE,
-    verbose = FALSE,
-    dateWarning = FALSE,
-    engine = mmes_control(solver = "pcg", experimental = list(matrixFreePcg = "force"))
-  )
+  m_mf <- mmes(response ~ 1,
+  random=~ vsm(ism(id), Gu = precision),
+  data=df,
+  control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(solve=list(method="pcg"),
+  representation=list(matrixFree="force")
+)), list(solve=list(method="pcg"), convergence=list(maxIters=3L), output=list(inverse=0L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
   t_mf <- (proc.time() - t0)[3L]
   
   speedup <- t_asm / t_mf

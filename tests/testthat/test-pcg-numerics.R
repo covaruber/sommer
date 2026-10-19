@@ -1,6 +1,6 @@
 test_that("native PCG primitives pass strict standalone checks", {
   root <- test_path("..", "..")
-  names <- c("test-mme-pcg", "test-mme-pcg-estimators")
+  names <- c("test-mme-pcg", "test-mme-pcg-estimators", "test-mme-sufficient")
   sources <- file.path(root, "tests", "native", paste0(names, ".cpp"))
   headers <- file.path(root, "src", c("mme_pcg.h", "mme_pcg_estimators.h"))
   skip_if(!all(file.exists(c(sources, headers))),
@@ -24,15 +24,55 @@ test_that("native PCG primitives pass strict standalone checks", {
   }
 })
 
+.pcg_module_values <- function(settings){
+  mapping <- c(tol="solve.tol", maxIters="solve.maxIters",
+    preconditioner="solve.preconditioner", nystromRank="solve.nystromRank",
+    warmStart="solve.warmStart", recycleRank="solve.recycleRank",
+    recycleMethod="solve.recycleMethod", recycleState="solve.recycleState",
+    exportRecycle="solve.exportRecycle", rhsMethod="solve.rhsMethod",
+    blockSize="solve.blockSize", residualRefresh="solve.residualRefresh",
+    logDetScaling="logdet.scaling", lanczosSteps="logdet.lanczosSteps",
+    traceProbes="score.traceProbes", traceEstimator="score.estimator",
+    traceRank="score.rank", accuracy="convergence.accuracy",
+    maxTraceProbes="convergence.maxTraceProbes",
+    maxLanczosSteps="convergence.maxLanczosSteps",
+    logDetTol="convergence.logDetTol", scoreTol="convergence.scoreTol",
+    seed="execution.seed", compression="representation.compression")
+  unknown <- setdiff(names(settings), names(mapping))
+  if(length(unknown)) stop("Unknown PCG settings: ", paste(unknown, collapse=", "))
+  modules <- list()
+  for(name in names(settings)){
+    path <- strsplit(unname(mapping[name]), ".", fixed=TRUE)[[1L]]
+    modules[[path[1L]]][[path[2L]]] <- settings[[name]]
+  }
+  modules
+}
+
 .pcg_numerical_fit <- function(workload, pcg=list(), matrixFree="force", iterations=1L,
                                solver="pcg", ...){
+  extra <- list(...)
+  unknown <- setdiff(names(extra), "denseMemoryMB")
+  if(length(unknown)) stop("Unknown MME controls: ", paste(unknown, collapse=", "))
+  modules <- .pcg_module_values(pcg)
+  merge <- function(module, defaults=list()){
+    values <- modules[[module]]
+    if(is.null(values)) values <- list()
+    utils::modifyList(defaults, values, keep.null=TRUE)
+  }
+  execution <- modules$execution
+  if(is.null(execution)) execution <- list()
+  execution <- utils::modifyList(execution, extra, keep.null=TRUE)
+  control <- mmes_control(
+    solve=merge("solve", c(list(method=solver), if(solver == "pcg") list(tol=1e-10))),
+    logdet=merge("logdet", if(solver == "pcg") list(lanczosSteps=40L) else list()),
+    score=merge("score", if(solver == "pcg") list(traceProbes=8L) else list()),
+    convergence=merge("convergence", list(maxIters=iterations)),
+    representation=merge("representation", if(solver == "pcg") list(matrixFree=matrixFree) else list()),
+    execution=execution,
+    update=list(blendWeight=0),
+    diagnostics=list(verbose=FALSE, dateWarning=FALSE))
   suppressMessages(mmes(workload$fixed, random=workload$random,
-    rcov=workload$rcov, data=workload$data, nIters=iterations, getPEV=FALSE,
-    blendWeight=0, verbose=FALSE, dateWarning=FALSE,
-    engine=mmes_control(solver=solver,
-      pcg=utils::modifyList(list(tol=1e-10, traceProbes=8L,
-        lanczosSteps=40L), pcg),
-      experimental=list(matrixFreePcg=matrixFree)), ...))
+    rcov=workload$rcov, data=workload$data, control=control))
 }
 
 test_that("PCG operator preconditioners and block RHS agree with assembled solves", {
@@ -106,9 +146,7 @@ test_that("combined PCG options agree with a fresh fixed-covariance solve", {
     nystromRank=6L, warmStart=TRUE, recycleRank=4L, rhsMethod="block",
     logDetScaling="diagonal", traceEstimator="control-variate", traceRank=1000L),
     iterations=3L)
-  solved <- suppressMessages(mmes(workload$fixed, random=workload$random,
-    rcov=workload$rcov, data=workload$data, covPar=candidate, solveOnly=TRUE,
-    pcgTol=1e-11, verbose=FALSE, dateWarning=FALSE))
+  solved <- suppressMessages(mmes(workload$fixed, random=workload$random, rcov=workload$rcov, data=workload$data, covPar=candidate, control=mmes_control(task=list(mode=if(TRUE) "solve" else "fit"), solve=list(tol=1e-11), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
   expect_equal(candidate$bu, solved$bu, tolerance=1e-7)
   expect_lte(candidate$pcgSolveMaxRelativeResidual, 1e-10)
   expect_gt(candidate$engineDiagnostics$pcg$warmStarts, 0)
@@ -139,11 +177,21 @@ test_that("PCG controls preserve weighted incomplete residual score contractions
   dataset <- dataset[-c(1L, 7L), ]
   weights <- diag(nrow(dataset)) + matrix(0.02, nrow(dataset), nrow(dataset))
   fit <- function(solver, pcg=list()){
+    modules <- .pcg_module_values(pcg)
+    merge <- function(module, defaults=list()){
+      values <- modules[[module]]
+      if(is.null(values)) values <- list()
+      utils::modifyList(defaults, values, keep.null=TRUE)
+    }
+    control <- mmes_control(
+      solve=merge("solve", c(list(method=solver), if(solver == "pcg") list(tol=1e-10))),
+      logdet=merge("logdet", if(solver == "pcg") list(lanczosSteps=40L) else list()),
+      score=merge("score", if(solver == "pcg") list(traceProbes=8L) else list()),
+      convergence=list(maxIters=1L),       update=list(blendWeight=0),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE))
     suppressMessages(mmes(response~environment, random=~id,
       rcov=~vsm(usm(environment), ism(record)), W=weights, data=dataset,
-      nIters=1L, getPEV=FALSE, blendWeight=0, verbose=FALSE, dateWarning=FALSE,
-      engine=mmes_control(solver=solver, pcg=utils::modifyList(
-        list(tol=1e-10, lanczosSteps=40L), pcg))))
+      control=control))
   }
   reference <- fit("ldlt")
   for(preconditioner in c("diagonal", "block-jacobi", "nystrom")){

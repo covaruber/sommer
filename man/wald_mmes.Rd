@@ -59,8 +59,11 @@ restricted maximum likelihood. Biometrics 53: 983-997.
 \seealso{\code{\link{mmes}}, \code{\link{predict.mmes}}, \code{\link{anova.mmes}}}
 \examples{
 data(DT_yatesoats, package = "enhancer")
-m <- mmes(Y ~ V * N, random = ~ B + B:MP, rcov = ~ units,
-          data = DT_yatesoats, verbose = FALSE)
+m <- mmes(Y ~ V * N,
+  random = ~ B + B:MP,
+  rcov = ~ units,
+  data = DT_yatesoats,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 wald_mmes(m)
 wald_mmes(m, ssType = "conditional", denDF = "kr")
 }

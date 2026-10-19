@@ -28,14 +28,10 @@ for(struct in structures){
       )
       
       engines <- list(
-        cholmod_base = mmes_control(
-          solver = "cholmod",
-          experimental = list(blockBanded = "off")
-        ),
-        banded_force = mmes_control(
-          solver = "cholmod",
-          experimental = list(blockBanded = "force")
-        )
+        cholmod_base = mmes_control(solve=list(method="cholmod", blockBanded="off")
+),
+        banded_force = mmes_control(solve=list(method="cholmod", blockBanded="force")
+)
       )
       
       bm <- tryCatch({

@@ -217,14 +217,14 @@ familym <- function(by, ...){
 
     innerArgs <- c(list(fixed=fixedWork, data=dataWork,
                         family=stats::gaussian(), pqlControl=list(),
-                        .pqlInner=TRUE, .pqlFixedDispersion=fixedDispersion,
-                .pqlWorkingPrecision=workingWeight,
-                        .pqlBaseW=W, .pqlBaseFactor=baseFactor,
-                        .pqlStart=covarianceStart),
+                        .internal=list(pqlInner=TRUE, pqlFixedDispersion=fixedDispersion,
+                          pqlWorkingPrecision=workingWeight,
+                          pqlBaseW=W, pqlBaseFactor=baseFactor,
+                          pqlStart=covarianceStart)),
                    mmesArgs)
     if(!is.null(random)) innerArgs$random <- random
     if(!is.null(rcov)) innerArgs$rcov <- rcov
-    fit <- do.call(mmes, innerArgs)
+    fit <- do.call(.mmes_fit, innerArgs)
     if(control$warmStart && !is.null(fit$covParWorking)){
       covarianceStart <- list(parameters=fit$covParWorking, covStruct=fit$covStruct,
                               included=fit$obsInfo$included, ldltCache=fit$.ldltCache,

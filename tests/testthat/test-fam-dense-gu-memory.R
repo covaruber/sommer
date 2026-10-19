@@ -10,13 +10,8 @@ test_that("factor analytic random effects with dense Gu preserve exact fits", {
   dimnames(relationship) <- list(levels(data$id), levels(data$id))
   attr(relationship, "inverse") <- TRUE
 
-  fit <- suppressMessages(mmes(
-    y~envf,
-    random=~vsm(fam(envf, 1), ism(id), Gu=relationship) +
-      vsm(dsm(envf), ism(repf)),
-    rcov=~units, data=data, solver="cholmod", nIters=2, blendWeight=20,
-    verbose=FALSE, dateWarning=FALSE
-  ))
+  fit <- suppressMessages(mmes(y~envf, random=~vsm(fam(envf, 1), ism(id), Gu=relationship) +
+      vsm(dsm(envf), ism(repf)), rcov=~units, data=data, control=mmes_control(solve=list(method="cholmod"), convergence=list(maxIters=2), update=list(blendWeight=20), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
 
   expect_equal(as.numeric(fit$llik), c(-82.9235413285111, -77.0570036960967),
                tolerance=1e-7)
@@ -34,8 +29,7 @@ test_that("unused factor levels do not enter covariance or fixed designs", {
   attr(relationship, "inverse") <- TRUE
 
   expect_equal(ncol(sommer:::rrm(data$envf, 2)$Z), 3L)
-  p <- suppressMessages(mmes(y~envf, random=~vsm(rrm(envf, 2), ism(id), Gu=relationship),
-                             data=data, returnParam=TRUE, dateWarning=FALSE))
+  p <- suppressMessages(mmes(y~envf, random=~vsm(rrm(envf, 2), ism(id), Gu=relationship), data=data, control=mmes_control(output=list(setup=TRUE), diagnostics=list(dateWarning=FALSE))))
   expect_equal(ncol(p$X), 3L)
   expect_equal(p$covStruct[[1]]$dim, 3L)
 })

@@ -74,8 +74,11 @@ previous full \code{VarU}; mode 0 also removes \code{uVarList}.
 \code{\link{covmatrix_mmes}}}
 \examples{
 data(DT_example, package="enhancer")
-model <- mmes(Yield~Env, random=~Name, data=DT_example,
-              computeCi=0, verbose=FALSE)
+model <- mmes(Yield~Env,
+  random=~Name,
+  data=DT_example,
+  control = mmes_control(output = list(inverse = 0),
+  diagnostics = list(verbose = FALSE)))
 model <- postVarU(model)
 head(model$uVarList[[1]])
 full <- postVarU(model, mode=2)

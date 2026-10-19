@@ -7,13 +7,11 @@
 }
 \description{
 
-Fits a generalized linear mixed model
-coded in C++ using the Armadillo and Eigen libraries to optimize matrix 
-operations. Special covariance structures can be specified with the \code{\link{vsm}()}
-function. Two engines are available: Henderson mixed model equations and direct
-observation-space REML/ML, selected by \code{henderson}. The Henderson engine
-supports \code{ldlt}, \code{cholmod}, and \code{pcg} solvers. Both CPU and
-optional CUDA dense kernels use the same Henderson algorithm.
+Fits a generalized linear mixed model using model formulas, covariance
+structures and observation data. Special covariance structures can be
+specified with \code{\link{vsm}()}. Numerical fitting choices are supplied
+through the strictly validated \code{control} object; see
+\code{\link{mmes_control}} and the \code{sommer.mmes.options} vignette.
 
 
 }
@@ -21,18 +19,10 @@ optional CUDA dense kernels use the same Henderson algorithm.
 \usage{
 
 mmes(fixed, random, rcov, data, W, weights=NULL,
-     nIters=30, tolParConvLL=1e-04,
-     tolParConvNorm=1e-04, tolParInv=1e-06,
      naMethodX="exclude", naMethodY="exclude",
      naMethodRandom="exclude", naMethodR="exclude",
-     returnParam=FALSE, dateWarning=TRUE,
-     verbose=TRUE, stepWeight=NULL, blend=c("em", "pxem"),
-     blendWeight=NULL,
-     contrasts=NULL, getPEV=TRUE, henderson=TRUE,
-     computeCi=0, solver="auto", REML=TRUE, vcc=NULL,
-     family=stats::gaussian(), pqlControl=list(),
-     solveOnly=FALSE, covPar=NULL, blasThreads=NULL,
-     engine=NULL, ..., .internal=NULL)
+     contrasts=NULL, family=stats::gaussian(), vcc=NULL,
+     covPar=NULL, control=mmes_control(), .internal=NULL)
 }
 \arguments{
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
@@ -120,13 +110,16 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   for details on parameterizations and examples.
 
   A single relationship term may request Lee--van der Werf rotation with
-  \code{vsm(..., Gu=Gu, rotation=TRUE)}. With \code{henderson=TRUE}, random
+  \code{vsm(..., Gu=Gu, rotation=TRUE)}. With
+  \code{control$formulation="henderson"}, random
   coefficients are represented in the eigenbasis and the diagonal relationship
-  precision is used in the mixed model equations. With \code{henderson=FALSE},
+  precision is used in the mixed model equations. With
+  \code{control$formulation="direct"},
   the equivalent transformed observation-covariance parameterization is used.
   Public random effects, fitted values, and residuals are returned in the
   original basis. The current implementation requires a complete balanced
-  Gaussian layout, one rotated relationship term, and \code{computeCi=0} during
+  Gaussian layout, one rotated relationship term, and
+  \code{control$output$inverse=0} during
   fitting. Residual structures are allowed when they are rotation invariant:
   residuals may be structured across rotation blocks (e.g.,
   \code{rcov=~vsm(usm(trait), ism(units))} or
@@ -219,26 +212,15 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   This is structural metadata only: it does not generate numeric weights.
   Declared blocks are processed independently by the Henderson weighting
   path; without this formula, \code{W} is handled without a known grouping.}
-   \item{nIters}{Maximum number of iterations allowed.}
-  \item{tolParConvLL}{Convergence criteria based in the change of log-likelihood
-  between iteration i and i-1.}
-  \item{tolParConvNorm}{When using the Henderson method this argument is the 
-  convergence criteria based in the norm proposed by Jensen, Madsen and
-  Thompson (1997):
+     \item{control}{A \code{sommer_mmes_control} object created by
+  \code{\link{mmes_control}}. It owns numerical task, equation formulation,
+  representation, solver, determinant, score, curvature, covariance update,
+  proposal, convergence, output, execution and diagnostic settings. Its default
+  is \code{mmes_control()}. Removed numerical arguments are not accepted by
+  \code{mmes()}; configure those choices in this object. See the control help
+  and vignette for defaults, mathematical ownership, eligibility and migration.}
 
-  e1 = || InfMatInv.diag()/sqrt(N) * dLu ||
-
-  where InfMatInv.diag() is the diagonal of the inverse of the information
-  matrix, N is the total number of variance components, and dLu is the vector 
-  of first derivatives.
-
-  }
-  \item{tolParInv}{Tolerance parameter for matrix inverse used when singularities 
-  are encountered in the estimation procedure. By default the value is 1e-06. This
-  parameter should be fairly small because the it is used to bend matrices like the
-  information matrix in the henderson algorithm or the coefficient matrix when it
-  is not positive-definite.}
-   \item{naMethodX}{Missing-data policy for variables entering the fixed-effect
+\item{naMethodX}{Missing-data policy for variables entering the fixed-effect
    design matrix. The default, \code{"exclude"}, marks observations with missing
    fixed-effect information for removal from the common observation set.
    \code{"include"} retains the historical sommer behavior for supported cases by
@@ -266,201 +248,11 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
    are excluded from the common observation set. The residual block and local-coordinate
    layout are then constructed on the retained observations.}
 
-   \item{returnParam}{A TRUE/FALSE value to indicate if the program should 
-   return the parameters to be used for fitting the model instead of fitting
-   the model.}
-   \item{dateWarning}{A TRUE/FALSE value to indicate if the program should warn 
-   you when is time to update the sommer package.}
-  \item{verbose}{A TRUE/FALSE value indicating whether to print iteration
-  progress. Fits share a compact table with likelihood, update method,
-  recovery policy, safeguards, and elapsed seconds. See \strong{Iteration output}.}
-  \item{stepWeight}{A positive scalar or vector recycled to the number of
-  iterations. It scales each covariance-parameter proposal; values below 1
-  damp the step. With positive blending weights the default is 1,
-  so proposals at \code{blendWeight=1} are undamped: exact EM when a
-  closed-form M-step is available, otherwise generalized EM.
-  Automatic AI-first recovery also defaults to 1, with working-coordinate
-  step caps and likelihood backtracking. Explicit \code{blendWeight=0}
-  fits retain their previous damping schedule: 0.5 and
-  0.7 for the first two iterations, then 0.9 (0.9 for a single iteration).}
-  \item{blend}{Recovery or direction-blending method. With omitted
-  \code{blendWeight}, \code{"em"} (default) selects on-demand EM/GEM recovery
-  and \code{"pxem"} selects scalar PX-GEM recovery. With explicit weights,
-  \code{"em"} combines the EM
-  and average-information (AI) covariance-update directions. \code{"pxem"} is
-  a scalar parameter-expanded generalized EM (PX-GEM) alternative, blended
-  with the same AI direction. Expansion uses one positive scalar per random
-  term and reduces back to the original covariance coordinates before blending.}
-  \item{blendWeight}{A finite scalar or vector recycled to \code{nIters}, with
-  values in \code{[0, 1]}. A value of 1 selects the EM/GEM or PX-GEM
-  direction chosen by \code{blend}, and 0 selects the AI direction;
-  intermediate values blend the proposal
-  directions. A single whole-number value greater than 1 instead specifies
-  the decay iteration count: weights decrease exponentially from 1 to 0.03
-  over the first \code{min(blendWeight, nIters)} iterations, then remain at
-  0.03. For example, \code{blendWeight=5} requests a five-iteration decay.
-  Fractional counts and vectors containing any value greater than 1 are
-  errors. The default \code{NULL} selects AI-first fitting with on-demand
-  recovery for supported fits, not a fixed blend schedule. Healthy iterations
-  compute no EM/PX moments or M-step objectives. Recovery triggers only with
-  a non-small scaled projected score: after three consecutive accepted AI
-  steps requiring at least four halvings each, three consecutive likelihood
-  gains below \code{tolParConvLL}, an exhausted AI line search, or an
-  unreliable information solve. Before using EM/PX-GEM for an unreliable
-  solve, the optimizer tries a scaled, ridge-regularized AI direction in the
-  feasible parameter tangent. Scaling uses working-coordinate trust caps;
-  increasing the ridge bounds the direction without letting one nearly flat
-  coordinate shrink all other updates. This retry must pass the same
-  feasibility and observed-likelihood line search as other proposals.
-  An information system is also unreliable when its reciprocal condition
-  estimate in trust-cap units is below the square root of machine precision,
-  even if the ordinary solve returns a small residual.
-  Both a regularized AI retry and an EM/GEM or PX-GEM recovery step must
-  increase the observed likelihood by more than \code{1e-10}.
-  If the regularized direction or its line search fails, EM/PX-GEM is computed
-  on demand at the accepted point. After either accepted retry, ordinary AI
-  resumes at the next iteration. This sequence can repeat up to \code{nIters};
-  there is no separate cap on repeated recoveries.
-  Recovery failure returns the last accepted point with a warning and
-  \code{convergence=FALSE}. Approaching a variance boundary alone is not a
-  trigger. Convergence requires a scaled projected score no greater than
-  \code{sqrt(max(tolParConvLL, tolParConvNorm))}, plus a small likelihood
-  change or relative parameter step. Projection respects fixed and tied
-  parameters and outward directions at variance floors.
-  Full explicit EM or PX-GEM
-  weights skip AI update construction except for final inference. Generic
-  covariance structures use increasing-Q generalized EM updates. Positive
-  weights require Gaussian Henderson or direct REML or ML fitting,
-  with deterministic Henderson solvers and without PQL, acceleration, factor-score augmentation, or
-  saddle-point fitting. When weights are omitted, these unsupported modes
-  default to pure AI; explicitly positive weights are rejected.
-  Set all weights to zero to request the existing AI engine explicitly.
-  Explicit numeric schedules retain their existing semantics and disable
-  automatic recovery. Refit arguments preserve \code{NULL} for automatic fits.
-  Recovery diagnostics appear in \code{engineDiagnostics$recovery}: method, likelihood mode,
-  number of attempted and accepted recovery steps, one-based source iterations,
-  trigger reasons, stop reason, final projected score norm, and score tolerance.
-  These recovery-step counts refer to EM/PX-GEM, not regularized AI.
-  \code{regularizedAttempts} counts stabilized-direction solves, including
-  failures and active-set retries. \code{regularizedAcceptedSteps} counts
-  accepted regularized AI updates. Paired \code{regularizedIterations} and
-  \code{regularizedRidges} record one-based source iterations and applied
-  ridges for usable stabilized directions, not acceptance guarantees.
-  The thresholds are fixed initial heuristics, not a global-optimum guarantee;
-  use alternative starting values to investigate competing local optima.
-  Recovery uses the existing exact posterior-moment kernels and their
-  \code{denseMemoryMB} admission checks; it does not introduce approximate
-  moments when the budget is insufficient.
-  For ML, posterior moments condition on the current GLS fixed-effect estimate:
-  random-effect uncertainty uses \eqn{D^{-1}}, where
-  \eqn{D=Z'R^{-1}Z+G^{-1}}, and fixed effects have no posterior uncertainty.
-  Fixed effects stay fixed during the covariance Q/PX step, then are reprofiled
-  at each observed-likelihood trial. REML moments retain the joint coefficient
-  inverse. Final BLUE/BLUP uncertainty is unchanged in either likelihood mode.
-  Blend diagnostics are reported in \code{engineDiagnostics$blend},
-  including per-iteration numerical M-step convergence and evaluation counts.
-  Numerical M-steps may stop before convergence; their accepted proposals must
-  still increase the auxiliary objective.}
-  \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
-  \item{getPEV}{A logical value indicating whether prediction error variance
-  results should be organized and returned when they are requested through
-  \code{computeCi}.}
-  \item{henderson}{A logical value indicating which REML engine to use. \code{TRUE}
-  (the default) uses the Henderson mixed-model-equations algorithm, efficient when
-  there are many more records than coefficients to estimate. \code{FALSE} uses a
-  direct-inversion engine that inverts the phenotypic covariance matrix in
-  observation space instead; it is less efficient than \code{henderson=TRUE} when
-  there are many more records than coefficients, but can be more efficient when
-  there are many more coefficients to estimate than records available (e.g.,
-  marker/SNP-BLUP-style models). Both engines share the same \code{vsm()}
-  covariance-structure parameterization. The direct-inversion engine currently
-  supports \code{computeCi} values \code{0} and \code{2} only (no Takahashi
-  selected-inverse mode), has no \code{solver}/PCG/CHOLMOD options, and requires a
-  single response column (use the long-format \code{vsm(usm(trait), ...)}
-  convention for multi-trait models, as with the Henderson engine).}
-    \item{computeCi}{An integer indicating whether post-fit prediction error variance information
-  and/or the inverse of the mixed model coefficient matrix should be computed when the
-  Henderson algorithm is used (\code{henderson=TRUE}). The available options are:
-
-  \code{0}: no additional inverse-related computation is performed after convergence.
-  The full inverse of the coefficient matrix (\code{Ci}) is not formed and
-  \code{uPevList} is not computed. This is the fastest option and is the default.
-
-  \code{1}: prediction error variances are computed using the Takahashi sparse inverse
-  subset algorithm. This method uses the sparse LDLT factorization of the coefficient
-  matrix and recursively evaluates only those elements of the inverse that belong to
-  the sparsity pattern induced by the factorization. In particular, the diagonal
-  elements required for prediction error variances are obtained without constructing
-  the complete inverse matrix. Therefore, \code{uPevList} is returned while \code{Ci}
-  is not fully materialized.
-
-  With \code{solver="cholmod"} (see below), the supernodal factorization used during
-  REML iterations has no Takahashi selected-inverse equivalent. In that case
-  \code{computeCi=1} automatically performs one additional sparse LDLT factorization
-  of the converged coefficient matrix after REML convergence, purely to extract the
-  selected inverse subset. This is a single one-time cost, not repeated every
-  iteration, so the iterative speed benefit of \code{solver="cholmod"} is retained.
-
-  \code{2}: the complete inverse of the coefficient matrix is computed. The prediction
-  error variances in \code{uPevList} are then extracted from the appropriate diagonal
-  elements of \code{Ci}. This option is the most computationally and memory intensive,
-  especially for large mixed model equation systems. With \code{solver="cholmod"} the
-  full inverse is obtained directly from the supernodal factor (no extra LDLT
-  refactorization is needed for this mode).
-
-  For large models, \code{computeCi=0} is recommended during model fitting. If prediction
-  error variances or the full inverse are needed afterwards, they can be obtained with
-  \code{\link{postPEV}} without refitting the model.}
-
-   \item{solver}{Linear-system solver used by the Henderson implementation.
-   \code{"auto"} (default) picks a solver automatically based on the density of the
-   random-effect relationship matrices (\code{Gu}) actually supplied: if any random
-   effect uses a dense \code{Gu} (e.g. a genomic or marker-based relationship matrix,
-   which is typically close to fully dense), \code{"cholmod"} is selected; otherwise
-   (e.g. sparse pedigree-based relationship matrices, or no \code{Gu} at all)
-   \code{"ldlt"} is selected. Passing an explicit value (\code{"ldlt"}, \code{"pcg"},
-   or \code{"cholmod"}) always overrides the automatic choice.
-   \code{"ldlt"} uses the sparse direct simplicial LDLT factorization path.
-   \code{"pcg"} selects the iterative preconditioned conjugate-gradient path.
-  For REML fits with \code{computeCi=0}, random-effect precisions produced by
-  \code{vsm()} are applied matrix-free using their Kronecker factors, avoiding
-  explicit assembly of \eqn{K^{-1} \otimes A^{-1}} during optimization. The
-   complete coefficient matrix is materialized once after convergence for
-   compatibility with prediction and post-fit methods. Other PCG configurations
-   transparently use the assembled sparse path.
-   \code{"cholmod"} uses the supernodal (blocked, BLAS-3) sparse Cholesky
-   factorization bundled with R's \code{Matrix} package (SuiteSparse CHOLMOD),
-   accessed through \code{Matrix}'s public C API - no additional system library needs
-   to be installed, since \code{Matrix} is already a dependency of \code{sommer}.
-   Supernodal factorization can be faster than the simplicial LDLT path for large
-   coefficient matrices (e.g., models built on large pedigree or genomic relationship
-   matrices), because it reorganizes the sparse factorization into dense blocks that
-   are handled with threaded BLAS-3 kernels rather than column-by-column updates; the
-   speed-up depends on the BLAS linked to the running R installation. \code{solver="cholmod"}
-   currently supports all \code{computeCi} values (see above for how \code{computeCi=1}
-   is handled for this solver).
-   The covariance-model specification is independent of this choice: all solvers
-   receive the same generic CovarianceFactor descriptors produced by \code{vsm()}.}
-
-   \item{REML}{Logical, \code{TRUE} (default) fits variance/covariance parameters by
-   restricted maximum likelihood (REML), the classical choice for BLUP-style variance
-   component estimation. Setting \code{REML=FALSE} fits by maximum likelihood (ML)
-   instead: the log-likelihood, score equations, and reported \code{monitor}/log-lik
-   values drop the REML "restriction" term that accounts for the degrees of freedom
-   used to estimate the fixed effects. ML estimates of variance components are known
-   to be biased downward relative to REML, but unlike REML log-likelihoods, ML
-   log-likelihoods are directly comparable (via a likelihood-ratio test) across models
-   that differ in their \strong{fixed}-effects specification - REML likelihoods are only
-   comparable across models that share the same fixed effects. \code{REML=FALSE}
-   currently requires \code{solver="ldlt"} or \code{solver="cholmod"} (\code{solver=
-   "auto"} already resolves to one of these). \code{solver="pcg"} is not yet supported
-   with \code{REML=FALSE}. Prediction error variances (\code{uPevList}/\code{computeCi})
-   are still computed from the REML-style inverse regardless of \code{REML}.}
-
+   \item{contrasts}{an optional list. See the contrasts.arg of model.matrix.default.}
   \item{vcc}{Optional data frame of equality/scaling constraints between
   covariance parameters (columns \code{parameter}, \code{group} and optionally
   \code{scale}), identified through the \code{vcParams} table returned by
-  \code{returnParam=TRUE} and stored in the fit. See \code{\link{vcc}}.}
+  \code{control$output$setup=TRUE} and stored in the fit. See \code{\link{vcc}}.}
 
   \item{family}{A \code{stats::family()} object. The default Gaussian identity
   family uses the ordinary linear mixed-model implementation. Other families are
@@ -474,10 +266,11 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   number of trials are supplied as a single proportion response built with
   \code{\link{binm}}, whose trials are used as prior weights. Binomial,
   Poisson and negative binomial working residual dispersions are fixed to one.
-  PQL requires \code{blendWeight=0}; positive EM-direction weights are unsupported.
+  PQL uses outer-loop controls from \code{control$task$pql}; compatibility with
+  update and solver requests is model-dependent.
   For other families the reported \code{dispersion} is the Pearson estimate.
   The negative binomial \eqn{\theta} is estimated (conditional on the random
-  effects) with \code{pqlControl=list(estimateTheta=TRUE)} and returned in
+  effects) with \code{control$task$pql=list(estimateTheta=TRUE)} and returned in
   \code{theta.nb} and \code{theta.nb.se}. Because the working-model
   log-likelihood is not a GLMM likelihood, \code{llik}, \code{AIC} and
   \code{BIC} are \code{NA} for PQL fits and \code{anova()} likelihood ratio
@@ -492,507 +285,57 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   structure; in that case \code{dispersion} is a named vector with one value
   per trait.}
 
-  \item{pqlControl}{A named list controlling non-Gaussian PQL fits. Supported
-  entries are \code{maxit} (outer-iteration limit, default 20), \code{tol}
-  (relative deviance convergence tolerance, default \code{1e-5}) and
-  \code{estimateTheta} (estimate the negative binomial \eqn{\theta}, default
-  \code{FALSE}) and \code{warmStart} (reuse covariance parameters from the
-  preceding working fit when the observation and model layouts agree, default
-  \code{TRUE}). The \code{pqlMonitor} also reports \code{warmStarted} and
-  \code{innerIterations} and \code{symbolicAnalyses}. With the LDLT solver,
-  compatible warm fits reuse symbolic factorizations and selected-inverse
-  topology across PQL iterations while recomputing numeric factors. Other
-  solvers reuse their symbolic factorizations within each working fit.}
+    \item{covPar}{Known covariance parameters for the solve task selected by
+  \code{control$task$mode="solve"}. Accepted forms are a compatible fitted
+  \code{mmes} object, a named list of term parameters, or a parameter data
+  frame. When \code{NULL}, covariance values must be fixed in the model.}
 
-  \item{solveOnly}{If \code{TRUE}, no variance components are estimated: the
-  mixed-model equations are solved once at known covariance parameters (genetic
-  evaluation). The coefficient matrix is never assembled; a matrix-free
-  preconditioned conjugate gradient iterates on the data with block-Jacobi
-  preconditioning (one block for the fixed effects when there are at most 1000
-  of them, and one covariance-dimension block per random-effect level).
-  \code{pcgTol} is the relative-residual tolerance and \code{pcgMaxIters} the
-  iteration limit (0 = automatic). Requires a Gaussian identity model,
-  \code{computeCi=0}, no rotation, no \code{vcc}, a diagonal \code{W} if any,
-  and a block-diagonal residual covariance whose blocks have at most 10000
-  records. The result is an object of class \code{mmesSolve} with \code{b},
-  \code{u}, \code{bu}, \code{uList}, \code{fitted}, \code{residuals},
-  \code{theta} (covariance matrices used), \code{vcParams} (the natural-scale
-  parameters used, reusable as \code{covPar}) and \code{pcg} diagnostics. No
-  PEV or likelihood is computed. The reported residual is verified by applying
-  the current operator to the final solution. Periodic residual replacement is
-  available through \code{engine=mmes_control(pcg=list(residualRefresh=25L))}.
-  Set \code{pcg$warmStart=TRUE} with a fitted \code{covPar} object to reuse
-  compatible coefficients; coefficient names must agree exactly. REML-only
-  PCG estimator, recycling and block-RHS settings are rejected by this path.}
-  \item{covPar}{Known covariance parameters for \code{solveOnly=TRUE}. One of:
-  a fitted \code{mmes} object with the same random and residual terms (its
-  final estimates are used exactly); a list with one element per term, named by
-  term label or in formula order (random terms, then residual), each holding
-  either the natural-scale parameter vector (as in \code{fit$covPar}) or, for
-  \code{ism()}, \code{dsm()} and \code{usm()} terms, the full covariance
-  matrix (e.g. \eqn{G_0} and \eqn{R_0}); or a data frame with columns
-  \code{term}, \code{parameter} and \code{value} (as \code{vcParams} of an
-  \code{mmesSolve} result, or the \code{vcParams} table of
-  \code{returnParam=TRUE} with a \code{value} column). When \code{NULL}, every
-  parameter must already be fixed in the formula (e.g.
-  \code{vsm(ism(id), Gu=Ainv, sigma2=0.3, fixedSigma2=TRUE)}).}
-  \item{blasThreads}{Optional BLAS thread limit for the duration of this call:
-  \code{NULL} (default) preserves the existing setting, a positive integer
-  requests that count, and \code{"auto"} uses allocation-aware CPU availability
-  from the optional \code{parallelly} package. Runtime control requires the
-  optional \code{flexiblas} package for FlexiBLAS, or \code{RhpcBLASctl} for a
-  recognized supported BLAS. An unsupported or rejected explicit request is
-  an error. The previous setting is restored on return or error. This is a
-  process-wide BLAS setting, not an OpenMP limit or multi-node allocation.
-  OpenMP workers may also invoke BLAS: avoid oversubscription by choosing
-  appropriate \code{OMP_NUM_THREADS} before launching R. More BLAS threads
-  need not improve performance. Verbose output distinguishes configured
-  limits from measured CPU use. The result's \code{threadingDiagnostics}
-  records the backend, configured BLAS threads (\code{NA} when unknown),
-  allocation-aware CPUs, environment, numerical path, and CPU/elapsed times.
-  Average CPUs means aggregate process CPU seconds divided by elapsed
-  seconds, not a sampled active-thread count. Henderson fits additionally
-  record numeric factorization measurements, excluding symbolic analysis;
-  block-Schur measurements include block extraction and Schur assembly.
-  For PQL/profile fits these native measurements describe the returned inner
-  fit, while the fit-level measurement covers the outer call.}
-
-  \item{engine}{Optional structured control object returned by
-  \code{\link{mmes_control}} specifying the backend solver, memory budget,
-  iterative PCG configuration, and experimental numerical paths (e.g.,
-  block-banded Cholesky, multi-factor latent Woodbury Schur complements,
-  D-first ML, matrix-free PCG priors, and supernodal selected-inverse modes).
-  GPU dense kernels are opt-in through \code{mmes_control(gpu=TRUE)}. The
-  \code{gpuMinSize} control defaults to
-  \code{getOption("sommer.mme.gpuMinSize", 256L)}.
-  When provided, \code{engine} overrides the legacy top-level solver and iterative
-  arguments in a cleanly encapsulated, thread-isolated structure.}
-
-  \item{\dots}{Additional solver options or legacy arguments (such as \code{acceleration},
-  \code{factorScoreAugmentation}, \code{pcgTol}, \code{pcgTraceProbes}, \code{pcgPreconditioner},
-  \code{denseMemoryMB}, \code{gpu}, and \code{gpuMinSize}) automatically forwarded
-  to \code{\link{mmes_control}}. The deprecated named argument \code{emWeight}
-  remains available as an alias for \code{blendWeight}; it warns, and cannot be
-  supplied with \code{blendWeight}.}
-
-  \item{.internal}{Internal parameter list reserved for nested recursive calls (e.g. PQL inner fits).}
+  \item{.internal}{Reserved for package-internal recursive fitting state.
+  Users should not set this argument.}
 }
-
 \details{
 
-\strong{EM, PX-GEM and AI direction blending}
+\strong{Numerical controls}
 
-The REML E-step includes posterior uncertainty in both fixed coefficients and
-random effects. ML conditions on current GLS fixed effects.
-Closed-form M-steps update covariance scales and eligible
-fully free diagonal or unstructured random terms from their posterior
-moments. Under Henderson fitting, complete, fully free unstructured residual blocks and diagonal
-residual factors also have closed-form updates. Models without a closed-form
-joint M-step, including free structured covariance shapes, reduced-rank
-loadings, and equality or ratio
-constraints or incomplete unstructured residual blocks, use the same
-auxiliary objective with a numerical generalized EM M-step.
-Every accepted numerical M-step must
-increase Q, even if the numerical optimizer stops before convergence.
+\code{mmes()} keeps model specification separate from numerical policy.
+The \code{control} argument defaults to \code{mmes_control()}, whose
+modules have strict schemas: unknown field names are errors. The default
+configuration retains the former standard bundle: Henderson equations, REML,
+exact AI curvature, EM recovery, no extrapolation, 30 inner iterations,
+full covariance information, coefficient-matrix retention, and inherited
+solver/resource defaults. The \code{mmes_control} help gives every field,
+default, module owner and validation rule.
 
-With \code{blend="pxem"}, each random term is expanded as
-\eqn{u_j=a_j v_j}, with \eqn{a_j>0} and expanded covariance
-\eqn{G_{*j}=G_j(\phi)/a_j^2}. The E-step starts at \eqn{a_j=1}.
-An ordinary EM/GEM proposal seeds joint numerical optimization over the
-original admissible covariance parameters \eqn{\phi} and \eqn{\log a_j}.
-The expanded residual objective includes fixed/random and cross-random
-posterior uncertainty. Reduction returns \eqn{G_j=a_j^2G_{*j}} and resets
-expansion to identity for the next E-step. Fixed parameters, equality/ratio
-constraints, and scale floors apply to the reduced parameters throughout,
-not through post-hoc clipping. All covariance families supported by ordinary
-EM/GEM, including latent reduced-rank terms, can use this scalar expansion.
-Residual-only models use the ordinary EM/GEM update because there is no
-random term to expand.
+\strong{Ownership and eligibility}
 
-This implementation is PX-GEM: every accepted expanded M-step increases Q,
-but numerical optimization need not reach its maximum. It is not a full
-matrix expansion or a claim to reproduce another package's PX algorithm.
-The following coefficient-cache details describe the Henderson implementation.
-Non-reduced-rank models cache blockwise quadratic expansion moments.
-Reduced-rank models cache exact quadratic posterior moments in a normalized
-loading/design basis once per E-step, including cross-term uncertainty.
-Auxiliary-objective probes reuse these moments without coefficient solves.
-Both use existing coefficient-solver paths,
-but extra contractions can increase memory and runtime; fewer iterations
-do not guarantee faster fitting.
-
-The engine blends the selected EM-type and AI directions in working covariance coordinates,
-not their information matrices. Mixed proposals retain descriptor-defined
-working-coordinate trust caps. Mixed or damped proposals use observed
-likelihood backtracking; a rejected mixture also tries the selected EM-type
-direction. PX-GEM proposals always use likelihood backtracking and may
-fall back to their ordinary EM/GEM seed if rejected.
-Undamped closed-form EM steps evaluate their likelihood at the next E-step
-without a duplicate trial fit. Fixed parameters, scale floors, and
-\code{vcc} constraints remain in force. Numerically unfactorizable trial
-fits are rejected with a warning and recorded diagnostic reasons; unrelated
-evaluation errors propagate.
-
-Full Henderson EM or PX-GEM weights skip iterative scores and AI sensitivity solves. Zero weights
-skip posterior-moment and M-step work. Exact final AI is still computed for
-covariance-parameter standard errors. Non-reduced-rank AI directions, including
-zero-weight iterations inside a blended schedule, use the native exact AI
-trace and sensitivity kernels. Reduced-rank terms retain their shared latent
-AI kernels. Accepted trial fits can supply the next zero-weight iteration's
-likelihood, score, and information without another coefficient factorization.
-Final exact inference reuses such a fit when available. Blending guards,
-constraints, and likelihood backtracking remain active.
-The blend diagnostics \code{nativeAIEvaluations}, \code{latentAIEvaluations},
-and \code{acceptedAIFitReuses} report this dispatch and reuse.
-Random posterior moments reuse exact
-Schur inverse blocks or selected-inverse contractions when available.
-Structurally diagonal covariance updates request only diagonal moments.
-Scalar residual updates use a trace identity that includes fixed-effect
-uncertainty; scalar non-reduced-rank PX expansion moments reuse exact
-coefficient contractions when their sparse products fit the memory budget.
-Uncached contractions retain bounded exact panel solves as a fallback.
-Structured residuals can still require dense observed-block moment matrices.
-They obey \code{denseMemoryMB}; large blocks can require a larger budget.
-PX-GEM additionally budgets expansion contractions and optimizer workspace.
-For non-reduced-rank models, expansion-moment storage grows quadratically
-with the number of random terms.
-Reduced-rank moment-cache storage grows quadratically with the loading/design
-basis size. \code{latentMomentPreparations} and \code{latentMomentBases} report
-cache preparations and the largest basis size in \code{engineDiagnostics$blend}.
-The same list reports \code{randomMomentPairs},
-\code{randomOffDiagonalPairsSkipped}, \code{scalarResidualTraceSteps},
-\code{scalarResidualContractions}, and \code{momentPanelSolves}.
-Top-level \code{engineDiagnostics} counters \code{emInverseTraceCalls},
-\code{emInverseTraceFallbackPanels}, and \code{emDesignTraceCalls} distinguish
-backend contractions from their uncached exact-panel fallbacks.
-
-\strong{Direct observation-space EM}
-
-With \code{henderson=FALSE}, the same \code{blend} and \code{blendWeight}
-controls select AI, EM/GEM, scalar PX-GEM, mixed directions, or exponential
-tapers. Omitted weights select AI-first recovery; explicit zero weights disable
-EM work and recovery. No Henderson coefficient solve is used.
-Exact random sufficient statistics contract the cached observation kernels
-\eqn{Z_a K Z_b'} with \eqn{Py(Py)'} minus \eqn{P} for REML or
-\eqn{V^{-1}} for ML. Residual moments use the same observation order, weights,
-and observed residual-block indices as direct likelihood assembly.
-Zero-specific reduced-rank terms use nonsingular latent priors and
-candidate-dependent loading maps, not inverses of singular random covariances.
-PX objectives retain cross-term and fixed-effect posterior uncertainty.
-
-Eligible scale, diagonal, and unstructured random M-steps are closed form.
-Other direct updates, including structured or incomplete residual covariances,
-custom covariance factors, partially fixed structures, and \code{vcc} constraints,
-numerically increase Q. These are GEM, not a guarantee of global Q maximization.
-ML profiles fixed effects inside the residual Q objective; REML integrates their
-joint posterior uncertainty. Full EM weights compute no AI update solves.
-Projected-score convergence checks and clean final AI inference remain active.
-Full undamped EM proposals bypass AI trust caps but still pass covariance
-validity and observed-likelihood checks. Accepted trials supply the next
-iteration's likelihood state. Exact EM workspace obeys \code{denseMemoryMB};
-the estimate covers EM workspace, not all pre-existing direct-engine caches.
-
-\code{engineDiagnostics$direct} records optimizer, stop reason, projected
-score certificate, line-search halvings, \code{aiUpdateSolves}, and likelihood
-evaluations. \code{engineDiagnostics$blend} records actual weights, Q gains,
-closed-form/GEM seed counts, \code{eStepEvaluations}, numerical M-step
-status/evaluation counts, PX expansions, and fallbacks. Q and expansion histories
-describe proposals before outer backtracking; uncomputed Q gains and M-step
-statuses are \code{NA}. The final evaluated iteration has no proposal.
-Direct recovery uses the same poor-progress triggers and regularized-AI helper
-as Henderson. Information reliability is tested after diagonal normalization,
-so a small variance alone does not force recovery. Recovery attempts require
-observed-likelihood gains above \code{1e-10} and resume AI after acceptance.
-The common \code{engineDiagnostics$recovery} fields describe these attempts.
-
-For PX-GEM, \code{engineDiagnostics$blend} includes \code{pxEvaluations},
-\code{pxExpansionTerms}, \code{pxLogExpansion} (random terms by iterations),
-\code{pxQGains} (expanded Q improvement beyond the ordinary seed),
-\code{pxMstepConverged}, \code{pxMstepEvaluations}, and \code{pxEMFallbacks}.
-Expansion values and Q gains describe proposed updates, before likelihood
-backtracking or fallback; the final iteration has no proposal.
-The existing \code{closedFormSteps}, \code{generalizedSteps}, and numerical
-M-step fields describe ordinary seeds. \code{qGains} includes the expanded
-improvement when PX is selected.
-
-All Henderson optimizer paths factor a full weight matrix in observation
-order. This fixes a previous pure-AI ordering discrepancy for correlated
-weights, ensuring that changing \code{blendWeight} does not change the
-weighted model. Correlated-weight results can therefore differ from earlier
-versions; diagonal-weight fits are unaffected by this correction.
-
-\strong{Optional GPU kernels}
-
-CPU is the default. Set \code{options(sommer.mme.gpu=TRUE)} to request CUDA
-kernels by default, or use \code{engine=mmes_control(gpu=TRUE)} for one fit.
-Explicit \code{gpu=FALSE} controls override the global option. Package startup
-checks accessible NVIDIA hardware before probing CUDA libraries and reports
-whether GPU use is ready, libraries or a CUDA-enabled build are missing, or
-device initialization failed. A compatible NVIDIA driver, CUDA runtime,
-cuBLAS, cuSOLVER, and a CUDA-enabled sommer build are required.
-
-On Linux, build with \code{SOMMER_CUDA_HOME=/path/to/cuda R CMD INSTALL --preclean .}.
-CUDA libraries load dynamically, so the same build can fit on CPU without them.
-Explicit GPU requests stop if unavailable; direct inversion and \code{solveOnly}
-remain CPU-only. GPU use does not alter the existing \code{solver="auto"} policy.
-
-Eligible dense Cholesky factorizations, triangular solves, and Schur products
-can use CUDA. Sparse factorization, assembly, and remaining trace operations
-remain on CPU. Small operations stay on CPU according to \code{gpuMinSize}.
-The returned \code{gpuDiagnostics} contains \code{enabled}, \code{minimumSize},
-\code{choleskyCalls}, \code{triangularSolveCalls}, and \code{productCalls};
-zero counters mean no GPU kernels ran. Operands currently transfer per operation,
-so GPU availability alone does not imply faster fitting.
-
-\strong{Iteration output}
-
-With \code{verbose=TRUE}, \code{mmes()} prints an
-iteration table with the same columns for ordinary AI, hybrid AI, reduced-rank
-AI, explicit EM/PX-GEM blending, automatic recovery, and direct inversion.
-Direct inversion reports \code{policy="off"} with unavailable safeguard fields.
-The table uses compact
-fixed-width fields and a single monotonic elapsed-time column, rather than
-local clock time and process CPU time.
 \describe{
-  \item{\code{iter}}{The iteration number.}
-  \item{\code{LogLik}}{The log likelihood at the current accepted parameter
-  values (restricted log likelihood when \code{REML=TRUE}).}
-  \item{\code{deltaLL}}{Change from the preceding printed accepted likelihood;
-  \code{-} on the first row.}
-  \item{\code{update}}{The selected proposal method: \code{AI}, \code{hybrid-AI},
-  \code{AI-reg} (scaled, regularized AI), \code{EM}, or \code{PXEM}.
-  A mixture such as \code{AI+EM:0.40} shows the
-  EM-type direction weight. Fallbacks show the method actually tried last.
-  A final row may report a selected method without taking another step.}
-  \item{\code{policy}}{\code{auto:em} or \code{auto:pxem} means AI-first
-  monitoring with that recovery method available. A recovery row instead names
-  its trigger: \code{backtracking}, \code{low-gain}, \code{line-search}, or
-  \code{info-solve}. The \code{update} column identifies the recovery method.
-  Subsequent AI rows return to the automatic policy label.
-  \code{scheduled} denotes an explicit positive blend weight, not automatic
-  recovery; \code{off} denotes a path or explicit zero weight with no automatic
-  recovery. A trigger names an attempted recovery, not proof that it succeeded;
-  consult \code{engineDiagnostics$recovery} for acceptance and stop reasons.}
-  \item{\code{trust}}{Joint proposal scaling due to trust caps and feasibility
-  bounds, separate from likelihood backtracking. A value of \code{1} means no
-  such shortening.}
-  \item{\code{line}}{Likelihood line-search multiplier; \code{1} means no
-  halving. Standalone reduced-rank AI includes \code{stepWeight} in this field.}
-  \item{\code{notPD}}{The one-based covariance structure indices whose proposed
-  updates failed the positive-definiteness check and required local fallback.
-  Multiple indices are comma-separated (e.g., \code{2,3}); \code{-} means none
-  failed or this local-fallback diagnostic does not apply. Indices follow the
-  random terms, with the residual structure last. EM/PX and latent fitting use
-  candidate rejection rather than this local covariance repair.}
-  \item{\code{time(s)}}{Cumulative elapsed seconds since the optimizer started,
-  including time spent on rejected trials. This is not process CPU time.}
+  \item{Task}{\code{control$task} selects fitting or known-covariance solving,
+  REML or ML, and outer PQL controls.}
+  \item{Formulation}{\code{control$formulation} selects Henderson or direct
+  observation-space equations.}
+  \item{Representation and solve}{\code{control$representation} describes
+  equation/covariance representation; \code{control$solve} owns linear solver,
+  preconditioning, reuse and elimination requests.}
+  \item{Evaluation}{\code{control$logdet} owns determinant methods;
+  \code{control$score} owns score traces and covariance checks;
+  \code{control$curvature} owns exact or hybrid AI and reduced-direction work.}
+  \item{Optimization}{\code{control$update} owns EM/PXEM recovery, blending
+  and common-scale profiling. \code{control$proposal} owns step scaling and
+  Aitken extrapolation. Aitken and hybrid AI are mutually exclusive.}
+  \item{Convergence and outputs}{\code{control$convergence} owns inner
+  iteration, tolerances and stochastic accuracy; \code{control$output} owns
+  coefficient/covariance uncertainty and setup output.}
+  \item{Execution and diagnostics}{\code{control$execution} owns memory,
+  hardware, threading, precision and seeds. \code{control$diagnostics} owns
+  verbosity, package-age warnings and profiling.}
 }
-An unavailable or unattempted safeguard is printed as \code{-}, not a
-successful multiplier. Ordinary AI reports the current proposal's trust cap
-and the incoming accepted step's line search; standalone reduced-rank AI
-reports incoming accepted scales. The EM/PX/automatic driver reports the
-current row's outgoing attempted scales, after any recovery or fallback.
-Detailed Q gains, step norms, exact blend weights, and numerical work counters
-remain in the fit and \code{engineDiagnostics}; display formatting does not
-change optimization or the existing diagnostic fields.
-Legacy \code{mmer()} progress output and its \code{emWeight} argument retain
-their existing interface and are separate from \code{mmes()} direction blending.
-Likelihoods use six decimals, likelihood gains four, safeguard scales three,
-and elapsed seconds two; scientific notation is used when needed to fit.
-Stored estimates are not rounded; very small values may display as zero.
 
-\strong{Evaluation environments and observation filtering}
-
-The current interface follows R-style model evaluation. Variables referenced by
-\code{fixed}, \code{random}, and \code{rcov} may be supplied as columns of
-\code{data} or resolved from the formula/calling environment. This makes it possible,
-for example, to keep relationship matrices, external grouping variables, or spatial
-coordinates outside the analysis data frame.
-
-Missingness is handled through a common observation-selection mechanism. The response,
-fixed effects, random effects, and residual covariance specification are evaluated
-against the original observation set and their validity is combined into a single
-inclusion mask. The same retained rows are then used for the response vector,
-fixed-effect design matrix, random-effect design matrices, optional weight matrix,
-and residual covariance indexing. This avoids independently subsetting different
-parts of the mixed model.
-
-The fitted object contains \code{obsInfo}, an observation-level audit table describing
-the filtering process. It records the original row index, validity of the response,
-fixed, random, and residual components, whether the observation was retained, and,
-when applicable, the reason for exclusion. This can be useful for diagnosing model
-specifications involving missing values.
-
-\strong{Estimated marginal means}
-
-When the suggested \pkg{emmeans} package is installed, univariate \code{mmes}
-fits can be supplied directly to \code{emmeans::emmeans()}. The resulting means
-are population-level fixed-effect marginal means with covariance obtained from
-the mixed-model equations. Inference uses asymptotic degrees of freedom
-(\code{df = Inf}). Multivariate-response fits are not currently supported by
-this interface.
-
-Random and residual formulas are evaluated as R language objects rather than by
-splitting their textual representation at plus signs. Consequently, arithmetic or
-nested expressions inside model terms are not interpreted as separate top-level
-random or residual terms.
-
-The use of this function requires a good understanding of mixed models. 
-Please review the 'sommer.quick.start' vignette and pay attention to details 
-like format of your random and fixed variables (e.g. character and factor 
-variables have different properties when returning BLUEs or BLUPs).
-
-\strong{For tutorials} on how to perform different analysis with sommer please
-look at the vignettes by typing in the terminal:
-
-vignette("v1.sommer.quick.start")
-
-vignette("v2.sommer.changes.and.faqs")
-
-vignette("v3.sommer.qg")
-
-vignette("v4.sommer.gxe")
-
-\strong{Citation}
-
-Type \emph{citation("sommer")} to know how to cite the sommer package in your publications.
-
-\strong{Special variance structures}
-
- \code{\link{vsm}(\link{atm}(x,levels),ism(y))}
-
- can be used to specify heterogeneous variance for the "y" covariate at specific
- levels of the covariate "x", e.g., \emph{random=~vsm(at(Location,c("A","B")),ism(ID))}
- fits a variance component for ID at levels A and B of the covariate Location.
-
- \code{\link{vsm}(\link{dsm}(x),ism(y))}
-
- can be used to specify a diagonal covariance structure for the "y" covariate 
- for all levels of the covariate "x", e.g., \emph{random=~vsm(dsm(Location),ism(ID))} 
- fits a variance component for ID at all levels of the covariate Location.
-
- \code{\link{vsm}(\link{usm}(x),ism(y))}
-
- can be used to specify an unstructured covariance structure for the "y" covariate 
- for all levels of the  covariate "x", e.g., \emph{random=~vsm(usm(Location),ism(ID))}  
- fits variance and covariance components for ID at all levels of the covariate Location.
- 
- \code{\link{vsm}(\link{usm}(rrmat(x,y,z,nPC)),ism(y))}
-
- can be used to specify an unstructured covariance structure for the "y" effect
- for all levels of the  covariate "x", and a response variable "z", e.g., 
- \emph{random=~vsm(rrmat(Location,ID,response, nPC=2),ism(ID))}  fits a reduced-rank 
- factor analytic covariance for ID at 2 principal components of the covariate Location.
-
-  \code{\link{vsm}(ism(\link[enhancer]{overlay}(...,rlist=NULL,prefix=NULL)))}
-
- can be used to specify overlay of design matrices between consecutive random 
- effects specified, e.g., \emph{random=~vsm(ism(overlay(male,female)))} overlays
- (overlaps) the incidence matrices for the male and female random effects to obtain
- a single variance component for both effects. The `rlist` argument is a list with 
- each element being a numeric value that multiplies the incidence matrix to be 
- overlayed. See \code{\link[enhancer]{overlay}} for details.Can be combined with vsm().
- 
-   \code{\link{vsm}(ism(\link[enhancer]{redmm}(x,M,nPC)))}
-
- can be used to create a reduced model matrix of an effect (x) assumed to be a 
- linear function of some feature matrix (M), e.g., \emph{random=~vsm(ism(redmm(x,M)))} 
- creates an incidence matrix from a very large set of features (M) that belong 
- to the levels of x to create a reduced model matrix. See \code{\link[enhancer]{redmm}} 
- for details.Can be combined with vsm().
-
-  \code{\link{vsm}(\link[enhancer]{leg}(x,n),ism(y))}
-
-  can be used to fit a random regression model using a numerical variable \code{x} 
-  that marks the trayectory for the random effect \code{y}. The leg function can 
-  be combined with the special functions \code{dsm}, \code{usm} \code{at} and \code{csm}. 
-  For example \emph{random=~vsm(leg(x,1),ism(y))} or \emph{random=~vsm(usm(leg(x,1)),ism(y))}.
-
-  \code{\link{spl2Dc}(x.coord, y.coord, at.var, at.levels))}
-
-  can be used to fit a 2-dimensional spline (e.g., spatial modeling) using 
-  coordinates \code{x.coord} and \code{y.coord} (in numeric class) assuming 
-  multiple variance components. The 2D spline can be fitted at specific 
-  levels using the \code{at.var} and \code{at.levels} arguments. For example
-  \emph{random=~spl2Dc(x.coord=Row,y.coord=Range,at.var=FIELD)}.
-
-\strong{Covariance between random effects}
-
- \code{\link{covm}( \link{vsm}(\link{ism}(ran1)), \link{vsm}(\link{ism}(ran2)) )}
-
- can be used to specify covariance between two different random effects, e.g.,
- \emph{random=~covm( vsm(ism(x1)), vsm(ism(x2)) )} where two random effects in 
- their own vsm() structure are encapsulated. Only applies for simple random effects.
- 
-\strong{S3 methods}
-
-S3 methods are available for some parameter extraction such as
-\code{\link{fitted.mmes}}, \code{\link{residuals.mmes}}, \code{\link{summary.mmes}},
-\code{\link{randef}}, \code{\link{coef.mmes}}, \code{\link{anova.mmes}},
-\code{\link{plot.mmes}}, and \code{\link{predict.mmes}} to obtain adjusted means.
-In addition, the \code{\link{vpredict}} function (replacement of the pin 
-function) can be used to estimate standard errors for linear combinations of 
-variance components (e.g., ratios like h2). The \code{\link{r2}} function calculates
-reliability. 
-
-
-\strong{Additional Functions}
-
-Additional functions for genetic analysis have been included such as relationship 
-matrix building (\code{\link{A.mat}}, \code{\link{D.mat}}, \code{\link{E.mat}},
-\code{\link{H.mat}}),  build a genotypic hybrid marker matrix (\code{\link[enhancer]{build.HMM}}), 
-plot of genetic maps (\code{\link[enhancer]{map.plot}}), and manhattan plots
-(\code{\link[enhancer]{manhattan}}). If you need to build a pedigree-based relationship 
-matrix use the \code{getA} function from the pedigreemm package.
-
-\strong{Bug report and contact}
-
-If you have any technical questions or suggestions please post it in
-https://stackoverflow.com or https://stats.stackexchange.com for the community
-to help you.
-
-If you have any bug report please go to https://github.com/covaruber/sommer or 
-send me an email to address it asap, just make sure you have read the vignettes 
-carefully before sending your question. If you need professional consulting 
-support visit https://covaruber.github.io/sommer/
-
-\strong{Example Datasets}
-
-The package has been equiped with several datasets to learn how to use the sommer package:
-
-* \code{\link[enhancer]{DT_halfdiallel}}, \code{\link[enhancer]{DT_fulldiallel}} and \code{\link[enhancer]{DT_mohring}} 
-datasets have examples to fit half and full diallel designs.
-
-* \code{\link[enhancer]{DT_h2}} to calculate heritability
-
-* \code{\link[enhancer]{DT_cornhybrids}} and \code{\link[enhancer]{DT_technow}} datasets to perform
-genomic prediction in hybrid single crosses
-
-* \code{\link[enhancer]{DT_wheat}} dataset to do genomic prediction in single crosses in 
-species displaying only additive effects.
-
-* \code{\link[enhancer]{DT_cpdata}} dataset to fit genomic prediction models within a
-biparental population coming from 2 highly heterozygous parents including additive, 
-dominance and epistatic effects.
-
-* \code{\link[enhancer]{DT_polyploid}} to fit genomic prediction and GWAS analysis in polyploids.
-
-* \code{\link[enhancer]{DT_gryphon}} data contains an example of an animal model including 
-pedigree information.
-
-* \code{\link[enhancer]{DT_btdata}} dataset contains an animal (birds) model.
-
-* \code{\link[enhancer]{DT_legendre}} simulated dataset for random regression model.
-
-* \code{\link[enhancer]{DT_sleepstudy}} dataset to know how to translate lme4 models to 
-sommer models.
-
-* \code{\link[enhancer]{DT_ige}} dataset to show how to fit indirect genetic effect models.
-
-\strong{Models Enabled}
-
-For details about the models enabled and more information about the covariance 
-structures please check the help page of the package (\code{\link{sommer}}).
+These modules do not form a Cartesian product of interchangeable algorithms.
+Model-dependent admission remains authoritative; a requested mode may be
+ineligible. Consult \code{\link{mmes_control}} for prerequisites, exclusions
+and current behavior. No new method combinations are implied by the modular API.
+The internal \code{.mmes_capabilities()} catalog is descriptive and does
+not resolve eligibility or predict execution.
 
 }
 
@@ -1017,6 +360,22 @@ If all parameters are correctly indicated the program will return a list with th
              the list corresponds to the different random and residual components}
 \item{covPar}{the fitted covariance parameters in their descriptor-defined
 reported coordinates.}
+\item{control}{the validated modular numerical controls used for the fit.
+See \code{\link{mmes_control}}.}
+\item{pcgRecycleState}{present only when \code{pcg$exportRecycle=TRUE}.
+A versioned serializable Krylov basis with coefficient-coordinate metadata,
+for explicit import into a compatible PCG fit.}
+\item{covarianceInformation}{\code{"none"} when covariance information was
+explicitly omitted. The default retains full covariance information.}
+\item{retainCoefficientMatrix}{FALSE when an opt-in C-free saddle-point fit
+omitted the final compatibility matrix. In that mode \code{C} is NULL, and
+C-based post-fit methods require a refit retaining C. The default retains C.}
+\item{engineDiagnostics}{path-dependent numerical diagnostics.
+\code{compression} reports method, original observations, groups, residual
+classes, retained statistic bytes and setup time. \code{pcg} reports iterative
+work, reuse and stochastic accuracy diagnostics for REML PCG.
+\code{profile} contains detailed phase timings when explicitly enabled.
+Retained statistic bytes are not process peak memory.}
 \item{pcgMatrixFree}{logical indicating whether the matrix-free Kronecker PCG
 path was used during optimization.}
 \item{residualCovarianceCompact}{logical indicating that a complete, unweighted,
@@ -1027,12 +386,14 @@ residual element of \code{theta} is a \eqn{0 \\times 0} matrix; use
 \item{covParNative}{a data frame containing all fixed and estimated covariance
 parameters in the native model-facing scale defined by each CovarianceFactor.
 For example, \code{dsm()} entries are level-specific variances rather than
-variance ratios. This is the same result returned by \code{covparams_mmes()}.}
-\item{covParNativeSE}{the native-scale covariance-parameter table augmented
-with delta-method standard errors and Z ratios. This is the same result
-returned by \code{covparams_mmes_se()}.}
-\item{theta_se}{inverse of the information matrix.}
-\item{InfMat}{information matrix.}
+variance ratios. The table includes delta-method \code{StdError} and
+\code{Zratio} columns when covariance information is retained, matching
+\code{covparams_mmes_se()}. With \code{covarianceInformation="none"} these
+columns are NA; \code{covparams_mmes()} still returns point estimates.}
+\item{theta_se}{covariance-parameter uncertainty matrix; NULL when
+\code{covarianceInformation="none"}.}
+\item{InfMat}{information matrix; NULL when
+\code{covarianceInformation="none"}.}
 \item{monitor}{The values of the variance-covariance components across iterations 
               during the REML estimation.}
 \item{AIC}{Akaike information criterion}
@@ -1042,8 +403,8 @@ returned by \code{covparams_mmes_se()}.}
                   each random effect starts and ends.}
 \item{partitionsX}{a list where each element contains a matrix indicating where 
                    each fixed effect starts and ends.}
-\item{percDelta}{the matrix of percentage change in deltas (see tolParConvNorm argument).}
-\item{normMonitor}{the matrix of the three norms calculated (see tolParConvNorm argument).}
+\item{percDelta}{the matrix of percentage change in deltas (see \code{control$convergence$parameterTol}).}
+\item{normMonitor}{the matrix of the three norms calculated (see \code{control$convergence$parameterTol}).}
 \item{toBoundary}{the matrix of variance components that were forced to the
                    boundary across iterations.}
 \item{Cchol}{the Cholesky decomposition of the coefficient matrix.}
@@ -1111,7 +472,8 @@ summary(ans1)
 sol1 <- mmes(Yield~Env,
              random= ~ Name + Env:Name,
              rcov= ~ units,
-             data=DT, solveOnly=TRUE, covPar=ans1)
+             data=DT, control=mmes_control(task=list(mode="solve")),
+             covPar=ans1)
 head(sol1$uList[[1]])
 
 \donttest{

@@ -4,13 +4,12 @@ oatsVcc <- function(){
 }
 
 vccFit <- function(..., henderson=TRUE){
-  mmes(..., verbose=FALSE, tolParConvLL=1e-11, tolParConvNorm=1e-11, nIters=100,
-       henderson=henderson, blendWeight=if(henderson) NULL else 0)
+  mmes(..., control=mmes_control(formulation=if(henderson) "henderson" else "direct", diagnostics=list(verbose=FALSE), convergence=list(likelihoodTol=1e-11, parameterTol=1e-11, maxIters=100), update=list(blendWeight=if(henderson) NULL else 0)))
 }
 
 test_that("returnParam exposes the variance-parameter table", {
   oats <- oatsVcc()
-  p <- mmes(Y ~ V*N, random=~B + B:MP, rcov=~units, data=oats, returnParam=TRUE)
+  p <- mmes(Y ~ V*N, random=~B + B:MP, rcov=~units, data=oats, control=mmes_control(output=list(setup=TRUE)))
   expect_equal(p$vcParams$term, c("vsm(ism(B))", "vsm(ism(B:MP))", "vsm(ism(units))"))
   expect_equal(p$vcParams$kind, rep("scale", 3))
   expect_equal(p$vcParams$index, 1:3)
@@ -73,13 +72,10 @@ test_that("equated correlations reach the constrained REML optimum", {
 
 test_that("vcc validates groups and propagates fixed parameters", {
   oats <- oatsVcc()
-  expect_error(mmes(Y ~ V*N, random=~B + vsm(ar1m(N), ism(B)), rcov=~units, data=oats,
-                    verbose=FALSE, vcc=data.frame(parameter=c(1, 3), group=1)),
+  expect_error(mmes(Y ~ V*N, random=~B + vsm(ar1m(N), ism(B)), rcov=~units, data=oats, vcc=data.frame(parameter=c(1, 3), group=1), control=mmes_control(diagnostics=list(verbose=FALSE))),
                "different kinds")
-  expect_error(mmes(Y ~ V*N, random=~B, rcov=~units, data=oats, verbose=FALSE,
-                    vcc=data.frame(parameter=c(1, 9), group=1)), "Unknown parameters")
-  expect_error(mmes(Y ~ V*N, random=~B, rcov=~units, data=oats, verbose=FALSE,
-                    vcc=data.frame(parameter=1, group=1)), "single parameter")
+  expect_error(mmes(Y ~ V*N, random=~B, rcov=~units, data=oats, vcc=data.frame(parameter=c(1, 9), group=1), control=mmes_control(diagnostics=list(verbose=FALSE))), "Unknown parameters")
+  expect_error(mmes(Y ~ V*N, random=~B, rcov=~units, data=oats, vcc=data.frame(parameter=1, group=1), control=mmes_control(diagnostics=list(verbose=FALSE))), "single parameter")
   fx <- vccFit(Y ~ V*N, random=~vsm(ism(B), sigma2=50, fixedSigma2=TRUE) + B:MP,
                rcov=~units, data=oats, vcc=data.frame(parameter=c(1, 2), group=1))
   expect_equal(unname(unlist(fx$covPar))[1:2], c(50, 50), tolerance=1e-8)

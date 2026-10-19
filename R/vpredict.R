@@ -3,6 +3,7 @@ vpredict <- function(object, transform) {
 }
 
 vpredict.mmes <- function (object, transform){
+  .mmes_require_covariance_information(object)
   
   pframe <- as.list(summary(object)$varcomp[,"estimate"])
   names(pframe) <- paste("V", seq(1, length(pframe)), sep = "")

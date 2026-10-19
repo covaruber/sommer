@@ -1,7 +1,8 @@
 library(sommer)
 
 .solve_reference_bu <- function(fit, args){
-  inputs <- do.call(mmes, c(args, list(returnParam=TRUE, verbose=FALSE, dateWarning=FALSE)))
+  inputs <- do.call(mmes, c(args, list(control=mmes_control(
+    output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))))
   cs <- inputs$covStruct
   for(i in seq_along(cs)){
     cs[[i]]$par <- fit$covParWorking[[i]]
@@ -17,10 +18,13 @@ library(sommer)
 }
 
 .solve_check <- function(args, nIters=15L){
-  fit <- suppressWarnings(suppressMessages(do.call(mmes,
-    c(args, list(nIters=nIters, verbose=FALSE, dateWarning=FALSE)))))
+  fit <- suppressWarnings(suppressMessages(
+    do.call(mmes, c(args, list(control=mmes_control(
+      convergence=list(maxIters=nIters),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE)))))))
   sol <- suppressMessages(do.call(mmes,
-    c(args, list(solveOnly=TRUE, covPar=fit, pcgTol=1e-12, verbose=FALSE, dateWarning=FALSE))))
+    c(args, list(covPar=fit, control=mmes_control(task=list(mode="solve"),
+      solve=list(tol=1e-12), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))))
   ref <- .solve_reference_bu(fit, args)
   expect_s3_class(sol, "mmesSolve")
   expect_true(sol$convergence)
@@ -72,41 +76,47 @@ test_that("solveOnly matches the engine with spatial residuals and diagonal weig
 test_that("covPar accepts lists and parameter tables and validates them", {
   data(DT_example)
   args <- list(fixed=Yield~Env, random=~vsm(usm(Env), ism(Name)), rcov=~units,
-               data=DT_example, verbose=FALSE, dateWarning=FALSE)
-  fit <- suppressMessages(do.call(mmes, c(args, list(nIters=15L))))
-  first <- suppressMessages(do.call(mmes, c(args, list(solveOnly=TRUE, covPar=fit, pcgTol=1e-12))))
+               data=DT_example)
+  fit <- suppressMessages(do.call(mmes, c(args, list(control=mmes_control(
+    convergence=list(maxIters=15L), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))))
+  solveControl <- mmes_control(task=list(mode="solve"), solve=list(tol=1e-12))
+  first <- suppressMessages(do.call(mmes, c(args, list(covPar=fit,
+    control=solveControl))))
 
   fromList <- suppressMessages(do.call(mmes,
-    c(args, list(solveOnly=TRUE, covPar=fit$covPar, pcgTol=1e-12))))
+    c(args, list(covPar=fit$covPar, control=solveControl))))
   expect_equal(fromList$bu, first$bu, tolerance=1e-6)
 
   fromTable <- suppressMessages(do.call(mmes,
-    c(args, list(solveOnly=TRUE, covPar=first$vcParams, pcgTol=1e-12))))
+    c(args, list(covPar=first$vcParams, control=solveControl))))
   expect_equal(fromTable$bu, first$bu, tolerance=1e-10)
 
   bad <- first$vcParams[-1L, ]
-  expect_error(suppressMessages(do.call(mmes, c(args, list(solveOnly=TRUE, covPar=bad)))),
+  expect_error(suppressMessages(do.call(mmes, c(args, list(
+    covPar=bad, control=solveControl)))),
                "missing parameters")
-  expect_error(suppressMessages(do.call(mmes, c(args, list(solveOnly=TRUE)))),
+  expect_error(suppressMessages(do.call(mmes, c(args, list(control=solveControl)))),
                "needs every covariance parameter")
   expect_error(suppressMessages(do.call(mmes, c(args, list(covPar=fit)))),
-               "only used with solveOnly")
+               "only used with task\\$mode='solve'")
 
   fixedArgs <- list(fixed=Yield~Env,
                     random=~vsm(ism(Name), sigma2=4, fixedSigma2=TRUE),
                     rcov=~vsm(ism(units), sigma2=8, fixedSigma2=TRUE),
-                    data=DT_example, verbose=FALSE, dateWarning=FALSE)
-  inFormula <- suppressMessages(do.call(mmes, c(fixedArgs, list(solveOnly=TRUE, pcgTol=1e-12))))
+                    data=DT_example)
+  inFormula <- suppressMessages(do.call(mmes, c(fixedArgs,
+    list(control=solveControl))))
   table <- inFormula$vcParams
   expect_equal(table$value, c(4, 8))
   # BLUP depends only on the variance ratio.
   table$value <- table$value * 3
-  scaled <- suppressMessages(do.call(mmes, c(fixedArgs, list(solveOnly=TRUE, covPar=table, pcgTol=1e-12))))
+  scaled <- suppressMessages(do.call(mmes, c(fixedArgs,
+    list(covPar=table, control=solveControl))))
   expect_equal(scaled$bu, inFormula$bu, tolerance=1e-8)
 
   G0 <- fit$theta[[1]]
   fromMatrix <- suppressMessages(do.call(mmes,
-    c(args, list(solveOnly=TRUE, covPar=list(G0, fit$theta[[2]]), pcgTol=1e-12))))
+    c(args, list(covPar=list(G0, fit$theta[[2]]), control=solveControl))))
   expect_equal(fromMatrix$bu, first$bu, tolerance=1e-6)
   expect_equal(unname(fromMatrix$theta[[1]]), unname(G0), tolerance=1e-10)
 })

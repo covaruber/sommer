@@ -31,10 +31,14 @@ varu_dense_reference <- function(model){
 test_that("postVarU matches dense reference and preserves PEV outputs", {
   fixture <- varu_fixture()
   for(REML in c(TRUE,FALSE)){
-    model <- mmes(y~env, random=~vsm(usm(env), ism(id), Gu=fixture$precision),
-                  data=fixture$data, REML=REML, verbose=FALSE, computeCi=0)
+    model <- mmes(y~env, random=~vsm(usm(env), ism(id), Gu=fixture$precision), data=fixture$data, control=mmes_control(task=list(objective=if(REML) "reml" else "ml"), diagnostics=list(verbose=FALSE), output=list(inverse=0)))
     reference <- varu_dense_reference(model)
+    expect_identical(model$CiMode, 0L)
+    selected <- postPEV(model, 1L)
     original <- postPEV(model,2)
+    expect_false(isTRUE(selected$CiComputed))
+    expect_true(isTRUE(original$CiComputed))
+    expect_equal(selected$uPevList, original$uPevList, tolerance=1e-7)
     diagonal <- postVarU(original)
     full <- postVarU(original,2)
     expect_equal(unname(full$VarU), reference$S, tolerance=1e-7)
@@ -56,8 +60,7 @@ test_that("postVarU matches dense reference and preserves PEV outputs", {
 
 test_that("prediction distinguishes full PEV, random VarU and sampling covariance", {
   fixture <- varu_fixture()
-  model <- mmes(y~env, random=~vsm(usm(env), ism(id), Gu=fixture$precision),
-                data=fixture$data, verbose=FALSE, computeCi=2)
+  model <- mmes(y~env, random=~vsm(usm(env), ism(id), Gu=fixture$precision), data=fixture$data, control=mmes_control(diagnostics=list(verbose=FALSE), output=list(inverse=2)))
   reference <- varu_dense_reference(model)
   nFixed <- nrow(model$b)
   nRandom <- nrow(model$u)
@@ -92,8 +95,7 @@ test_that("prediction distinguishes full PEV, random VarU and sampling covarianc
 
 test_that("joint VarU retains sampling covariance between independent prior terms", {
   fixture <- varu_fixture()
-  model <- mmes(y~env,random=~id+vsm(usm(env),ism(id),Gu=fixture$precision),
-                data=fixture$data,verbose=FALSE,nIters=5,computeCi=2)
+  model <- mmes(y~env, random=~id+vsm(usm(env),ism(id),Gu=fixture$precision), data=fixture$data, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=5), output=list(inverse=2)))
   reference <- varu_dense_reference(model)
   full <- postVarU(model,2)
   expect_equal(unname(full$VarU),reference$S,tolerance=1e-7)
@@ -104,17 +106,15 @@ test_that("joint VarU retains sampling covariance between independent prior term
 test_that("VarU maps rotation and factor-score effects into public coordinates", {
   fixture <- varu_fixture()
   data <- fixture$data[fixture$data$replicate == 1,]
-  ordinary <- mmes(y~env,random=~vsm(ism(id),Gu=fixture$precision),data=data,verbose=FALSE)
-  rotated <- mmes(y~env,random=~vsm(ism(id),Gu=fixture$precision,rotation=TRUE),data=data,verbose=FALSE)
+  ordinary <- mmes(y~env, random=~vsm(ism(id),Gu=fixture$precision), data=data, control=mmes_control(diagnostics=list(verbose=FALSE)))
+  rotated <- mmes(y~env, random=~vsm(ism(id),Gu=fixture$precision,rotation=TRUE), data=data, control=mmes_control(diagnostics=list(verbose=FALSE)))
   expect_equal(postVarU(rotated)$uVarList[[1]],postVarU(ordinary)$uVarList[[1]],tolerance=1e-6)
   expect_equal(unname(postVarU(rotated,2)$VarU),unname(postVarU(ordinary,2)$VarU),tolerance=1e-6)
   expect_equal(predict(rotated,D="id")$VarU,predict(ordinary,D="id")$VarU,tolerance=1e-6)
   data <- fixture$data
   shape <- fam(data$env,1L,fixed=rep(TRUE,3L))
   fit <- function(mode){
-        mmes(y~env,random=~vsm(shape,ism(id),Gu=fixture$precision,sigma2=1,fixedSigma2=TRUE),
-          rcov=~vsm(ism(units),sigma2=1,fixedSigma2=TRUE),data=data,
-          verbose=FALSE,factorScoreAugmentation=mode)
+        mmes(y~env, random=~vsm(shape,ism(id),Gu=fixture$precision,sigma2=1,fixedSigma2=TRUE), rcov=~vsm(ism(units),sigma2=1,fixedSigma2=TRUE), data=data, control=mmes_control(diagnostics=list(verbose=FALSE), representation=list(factorScores=mode)))
   }
   marginal <- fit("none")
   augmented <- fit("fixed-shape")
@@ -127,11 +127,11 @@ test_that("VarU maps rotation and factor-score effects into public coordinates",
 
 test_that("VarU validates flags and unsupported model types", {
   fixture <- varu_fixture()
-  model <- mmes(y~env,random=~id,data=fixture$data,verbose=FALSE)
+  model <- mmes(y~env, random=~id, data=fixture$data, control=mmes_control(diagnostics=list(verbose=FALSE)))
   expect_error(postVarU(model,3),"mode")
   expect_error(predict(model,D="id",VarU=NA),"TRUE or FALSE")
   expect_error(predict(model,D="id",PEV=1),"TRUE or FALSE")
-  direct <- mmes(y~env,random=~id,data=fixture$data,verbose=FALSE,henderson=FALSE)
+  direct <- mmes(y~env, random=~id, data=fixture$data, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", diagnostics=list(verbose=FALSE)))
   expect_error(postVarU(direct),"Henderson")
   class(model) <- c("mmes.glmm",class(model))
   expect_error(postVarU(model),"Gaussian")

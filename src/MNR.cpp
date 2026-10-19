@@ -1510,7 +1510,11 @@ Rcpp::List post_mme_Cinverse_cpp(Rcpp::List model, const int mode = 1){
     Rcpp::stop("mode must be 0, 1, or 2.");
   }
 
-  if(!model.containsElementNamed("C")){
+  if(model.containsElementNamed("retainCoefficientMatrix") &&
+     !Rcpp::as<bool>(model["retainCoefficientMatrix"])){
+    Rcpp::stop("Coefficient matrix C was not retained; refit with retainCoefficientMatrix=TRUE for this method.");
+  }
+  if(!model.containsElementNamed("C") || Rf_isNull(model["C"])){
     Rcpp::stop("The fitted model does not contain C. Refit with ai_mme_sp2() returning C.");
   }
   if(!model.containsElementNamed("Cscale")){
@@ -1875,7 +1879,11 @@ arma::mat predict_mmes_vcov_cpp(Rcpp::List model, const arma::sp_mat & Dmat){
   // the Takahashi selected-inverse subset (computeCi=1, incomplete for
   // arbitrary linear combinations) or a full n x n inverse (computeCi=2,
   // wasteful when k << nEffects). Cost is k sparse triangular solves.
-  if(!model.containsElementNamed("C")){
+  if(model.containsElementNamed("retainCoefficientMatrix") &&
+     !Rcpp::as<bool>(model["retainCoefficientMatrix"])){
+    Rcpp::stop("Coefficient matrix C was not retained; refit with retainCoefficientMatrix=TRUE for this method.");
+  }
+  if(!model.containsElementNamed("C") || Rf_isNull(model["C"])){
     Rcpp::stop("The fitted model does not contain C. Refit with ai_mme_sp2() returning C.");
   }
   if(!model.containsElementNamed("Cscale")){
@@ -4393,14 +4401,13 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   double projectedScoreNorm = std::numeric_limits<double>::infinity();
   int lineSearchHalvings = 0;
   std::string stopReason = "iteration-limit";
-  const bool adaptive = covStructI.hasAttribute("adaptiveRecovery") &&
-    Rcpp::as<bool>(covStructI.attr("adaptiveRecovery"));
-  const std::string blendMethod = covStructI.hasAttribute("blend")
-    ? Rcpp::as<std::string>(covStructI.attr("blend")) : "em";
-  if(blendMethod != "em" && blendMethod != "pxem") {
-    Rcpp::stop("Unknown direct-engine EM blending method.");
-  }
-  const bool parameterExpanded = blendMethod == "pxem";
+  const sommer::control::Transport controls(covStructI);
+  sommer::control::Proposal proposal;
+  proposal.adaptiveRecovery = controls.logical("adaptiveRecovery");
+  const bool adaptive = proposal.adaptiveRecovery;
+  proposal.blend = controls.blend("Unknown direct-engine EM blending method.");
+  const std::string blendMethod = sommer::control::blendName(proposal.blend);
+  const bool parameterExpanded = proposal.blend == sommer::control::Blend::PXEM;
   sommer::AIRecoveryPolicy recoveryPolicy;
   bool previousAI = false;
   int previousHalvings = 0;

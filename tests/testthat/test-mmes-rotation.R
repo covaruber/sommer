@@ -20,12 +20,19 @@ rotation_fixture <- function(){
   list(data=data, Gu=Gu)
 }
 
+.rotation_control <- function(formulation="henderson", maxIters=15L,
+                              stepWeight=NULL){
+  mmes_control(formulation=formulation, convergence=list(maxIters=maxIters),
+    solve=if(formulation == "henderson") list(method="ldlt") else list(),
+    proposal=list(stepWeight=stepWeight), output=list(inverse=0L),
+    diagnostics=list(verbose=FALSE, dateWarning=FALSE))
+}
+
 test_that("rotation preserves a balanced Henderson fit", {
   fixture <- rotation_fixture()
   common <- list(
     fixed=y~env, rcov=~units, data=fixture$data,
-    nIters=12, verbose=FALSE, dateWarning=FALSE, computeCi=0,
-    henderson=TRUE
+    control=.rotation_control(maxIters=12L)
   )
   ordinary <- do.call(
     mmes,
@@ -71,11 +78,13 @@ test_that("direct rotation agrees with the Henderson rotation", {
   common <- list(
     fixed=y~env,
     random=~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE),
-    rcov=~units, data=fixture$data, nIters=15,
-    verbose=FALSE, dateWarning=FALSE, computeCi=0
+    rcov=~units, data=fixture$data,
+    control=.rotation_control()
   )
-  henderson <- do.call(mmes, c(common, list(henderson=TRUE)))
-  direct <- do.call(mmes, c(common, list(henderson=FALSE)))
+  henderson <- do.call(mmes, common)
+  directArguments <- common
+  directArguments$control <- .rotation_control(formulation="direct")
+  direct <- do.call(mmes, directArguments)
 
   expect_equal(unname(henderson$theta), unname(direct$theta), tolerance=2e-3)
   expect_equal(as.numeric(fitted(henderson)), as.numeric(fitted(direct)), tolerance=2e-3)
@@ -91,9 +100,8 @@ test_that("rotation respects covariance-coordinate blocks and shuffled rows", {
   set.seed(91)
   data <- fixture$data[sample(nrow(fixture$data)), , drop=FALSE]
   common <- list(
-    fixed=y~env, rcov=~units, data=data, nIters=12,
-    verbose=FALSE, dateWarning=FALSE, computeCi=0,
-    henderson=TRUE
+    fixed=y~env, rcov=~units, data=data,
+    control=.rotation_control(maxIters=12L)
   )
   ordinary <- do.call(
     mmes,
@@ -134,16 +142,17 @@ test_that("rotation supports multi-trait Kronecker residuals", {
     rnorm(nrow(data), sd=0.4)
   data <- data[sample(nrow(data)), , drop=FALSE]
   common <- list(fixed=y~trait, rcov=~vsm(usm(trait), ism(units)), data=data,
-                 nIters=15, verbose=FALSE, dateWarning=FALSE, computeCi=0)
+                 control=.rotation_control())
   for(henderson in c(TRUE, FALSE)){
     # Direct AI needs damping for this nearly singular covariance fixture.
-    common$stepWeight <- if(henderson) 1 else 0.1
+    common$control <- .rotation_control(
+      formulation=if(henderson) "henderson" else "direct",
+      stepWeight=if(henderson) 1 else 0.1)
     ordinary <- do.call(mmes, c(common, list(
-      random=~vsm(usm(trait), ism(id), Gu=fixture$Gu), henderson=henderson
+      random=~vsm(usm(trait), ism(id), Gu=fixture$Gu)
     )))
     rotated <- do.call(mmes, c(common, list(
-      random=~vsm(usm(trait), ism(id), Gu=fixture$Gu, rotation=TRUE),
-      henderson=henderson
+      random=~vsm(usm(trait), ism(id), Gu=fixture$Gu, rotation=TRUE)
     )))
     expect_equal(tail(ordinary$llik, 1), tail(rotated$llik, 1), tolerance=1e-6)
     expect_equal(unname(ordinary$theta), unname(rotated$theta), tolerance=1e-6)
@@ -160,8 +169,7 @@ test_that("rotation supports heterogeneous residuals across rotation blocks", {
   fixture <- rotation_fixture()
   expect_rotation_equivalent(
     list(fixed=y~env, rcov=~vsm(dsm(env), ism(units)), data=fixture$data,
-         nIters=15, verbose=FALSE, dateWarning=FALSE, computeCi=0,
-         henderson=TRUE),
+         control=.rotation_control()),
     ~vsm(ism(id), Gu=fixture$Gu),
     ~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE)
   )
@@ -172,8 +180,7 @@ test_that("rotation supports weights that are constant within rotation blocks", 
   W <- diag(ifelse(fixture$data$env == "e1", 1, 2))
   expect_rotation_equivalent(
     list(fixed=y~env, rcov=~units, data=fixture$data, W=W,
-         nIters=15, verbose=FALSE, dateWarning=FALSE, computeCi=0,
-         henderson=TRUE),
+         control=.rotation_control()),
     ~vsm(ism(id), Gu=fixture$Gu),
     ~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE)
   )
@@ -184,10 +191,10 @@ test_that("rotation rejects residual structures that are not invariant", {
   data <- fixture$data
   data$grp <- factor(ifelse(data$id %in% c("g1", "g2", "g3"), "a", "b"))
   fit <- function(rcov, W=NULL){
-    args <- list(y~env,
+    args <- list(fixed=y~env,
                  random=~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE),
-                 rcov=rcov, data=data, nIters=1,
-                 verbose=FALSE, dateWarning=FALSE)
+                 rcov=rcov, data=data,
+                 control=.rotation_control(maxIters=1L))
     if(!is.null(W)) args$W <- W
     do.call(mmes, args)
   }
@@ -213,22 +220,12 @@ test_that("rotation rejects unsupported or incomplete models", {
 
   incomplete <- fixture$data[-1, , drop=FALSE]
   expect_error(
-    mmes(
-      y~env,
-      random=~vsm(dsm(env), ism(id), Gu=fixture$Gu, rotation=TRUE),
-      rcov=~units, data=incomplete, nIters=1,
-      verbose=FALSE, dateWarning=FALSE
-    ),
+    mmes(y~env, random=~vsm(dsm(env), ism(id), Gu=fixture$Gu, rotation=TRUE), rcov=~units, data=incomplete, control=mmes_control(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "every Gu level equally often|complete balanced layout"
   )
 
   expect_error(
-    mmes(
-      y~env,
-      random=~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE),
-      rcov=~units, data=fixture$data, nIters=1,
-      computeCi=1, verbose=FALSE, dateWarning=FALSE
-    ),
-    "requires computeCi=0"
+    mmes(y~env, random=~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE), rcov=~units, data=fixture$data, control=mmes_control(convergence=list(maxIters=1), output=list(inverse=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
+    "requires output\\$inverse=0"
   )
 })

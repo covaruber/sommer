@@ -1,9 +1,7 @@
 test_that("EM progress reports direction diagnostics and matches quiet fitting", {
   data(DT_example)
   fit <- function(verbose){
-    mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example,
-      nIters=3, blendWeight=1, stepWeight=1, solver="ldlt",
-      verbose=verbose, dateWarning=FALSE)
+    mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example, control=mmes_control(convergence=list(maxIters=3), update=list(blendWeight=1), proposal=list(stepWeight=1), solve=list(method="ldlt"), diagnostics=list(verbose=verbose, dateWarning=FALSE)))
   }
   output <- capture.output(verbose_fit <- fit(TRUE))
   quiet_fit <- fit(FALSE)
@@ -33,9 +31,7 @@ test_that("pure-AI progress retains numerical safeguard diagnostics", {
   data(DT_example)
   for(solver in c("ldlt", "cholmod")){
     fit <- function(verbose){
-      mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example,
-        nIters=3, blendWeight=0, solver=solver,
-        verbose=verbose, dateWarning=FALSE)
+      mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example, control=mmes_control(convergence=list(maxIters=3), update=list(blendWeight=0), solve=list(method=solver), diagnostics=list(verbose=verbose, dateWarning=FALSE)))
     }
     output <- capture.output(verbose_fit <- fit(TRUE))
     quiet_fit <- fit(FALSE)
@@ -66,11 +62,7 @@ test_that("pure-AI progress reports failed structures and trust scaling", {
   data$BLUEs <- 100 + trial_effect[data$trial] +
     genotype_effect[data$genotype] + cos(seq_len(nrow(data)) / 5) * 3
 
-  output <- capture.output(fit <- mmes(
-    BLUEs~trial, random=~vsm(fam(trial, 2), ism(genotype)), rcov=~units,
-    data=data, nIters=12, solver="ldlt", verbose=TRUE, dateWarning=FALSE,
-    blendWeight=0
-  ))
+  output <- capture.output(fit <- mmes(BLUEs~trial, random=~vsm(fam(trial, 2), ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=12), solve=list(method="ldlt"), diagnostics=list(verbose=TRUE, dateWarning=FALSE), update=list(blendWeight=0))))
   rows <- grep("^ +[0-9]+ +", output, value=TRUE)
   fields <- strsplit(trimws(rows), " +")
   expect_length(rows, ncol(fit$llik))
@@ -100,18 +92,38 @@ test_that("pure-AI progress reports failed structures and trust scaling", {
 test_that("all mmes progress paths share compact columns without changing fits", {
   data(DT_example)
   dataset <- DT_example
+  progressControl <- function(formulation="henderson", objective="reml",
+                              solver="auto", recovery="em", blendWeight=NULL,
+                              curvature="exact-ai", equations="normal"){
+    mmes_control(formulation=formulation, task=list(objective=objective),
+      solve=list(method=solver), update=list(recovery=recovery,
+        blendWeight=blendWeight), curvature=list(method=curvature),
+      representation=list(equations=equations),
+      convergence=list(maxIters=3L),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE))
+  }
   cases <- list(
-    list(), list(REML=FALSE), list(solver="cholmod"), list(solver="pcg", blendWeight=0),
-    list(blendWeight=0, acceleration="hybrid-ai"),
-    list(blendWeight=c(1, 0.4, 0)), list(blend="pxem", blendWeight=c(1, 0.4, 0)),
-    list(saddlePoint=TRUE, blendWeight=0), list(henderson=FALSE, blendWeight=0),
-    list(henderson=FALSE, blendWeight=1),
-    list(henderson=FALSE, blend="pxem", blendWeight=c(1, 0.4, 0)),
-    list(henderson=FALSE))
+    progressControl(),
+    progressControl(objective="ml"),
+    progressControl(solver="cholmod"),
+    progressControl(solver="pcg", blendWeight=0),
+    progressControl(blendWeight=0, curvature="hybrid-ai"),
+    progressControl(blendWeight=c(1, 0.4, 0)),
+    progressControl(recovery="pxem", blendWeight=c(1, 0.4, 0)),
+    progressControl(blendWeight=0, equations="saddle-point"),
+    progressControl(formulation="direct", blendWeight=0),
+    progressControl(formulation="direct", blendWeight=1),
+    progressControl(formulation="direct", recovery="pxem",
+      blendWeight=c(1, 0.4, 0)),
+    progressControl(formulation="direct"))
   expected <- NULL
-  for(arguments in cases){
-    fit <- function(verbose) do.call(mmes, c(list(fixed=Yield~Env, random=~Name,
-      data=dataset, nIters=3L, verbose=verbose, dateWarning=FALSE), arguments))
+  for(control in cases){
+    fit <- function(verbose){
+      fitControl <- do.call(mmes_control, utils::modifyList(
+        unclass(control), list(diagnostics=list(verbose=verbose)),
+        keep.null=TRUE))
+      mmes(fixed=Yield~Env, random=~Name, data=dataset, control=fitControl)
+    }
     output <- capture.output(loud <- fit(TRUE))
     quiet <- fit(FALSE)
     header <- grep("^ *iter +LogLik", output, value=TRUE)
@@ -135,9 +147,7 @@ test_that("all mmes progress paths share compact columns without changing fits",
 test_that("recovery progress names the selected method and trigger", {
   data(DT_example)
   for(reml in c(TRUE, FALSE)) for(method in c("em", "pxem")){
-    output <- capture.output(fit <- mmes(Yield~Env, random=~Name, data=DT_example,
-      REML=reml, blend=method, nIters=6L, stepWeight=1e-7,
-      verbose=TRUE, dateWarning=FALSE))
+    output <- capture.output(fit <- mmes(Yield~Env, random=~Name, data=DT_example, control=mmes_control(task=list(objective=if(reml) "reml" else "ml"), update=list(recovery=method), convergence=list(maxIters=6L), proposal=list(stepWeight=1e-7), diagnostics=list(verbose=TRUE, dateWarning=FALSE))))
     rows <- strsplit(trimws(grep("^ +[0-9]+ +", output, value=TRUE)), " +")
     expect_identical(rows[[1L]][4L], "AI")
     expect_identical(rows[[1L]][5L], paste0("auto:", method))
@@ -149,8 +159,7 @@ test_that("recovery progress names the selected method and trigger", {
   }
   dataset <- DT_example
   dataset$Name2 <- dataset$Name
-  output <- capture.output(fit <- mmes(Yield~Env, random=~Name+Name2, data=dataset,
-    nIters=3L, verbose=TRUE, dateWarning=FALSE))
+  output <- capture.output(fit <- mmes(Yield~Env, random=~Name+Name2, data=dataset, control=mmes_control(convergence=list(maxIters=3L), diagnostics=list(verbose=TRUE, dateWarning=FALSE))))
   expect_true(any(grepl("AI-reg +info-solve", output)))
   expect_equal(fit$engineDiagnostics$recovery$steps, 0L)
 })

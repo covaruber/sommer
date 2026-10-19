@@ -45,11 +45,15 @@ for(configuration in list(
 }
 
 fit_model <- function(workload, mode, inverse_mode=0L){
-  mmes(workload$fixed, random=workload$random, rcov=workload$rcov,
-       data=workload$data, solver="cholmod", nIters=4L, computeCi=inverse_mode,
-       getPEV=inverse_mode > 0L, verbose=FALSE, dateWarning=FALSE,
-       engine=mmes_control(solver="cholmod", memoryPolicy="limit",
-         experimental=list(blockSchur=mode, profile="force")))
+  mmes(workload$fixed,
+  random=workload$random,
+  rcov=workload$rcov,
+  data=workload$data,
+  control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(solve=list(method="cholmod", blockSchur=mode),
+  execution=list(memoryPolicy="limit"),
+  diagnostics=list(profile="force")
+)), list(solve=list(method="cholmod"), convergence=list(maxIters=4L), output=list(inverse=inverse_mode), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
 }
 
 signature <- function(fit){

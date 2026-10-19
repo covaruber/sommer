@@ -29,8 +29,12 @@ set.seed(1)
 d <- data.frame(x = rnorm(60), g = factor(rep(1:12, each = 5)))
 d$n <- sample(5:10, 60, TRUE)
 d$s <- rbinom(60, d$n, plogis(0.3 * d$x))
-fit <- mmes(binm(s, trials = n) ~ x, random = ~ g, data = d,
-            family = binomial(), blendWeight = 0, verbose = FALSE)
+fit <- mmes(binm(s, trials = n) ~ x,
+  random = ~ g,
+  data = d,
+  family = binomial(),
+  control = mmes_control(update = list(blendWeight = 0),
+  diagnostics = list(verbose = FALSE)))
 fit$b
 }
 \keyword{models}

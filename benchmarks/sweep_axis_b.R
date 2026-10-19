@@ -32,36 +32,24 @@ for(n_env in env_vec){
       
       fit_base <- tryCatch({
         t0 <- proc.time()
-        m_base <- mmes(
-          response ~ environment,
-          random = ~ vsm(fam(environment, 1L), dsm(replicate), ism(id), Gu = precision),
-          data = dataset,
-          solver = "cholmod",
-          nIters = 4L,
-          computeCi = 0L,
-          getPEV = FALSE,
-          verbose = FALSE,
-          dateWarning = FALSE,
-          engine = mmes_control(solver = "cholmod", experimental = list(factorSchurMultiFactor = "off"))
-        )
+        m_base <- mmes(response ~ environment,
+  random=~ vsm(fam(environment, 1L), dsm(replicate), ism(id), Gu = precision),
+  data=dataset,
+  control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(solve=list(method="cholmod", factorSchurMultiFactor="off")
+)), list(solve=list(method="cholmod"), convergence=list(maxIters=4L), output=list(inverse=0L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
         t1 <- proc.time()
         list(time = (t1 - t0)[3L], fit = m_base)
       }, error = function(e) list(error = e$message))
       
       fit_latent <- tryCatch({
         t0 <- proc.time()
-        m_lat <- mmes(
-          response ~ environment,
-          random = ~ vsm(fam(environment, 1L), dsm(replicate), ism(id), Gu = precision),
-          data = dataset,
-          solver = "cholmod",
-          nIters = 4L,
-          computeCi = 0L,
-          getPEV = FALSE,
-          verbose = FALSE,
-          dateWarning = FALSE,
-          engine = mmes_control(solver = "cholmod", experimental = list(factorSchurMultiFactor = "force"))
-        )
+        m_lat <- mmes(response ~ environment,
+  random=~ vsm(fam(environment, 1L), dsm(replicate), ism(id), Gu = precision),
+  data=dataset,
+  control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(solve=list(method="cholmod", factorSchurMultiFactor="force")
+)), list(solve=list(method="cholmod"), convergence=list(maxIters=4L), output=list(inverse=0L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
         t1 <- proc.time()
         list(time = (t1 - t0)[3L], fit = m_lat)
       }, error = function(e) list(error = e$message))

@@ -1,91 +1,89 @@
 test_that("PCG controls validate all scalar inputs before coercion", {
-  control <- mmes_control(solver="pcg")
-  expect_false(control$pcg$warmStart)
-  expect_identical(control$pcg$recycleRank, 0L)
-  expect_identical(control$pcg$rhsMethod, "independent")
-  expect_identical(control$pcg$logDetScaling, "none")
-  expect_identical(control$pcg$traceEstimator, "hutchinson")
-  expect_identical(control$pcg$accuracy, "fixed")
-  expect_identical(control$pcg$maxTraceProbes, control$pcg$traceProbes)
-  expect_identical(control$pcg$maxLanczosSteps, control$pcg$lanczosSteps)
-  for(name in c("tol", "logDetTol", "scoreTol")){
+  control <- mmes_control(solve=list(method="pcg"))
+  expect_false(control$solve$warmStart)
+  expect_identical(control$solve$recycleRank, 0L)
+  expect_identical(control$solve$recycleMethod, "coarse")
+  expect_identical(control$representation$compression, "off")
+  expect_identical(control$solve$rhsMethod, "independent")
+  expect_identical(control$logdet$scaling, "none")
+  expect_identical(control$score$estimator, "hutchinson")
+  expect_identical(control$convergence$accuracy, "fixed")
+  expect_identical(control$convergence$maxTraceProbes, control$score$traceProbes)
+  expect_identical(control$convergence$maxLanczosSteps, control$logdet$lanczosSteps)
+  for(name in c("tol")){
     for(value in list(NA_real_, Inf, NaN, 0, -1, numeric(), c(1, 2), "1", 1i)){
-      expect_error(mmes_control(pcg=setNames(list(value), name)), paste0("pcg\\$", name))
+      expect_error(mmes_control(solve=setNames(list(value), name)),
+        paste0(name, " must be one positive finite number"))
     }
   }
-  for(name in c("maxIters", "traceProbes", "lanczosSteps", "nystromRank",
-               "recycleRank", "blockSize", "residualRefresh", "traceRank",
-               "maxTraceProbes", "maxLanczosSteps", "seed")){
+  for(entry in list(
+      list(module="solve", name="maxIters"),
+      list(module="solve", name="nystromRank"),
+      list(module="solve", name="recycleRank"),
+      list(module="solve", name="blockSize"),
+      list(module="solve", name="residualRefresh"),
+      list(module="score", name="traceProbes"),
+      list(module="score", name="rank"),
+      list(module="logdet", name="lanczosSteps"),
+      list(module="convergence", name="maxTraceProbes"),
+      list(module="convergence", name="maxLanczosSteps"),
+      list(module="execution", name="seed"))){
+    name <- entry$name
     for(value in list(NA_real_, Inf, -1, 1.5, numeric(), c(1, 2), "2",
                      .Machine$integer.max + 1)){
-      expect_error(mmes_control(pcg=setNames(list(value), name)), paste0("pcg\\$", name))
+      expect_error(do.call(mmes_control,
+        setNames(list(setNames(list(value), name)), entry$module)),
+        paste0(entry$module, "\\$", name))
     }
   }
-  for(name in c("preconditioner", "rhsMethod", "logDetScaling", "traceEstimator", "accuracy")){
+  for(entry in list(
+      list(module="solve", name="preconditioner"),
+      list(module="solve", name="rhsMethod"),
+      list(module="solve", name="recycleMethod"),
+      list(module="logdet", name="scaling"),
+      list(module="score", name="estimator"),
+      list(module="convergence", name="accuracy"),
+      list(module="representation", name="compression"))){
+    name <- entry$name
     for(value in list(NA_character_, "", c("diagonal", "none"), FALSE)){
-      expect_error(mmes_control(pcg=setNames(list(value), name)), paste0("pcg\\$", name))
+      expect_error(do.call(mmes_control,
+        setNames(list(setNames(list(value), name)), entry$module)),
+        paste0(entry$module, "\\$", name))
     }
   }
   for(value in list(NA, 1, logical(), c(TRUE, FALSE))){
-    expect_error(mmes_control(pcg=list(warmStart=value)), "warmStart")
+    expect_error(mmes_control(solve=list(warmStart=value)), "warmStart")
   }
-  expect_error(mmes_control(pcg=list(traceProbes=16L, maxTraceProbes=8L)), "accuracy limits")
-  expect_error(mmes_control(pcg=list(lanczosSteps=40L, maxLanczosSteps=20L)), "accuracy limits")
-  expect_error(mmes_control(pcg=list(unknownSetting=1)), "Unknown pcg")
-  expect_error(mmes_control(pcg=list(1)), "unique")
-  expect_error(mmes_control(pcg=list(tol=1e-8, tol=1e-6)), "unique")
+  expect_error(mmes_control(score=list(traceProbes=16L),
+    convergence=list(maxTraceProbes=8L)), "must not be smaller than")
+  expect_error(mmes_control(logdet=list(lanczosSteps=40L),
+    convergence=list(maxLanczosSteps=20L)), "must not be smaller than")
+  expect_error(mmes_control(solve=list(unknownSetting=1)), "Unknown solve")
+  expect_error(mmes_control(solve=list(1)), "unique")
+  expect_error(mmes_control(solve=list(tol=1e-8, tol=1e-6)), "unique")
 })
 
-test_that("PCG controls survive direct, engine and legacy merging", {
-  pcg <- list(preconditioner="block-jacobi", warmStart=TRUE, recycleRank=4L,
-    rhsMethod="block", blockSize=4L, residualRefresh=20L,
-    logDetScaling="diagonal", traceEstimator="control-variate", traceRank=3L,
-    seed=43L)
-  direct <- sommer:::.merge_mmes_control(solver="pcg", pcg=pcg)
-  engine <- sommer:::.merge_mmes_control(
-    engine=mmes_control(solver="pcg"), pcg=pcg)
-  expect_identical(direct$pcg, engine$pcg)
-  expect_identical(direct$pcg$preconditioner, "block-jacobi")
-  overridden <- sommer:::.merge_mmes_control(
-    engine=mmes_control(solver="pcg"), pcg=list(traceProbes=32L))
-  expect_identical(overridden$pcg$maxTraceProbes, 32L)
-  expect_error(sommer:::.merge_mmes_control(
-    engine=mmes_control(solver="pcg"), pcg=list(seed=NA)), "seed")
-  expect_error(sommer:::.merge_mmes_control(pcgMaxIters=2.5), "maxIters")
-  expect_error(sommer:::.merge_mmes_control(
-    engine=mmes_control(), pcgTraceProbes=2.5), "traceProbes")
-  expect_error(sommer:::.merge_mmes_control(pcgTol="1e-8"), "tol")
-  expect_identical(sommer:::.merge_mmes_control(
-    pcgTraceProbes=2L, pcg=list(maxTraceProbes=4L))$pcg$maxTraceProbes, 4L)
+test_that("modular PCG controls are canonically revalidated", {
+  control <- mmes_control(solve=list(method="pcg", tol=1e-10))
+  control$solve$tol <- "1e-8"
+  expect_error(mmes(y~1, random=~id, data=data.frame(id=factor(1:4), y=1:4),
+    control=control), "tol must be one positive finite number")
 })
 
-test_that("non-PCG setup does not forward experimental PCG state", {
+test_that("non-PCG solvers reject PCG-only settings instead of ignoring them", {
   set.seed(19)
   dataset <- data.frame(id=factor(rep(1:8, each=3)), y=rnorm(24))
-  pcg <- list(preconditioner="block-jacobi", warmStart=TRUE, recycleRank=3L,
-    rhsMethod="block", logDetScaling="diagonal")
+  pcg <- list(
+    solve=list(preconditioner="block-jacobi", warmStart=TRUE, recycleRank=3L,
+      rhsMethod="block", recycleMethod="krylov"),
+    logdet=list(scaling="diagonal"))
   for(solver in c("ldlt", "cholmod", "auto")){
-    plain <- suppressMessages(mmes(y~1, random=~id, data=dataset,
-      solver=solver, returnParam=TRUE, verbose=FALSE, dateWarning=FALSE))
-    configured <- suppressMessages(mmes(y~1, random=~id, data=dataset,
-      engine=mmes_control(solver=solver, pcg=pcg), returnParam=TRUE,
-      verbose=FALSE, dateWarning=FALSE))
-    expect_null(attr(configured$covStruct, "pcgControl"))
-    for(name in c("X", "Z", "Ai", "yvar", "W", "residualBlock", "residualIndex")){
-      expect_identical(configured[[name]], plain[[name]], info=paste(solver, name))
-    }
-    fit <- function(settings){
-      suppressMessages(mmes(y~1, random=~id, data=dataset, nIters=2L,
-        engine=mmes_control(solver=solver, pcg=settings), blendWeight=0,
-        verbose=FALSE, dateWarning=FALSE))
-    }
-    reference <- fit(list())
-    candidate <- fit(pcg)
-    expect_null(reference$engineDiagnostics$pcg)
-    expect_null(candidate$engineDiagnostics$pcg)
-    for(name in c("llik", "theta", "covPar", "bu", "C", "InfMat", "theta_se")){
-      expect_identical(candidate[[name]], reference[[name]], info=paste(solver, name))
-    }
+    plain <- suppressMessages(mmes(y~1, random=~id, data=dataset, control=mmes_control(solve=list(method=solver), output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
+    expect_null(attr(plain$covStruct, "pcgControl"))
+    configuredControl <- utils::modifyList(list(solve=list(method=solver)),
+      pcg, keep.null=TRUE)
+    expect_error(do.call(mmes_control, configuredControl),
+      "solve\\$preconditioner, solve\\$warmStart, solve\\$recycleRank, solve\\$recycleMethod, solve\\$rhsMethod, logdet\\$scaling")
   }
 })
 
@@ -95,19 +93,25 @@ test_that("known-variance PCG verifies residuals and supports compatible warm st
   base <- list(fixed=y~x,
     random=~vsm(ism(id), sigma2=0.7, fixedSigma2=TRUE),
     rcov=~vsm(ism(units), sigma2=1.2, fixedSigma2=TRUE),
-    data=dataset, solveOnly=TRUE, verbose=FALSE, dateWarning=FALSE)
-  first <- suppressMessages(do.call(mmes, c(base, list(pcgTol=1e-11))))
+    data=dataset)
+  solveControl <- mmes_control(task=list(mode="solve"),
+    solve=list(tol=1e-11), diagnostics=list(verbose=FALSE, dateWarning=FALSE))
+  first <- suppressMessages(do.call(mmes, c(base, list(control=solveControl))))
   expect_lte(first$pcg$trueRelativeResidual, 1e-11)
   expect_gt(first$pcg$operatorApplications, 0)
   warm <- suppressMessages(do.call(mmes, c(base, list(covPar=first,
-    engine=mmes_control(pcg=list(tol=1e-11, warmStart=TRUE, residualRefresh=2L))))))
+    control=mmes_control(task=list(mode="solve"),
+      solve=list(tol=1e-11, warmStart=TRUE, residualRefresh=2L),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE))))))
   expect_true(warm$pcg$warmStarted)
   expect_true(warm$convergence)
   expect_lte(warm$pcg$trueRelativeResidual, 1e-11)
   expect_equal(warm$bu, first$bu, tolerance=1e-9)
   expect_lte(warm$pcg$iterations, first$pcg$iterations)
   expect_error(suppressMessages(do.call(mmes, c(base, list(
-    engine=mmes_control(pcg=list(preconditioner="nystrom")))))), "solveOnly")
+    control=mmes_control(task=list(mode="solve"),
+      solve=list(preconditioner="nystrom")))))), "task\\$mode='solve'")
   expect_error(suppressMessages(do.call(mmes, c(base, list(
-    engine=mmes_control(pcg=list(warmStart=TRUE)))))), "warmStart")
+    control=mmes_control(task=list(mode="solve"),
+      solve=list(warmStart=TRUE)))))), "warmStart")
 })

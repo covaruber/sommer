@@ -35,19 +35,19 @@ Because \eqn{k<q}, the random-effect covariance is positive semidefinite
 and singular by design.
 
 The Henderson engine fits this structure through latent factors rather than
-inverting the singular environment covariance. The direct-inversion engine
-(\code{henderson=FALSE}) also supports it, provided the total observation
+inverting the singular environment covariance. The direct-inversion formulation
+(\code{control$formulation="direct"}) also supports it, provided the total observation
 covariance is positive definite. \code{rrm()} is intended for random effects,
 not residual covariance structures.
 
-Native latent-factor Henderson fits support \code{solver="ldlt"} and
-\code{solver="cholmod"} (including automatic selection). They use
+Native latent-factor Henderson fits support \code{control$solve$method="ldlt"} and
+\code{control$solve$method="cholmod"} (including automatic selection). They use
 loading-aware likelihood scores and average-information updates in the
 original loading/variance coordinates. The loading derivatives account for
 the parameter-dependent latent design; the singular environment covariance
-is never inverted. \code{stepWeight} damps covariance-parameter proposals,
-while \code{blendWeight} blends EM/GEM or scalar PX-GEM with
-average-information update directions, selected through \code{blend},
+is never inverted. \code{control$proposal$stepWeight} damps covariance-parameter proposals,
+while \code{control$update$blendWeight} blends EM/GEM or scalar PX-GEM with
+average-information update directions, selected through \code{control$update$recovery},
 as in ordinary \code{mmes()} fitting. Parameter standard errors use the unblended
 average-information matrix at the final parameter values.
 Prediction errors are mapped back from the latent coefficient equations
@@ -84,13 +84,13 @@ The positive-specific-variance Woodbury Schur formulation used for
 \code{fam()} is unnecessary for exact RR: the specific-effect blocks are
 absent, not inverted at zero. The smaller latent coefficient system still
 uses the ordinary LDLT/CHOLMOD and eligible block-Schur dispatch.
-With \code{verbose=TRUE}, the native fit reports its RR path, selected
+With \code{control$diagnostics$verbose=TRUE}, the native fit reports its RR path, selected
 coefficient solver, and then the progress table. Each accepted iteration
 reports likelihood, wall-clock time, cumulative CPU seconds, the scheduled
 \code{EMweight}, accepted-step \code{trustAlpha} and \code{lineAlpha},
 and score norm. The step scales describe the update that reached the current
 row (both are one at initialization); \code{lineAlpha} includes
-\code{stepWeight} and any backtracking. Boundary-restraint and \code{notPD}
+\code{control$proposal$stepWeight} and any backtracking. Boundary-restraint and \code{notPD}
 columns are omitted because the latent optimizer does not use those
 ordinary covariance-update diagnostics. Numeric weights, step scales and
 CPU times are retained in \code{engineDiagnostics$iterationProgress}.
@@ -102,8 +102,9 @@ unweighted residual covariance. The score and AI use derivatives of the
 corresponding covariance \eqn{U^{-\mathsf T}R_0U^{-1}}.
 
 The native path does not currently support PCG, \code{vcc} constraints,
-covariance-update acceleration, \code{solveOnly=TRUE}, or
-\code{factorScoreAugmentation}. These combinations produce explicit errors.
+covariance-update acceleration, \code{control$task$mode="solve"}, or
+\code{control$representation$factorScores} augmentation. These combinations
+produce explicit errors.
 The stored coefficient matrix \code{C} describes the latent equations;
 \code{coefficientMap} maps latent coefficients to the original effect space.
 Use \code{predict()}, \code{postPEV()}, and the fitted \code{uPevList} for

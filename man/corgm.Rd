@@ -47,14 +47,19 @@ A list containing the incidence/design matrix in \code{Z} and a compiled Covaria
 data(DT_example, package = "enhancer")
 DT <- DT_example
 # genetic correlations between environments with a homogeneous variance
-m1 <- mmes(Yield ~ Env, random = ~ vsm(corgm(Env), ism(Name)),
-           rcov = ~ units, data = DT, verbose = FALSE)
+m1 <- mmes(Yield ~ Env,
+  random = ~ vsm(corgm(Env), ism(Name)),
+  rcov = ~ units,
+  data = DT,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 covparams_mmes(m1, 1)
 
 # heterogeneous variances (equivalent to usm, parameterized as corr/var)
 m2 <- mmes(Yield ~ Env,
-           random = ~ vsm(corgm(Env, variance = "heterogeneous"), ism(Name)),
-           rcov = ~ units, data = DT, verbose = FALSE)
+  random = ~ vsm(corgm(Env, variance = "heterogeneous"), ism(Name)),
+  rcov = ~ units,
+  data = DT,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 covparams_mmes(m2, 1)
 covmatrix_mmes(m2, 1)$correlation
 }

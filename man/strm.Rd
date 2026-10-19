@@ -52,8 +52,10 @@ Ai <- solve(A); attr(Ai, "inverse") <- TRUE
 d <- data.frame(id = factor(sample(ids, 200, TRUE), levels = ids),
                 dam = factor(sample(ids[1:15], 200, TRUE), levels = ids))
 d$y <- rnorm(200)
-fit <- mmes(y ~ 1, random = ~ strm(dir = vsm(ism(id)), mat = vsm(ism(dam)), Gu = Ai),
-            data = d, verbose = FALSE)
+fit <- mmes(y ~ 1,
+  random = ~ strm(dir = vsm(ism(id)), mat = vsm(ism(dam)), Gu = Ai),
+  data = d,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 covparams_mmes(fit, 1)
 }
 \keyword{models}

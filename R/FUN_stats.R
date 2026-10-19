@@ -3,6 +3,7 @@ postPEV <- function(object, mode = 1L){
   if(!inherits(object, "mmes")){
     stop("'object' must inherit from class 'mmes'.", call. = FALSE)
   }
+  .mmes_require_coefficient_matrix(object)
   
   mode <- as.integer(mode)
   
@@ -51,8 +52,9 @@ postPEV <- function(object, mode = 1L){
   if(!inherits(object, "mmes") || inherits(object, "mmes.glmm")){
     stop("VarU requires a Gaussian mmes fit.", call.=FALSE)
   }
+  .mmes_require_coefficient_matrix(object)
   if(is.null(object$C) || !nrow(object$C) || is.null(object$Cscale)){
-    stop("VarU requires a Henderson fit with stored C and Cscale; direct and solveOnly fits are not supported.", call.=FALSE)
+    stop("VarU requires a Henderson fit with stored C and Cscale; direct and task$mode='solve' fits are not supported.", call.=FALSE)
   }
 }
 
@@ -211,7 +213,8 @@ corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
       dd=data.frame(full=as.vector(unlist(wide2[jRow,])), partial=as.vector(unlist(wide[jRow,])))
       # model <- fastLm(partial~full,data=dd[which(!is.na(dd$partial)),])
       # model <- lm(partial~full,data=dd[which(!is.na(dd$partial)),])
-      model <- mmes(partial~full,data=dd[which(!is.na(dd$partial)),], verbose = FALSE)
+      model <- mmes(partial~full,data=dd[which(!is.na(dd$partial)),],
+                    control=mmes_control(diagnostics=list(verbose=FALSE)))
       pp=as.vector(model$b[1,1])+(dd[which(is.na(dd$partial)),"full"]*as.vector(model$b[2,1]))
       if(roundR){
         wide[jRow,miss] <- round(pp)#round(predict(model,newdata = dd[which(is.na(dd$partial)),]))

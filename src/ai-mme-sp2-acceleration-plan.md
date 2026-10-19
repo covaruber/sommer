@@ -1,9 +1,263 @@
 # `ai_mme_sp2`: Prioritized Improvement Roadmap
 
 **Target:** `src/ai_mme_sp2.cpp` (`ai_mme_sp2`; shared support in `src/mme_sp2_support.h`)
-**Reviewed against:** synced `unified` source, 2026-10-13
+**Status reconciled:** local working tree, 2026-10-18. Historical measurements
+below retain their original dates and baselines; implemented does not mean
+committed, automatically enabled, or validated on every platform.
 
 This roadmap replaces the separate review and acceleration-plan notes. It ranks remaining work by likely impact, implementation risk, and model coverage. Progress is tracked in the checklist below; completed items are not to be redone (see also `CHANGELOG`, version 4.4.90).
+
+## Current Status (2026-10-18)
+
+This section supersedes older descriptions of remaining PCG work. Historical
+sections below remain evidence, not a current task checklist.
+
+### AI work-reduction continuation (2026-10-18)
+
+This separately approved continuation follows the closed acceleration batch.
+Opt-in `experimental=list(reducedAI="force")` now packs independent `vcc`
+directions before native sensitivity solves and assembles reduced exact AI
+directly. Eligible paths are Gaussian deterministic Henderson REML/ML with
+default AI-first recovery or positive EM/PXEM direction blending. The existing
+optimizer retains feasible directions, trust units, regularized recovery,
+likelihood acceptance and score certification. Residual working buffers contain
+only independent directions affecting the residual covariance.
+
+`covarianceInformation="full"` retains a full exact final evaluation and
+existing information/uncertainty outputs. `"none"` uses exact reduced information
+for certification without a report-only full refresh. Coefficient prediction,
+PEV and `computeCi` are independent. Default admission remains off; unsupported
+force requests error and auto requests expose fallback reasons.
+
+Legacy explicit `blendWeight=0`, acceleration, latent RR, PCG, PQL, solve-only,
+saddle-point and factor-score augmentation remain outside this implementation.
+Full score traces and active local curvature-pair contractions are unchanged.
+This reduced-AI slice did not implement common-scale profiling; the separately
+requested continuation below now does. Reduced buffer counters are not process
+peak-memory measurements.
+
+The preserved-worktree comparison passes 16 default-off fits and 11 output
+fields bit-for-bit. The isolated final macOS build and focused four-worker
+run pass 73 test blocks and 4,698 assertions without failures, errors, warnings
+or skips. Coverage includes independent full/reduced AI comparisons, REML/ML,
+LDLT/CHOLMOD, random/residual and ratio ties, fixed/empty/boundary directions,
+singular-information recovery, compression, positive EM/PXEM blending and
+coefficient/covariance inference. Updated help parses and the explanation-only
+vignette renders. These checks do not establish Windows or CUDA coverage.
+On a small 24-tied-term fixture, five paired repetitions
+give median sensitivity columns 175 to 39 with full reporting, and 175 to 14
+with information omitted. Full-reporting elapsed medians are 0.172 s off and
+0.181 s reduced; omission medians are 0.161 s off and 0.152 s reduced.
+These workload-specific results demonstrate saved derivative work, not a
+general whole-fit speedup or calibrated automatic admission policy.
+`benchmarks/validate_reduced_ai.R` reproduces the comparison using isolated
+baseline/candidate libraries.
+
+### Common-scale profiling continuation (2026-10-18)
+
+**Delivered, default off:** `experimental=list(commonScale="force")` uses the
+exact family `V=s V0(psi)`, estimates `s=y'P0y/d` analytically for every shape
+candidate, and optimizes only independent shape coordinates. Here `d=n-rank(X)`
+for REML and `d=n` for ML, retaining original observation counts under compression.
+The residual product scale supplies the reference. Existing affine `vcc`
+constraints are incorporated into the shape tangent, including positive ratio
+ties and random/residual ties. Enabling `reducedAI` separately is unnecessary.
+Profile scores and the AI scale Schur complement use the same coefficient
+factorization. The AI Schur metric is not claimed to equal the exact profiled
+Hessian.
+
+Admission requires Gaussian deterministic Henderson REML/ML, full-column-rank
+fixed design, all product-level variance scales free, and constraints preserving
+the common scale. Fixed shapes are allowed. Positive blending, PCG, PQL,
+solve-only, acceleration, latent reduced rank, saddle-point and factor-score
+augmentation remain excluded. Omitted and explicit zero `blendWeight` select
+the dedicated profile optimizer, not AI-first EM recovery. It uses existing
+trust units, regularized AI, observed-likelihood backtracking and exact final
+score certification. Auto admission exposes static fallback reasons without
+hiding runtime errors or retrying stalled fits with another optimizer.
+
+**Boundary scope:** this version profiles interior scales only. Reconstructed
+product variances must exceed `max(1e-8,tolParInv)`. Initial violations error;
+trial violations backtrack. A stall warns and returns the last accepted point
+unconverged. Constrained boundary-scale profiling and EM/PXEM recovery inside
+this optimizer remain unimplemented; refit with `commonScale="off"` for them.
+Aliased fixed designs are rejected instead of silently using the wrong REML
+degrees of freedom.
+
+One final ordinary same-point evaluation restores original coordinates and
+coefficient uncertainty. Full reporting retains the entire covariance
+information, including scale/shape cross-information and covariance standard
+errors. Information omission still performs a final evaluation, using reduced
+original constraint coordinates when smaller, and preserves coefficient PEV.
+Wald/KR fixed-parameter perturbations explicitly bypass profiling.
+`engineDiagnostics$commonScale` reports total evaluation/sensitivity work,
+scale, degrees of freedom, backtracking, regularization and certification.
+Optional phase seconds aggregate all trials and final reporting, while other
+native profile counters describe the final evaluation.
+
+Proof includes independent scalar scale maximization; finite-difference
+profile scores; same-point full-AI Schur comparisons; REML/ML and LDLT/CHOLMOD;
+correlated/weighted residuals; fixed shapes and ratio ties; compression;
+zero-dimensional shape fits; singular shape regularization; iteration limits;
+admission errors/fallbacks; full/omitted information; and coefficient,
+covariance and Wald/KR inference. The four-worker focused run passes 91 test
+blocks and 5,101 assertions without failures, errors, warnings or skips.
+The preserved pre-profiling build agrees bit-for-bit for 16 default-off fits
+and 11 output fields. These are macOS checks, not Windows/CUDA certification.
+
+`benchmarks/validate_common_scale.R` checks converged-fit parity and records
+five alternating paired repetitions per REML/ML and information mode. On its
+216-observation, three-parameter AR1 fixture, total sensitivity columns fall
+from 36 to 27, but coefficient evaluations rise from 12 to 13. Median elapsed
+times are 0.012 s off versus 0.013 s profiled with full information and 0.011 s
+versus 0.012 s with information omitted; REML and ML give the same rounded
+medians. This establishes saved derivative work, not a whole-fit speed gain.
+No automatic performance policy was changed.
+
+### Batch closure (2026-10-18)
+
+**Status: closed by user request.** The completed work listed below is the
+delivered scope of this acceleration batch. Closure does not mean the entire
+research roadmap is implemented or that the working-tree changes are committed.
+
+The final isolated macOS build and focused run passed 47 test blocks and
+1,282 assertions, with no failures, errors, warnings or skips. Reference checks,
+control-name documentation coverage and explanation-only vignette rendering
+passed. Earlier full-suite and performance results retain their dated scope;
+the full suite was not rerun after the final extensions.
+
+No further implementation, platform validation or performance calibration is
+scheduled in this batch. Remaining algorithmic items and release checks below
+are deferred to separately approved work. Automatic admission and experimental
+defaults remain unchanged; compression and new output/reuse options remain
+opt-in. No additional speedup is claimed for the final extensions.
+
+### Completed acceleration work
+
+- [x] Reliable scalar, packed and block PCG solves, true-residual checks,
+  residual refresh, model-aware block-Jacobi and operator Nystrom
+  preconditioning.
+- [x] Compatible warm starts and bounded solution-based coarse corrections.
+- [x] Symmetric diagonal-congruence SLQ with exact determinant correction,
+  trace control variates, and estimator diagnostics.
+- [x] Initial adaptive accuracy calibration followed by frozen probe/depth
+  budgets. Continuous iteration-by-iteration accuracy retuning is not implemented.
+- [x] True within-fit Krylov recycling: bounded CG-direction capture,
+  generalized Ritz selection, current-operator coarse factors, and balanced
+  SPD preconditioning. Only accepted-point state is promoted. This is PCG-only;
+  direct factorizations have no Krylov subspace to recycle.
+- [x] Explicit cross-fit/CV Krylov transfer through `pcg$exportRecycle` and
+  `pcg$recycleState`. Exported `fit$pcgRecycleState` is a versioned serializable
+  basis plus coefficient-coordinate metadata. Imports reject incompatible
+  coordinates, dimensions, rank or non-finite entries; current-operator Ritz
+  selection and coarse factors are rebuilt. No implicit global cache, automatic
+  coefficient remapping, or default behavior change is introduced.
+- [x] Exact sufficient-statistic grouping for eligible Gaussian Henderson
+  models, preserving weighted response moments, counts, determinant
+  normalization, derivative contractions, and original observation outputs.
+- [x] Residual-class cross-product caching and exact derivative trace operands
+  for LDLT, CHOLMOD, PCG and automatic selection, including supported REML/ML
+  paths. Shared `mmes_control(compression="off")` remains the default.
+  The legacy `pcg$compression` alias remains PCG-only.
+- [x] Updated `mmes` and `mmes_control` help and added the explanation-only
+  `sommer.mmes.options` vignette.
+- [x] Explicit `covarianceInformation="none"` opt-out, with `"full"` retained
+  as the default. Skip final information inversion and native-parameter
+  uncertainty propagation; return NULL information/uncertainty and explicit NA
+  uncertainty columns. Preserve optimization AI, exact certification, coefficient
+  prediction and PEV. Inference requiring omitted information errors with a refit
+  instruction; it never recomputes silently. Latent RR and factor-score
+  augmentation remain excluded, along with PQL, solve-only and direct inversion.
+- [x] Opt-in C-free saddle-point output through
+  `retainCoefficientMatrix=FALSE`, requiring `computeCi=0`. Skip the final
+  compatibility assembly and return `C=NULL`. Preserve ordinary coefficients,
+  fitted values, residuals and supported covariance reporting. C-dependent
+  methods raise explicit refit errors in R and native post-fit entry points;
+  no reconstruction occurs. The default still retains C.
+
+Earlier completed work includes sparse factor kernels, banded stationary-AR
+precision derivatives, exact trace panels, guarded structural paths, hybrid AI
+with exact final information, and the opt-in exact saddle-point prototype.
+Their scope and limitations remain documented in the dated sections below.
+
+### Measured results from the latest batch
+
+These are workload-specific observations, not expected gains for every model.
+
+| Workload/change | Before | After | Observation |
+| --- | ---: | ---: | --- |
+| Replicated PCG fit, exact compression | 0.373 s | 0.284 s | 23.9% lower median elapsed time |
+| 36,000 observations / 120 groups, LDLT | 0.424 s | 0.283 s | 33.3% lower median elapsed time |
+| Same replicated workload, CHOLMOD | 0.423 s | 0.283 s | 33.1% lower median elapsed time |
+| Related SPD systems, learned Krylov recycling | 7,169 iterations | 4,917 iterations | Operator applications including setup: 7,265 to 5,245 |
+
+Direct-solver timings use three repetitions; all compared fits converged, with
+maximum relative compared-output error about `2.1e-10`. Recycling can cost more
+than it saves on small fits; the combined small REML variant was slightly slower
+than compression alone.
+
+Focused validation passed 2,580 assertions at one and four OpenMP workers.
+Uncompressed parity covered 162 fits and 16 fields, all bit-identical.
+The full suite passed 8,518 assertions and retained one rotation assertion
+failure reproduced identically against the preserved baseline. These checks
+do not establish Windows or CUDA hardware coverage.
+
+### Deferred implementation backlog (outside the closed batch)
+
+The user requested continuation on 2026-10-18, excluding platform and performance
+validation while retaining focused build and regression checks, and subsequently
+closed the batch after the delivered extensions. The unchecked items below
+remain unimplemented and require a separate approved scope; they are not active
+tasks in this batch.
+
+- [ ] Exact structural planning: cost complete assembly/factor/trace/solve
+  plans, then add eligible product-grid elimination and multiple low-rank axes.
+  Preserve generic fallback and explicit solver selection.
+- [x] Reduced tied-coordinate AI assembly for admitted AI-first and EM/PXEM
+  direction-blended Henderson fits, preserving exact final information and
+  existing `vcc` semantics. Legacy explicit-zero AI and other excluded paths
+  remain unreduced.
+- [x] Opt-in interior common-scale profiling with fixed/free and constraint
+  admission, analytic REML/ML scale, reduced profile AI, explicit variance-floor
+  behavior and complete final uncertainty. Boundary-constrained profiling and
+  profile-optimizer EM recovery remain deferred.
+- [ ] Further saddle-point work: specialized symmetric-indefinite or
+  matrix-free indefinite solves. The existing
+  sparse-LU prototype is complete; these are new solver/object contracts, not
+  missing pieces of that prototype.
+- [ ] Update admission policies only when comparative evidence supports them.
+  Do not auto-enable measured losers or invent calibrated costs. Benchmark-based
+  automatic dispatch cannot be completed while its calibration is excluded.
+
+Broader estimator changes (for example full Hutch++ or continuous adaptive
+accuracy) remain separate experiments, not claims about the implemented
+control-variate estimator or initial calibration.
+
+### Deferred validation and release work
+
+- [ ] Windows compilation and platform-specific checks.
+- [ ] CUDA hardware execution and performance checks.
+- [ ] Broader crossover calibration and repeated held-out whole-fit measurements
+  before changing automatic dispatch or experimental defaults.
+
+Focused build and regression checks remain required for new runtime changes.
+The cross-fit transfer implementation builds in the isolated macOS candidate;
+all 13 test blocks in `test-pcg-crossfit.R`, `test-pcg-controls.R`, and
+`test-pcg-compression.R` pass. Rd checks and targeted explanation-only vignette
+rendering pass. No cross-fit performance benchmark, Windows check, or CUDA
+hardware check was run. No new speedup is claimed.
+After adding the information opt-out, 34 focused test blocks pass with 872
+assertions, zero failures/errors/warnings/skips, covering state transfer,
+compression, control merging, hybrid AI, Wald/KR and prediction. Omission-mode
+tests preserve fit trajectories and coefficient uncertainty bit-for-bit across
+supported solver/likelihood and recovery/blending cases. This is focused
+regression coverage, not a new full-suite or performance claim.
+The final focused run after C-free output passes 47 test blocks and 1,282
+assertions, with zero failures, errors, warnings or skips. It includes native
+saddle algebra, C-free assembly counters, serialized-object guards, compatible
+covariance inference, state transfer, compression, prediction, hybrid AI and
+Wald/KR regression checks. The package builds in the isolated macOS library.
+Rd checks, control-name coverage and explanation-only vignette rendering pass.
 
 ## Current Baseline
 
@@ -93,7 +347,7 @@ rows, output errors, source/binary hashes and process-log paths. Timing log:
 
 Already implemented and therefore not proposed again: matrix-free PCG panel solves; D-first ML on eligible direct fits; AR1 derivative dispatch; AR(p)/ANTE innovation-row precision assembly; normalized SAR/CAR precision and derivatives; factor/grid evaluation caches; bounded selected-inverse dependency caches; guarded CHOLMOD mode-1 extraction; aggregate inverse-cache budgets; same-probe PCG residual traces without `Btrace`; support-aware tensor contractions; sufficient PD certificates; and PCG probe-error/true-residual diagnostics.
 
-Important limits: sparse AR(p)/ANTE precision operands and sparse SAR/CAR evaluation are now opt-in, but dense covariance, precision compatibility slots and covariance-derivative storage remain; trace planning is not fully demand-driven; PCG estimator and tolerance policy remain unchanged; product-grid elimination and multiple low-rank axes are unsupported. The exact block-banded prototype is opt-in (force only) because it was up to 80x slower than generic CHOLMOD on AR1/AR2 fixtures.
+Important limits: sparse AR(p)/ANTE precision operands and sparse SAR/CAR evaluation are opt-in, but dense compatibility storage remains for some consumers; trace planning is not fully demand-driven; default PCG estimator and tolerance settings remain unchanged, with additional opt-in choices described in the current status above; product-grid elimination and multiple low-rank axes are unsupported. The exact block-banded prototype is opt-in (force only) because it was up to 80x slower than generic CHOLMOD on AR1/AR2 fixtures.
 
 ## Progress Checklist (2026-10-13)
 
@@ -210,10 +464,15 @@ Open, in order (each starts from the current working tree):
 - [ ] 1b. `ar1_50L_100ID` (no relationship, Schur off): trace preparation costs 0.85 s with a large budget versus 0.06 s when the selected inverse is not built. The right choice between selected inverse and exact sparse solves depends on fill and requested support; needs the cost-model/autotune design below, not another threshold. `car_200L` also still selects Schur (0.82 s versus 0.60 s).
 - [x] 2. SAR/CAR exact sparse evaluation implemented opt-in above. At 1000 levels, proposal time drops from 0.426 s to 0.154 s for SAR and 0.433 s to 0.099 s for CAR in the paired four-iteration fixtures. Dense covariance outputs, dense constructor spectral bounds and automatic crossover calibration remain open; the PD-repair part was completed earlier.
 - [x] 3. AR2 exact trace-solve bottleneck: opt-in independent LDLT panels validated above, without the shared solve lock. The original 997 missed block columns per iteration remain exact, now handled in 200 panel calls at six IDs. Single-thread automatic acceleration is not established. `aiAssembly` and dense `fit$theta` storage remain unchanged.
-- [ ] Not started: Ranks 3, 6; Rank 4 beyond the admission fixes above.
+- [x] Rank 3: PCG controls, reliability, estimators, initial calibration and
+  within-/cross-fit recycling are implemented; see current status.
+- [x] Rank 6 first slices: exact sparse-LU saddle prototype and opt-in C-free
+  output are implemented. Other indefinite solvers and automatic admission
+  remain open.
+- [ ] Rank 4 beyond the admission fixes above remains open.
 - [x] Rank 5 first slice: opt-in hybrid AI with exact final information and
-  sensitivity-solve counters. Information opt-out and tied-coordinate reduction
-  remain deferred; see Rank 5 for scope and validation requirements.
+  sensitivity-solve counters. Information opt-out is now implemented;
+  tied-coordinate reduction remains open.
 
 Measurement notes: forced `cholmod` on SAR/CAR 1000 levels is 2-3x slower than `ldlt` (`solver = "auto"` already picks `ldlt` there). The covariance-engine refactor adds explicit header dependencies and preserves `all: $(SHLIB)` as the default build target; manual source touching is no longer required.
 
@@ -443,6 +702,12 @@ target.
 
 ### Rank 3: Accuracy-Aware PCG
 
+**Reconciled 2026-10-18:** diagonal-congruence SLQ, trace control variates,
+reliable solves and initial adaptive calibration are implemented as opt-ins.
+The paragraphs below record the original rationale and acceptance gates, not
+an instruction to reimplement those features. Full Hutch++ and symmetric
+Nystrom-scaled SLQ remain distinct possible experiments.
+
 Start with symmetric diagonal-congruence SLQ: apply Lanczos to `D^-1/2 C D^-1/2` and add the exact determinant correction. Do not apply ordinary symmetric Lanczos to `M^-1 C`, which is generally nonsymmetric. Nyström preconditioning needs a valid symmetric square-root application and re-derived probe/warm-start transforms.
 
 Evaluate Hutch++-style trace deflation as a separate stochastic-estimator experiment. The finite-probe likelihood and score are not an exact objective/gradient pair. Existing probe-error and true-residual diagnostics help measure error, but do not justify changing defaults alone.
@@ -478,10 +743,16 @@ exact AI/diagonal-blend semantics, including when the iteration budget expires.
 Intermediate exact refreshes omit model-fixed sensitivity solves, while retaining
 full assembly buffers and full final information. Tied `vcc` fits explicitly
 remain exact (`engineDiagnostics$hybridAI$fallbackReason = "constraint-map"`).
-Reduced tied-coordinate assembly and sparse-RHS reach are not implemented here.
+Reduced tied-coordinate assembly was not implemented in that batch; the
+2026-10-18 continuation above adds it to admitted conditional optimizer paths.
+Sparse-RHS reach-based execution remains unimplemented.
 PCG, direct inversion, latent RR, PQL, solve-only and factor-score augmentation
-reject hybrid requests. Information opt-out and common-scale profiling remain
-deferred; `computeCi=0` does not opt out of covariance information.
+reject hybrid requests. Common-scale profiling was deferred in that batch; the
+separate continuation above adds its interior exact-AI path, not hybrid support.
+As of 2026-10-18, explicit
+`covarianceInformation="none"` skips final information inversion and uncertainty
+reporting, but retains AI needed by optimization; `computeCi=0` alone does not
+opt out of covariance information.
 Diagnostics expose actual and skipped sensitivity columns, refreshes, updates,
 resets and final certification. No general speedup is claimed.
 
@@ -520,9 +791,10 @@ as a completed benchmark. Logs, paired rows and RSS measurements are retained
 in `/tmp/sommer-hybrid-ai.ZgvqBD`.
 
 Further work requires profiling before adding sparse sensitivity directions or
-an SR1/L-BFGS alternative. Separately define an explicit covariance-information
-opt-out if callers can accept reduced public output. Common-scale profiling is
-a later model reparameterization requiring fixed/free, constraint, and uncertainty rules.
+an SR1/L-BFGS alternative. The explicit covariance-information opt-out is now
+implemented as documented in current status. The separately requested
+common-scale continuation above now defines its fixed/free, constraint,
+interior-boundary and uncertainty rules; it does not change hybrid admission.
 
 **Potential win:** fewer sensitivity solves when free covariance parameters dominate runtime. Little gain when numeric factorization dominates. Quasi-Newton changes optimizer behavior; information opt-out and profiling alter output contracts.
 
@@ -550,7 +822,9 @@ Compatibility milestone E1 materializes final `C` once, including for mode 0.
 Modes 1/2, predictions, post-fit inverse extraction, and save/reload keep the
 existing object contract. Mode 1 uses the Eigen selected subset; its pattern
 can differ from CHOLMOD, while every retained entry and PEV diagonal remains exact.
-This is not a C-free fitted-object path.
+This remains the default object contract. The 2026-10-18 extension allows
+explicit `retainCoefficientMatrix=FALSE` at mode 0, skipping that assembly
+and rejecting C-dependent post-fit methods.
 
 Scope: Gaussian Henderson REML/ML, multiple positive-definite random terms,
 sparse/dense relationships, fixed/tied parameters, diagonal, repeated-block and
@@ -558,7 +832,8 @@ explicit sparse residuals, and weights. Compact grid/ragged layouts, latent RR,
 PQL, solve-only, rotation, acceleration, and factor-score augmentation are
 explicitly rejected. LU fill is pivot-dependent and not capped by the dense
 workspace budget. Matrix-free indefinite iterations, specialized symmetric
-indefinite factors, C-free objects, and automatic admission remain deferred.
+indefinite factors and automatic admission remain deferred. C-free output
+is now an explicit opt-in as documented in the current status section.
 
 Reproduction: `benchmarks/validate_saddle.R` compares preserved baseline default
 outputs, same-fit exact outputs, and alternating paired converged fits. Native
@@ -602,9 +877,9 @@ relative solve residual in those processes is 1.21e-14.
 The existing phase-0 screen also shows that trace preparation, score traces and
 AI often dominate the larger fixtures. Avoiding normal-equation assembly alone
 does not remove those costs. The prototype is a correctness and modularity
-milestone, not a validated acceleration. Stop here: no automatic dispatch,
-new external indefinite solver, MINRES, or C-free object changes are justified
-by these measurements.
+milestone, not a validated acceleration. These measurements do not justify
+automatic dispatch, a new external indefinite solver or MINRES. The later
+C-free extension is explicitly opt-in; no performance gain is claimed for it.
 
 **Potential win:** unknown. Better conditioning or lower fill is not guaranteed; uncertainty and prediction extraction may erase solver savings.
 

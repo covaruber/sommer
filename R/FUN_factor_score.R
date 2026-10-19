@@ -6,7 +6,7 @@
   if(identical(representation, "lowrank_diagonal") &&
      factor$model %in% c("fa", "rr")){
     if(factor$model == "rr"){
-      stop("rrm() has zero specific variances and uses native reduced-rank fitting, not factorScoreAugmentation. Use factorScoreAugmentation='none'.",
+      stop("rrm() has zero specific variances and uses native reduced-rank fitting, not representation$factorScores. Use representation$factorScores='none'.",
            call.=FALSE)
     }
     order <- as.integer(factor$order)
@@ -89,7 +89,7 @@
     factorEnd <- as.integer(factor$par_end)
     factor$par <- if(factorEnd >= factorStart) shape$par[factorStart:factorEnd] else numeric()
     if(any(shape$free[-1L]) && !allowFree){
-      stop("factorScoreAugmentation='fixed-shape' requires all covariance-shape parameters to be fixed; only the shared variance scale may be estimated.", call.=FALSE)
+      stop("representation$factorScores='fixed-shape' requires all covariance-shape parameters to be fixed; only the shared variance scale may be estimated.", call.=FALSE)
     }
     q <- as.integer(factor$dim)
     if(length(zIndex) != q || any(vapply(Z[zIndex], ncol, integer(1)) != ncol(Z[[zIndex[1L]]]))){
@@ -279,14 +279,17 @@
      !identical(family$link, "identity") || !isTRUE(REML) || !isTRUE(henderson) ||
       computeCi != 0L || !is.null(vcc) ||
       !(tolower(solver) %in% c("auto", "ldlt", "cholmod"))){
-    stop("factorScoreAugmentation='profile' currently requires Gaussian REML Henderson fitting, computeCi=0, and no user vcc constraints or rotation.", call.=FALSE)
+    stop("representation$factorScores='profile' currently requires Gaussian REML Henderson fitting, output$inverse=0, and no user vcc constraints or rotation.", call.=FALSE)
   }
   setupCall <- call
-  setupCall$factorScoreAugmentation <- "none"
+  engine <- eval(call$engine, envir=caller)
+  setupEngine <- engine
+  setupEngine$factorScoreAugmentation <- "none"
+  setupCall$engine <- setupEngine
   setupCall$returnParam <- TRUE
   setup <- eval(setupCall, envir=caller)
   if(!is.null(setup$rotation)){
-    stop("factorScoreAugmentation='profile' does not support rotation=TRUE.", call.=FALSE)
+    stop("representation$factorScores='profile' does not support rotation=TRUE.", call.=FALSE)
   }
   shapeTerms <- integer()
   startingShapes <- list()
@@ -295,7 +298,7 @@
     shape <- setup$covStruct[[term]]
     if(any(vapply(shape$factors, function(factor)
       isTRUE(factor$representation$loadings$zero_specific), logical(1)))){
-      stop("rrm() uses native reduced-rank fitting, not factorScoreAugmentation. Use factorScoreAugmentation='none'.",
+      stop("rrm() uses native reduced-rank fitting, not representation$factorScores. Use representation$factorScores='none'.",
            call.=FALSE)
     }
     if(length(shape$factors) != 1L ||
@@ -308,7 +311,7 @@
     freeShapes[[as.character(term)]] <- free
   }
   if(!length(shapeTerms)){
-    stop("factorScoreAugmentation='profile' requires free shape parameters on an eligible low-rank or compound-symmetry random term.", call.=FALSE)
+    stop("representation$factorScores='profile' requires free shape parameters on an eligible low-rank or compound-symmetry random term.", call.=FALSE)
   }
 
   initial <- unlist(lapply(names(startingShapes), function(term){
@@ -329,8 +332,10 @@
     out
   }
   augmentedSetupCall <- call
-  augmentedSetupCall$factorScoreAugmentation <- "fixed-shape"
-  augmentedSetupCall$.factorScoreParameters <- as.name(".factorScoreParameters")
+  augmentedEngine <- engine
+  augmentedEngine$factorScoreAugmentation <- "fixed-shape"
+  augmentedSetupCall$engine <- augmentedEngine
+  augmentedSetupCall$.internal <- quote(list(factorScoreParameters=.factorScoreParameters))
   augmentedSetupCall$returnParam <- TRUE
   augmentedSetupEnvironment <- new.env(parent=caller)
   augmentedSetupEnvironment$.factorScoreParameters <- unpack(initial)
@@ -358,10 +363,9 @@
       return(cachedObjective)
     }
     innerCall <- call
-    innerCall$factorScoreAugmentation <- "fixed-shape"
-    innerCall$.factorScoreParameters <- as.name(".factorScoreParameters")
-    innerCall$.pqlInner <- TRUE
-    innerCall$.pqlStart <- as.name(".factorScoreStart")
+    innerCall$engine <- augmentedEngine
+    innerCall$.internal <- quote(list(factorScoreParameters=.factorScoreParameters,
+      pqlInner=TRUE, pqlStart=.factorScoreStart))
     profileEnvironment <- new.env(parent=caller)
     profileEnvironment$.factorScoreParameters <- unpack(parameters)
     profileEnvironment$.factorScoreStart <- innerStart

@@ -4,6 +4,7 @@
 #include "mme_progress.h"
 #include "mme_ai_recovery.h"
 #include "mme_em_optimizer.h"
+#include "mme_control_r.h"
 
 namespace sommer {
 
@@ -34,11 +35,12 @@ inline arma::mat restrictEMScaleTangent(
 inline double projectedEMScoreNorm(
     const arma::mat & tangent, const arma::vec & point,
     const std::vector<arma::uword> & offsets, double logFloor,
-    const arma::vec & score, const arma::mat & information, double tolerance) {
+    const arma::vec & score, const arma::mat & information, double tolerance,
+    const arma::mat & informationTangent = arma::mat()) {
   const arma::mat feasible = restrictEMScaleTangent(tangent, point, offsets,
     logFloor, arma::vec(tangent * (tangent.t() * score)));
   const arma::vec projected = feasible.t() * score;
-  const arma::mat curvature = feasible.t() * information * feasible;
+  const arma::mat curvature = aiInformationInTangent(information, informationTangent, feasible);
   double norm = 0.0;
   for(arma::uword j = 0; j < projected.n_elem; ++j) {
     norm = std::max(norm, std::abs(projected(j)) /
@@ -57,14 +59,13 @@ inline Rcpp::List fitEMBlend(
     const arma::vec & steps, const int inverseMode, const bool verbose, const bool reml,
     const EMConditionalFit & conditionalFit) {
   const int terms = descriptors.size();
-  const std::string method = descriptors.hasAttribute("blend")
-    ? Rcpp::as<std::string>(descriptors.attr("blend")) : "em";
-  if(method != "em" && method != "pxem") {
-    Rcpp::stop("Unknown EM direction-blending method.");
-  }
-  const bool parameterExpanded = method == "pxem";
-  const bool adaptive = descriptors.hasAttribute("adaptiveRecovery") &&
-    Rcpp::as<bool>(descriptors.attr("adaptiveRecovery"));
+  const control::Transport controls(descriptors);
+  control::Proposal proposal;
+  proposal.blend = controls.blend("Unknown EM direction-blending method.");
+  const std::string method = control::blendName(proposal.blend);
+  const bool parameterExpanded = proposal.blend == control::Blend::PXEM;
+  proposal.adaptiveRecovery = controls.logical("adaptiveRecovery");
+  const bool adaptive = proposal.adaptiveRecovery;
   const double scoreTolerance = std::sqrt(std::max(likelihoodTolerance, parameterTolerance));
   AIRecoveryPolicy recoveryPolicy;
   int previousHalvings = 0, recoverySteps = 0, acceptedRecoveries = 0;
@@ -77,6 +78,13 @@ inline Rcpp::List fitEMBlend(
   std::string stopReason = "iteration-limit";
   double currentScoreNorm = std::numeric_limits<double>::infinity();
   const bool lowRank = hasZeroSpecific(descriptors);
+  const std::string reducedMode = descriptors.hasAttribute("reducedAI")
+    ? Rcpp::as<std::string>(descriptors.attr("reducedAI")) : "off";
+  const bool retainInformation = !descriptors.hasAttribute("covarianceInformation") ||
+    Rcpp::as<std::string>(descriptors.attr("covarianceInformation")) == "full";
+  if(reducedMode == "force" && lowRank) {
+    Rcpp::stop("reducedAI='force' does not support latent reduced-rank fitting.");
+  }
   std::vector<arma::uword> offsets(terms + 1, 0);
   for(int term = 0; term < terms; ++term) {
     const Rcpp::List descriptor = descriptors[term];
@@ -109,6 +117,11 @@ inline Rcpp::List fitEMBlend(
     const arma::uvec used = arma::find(arma::sum(arma::abs(tangent), 0).t() > 0.0);
     tangent = tangent.cols(used);
   }
+  const bool reducedAI = reducedMode != "off" && !lowRank && map.active &&
+    tangent.n_cols < count;
+  int reducedEvaluations = 0, fullInformationEvaluations = 0;
+  double reducedSensitivityColumns = 0.0, skippedSensitivityColumns = 0.0;
+  double reducedSensitivityEntries = 0.0, reducedAssemblyEntries = 0.0;
   std::vector<bool> variableTerm(terms, false);
   for(int term = 0; term < terms; ++term) {
     variableTerm[term] = arma::accu(arma::abs(
@@ -160,6 +173,18 @@ inline Rcpp::List fitEMBlend(
   double previousLikelihood = -std::numeric_limits<double>::infinity();
   auto observe = [&](Rcpp::List fit) {
     const Rcpp::List diagnostics = fit["engineDiagnostics"];
+    if(fit.containsElementNamed(".aiTangent")) {
+      ++reducedEvaluations;
+      const arma::mat basis = Rcpp::as<arma::mat>(fit[".aiTangent"]);
+      reducedSensitivityColumns += Rcpp::as<double>(diagnostics["nativeAISensitivityColumns"]);
+      skippedSensitivityColumns += count - basis.n_cols;
+      reducedSensitivityEntries = std::max(reducedSensitivityEntries,
+        Rcpp::as<double>(diagnostics["nativeAISensitivityEntries"]));
+      reducedAssemblyEntries = std::max(reducedAssemblyEntries,
+        Rcpp::as<double>(diagnostics["nativeAIAssemblyEntries"]));
+    } else if(Rcpp::as<double>(diagnostics["nativeAISensitivityColumns"]) > 0.0) {
+      ++fullInformationEvaluations;
+    }
     coefficientEvaluations += Rcpp::as<double>(diagnostics["coefficientEvaluations"]);
     for(const char * name : {"CsymbolicAnalyses", "DsymbolicAnalyses",
                             "DselectedTopologyBuilds", "DselectedTopologyReuses",
@@ -286,6 +311,10 @@ inline Rcpp::List fitEMBlend(
     const bool nativeAI = !lowRank && (nativeInformation || (callback && iterationNeedsAI));
     covariance.attr("rrConditional") = !nativeAI;
     covariance.attr("emInformationOnly") = nativeAI;
+    if(nativeAI && reducedAI) {
+      covariance.attr("aiTangent") = tangent;
+      covariance.attr("covarianceInformation") = "none";
+    }
     covariance.attr("emMomentsOnly") = !nativeAI && (!callback || !iterationNeedsAI);
     if(callback && !nativeAI) {
       for(int term = 0; term < terms; ++term) {
@@ -344,14 +373,15 @@ inline Rcpp::List fitEMBlend(
               Rcpp::stop("Non-finite AI score or information in adaptive recovery.");
             }
             currentScoreNorm = projectedEMScoreNorm(tangent, parameters, offsets,
-              logFloor, score, ai.information, inverseTolerance);
+              logFloor, score, ai.information, inverseTolerance, operators.informationTangent);
           }
           arma::mat feasible = adaptive
             ? restrictEMScaleTangent(tangent, parameters, offsets, logFloor,
                 arma::vec(tangent * (tangent.t() * score)))
             : tangent;
           for(int activeSet = 0; activeSet <= terms && feasible.n_cols > 0; ++activeSet) {
-            const arma::mat information = feasible.t() * ai.information * feasible;
+            const arma::mat information = aiInformationInTangent(
+              ai.information, operators.informationTangent, feasible);
             const arma::vec projected = feasible.t() * score;
             arma::vec direction;
             if(adaptive) {
@@ -367,8 +397,9 @@ inline Rcpp::List fitEMBlend(
               if(!reliable) {
                 if(currentScoreNorm > scoreTolerance && iteration < iterations - 1) {
                   ++regularizedAttempts;
-                  const RegularizedAIDirection stabilized = regularizedAIDirection(
-                    ai.information, score, feasible, stepCaps);
+                  const RegularizedAIDirection stabilized = operators.informationTangent.n_rows > 0
+                    ? regularizedReducedAIDirection(information, projected, feasible, stepCaps)
+                    : regularizedAIDirection(ai.information, score, feasible, stepCaps);
                   if(stabilized.reliable) {
                     aiDirection = stabilized.direction;
                     regularizedAI = true;
@@ -973,6 +1004,9 @@ inline Rcpp::List fitEMBlend(
       RRConditionalOperators operators;
       operators.score = -0.5 * Rcpp::as<arma::vec>(result["dLu"]);
       operators.information = 0.5 * Rcpp::as<arma::mat>(result["InfMat"]);
+      if(result.containsElementNamed(".aiTangent")) {
+        operators.informationTangent = Rcpp::as<arma::mat>(result[".aiTangent"]);
+      }
       const Rcpp::List diagnostics = result["engineDiagnostics"];
       operators.sensitivityColumns = Rcpp::as<double>(diagnostics["nativeAISensitivityColumns"]);
       callback(operators);
@@ -1210,6 +1244,12 @@ inline Rcpp::List fitEMBlend(
   }
   Rcpp::List finalCovariance = covarianceAt(parameters);
   finalCovariance.attr("emInformationOnly") = true;
+  if(reducedAI && !retainInformation) {
+    finalCovariance.attr("aiTangent") = tangent;
+  }
+  if(retainInformation && result.containsElementNamed(".aiTangent")) {
+    finalInformationReady = false;
+  }
   if(!finalInformationReady) {
     result = observe(conditionalFit(Z, Zind, finalCovariance, inverseMode, nullptr));
     ++likelihoodEvaluations;
@@ -1220,12 +1260,15 @@ inline Rcpp::List fitEMBlend(
   }
   const arma::vec finalScore = Rcpp::as<arma::vec>(result["dLu"]);
   const arma::mat finalInformation = Rcpp::as<arma::mat>(result["InfMat"]);
+  const arma::mat finalInformationTangent = result.containsElementNamed(".aiTangent")
+    ? Rcpp::as<arma::mat>(result[".aiTangent"]) : arma::mat();
   double projectedScoreNorm = 0.0;
   const arma::mat finalTangent = restrictEMScaleTangent(tangent, parameters, offsets,
     logFloor, arma::vec(-tangent * (tangent.t() * finalScore)));
   if(finalTangent.n_cols > 0) {
     const arma::vec projectedScore = finalTangent.t() * finalScore;
-    const arma::mat projectedInformation = finalTangent.t() * finalInformation * finalTangent;
+    const arma::mat projectedInformation = aiInformationInTangent(
+      finalInformation, finalInformationTangent, finalTangent);
     for(arma::uword j = 0; j < finalTangent.n_cols; ++j) {
       projectedScoreNorm = std::max(projectedScoreNorm, std::abs(projectedScore(j)) /
         std::sqrt(std::max(inverseTolerance, std::abs(projectedInformation(j, j)))));
@@ -1233,7 +1276,8 @@ inline Rcpp::List fitEMBlend(
   }
   if(adaptive) {
     projectedScoreNorm = projectedEMScoreNorm(tangent, parameters, offsets,
-      logFloor, arma::vec(-0.5 * finalScore), arma::mat(0.5 * finalInformation), inverseTolerance);
+      logFloor, arma::vec(-0.5 * finalScore), arma::mat(0.5 * finalInformation),
+      inverseTolerance, finalInformationTangent);
   }
   converged = converged && projectedScoreNorm <=
     std::sqrt(std::max(likelihoodTolerance, parameterTolerance));
@@ -1247,6 +1291,18 @@ inline Rcpp::List fitEMBlend(
   result["percDelta"] = arma::mat(count, monitor.n_cols, arma::fill::zeros);
   result["toBoundary"] = arma::mat(monitor.n_cols, count, arma::fill::zeros);
   Rcpp::List diagnostics = result["engineDiagnostics"];
+  diagnostics["reducedAI"] = Rcpp::List::create(
+    Rcpp::Named("active") = reducedAI,
+    Rcpp::Named("fullParameters") = static_cast<double>(count),
+    Rcpp::Named("independentParameters") = static_cast<double>(tangent.n_cols),
+    Rcpp::Named("evaluations") = reducedEvaluations,
+    Rcpp::Named("fullInformationEvaluations") = fullInformationEvaluations,
+    Rcpp::Named("sensitivityColumns") = reducedSensitivityColumns,
+    Rcpp::Named("sensitivityColumnsSkipped") = skippedSensitivityColumns,
+    Rcpp::Named("maxSensitivityEntries") = reducedSensitivityEntries,
+    Rcpp::Named("maxAssemblyEntries") = reducedAssemblyEntries,
+    Rcpp::Named("fallbackReason") = reducedMode != "off" && !reducedAI
+      ? (lowRank ? "latent-reduced-rank" : "no-independent-reduction") : "");
   diagnostics["optimizer"] = adaptive ? "AI-first-recovery"
     : parameterExpanded ? "PX-GEM-AI-direction" : "EM/GEM-AI-direction";
   diagnostics["likelihoodMode"] = reml ? "REML" : "ML";
@@ -1371,6 +1427,12 @@ inline Rcpp::List fitEMBlend(
     Rcpp::List gpu = result["gpuDiagnostics"];
     for(const auto & counter : gpuCounters) { gpu[counter.first] = counter.second; }
     result["gpuDiagnostics"] = gpu;
+  }
+  if(result.containsElementNamed(".aiTangent")) {
+    const Rcpp::CharacterVector names = result.names();
+    for(int j = 0; j < names.size(); ++j) {
+      if(Rcpp::as<std::string>(names[j]) == ".aiTangent") { result.erase(j); break; }
+    }
   }
   return result;
 }

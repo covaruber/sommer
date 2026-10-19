@@ -3,15 +3,15 @@ test_that("profiling is off by default and does not change the fit", {
   data <- expand.grid(id = factor(seq_len(6L)), level = factor(seq_len(4L)), rep = seq_len(2L))
   data$response <- rnorm(nrow(data)) + as.integer(data$level) / 4
   fitWith <- function(mode){
-    mmes(response ~ level, random = ~vsm(ar1m(level), ism(id)), rcov = ~units,
-         data = data, nIters = 2L, solver = "cholmod", engine = mmes_control(solver = "cholmod",
-           experimental = list(profile = mode)),
-         verbose = FALSE, dateWarning = FALSE)
+    mmes(response ~ level, random=~vsm(ar1m(level), ism(id)), rcov=~units, data=data,
+      control=mmes_control(solve=list(method="cholmod"),
+        convergence=list(maxIters=2L), diagnostics=list(profile=mode,
+          verbose=FALSE, dateWarning=FALSE)))
   }
   off <- fitWith("off")
   on <- fitWith("force")
   expect_null(off$engineDiagnostics$profile)
-  expect_equal(on$engineDiagnostics$control$profile, "force")
+  expect_equal(on$control$diagnostics$profile, "force")
   for(component in c("llik", "theta", "bu", "InfMat")){
     expect_identical(on[[component]], off[[component]])
   }
@@ -22,9 +22,9 @@ test_that("phase profile reports consistent seconds, iterations and counters", {
   data <- expand.grid(id = factor(seq_len(6L)), level = factor(seq_len(4L)), rep = seq_len(2L))
   data$response <- rnorm(nrow(data)) + as.integer(data$level) / 4
   for(solver in c("ldlt", "cholmod")){
-    fit <- mmes(response ~ level, random = ~vsm(ar2m(level), ism(id)), rcov = ~units,
-      data = data, nIters = 2L, solver = solver, verbose = FALSE, dateWarning = FALSE,
-      engine = mmes_control(solver = solver, experimental = list(profile = "force")))
+    fit <- mmes(response ~ level, random=~vsm(ar2m(level), ism(id)), rcov=~units, data=data,
+      control=mmes_control(solve=list(method=solver), convergence=list(maxIters=2L),
+        diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)))
     p <- fit$engineDiagnostics$profile
     expect_identical(names(p$seconds), sommer:::.mme_phase_names)
     expect_true(all(p$seconds >= 0))
@@ -109,13 +109,19 @@ test_that("phase profile reports consistent seconds, iterations and counters", {
 })
 
 test_that("exact trace panels preserve AR2 fits, scores and uncertainty", {
+  skip_if(is.null(sommer:::.mmes_blas_controller()),
+    "No supported BLAS controller available")
   fitWith <- function(workload, mode, threads, inverseMode, reml = TRUE, iterations = 2L, budget = 1000,
                       policy = "speed"){
-    mmes(workload$fixed, random = workload$random, rcov = workload$rcov, data = workload$data,
-         nIters = iterations, nThreads = threads, computeCi = inverseMode, getPEV = inverseMode > 0L,
-         REML = reml, blendWeight = 0, verbose = FALSE, dateWarning = FALSE,
-         engine = mmes_control(solver = "ldlt", denseMemoryMB = budget, memoryPolicy = policy,
-           experimental = list(profile = "force", blockSchur = "off", traceBatch = mode)))
+    mmes(workload$fixed, random=workload$random, rcov=workload$rcov, data=workload$data,
+      control=mmes_control(execution=list(blasThreads=threads,
+          denseMemoryMB=budget, memoryPolicy=policy),
+        solve=list(blockSchur="off"), score=list(traceBatch=mode),
+        convergence=list(maxIters=iterations),
+        output=list(inverse=inverseMode),
+        task=list(objective=if(reml) "reml" else "ml"),
+        update=list(blendWeight=0),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   fields <- c("llik", "monitor", "theta", "covPar", "bu", "InfMat", "dLu", "theta_se", "uPevList")
   for(relationship in c("none", "sparse", "dense")){
@@ -136,7 +142,7 @@ test_that("exact trace panels preserve AR2 fits, scores and uncertainty", {
       expect_equal(counters$traceFallbackSolves, reference$engineDiagnostics$profile$counters$traceFallbackSolves)
       expect_lte(counters$traceBatchSolves, counters$traceFallbackSolves)
       expect_gt(counters$traceBatchWorkspaceBytes, 0)
-      expect_equal(candidate$engineDiagnostics$control$traceBatch, "force")
+      expect_equal(candidate$control$score$traceBatch, "force")
     }
   }
   workload <- generate_mme_workload(structure = "ar2", n_levels = 12L, n_ind = 4L, seed = 7L)

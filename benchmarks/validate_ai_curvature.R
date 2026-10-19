@@ -8,11 +8,14 @@ if(length(args) && args[1L] == "--child"){
   workload <- generate_mme_workload(structure = "ar2", n_levels = 1000L,
                                     n_ind = 6L, relationship = "none", seed = 391L)
   fit_model <- function(){
-    mmes(workload$fixed, random = workload$random, rcov = workload$rcov,
-         data = workload$data, REML = TRUE, nIters = 4L, nThreads = 1L,
-         verbose = FALSE, dateWarning = FALSE,
-         engine = mmes_control(solver = "ldlt",
-           experimental = list(profile = "force", blockSchur = "off")))
+    mmes(workload$fixed,
+  random=workload$random,
+  rcov=workload$rcov,
+  data=workload$data,
+  control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(solve=list(method="ldlt", blockSchur="off"),
+  diagnostics=list(profile="force")
+)), list(task=list(objective=if(TRUE) "reml" else "ml"), convergence=list(maxIters=4L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
   }
   invisible(fit_model())
   invisible(gc())

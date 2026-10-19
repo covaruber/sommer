@@ -10,14 +10,7 @@ test_that("rank-two factor-analytic updates remain finite and positive definite"
   data$BLUEs <- 100 + trial_effect[data$trial] +
     genotype_effect[data$genotype] + interaction
 
-  fit <- mmes(
-    BLUEs ~ trial,
-    random=~vsm(fam(trial, 2), ism(genotype)),
-    rcov=~units,
-    data=data,
-    nIters=20,
-    verbose=FALSE
-  )
+  fit <- mmes(BLUEs ~ trial, random=~vsm(fam(trial, 2), ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=20), diagnostics=list(verbose=FALSE)))
 
   expect_s3_class(fit, "mmes")
   expect_true(all(is.finite(fit$monitor)))
@@ -53,9 +46,7 @@ test_that("FA Woodbury and near-boundary fallback match generic covariance facto
     generic$covFactor$model <- "fa"
     for(reml in c(TRUE, FALSE)){
       fits <- lapply(list(factor, generic), function(shape){
-        mmes(BLUEs~trial, random=~vsm(shape, ism(genotype), Gu=precision),
-          rcov=~vsm(dsm(trial), ism(units)), data=data, nIters=4,
-          REML=reml, solver="ldlt", verbose=FALSE, dateWarning=FALSE)
+        mmes(BLUEs~trial, random=~vsm(shape, ism(genotype), Gu=precision), rcov=~vsm(dsm(trial), ism(units)), data=data, control=mmes_control(convergence=list(maxIters=4), task=list(objective=if(reml) "reml" else "ml"), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       })
       expect_equal(as.numeric(fits[[1L]]$bu), as.numeric(fits[[2L]]$bu), tolerance=1e-7)
       expect_equal(as.numeric(fits[[1L]]$llik), as.numeric(fits[[2L]]$llik), tolerance=1e-7)
@@ -79,9 +70,7 @@ test_that("compound-symmetry Woodbury matches its generic covariance fallback", 
     diag(covariance) <- 1
     generic <- ownm(data$trial, K=covariance)
     fits <- lapply(list(factor, generic), function(shape){
-      mmes(BLUEs~trial, random=~vsm(shape, ism(genotype), Gu=precision),
-        rcov=~units, data=data, nIters=4, solver="ldlt", verbose=FALSE,
-        dateWarning=FALSE)
+      mmes(BLUEs~trial, random=~vsm(shape, ism(genotype), Gu=precision), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=4), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     })
     expect_equal(as.numeric(fits[[1L]]$bu), as.numeric(fits[[2L]]$bu),
                  tolerance=1e-7)
@@ -132,9 +121,7 @@ test_that("stationary AR precision matches dense covariance factors", {
     }
     generic <- ownm(data$trial, K=covariance)
     fits <- lapply(list(shape, generic), function(term){
-      mmes(BLUEs~trial, random=~vsm(term, ism(genotype), Gu=precision),
-        rcov=~units, data=data, nIters=4, solver="ldlt", verbose=FALSE,
-        dateWarning=FALSE)
+      mmes(BLUEs~trial, random=~vsm(term, ism(genotype), Gu=precision), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=4), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     })
     expect_equal(as.numeric(fits[[1L]]$bu), as.numeric(fits[[2L]]$bu),
                  tolerance=1e-7, info=paste("AR order", order, "heterogeneous", heterogeneous))
@@ -165,8 +152,7 @@ test_that("compound-symmetry and AR precision are shared with residual Kronecker
     shape$covFactor <- factor
     generic <- ownm(data$trial, K=covariance)
     fits <- lapply(list(shape, generic), function(term){
-      mmes(y~trial, random=~id, rcov=~vsm(term, ism(id)), data=data,
-        nIters=4, solver="ldlt", verbose=FALSE, dateWarning=FALSE)
+      mmes(y~trial, random=~id, rcov=~vsm(term, ism(id)), data=data, control=mmes_control(convergence=list(maxIters=4), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     })
     expect_equal(as.numeric(fits[[1L]]$llik), as.numeric(fits[[2L]]$llik),
                  tolerance=1e-7, info=factor$model)
@@ -198,9 +184,7 @@ test_that("analytic FA/RR derivatives match centered finite differences", {
       value / value[1L, 1L]
     }
     fit <- function(shape){
-      mmes(y~1, random=~vsm(shape, ism(genotype)), rcov=~units,
-        data=data, nIters=12, tolParConvLL=1e-8,
-        verbose=FALSE, dateWarning=FALSE)
+      mmes(y~1, random=~vsm(shape, ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=12, likelihoodTol=1e-8), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     numeric <- structured
     numeric$covFactor$derivative <- list(backend="numeric", rel_step=1e-6)

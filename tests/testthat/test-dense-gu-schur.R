@@ -7,9 +7,7 @@ test_that("fixed factor and relationship components split tensor priors without 
   dimnames(precision) <- list(levels(dataset$id), levels(dataset$id))
   attr(precision, "inverse") <- TRUE
   fitModel <- function(solver){
-    mmes(response~environment+trait,
-      random=~vsm(ar1m(environment), usm(trait), ism(id), Gu=precision), data=dataset,
-      solver=solver, nIters=3L, computeCi=2L, verbose=FALSE, dateWarning=FALSE)
+    mmes(response~environment+trait, random=~vsm(ar1m(environment), usm(trait), ism(id), Gu=precision), data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=3L), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   reference <- fitModel("ldlt")
   candidate <- fitModel("cholmod")
@@ -41,14 +39,8 @@ test_that("multiple dense-Gu effects use exact Schur blocks", {
   random <- ~vsm(dsm(env), ism(id), Gu=Ginv1) +
     vsm(dsm(env), ism(id), Gu=Ginv2)
 
-  cholmodOutput <- capture.output(cholmodFit <- mmes(
-    y~env, random=random, rcov=~units, data=dat, solver="cholmod",
-    nIters=8, verbose=TRUE, dateWarning=FALSE
-  ))
-  ldltFit <- suppressMessages(mmes(
-    y~env, random=random, rcov=~units, data=dat, solver="ldlt",
-    nIters=8, verbose=FALSE, dateWarning=FALSE
-  ))
+  cholmodOutput <- capture.output(cholmodFit <- mmes(y~env, random=random, rcov=~units, data=dat, control=mmes_control(solve=list(method="cholmod"), convergence=list(maxIters=8), diagnostics=list(verbose=TRUE, dateWarning=FALSE))))
+  ldltFit <- suppressMessages(mmes(y~env, random=random, rcov=~units, data=dat, control=mmes_control(solve=list(method="ldlt"), convergence=list(maxIters=8), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
 
   expect_true(any(grepl("Dense block-Schur engine active \\(3 random-effect blocks, 3 border effects\\)", cholmodOutput)))
   expect_false(any(grepl("Materialized cross-group inverse block", cholmodOutput)))
@@ -57,12 +49,8 @@ test_that("multiple dense-Gu effects use exact Schur blocks", {
   expect_true(cholmodFit$engineDiagnostics$blockSchurActive)
   expect_equal(cholmodFit$engineDiagnostics$blockSchurGroups, 3L)
 
-  mlSchur <- suppressMessages(mmes(y~env, random=random, rcov=~units,
-    data=dat, solver="cholmod", REML=FALSE, nIters=8,
-    verbose=FALSE, dateWarning=FALSE))
-  mlLdlt <- suppressMessages(mmes(y~env, random=random, rcov=~units,
-    data=dat, solver="ldlt", REML=FALSE, nIters=8,
-    verbose=FALSE, dateWarning=FALSE))
+  mlSchur <- suppressMessages(mmes(y~env, random=random, rcov=~units, data=dat, control=mmes_control(solve=list(method="cholmod"), task=list(objective=if(FALSE) "reml" else "ml"), convergence=list(maxIters=8), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
+  mlLdlt <- suppressMessages(mmes(y~env, random=random, rcov=~units, data=dat, control=mmes_control(solve=list(method="ldlt"), task=list(objective=if(FALSE) "reml" else "ml"), convergence=list(maxIters=8), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
   expect_true(mlSchur$engineDiagnostics$dFirstMLActive)
   expect_equal(unlist(mlSchur$theta), unlist(mlLdlt$theta), tolerance=1e-8)
   expect_equal(as.numeric(mlSchur$llik), as.numeric(mlLdlt$llik), tolerance=1e-8)
@@ -90,9 +78,7 @@ test_that("partial diagonal tensor products expose exact Schur groups in any fac
     reml <- case$reml
     inverseMode <- case$inverseMode
     fitModel <- function(solver){
-      mmes(response~site+time+zone+trait+batch, random=randomModels[[model]],
-        data=dataset, solver=solver, REML=reml, nIters=2L,
-        computeCi=inverseMode, getPEV=inverseMode > 0L, verbose=FALSE, dateWarning=FALSE)
+      mmes(response~site+time+zone+trait+batch, random=randomModels[[model]], data=dataset, control=mmes_control(solve=list(method=solver), task=list(objective=if(reml) "reml" else "ml"), convergence=list(maxIters=2L), output=list(inverse=inverseMode), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     reference <- fitModel("ldlt")
     candidate <- fitModel("cholmod")
@@ -121,10 +107,7 @@ test_that("correlated ragged residuals merge tensor prior components exactly", {
   dimnames(precision) <- list(levels(dataset$id), levels(dataset$id))
   attr(precision, "inverse") <- TRUE
   fitModel <- function(solver){
-    mmes(response~site+time+zone+trait,
-      random=~vsm(dsm(site), ar1m(time), dsm(zone), usm(trait), ism(id), Gu=precision),
-      rcov=~vsm(ar1m(site, rho=0.35, fixed=TRUE), ism(record)), data=dataset,
-      solver=solver, nIters=3L, computeCi=2L, verbose=FALSE, dateWarning=FALSE)
+    mmes(response~site+time+zone+trait, random=~vsm(dsm(site), ar1m(time), dsm(zone), usm(trait), ism(id), Gu=precision), rcov=~vsm(ar1m(site, rho=0.35, fixed=TRUE), ism(record)), data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=3L), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   reference <- fitModel("ldlt")
   candidate <- fitModel("cholmod")

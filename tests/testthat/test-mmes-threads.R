@@ -51,8 +51,7 @@ test_that("mmes restores real BLAS settings after success, early return, and err
   previous <- controller$get()
   on.exit(controller$set(previous), add=TRUE)
   data(DT_example)
-  fit <- function(...) mmes(Yield~Env, random=~Name, rcov=~units,
-    data=DT_example, nIters=2, verbose=FALSE, dateWarning=FALSE, blasThreads=1L, ...)
+  fit <- function(...) mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example, ..., control=mmes_control(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE, dateWarning=FALSE), execution=list(blasThreads=1L)))
   result <- fit(solver="ldlt")
   expect_equal(controller$get(), previous)
   expect_identical(result$threadingDiagnostics$blasThreadsConfigured, 1L)
@@ -74,9 +73,7 @@ test_that("thread control preserves estimates and reports the actual numerical p
   skip_if(inherits(probe, "try-error"), "The backend does not support two BLAS threads")
   probe$restore()
   data(DT_example)
-  fit <- function(threads) mmes(Yield~Env, random=~Name, rcov=~units,
-    data=DT_example, nIters=4, verbose=FALSE, dateWarning=FALSE,
-    solver="cholmod", blasThreads=threads)
+  fit <- function(threads) mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example, control=mmes_control(convergence=list(maxIters=4), diagnostics=list(verbose=FALSE, dateWarning=FALSE), solve=list(method="cholmod"), execution=list(blasThreads=threads)))
   serial <- fit(1L)
   threaded <- fit(2L)
   expect_equal(threaded$theta, serial$theta, tolerance=1e-8)
@@ -111,7 +108,7 @@ test_that("parallel AI contractions preserve serial fits and cache accounting", 
   on.exit(unlink(c(script, outputs)), add=TRUE)
   writeLines(deparse(substitute({
     arguments <- commandArgs(TRUE)
-    library(sommer, lib.loc=arguments[2L])
+    pkgload::load_all(arguments[2L], quiet=TRUE)
     dataset <- expand.grid(trial=factor(seq_len(6L)),
       genotype=factor(seq_len(12L)), block=factor(seq_len(3L)))
     dataset$y <- 100 + c(45, -30, -12, 52, 18, -20)[dataset$trial] +
@@ -125,8 +122,7 @@ test_that("parallel AI contractions preserve serial fits and cache accounting", 
     results <- list()
     for(repetition in seq_len(12L)){
       for(model in models){
-        fit <- mmes(y~trial+block, random=model, data=dataset, nIters=3L,
-          verbose=FALSE, dateWarning=FALSE)
+        fit <- mmes(y~trial+block, random=model, data=dataset, control=mmes_control(convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
         results[[length(results) + 1L]] <- c(
           fit[c("theta", "bu", "llik", "InfMat", "dLu")],
           list(contractionDigitEntries=fit$engineDiagnostics$contractionDigitEntries)
@@ -135,7 +131,7 @@ test_that("parallel AI contractions preserve serial fits and cache accounting", 
     }
     saveRDS(results, arguments[1L])
   })), script)
-  libraryPath <- dirname(find.package("sommer"))
+  libraryPath <- pkgload::pkg_path()
   for(index in seq_along(outputs)){
     threads <- c(1L, 2L)[index]
     output <- system2(file.path(R.home("bin"), "Rscript"),

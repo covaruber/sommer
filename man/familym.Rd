@@ -56,10 +56,11 @@ d$yield <- 10 + u[as.integer(d$id), 2] + rnorm(nrow(d))
 L <- stackTraits(d, traits = c("disease", "yield"))
 
 fit <- mmes(value ~ trait,
-            random = ~ vsm(usm(trait), ism(id)),
-            rcov = ~ vsm(corgm(trait, variance = "heterogeneous"), ism(record)),
-            family = familym("trait", disease = binomial(), yield = gaussian()),
-            data = L, verbose = FALSE)
+  random = ~ vsm(usm(trait), ism(id)),
+  rcov = ~ vsm(corgm(trait, variance = "heterogeneous"), ism(record)),
+  family = familym("trait", disease = binomial(), yield = gaussian()),
+  data = L,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 fit$dispersion
 covmatrix_mmes(fit, 1)$correlation   # genetic correlation (link scale)
 head(fitted(fit))                    # probabilities for disease rows

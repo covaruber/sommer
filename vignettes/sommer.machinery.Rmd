@@ -16,7 +16,7 @@ why there are three sparse-system solvers, and where the major computational
 savings come from. Small examples connect the equations to actual R output.
 
 The discussion is specific to the Henderson engine (`mmes(...,
-henderson=TRUE)`, the default). `henderson=FALSE` selects a different,
+formulation="henderson")`, the default). `formulation="direct"` selects a different,
 direct-inversion engine and is outside the solver comparisons below. Some
 implementation details evolve; the source comments in `src/MNR.cpp` are the
 authoritative record of the current implementation.
@@ -78,7 +78,7 @@ at their specified values and omitted from the free update.
 
 For REML, the target is the restricted likelihood, which accounts for the
 fixed-effect design while estimating covariance. For ML, it is the ordinary
-likelihood. `REML=TRUE` is the default. `REML=FALSE` is supported by the
+likelihood. `task$objective="reml"` is the default. `task$objective="ml"` is supported by the
 `ldlt` and `cholmod` solvers; the current `pcg` path is REML-only.
 
 # 2. Henderson equations and the restricted likelihood
@@ -270,28 +270,28 @@ a structure, second derivative corrections are included as needed.
 AI steps are usually much faster than expectation-maximization (EM) near the
 optimum, but can be aggressive when a parameter is near a boundary or when
 the local curvature is poorly behaved. EM updates provide a stable alternative.
-`blendWeight` now combines covariance-update directions, not information matrices:
+`update$blendWeight` now combines covariance-update directions, not information matrices:
 
 $$
 \Delta_{blend}
 = (1-w)\Delta_{AI}+w\Delta_{EM}.
 $$
 
-`blendWeight` is $w$: 1 selects the EM direction, 0 selects AI, and intermediate
-values interpolate proposals. The default `blendWeight=NULL` instead starts
+`update$blendWeight` is $w$: 1 selects the EM direction, 0 selects AI, and intermediate
+values interpolate proposals. The default `update$blendWeight=NULL` instead starts
 with AI and computes no EM/PX moments while AI makes useful progress.
 At exact explicit EM
 endpoints, iterations skip AI construction except for final inference. Generic
 covariance structures use increasing-Q generalized EM updates.
-A single whole-number `blendWeight` greater than 1 sets the decay length.
-For example, `blendWeight=5` decays exponentially from 1 to 0.03 over five
-iterations, then holds at 0.03. The decay length is capped at `nIters`.
+A single whole-number `update$blendWeight` greater than 1 sets the decay length.
+For example, `update$blendWeight=5` decays exponentially from 1 to 0.03 over five
+iterations, then holds at 0.03. The decay length is capped at `convergence$maxIters`.
 Fractional counts and vectors containing values greater than 1 are errors.
-`stepWeight` damps the resulting proposal and defaults to 1 when blending is
+`proposal$stepWeight` damps the resulting proposal and defaults to 1 when blending is
 active or automatic recovery is selected, preserving exact standalone EM
 updates and allowing full AI proposals subject to trust caps and backtracking.
 Explicit pure-AI fits retain their
-previous damping schedule. Set `blendWeight=0` to request the existing pure-AI path.
+previous damping schedule. Set `update$blendWeight=0` to request the existing pure-AI path.
 Positive blend weights support Gaussian Henderson or direct REML/ML
 fitting; Henderson PCG, PQL, acceleration, factor-score augmentation,
 and saddle-point fitting do not support them. These modes default to pure AI
@@ -301,7 +301,7 @@ Diagnostics, including numerical M-step convergence, appear in
 
 ### ML posterior moments and fixed effects
 
-The same AI-first policy applies to `REML=FALSE`. At each accepted covariance,
+The same AI-first policy applies to `task$objective="ml"`. At each accepted covariance,
 the engine profiles the fixed effects by GLS. REML E-steps use the joint
 coefficient inverse, including fixed-effect uncertainty. ML instead conditions
 on that GLS estimate and uses random-effect posterior covariance
@@ -342,12 +342,12 @@ removed. Trust, line-search and failed-structure diagnostics remain visible.
 Q gains and step norms remain available in stored diagnostics.
 See `?mmes` for the timing of safeguard scales on each optimizer path.
 
-Automatic recovery uses `blend="em"` by default; `blend="pxem"` selects the
+Automatic recovery uses `update$recovery="em"` by default; `update$recovery="pxem"` selects the
 scalar expanded alternative. Recovery requires a non-small projected score
 and one of these events:
 
 - Three consecutive accepted AI steps each require at least four halvings.
-- Three consecutive accepted AI steps gain less than `tolParConvLL`.
+- Three consecutive accepted AI steps gain less than `convergence$likelihoodTol`.
 - The AI line search exhausts its 25 trials.
 - The projected AI system fails a positive-definiteness, solve-residual, or
   ascent-direction check, or its trust-scaled reciprocal condition estimate
@@ -364,7 +364,7 @@ Other recovery triggers still use EM/PXEM directly.
 
 An EM/PXEM recovery step also must improve observed likelihood by more than
 `1e-10`. The next iteration always retries ordinary AI. This sequence may
-repeat up to `nIters`; repeated recoveries have no separate iteration cap.
+repeat up to `convergence$maxIters`; repeated recoveries have no separate iteration cap.
 If EM/PXEM recovery also stalls, the fit returns the
 last accepted parameters, warns, and reports `convergence=FALSE`. An approaching
 variance floor alone does not trigger recovery. These are initial fixed
@@ -374,8 +374,8 @@ Convergence requires both a small projected score and either a small likelihood
 change or relative parameter step. The score is projected through the free/tied
 parameter tangent and removes outward directions at variance floors. Each
 component is scaled by the square root of its projected AI diagonal, floored
-at `tolParInv`; the maximum must not exceed
-`sqrt(max(tolParConvLL, tolParConvNorm))`.
+at `execution$inverseTol`; the maximum must not exceed
+`sqrt(max(convergence$likelihoodTol, convergence$parameterTol))`.
 
 `engineDiagnostics$recovery` records the method, attempted and accepted step
 counts, source iterations,
@@ -386,7 +386,7 @@ accepted regularized AI updates. Paired `regularizedIterations` and
 `regularizedRidges` record source iterations and ridges for usable stabilized
 directions, whether or not the subsequent proposal is accepted. The existing blend
 counters report actual AI, moment, and M-step work. Explicit numeric
-`blendWeight` schedules disable automatic recovery and retain their semantics.
+`update$blendWeight` schedules disable automatic recovery and retain their semantics.
 
 AI, EM, and PXEM remain local methods. A feasible covariance and a small score
 do not establish a global maximum. Compare converged fits from alternative
@@ -394,7 +394,7 @@ starting values when competing optima are a concern.
 
 ### Scalar parameter expansion
 
-Set `blend="pxem"` to replace the EM/GEM direction with a scalar
+Set `update$recovery="pxem"` to replace the EM/GEM direction with a scalar
 parameter-expanded generalized EM (PX-GEM) direction:
 
 $$
@@ -411,12 +411,16 @@ equality/ratio ties without clipping a reduced proposal.
 
 ```{r, eval=FALSE}
 # Standalone scalar PX-GEM
-fit <- mmes(y ~ 1, random = ~id, data = dat,
-            blend = "pxem", blendWeight = 1)
+fit <- mmes(y ~ 1,
+  random = ~id,
+  data = dat,
+  control = mmes_control(update = list(recovery = "pxem", blendWeight = 1)))
 
 # PX-GEM/AI with a five-iteration exponential taper
-fit <- mmes(y ~ 1, random = ~id, data = dat,
-            blend = "pxem", blendWeight = 5)
+fit <- mmes(y ~ 1,
+  random = ~id,
+  data = dat,
+  control = mmes_control(update = list(recovery = "pxem", blendWeight = 5)))
 ```
 
 This is increasing-Q numerical PX-GEM, not full matrix expansion.
@@ -450,11 +454,11 @@ Diagnostics report `pxQGains`, `pxLogExpansion`, numerical PX convergence and
 evaluation counts, and `pxEMFallbacks`. These describe proposals before
 backtracking. Fewer iterations need not mean less wall time: compare PX-AI
 against EM-AI at the same final accuracy before choosing a method.
-The default remains `blend="em"`.
+The default remains `update$recovery="em"`.
 
 ### Direct-engine EM and recovery
 
-The direct engine (`henderson=FALSE`) accepts the same `blend` and `blendWeight`
+The direct engine (`formulation="direct"`) accepts the same `blend` and `update$blendWeight`
 controls. Its default is AI-first recovery, explicit zero selects AI only, and
 positive scalar/vector schedules blend genuine posterior-moment EM/GEM or
 scalar PX-GEM directions with AI. These updates do not call Henderson.
@@ -522,7 +526,7 @@ All three choices solve the same statistical model. The difference is how
 they handle the coefficient matrix $C$ and the traces/log determinants
 needed for covariance estimation.
 
-## 5.1 `solver="ldlt"`: sparse direct factorization
+## 5.1 `solve$method="ldlt"`: sparse direct factorization
 
 The default for the usual sparse MME is Eigen's simplicial sparse LDLT
 factorization:
@@ -541,7 +545,7 @@ For score traces, the code can use a selected subset of $C^{-1}$ instead of
 forming all of $C^{-1}$. In the LDLT case, a Takahashi recursion computes the
 inverse entries associated with the factor's nonzero pattern. If a needed
 entry is outside the selected subset, the code falls back to batched solves.
-`computeCi=1` uses this sparse selected-inverse route for requested
+`output$inverse=1` uses this sparse selected-inverse route for requested
 uncertainty calculations.
 
 **Strengths:** deterministic direct solves and log determinants; useful
@@ -551,7 +555,7 @@ selected-inverse structure; generally effective when $C$ remains sparse.
 relationship precision causes extensive fill-in. Sparse input does not
 guarantee a sparse factor.
 
-## 5.2 `solver="cholmod"`: supernodal direct factorization
+## 5.2 `solve$method="cholmod"`: supernodal direct factorization
 
 CHOLMOD is accessed through the `Matrix` package's registered CHOLMOD
 callables. Its supernodal sparse Cholesky factorization groups dense parts
@@ -565,7 +569,7 @@ The fitted model and likelihood remain exact up to floating-point
 round-off. For the score traces, CHOLMOD's factor representation is not
 converted to the LDLT/Takahashi selected-inverse representation in this
 implementation. It uses cached inverse blocks when available and otherwise
-batched factor solves. If `computeCi=1` is requested, a final LDLT
+batched factor solves. If `output$inverse=1` is requested, a final LDLT
 factorization is used to obtain the selected inverse subset.
 
 There is also an exact block-Schur engine for eligible REML patterns. When
@@ -589,7 +593,7 @@ more efficient; may activate the exact block-Schur path.
 need memory, and trace calculations may require solves when the inverse
 cache does not cover a requested entry.
 
-## 5.3 `solver="pcg"`: iterative solves and stochastic traces
+## 5.3 `solve$method="pcg"`: iterative solves and stochastic traces
 
 Preconditioned conjugate gradients (PCG) solves $Cx=b$ using products with
 $C$ rather than a sparse direct factorization. The current preconditioner
@@ -614,14 +618,14 @@ likelihood changes are less confounded by fresh Monte Carlo variation at
 every iteration. The estimates are still approximations, so probe count,
 Lanczos steps, and solve tolerance influence the speed-accuracy tradeoff.
 
-Current defaults are `pcgTol=1e-8`, `pcgTraceProbes=8`, and
-`pcgLanczosSteps=20`; `pcgMaxIters=0` chooses an automatic iteration limit.
+Current defaults are `solve$tol=1e-8`, `score$traceProbes=8`, and
+`logdet$lanczosSteps=20`; `solve$maxIters=0` chooses an automatic iteration limit.
 The defaults are practical settings, not a universal error bound.
 
-`solver="pcg"` currently requires `REML=TRUE`. `computeCi=1` is not
+`solve$method="pcg"` currently requires `task$objective="reml"`. `output$inverse=1` is not
 available because it requests the LDLT/Takahashi selected inverse. Use
-`computeCi=0` for the factorization-free fit, or request
-`computeCi=2` only when an explicit full inverse is genuinely needed and
+`output$inverse=0` for the factorization-free fit, or request
+`output$inverse=2` only when an explicit full inverse is genuinely needed and
 the system is small enough.
 
 **Strengths:** can avoid direct factorization and its fill/memory cost;
@@ -640,11 +644,11 @@ matrices for which the preconditioner is weak.
 | $\log|C|$ | Factor pivots | Direct factor or exact block-Schur | SLQ estimate |
 | Trace strategy | Selected inverse, then solve fallback | Cached inverse blocks, then solves | Hutchinson probes and solves |
 | Exact likelihood calculations | Yes, up to round-off | Yes, up to round-off | Approximate determinant/traces |
-| ML (`REML=FALSE`) | Yes | Yes | No |
-| Selected inverse (`computeCi=1`) | Native Takahashi subset | Final LDLT subset | Not supported |
+| ML (`task$objective="ml"`) | Yes | Yes | No |
+| Selected inverse (`output$inverse=1`) | Native Takahashi subset | Final LDLT subset | Not supported |
 | Typical fit | Sparse pedigree-like precision | Dense/fill-heavy precision | Very large systems where solves dominate |
 
-The default `solver="auto"` in `mmes()` selects `cholmod` if any supplied
+The default `solve$method="auto"` in `mmes()` selects `cholmod` if any supplied
 random-effect relationship inverse has density greater than 0.2, and
 otherwise selects `ldlt`. This is a heuristic for separating dense genomic
 relationship matrices from sparse pedigree-style matrices. An explicit
@@ -718,7 +722,7 @@ of a dense inverse when only a sparse subset is needed.
 If a requested inverse entry is unavailable from the selected subset, the
 implementation solves for batches of right-hand sides rather than
 immediately materializing all of $C^{-1}$. A full inverse is reserved for
-the explicit `computeCi=2` request.
+the explicit `output$inverse=2` request.
 
 ## 6.4 Reuse what does not change across iterations
 
@@ -733,13 +737,13 @@ numeric values stored on that graph.
 ## 6.5 Matrix-free PCG for compatible REML models
 
 For a subset of REML models with compatible factor-wise random covariance
-precision and `computeCi=0`, the PCG iteration can apply the random prior
+precision and `output$inverse=0`, the PCG iteration can apply the random prior
 through Kronecker/tensor operations. It does not need to assemble the full
 random precision contribution into $C$ on each iteration. The full $C$ is
 materialized once at the end when needed for the fitted-object interface.
 
 This path is intentionally narrower than PCG itself. It does not currently
-cover ML or `computeCi>0`; direct LDLT and CHOLMOD use an explicit coefficient
+cover ML or `output$inverse>0`; direct LDLT and CHOLMOD use an explicit coefficient
 matrix. Compatibility depends on the model's covariance structure, not only
 on its size.
 
@@ -765,7 +769,7 @@ execute it. The main components are:
 | Component | Role in the engine | Performance relevance |
 |---|---|---|
 | **Eigen** (`RcppEigen`) | Sparse LDLT, PCG, sparse matrix operations, dense factor kernels | The main sparse-system machinery for `ldlt` and iterative solves; supports reusable symbolic analysis and ordering choices. |
-| **CHOLMOD**, through **Matrix** | Supernodal sparse Cholesky and solves for `solver="cholmod"` | Dense supernodes use efficient matrix-matrix kernels; runtime access is through Matrix's registered C callables rather than a separate package link. |
+| **CHOLMOD**, through **Matrix** | Supernodal sparse Cholesky and solves for `solve$method="cholmod"` | Dense supernodes use efficient matrix-matrix kernels; runtime access is through Matrix's registered C callables rather than a separate package link. |
 | **Armadillo** (`RcppArmadillo`) | Dense covariance-factor arithmetic and much of the descriptor/derivative work | Compact factor matrices are small enough for dense linear algebra; interfaces with R data and Eigen-backed sparse work. |
 | **BLAS/LAPACK** | Dense matrix and factorization kernels selected by the R build | Can have a major impact on supernodal/dense blocks and dense covariance factors. Actual implementation and threading depend on the R installation. |
 | **METIS** (optional) | Nested-dissection ordering for some sparse factorizations | Can reduce fill for suitable large sparse graphs. If not detected at build time, Eigen AMD ordering is used instead. |
@@ -799,7 +803,7 @@ to update them.
 
 The usual `rcov = ~ units` residual model is assumed. There is one record in
 each environment-by-entry cell, so the residual covariance at the worked
-iterate is $R=I_6$. `henderson=TRUE` is the `mmes()` default; the solver choice
+iterate is $R=I_6$. `formulation="henderson"` is the `mmes()` default; the solver choice
 is explicitly `cholmod`.
 
 ## 8.1 Data, ordering, and design matrices
@@ -1178,8 +1182,8 @@ their sparsity pattern remains unchanged.
 ## 8.8 The converged fit is a different point
 
 For comparison with the deliberately chosen iterate above, fitting the
-specified six observations with `solver="cholmod"` and
-`henderson=TRUE` (using the usual independent `units` residual) gives the
+specified six observations with `solve$method="cholmod"` and
+`formulation="henderson"` (using the usual independent `units` residual) gives the
 following native-scale covariance estimates on this run:
 
 $$
@@ -1245,17 +1249,17 @@ whether those steps are affordable.
 
 # 9. Choosing settings and interpreting results
 
-- Start with `solver="auto"` or `solver="ldlt"` for sparse pedigree-like
-  relationship precision. Try `solver="cholmod"` when supplied relationship
+- Start with `solve$method="auto"` or `solve$method="ldlt"` for sparse pedigree-like
+  relationship precision. Try `solve$method="cholmod"` when supplied relationship
   precision is dense or the LDLT factor has substantial fill.
-- Consider `solver="pcg"` when factor memory or direct factorization is the
+- Consider `solve$method="pcg"` when factor memory or direct factorization is the
   bottleneck and approximate log determinants/traces are acceptable. Check
-  convergence and sensitivity to `pcgTol`, `pcgTraceProbes`, and
-  `pcgLanczosSteps`; do not assume solver agreement from BLUP convergence
+  convergence and sensitivity to `solve$tol`, `score$traceProbes`, and
+  `logdet$lanczosSteps`; do not assume solver agreement from BLUP convergence
   alone.
-- Use `computeCi=0` when inverse-based prediction-error output is not
-  required. `computeCi=1` requests a sparse selected inverse and is a natural
-  choice with LDLT. `computeCi=2` requests the full inverse and can be very
+- Use `output$inverse=0` when inverse-based prediction-error output is not
+  required. `output$inverse=1` requests a sparse selected inverse and is a natural
+  choice with LDLT. `output$inverse=2` requests the full inverse and can be very
   expensive in both time and memory.
 - The number of covariance parameters matters. Unstructured covariance
   factors can make the AI information solve grow quadratically in the number

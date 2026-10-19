@@ -64,7 +64,7 @@
   }
   if(anyNA(idx) || any(idx < 1L | idx > nrow(vcParams))){
     stop("Unknown parameters in vcc: ", paste(vcc$parameter[is.na(idx)], collapse=", "),
-         ". See the vcParams table from mmes(..., returnParam=TRUE).", call.=FALSE)
+         ". See the vcParams table from mmes(..., control=mmes_control(output=list(setup=TRUE))).", call.=FALSE)
   }
   if(anyDuplicated(idx)) stop("A parameter appears more than once in vcc.", call.=FALSE)
   if(any(!is.finite(vcc$scale)) || any(vcc$scale == 0)){

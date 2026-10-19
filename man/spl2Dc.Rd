@@ -86,7 +86,7 @@ data(DT_cpdata, package="enhancer")
 # aa$Yield <- aa$Yield + rnorm(length(aa$Yield),0,4)
 # DT2 <- rbind(aa,bb)
 # head(DT2)
-# mix <- mmes(Yield~1, henderson = F,
+# mix <- mmes(Yield~1, control = mmes_control(formulation = "direct"),
 #             random=~
 #               vsm(dsm(FIELD),ism(Rowf)) +
 #               vsm(dsm(FIELD),ism(Colf)) +

@@ -15,7 +15,7 @@ markerData <- function(){
 
 test_that("marker effects back-transform the GBLUP exactly", {
   s <- markerData(); d <- s$d; Gi <- s$Gi
-  fit <- mmes(y~1, random=~vsm(ism(id), Gu=Gi), data=d, verbose=FALSE)
+  fit <- mmes(y~1, random=~vsm(ism(id), Gu=Gi), data=d, control=mmes_control(diagnostics=list(verbose=FALSE)))
   me <- meffects_mmes(fit, 1, s$M, blend=s$lambda)
   tr <- sommer:::.amat_marker_transform(s$M, 0)
   u <- fit$uList[[1]][rownames(s$M), 1]
@@ -31,7 +31,7 @@ test_that("marker effects back-transform the GBLUP exactly", {
 
 test_that("marker-effect standard errors match a dense calculation", {
   s <- markerData(); d <- s$d; Gi <- s$Gi
-  fit <- mmes(y~1, random=~vsm(ism(id), Gu=Gi), data=d, verbose=FALSE, computeCi=2)
+  fit <- mmes(y~1, random=~vsm(ism(id), Gu=Gi), data=d, control=mmes_control(diagnostics=list(verbose=FALSE), output=list(inverse=2)))
   me <- meffects_mmes(fit, 1, s$M, blend=s$lambda, se=TRUE, chunk=37)
   tr <- sommer:::.amat_marker_transform(s$M, 0)
   lev <- rownames(fit$uList[[1]])
@@ -46,8 +46,7 @@ test_that("marker-effect standard errors match a dense calculation", {
 
 test_that("marker effects are returned per coordinate for structured terms", {
   s <- markerData(); d <- s$d; Gi <- s$Gi
-  fit <- mmes(y~env, random=~vsm(dsm(env), ism(id), Gu=Gi), data=d, verbose=FALSE,
-              nIters=15)
+  fit <- mmes(y~env, random=~vsm(dsm(env), ism(id), Gu=Gi), data=d, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=15)))
   me <- meffects_mmes(fit, 1, s$M, blend=s$lambda)
   expect_equal(unique(me$coordinate), c("A", "B"))
   expect_equal(nrow(me), 2L * ncol(s$M))

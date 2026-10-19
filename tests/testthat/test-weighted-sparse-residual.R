@@ -6,9 +6,7 @@ test_that("CHOLMOD selected residual traces match LDLT for weighted incomplete b
   dataset <- dataset[-c(1L, 7L), ]
   weights <- diag(nrow(dataset)) + matrix(0.02, nrow(dataset), nrow(dataset))
   fitModel <- function(solver){
-    mmes(response~environment, random=~id, rcov=~vsm(usm(environment), ism(record)),
-      W=weights, data=dataset, solver=solver, nIters=2L,
-      getPEV=FALSE, verbose=FALSE, dateWarning=FALSE)
+    mmes(response~environment, random=~id, rcov=~vsm(usm(environment), ism(record)), W=weights, data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   reference <- fitModel("ldlt")
   candidate <- fitModel("cholmod")
@@ -25,9 +23,7 @@ test_that("sparse non-diagonal weights preserve diagonal-residual fits", {
   weights <- Matrix::bdiag(replicate(n / 2L,
                                     matrix(c(1.4, -0.2, -0.2, 1.4), 2L),
                                     simplify=FALSE))
-  sparse <- suppressMessages(mmes(y~1, random=~id, rcov=~units, data=data,
-                                  W=weights, nIters=3, solver="ldlt",
-                                  blendWeight=20, verbose=FALSE, dateWarning=FALSE))
+  sparse <- suppressMessages(mmes(y~1, random=~id, rcov=~units, data=data, W=weights, control=mmes_control(convergence=list(maxIters=3), solve=list(method="ldlt"), update=list(blendWeight=20), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
   expect_equal(unname(unlist(sparse$theta)),
                c(0.141923343971598, 1.24385475608586), tolerance=1e-8)
   expect_equal(head(as.numeric(sparse$bu), 5L),
@@ -45,12 +41,8 @@ test_that("weights formula declares independent blocks without changing the fit"
   )
   W <- Matrix::bdiag(replicate(30L,
     matrix(c(1.4, -0.2, -0.2, 1.4), 2L), simplify=FALSE))
-  plain <- suppressMessages(mmes(y~1, random=~id, rcov=~units,
-    data=data, W=W, nIters=4, solver="ldlt", verbose=FALSE,
-    dateWarning=FALSE))
-  grouped <- suppressMessages(mmes(y~1, random=~id, rcov=~units,
-    data=data, W=W, weights=~trial, nIters=4, solver="ldlt",
-    verbose=FALSE, dateWarning=FALSE))
+  plain <- suppressMessages(mmes(y~1, random=~id, rcov=~units, data=data, W=W, control=mmes_control(convergence=list(maxIters=4), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
+  grouped <- suppressMessages(mmes(y~1, random=~id, rcov=~units, data=data, W=W, weights=~trial, control=mmes_control(convergence=list(maxIters=4), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
   expect_equal(unlist(grouped$theta), unlist(plain$theta), tolerance=1e-10)
   expect_equal(as.numeric(grouped$bu), as.numeric(plain$bu), tolerance=1e-10)
   expect_equal(grouped$engineDiagnostics$weightBlockCount, 30L)
@@ -77,7 +69,9 @@ test_that("weight groups do not restrict cross-group residual covariance", {
   W <- Matrix::Diagonal(nrow(data), x=diagonalWeights)
   fit <- function(declareBlocks){
     args <- list(fixed=y~1, rcov=~vsm(usm(trial), ism(id)), data=data,
-      W=W, nIters=5, solver="ldlt", verbose=FALSE, dateWarning=FALSE)
+      W=W, control=mmes_control(convergence=list(maxIters=5L),
+        solve=list(method="ldlt"), diagnostics=list(verbose=FALSE,
+          dateWarning=FALSE)))
     if(declareBlocks) args$weights <- ~trial
     suppressMessages(do.call(mmes, args))
   }
@@ -100,7 +94,9 @@ test_that("weight block formulas work when group rows are interleaved", {
   }
   fit <- function(declareBlocks){
     args <- list(fixed=y~1, random=~id, rcov=~units, data=data,
-      W=W, nIters=3, solver="ldlt", verbose=FALSE, dateWarning=FALSE)
+      W=W, control=mmes_control(convergence=list(maxIters=3L),
+        solve=list(method="ldlt"), diagnostics=list(verbose=FALSE,
+          dateWarning=FALSE)))
     if(declareBlocks) args$weights <- ~trial
     suppressMessages(do.call(mmes, args))
   }
@@ -113,10 +109,7 @@ test_that("PCG retains off-diagonal weighted residual derivative traces", {
   weights <- Matrix::bdiag(replicate(30L,
     matrix(c(1.4, -0.2, -0.2, 1.4), 2L), simplify=FALSE))
   fit <- function(solver){
-    suppressMessages(mmes(y~1, random=~id, rcov=~units, data=data,
-      W=weights, nIters=3, solver=solver, pcgTraceProbes=512, blendWeight=0,
-      pcgLanczosSteps=40, computeCi=if(solver == "pcg") 2 else 0,
-      verbose=FALSE, dateWarning=FALSE))
+    suppressMessages(mmes(y~1, random=~id, rcov=~units, data=data, W=weights, control=mmes_control(convergence=list(maxIters=3), solve=list(method=solver), score=if(solver == "pcg") list(traceProbes=512) else list(), update=list(blendWeight=0), logdet=if(solver == "pcg") list(lanczosSteps=40) else list(), output=list(inverse=if(solver == "pcg") 2 else 0), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
   }
   exact <- fit("ldlt")
   iterative <- fit("pcg")
@@ -138,11 +131,7 @@ test_that("batched irregular weighted residual assembly preserves REML and ML", 
   )
   likelihood <- c(-52.34982835241, -55.4451301835064)
   for(index in seq_along(reference)){
-    fit <- suppressMessages(mmes(y~env, random=~id,
-      rcov=~vsm(usm(env), ism(units)), data=data, W=weights,
-      nIters=3, solver="ldlt", REML=index == 1L,
-      blendWeight=if(index == 1L) 20 else 0,
-      verbose=FALSE, dateWarning=FALSE))
+    fit <- suppressMessages(mmes(y~env, random=~id, rcov=~vsm(usm(env), ism(units)), data=data, W=weights, control=mmes_control(convergence=list(maxIters=3), solve=list(method="ldlt"), task=list(objective=if(index == 1L) "reml" else "ml"), update=list(blendWeight=if(index == 1L) 20 else 0), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
     expect_equal(unname(unlist(fit$covPar)), reference[[index]], tolerance=1e-8)
     expect_equal(tail(as.numeric(fit$llik), 1L), likelihood[index], tolerance=1e-8)
   }

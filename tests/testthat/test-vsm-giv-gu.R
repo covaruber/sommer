@@ -24,9 +24,12 @@ as_giv <- function(x, rowNames, df=FALSE){
   x
 }
 
-fit_giv <- function(Gu, data, ...){
+fit_giv <- function(Gu, data, maxIters=30L, formulation="henderson",
+                    solver="auto"){
   suppressMessages(mmes(y~1, random=~vsm(ism(id), Gu=Gu), rcov=~units,
-                        data=data, verbose=FALSE, dateWarning=FALSE, ...))
+    data=data, control=mmes_control(formulation=formulation,
+      convergence=list(maxIters=maxIters), solve=list(method=solver),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
 }
 
 test_that("3-column Gu (lower, upper, both, data.frame, shuffled) matches full Gu", {
@@ -42,9 +45,9 @@ test_that("3-column Gu (lower, upper, both, data.frame, shuffled) matches full G
     df=as_giv(lo, fx$ids, df=TRUE),
     shuffled=as_giv(lo[sample(nrow(lo)), ], fx$ids)
   )
-  ref <- fit_giv(fx$Ginv, fx$data, nIters=15)
+  ref <- fit_giv(fx$Ginv, fx$data, maxIters=15L)
   for(nm in names(cases)){
-    fit <- fit_giv(cases[[nm]], fx$data, nIters=15)
+    fit <- fit_giv(cases[[nm]], fx$data, maxIters=15L)
     expect_equal(unlist(fit$theta), unlist(ref$theta), tolerance=1e-10, info=nm)
     expect_equal(fit$u, ref$u, tolerance=1e-10, info=nm)
   }
@@ -57,8 +60,8 @@ test_that("3-column Gu keeps extra attributes and unobserved levels", {
   attr(giv, "logdet") <- -1
   attr(giv, "geneticGroups") <- c(0, 0)
   DTsub <- droplevels(fx$data[fx$data$id != "id30", ])
-  ref <- fit_giv(fx$Ginv, DTsub, nIters=15)
-  fit <- fit_giv(giv, DTsub, nIters=15)
+  ref <- fit_giv(fx$Ginv, DTsub, maxIters=15L)
+  fit <- fit_giv(giv, DTsub, maxIters=15L)
   expect_equal(unlist(fit$theta), unlist(ref$theta), tolerance=1e-10)
   expect_true("id30" %in% rownames(fit$u))
 })
@@ -68,21 +71,16 @@ test_that("3-column Gu works with multi-trait, direct engine and covm", {
   giv <- as_giv(fx$lower, fx$ids)
   DL <- rbind(data.frame(id=fx$data$id, trait="y", v=fx$data$y),
               data.frame(id=fx$data$id, trait="y2", v=fx$data$y2))
-  fm <- function(Gu) suppressMessages(mmes(
-    v~trait, random=~vsm(usm(trait), ism(id), Gu=Gu),
-    rcov=~vsm(dsm(trait), ism(units)), data=DL, nIters=10,
-    verbose=FALSE, dateWarning=FALSE))
+  fm <- function(Gu) suppressMessages(mmes(v~trait, random=~vsm(usm(trait), ism(id), Gu=Gu), rcov=~vsm(dsm(trait), ism(units)), data=DL, control=mmes_control(convergence=list(maxIters=10), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
   expect_equal(unlist(fm(giv)$theta), unlist(fm(fx$Ginv)$theta), tolerance=1e-10)
 
-  ref <- fit_giv(fx$Ginv, fx$data, nIters=10, henderson=FALSE)
-  fit <- fit_giv(giv, fx$data, nIters=10, henderson=FALSE)
+  ref <- fit_giv(fx$Ginv, fx$data, maxIters=10L, formulation="direct")
+  fit <- fit_giv(giv, fx$data, maxIters=10L, formulation="direct")
   expect_equal(unlist(fit$theta), unlist(ref$theta), tolerance=1e-10)
 
   DT <- fx$data
   DT$id2 <- DT$id
-  fc <- function(Gu) suppressMessages(mmes(
-    y~1, random=~covm(vsm(ism(id), Gu=Gu), vsm(ism(id2), Gu=Gu)),
-    rcov=~units, data=DT, nIters=5, verbose=FALSE, dateWarning=FALSE))
+  fc <- function(Gu) suppressMessages(mmes(y~1, random=~covm(vsm(ism(id), Gu=Gu), vsm(ism(id2), Gu=Gu)), rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=5), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
   expect_equal(unlist(fc(giv)$theta), unlist(fc(fx$Ginv)$theta), tolerance=1e-10)
 })
 
@@ -121,8 +119,8 @@ test_that("symmetric Gu is stored as one triangle and fits identically", {
   gen <- methods::as(Matrix::Matrix(fx$Ginv, sparse=TRUE), "generalMatrix")
   attr(gen, "inverse") <- TRUE
   for(s in c("ldlt", "cholmod")){
-    a <- fit_giv(fx$Ginv, fx$data, nIters=10, solver=s)
-    b <- fit_giv(gen, fx$data, nIters=10, solver=s)
+    a <- fit_giv(fx$Ginv, fx$data, maxIters=10L, solver=s)
+    b <- fit_giv(gen, fx$data, maxIters=10L, solver=s)
     expect_equal(unlist(a$theta), unlist(b$theta), tolerance=1e-12, info=s)
   }
 })

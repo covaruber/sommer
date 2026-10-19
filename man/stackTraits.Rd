@@ -51,9 +51,10 @@ table(DTL$trait)
 
 # bivariate model with the residual paired through the record key
 fit <- mmes(value ~ trait,
-            random = ~ vsm(usm(trait), ism(id)),
-            rcov = ~ vsm(usm(trait), ism(record)),
-            data = DTL, verbose = FALSE)
+  random = ~ vsm(usm(trait), ism(id)),
+  rcov = ~ vsm(usm(trait), ism(record)),
+  data = DTL,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 covmatrix_mmes(fit, 1)$correlation   # genetic correlation
 }
 \keyword{manip}

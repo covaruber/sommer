@@ -92,6 +92,7 @@ meffects_mmes <- function(object, term, M, method=c("A.mat", "custom"),
   for(c in seq_len(ncol(U))) out$effect[rows(c)] <- effects[, c]
 
   if(se){
+    .mmes_require_coefficient_matrix(object)
     if(is.null(object$C) || nrow(object$C) == 0){
       stop("se=TRUE requires the coefficient matrix C in the fitted object.", call.=FALSE)
     }

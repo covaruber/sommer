@@ -24,36 +24,38 @@ SOMMER_CUDA_HOME=/path/to/cuda R CMD INSTALL --preclean .
 ```
 
 Enable eligible kernels globally with `options(sommer.mme.gpu = TRUE)`, or pass
-`engine = mmes_control(gpu = TRUE, gpuMinSize = 256L)` to `mmes()`. Set
-`gpu = FALSE` in the control object to override the global option. The threshold
-also defaults from `options(sommer.mme.gpuMinSize = 256L)`.
+`control = mmes_control(execution = list(gpu = TRUE, gpuMinSize = 256L))` to
+`mmes()`. Set `gpu = FALSE` in `control$execution` to override the global option.
+The threshold also defaults from `options(sommer.mme.gpuMinSize = 256L)`.
 
 CUDA runtime, cuBLAS, and cuSOLVER libraries load dynamically. CPU fitting does
 not require them, even in a CUDA-enabled build. Explicit GPU requests stop when
 unavailable. Only eligible dense kernels are accelerated; sparse work remains
-on CPU, and transfers can outweigh gains. Direct inversion and `solveOnly`
-remain CPU-only. See `?mmes` and `?mmes_control` for requirements and the
+on CPU, and transfers can outweigh gains. Direct formulation and solve-only
+tasks remain CPU-only. See `?mmes` and `?mmes_control` for requirements and the
 `gpuDiagnostics` counters.
 
 ## Direct-inversion fitting
 
-Use `mmes(..., henderson = FALSE)` for the dense observation-level covariance
-engine. AI is the default, with on-demand EM/GEM recovery after unreliable
-information solves, exhausted line searches, or repeated poor progress.
-The `blend` and `blendWeight` controls have the same meaning as in Henderson
-fitting: `blendWeight=0` requests AI only, `blendWeight=1` requests EM/GEM,
-intermediate weights mix directions, and `blend="pxem"` selects scalar PX-GEM.
-Scalar/vector schedules and whole-number exponential tapers are supported.
-Random-effect variances can reach the original-response-scale numerical
-floor, `max(1e-8, tolParInv)`, without freezing the remaining components.
+Use `mmes(..., control = mmes_control(formulation = "direct"))` for the dense
+observation-level covariance engine. AI is the default, with on-demand EM/GEM
+recovery after unreliable information solves, exhausted line searches, or
+repeated poor progress. Configure recovery with
+`update = list(recovery = "em", blendWeight = ...)`; use `"pxem"` for scalar
+PX-GEM. A zero blend weight requests AI only, one requests EM/GEM, and
+intermediate weights mix directions. Scalar/vector schedules and whole-number
+exponential tapers are supported. Proposal scaling belongs to
+`proposal$stepWeight`. Random-effect variances can reach the
+original-response-scale numerical floor,
+`max(1e-8, control$execution$inverseTol)`, without freezing the remaining components.
 The assembled observation covariance must remain positive definite.
 
 Convergence requires a small feasible score as well as a small likelihood
 change or AI proposal. A rejected update is not convergence: a stalled line
 search warns and returns the last accepted fit with `convergence = FALSE`.
-Reaching `nIters` also returns the last evaluated point, not an unevaluated
-proposal. Inspect `fit$engineDiagnostics$direct` for the stop reason, score
-certificate, and line-search halving count.
+Reaching `control$convergence$maxIters` also returns the last evaluated point,
+not an unevaluated proposal. Inspect `fit$engineDiagnostics$direct` for the
+stop reason, score certificate, and line-search halving count.
 
 Direct EM uses exact observation-space posterior moments, not a diagonal AI
 approximation or a Henderson solve. All direct covariance families support

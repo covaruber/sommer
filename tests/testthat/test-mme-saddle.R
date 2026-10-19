@@ -37,28 +37,26 @@ test_that("augmented numerical identities pass standalone native checks", {
 })
 
 test_that("saddle controls are opt-in and reject unsupported routes", {
-  expect_equal(mmes_control()$experimental$saddlePoint, "off")
-  expect_equal(mmes_control(saddlePoint=TRUE)$experimental$saddlePoint, "force")
-  expect_equal(sommer:::.merge_mmes_control(saddlePoint=TRUE)$experimental$saddlePoint, "force")
-  expect_equal(sommer:::.merge_mmes_control(engine=mmes_control(),
-    experimental=list(saddlePoint=TRUE))$experimental$saddlePoint, "force")
-  expect_equal(sommer:::.merge_mmes_control(engine=mmes_control(),
-    saddlePoint=TRUE)$experimental$saddlePoint, "force")
+  expect_equal(mmes_control()$representation$equations, "normal")
+  expect_equal(mmes_control(representation=list(equations="saddle-point"))$
+    representation$equations, "saddle-point")
   dataset <- .saddle_dataset()
-  model <- function(...){
-    mmes(response~level, random=~id, data=dataset,
-      engine=mmes_control(experimental=list(saddlePoint="force")),
-      blendWeight=0, verbose=FALSE, dateWarning=FALSE, ...)
+  saddleControl <- mmes_control(representation=list(equations="saddle-point"),
+    update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE))
+  model <- function(control=list(), family=stats::gaussian(), internal=NULL){
+    merged <- utils::modifyList(unclass(saddleControl), control, keep.null=TRUE)
+    mmes(response~level, random=~id, data=dataset, family=family,
+      control=do.call(mmes_control, merged), .internal=internal)
   }
-  expect_error(model(solver="pcg"), "saddlePoint")
-  expect_error(model(henderson=FALSE), "saddlePoint")
-  expect_error(model(solveOnly=TRUE), "saddlePoint")
-  expect_error(model(acceleration="hybrid-ai"), "saddlePoint")
-  expect_error(model(family=poisson()), "saddlePoint")
-  expect_error(model(factorScoreAugmentation="fixed-shape"), "saddlePoint")
-  expect_error(model(.internal=list(pqlInner=TRUE)), "saddlePoint")
-  setup <- mmes(response~level, random=~id, data=dataset, returnParam=TRUE,
-    blendWeight=0, verbose=FALSE, dateWarning=FALSE)
+  expect_error(model(list(solve=list(method="pcg")), family=stats::gaussian()), "representation\\$equations")
+  expect_error(model(list(formulation="direct")), "representation\\$equations")
+  expect_error(model(list(task=list(mode="solve"))), "representation\\$equations")
+  expect_error(model(list(curvature=list(method="hybrid-ai"))), "representation\\$equations")
+  expect_error(model(family=poisson()), "representation\\$equations")
+  expect_error(model(list(representation=list(factorScores="fixed-shape"))),
+    "representation\\$equations")
+  expect_error(model(internal=list(pqlInner=TRUE)), "representation\\$equations")
+  setup <- mmes(response~level, random=~id, data=dataset, control=mmes_control(output=list(setup=TRUE), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   reference <- .saddle_at(setup)
   attr(setup$covStruct, "saddlePoint") <- "auto"
   auto <- sommer:::ai_mme_sp2(setup$X, setup$Z, setup$Zind, setup$Ai, setup$yvar,
@@ -67,9 +65,8 @@ test_that("saddle controls are opt-in and reject unsupported routes", {
     setup$covStruct, 0, 1, FALSE, solver=setup$solver)
   expect_identical(auto$bu, reference$bu)
   expect_null(auto$engineDiagnostics$saddlePoint)
-  expect_error(mmes(response~level,
-    random=~vsm(rrm(level, 1L), ism(id)), data=dataset,
-    blendWeight=0, engine=mmes_control(saddlePoint=TRUE), verbose=FALSE, dateWarning=FALSE),
+  expect_error(mmes(response~level, random=~vsm(rrm(level, 1L), ism(id)), data=dataset,
+    control=saddleControl),
     "reduced rank")
 })
 
@@ -87,8 +84,7 @@ test_that("exact saddle fits preserve same-point outputs across direct backends"
         attr(precision, "inverse") <- TRUE
         random <- ~vsm(usm(level), ism(id), Gu=precision)
       }
-      setup <- mmes(response~level, random=random, data=dataset, returnParam=TRUE,
-        solver=solver, REML=reml, blendWeight=0, verbose=FALSE, dateWarning=FALSE)
+      setup <- mmes(response~level, random=random, data=dataset, control=mmes_control(output=list(setup=TRUE), solve=list(method=solver), task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       reference <- .saddle_at(setup)
       candidate <- .saddle_at(setup, TRUE)
       for(field in fields){
@@ -108,8 +104,7 @@ test_that("exact saddle fits preserve same-point outputs across direct backends"
 test_that("saddle likelihood score and AI match independent dense marginal formulas", {
   dataset <- .saddle_dataset()
   for(reml in c(TRUE, FALSE)){
-    setup <- mmes(response~level, random=~id, data=dataset, returnParam=TRUE,
-      REML=reml, blendWeight=0, verbose=FALSE, dateWarning=FALSE)
+    setup <- mmes(response~level, random=~id, data=dataset, control=mmes_control(output=list(setup=TRUE), task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     fit <- .saddle_at(setup, TRUE, 2L)
     X <- as.matrix(setup$X)
     Z <- as.matrix(setup$Z[[1L]])
@@ -145,7 +140,9 @@ test_that("weighted and repeated residual blocks retain exact saddle derivatives
     for(reml in c(TRUE, FALSE)){
       arguments <- list(fixed=response~level, random=~id,
         rcov=~vsm(ar1m(level, rho=0.3), ism(units)), data=dataset,
-        returnParam=TRUE, REML=reml, blendWeight=0, verbose=FALSE, dateWarning=FALSE)
+        control=mmes_control(task=list(objective=if(reml) "reml" else "ml"),
+          update=list(blendWeight=0), output=list(setup=TRUE),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       if(weight != "none"){
         arguments$W <- if(weight == "diagonal") diag(seq(0.7, 1.3, length.out=nrow(dataset))) else
           Matrix::bandSparse(nrow(dataset), k=c(-1L, 0L, 1L),
@@ -166,11 +163,12 @@ test_that("weighted and repeated residual blocks retain exact saddle derivatives
 test_that("saddle convergence and coefficient inverse modes preserve post-fit consumers", {
   dataset <- .saddle_dataset()
   model <- function(saddle, mode, reml=TRUE){
-    mmes(response~level, random=~id, data=dataset, computeCi=mode, REML=reml,
-      engine=mmes_control(experimental=list(saddlePoint=if(saddle) "force" else "off")),
-      blendWeight=0,
-      nIters=60L, tolParConvLL=1e-10, tolParConvNorm=1e-8,
-      verbose=FALSE, dateWarning=FALSE)
+    mmes(response~level, random=~id, data=dataset, control=mmes_control(
+      representation=list(equations=if(saddle) "saddle-point" else "normal"),
+      output=list(inverse=mode), task=list(objective=if(reml) "reml" else "ml"),
+      update=list(blendWeight=0),
+      convergence=list(maxIters=60L, likelihoodTol=1e-10, parameterTol=1e-8),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   for(reml in c(TRUE, FALSE)) for(mode in 0:2){
     reference <- model(FALSE, mode, reml)
@@ -198,8 +196,7 @@ test_that("saddle convergence and coefficient inverse modes preserve post-fit co
 test_that("saddle supports fixed and tied parameters and models without random effects", {
   dataset <- .saddle_dataset()
   for(reml in c(TRUE, FALSE)){
-    setup <- mmes(response~level, data=dataset, REML=reml, returnParam=TRUE,
-      blendWeight=0, verbose=FALSE, dateWarning=FALSE)
+    setup <- mmes(response~level, data=dataset, control=mmes_control(task=list(objective=if(reml) "reml" else "ml"), output=list(setup=TRUE), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     reference <- .saddle_at(setup)
     candidate <- .saddle_at(setup, TRUE)
     for(field in c("llik", "bu", "dLu", "InfMat", "theta_se")){
@@ -208,16 +205,11 @@ test_that("saddle supports fixed and tied parameters and models without random e
   }
   for(tied in c(FALSE, TRUE)){
     model <- function(saddle){
-      mmes(response~level, random=~vsm(dsm(level), ism(id)), data=dataset,
-        blendWeight=0,
-        vcc=if(tied) data.frame(parameter=c(2L, 3L), group=1L) else NULL,
-        nIters=3L, engine=mmes_control(saddlePoint=saddle),
-        verbose=FALSE, dateWarning=FALSE)
+      mmes(response~level, random=~vsm(dsm(level), ism(id)), data=dataset, vcc=if(tied) data.frame(parameter=c(2L, 3L), group=1L) else NULL, control=mmes_control(representation=list(equations=if(saddle) "saddle-point" else "normal"), update=list(blendWeight=0), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     if(!tied){
       # Fixed descriptor coordinates still contribute exact final information.
-      setup <- mmes(response~level, random=~vsm(ar1m(level, rho=0.3, fixed=TRUE), ism(id)),
-        data=dataset, blendWeight=0, returnParam=TRUE, verbose=FALSE, dateWarning=FALSE)
+      setup <- mmes(response~level, random=~vsm(ar1m(level, rho=0.3, fixed=TRUE), ism(id)), data=dataset, control=mmes_control(update=list(blendWeight=0), output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       reference <- .saddle_at(setup)
       candidate <- .saddle_at(setup, TRUE)
     }else{
@@ -234,10 +226,7 @@ test_that("saddle rejects compact grids rather than materializing hidden covaria
   dataset <- expand.grid(trial=factor(1:2), row=factor(1:3), column=factor(1:3))
   dataset <- dataset[-1L, ]
   dataset$response <- sin(seq_len(nrow(dataset)))
-  expect_error(mmes(response~trial,
-    rcov=~vsm(ar1m(row), ar1m(column), ism(units)), data=dataset,
-    blendWeight=0,
-    engine=mmes_control(saddlePoint=TRUE), verbose=FALSE, dateWarning=FALSE),
+  expect_error(mmes(response~trial, rcov=~vsm(ar1m(row), ar1m(column), ism(units)), data=dataset, control=mmes_control(representation=list(equations="saddle-point"), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "grid/ragged")
 })
 
@@ -245,10 +234,7 @@ test_that("saddle retains multiple-term covariance SE and small-sample inference
   skip_on_cran()
   data(DT_yatesoats, package="enhancer", envir=environment())
   model <- function(saddle){
-    mmes(Y~V*N, random=~B+B:MP, data=DT_yatesoats,
-      nIters=100L, tolParConvLL=1e-12, tolParConvNorm=1e-10,
-      blendWeight=0,
-      engine=mmes_control(saddlePoint=saddle), verbose=FALSE, dateWarning=FALSE)
+    mmes(Y~V*N, random=~B+B:MP, data=DT_yatesoats, control=mmes_control(representation=list(equations=if(saddle) "saddle-point" else "normal"), convergence=list(maxIters=100L, likelihoodTol=1e-12, parameterTol=1e-10), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   reference <- model(FALSE)
   candidate <- model(TRUE)
@@ -263,9 +249,7 @@ test_that("saddle retains multiple-term covariance SE and small-sample inference
 test_that("saddle prediction and emmeans preserve their public coefficient contract", {
   dataset <- .saddle_dataset()
   model <- function(saddle){
-    mmes(response~level, random=~id, data=dataset, nIters=40L,
-      blendWeight=0,
-      engine=mmes_control(saddlePoint=saddle), verbose=FALSE, dateWarning=FALSE)
+    mmes(response~level, random=~id, data=dataset, control=mmes_control(representation=list(equations=if(saddle) "saddle-point" else "normal"), convergence=list(maxIters=40L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   reference <- model(FALSE)
   candidate <- model(TRUE)

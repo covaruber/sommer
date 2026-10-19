@@ -2,8 +2,7 @@ test_that("emmeans obtains mmes fixed-effect means and covariance", {
   skip_if_not_installed("emmeans")
   data(DT_example)
 
-  fit <- mmes(Yield ~ Env, random=~Name, rcov=~units, data=DT_example,
-              nIters=3, verbose=FALSE)
+  fit <- mmes(Yield ~ Env, random=~Name, rcov=~units, data=DT_example, control=mmes_control(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE)))
   recovered <- emmeans::recover_data(fit)
   grid <- emmeans::ref_grid(fit)
   means <- emmeans::emmeans(fit, ~ Env)
@@ -25,8 +24,7 @@ test_that("emmeans obtains mmes fixed-effect means and covariance", {
 test_that("emmeans support rejects multivariate mmes fits", {
   skip_if_not_installed("emmeans")
   data(DT_example)
-  fit <- mmes(Yield ~ Env, random=~Name, rcov=~units, data=DT_example,
-              nIters=1, verbose=FALSE)
+  fit <- mmes(Yield ~ Env, random=~Name, rcov=~units, data=DT_example, control=mmes_control(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE)))
   fit$y <- cbind(fit$y, fit$y)
 
   expect_error(emmeans::emmeans(fit, ~ Env), "univariate response")

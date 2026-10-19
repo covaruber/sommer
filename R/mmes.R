@@ -1,6 +1,6 @@
 # Refactored mmes front end: unified formula environments, centralized
 # observation filtering, and language-object parsing for random/residual terms.
-mmes <- function(fixed, random, rcov, data, W, weights=NULL,
+.mmes_fit <- function(fixed, random, rcov, data, W, weights=NULL,
                  nIters=30, tolParConvLL=1e-04,
                  tolParConvNorm=1e-04, tolParInv=1e-06,
                  naMethodX="exclude", naMethodY="exclude",
@@ -12,7 +12,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  computeCi=0, solver="auto", REML=TRUE, vcc=NULL,
                  family=stats::gaussian(), pqlControl=list(),
                  solveOnly=FALSE, covPar=NULL, blasThreads=NULL,
-                 engine=NULL, ..., .internal=NULL){
+                 engine=NULL, .internal=NULL){
   WWasMissing <- missing(W)
   WInput <- if(WWasMissing) NULL else W
   mmesCall <- match.call()
@@ -21,37 +21,14 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   on.exit(threadScope$restore(), add=TRUE)
   if(verbose && !returnParam) get(".mmes_thread_report", mode="function")(threadScope)
 
-  dots <- list(...)
   blend <- match.arg(blend)
   if(length(nIters) != 1L || !is.numeric(nIters) || is.complex(nIters) || !is.finite(nIters) ||
      nIters < 1L || nIters > .Machine$integer.max || nIters != as.integer(nIters)){
     stop("nIters must be one positive integer.", call.=FALSE)
   }
   nIters <- as.integer(nIters)
-  if("emWeight" %in% names(dots)){
-    if(!missing(blendWeight)){
-      stop("Supply only blendWeight; emWeight is its deprecated alias.", call.=FALSE)
-    }
-    warning("emWeight is deprecated; use blendWeight instead.", call.=FALSE)
-    blendWeight <- dots$emWeight
-    dots$emWeight <- NULL
-  }
   automaticBlendWeight <- is.null(blendWeight)
-  if(!automaticBlendWeight){
-    if(!is.numeric(blendWeight) || is.complex(blendWeight) || !length(blendWeight)){
-      stop("blendWeight must be a non-empty numeric scalar or vector.", call.=FALSE)
-    }
-    if(any(!is.finite(blendWeight)) || any(blendWeight < 0)){
-      stop("blendWeight must contain finite non-negative values.", call.=FALSE)
-    }
-    if(length(blendWeight) > 1L && any(blendWeight > 1)){
-      stop("blendWeight vectors must contain values between 0 and 1.", call.=FALSE)
-    }
-    if(length(blendWeight) == 1L && blendWeight > 1 &&
-       blendWeight != floor(blendWeight)){
-      stop("blendWeight above 1 must be a whole-number decay iteration count.", call.=FALSE)
-    }
-  }
+  blendWeight <- .mme_blend_weight(blendWeight)
   if(automaticBlendWeight){
     blendWeight <- 0
   } else if(length(blendWeight) == 1L && blendWeight > 1){
@@ -64,19 +41,24 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   }
   blendWeight <- rep(blendWeight, length.out=nIters)
   directionBlend <- any(blendWeight > 0)
-  .pqlInner <- isTRUE(.internal$pqlInner) || isTRUE(dots$.pqlInner)
-  .pqlFixedDispersion <- if(!is.null(.internal$pqlFixedDispersion)) .internal$pqlFixedDispersion else dots$.pqlFixedDispersion
+  .pqlInner <- isTRUE(.internal$pqlInner)
+  .pqlFixedDispersion <- .internal$pqlFixedDispersion
   if(is.null(.pqlFixedDispersion)) .pqlFixedDispersion <- FALSE
-  .pqlWorkingPrecision <- if(!is.null(.internal$pqlWorkingPrecision)) .internal$pqlWorkingPrecision else dots$.pqlWorkingPrecision
-  .pqlBaseW <- if(!is.null(.internal$pqlBaseW)) .internal$pqlBaseW else dots$.pqlBaseW
-  .pqlBaseFactor <- if(!is.null(.internal$pqlBaseFactor)) .internal$pqlBaseFactor else dots$.pqlBaseFactor
-  .pqlStart <- if(!is.null(.internal$pqlStart)) .internal$pqlStart else dots$.pqlStart
-  .factorScoreParameters <- if(!is.null(.internal$factorScoreParameters)) .internal$factorScoreParameters else dots$.factorScoreParameters
+  .pqlWorkingPrecision <- .internal$pqlWorkingPrecision
+  .pqlBaseW <- .internal$pqlBaseW
+  .pqlBaseFactor <- .internal$pqlBaseFactor
+  .pqlStart <- .internal$pqlStart
+  .factorScoreParameters <- .internal$factorScoreParameters
 
-  mergeControl <- get(".merge_mmes_control", mode="function")
-  engineControl <- do.call(mergeControl,
-    c(list(engine=engine, solver=solver), dots))
+  engineControl <- engine
+  if(!inherits(engineControl, "sommer_mmes_engine")){
+    stop("Internal fitting requires a compiled modular control.", call.=FALSE)
+  }
   solver <- engineControl$solver
+  compression <- engineControl$compression
+  if(identical(solver, "pcg") && compression == "off"){
+    compression <- engineControl$pcg$compression
+  }
   acceleration <- engineControl$acceleration
   factorScoreAugmentation <- engineControl$factorScoreAugmentation
   pcgPreconditioner <- engineControl$pcg$preconditioner
@@ -91,7 +73,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   }
   if(isTRUE(engineControl$gpu)){
     if(!henderson || solveOnly){
-      stop("gpu=TRUE requires Henderson fitting; direct inversion and solveOnly remain CPU-only.", call.=FALSE)
+      stop("execution$gpu=TRUE requires formulation='henderson' with task$mode='fit'; direct inversion and solve mode remain CPU-only.", call.=FALSE)
     }
     get(".mmes_gpu_require", mode="function")()
   }
@@ -101,10 +83,10 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   pcgPreconditioner <- match.arg(pcgPreconditioner, c("diagonal", "nystrom", "block-jacobi"))
   if(length(pcgNystromRank) != 1L || !is.finite(pcgNystromRank) ||
      pcgNystromRank < 1L || pcgNystromRank != as.integer(pcgNystromRank)){
-    stop("pcgNystromRank must be one positive integer.", call.=FALSE)
+    stop("solve$nystromRank must be one positive integer.", call.=FALSE)
   }
   if(acceleration != "none" && (!henderson || identical(tolower(solver), "pcg"))){
-    stop("Covariance-update acceleration requires a deterministic Henderson factorization solver.", call.=FALSE)
+    stop("proposal$extrapolation='aitken' and curvature$method='hybrid-ai' require formulation='henderson' with a deterministic solve$method ('auto', 'ldlt' or 'cholmod').", call.=FALSE)
   }
 
   if(!inherits(family, "family") && !inherits(family, "sommer_familym")){
@@ -114,34 +96,86 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   isGaussianIdentity <- inherits(family, "family") &&
     identical(family$family, "gaussian") &&
     identical(family$link, "identity")
+  if(!engineControl$retainCoefficientMatrix &&
+     (!isGaussianIdentity || .pqlInner || !henderson || solveOnly ||
+      factorScoreAugmentation != "none" ||
+      !identical(engineControl$experimental$saddlePoint, "force") ||
+      computeCi != 0L)){
+    stop("output$coefficientMatrix=FALSE requires a Gaussian identity-link Henderson fit with representation$equations='saddle-point' and output$inverse=0, without PQL, task$mode='solve' or representation$factorScores.",
+         call.=FALSE)
+  }
+  if(engineControl$covarianceInformation == "none" &&
+     (!isGaussianIdentity || .pqlInner || !henderson || solveOnly ||
+      factorScoreAugmentation != "none")){
+    stop("output$covariance='none' requires a Gaussian identity-link Henderson fit without PQL, task$mode='solve' or representation$factorScores.",
+         call.=FALSE)
+  }
+  recycleTransfer <- engineControl$pcg$exportRecycle ||
+    !is.null(engineControl$pcg$recycleState)
+  if(recycleTransfer &&
+     (!identical(solver, "pcg") || !henderson || solveOnly ||
+      !isGaussianIdentity || .pqlInner || factorScoreAugmentation != "none")){
+    stop("solve$recycleState and solve$exportRecycle require a Gaussian identity-link Henderson REML fit with solve$method='pcg', without PQL, task$mode='solve' or representation$factorScores.",
+         call.=FALSE)
+  }
+  if(compression != "off" &&
+     (!isGaussianIdentity || .pqlInner || solveOnly || !henderson ||
+      factorScoreAugmentation != "none")){
+    stop("representation$compression requires a Gaussian identity-link Henderson fit without PQL, rotation, task$mode='solve' or representation$factorScores.",
+         call.=FALSE)
+  }
   supportsEM <- isGaussianIdentity && !.pqlInner &&
     (!henderson || !identical(tolower(solver), "pcg")) &&
     acceleration == "none" && factorScoreAugmentation == "none" &&
     !identical(engineControl$experimental$saddlePoint, "force")
   adaptiveRecovery <- automaticBlendWeight && supportsEM && !isTRUE(solveOnly)
+  commonScaleReason <- ""
+  if(engineControl$experimental$commonScale != "off"){
+    if(!supportsEM || !henderson || solveOnly || directionBlend){
+      commonScaleReason <- paste("requires a Gaussian identity-link Henderson fit with a deterministic solve$method, without PQL,",
+        "task$mode='solve', Aitken or hybrid AI, saddle-point equations, factor scores or positive update$blendWeight")
+    }
+    if(nzchar(commonScaleReason) && engineControl$experimental$commonScale == "force"){
+      stop("update$commonScale='force' ", commonScaleReason, ".", call.=FALSE)
+    }
+  }
+  reducedAIReason <- ""
+  if(engineControl$experimental$reducedAI != "off"){
+    if(!supportsEM || !henderson || solveOnly){
+      reducedAIReason <- "requires a Gaussian identity-link Henderson fit with a deterministic solve$method, without PQL, task$mode='solve', Aitken or hybrid AI, saddle-point equations or factor scores"
+    }else if(!adaptiveRecovery && !directionBlend &&
+             engineControl$experimental$commonScale == "off"){
+      reducedAIReason <- "requires AI-first recovery or positive EM/PXEM direction blending; explicit update$blendWeight=0 uses the legacy optimizer"
+    }else if(is.null(vcc)){
+      reducedAIReason <- "requires vcc constraints"
+    }
+    if(nzchar(reducedAIReason) && engineControl$experimental$reducedAI == "force"){
+      stop("curvature$reduced='force' ", reducedAIReason, ".", call.=FALSE)
+    }
+  }
   if(automaticBlendWeight && !supportsEM){
     blendWeight <- rep(0, nIters)
     directionBlend <- FALSE
   }
   if(directionBlend && !isTRUE(solveOnly)){
     if(!isGaussianIdentity || .pqlInner){
-      stop("Positive blendWeight is not supported for PQL fits.", call.=FALSE)
+      stop("Positive update$blendWeight is not supported for PQL fits.", call.=FALSE)
     }
     if(henderson && is.character(solver) && length(solver) == 1L &&
        identical(tolower(solver), "pcg")){
-      stop("Positive blendWeight requires a deterministic solver; solver='pcg' is unsupported.",
+      stop("Positive update$blendWeight requires a deterministic solve$method; solve$method='pcg' is unsupported.",
            call.=FALSE)
     }
     if(acceleration != "none"){
-      stop("Positive blendWeight is not supported with covariance-update acceleration.",
+      stop("Positive update$blendWeight is not supported with proposal$extrapolation='aitken' or curvature$method='hybrid-ai'.",
            call.=FALSE)
     }
     if(factorScoreAugmentation != "none"){
-      stop("Positive blendWeight is not supported with factorScoreAugmentation.",
+      stop("Positive update$blendWeight is not supported with representation$factorScores.",
            call.=FALSE)
     }
     if(identical(engineControl$experimental$saddlePoint, "force")){
-      stop("Positive blendWeight is not supported with saddlePoint='force'.",
+      stop("Positive update$blendWeight is not supported with representation$equations='saddle-point'.",
            call.=FALSE)
     }
   }
@@ -152,27 +186,27 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   if(saddlePoint && (!henderson || !isGaussianIdentity || .pqlInner || solveOnly ||
                      factorScoreAugmentation != "none" || acceleration != "none" ||
                      identical(tolower(solver), "pcg"))){
-    stop("saddlePoint='force' requires Gaussian Henderson fitting with a deterministic solver, without PQL, solveOnly, acceleration, or factor-score augmentation.",
+    stop("representation$equations='saddle-point' requires a Gaussian identity-link Henderson fit with a deterministic solve$method, without PQL, task$mode='solve', Aitken, hybrid AI or representation$factorScores.",
          call.=FALSE)
   }
   if(acceleration == "hybrid-ai" &&
      (!isGaussianIdentity || .pqlInner || solveOnly || factorScoreAugmentation != "none")){
-    stop("acceleration='hybrid-ai' requires Gaussian Henderson fitting without solveOnly, PQL, or factor-score augmentation.",
+    stop("curvature$method='hybrid-ai' requires a Gaussian identity-link Henderson fit without task$mode='solve', PQL or representation$factorScores.",
          call.=FALSE)
   }
   if(solveOnly){
     if(!isGaussianIdentity || .pqlInner){
-      stop("solveOnly=TRUE requires a Gaussian identity-link model.", call.=FALSE)
+      stop("task$mode='solve' requires a Gaussian identity-link model.", call.=FALSE)
     }
     if(factorScoreAugmentation != "none" || !is.null(vcc)){
-      stop("solveOnly=TRUE does not use factorScoreAugmentation or vcc; supply the final parameters in covPar.",
+      stop("task$mode='solve' does not use representation$factorScores or vcc; supply the final parameters in covPar.",
            call.=FALSE)
     }
     if(computeCi != 0L){
-      stop("solveOnly=TRUE does not compute C inverse/PEV; use computeCi=0.", call.=FALSE)
+      stop("task$mode='solve' does not compute C inverse/PEV; use output$inverse=0.", call.=FALSE)
     }
   }else if(!is.null(covPar)){
-    stop("covPar is only used with solveOnly=TRUE.", call.=FALSE)
+    stop("covPar is only used with task$mode='solve'.", call.=FALSE)
   }
   if(factorScoreAugmentation == "profile"){
     return(finishThreads(
@@ -521,11 +555,11 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   reducedRankRandom <- any(vapply(covStruct[seq_len(nRandomStruct)],
                                   hasReducedRank, logical(1)))
   if(reducedRankRandom && solveOnly){
-    stop("solveOnly=TRUE does not support singular rrm() covariance structures; use regular mmes() fitting with fixed covariance parameters.",
+    stop("task$mode='solve' does not support singular rrm() covariance structures; use task$mode='fit' with fixed covariance parameters.",
          call.=FALSE)
   }
   if(reducedRankRandom && factorScoreAugmentation != "none"){
-    stop("rrm() uses native reduced-rank fitting, not factorScoreAugmentation. Use factorScoreAugmentation='none'.",
+    stop("rrm() uses native reduced-rank fitting, not representation$factorScores. Use representation$factorScores='none'.",
          call.=FALSE)
   }
   localIndex <- as.integer(rf$residualLocalIndex[keep])
@@ -614,8 +648,11 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     logical(1)
   ))
   rotationInfo <- NULL
+  if(compression != "off" && length(rotationTerms)){
+    stop("representation$compression does not support observation rotation.", call.=FALSE)
+  }
   if(saddlePoint && length(rotationTerms)){
-    stop("saddlePoint='force' does not support rotation=TRUE.", call.=FALSE)
+    stop("representation$equations='saddle-point' does not support rotation=TRUE.", call.=FALSE)
   }
   if(length(rotationTerms) && !is.null(weightBlocks)){
     stop("weights block formulas are not yet supported with rotation=TRUE.", call.=FALSE)
@@ -627,7 +664,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
 
   if(length(rotationTerms)){
     if(solveOnly){
-      stop("rotation=TRUE is not available with solveOnly=TRUE.", call.=FALSE)
+      stop("rotation=TRUE is not available with task$mode='solve'.", call.=FALSE)
     }
     if(length(rotationTerms) != 1L){
       stop("Only one random-effect term may request rotation.", call.=FALSE)
@@ -646,7 +683,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
            call.=FALSE)
     }
     if(computeCi != 0L){
-      stop("rotation=TRUE currently requires computeCi=0; rotated PEV support is not yet available.",
+      stop("rotation=TRUE currently requires output$inverse=0; rotated PEV support is not yet available.",
            call.=FALSE)
     }
 
@@ -1069,7 +1106,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   if(length(stepWeight) == 1L) stepWeight <- rep(stepWeight, nIters)
   if(length(stepWeight) != nIters) stepWeight <- rep(stepWeight, length.out = nIters)
   if(any(!is.finite(stepWeight)) || any(stepWeight <= 0))
-    stop("stepWeight must contain finite positive values.", call.=FALSE)
+    stop("proposal$stepWeight must contain finite positive values.", call.=FALSE)
   
   if(length(Ai)){
     nInverses <- sum(vapply(Ai, function(x) isTRUE(attr(x,"inverse")), logical(1)))
@@ -1088,9 +1125,9 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   if(factorScoreAugmentation != "none"){
     if(!isTRUE(henderson) || !isTRUE(REML) || computeCi != 0L ||
        !is.null(vcc) || length(rotationTerms)){
-      stop("factor-score augmentation currently requires Henderson REML, computeCi=0, no user vcc constraints, and no rotation.", call.=FALSE)
+      stop("representation$factorScores currently requires Henderson REML, output$inverse=0, no user vcc constraints and no rotation.", call.=FALSE)
     }
-    if(!length(randomFits)) stop("factorScoreAugmentation requires a low-rank or compound-symmetry random term.", call.=FALSE)
+    if(!length(randomFits)) stop("representation$factorScores requires a low-rank or compound-symmetry random term.", call.=FALSE)
     residualCovStruct <- covStruct[[length(covStruct)]]
     residualTermNames <- rTermsNames[[length(rTermsNames)]]
     factorScoreInfo <- .factor_score_augment(
@@ -1138,12 +1175,12 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     solverChoices <- c("auto", "ldlt", "pcg", "cholmod")
     if(length(solver) != 1L || !is.character(solver) || is.na(solver) ||
        !(tolower(solver) %in% solverChoices)){
-      stop("solver must be one of 'auto', 'ldlt', 'pcg', or 'cholmod'.", call.=FALSE)
+      stop("solve$method must be one of 'auto', 'ldlt', 'pcg', or 'cholmod'.", call.=FALSE)
     }
     solver <- tolower(solver)
     if(factorScoreAugmentation != "none"){
       if(!(solver %in% c("auto", "ldlt", "cholmod"))){
-        stop("factorScoreAugmentation='fixed-shape' currently supports deterministic solver='ldlt' or 'cholmod'.", call.=FALSE)
+        stop("representation$factorScores currently supports deterministic solve$method 'auto', 'ldlt' or 'cholmod'.", call.=FALSE)
       }
     }
     if(solver == "auto"){
@@ -1155,8 +1192,8 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
       solver <- if(hasDenseGu) "cholmod" else "ldlt"
     }
     if(!REML && !(solver %in% c("ldlt", "cholmod"))){
-      stop("REML=FALSE (maximum likelihood) currently requires solver='ldlt' or ",
-           "solver='cholmod' (solver='auto' resolves to one of these already).",
+      stop("task$objective='ml' currently requires solve$method='ldlt' or ",
+           "'cholmod' ('auto' resolves to one of these already).",
            call.=FALSE)
     }
     # if(verbose){message(crayon::blue(paste("Solver selected:", solver)))}
@@ -1165,16 +1202,41 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     # choice; it always inverts the n x n phenotypic covariance directly.
     solver <- "direct"
     if(!(computeCi %in% c(0L, 2L))){
-      stop("With henderson=FALSE (the direct-inversion engine), computeCi must be 0 (no PEV) or 2 (full PEV, small models only); computeCi=1 (Takahashi selected inverse) is Henderson-only.",
+      stop("With formulation='direct', output$inverse must be 0 (no PEV) or 2 (full PEV, small models only); output$inverse=1 (Takahashi selected inverse) is Henderson-only.",
            call.=FALSE)
     }
-    if(verbose){message(crayon::blue("Engine selected: direct inversion (henderson=FALSE)"))}
+    if(verbose){message(crayon::blue("Engine selected: direct inversion (formulation='direct')"))}
   }
 
   attr(covStruct, "acceleration") <- acceleration
+  attr(covStruct, "compression") <- compression
+  attr(covStruct, "covarianceInformation") <- engineControl$covarianceInformation
+  attr(covStruct, "retainCoefficientMatrix") <- engineControl$retainCoefficientMatrix
   attr(covStruct, "pcgPreconditioner") <- pcgPreconditioner
   attr(covStruct, "pcgNystromRank") <- as.integer(pcgNystromRank)
   if(identical(solver, "pcg")){
+    if(recycleTransfer){
+      if(length(rotationTerms)){
+        stop("solve$recycleState and solve$exportRecycle do not support observation rotation.", call.=FALSE)
+      }
+      recycleCoordinates <- list(
+        fixed=colnames(X), contrasts=attr(X, "contrasts"),
+        fixedTerms=fixedTerms, randomTerms=rtermss,
+        random=lapply(Z, colnames),
+        randomDimensions=vapply(Z, ncol, integer(1)),
+        randomAxes=lapply(covStruct[seq_along(rtermss)], function(cs)
+          list(dim=cs$dim, levels=cs$levels,
+            factors=lapply(cs$factors, function(f)
+              list(dim=f$dim, levels=f$levels))))
+      )
+      state <- engineControl$pcg$recycleState
+      if(!is.null(state) &&
+         (!identical(state$coordinates, recycleCoordinates) ||
+          nrow(state$basis) != ncol(X) + sum(vapply(Z, ncol, integer(1))))){
+        stop("solve$recycleState coefficient coordinates do not match this model; no automatic remapping is performed.",
+             call.=FALSE)
+      }
+    }
     attr(covStruct, "pcgControl") <- engineControl$pcg
   }
   attr(covStruct, "engineControl") <- engineControl
@@ -1191,6 +1253,8 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   attr(covStruct, "traceBatch") <- engineControl$experimental$traceBatch
   attr(covStruct, "sparseFactors") <- engineControl$experimental$sparseFactors
   attr(covStruct, "saddlePoint") <- engineControl$experimental$saddlePoint
+  attr(covStruct, "reducedAI") <- if(nzchar(reducedAIReason)) "off" else
+    engineControl$experimental$reducedAI
   if(directionBlend || adaptiveRecovery){
     attr(covStruct, "directionBlend") <- TRUE
     attr(covStruct, "blend") <- blend
@@ -1239,6 +1303,41 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     vcParams$group <- vcSpec$group
     attr(covStruct, "vcmap") <- list(T=vcSpec$T, o=vcSpec$o)
   }
+  if(engineControl$experimental$commonScale != "off" && !nzchar(commonScaleReason)){
+    scaleRows <- vcParams$position == 1L
+    if(any(!vcParams$free[scaleRows])){
+      commonScaleReason <- "requires every product-level variance scale to be free; fixed covariance shapes are allowed"
+    }else if(any(vapply(covStruct, function(cs) any(vapply(cs$factors,
+      function(f) isTRUE(f$zero_specific) ||
+        isTRUE(f$representation$loadings$zero_specific), logical(1))), logical(1)))){
+      commonScaleReason <- "does not support latent reduced-rank covariance"
+    }else if(.sparse_rank(X) < ncol(X)){
+      commonScaleReason <- "requires a full-column-rank fixed design; remove aliased fixed effects"
+    }else{
+      mapping <- attr(covStruct, "vcmap")$T
+      if(!is.null(mapping)){
+        common <- as.numeric(scaleRows)
+        fittedCommon <- mapping %*% qr.coef(qr(mapping), common)
+        if(any(!is.finite(fittedCommon)) ||
+           max(abs(fittedCommon - common)) > 1e-8){
+          commonScaleReason <- "requires vcc constraints that preserve a common variance scale"
+        }
+      }
+    }
+    if(nzchar(commonScaleReason) && engineControl$experimental$commonScale == "force"){
+      stop("update$commonScale='force' ", commonScaleReason, ".", call.=FALSE)
+    }
+  }
+  if(nzchar(commonScaleReason) && !nzchar(reducedAIReason) &&
+     engineControl$experimental$reducedAI != "off" && !adaptiveRecovery && !directionBlend){
+    reducedAIReason <- "requires AI-first recovery, positive EM/PXEM direction blending or active common-scale profiling"
+    if(engineControl$experimental$reducedAI == "force"){
+      stop("curvature$reduced='force' ", reducedAIReason, ".", call.=FALSE)
+    }
+    attr(covStruct, "reducedAI") <- "off"
+  }
+  attr(covStruct, "commonScale") <- if(nzchar(commonScaleReason)) "off" else
+    engineControl$experimental$commonScale
 
   if(returnParam){
     return(list(yvar=yvar, X=X, Z=Z, Zind=Zind, Ai=Ai,
@@ -1281,7 +1380,24 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  responsePrepared, preparedMean, preparedSd,
                  preparedIntercept)
   }
+  if(nzchar(reducedAIReason)){
+    res$engineDiagnostics$reducedAI <- list(active=FALSE,
+      fallbackReason=reducedAIReason)
+  }
+  if(nzchar(commonScaleReason)){
+    res$engineDiagnostics$commonScale <- list(active=FALSE,
+      fallbackReason=commonScaleReason)
+  }
   res$pqlWarmStarted <- pqlWarmStarted
+  if(isTRUE(engineControl$pcg$exportRecycle)){
+    basis <- res$pcgRecycleBasis
+    res$pcgRecycleBasis <- NULL
+    if(!is.matrix(basis) || !ncol(basis)){
+      stop("PCG did not produce an accepted recycle basis for export.", call.=FALSE)
+    }
+    res$pcgRecycleState <- structure(list(version=1L,
+      coordinates=recycleCoordinates, basis=basis), class="sommer_pcg_recycle")
+  }
   res$factorProfileWarmStarted <- factorProfileWarmStarted
   if(!is.null(factorScoreInfo)){
     res <- .factor_score_restore(res, factorScoreInfo, X, originalRandomZ,
@@ -1378,6 +1494,13 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   }
   
   class(res) <- "mmes"
-  res$covParNative <- get(".covparams_mmes_se", mode="function")(res)
+  if(engineControl$covarianceInformation == "none"){
+    res$covarianceInformation <- "none"
+    res$covParNative <- get(".covparams_mmes", mode="function")(res)
+    res$covParNative$StdError <- NA_real_
+    res$covParNative$Zratio <- NA_real_
+  }else{
+    res$covParNative <- get(".covparams_mmes_se", mode="function")(res)
+  }
   finishThreads(res, threadScope, verbose)
 }

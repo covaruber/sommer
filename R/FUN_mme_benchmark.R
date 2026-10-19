@@ -211,9 +211,9 @@ run_mme_benchmark <- function(workloads,
   mmesFn <- get("mmes", mode="function")
   if(is.null(engines)){
     engines <- list(
-      baseline = mmeControl(solver="auto"),
-      banded_force = mmeControl(experimental=list(blockBanded="force")),
-      latent_force = mmeControl(experimental=list(factorSchurMultiFactor="force"))
+      baseline = mmeControl(),
+      banded_force = mmeControl(solve=list(blockBanded="force")),
+      latent_force = mmeControl(solve=list(factorSchurMultiFactor="force"))
     )
   }
 
@@ -228,13 +228,17 @@ run_mme_benchmark <- function(workloads,
 
     for(eng_name in names(engines)){
       ctrl <- engines[[eng_name]]
+      ctrl$task$objective <- if(wl$REML) "reml" else "ml"
+      ctrl$output$inverse <- wl$computeCi
+      ctrl$convergence$maxIters <- nIters
+      ctrl$diagnostics$verbose <- FALSE
+      ctrl$diagnostics$dateWarning <- FALSE
       if(verbose) message(sprintf("  Running engine: %-18s ... ", eng_name), appendLF=FALSE)
 
       # Warmup run
       warm_fit <- tryCatch({
         mmesFn(fixed = wl$fixed, random = wl$random, rcov = wl$rcov, data = wl$data,
-               REML = wl$REML, computeCi = wl$computeCi, nIters = nIters,
-               engine = ctrl, verbose = FALSE, dateWarning = FALSE)
+               control = ctrl)
       }, error = function(e){
         list(error = e$message)
       })
@@ -265,8 +269,7 @@ run_mme_benchmark <- function(workloads,
       for(r in seq_len(reps)){
         t0 <- proc.time()
         last_fit <- mmesFn(fixed = wl$fixed, random = wl$random, rcov = wl$rcov, data = wl$data,
-                           REML = wl$REML, computeCi = wl$computeCi, nIters = nIters,
-                           engine = ctrl, verbose = FALSE, dateWarning = FALSE)
+                           control = ctrl)
         t1 <- proc.time()
         times[r] <- (t1 - t0)[3L]
       }
@@ -395,11 +398,15 @@ profile_mme_workload <- function(workload, engine = mmes_control(), nIters = 5L,
   if(!inherits(workload, "mme_workload")){
     stop("workload must be of class 'mme_workload'.", call.=FALSE)
   }
-  engine$experimental$profile <- "force"
+  engine$diagnostics$profile <- "force"
+  engine$task$objective <- if(workload$REML) "reml" else "ml"
+  engine$output$inverse <- workload$computeCi
+  engine$convergence$maxIters <- nIters
+  engine$diagnostics$verbose <- FALSE
+  engine$diagnostics$dateWarning <- FALSE
   t0 <- proc.time()
   fit <- mmes(fixed = workload$fixed, random = workload$random, rcov = workload$rcov,
-              data = workload$data, REML = workload$REML, computeCi = workload$computeCi,
-              nIters = nIters, engine = engine, verbose = FALSE, dateWarning = FALSE)
+              data = workload$data, control = engine)
   elapsed <- unname((proc.time() - t0)[3L])
   prof <- fit$engineDiagnostics$profile
   if(!is.list(prof)) stop("The fit did not return a profile.", call.=FALSE)

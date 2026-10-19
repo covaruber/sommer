@@ -2,7 +2,7 @@ test_that("diagonal VarU batches agree with full covariance beyond 128 effects",
   set.seed(512)
   data <- data.frame(id=factor(rep(seq_len(135),each=2)))
   data$y <- rep(rnorm(135),each=2)+rnorm(nrow(data),sd=0.5)
-  model <- mmes(y~1,random=~id,data=data,verbose=FALSE,computeCi=0)
+  model <- mmes(y~1, random=~id, data=data, control=mmes_control(diagnostics=list(verbose=FALSE), output=list(inverse=0)))
   diagonal <- postVarU(model)
   full <- postVarU(model,2)
   expect_equal(as.numeric(diagonal$uVarList[[1]]),unname(diag(full$VarU)),tolerance=1e-9)
@@ -12,7 +12,7 @@ test_that("diagonal VarU batches agree with full covariance beyond 128 effects",
 
 test_that("fixed-only models have zero random VarU", {
   data <- data.frame(y=c(2,4,3,5,7,6),group=factor(rep(c("a","b"),each=3)))
-  model <- mmes(y~group,data=data,verbose=FALSE)
+  model <- mmes(y~group, data=data, control=mmes_control(diagnostics=list(verbose=FALSE)))
   full <- postVarU(model,2)
   expect_length(full$uVarList,0L)
   expect_equal(dim(full$VarU),c(0L,0L))
@@ -29,7 +29,7 @@ test_that("saved precision makes VarU independent of later external Gu changes",
   precision <- solve(relationship)
   attr(precision,"inverse") <- TRUE
   data <- data.frame(id=factor(rep(ids[1:7],each=3),levels=ids),y=rnorm(21))
-  model <- mmes(y~1,random=~vsm(ism(id),Gu=precision),data=data,verbose=FALSE)
+  model <- mmes(y~1, random=~vsm(ism(id),Gu=precision), data=data, control=mmes_control(diagnostics=list(verbose=FALSE)))
   original <- postVarU(model,2)
   precision[,] <- 0
   expect_equal(postVarU(model,2)$VarU,original$VarU)
@@ -41,7 +41,7 @@ test_that("Dtable averages project PEV and VarU through the final linear combina
   set.seed(514)
   data <- expand.grid(id=factor(seq_len(6)),env=factor(c("a","b","c")),replicate=1:2)
   data$y <- rep(rnorm(6),6)+rnorm(nrow(data))
-  model <- mmes(y~env,random=~vsm(usm(env),ism(id)),data=data,verbose=FALSE,computeCi=2)
+  model <- mmes(y~env, random=~vsm(usm(env),ism(id)), data=data, control=mmes_control(diagnostics=list(verbose=FALSE), output=list(inverse=2)))
   Dt <- model$Dtable
   Dt$average[Dt$type == "fixed"] <- TRUE
   Dt$include[Dt$type == "random"] <- TRUE

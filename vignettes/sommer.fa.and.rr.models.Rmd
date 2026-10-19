@@ -102,10 +102,11 @@ head(DT)
 
 ```{r}
 fitFA <- mmes(y ~ Env,
-              random = ~ vsm(fam(Env, 2), ism(Name)),
-              rcov = ~ units,
-              nIters = 150, verbose = FALSE,
-              data = DT)
+  random = ~ vsm(fam(Env, 2), ism(Name)),
+  rcov = ~ units,
+  data = DT,
+  control = mmes_control(convergence = list(maxIters = 150),
+  diagnostics = list(verbose = FALSE)))
 summary(fitFA)$varcomp
 ```
 
@@ -113,10 +114,11 @@ summary(fitFA)$varcomp
 
 ```{r}
 fitRR <- mmes(y ~ Env,
-              random = ~ vsm(rrm(Env, 2), ism(Name)),
-              rcov = ~ units,
-              nIters = 150, verbose = FALSE,
-              data = DT)
+  random = ~ vsm(rrm(Env, 2), ism(Name)),
+  rcov = ~ units,
+  data = DT,
+  control = mmes_control(convergence = list(maxIters = 150),
+  diagnostics = list(verbose = FALSE)))
 summary(fitRR)$varcomp
 ```
 

@@ -10,13 +10,13 @@ suppressPackageStartupMessages(library(sommer))
 
 variants <- list(
   baseline=list(),
-  block_jacobi=list(preconditioner="block-jacobi"),
-  nystrom=list(preconditioner="nystrom", nystromRank=12L),
-  warm=list(warmStart=TRUE),
-  recycle=list(warmStart=TRUE, recycleRank=6L),
-  block_cg=list(rhsMethod="block", blockSize=4L),
-  scaled_slq=list(logDetScaling="diagonal"),
-  control_variate=list(traceEstimator="control-variate", traceRank=12L)
+  block_jacobi=list(solve=list(preconditioner="block-jacobi")),
+  nystrom=list(solve=list(preconditioner="nystrom", nystromRank=12L)),
+  warm=list(solve=list(warmStart=TRUE)),
+  recycle=list(solve=list(warmStart=TRUE, recycleRank=6L)),
+  block_cg=list(solve=list(rhsMethod="block", blockSize=4L)),
+  scaled_slq=list(logdet=list(scaling="diagonal")),
+  control_variate=list(score=list(estimator="control-variate", rank=12L))
 )
 if(length(arguments) == 3L){
   selected <- strsplit(arguments[3L], ",", fixed=TRUE)[[1L]]
@@ -33,18 +33,20 @@ for(relationship in c("none", "sparse", "dense")){
   for(repetition in seq_len(3L)){
     order <- if(repetition %% 2L) names(variants) else rev(names(variants))
     for(name in order){
-      control <- mmes_control(solver="pcg",
-        pcg=utils::modifyList(list(tol=1e-10, traceProbes=32L,
-          lanczosSteps=40L), variants[[name]]),
-        experimental=list(profile="force"))
+      control <- do.call(mmes_control, utils::modifyList(list(
+        solve=list(method="pcg", tol=1e-10), score=list(traceProbes=32L),
+        logdet=list(lanczosSteps=40L), update=list(blendWeight=0),
+        convergence=list(maxIters=40L,
+          likelihoodTol=1e-5, parameterTol=1e-4),
+        diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)),
+        variants[[name]]))
       elapsed <- system.time(fit <- suppressMessages(mmes(
         workload$fixed, random=workload$random, rcov=workload$rcov,
-        data=workload$data, nIters=40L, blendWeight=0, getPEV=FALSE,
-        tolParConvLL=1e-5, tolParConvNorm=1e-4, engine=control,
-        verbose=FALSE, dateWarning=FALSE)))[["elapsed"]]
+        data=workload$data, control=control)))[["elapsed"]]
       inputs <- suppressMessages(mmes(workload$fixed,
         random=workload$random, rcov=workload$rcov, data=workload$data,
-        returnParam=TRUE, verbose=FALSE, dateWarning=FALSE))
+        control=mmes_control(output=list(setup=TRUE),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
       descriptors <- sommer:::.mmes_known_covpar(inputs$covStruct,
         names(fit$covStruct), fit)
       for(term in seq_along(descriptors)){

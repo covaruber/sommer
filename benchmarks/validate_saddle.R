@@ -52,11 +52,19 @@ for(fixture in fixtures){
   for(solver in c("auto", "ldlt", "cholmod")) for(reml in c(TRUE, FALSE)) for(mode in c(0L, 1L, 2L)){
     key <- paste(fixture, solver, reml, mode, sep="/")
     fitModel <- function(saddle){
-      control <- if(baselineOnly) mmes_control(solver=solver, experimental=list(profile="force")) else
-        mmes_control(solver=solver, experimental=list(profile="force", saddlePoint=if(saddle) "force" else "off"))
+      control <- if(baselineOnly) mmes_control(solve=list(method=solver),
+  diagnostics=list(profile="force")
+) else
+        mmes_control(solve=list(method=solver),
+  diagnostics=list(profile="force"),
+  representation=list(equations=if(identical(if(saddle) "force" else "off", TRUE) || identical(if(saddle) "force" else "off", "force")) "saddle-point" else "normal")
+)
       args <- list(fixed=response~level, random=random, rcov=rcov, data=dataset,
-        REML=reml, computeCi=mode, nIters=80L, tolParConvLL=1e-10, tolParConvNorm=1e-8,
-        engine=control, verbose=FALSE, dateWarning=FALSE)
+        control=mmes_control(task=list(objective=if(reml) "reml" else "ml"),
+          solve=control$solve, representation=control$representation,
+          output=list(inverse=mode),
+          convergence=list(maxIters=80L, likelihoodTol=1e-10, parameterTol=1e-8),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE, profile="force")))
       if(!is.null(weight)) args$W <- weight
       do.call(mmes, args)
     }

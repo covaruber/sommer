@@ -91,13 +91,11 @@ DT <- DT_example
 The following model fits a homogeneous compound-symmetry covariance among environments for genotype effects:
 
 ```{r, eval=FALSE}
-fit_cs <- mmes(
-  Yield ~ Env,
+fit_cs <- mmes(Yield ~ Env,
   random = ~ vsm(csm(Env), ism(Name)),
   rcov = ~ vsm(ism(units)),
   data = DT,
-  verbose = FALSE
-)
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 ```
 
 To estimate environment-specific variance ratios while retaining the same common correlation, select heterogeneous variance mode. `values` supplies positive starting marginal variances:
@@ -105,16 +103,14 @@ To estimate environment-specific variance ratios while retaining the same common
 ```{r, eval=FALSE}
 n_env <- nlevels(factor(DT$Env))
 
-fit_csh <- mmes(
-  Yield ~ Env,
+fit_csh <- mmes(Yield ~ Env,
   random = ~ vsm(
     csm(Env, variance="heterogeneous", values=rep(1, n_env)),
     ism(Name)
   ),
   rcov = ~ vsm(ism(units)),
   data = DT,
-  verbose = FALSE
-)
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 ```
 
 The homogeneous and heterogeneous models have one overall random-effect variance from `vsm()`. The heterogeneous model additionally estimates one common correlation and $q-1$ environment variance ratios.
@@ -127,8 +123,7 @@ For ordered levels, use an autoregressive correlation. The following example fit
 DT$EnvOrder <- factor(DT$Env, levels=unique(DT$Env), ordered=TRUE)
 n_env <- nlevels(DT$EnvOrder)
 
-fit_ar1h <- mmes(
-  Yield ~ Env,
+fit_ar1h <- mmes(Yield ~ Env,
   random = ~ vsm(
     ar1m(EnvOrder, rho=0.30, variance="heterogeneous",
          values=rep(1, n_env)),
@@ -136,8 +131,7 @@ fit_ar1h <- mmes(
   ),
   rcov = ~ vsm(ism(units)),
   data = DT,
-  verbose = FALSE
-)
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 ```
 
 For AR(2) and AR(3), use `ar2m()` or `ar3m()` and provide starting partial autocorrelations through `pacf`. Their heterogeneous mode uses the same `variance` and `values` arguments.
@@ -160,13 +154,11 @@ environment_cs <- csm(
 To fix a residual variance to one, fix the product-level `vsm()` scale rather than a covariance-factor parameter:
 
 ```{r, eval=FALSE}
-fit_fixed_residual <- mmes(
-  Yield ~ Env,
+fit_fixed_residual <- mmes(Yield ~ Env,
   random = ~ vsm(ism(Name)),
   rcov = ~ vsm(ism(units), sigma2=1, fixedSigma2=TRUE),
   data = DT,
-  verbose = FALSE
-)
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 ```
 
 For a heterogeneous residual structure, `fixedSigma2=TRUE` fixes the reference residual variance. Fixing the associated variance-ratio entries to `TRUE` fixes the other marginal residual variances relative to that reference.
@@ -244,13 +236,11 @@ The common fitting pattern is identical for all entries in `environment_shapes`:
 
 ```{r, eval=FALSE}
 fit_environment_shape <- function(shape){
-  mmes(
-    Yield ~ Env,
-    random = ~ vsm(shape, ism(DT$Name)),
-    rcov = ~ vsm(ism(units)),
-    data = DT,
-    verbose = FALSE
-  )
+  mmes(Yield ~ Env,
+  random = ~ vsm(shape, ism(DT$Name)),
+  rcov = ~ vsm(ism(units)),
+  data = DT,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 }
 
 fit_identity <- fit_environment_shape(environment_shapes$identity)
@@ -307,8 +297,11 @@ covparams_mmes(fit, 1)  # variances and covariances among dir, mat and pe
 Covariance parameters can be constrained to be equal or to keep fixed ratios (ASReml `vcc`). Parameters are identified in the `vcParams` table:
 
 ```{r, eval=FALSE}
-p <- mmes(Y ~ V * N, random = ~ B + B:MP, rcov = ~ units, data = DT_yatesoats,
-          returnParam = TRUE)
+p <- mmes(Y ~ V * N,
+  random = ~ B + B:MP,
+  rcov = ~ units,
+  data = DT_yatesoats,
+  control = mmes_control(output = list(setup = TRUE)))
 p$vcParams
 fit <- mmes(Y ~ V * N, random = ~ B + B:MP, rcov = ~ units, data = DT_yatesoats,
             vcc = data.frame(parameter = c("vsm(ism(B:MP)):sigma2", "vsm(ism(B)):sigma2"),

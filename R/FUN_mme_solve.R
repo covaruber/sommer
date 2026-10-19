@@ -102,7 +102,7 @@
   if(is.null(covPar)){
     free <- vapply(covStruct, function(cs) any(as.logical(cs$free)), logical(1))
     if(any(free)){
-      stop("solveOnly=TRUE needs every covariance parameter. Supply covPar (e.g. a fitted mmes ",
+      stop("task$mode='solve' needs every covariance parameter. Supply covPar (e.g. a fitted mmes ",
            "object) or fix the parameters of: ", paste(labels[free], collapse=", "), call.=FALSE)
     }
     return(covStruct)
@@ -179,13 +179,14 @@
                         data, dataOriginal, obsInfo, partitionsX, call, args,
                         pcg = .mme_pcg_control()){
   if(ncol(yvar) != 1L){
-    stop("solveOnly=TRUE requires one response column; use the long format with vsm(usm(trait), ...).",
+    stop("task$mode='solve' requires one response column; use the long format with vsm(usm(trait), ...).",
          call.=FALSE)
   }
   if(pcg$preconditioner == "nystrom" || pcg$rhsMethod != "independent" ||
      pcg$recycleRank > 0L || pcg$logDetScaling != "none" ||
-     pcg$traceEstimator != "hutchinson" || pcg$accuracy != "fixed"){
-    stop("solveOnly=TRUE supports block-Jacobi, warmStart and residualRefresh, but not REML-only PCG estimator, recycling or block-RHS settings.",
+     pcg$traceEstimator != "hutchinson" || pcg$accuracy != "fixed" ||
+     pcg$compression != "off" || pcg$recycleMethod != "coarse"){
+    stop("task$mode='solve' supports solve$preconditioner 'diagonal' or 'block-jacobi', solve$warmStart and solve$residualRefresh, but not REML-only PCG estimator, recycling or block-RHS settings.",
          call.=FALSE)
   }
   covStruct <- .mmes_known_covpar(covStruct, labels, covPar)
@@ -195,7 +196,7 @@
   weights <- numeric(0)
   if(isTRUE(useH)){
     if(!Matrix::isDiagonal(W)){
-      stop("solveOnly=TRUE supports diagonal weight matrices W only.", call.=FALSE)
+      stop("task$mode='solve' supports diagonal weight matrices W only.", call.=FALSE)
     }
     weights <- as.numeric(Matrix::diag(W))
   }
@@ -243,14 +244,14 @@
     if(!inherits(covPar, c("mmes", "mmesSolve")) ||
        is.null(covPar$bu) || !identical(rownames(covPar$bu), effectNames) ||
        ncol(covPar$bu) != 1L || any(!is.finite(covPar$bu))){
-      stop("solveOnly warmStart requires a fitted covPar object with identical coefficient names and finite coefficients.",
+      stop("task$mode='solve' with solve$warmStart requires a fitted covPar object with identical coefficient names and finite coefficients.",
            call.=FALSE)
     }
     start <- as.numeric(covPar$bu)
   }
   attr(residual, "pcgResidualRefresh") <- pcg$residualRefresh
 
-  message(crayon::blue("Engine selected: known-covariance PCG (solveOnly=TRUE)"))
+  message(crayon::blue("Engine selected: known-covariance PCG (task$mode='solve')"))
   sol <- mme_pcg_solve(design, y, nFixed, termStart, termLevels, AiGeneral, lambda,
                        residual, residual$par, as.integer(residualBlock),
                        as.integer(localIndex), weights, pcgTol, as.integer(pcgMaxIters),

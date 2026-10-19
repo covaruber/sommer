@@ -58,6 +58,7 @@ typedef Eigen::SimplicialLDLT<
 #include <iomanip>
 #include <sstream>
 #include "mme_paths.h"
+#include "mme_control_r.h"
 #include "mme_factors.h"
 
 #ifdef _WIN32

@@ -103,8 +103,13 @@ test_that("cached EM and PX moments match generic panels across covariance shape
       arguments <- list(fixed=y~trait,
         random=~vsm(dsm(trait), ism(id), sigma2=0.8),
         rcov=~vsm(ism(units), sigma2=0.6),
-        data=dataset, nIters=2L, blend=method, blendWeight=1, stepWeight=1,
-        solver=solver, REML=reml, verbose=FALSE, dateWarning=FALSE, returnParam=TRUE)
+        data=dataset,
+        control=mmes_control(solve=list(method=solver),
+          task=list(objective=if(reml) "reml" else "ml"),
+          update=list(recovery=method, blendWeight=1),
+          proposal=list(stepWeight=1), convergence=list(maxIters=2L),
+          output=list(setup=TRUE),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       if(shape == "us") arguments$random <- ~vsm(usm(trait), ism(id), sigma2=0.8)
       if(shape == "fixed"){
         arguments$random <- ~vsm(ism(id), sigma2=0.8, fixedSigma2=TRUE) +
@@ -116,7 +121,9 @@ test_that("cached EM and PX moments match generic panels across covariance shape
           function(i, j) 0.25^abs(i-j)), sparse=TRUE)
       }
       if(shape == "weighted-panels"){
-        arguments$engine <- mmes_control(denseMemoryMB=0.08, memoryPolicy="limit")
+        arguments$control <- do.call(mmes_control, utils::modifyList(
+          unclass(arguments$control), list(execution=list(denseMemoryMB=0.08, memoryPolicy="limit")),
+          keep.null=TRUE))
       }
       if(shape == "correlated-residual"){
         arguments$rcov <- ~vsm(ar1m(trait, rho=0.2), ism(units), sigma2=0.6)
@@ -160,9 +167,17 @@ test_that("one true EM step matches independent dense REML and ML moments", {
       us=~vsm(usm(trait), ism(id), sigma2=0.8),
       diag=~vsm(dsm(trait), ism(id), sigma2=0.8))
     arguments <- list(fixed=y~trait, random=random,
-      rcov=~vsm(ism(units), sigma2=0.6), data=dataset, nIters=2L,
-      blendWeight=1, stepWeight=1, REML=reml, verbose=FALSE, dateWarning=FALSE)
-    setup <- do.call(mmes, c(arguments, list(returnParam=TRUE)))
+      rcov=~vsm(ism(units), sigma2=0.6), data=dataset,
+      control=mmes_control(convergence=list(maxIters=2L),
+        update=list(blendWeight=1),
+        proposal=list(stepWeight=1),
+        task=list(objective=if(reml) "reml" else "ml"),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    setupArguments <- arguments
+    setupArguments$control <- do.call(mmes_control, utils::modifyList(
+      unclass(arguments$control), list(output=list(setup=TRUE)),
+      keep.null=TRUE))
+    setup <- do.call(mmes, setupArguments)
     reference <- .em_dense_step(setup, dataset$y)
     if(shape == "diag") reference[[1L]] <- diag(diag(reference[[1L]]))
     fitted <- do.call(mmes, arguments)
@@ -191,9 +206,11 @@ test_that("ML trials reprofile fixed effects and preserve D-first and inverse-mo
     for(path in c("off", "force")) for(mode in 0:2){
       fit <- mmes(y~trait, random=~vsm(ism(id), sigma2=0.8),
         rcov=~vsm(ism(units), sigma2=0.6), data=dataset, W=weights,
-        REML=FALSE, solver=solver, blend=method, blendWeight=c(1, 0.5, 0),
-        nIters=3L, computeCi=mode, verbose=FALSE, dateWarning=FALSE,
-        engine=mmes_control(experimental=list(dFirstML=path)))
+        control=mmes_control(solve=list(method=solver, dFirstML=path),
+          task=list(objective="ml"), update=list(recovery=method,
+            blendWeight=c(1, 0.5, 0)),
+          convergence=list(maxIters=3L), output=list(inverse=mode),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       V <- fit$theta[[1L]][1L] * tcrossprod(Z) +
         fit$theta[[2L]][1L] * residualCovariance
       ViX <- solve(V, X)
@@ -219,7 +236,10 @@ test_that("generic covariance and tied M-steps increase Q and preserve constrain
   dataset <- .em_direction_data()
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")) for(model in c("ar", "residual", "fixed", "tie", "rr")){
     arguments <- list(fixed=y~trait, random=~id, data=dataset,
-      nIters=4L, blendWeight=1, solver=solver, REML=reml, verbose=FALSE, dateWarning=FALSE)
+      control=mmes_control(solve=list(method=solver),
+        task=list(objective=if(reml) "reml" else "ml"),
+        update=list(blendWeight=1), convergence=list(maxIters=4L),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     if(model == "ar") arguments$random <- ~vsm(ar1m(trait), ism(id))
     if(model == "residual") arguments$rcov <- ~vsm(ar1m(trait), ism(units))
     if(model == "fixed") arguments$random <- ~vsm(ar1m(trait, rho=0.2, fixed=TRUE), ism(id))
@@ -261,9 +281,17 @@ test_that("weighted relationship EM matches dense moments without a full inverse
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")) for(weights in weightMatrices){
     arguments <- list(fixed=y~trait,
       random=~vsm(ism(id), Gu=precision, sigma2=0.8),
-      rcov=~vsm(ism(units), sigma2=0.6), W=weights, data=dataset, nIters=2L,
-      blendWeight=1, REML=reml, solver=solver, verbose=FALSE, dateWarning=FALSE)
-    setup <- do.call(mmes, c(arguments, list(returnParam=TRUE)))
+      rcov=~vsm(ism(units), sigma2=0.6), W=weights, data=dataset,
+      control=mmes_control(convergence=list(maxIters=2L),
+        update=list(blendWeight=1),
+        task=list(objective=if(reml) "reml" else "ml"),
+        solve=list(method=solver),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    setupArguments <- arguments
+    setupArguments$control <- do.call(mmes_control, utils::modifyList(
+      unclass(arguments$control), list(output=list(setup=TRUE)),
+      keep.null=TRUE))
+    setup <- do.call(mmes, setupArguments)
     reference <- .em_dense_step(setup, dataset$y)
     fitted <- do.call(mmes, arguments)
     for(term in seq_along(reference)){
@@ -281,10 +309,18 @@ test_that("all blend endpoints evaluate the same correlated-weight model", {
     diagonals=list(rep(0.15, n - 1L), seq(1, 2, length.out=n), rep(0.15, n - 1L)))
   arguments <- list(fixed=y~trait, random=~vsm(ism(id), sigma2=0.8),
     rcov=~vsm(ism(units), sigma2=0.6), data=dataset, W=weights,
-    nIters=1L, stepWeight=1, verbose=FALSE, dateWarning=FALSE)
-  reference <- do.call(mmes, c(arguments, list(blendWeight=0)))
+    control=mmes_control(convergence=list(maxIters=1L),
+      proposal=list(stepWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  fitWith <- function(weight){
+    fittedArgs <- arguments
+    fittedArgs$control <- do.call(mmes_control, utils::modifyList(
+      unclass(arguments$control), list(update=list(blendWeight=weight)),
+      keep.null=TRUE))
+    do.call(mmes, fittedArgs)
+  }
+  reference <- fitWith(0)
   for(weight in c(0.4, 1)){
-    fitted <- do.call(mmes, c(arguments, list(blendWeight=weight)))
+    fitted <- fitWith(weight)
     for(name in c("llik", "bu", "InfMat", "InfMatInv")){
       expect_equal(fitted[[name]], reference[[name]], tolerance=1e-9)
     }
@@ -297,8 +333,15 @@ test_that("complete unstructured and diagonal residuals have exact EM M-steps", 
     arguments <- list(fixed=y~trait, random=~id, data=dataset,
       rcov=if(shape == "us") ~vsm(usm(trait), ism(units)) else
         ~vsm(dsm(trait), ism(units)),
-      nIters=2L, blendWeight=1, REML=reml, verbose=FALSE, dateWarning=FALSE)
-    setup <- do.call(mmes, c(arguments, list(returnParam=TRUE)))
+      control=mmes_control(convergence=list(maxIters=2L),
+        update=list(blendWeight=1),
+        task=list(objective=if(reml) "reml" else "ml"),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    setupArguments <- arguments
+    setupArguments$control <- do.call(mmes_control, utils::modifyList(
+      unclass(arguments$control), list(output=list(setup=TRUE)),
+      keep.null=TRUE))
+    setup <- do.call(mmes, setupArguments)
     reference <- .em_dense_step(setup, dataset$y)
     if(shape == "diag") reference[[2L]] <- diag(diag(reference[[2L]]))
     fitted <- do.call(mmes, arguments)
@@ -336,8 +379,7 @@ test_that("EM fitting covers covariance-factor families and ragged sectioned res
       tanh(par[1L])^abs(outer(1:4, 1:4, "-"))
     }, par=0.2, par_names="correlation"))
   for(shape in structures){
-    fitted <- mmes(y~1, random=~vsm(shape, ism(id)), data=dataset,
-      nIters=2L, blendWeight=1, verbose=FALSE, dateWarning=FALSE)
+    fitted <- mmes(y~1, random=~vsm(shape, ism(id)), data=dataset, control=mmes_control(convergence=list(maxIters=2L), update=list(blendWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_true(all(is.finite(fitted$llik)), info=shape$covFactor$model)
     expect_true(diff(c(fitted$llik)) >= -1e-9, info=shape$covFactor$model)
     expect_equal(fitted$engineDiagnostics$blend$aiEvaluations, 0L,
@@ -346,10 +388,7 @@ test_that("EM fitting covers covariance-factor families and ragged sectioned res
   dataset <- dataset[-c(1L, 9L), , drop=FALSE]
   dataset$replicate <- factor(dataset$replicate)
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")){
-  fitted <- mmes(y~replicate, random=~id,
-    rcov=~dsumm(vsm(ar1m(site), ism(units)), by=replicate),
-    data=dataset, nIters=3L, blendWeight=1, REML=reml, solver=solver,
-    verbose=FALSE, dateWarning=FALSE)
+  fitted <- mmes(y~replicate, random=~id, rcov=~dsumm(vsm(ar1m(site), ism(units)), by=replicate), data=dataset, control=mmes_control(convergence=list(maxIters=3L), update=list(blendWeight=1), task=list(objective=if(reml) "reml" else "ml"), solve=list(method=solver), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_true(all(diff(c(fitted$llik)) >= -1e-9))
   expect_true(all(fitted$engineDiagnostics$blend$qGains >= -1e-9))
   }
@@ -359,9 +398,7 @@ test_that("mixed schedules skip unused EM or AI work and return clean inference"
   dataset <- .em_direction_data()
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")){
   fit <- function(weights, iterations=length(weights), computeCi=0L){
-    mmes(y~trait, random=~id, data=dataset, nIters=iterations,
-      blendWeight=weights, computeCi=computeCi, REML=reml, solver=solver,
-      verbose=FALSE, dateWarning=FALSE)
+    mmes(y~trait, random=~id, data=dataset, control=mmes_control(convergence=list(maxIters=iterations), update=list(blendWeight=weights), output=list(inverse=computeCi), task=list(objective=if(reml) "reml" else "ml"), solve=list(method=solver), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   mixed <- fit(c(1, 0.5, 0, 0))
   diagnostics <- mixed$engineDiagnostics$blend
@@ -389,18 +426,26 @@ test_that("zero-weight iterations reuse native AI and match a pure-AI restart", 
       arguments <- list(fixed=y~trait,
         random=~vsm(dsm(trait), ism(id), sigma2=0.8),
         rcov=~vsm(ism(units), sigma2=0.6), data=dataset,
-        nIters=4L, blend=method, blendWeight=c(1, 0, 0, 0), stepWeight=1,
-        solver=solver, verbose=FALSE, dateWarning=FALSE,
-        engine=mmes_control(profile=TRUE))
+        control=mmes_control(solve=list(method=solver),
+          convergence=list(maxIters=4L),
+          update=list(recovery=method, blendWeight=c(1, 0, 0, 0)),
+          proposal=list(stepWeight=1),
+          diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)))
       if(shape == "us") arguments$random <- ~vsm(usm(trait), ism(id), sigma2=0.8)
       if(shape %in% c("correlated-residual", "ragged-residual")){
         arguments$rcov <- ~vsm(ar1m(trait, rho=0.2), ism(units), sigma2=0.6)
       }
       if(shape == "ragged-residual") arguments$data <- dataset[-1L, , drop=FALSE]
-      setup <- do.call(mmes, c(arguments, list(returnParam=TRUE)))
+      setupArguments <- arguments
+      setupArguments$control <- do.call(mmes_control, utils::modifyList(
+        unclass(arguments$control), list(output=list(setup=TRUE)),
+        keep.null=TRUE))
+      setup <- do.call(mmes, setupArguments)
       prefixArguments <- arguments
-      prefixArguments$nIters <- 2L
-      prefixArguments$blendWeight <- c(1, 0)
+      prefixArguments$control <- do.call(mmes_control, utils::modifyList(
+        unclass(arguments$control),
+        list(convergence=list(maxIters=2L), update=list(blendWeight=c(1, 0))),
+        keep.null=TRUE))
       prefix <- do.call(mmes, prefixArguments)
       covariance <- setup$covStruct
       attr(covariance, "directionBlend") <- FALSE
@@ -435,20 +480,23 @@ test_that("zero-weight iterations reuse native AI and match a pure-AI restart", 
 
 test_that("exact EM moments respect their memory budget", {
   dataset <- .em_direction_data()
-  expect_error(mmes(y~trait, random=~id, data=dataset, nIters=2L,
-    blendWeight=1, engine=mmes_control(denseMemoryMB=0.001),
-    verbose=FALSE, dateWarning=FALSE), "EM moments")
-  expect_error(mmes(y~trait, random=~id, data=dataset, nIters=2L,
-    blendWeight=1, engine=mmes_control(denseMemoryMB=0.003),
-    verbose=FALSE, dateWarning=FALSE), "EM moments")
+  expect_error(mmes(y~trait, random=~id, data=dataset,
+    control=mmes_control(execution=list(denseMemoryMB=0.001),
+      convergence=list(maxIters=2L), update=list(blendWeight=1),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "EM moments")
+  expect_error(mmes(y~trait, random=~id, data=dataset,
+    control=mmes_control(execution=list(denseMemoryMB=0.003),
+      convergence=list(maxIters=2L), update=list(blendWeight=1),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "EM moments")
 })
 
 test_that("full EM skips sensitivity solves and duplicate likelihood fits", {
   dataset <- .em_direction_data()
   for(solver in c("ldlt", "cholmod")){
-    fitted <- mmes(y~trait, random=~id, data=dataset, nIters=4L,
-      blendWeight=1, verbose=FALSE, dateWarning=FALSE,
-      engine=mmes_control(solver=solver, experimental=list(profile="force")))
+    fitted <- mmes(y~trait, random=~id, data=dataset,
+      control=mmes_control(solve=list(method=solver),
+        convergence=list(maxIters=4L), update=list(blendWeight=1),
+        diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)))
     diagnostics <- fitted$engineDiagnostics
     expect_equal(diagnostics$blend$iterationSensitivityColumns, 0)
     expect_equal(diagnostics$blend$aiEvaluations, 0L)
@@ -465,10 +513,7 @@ test_that("full EM skips sensitivity solves and duplicate likelihood fits", {
 test_that("blending interpolates proposals rather than information matrices", {
   dataset <- .em_direction_data()
   fit <- function(weight, iterations, damping=1){
-    mmes(y~trait, random=~vsm(ism(id), sigma2=0.8),
-      rcov=~vsm(ism(units), sigma2=0.6), data=dataset,
-      nIters=iterations, blendWeight=weight, stepWeight=damping,
-      verbose=FALSE, dateWarning=FALSE)
+    mmes(y~trait, random=~vsm(ism(id), sigma2=0.8), rcov=~vsm(ism(units), sigma2=0.6), data=dataset, control=mmes_control(convergence=list(maxIters=iterations), update=list(blendWeight=weight), proposal=list(stepWeight=damping), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   initial <- fit(0, 1L)
   em <- fit(1, 2L)
@@ -482,23 +527,16 @@ test_that("blending interpolates proposals rather than information matrices", {
 
 test_that("fixed models skip all proposals and latent RR preserves tied scales", {
   dataset <- .em_direction_data()
-  fixed <- mmes(y~trait,
-    random=~vsm(ism(id), sigma2=0.8, fixedSigma2=TRUE),
-    rcov=~vsm(ism(units), sigma2=0.6, fixedSigma2=TRUE),
-    data=dataset, nIters=3L, blendWeight=1, verbose=FALSE, dateWarning=FALSE)
+  fixed <- mmes(y~trait, random=~vsm(ism(id), sigma2=0.8, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=0.6, fixedSigma2=TRUE), data=dataset, control=mmes_control(convergence=list(maxIters=3L), update=list(blendWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_true(fixed$convergence)
   expect_equal(ncol(fixed$llik), 1L)
   expect_equal(fixed$engineDiagnostics$blend$emEvaluations, 0L)
   expect_equal(fixed$engineDiagnostics$blend$aiEvaluations, 0L)
   expect_equal(as.numeric(unlist(fixed$theta)), c(0.8, 0.6))
-  setup <- mmes(y~trait, random=~vsm(rrm(trait, 1L), ism(id)) + replicate,
-    data=dataset, returnParam=TRUE, verbose=FALSE, dateWarning=FALSE)
+  setup <- mmes(y~trait, random=~vsm(rrm(trait, 1L), ism(id)) + replicate, data=dataset, control=mmes_control(output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   scales <- which(setup$vcParams$structure %in% 1:2 & setup$vcParams$kind == "scale")
   for(solver in c("ldlt", "cholmod")){
-    fitted <- mmes(y~trait, random=~vsm(rrm(trait, 1L), ism(id)) + replicate,
-      data=dataset, nIters=3L, blendWeight=1, solver=solver,
-      vcc=data.frame(parameter=scales, group=1L),
-      verbose=FALSE, dateWarning=FALSE)
+    fitted <- mmes(y~trait, random=~vsm(rrm(trait, 1L), ism(id)) + replicate, data=dataset, vcc=data.frame(parameter=scales, group=1L), control=mmes_control(convergence=list(maxIters=3L), update=list(blendWeight=1), solve=list(method=solver), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_equal(fitted$covParWorking[[1L]][1L], fitted$covParWorking[[2L]][1L])
     expect_equal(fitted$theta_se[scales[1L], scales[1L]],
                  fitted$theta_se[scales[2L], scales[2L]], tolerance=1e-9)
@@ -511,9 +549,7 @@ test_that("fixed models skip all proposals and latent RR preserves tied scales",
 
 test_that("large damped EM proposals backtrack without decreasing likelihood", {
   dataset <- .em_direction_data()
-  fitted <- mmes(y~trait, random=~vsm(ism(id), sigma2=0.8),
-    rcov=~vsm(ism(units), sigma2=0.6), data=dataset,
-    nIters=3L, blendWeight=1, stepWeight=20, verbose=FALSE, dateWarning=FALSE)
+  fitted <- mmes(y~trait, random=~vsm(ism(id), sigma2=0.8), rcov=~vsm(ism(units), sigma2=0.6), data=dataset, control=mmes_control(convergence=list(maxIters=3L), update=list(blendWeight=1), proposal=list(stepWeight=20), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_gt(fitted$engineDiagnostics$blend$lineSearchHalvings, 0L)
   expect_true(all(diff(c(fitted$llik)) >= -1e-9))
 })
@@ -524,9 +560,7 @@ test_that("EM and blended fits reach the standalone AI optimum", {
   dataset$y <- as.integer(dataset$trait) +
     2 * rnorm(nlevels(dataset$id))[as.integer(dataset$id)] + rnorm(nrow(dataset), sd=0.6)
   fit <- function(weight){
-    mmes(y~trait, random=~id, data=dataset, nIters=150L,
-      blendWeight=weight, tolParConvLL=1e-8, tolParConvNorm=1e-8,
-      verbose=FALSE, dateWarning=FALSE)
+    mmes(y~trait, random=~id, data=dataset, control=mmes_control(convergence=list(maxIters=150L, likelihoodTol=1e-8, parameterTol=1e-8), update=list(blendWeight=weight), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   ai <- fit(0)
   for(weight in c(1, 0.5)){
@@ -544,13 +578,20 @@ test_that("final scores, information, and uncertainty match accepted parameters"
   for(solver in c("ldlt", "cholmod")) for(shape in c("scalar", "us", "ar", "rr")){
     random <- switch(shape, scalar=~id, us=~vsm(usm(trait), ism(id)),
       ar=~vsm(ar1m(trait), ism(id)), rr=~vsm(rrm(trait, 1L), ism(id)))
-    arguments <- list(fixed=y~trait, random=random, data=dataset, solver=solver,
-      nIters=4L, blendWeight=c(1, 0.5, 0, 0), verbose=FALSE, dateWarning=FALSE)
+    arguments <- list(fixed=y~trait, random=random, data=dataset,
+      control=mmes_control(solve=list(method=solver),
+        convergence=list(maxIters=4L),
+        update=list(blendWeight=c(1, 0.5, 0, 0)),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     if(shape == "scalar"){
       arguments$W <- diag(seq(0.7, 1.3, length.out=nrow(dataset))) +
         matrix(0.01, nrow(dataset), nrow(dataset))
     }
-    setup <- do.call(mmes, c(arguments, list(returnParam=TRUE)))
+    setupArguments <- arguments
+    setupArguments$control <- do.call(mmes_control, utils::modifyList(
+      unclass(arguments$control), list(output=list(setup=TRUE)),
+      keep.null=TRUE))
+    setup <- do.call(mmes, setupArguments)
     fitted <- do.call(mmes, arguments)
     reference <- .em_information_at(setup, fitted)
     for(field in c("InfMat", "theta_se", "dLu")){
@@ -566,10 +607,7 @@ test_that("blended directions respect variance floors, fixed scales, and ratios"
   for(tied in c(FALSE, TRUE)){
     random <- if(tied) ~vsm(ism(id), sigma2=2e-6) +
       vsm(ism(replicate), sigma2=1e-6) else ~vsm(ism(id), sigma2=1e-6)
-    fitted <- mmes(y~trait, random=random, data=dataset,
-      blendWeight=0.5, nIters=30L,
-      vcc=if(tied) data.frame(parameter=1:2, group=1L, scale=c(2, 1)) else NULL,
-      verbose=FALSE, dateWarning=FALSE)
+    fitted <- mmes(y~trait, random=random, data=dataset, vcc=if(tied) data.frame(parameter=1:2, group=1L, scale=c(2, 1)) else NULL, control=mmes_control(update=list(blendWeight=0.5), convergence=list(maxIters=30L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_gte(fitted$covPar[[1L]][1L], 1e-6 - 1e-14)
     expect_true(all(diff(c(fitted$llik)) >= -1e-9))
     if(tied){
@@ -578,7 +616,6 @@ test_that("blended directions respect variance floors, fixed scales, and ratios"
       expect_gte(fitted$covPar[[2L]][1L], 1e-6 - 1e-14)
     }
   }
-  fixed <- mmes(y~trait, random=~vsm(ism(id), sigma2=5e-7, fixedSigma2=TRUE),
-    data=dataset, blendWeight=0.5, nIters=3L, verbose=FALSE, dateWarning=FALSE)
+  fixed <- mmes(y~trait, random=~vsm(ism(id), sigma2=5e-7, fixedSigma2=TRUE), data=dataset, control=mmes_control(update=list(blendWeight=0.5), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_equal(fixed$covPar[[1L]][1L], 5e-7, tolerance=1e-15)
 })

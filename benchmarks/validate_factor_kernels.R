@@ -20,11 +20,16 @@ if(length(args) && args[1L] == "--child"){
     workload$random <- ~vsm(antem(level, order = 2L), ism(id))
   }
   fit_model <- function(){
-    mmes(workload$fixed, random = workload$random, rcov = workload$rcov, data = workload$data,
-         nIters = if(model == "ante" && levels > 16L) 2L else 4L,
-         nThreads = 4L, verbose = FALSE, dateWarning = FALSE,
-         engine = mmes_control(solver = "ldlt",
-           experimental = list(blockSchur = "off", profile = "force", traceBatch = "force", sparseFactors = mode)))
+    mmes(workload$fixed,
+  random=workload$random,
+  rcov=workload$rcov,
+  data=workload$data,
+  control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(solve=list(method="ldlt", blockSchur="off"),
+  diagnostics=list(profile="force"),
+  score=list(traceBatch="force"),
+  representation=list(sparseFactors=mode)
+)), list(convergence=list(maxIters=if(model == "ante" && levels > 16L) 2L else 4L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))
+)
   }
   invisible(fit_model())
   invisible(gc())

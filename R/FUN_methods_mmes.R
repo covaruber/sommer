@@ -38,6 +38,26 @@
 ## SUMMARY FUNCTION mmes #
 #### =========== ####
 
+.mmes_require_covariance_information <- function(object){
+  if(identical(object$covarianceInformation, "none") ||
+     identical(object$control$output$covariance, "none") ||
+     identical(object$engineControl$covarianceInformation, "none")){
+    stop("Covariance information was omitted; refit with output=list(covariance='full') for this inference method.",
+         call.=FALSE)
+  }
+  invisible(NULL)
+}
+
+.mmes_require_coefficient_matrix <- function(object){
+  if(identical(object$retainCoefficientMatrix, FALSE) ||
+     identical(object$control$output$coefficientMatrix, FALSE) ||
+     identical(object$engineControl$retainCoefficientMatrix, FALSE)){
+    stop("Coefficient matrix C was not retained; refit with output=list(coefficientMatrix=TRUE) for this method.",
+         call.=FALSE)
+  }
+  invisible(NULL)
+}
+
 "summary.mmes" <- function(object, ...) {
 
   replace.values <- function(Values,Search,Replace){
@@ -97,6 +117,12 @@ varcomp <- object$covParNative[,c("term",  "parameter", "estimate",  "StdError",
                  REML=if(is.null(object$REML)) TRUE else object$REML,
                  family=object$family,
                  pqlConverged=object$pqlConverged)
+  if(identical(object$covarianceInformation, "none")){
+    output$covarianceInformation <- "none"
+  }
+  if(identical(object$retainCoefficientMatrix, FALSE)){
+    output$retainCoefficientMatrix <- FALSE
+  }
   attr(output, "class")<-c("summary.mmes", "list")
   return(output)
 }
@@ -127,6 +153,12 @@ varcomp <- object$covParNative[,c("term",  "parameter", "estimate",  "StdError",
   print(x$logo)#, digits = digits)
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\nVariance-Covariance components:\n")
+  if(identical(x$covarianceInformation, "none")){
+    cat("Covariance information omitted (covarianceInformation='none'); standard errors are unavailable.\n")
+  }
+  if(identical(x$retainCoefficientMatrix, FALSE)){
+    cat("Coefficient matrix C was not retained; post-fit C-based inference requires a refit.\n")
+  }
   print(x$varcomp, digits = digits)
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\nFixed effects:\n")
@@ -498,6 +530,7 @@ rotate_back_mmes <- function(object){
 }
 
 .covparams_mmes_se <- function(object, term=NULL, rel_step=1e-6){
+  .mmes_require_covariance_information(object)
   if(length(rel_step) != 1L || !is.finite(rel_step) || rel_step <= 0){
     stop("rel_step must be one positive finite value.", call.=FALSE)
   }
@@ -758,7 +791,7 @@ plot.mmes <- function(x, stnd=TRUE, ...) {
     qqnorm(scale(rr), pch=20, col=transp("tomato1"), ylab="Std Residuals", bty="n",...); grid()
     # hat <- Xm%*%solve(t(Xm)%*%x$Vi%*%Xm)%*%t(Xm)%*%x$Vi # leverage including variance from random effects H= X(X'V-X)X'V-
     if(is.null(x$Ci)){
-      stop("plot.mmes() currently requires the Henderson engine's coefficient-matrix inverse (Ci); it is not available for the direct-inversion engine (henderson=FALSE).", call.=FALSE)
+      stop("plot.mmes() currently requires the Henderson engine's coefficient-matrix inverse (Ci); it is not available for the direct-inversion engine (control$formulation='direct').", call.=FALSE)
     }
     hat = x$W %*% x$Ci %*% t(x$W)
     plot(diag(hat), scale(rr), pch=20, col=transp("blue"), ylab="Std Residuals", xlab="Leverage", main="Residual vs Leverage", bty="n", ...); grid()

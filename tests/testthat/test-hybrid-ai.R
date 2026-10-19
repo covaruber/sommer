@@ -25,27 +25,30 @@
 }
 
 test_that("hybrid AI controls merge, print, and reject unsupported combinations", {
-  control <- mmes_control(acceleration="hybrid-ai")
-  expect_equal(control$acceleration, "hybrid-ai")
-  expect_output(print(control), "hybrid-ai")
-  expect_equal(sommer:::.merge_mmes_control(engine=mmes_control(),
-    acceleration="hybrid-ai")$acceleration, "hybrid-ai")
-  expect_equal(sommer:::.merge_mmes_control(acceleration="hybrid-ai")$acceleration,
-               "hybrid-ai")
+  hybridControl <- mmes_control(curvature=list(method="hybrid-ai"))
+  expect_equal(hybridControl$curvature$method, "hybrid-ai")
+  expect_output(print(hybridControl), "hybrid-ai")
   dataset <- .hybrid_ai_fixture()
-  model <- function(...){
-    mmes(response~level, random=~id, data=dataset, blendWeight=0, engine=control,
-      verbose=FALSE, dateWarning=FALSE, ...)
+  model <- function(overrides=list()){
+    control <- utils::modifyList(unclass(hybridControl), overrides,
+      keep.null=TRUE)
+    control <- utils::modifyList(control, list(update=list(blendWeight=0),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)
+    mmes(response~level, random=~id, data=dataset,
+      control=do.call(mmes_control, control))
   }
-  expect_error(model(solver="pcg"), "deterministic")
-  expect_error(model(henderson=FALSE), "deterministic")
-  expect_error(model(solveOnly=TRUE), "without solveOnly")
-  expect_error(model(family=poisson()), "without solveOnly")
-  expect_error(model(.internal=list(pqlInner=TRUE)), "without solveOnly")
-  expect_error(model(factorScoreAugmentation="fixed-shape"), "factor-score augmentation")
-  expect_error(model(factorScoreAugmentation="profile"), "factor-score augmentation")
-  expect_error(mmes(response~level, random=~vsm(rrm(level, 1L), ism(id)),
-    data=dataset, blendWeight=0, engine=control, verbose=FALSE, dateWarning=FALSE),
+  expect_error(model(list(solve=list(method="pcg"))), "deterministic")
+  expect_error(model(list(formulation="direct")), "formulation='direct'")
+  expect_error(model(list(task=list(mode="solve"))), "task\\$mode='solve'")
+  expect_error(mmes(response~level, random=~id, data=dataset, family=poisson(),
+    control=hybridControl), "PQL")
+  expect_error(mmes(response~level, random=~id, data=dataset,
+    control=hybridControl, .internal=list(pqlInner=TRUE)), "PQL")
+  expect_error(model(list(representation=list(factorScores="fixed-shape"))),
+    "representation\\$factorScores")
+  expect_error(model(list(representation=list(factorScores="profile"))),
+    "representation\\$factorScores")
+  expect_error(mmes(response~level, random=~vsm(rrm(level, 1L), ism(id)), data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(hybridControl), list(update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))),
     "latent reduced-rank")
 })
 
@@ -53,13 +56,7 @@ test_that("hybrid AI preserves converged fits and reduces actual sensitivity sol
   dataset <- .hybrid_ai_fixture()
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
     model <- function(mode, computeCi=0L, returnParam=FALSE){
-      mmes(response~level, random=~vsm(usm(level), ism(id)), data=dataset,
-        blendWeight=0,
-        nIters=100L, tolParConvLL=1e-10, tolParConvNorm=1e-8,
-        REML=reml, computeCi=computeCi, returnParam=returnParam,
-        engine=mmes_control(solver=solver, acceleration=mode,
-          experimental=list(profile="force")),
-        verbose=FALSE, dateWarning=FALSE)
+      mmes(response~level, random=~vsm(usm(level), ism(id)), data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(proposal=list(extrapolation=if(mode == "aitken") "aitken" else "none"), curvature=list(method=if(mode == "hybrid-ai") "hybrid-ai" else "exact-ai"))), list(update=list(blendWeight=0), convergence=list(maxIters=100L, likelihoodTol=1e-10, parameterTol=1e-8), task=list(objective=if(reml) "reml" else "ml"), output=list(inverse=computeCi, setup=returnParam), diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
     }
     plain <- model("none")
     hybrid <- model("hybrid-ai")
@@ -100,13 +97,7 @@ test_that("hybrid AI returns exact information at iteration limits and skips fix
   dataset <- .hybrid_ai_fixture()
   for(iterations in c(1L, 2L, 3L, 6L)){
     model <- function(mode, returnParam=FALSE){
-      mmes(response~level,
-        random=~vsm(ar1m(level, rho=0.35, fixed=TRUE), ism(id)), data=dataset,
-        nIters=iterations, tolParConvLL=1e-14, tolParConvNorm=1e-14,
-        blendWeight=0, stepWeight=0.7, returnParam=returnParam,
-        engine=mmes_control(solver="ldlt", acceleration=mode,
-          experimental=list(profile="force")),
-        verbose=FALSE, dateWarning=FALSE)
+      mmes(response~level, random=~vsm(ar1m(level, rho=0.35, fixed=TRUE), ism(id)), data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(proposal=list(extrapolation=if(mode == "aitken") "aitken" else "none"), curvature=list(method=if(mode == "hybrid-ai") "hybrid-ai" else "exact-ai"))), list(convergence=list(maxIters=iterations, likelihoodTol=1e-14, parameterTol=1e-14), update=list(blendWeight=0), proposal=list(stepWeight=0.7), output=list(setup=returnParam), diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
     }
     hybrid <- model("hybrid-ai")
     reference <- .hybrid_ai_at(model("none", TRUE), hybrid, em=0)
@@ -138,8 +129,12 @@ test_that("tied covariance parameters explicitly retain the exact optimizer", {
   dataset <- .hybrid_ai_fixture()
   model <- function(mode){
     mmes(response~level, random=~id + replicate, data=dataset,
-      blendWeight=0, vcc=data.frame(parameter=c(1L, 2L), group=1L), nIters=8L,
-      engine=mmes_control(acceleration=mode), verbose=FALSE, dateWarning=FALSE)
+      vcc=data.frame(parameter=c(1L, 2L), group=1L),
+      control=mmes_control(
+        proposal=list(extrapolation=if(mode == "aitken") "aitken" else "none"),
+        curvature=list(method=if(mode == "hybrid-ai") "hybrid-ai" else "exact-ai"),
+        update=list(blendWeight=0), convergence=list(maxIters=8L),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   plain <- model("none")
   hybrid <- model("hybrid-ai")
@@ -154,11 +149,7 @@ test_that("tied covariance parameters explicitly retain the exact optimizer", {
 test_that("hybrid safeguards retain exact output after large proposals and fixed models", {
   dataset <- .hybrid_ai_fixture()
   model <- function(returnParam=FALSE){
-    mmes(response~level, random=~vsm(usm(level), ism(id)), data=dataset,
-      nIters=12L, blendWeight=0, stepWeight=30,
-      tolParConvLL=1e-12, tolParConvNorm=1e-12, returnParam=returnParam,
-      engine=mmes_control(acceleration="hybrid-ai", solver="ldlt"),
-      verbose=FALSE, dateWarning=FALSE)
+    mmes(response~level, random=~vsm(usm(level), ism(id)), data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(solve=list(method="ldlt"))), list(convergence=list(maxIters=12L, likelihoodTol=1e-12, parameterTol=1e-12), update=list(blendWeight=0), proposal=list(stepWeight=30), output=list(setup=returnParam), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
   }
   fit <- model()
   expect_gt(fit$engineDiagnostics$lineSearchHalvings, 0L)
@@ -169,11 +160,11 @@ test_that("hybrid safeguards retain exact output after large proposals and fixed
     expect_equal(fit[[field]], reference[[field]], tolerance=1e-8)
   }
 
-  fixed <- mmes(response~level,
-    random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE),
+  fixed <- mmes(response~level, random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE),
     rcov=~vsm(ism(units), sigma2=0.5, fixedSigma2=TRUE), data=dataset,
-    nIters=4L, blendWeight=0, engine=mmes_control(acceleration="hybrid-ai"),
-    verbose=FALSE, dateWarning=FALSE)
+    control=mmes_control(curvature=list(method="hybrid-ai"),
+      convergence=list(maxIters=4L), update=list(blendWeight=0),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_true(fixed$engineDiagnostics$hybridAI$finalInformationExact)
   expect_equal(as.numeric(fixed$theta_se), rep(0, 4L))
   expect_equal(unlist(fixed$covPar, use.names=FALSE), c(1, 0.5), tolerance=1e-12)
@@ -184,9 +175,13 @@ test_that("hybrid final information preserves covariance SE and small-sample Wal
   data(DT_yatesoats, package="enhancer", envir=environment())
   model <- function(mode){
     mmes(Y~V*N, random=~B+B:MP, data=DT_yatesoats,
-      nIters=100L, tolParConvLL=1e-12, tolParConvNorm=1e-10,
-      blendWeight=0,
-      engine=mmes_control(acceleration=mode), verbose=FALSE, dateWarning=FALSE)
+      control=mmes_control(
+        proposal=list(extrapolation=if(mode == "aitken") "aitken" else "none"),
+        curvature=list(method=if(mode == "hybrid-ai") "hybrid-ai" else "exact-ai"),
+        convergence=list(maxIters=100L, likelihoodTol=1e-12,
+          parameterTol=1e-10),
+        update=list(blendWeight=0),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   plain <- model("none")
   hybrid <- model("hybrid-ai")

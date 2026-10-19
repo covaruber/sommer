@@ -8,8 +8,10 @@ oatsWaldData <- function(drop=0L){
   d
 }
 
-tightFit <- function(...){
-  mmes(..., verbose=FALSE, tolParConvLL=1e-12, tolParConvNorm=1e-12, nIters=100)
+tightFit <- function(..., formulation="henderson"){
+  mmes(..., control=mmes_control(formulation=formulation,
+    diagnostics=list(verbose=FALSE),
+    convergence=list(likelihoodTol=1e-12, parameterTol=1e-12, maxIters=100)))
 }
 
 test_that("theta_se is the inverse REML information on the reported scale", {
@@ -19,7 +21,8 @@ test_that("theta_se is the inverse REML information on the reported scale", {
   expect_equal(as.numeric(m0$theta_se), 2 * s2^2 / (nrow(oats) - 12), tolerance=1e-6)
 
   mh <- tightFit(Y ~ V * N, random=~B + B:MP, rcov=~units, data=oats)
-  md <- tightFit(Y ~ V * N, random=~B + B:MP, rcov=~units, data=oats, henderson=FALSE)
+  md <- tightFit(Y ~ V * N, random=~B + B:MP, rcov=~units, data=oats,
+    formulation="direct")
   expect_equal(mh$theta_se, md$theta_se, tolerance=1e-4)
 })
 
@@ -87,8 +90,7 @@ test_that("Wald tests are available for PQL fits but small-sample df are not", {
   set.seed(4)
   d <- data.frame(x=rnorm(120), g=factor(rep(1:12, each=10)))
   d$y <- rpois(120, exp(0.3 + 0.4 * d$x))
-  fit <- mmes(y~x, random=~g, data=d, family=poisson(),
-              blendWeight=0, verbose=FALSE)
+  fit <- mmes(y~x, random=~g, data=d, family=poisson(), control=mmes_control(update=list(blendWeight=0), diagnostics=list(verbose=FALSE)))
   expect_true(all(is.finite(wald_mmes(fit)$p.value)))
   expect_error(wald_mmes(fit, denDF="kr"), "PQL")
 })

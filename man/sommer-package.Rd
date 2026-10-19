@@ -370,9 +370,9 @@ numerically differentiated.
 
 During optimization, \code{mmes} does not routinely materialize the complete
 \eqn{C^{-1}}. Takahashi recursions provide the selected inverse subset required
-for REML trace calculations. After convergence, \code{computeCi=1} obtains the
+for REML trace calculations. After convergence, \code{control$output$inverse=1} obtains the
 diagonal information needed for prediction error variances through the sparse
-inverse subset, whereas \code{computeCi=2} requests the complete
+inverse subset, whereas \code{control$output$inverse=2} requests the complete
 coefficient-matrix inverse.
 
 \strong{Parameter updates and numerical safeguards}

@@ -37,19 +37,23 @@ PEV and BLUP sampling variance are different quantities. Neither includes
 uncertainty from estimating covariance parameters. \code{postVarU()} leaves
 existing PEV outputs unchanged.
 
-For this post-fit calculation to be available, the \code{mmes} model must have been fitted with a version of the Henderson mixed model solver that stores the final sparse coefficient matrix and its scaling factor in the fitted model object. Models can therefore be initially fitted with \code{computeCi = 0} and the PEVs or complete inverse calculated afterwards only if required.
+For this post-fit calculation to be available, fit the \code{mmes} model with
+\code{control = mmes_control(output = list(coefficientMatrix = TRUE))} so the
+final coefficient matrix is retained. Models can use
+\code{control$output$inverse = 0} during fitting, then calculate PEVs or the
+complete inverse afterwards only if required.
 }
 \value{
 
 An object of class \code{"mmes"} containing the original fitted model together with the requested post-fit inverse information.
 
-With \code{mode = 1}, \code{uPevList} contains the prediction error variances for the random effects while \code{Ci} remains empty.
+With \code{mode = 1}, \code{uPevList} contains random-effect prediction error variances. \code{Ci} may contain the selected inverse entries used to obtain those PEVs, but it does not contain the complete inverse.
 
 With \code{mode = 2}, \code{Ci} contains the complete inverse of the mixed model coefficient matrix and \code{uPevList} contains the corresponding prediction error variances for the random effects.
 
 With \code{mode = 0}, inverse-derived outputs are cleared.
 
-The returned object also contains \code{CiComputed} and \code{CiMode}, indicating whether the complete inverse was computed and which calculation mode was used, respectively.
+The returned object also contains \code{CiComputed} and \code{CiMode}. \code{CiComputed} is TRUE only when the complete inverse was computed; \code{CiMode} records the selected mode.
 
 }
 \references{
@@ -70,7 +74,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 #   random = ~ vsm(ism(Genotype)),
 #   rcov = ~ units,
 #   data = DT,
-#   computeCi = 0
+#   control = mmes_control(output = list(inverse = 0))
 # )
 
 ####=========================================####

@@ -49,9 +49,10 @@ DT$trait_a <- u[DT$id, 1] + rnorm(nrow(DT), sd = 0.7)
 DT$trait_b <- u[DT$id, 2] + rnorm(nrow(DT), sd = 1)
 DTL <- stackTraits(DT, traits = c("trait_a", "trait_b"), keep = "id")
 fit <- mmes(value ~ trait,
-            random = ~ vsm(usm(trait), ism(id)),
-            rcov = ~ vsm(usm(trait), ism(record)),
-            data = DTL, verbose = FALSE)
+  random = ~ vsm(usm(trait), ism(id)),
+  rcov = ~ vsm(usm(trait), ism(record)),
+  data = DTL,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 G <- covmatrix_mmes(fit, 1)       # genetic
 G$covariance
 G$correlation

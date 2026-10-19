@@ -30,13 +30,15 @@ test_that("metricm analytic derivatives match numerical derivatives", {
 
 test_that("exponential, power and Matern(0.5) fits are equivalent", {
   s <- metricSites()
-  ctl <- list(verbose=FALSE, tolParConvLL=1e-10, tolParConvNorm=1e-10, nIters=100)
-  mExp <- do.call(mmes, c(list(yv~1, random=~vsm(metricm(cbind(x, y)), ism(one)),
-                               data=s$data), ctl))
-  mMat <- do.call(mmes, c(list(yv~1, random=~vsm(maternm(cbind(x, y), nu=0.5,
-                               fixed=c(FALSE, TRUE)), ism(one)), data=s$data), ctl))
-  mPow <- do.call(mmes, c(list(yv~1, random=~vsm(metricm(cbind(x, y), model="power"),
-                               ism(one)), data=s$data), ctl))
+  control <- mmes_control(
+    convergence=list(maxIters=100L, likelihoodTol=1e-10, parameterTol=1e-10),
+    diagnostics=list(verbose=FALSE))
+  mExp <- mmes(yv~1, random=~vsm(metricm(cbind(x, y)), ism(one)),
+    data=s$data, control=control)
+  mMat <- mmes(yv~1, random=~vsm(maternm(cbind(x, y), nu=0.5,
+    fixed=c(FALSE, TRUE)), ism(one)), data=s$data, control=control)
+  mPow <- mmes(yv~1, random=~vsm(metricm(cbind(x, y), model="power"),
+    ism(one)), data=s$data, control=control)
   rangeExp <- mExp$covPar[[1]][2]
   expect_equal(rangeExp, mMat$covPar[[1]][2], tolerance=1e-5)
   expect_equal(rangeExp, -1/log(mPow$covPar[[1]][2]), tolerance=1e-5)

@@ -1,7 +1,6 @@
 oatsFit <- function(){
   data(DT_yatesoats, package="enhancer", envir=environment())
-  mmes(Y ~ V + N + V:N, random=~ B + B:MP, rcov=~units, data=DT_yatesoats,
-       verbose=FALSE)
+  mmes(Y ~ V + N + V:N, random=~ B + B:MP, rcov=~units, data=DT_yatesoats, control=mmes_control(diagnostics=list(verbose=FALSE)))
 }
 
 oatsDtable <- function(m){
@@ -70,7 +69,7 @@ test_that("levels can request random-effect levels without phenotypes", {
   Gi <- solve(G); attr(Gi, "inverse") <- TRUE
   d <- data.frame(id=factor(rep(ids[1:10], each=3), levels=ids))
   d$y <- rnorm(30)
-  m <- mmes(y~1, random=~vsm(ism(id), Gu=Gi), data=d, verbose=FALSE)
+  m <- mmes(y~1, random=~vsm(ism(id), Gu=Gi), data=d, control=mmes_control(diagnostics=list(verbose=FALSE)))
   term <- m$Dtable$term[2]
   p <- predict(m, D="id", levels=setNames(list(c("i1", "i12")), term))
   expect_equal(p$pvals$id, c("i1", "i12"))

@@ -12,12 +12,8 @@ test_that("bordered random block chains match LDLT across correlation and invers
     for(inverseMode in 0:2){
       shape <- ar1m(dataset$environment, rho=correlation)
       fitModel <- function(solver){
-        mmes(response~environment,
-          random=~vsm(shape, ism(id), Gu=precision) +
-            vsm(dsm(environment), ism(replicate)) + vsm(ism(id)),
-          rcov=~vsm(dsm(environment), ism(units)), data=dataset,
-          solver=solver, nIters=4L, computeCi=inverseMode, blendWeight=0,
-          getPEV=inverseMode > 0L, verbose=FALSE, dateWarning=FALSE)
+        mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision) +
+            vsm(dsm(environment), ism(replicate)) + vsm(ism(id)), rcov=~vsm(dsm(environment), ism(units)), data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=4L), output=list(inverse=inverseMode), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       }
       reference <- fitModel("ldlt")
       chain <- fitModel("cholmod")
@@ -47,9 +43,7 @@ test_that("chain solves support missing records and correlated residual trace fa
     residual <- if(correlatedResidual) ~vsm(ar1m(environment), ism(record)) else
       ~vsm(dsm(environment), ism(units))
     fitModel <- function(solver){
-      mmes(response~environment, random=~vsm(ar1m(environment), ism(id), Gu=precision),
-        rcov=residual, data=activeData, solver=solver, nIters=4L, blendWeight=0,
-        computeCi=2L, getPEV=FALSE, verbose=FALSE, dateWarning=FALSE)
+      mmes(response~environment, random=~vsm(ar1m(environment), ism(id), Gu=precision), rcov=residual, data=activeData, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=4L), update=list(blendWeight=0), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     reference <- fitModel("ldlt")
     candidate <- fitModel("cholmod")
@@ -71,9 +65,7 @@ test_that("chain admission rejects nonpaths and respects memory and ML scope", {
   dimnames(precision) <- list(levels(dataset$id), levels(dataset$id))
   attr(precision, "inverse") <- TRUE
   fitModel <- function(shape, reml=TRUE){
-    mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision), data=dataset,
-      solver="cholmod", nIters=2L, computeCi=0L, getPEV=FALSE, REML=reml, blendWeight=0,
-      verbose=FALSE, dateWarning=FALSE)
+    mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision), data=dataset, control=mmes_control(solve=list(method="cholmod"), convergence=list(maxIters=2L), output=list(inverse=0L), task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   arShape <- ar1m(dataset$environment)
   expect_true(fitModel(arShape)$engineDiagnostics$blockChainActive)
@@ -99,10 +91,7 @@ test_that("reordered disconnected paths retain exact border-only cross-component
   covariance[2L, 4L] <- covariance[4L, 2L] <- -0.25
   shape <- ownm(dataset$environment, K=covariance)
   fitModel <- function(solver){
-    mmes(response~environment,
-      random=~vsm(shape, ism(id), Gu=precision) + vsm(ism(id)),
-      data=dataset, solver=solver, nIters=3L, computeCi=2L, blendWeight=0,
-      getPEV=TRUE, verbose=FALSE, dateWarning=FALSE)
+    mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision) + vsm(ism(id)), data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=3L), output=list(inverse=2L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   reference <- fitModel("ldlt")
   candidate <- fitModel("cholmod")
@@ -119,18 +108,12 @@ test_that("bounded block-banded AR2 precision matches LDLT across inverse modes"
   on.exit(options(previous), add=TRUE)
   dataset <- expand.grid(id=factor(seq_len(12L)), range=factor(seq_len(10L)))
   dataset$response <- sin(seq_len(nrow(dataset)) / 11) + as.integer(dataset$id) / 6
-  default <- mmes(response~1,
-    random=~vsm(ar2m(range), ism(id)), rcov=~units, data=dataset,
-    solver="cholmod", nIters=3L, computeCi=0L, getPEV=FALSE, blendWeight=0,
-    verbose=FALSE, dateWarning=FALSE)
+  default <- mmes(response~1, random=~vsm(ar2m(range), ism(id)), rcov=~units, data=dataset, control=mmes_control(solve=list(method="cholmod"), convergence=list(maxIters=3L), output=list(inverse=0L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_false(default$engineDiagnostics$blockBandedActive)
   options(sommer.mme.blockBanded=TRUE)
   for(inverseMode in 0:2){
     fitModel <- function(solver){
-      mmes(response~1,
-        random=~vsm(ar2m(range), ism(id)), rcov=~units, data=dataset,
-        solver=solver, nIters=3L, computeCi=inverseMode, blendWeight=0,
-        getPEV=inverseMode > 0L, verbose=FALSE, dateWarning=FALSE)
+      mmes(response~1, random=~vsm(ar2m(range), ism(id)), rcov=~units, data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=3L), output=list(inverse=inverseMode), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     reference <- fitModel("ldlt")
     candidate <- fitModel("cholmod")
@@ -144,8 +127,5 @@ test_that("bounded block-banded AR2 precision matches LDLT across inverse modes"
     if(inverseMode == 2L){ expect_equal(as.matrix(candidate$Ci), as.matrix(reference$Ci), tolerance=1e-7) }
   }
   options(sommer.mme.blockBanded=NA)
-  expect_error(mmes(response~1,
-    random=~vsm(ar2m(range), ism(id)), rcov=~units, data=dataset,
-    solver="cholmod", nIters=1L, computeCi=0L, getPEV=FALSE, blendWeight=0,
-    verbose=FALSE, dateWarning=FALSE), "sommer.mme.blockBanded must be TRUE or FALSE")
+  expect_error(mmes(response~1, random=~vsm(ar2m(range), ism(id)), rcov=~units, data=dataset, control=mmes_control(solve=list(method="cholmod"), convergence=list(maxIters=1L), output=list(inverse=0L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "sommer.mme.blockBanded must be TRUE or FALSE")
 })

@@ -142,6 +142,7 @@
 "predict.mmes" <- function(object, Dtable=NULL, D, levels=NULL, sed=FALSE,
                            pairwise=FALSE, adjust="none", df=Inf,
                            PEV=TRUE, VarU=TRUE, ...){
+  .mmes_require_coefficient_matrix(object)
   if(length(PEV) != 1L || is.na(PEV) || !is.logical(PEV)){
     stop("PEV must be TRUE or FALSE.", call.=FALSE)
   }

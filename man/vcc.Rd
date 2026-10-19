@@ -8,7 +8,8 @@ parameters to be equal or to keep fixed ratios.
 Parameters are identified through the \code{vcParams} table.
 }
 \section{The vcParams table}{
-\code{mmes(..., returnParam = TRUE)$vcParams} (before fitting) and
+\code{mmes(..., control = mmes_control(output = list(setup = TRUE)))$vcParams}
+(before fitting) and
 \code{fit$vcParams} (after fitting) list every covariance parameter with
 columns \code{index}, \code{term}, \code{parameter}, \code{kind},
 \code{start} (natural scale), \code{free}, \code{structure} and \code{position}
@@ -56,16 +57,27 @@ parameters share their standard errors.
 \examples{
 data(DT_yatesoats, package = "enhancer")
 DT <- DT_yatesoats
-p <- mmes(Y ~ V * N, random = ~ B + B:MP, rcov = ~ units, data = DT,
-          returnParam = TRUE)
+p <- mmes(Y ~ V * N,
+  random = ~ B + B:MP,
+  rcov = ~ units,
+  data = DT,
+  control = mmes_control(output = list(setup = TRUE)))
 p$vcParams
 # block and whole-plot variances equal
-m1 <- mmes(Y ~ V * N, random = ~ B + B:MP, rcov = ~ units, data = DT,
-           vcc = data.frame(parameter = c(1, 2), group = 1), verbose = FALSE)
+m1 <- mmes(Y ~ V * N,
+  random = ~ B + B:MP,
+  rcov = ~ units,
+  data = DT,
+  vcc = data.frame(parameter = c(1, 2), group = 1),
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 # block variance twice the whole-plot variance
-m2 <- mmes(Y ~ V * N, random = ~ B + B:MP, rcov = ~ units, data = DT,
-           vcc = data.frame(parameter = c("vsm(ism(B:MP)):sigma2", "vsm(ism(B)):sigma2"),
-                            group = 1, scale = c(1, 2)), verbose = FALSE)
+m2 <- mmes(Y ~ V * N,
+  random = ~ B + B:MP,
+  rcov = ~ units,
+  data = DT,
+  vcc = data.frame(parameter = c("vsm(ism(B:MP)):sigma2", "vsm(ism(B)):sigma2"),
+                            group = 1, scale = c(1, 2)),
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
 unlist(m2$covPar)
 }
 \keyword{models}

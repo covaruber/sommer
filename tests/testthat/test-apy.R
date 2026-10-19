@@ -61,8 +61,7 @@ test_that("APY precision can be used directly as Gu", {
   set.seed(19)
   data <- data.frame(id=factor(rep(rownames(example$G), each=3L),
                                levels=rownames(example$G)), y=rnorm(15L))
-  fit <- mmes(y~1, random=~vsm(ism(id), Gu=precision), rcov=~units,
-              data=data, nIters=3, verbose=FALSE, dateWarning=FALSE)
+  fit <- mmes(y~1, random=~vsm(ism(id), Gu=precision), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_s3_class(fit, "mmes")
   expect_true(all(is.finite(fit$theta[[1L]])))
   expect_true(all(is.finite(fit$uList[[1L]])))

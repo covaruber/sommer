@@ -1,6 +1,7 @@
 #ifndef SOMMER_MME_RR_H
 #define SOMMER_MME_RR_H
 #include "mme_progress.h"
+#include "mme_control_r.h"
 
 #include <functional>
 #include <Eigen/SparseLU>
@@ -34,6 +35,7 @@ struct RRConditionalOperators {
   arma::vec score;
   arma::mat information;
   arma::uword sensitivityColumns = 0;
+  arma::mat informationTangent;
   std::function<arma::mat(arma::uword, const arma::mat &)> derivative;
   std::function<arma::mat(arma::uword)> residualContraction;
 };
@@ -593,8 +595,7 @@ inline Rcpp::List fitReducedRank(
   if(!Rf_isNull(descriptors.attr("vcmap")) && iterations > 1) {
     Rcpp::stop("Latent reduced-rank Henderson fitting does not yet support vcc constraints.");
   }
-  if(descriptors.hasAttribute("acceleration") &&
-     Rcpp::as<std::string>(descriptors.attr("acceleration")) != "none") {
+  if(control::Transport(descriptors).method().proposal.accelerationRequested) {
     Rcpp::stop("Latent reduced-rank Henderson average-information fitting does not support covariance-update acceleration.");
   }
   if(iterations < 1) { Rcpp::stop("nIters must be positive."); }

@@ -14,6 +14,8 @@
 #include <string>
 #include <vector>
 
+#include "mme_pcg_recycle.h"
+
 namespace sommer {
 namespace pcg {
 
@@ -26,10 +28,12 @@ struct Options {
   int residualRefresh;
   Eigen::Index blockSize;
   std::size_t maxWorkspaceBytes;
+  RecycleSpace * recycleSpace;
 
   Options()
     : tolerance(1.0e-8), maxIterations(0), residualRefresh(0),
-      blockSize(16), maxWorkspaceBytes(64u * 1024u * 1024u) {}
+      blockSize(16), maxWorkspaceBytes(64u * 1024u * 1024u),
+      recycleSpace(0) {}
 };
 
 struct Metrics {
@@ -135,7 +139,9 @@ inline Result solvePackedIndependent(const Eigen::MatrixXd & rhs,
     };
     auto precondition = [&](const Eigen::MatrixXd & values) -> Eigen::MatrixXd {
       ++result.metrics.preconditionerApplications;
-      Eigen::MatrixXd output = applyM(values);
+      Eigen::MatrixXd output =
+        options.recycleSpace != 0 && options.recycleSpace->prepared()
+          ? options.recycleSpace->applyPanel(values) : applyM(values);
       if(output.rows() != values.rows() || output.cols() != values.cols() || !output.allFinite()){
         throw std::runtime_error("PCG preconditioner returned an invalid panel.");
       }
@@ -144,6 +150,7 @@ inline Result solvePackedIndependent(const Eigen::MatrixXd & rhs,
     Eigen::MatrixXd r = panel - checkedApply(x);
     result.metrics.trueResidualChecks += count;
     Eigen::MatrixXd z = precondition(r), p = z;
+    if(options.recycleSpace != 0) { options.recycleSpace->capturePanel(p); }
     Eigen::RowVectorXd rho = (r.array() * z.array()).colwise().sum();
     std::vector<bool> active(static_cast<std::size_t>(count), true);
     for(Eigen::Index col = 0; col < count; ++col){
@@ -159,6 +166,7 @@ inline Result solvePackedIndependent(const Eigen::MatrixXd & rhs,
     for(; iteration < iterationLimit(rhs.rows(), options) &&
         std::find(active.begin(), active.end(), true) != active.end(); ++iteration){
       const Eigen::MatrixXd ap = checkedApply(p);
+      if(options.recycleSpace != 0) { options.recycleSpace->capturePanel(p); }
       for(Eigen::Index col = 0; col < count; ++col){
         if(!active[col]) continue;
         const double curvature = p.col(col).dot(ap.col(col));
@@ -241,9 +249,10 @@ inline Eigen::MatrixXd applyMatrix(const MatrixOperator & applyA,
 
 inline Eigen::VectorXd applyPreconditioner(
     const VectorOperator & applyM, const Eigen::VectorXd & value,
-    Metrics & metrics) {
+    Metrics & metrics, RecycleSpace * recycleSpace = 0) {
   ++metrics.preconditionerApplications;
-  Eigen::VectorXd result = applyM(value);
+  Eigen::VectorXd result = recycleSpace != 0 && recycleSpace->prepared()
+    ? recycleSpace->apply(value) : applyM(value);
   if(result.size() != value.size() || !result.allFinite()) {
     throw std::runtime_error("PCG preconditioner returned an invalid vector.");
   }
@@ -252,9 +261,10 @@ inline Eigen::VectorXd applyPreconditioner(
 
 inline Eigen::MatrixXd applyPreconditioner(
     const MatrixOperator & applyM, const Eigen::MatrixXd & value,
-    Metrics & metrics) {
+    Metrics & metrics, RecycleSpace * recycleSpace = 0) {
   ++metrics.preconditionerApplications;
-  Eigen::MatrixXd result = applyM(value);
+  Eigen::MatrixXd result = recycleSpace != 0 && recycleSpace->prepared()
+    ? recycleSpace->applyPanel(value) : applyM(value);
   if(result.rows() != value.rows() || result.cols() != value.cols() ||
      !result.allFinite()) {
     throw std::runtime_error("PCG preconditioner returned an invalid panel.");
@@ -281,12 +291,14 @@ inline Eigen::VectorXd solveOne(const Eigen::VectorXd & rhs,
   double relativeResidual = residual.norm() / rhsNorm;
   if(relativeResidual <= options.tolerance) { return solution; }
 
-  Eigen::VectorXd preconditioned = applyPreconditioner(applyM, residual, metrics);
+  Eigen::VectorXd preconditioned = applyPreconditioner(
+    applyM, residual, metrics, options.recycleSpace);
   double residualProduct = residual.dot(preconditioned);
   if(!std::isfinite(residualProduct) || residualProduct <= 0.0) {
     throw std::runtime_error("PCG encountered a non-positive preconditioned residual.");
   }
   Eigen::VectorXd direction = preconditioned;
+  if(options.recycleSpace != 0) { options.recycleSpace->capture(direction); }
   const int limit = iterationLimit(n, options);
 
   for(int iteration = 0; iteration < limit; ++iteration) {
@@ -314,17 +326,20 @@ inline Eigen::VectorXd solveOne(const Eigen::VectorXd & rhs,
       residual.swap(trueResidual);
       ++metrics.residualReplacements;
       if(refresh || relativeResidual <= options.tolerance) {
-        preconditioned = applyPreconditioner(applyM, residual, metrics);
+        preconditioned = applyPreconditioner(
+          applyM, residual, metrics, options.recycleSpace);
         residualProduct = residual.dot(preconditioned);
         if(!std::isfinite(residualProduct) || residualProduct <= 0.0) {
           throw std::runtime_error("PCG residual replacement produced a non-positive update.");
         }
         direction = preconditioned;
+        if(options.recycleSpace != 0) { options.recycleSpace->capture(direction); }
         continue;
       }
     }
 
-    preconditioned = applyPreconditioner(applyM, residual, metrics);
+    preconditioned = applyPreconditioner(
+      applyM, residual, metrics, options.recycleSpace);
     const double nextProduct = residual.dot(preconditioned);
     if(!std::isfinite(nextProduct) || nextProduct <= 0.0) {
       throw std::runtime_error("PCG encountered a non-positive residual update.");
@@ -332,6 +347,7 @@ inline Eigen::VectorXd solveOne(const Eigen::VectorXd & rhs,
     const double beta = nextProduct / residualProduct;
     if(!std::isfinite(beta)) { throw std::runtime_error("PCG recurrence is non-finite."); }
     direction = preconditioned + beta * direction;
+    if(options.recycleSpace != 0) { options.recycleSpace->capture(direction); }
     residualProduct = nextProduct;
   }
 
@@ -423,8 +439,10 @@ inline Result solveBlockPanel(const Eigen::MatrixXd & rhs,
   ++result.metrics.trueResidualChecks;
   const Eigen::RowVectorXd rhsNorms = independentRhs.colwise().norm();
   std::vector<bool> active(static_cast<std::size_t>(rank), true);
-  Eigen::MatrixXd preconditioned = applyPreconditioner(applyM, residual, result.metrics);
+  Eigen::MatrixXd preconditioned = applyPreconditioner(
+    applyM, residual, result.metrics, options.recycleSpace);
   Eigen::MatrixXd direction = preconditioned;
+  if(options.recycleSpace != 0) { options.recycleSpace->capturePanel(direction); }
   Eigen::MatrixXd gamma = residual.transpose() * preconditioned;
   Eigen::Index activeCount = rank;
   const int limit = iterationLimit(n, options);
@@ -457,6 +475,7 @@ inline Result solveBlockPanel(const Eigen::MatrixXd & rhs,
       }
     }
     Eigen::MatrixXd ap = applyMatrix(applyA, p, result.metrics);
+    if(options.recycleSpace != 0) { options.recycleSpace->capturePanel(p); }
     Eigen::MatrixXd curvature = p.transpose() * ap;
     Eigen::LLT<Eigen::MatrixXd> curvatureFactor;
     Eigen::LLT<Eigen::MatrixXd> gammaFactor;
@@ -510,13 +529,16 @@ inline Result solveBlockPanel(const Eigen::MatrixXd & rhs,
 
     if(activeCount == 0) { break; }
     if(restart) {
-      preconditioned = applyPreconditioner(applyM, residual, result.metrics);
+      preconditioned = applyPreconditioner(
+        applyM, residual, result.metrics, options.recycleSpace);
       direction = preconditioned;
+      if(options.recycleSpace != 0) { options.recycleSpace->capturePanel(direction); }
       gamma = residual.transpose() * preconditioned;
       continue;
     }
 
-    preconditioned = applyPreconditioner(applyM, residual, result.metrics);
+    preconditioned = applyPreconditioner(
+      applyM, residual, result.metrics, options.recycleSpace);
     const Eigen::MatrixXd nextGamma = residual.transpose() * preconditioned;
     Eigen::MatrixXd nextActiveGamma(activeCount, activeCount);
     for(Eigen::Index i = 0; i < activeCount; ++i){
@@ -531,6 +553,7 @@ inline Result solveBlockPanel(const Eigen::MatrixXd & rhs,
       const Eigen::Index target = activeColumns[static_cast<std::size_t>(i)];
       direction.col(target) = preconditioned.col(target) + p * beta.col(i);
     }
+    if(options.recycleSpace != 0) { options.recycleSpace->capturePanel(direction); }
     gamma = nextGamma;
   }
 
