@@ -74,7 +74,7 @@ covmatrix_mmes <- function(object, term, se=TRUE, max.dim=500L, rel_step=1e-5){
       Jr[, k] <- as.vector(corOf(Vu) - corOf(Vd)) / (2*h)
     }
     toMat <- function(J){
-      M <- matrix(sqrt(pmax(diag(J %*% W %*% t(J)), 0)), q, q)
+      M <- matrix(sqrt(pmax(rowSums((J %*% W) * J), 0)), q, q)
       dimnames(M) <- dimnames(V)
       M
     }

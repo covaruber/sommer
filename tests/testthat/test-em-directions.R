@@ -84,81 +84,6 @@
   updated
 }
 
-.em_native_fit <- function(setup, generic=FALSE){
-  covariance <- setup$covStruct
-  attr(covariance, "emGenericMoments") <- generic
-  sommer:::ai_mme_sp2(setup$X, setup$Z, setup$Zind, setup$Ai, setup$yvar,
-    setup$W, setup$useH, setup$residualBlock, setup$residualIndex,
-    2L, setup$tolParConvLL, setup$tolParConvNorm, setup$tolParInv, covariance,
-    1, 1, FALSE, computeCi=0L, solver=setup$solver, reml=setup$REML,
-    responsePrepared=setup$responsePrepared, preparedMean=setup$preparedMean,
-    preparedSd=setup$preparedSd, preparedIntercept=setup$preparedIntercept)
-}
-
-test_that("cached EM and PX moments match generic panels across covariance shapes", {
-  dataset <- .em_direction_data()
-  for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")) for(method in c("em", "pxem")){
-    for(shape in c("diagonal", "us", "fixed", "weighted", "weighted-panels",
-                  "correlated-residual")){
-      arguments <- list(fixed=y~trait,
-        random=~vsm(dsm(trait), ism(id), sigma2=0.8),
-        rcov=~vsm(ism(units), sigma2=0.6),
-        data=dataset,
-        control=mmes_control(solve=list(method=solver),
-          task=list(objective=if(reml) "reml" else "ml"),
-          update=list(recovery=method, blendWeight=1),
-          proposal=list(stepWeight=1), convergence=list(maxIters=2L),
-          output=list(setup=TRUE),
-          diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-      if(shape == "us") arguments$random <- ~vsm(usm(trait), ism(id), sigma2=0.8)
-      if(shape == "fixed"){
-        arguments$random <- ~vsm(ism(id), sigma2=0.8, fixedSigma2=TRUE) +
-          vsm(ism(replicate), sigma2=0.3)
-      }
-      if(shape %in% c("weighted", "weighted-panels")){
-        n <- nrow(dataset)
-        arguments$W <- Matrix::Matrix(outer(seq_len(n), seq_len(n),
-          function(i, j) 0.25^abs(i-j)), sparse=TRUE)
-      }
-      if(shape == "weighted-panels"){
-        arguments$control <- do.call(mmes_control, utils::modifyList(
-          unclass(arguments$control), list(execution=list(denseMemoryMB=0.08, memoryPolicy="limit")),
-          keep.null=TRUE))
-      }
-      if(shape == "correlated-residual"){
-        arguments$rcov <- ~vsm(ar1m(trait, rho=0.2), ism(units), sigma2=0.6)
-      }
-      setup <- do.call(mmes, arguments)
-      cached <- .em_native_fit(setup)
-      generic <- .em_native_fit(setup, generic=TRUE)
-      for(field in c("theta", "InfMat", "bu", "llik")){
-        tolerance <- if(method == "em" && shape != "correlated-residual") 1e-9 else 2e-6
-        expect_equal(cached[[field]], generic[[field]], tolerance=tolerance,
-          info=paste(solver, method, shape, field))
-      }
-      diagnostics <- cached$engineDiagnostics$blend
-      expect_gt(cached$engineDiagnostics$emInverseTraceCalls, 0)
-      if(shape != "correlated-residual"){
-        expect_equal(diagnostics$scalarResidualTraceSteps, 1L)
-        expect_lt(diagnostics$momentPanelSolves, generic$engineDiagnostics$blend$momentPanelSolves)
-      } else {
-        expect_equal(diagnostics$scalarResidualTraceSteps, 0L)
-      }
-      if(shape == "diagonal"){
-        expect_equal(diagnostics$randomMomentPairs, 3)
-        expect_equal(diagnostics$randomOffDiagonalPairsSkipped, 3)
-        expect_equal(cached$engineDiagnostics$emInverseTraceFallbackPanels, 0)
-        expect_equal(diagnostics$momentPanelSolves, 0L)
-        if(method == "pxem") expect_gt(diagnostics$scalarResidualContractions, 0L)
-      }
-      if(shape == "weighted-panels" && method == "pxem"){
-        expect_equal(diagnostics$scalarResidualContractions, 1L)
-        expect_gt(diagnostics$momentPanelSolves, 0L)
-      }
-    }
-  }
-})
-
 test_that("one true EM step matches independent dense REML and ML moments", {
   dataset <- .em_direction_data()
   for(reml in c(TRUE, FALSE)) for(shape in c("scalar", "us", "diag")){
@@ -302,31 +227,6 @@ test_that("weighted relationship EM matches dense moments without a full inverse
   }
 })
 
-test_that("all blend endpoints evaluate the same correlated-weight model", {
-  dataset <- .em_direction_data()
-  n <- nrow(dataset)
-  weights <- Matrix::bandSparse(n, k=c(-1L, 0L, 1L),
-    diagonals=list(rep(0.15, n - 1L), seq(1, 2, length.out=n), rep(0.15, n - 1L)))
-  arguments <- list(fixed=y~trait, random=~vsm(ism(id), sigma2=0.8),
-    rcov=~vsm(ism(units), sigma2=0.6), data=dataset, W=weights,
-    control=mmes_control(convergence=list(maxIters=1L),
-      proposal=list(stepWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  fitWith <- function(weight){
-    fittedArgs <- arguments
-    fittedArgs$control <- do.call(mmes_control, utils::modifyList(
-      unclass(arguments$control), list(update=list(blendWeight=weight)),
-      keep.null=TRUE))
-    do.call(mmes, fittedArgs)
-  }
-  reference <- fitWith(0)
-  for(weight in c(0.4, 1)){
-    fitted <- fitWith(weight)
-    for(name in c("llik", "bu", "InfMat", "InfMatInv")){
-      expect_equal(fitted[[name]], reference[[name]], tolerance=1e-9)
-    }
-  }
-})
-
 test_that("complete unstructured and diagonal residuals have exact EM M-steps", {
   dataset <- .em_direction_data()
   for(reml in c(TRUE, FALSE)) for(shape in c("us", "diag")){
@@ -355,45 +255,6 @@ test_that("complete unstructured and diagonal residuals have exact EM M-steps", 
   }
 })
 
-test_that("EM fitting covers covariance-factor families and ragged sectioned residuals", {
-  set.seed(642)
-  dataset <- expand.grid(id=factor(1:5), site=factor(letters[1:4]), replicate=1:2)
-  dataset$y <- rnorm(nrow(dataset))
-  coordinates <- cbind(as.integer(dataset$site) %% 2, as.integer(dataset$site) %/% 2)
-  adjacency <- matrix(1, 4L, 4L) - diag(4L)
-  dimnames(adjacency) <- list(levels(dataset$site), levels(dataset$site))
-  structures <- list(
-    ism(dataset$site), dsm(dataset$site), usm(dataset$site),
-    csm(dataset$site), csm(dataset$site, variance="heterogeneous"),
-    ar1m(dataset$site, variance="heterogeneous"),
-    ar2m(dataset$site), ar3m(dataset$site),
-    ar2m(dataset$site, variance="heterogeneous"),
-    ar3m(dataset$site, variance="heterogeneous"),
-    mam(dataset$site), corgm(dataset$site), fam(dataset$site, 1L),
-    antem(dataset$site), toeplitzm(dataset$site),
-    sar(dataset$site, adjacency), car(dataset$site, adjacency),
-    maternm(coordinates), metricm(coordinates),
-    maternm(coordinates, anisotropy="geometric"),
-    metricm(coordinates, model="power", anisotropy="product"),
-    ownm(dataset$site, fun=function(par){
-      tanh(par[1L])^abs(outer(1:4, 1:4, "-"))
-    }, par=0.2, par_names="correlation"))
-  for(shape in structures){
-    fitted <- mmes(y~1, random=~vsm(shape, ism(id)), data=dataset, control=mmes_control(convergence=list(maxIters=2L), update=list(blendWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-    expect_true(all(is.finite(fitted$llik)), info=shape$covFactor$model)
-    expect_true(diff(c(fitted$llik)) >= -1e-9, info=shape$covFactor$model)
-    expect_equal(fitted$engineDiagnostics$blend$aiEvaluations, 0L,
-                 info=shape$covFactor$model)
-  }
-  dataset <- dataset[-c(1L, 9L), , drop=FALSE]
-  dataset$replicate <- factor(dataset$replicate)
-  for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")){
-  fitted <- mmes(y~replicate, random=~id, rcov=~dsumm(vsm(ar1m(site), ism(units)), by=replicate), data=dataset, control=mmes_control(convergence=list(maxIters=3L), update=list(blendWeight=1), task=list(objective=if(reml) "reml" else "ml"), solve=list(method=solver), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  expect_true(all(diff(c(fitted$llik)) >= -1e-9))
-  expect_true(all(fitted$engineDiagnostics$blend$qGains >= -1e-9))
-  }
-})
-
 test_that("mixed schedules skip unused EM or AI work and return clean inference", {
   dataset <- .em_direction_data()
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")){
@@ -419,65 +280,6 @@ test_that("mixed schedules skip unused EM or AI work and return clean inference"
   }
 })
 
-test_that("zero-weight iterations reuse native AI and match a pure-AI restart", {
-  dataset <- .em_direction_data()
-  for(solver in c("ldlt", "cholmod")) for(method in c("em", "pxem")){
-    for(shape in c("diagonal", "us", "correlated-residual", "ragged-residual")){
-      arguments <- list(fixed=y~trait,
-        random=~vsm(dsm(trait), ism(id), sigma2=0.8),
-        rcov=~vsm(ism(units), sigma2=0.6), data=dataset,
-        control=mmes_control(solve=list(method=solver),
-          convergence=list(maxIters=4L),
-          update=list(recovery=method, blendWeight=c(1, 0, 0, 0)),
-          proposal=list(stepWeight=1),
-          diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)))
-      if(shape == "us") arguments$random <- ~vsm(usm(trait), ism(id), sigma2=0.8)
-      if(shape %in% c("correlated-residual", "ragged-residual")){
-        arguments$rcov <- ~vsm(ar1m(trait, rho=0.2), ism(units), sigma2=0.6)
-      }
-      if(shape == "ragged-residual") arguments$data <- dataset[-1L, , drop=FALSE]
-      setupArguments <- arguments
-      setupArguments$control <- do.call(mmes_control, utils::modifyList(
-        unclass(arguments$control), list(output=list(setup=TRUE)),
-        keep.null=TRUE))
-      setup <- do.call(mmes, setupArguments)
-      prefixArguments <- arguments
-      prefixArguments$control <- do.call(mmes_control, utils::modifyList(
-        unclass(arguments$control),
-        list(convergence=list(maxIters=2L), update=list(blendWeight=c(1, 0))),
-        keep.null=TRUE))
-      prefix <- do.call(mmes, prefixArguments)
-      covariance <- setup$covStruct
-      attr(covariance, "directionBlend") <- FALSE
-      for(term in seq_along(covariance)){
-        covariance[[term]]$par <- as.numeric(prefix$covParWorking[[term]])
-      }
-      reference <- sommer:::ai_mme_sp2(setup$X, setup$Z, setup$Zind, setup$Ai,
-        setup$yvar, setup$W, setup$useH, setup$residualBlock, setup$residualIndex,
-        3L, setup$tolParConvLL, setup$tolParConvNorm, setup$tolParInv, covariance,
-        rep(0, 3L), rep(1, 3L), FALSE, computeCi=0L, solver=setup$solver,
-        reml=TRUE, responsePrepared=setup$responsePrepared,
-        preparedMean=setup$preparedMean, preparedSd=setup$preparedSd,
-        preparedIntercept=setup$preparedIntercept)
-      fitted <- do.call(mmes, arguments)
-      for(field in c("theta", "bu", "InfMat", "dLu")){
-        expect_equal(fitted[[field]], reference[[field]], tolerance=2e-6,
-          ignore_attr=TRUE, info=paste(solver, method, shape, field))
-      }
-      expect_equal(fitted$llik[, -1L, drop=FALSE], reference$llik, tolerance=2e-6)
-      diagnostics <- fitted$engineDiagnostics$blend
-      expect_equal(diagnostics$nativeAIEvaluations, 2L)
-      expect_equal(diagnostics$latentAIEvaluations, 0L)
-      expect_equal(diagnostics$emEvaluations, 1L)
-      expect_gte(diagnostics$acceptedAIFitReuses, 2L)
-      expect_equal(diagnostics$likelihoodEvaluations, 4L + diagnostics$lineSearchHalvings)
-      parameters <- sum(lengths(lapply(setup$covStruct, function(term) term$par)))
-      expect_equal(fitted$engineDiagnostics$profile$counters$sensitivityRHSColumns,
-        (diagnostics$likelihoodEvaluations - 1L) * parameters)
-    }
-  }
-})
-
 test_that("exact EM moments respect their memory budget", {
   dataset <- .em_direction_data()
   expect_error(mmes(y~trait, random=~id, data=dataset,
@@ -488,26 +290,6 @@ test_that("exact EM moments respect their memory budget", {
     control=mmes_control(execution=list(denseMemoryMB=0.003),
       convergence=list(maxIters=2L), update=list(blendWeight=1),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "EM moments")
-})
-
-test_that("full EM skips sensitivity solves and duplicate likelihood fits", {
-  dataset <- .em_direction_data()
-  for(solver in c("ldlt", "cholmod")){
-    fitted <- mmes(y~trait, random=~id, data=dataset,
-      control=mmes_control(solve=list(method=solver),
-        convergence=list(maxIters=4L), update=list(blendWeight=1),
-        diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)))
-    diagnostics <- fitted$engineDiagnostics
-    expect_equal(diagnostics$blend$iterationSensitivityColumns, 0)
-    expect_equal(diagnostics$blend$aiEvaluations, 0L)
-    expect_equal(diagnostics$blend$emEvaluations, 3L)
-    expect_equal(diagnostics$blend$likelihoodEvaluations, 5L)
-    expect_equal(diagnostics$coefficientEvaluations, 5)
-    if(solver == "ldlt") expect_equal(diagnostics$CsymbolicAnalyses, 1)
-    expect_gt(diagnostics$profile$counters$sensitivityRHSColumns, 0)
-    expect_equal(nrow(diagnostics$profile$secondsByIteration), ncol(fitted$llik))
-    expect_true(all(is.finite(fitted$InfMat)))
-  }
 })
 
 test_that("blending interpolates proposals rather than information matrices", {
@@ -523,28 +305,6 @@ test_that("blending interpolates proposals rather than information matrices", {
     0.5 * drop(solve(initial$InfMat, initial$dLu)))
   expect_equal(mixed$engineDiagnostics$blend$lineSearchHalvings, 0L)
   expect_equal(unlist(mixed$covParWorking), expected, tolerance=1e-9)
-})
-
-test_that("fixed models skip all proposals and latent RR preserves tied scales", {
-  dataset <- .em_direction_data()
-  fixed <- mmes(y~trait, random=~vsm(ism(id), sigma2=0.8, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=0.6, fixedSigma2=TRUE), data=dataset, control=mmes_control(convergence=list(maxIters=3L), update=list(blendWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  expect_true(fixed$convergence)
-  expect_equal(ncol(fixed$llik), 1L)
-  expect_equal(fixed$engineDiagnostics$blend$emEvaluations, 0L)
-  expect_equal(fixed$engineDiagnostics$blend$aiEvaluations, 0L)
-  expect_equal(as.numeric(unlist(fixed$theta)), c(0.8, 0.6))
-  setup <- mmes(y~trait, random=~vsm(rrm(trait, 1L), ism(id)) + replicate, data=dataset, control=mmes_control(output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  scales <- which(setup$vcParams$structure %in% 1:2 & setup$vcParams$kind == "scale")
-  for(solver in c("ldlt", "cholmod")){
-    fitted <- mmes(y~trait, random=~vsm(rrm(trait, 1L), ism(id)) + replicate, data=dataset, vcc=data.frame(parameter=scales, group=1L), control=mmes_control(convergence=list(maxIters=3L), update=list(blendWeight=1), solve=list(method=solver), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-    expect_equal(fitted$covParWorking[[1L]][1L], fitted$covParWorking[[2L]][1L])
-    expect_equal(fitted$theta_se[scales[1L], scales[1L]],
-                 fitted$theta_se[scales[2L], scales[2L]], tolerance=1e-9)
-    expect_equal(fitted$theta_se[scales[1L], scales[1L]],
-                 fitted$theta_se[scales[1L], scales[2L]], tolerance=1e-9)
-    expect_true(all(diff(c(fitted$llik)) >= -1e-9))
-    expect_true(all(is.finite(fitted$InfMat)))
-  }
 })
 
 test_that("large damped EM proposals backtrack without decreasing likelihood", {

@@ -1,9 +1,0 @@
-"model","levels","requested_density","repetition","mode","elapsed_seconds","factor_eval_seconds","peak_rss_kb","factor_cache_reuses"
-"sar",32,0.1,1,"off",1.082,5.0548e-05,227004,0
-"sar",32,0.1,1,"force",1.063,6.2248e-05,221044,6
-"sar",32,1,1,"off",1.08,5.2685e-05,226644,0
-"sar",32,1,1,"force",1.109,6.8739e-05,220708,6
-"car",32,0.1,1,"off",1.097,5.2435e-05,226780,0
-"car",32,0.1,1,"force",1.044,6.6612e-05,221136,6
-"car",32,1,1,"off",1.034,4.847e-05,227484,0
-"car",32,1,1,"force",1.071,6.2094e-05,222364,6

@@ -1,5 +1,0 @@
-"levels","threads","repetition","mode","elapsed_seconds","score_seconds","peak_rss_kb","fallback_columns","batch_solves","panel_workspace_bytes"
-40,1,1,"off",1.031,0.005564809,251780,148,0,0
-40,1,1,"force",1.096,0.005569029,251844,148,32,215040
-40,4,1,"off",1.022,0.005332948,252084,148,0,0
-40,4,1,"force",1.03,0.002482871,251520,148,32,860160

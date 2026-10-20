@@ -42,6 +42,18 @@ test_that("marker-effect standard errors match a dense calculation", {
   V <- crossprod(H, (as.numeric(fit$theta[[1]]) * solve(Ginv) - Cuu) %*% H)
   expect_equal(me$se[tr$keep], unname(sqrt(pmax(diag(V), 0))), tolerance=1e-6)
   expect_equal(me$p.value[tr$keep], 2 * pnorm(-abs(me$effect[tr$keep] / me$se[tr$keep])))
+  for(chunk in c(1L, 200L)){
+    expect_equal(meffects_mmes(fit, 1, s$M, blend=s$lambda, se=TRUE, chunk=chunk),
+                 me, tolerance=1e-8)
+  }
+  sparsePrecision <- Matrix::Matrix(Gi, sparse=TRUE)
+  attr(sparsePrecision, "inverse") <- TRUE
+  expect_equal(meffects_mmes(fit, 1, s$M, blend=s$lambda, se=TRUE,
+                             Gu=sparsePrecision, chunk=37), me, tolerance=1e-8)
+  custom <- meffects_mmes(fit, 1, method="custom", Z=tr$Z, scale=1/tr$k,
+                          blend=s$lambda, se=TRUE, chunk=37)
+  expect_equal(custom$se, me$se[tr$keep], tolerance=1e-8)
+  expect_error(meffects_mmes(fit, 1, s$M, se=TRUE, chunk=0), "chunk")
 })
 
 test_that("marker effects are returned per coordinate for structured terms", {
@@ -50,6 +62,9 @@ test_that("marker effects are returned per coordinate for structured terms", {
   me <- meffects_mmes(fit, 1, s$M, blend=s$lambda)
   expect_equal(unique(me$coordinate), c("A", "B"))
   expect_equal(nrow(me), 2L * ncol(s$M))
+  withSE <- meffects_mmes(fit, 1, s$M, blend=s$lambda, se=TRUE, chunk=37)
+  expect_equal(meffects_mmes(fit, 1, s$M, blend=s$lambda, se=TRUE, chunk=200),
+               withSE, tolerance=1e-8)
   expect_error(meffects_mmes(fit, 1, s$M[-1, ]), "missing from M")
   expect_error(meffects_mmes(fit, "nope", s$M), "Unknown random term")
 })

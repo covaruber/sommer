@@ -882,6 +882,50 @@ version 4.4.90 (2026-10-13)
    eligibility messages now use module option names (e.g. solve$method,
    output$inverse, representation$equations) instead of removed arguments.
 
+ + Consolidated legacy mmer, its methods, covariance constructors and GWAS
+   functions in R/DEPRECATED_mmer.R without changing their definitions.
+   Removed duplicate current-path helper definitions.
+ + Current mmes post-fit prediction, posterior variance and marker inference
+   reuse operation-local coefficient factorizations. Marker SE calculations
+   form relationship-marker products by block, reuse retained precision and
+   preserve sparse supplied inverses.
+ + Native covariance reporting now propagates cross-term uncertainty jointly;
+   vpredict uses the full native covariance matrix. Unavailable uncertainty
+   does not contaminate independent native quantities.
+ + Reduced allocations in covariance-matrix SEs, leverage diagonals, spatial
+   splines and APY assembly; reused covariance-factor compilation, shared
+   control defaults and PQL warm-start compatibility checks.
+ + Benchmark results now record the actual convergence flag, retain uniform
+   rows on warmup/timed failures, compare final likelihoods and mark unchecked
+   or unavailable-reference parity as NA.
+
+ + Simplified the regression suite by removing overlapping family/solver
+   smoke sweeps, detailed internal-counter and output-format checks, and unused
+   reference helpers. Retained independent numerical references, public API
+   validation and reported-bug regressions. Replaced spatial hash snapshots
+   with direct tensor/design checks and reduced repeated threading stress fits.
+   Future tests should cover a distinct public contract or numerical failure,
+   rather than repeat the full cross-product of already tested options.
+
+ + Package consolidation: separated covariance descriptor/family code and
+   formula helpers without changing their contracts. Lifecycle hooks now
+   live in R/zzz.R. Native utilities, relationships, post-fit inference,
+   direct fitting and known-covariance solving have separate translation
+   units; shared direct covariance evaluation and MME design assembly have
+   explicit internal boundaries.
+ + Consolidated public-to-private PCG option mappings and added ownership
+   and mutable-control regression tests.
+ + Added cross-platform package-check CI and a required source-tree native
+   test job. Existing standalone native control checks now run automatically,
+   with temporary caches and restoration of both global test options.
+ + Reduced benchmarks to one seeded performance/parity runner and its usage
+   guide; removed historical outputs, installed libraries and exploratory
+   scripts. Old recorded measurements remain historical, not current files.
+ + Added an executable README quick start and contributor/test guidance.
+   MASS and crayon are implementation imports rather than attached
+   dependencies; use qualified calls (e.g. MASS::mvrnorm) in user scripts.
+   Matrix and enhancer remain attached for the established model interface.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes

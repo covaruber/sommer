@@ -12,6 +12,368 @@ Rcpp::Rostream<true>&  Rcpp::Rcout = Rcpp::Rcpp_cout_get();
 Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
+// newton_di_sp
+Rcpp::List newton_di_sp(const arma::sp_mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::sp_mat& W, const bool& isInvW, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled, const arma::vec& stepweight, const arma::vec& emweight, const Rcpp::List& thetaConstOri, const arma::vec& thetaIndex);
+RcppExport SEXP _sommer_newton_di_sp(SEXP YSEXP, SEXP XSEXP, SEXP GxSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP RSEXP, SEXP GeSEXP, SEXP GeISEXP, SEXP WSEXP, SEXP isInvWSEXP, SEXP itersSEXP, SEXP tolparSEXP, SEXP tolparinvSEXP, SEXP aiSEXP, SEXP pevSEXP, SEXP verboseSEXP, SEXP retscaledSEXP, SEXP stepweightSEXP, SEXP emweightSEXP, SEXP thetaConstOriSEXP, SEXP thetaIndexSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type Gx(GxSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type K(KSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type R(RSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type Ge(GeSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type GeI(GeISEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type isInvW(isInvWSEXP);
+    Rcpp::traits::input_parameter< int >::type iters(itersSEXP);
+    Rcpp::traits::input_parameter< double >::type tolpar(tolparSEXP);
+    Rcpp::traits::input_parameter< double >::type tolparinv(tolparinvSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type ai(aiSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type pev(pevSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type retscaled(retscaledSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type stepweight(stepweightSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type emweight(emweightSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaConstOri(thetaConstOriSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type thetaIndex(thetaIndexSEXP);
+    rcpp_result_gen = Rcpp::wrap(newton_di_sp(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight, thetaConstOri, thetaIndex));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ai_mme_sp
+Rcpp::List ai_mme_sp(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const Rcpp::List& SI, const Rcpp::List& partitionsS, const arma::sp_mat& H, const bool& useH, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& thetaI, const Rcpp::List& thetaCI, const arma::mat& thetaF, const arma::vec& addScaleParam, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose);
+RcppExport SEXP _sommer_ai_mme_sp(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP SISEXP, SEXP partitionsSSEXP, SEXP HSEXP, SEXP useHSEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP thetaISEXP, SEXP thetaCISEXP, SEXP thetaFSEXP, SEXP addScaleParamSEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type ZI(ZISEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type Zind(ZindSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type y0(y0SEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type SI(SISEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type partitionsS(partitionsSSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type H(HSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type useH(useHSEXP);
+    Rcpp::traits::input_parameter< int >::type nIters(nItersSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParConvLL(tolParConvLLSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParConvNorm(tolParConvNormSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParInv(tolParInvSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaI(thetaISEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaCI(thetaCISEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type thetaF(thetaFSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type addScaleParam(addScaleParamSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weightEmInf(weightEmInfSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weightInf(weightInfSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(ai_mme_sp(X, ZI, Zind, AiI, y0, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
+// MNR
+Rcpp::List MNR(const arma::mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::mat& W, const bool& isInvW, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled, const arma::vec& stepweight, const arma::vec& emweight);
+RcppExport SEXP _sommer_MNR(SEXP YSEXP, SEXP XSEXP, SEXP GxSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP RSEXP, SEXP GeSEXP, SEXP GeISEXP, SEXP WSEXP, SEXP isInvWSEXP, SEXP itersSEXP, SEXP tolparSEXP, SEXP tolparinvSEXP, SEXP aiSEXP, SEXP pevSEXP, SEXP verboseSEXP, SEXP retscaledSEXP, SEXP stepweightSEXP, SEXP emweightSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type Gx(GxSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type K(KSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type R(RSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type Ge(GeSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type GeI(GeISEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type isInvW(isInvWSEXP);
+    Rcpp::traits::input_parameter< int >::type iters(itersSEXP);
+    Rcpp::traits::input_parameter< double >::type tolpar(tolparSEXP);
+    Rcpp::traits::input_parameter< double >::type tolparinv(tolparinvSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type ai(aiSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type pev(pevSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type retscaled(retscaledSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type stepweight(stepweightSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type emweight(emweightSEXP);
+    rcpp_result_gen = Rcpp::wrap(MNR(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ai_mme_sp2
+Rcpp::List ai_mme_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computeCi, const std::string& solver, const double& pcgTol, const int& pcgMaxIters, const int& pcgTraceProbes, const int& pcgLanczosSteps, const bool& reml, const bool& responsePrepared, const double& preparedMean, const double& preparedSd, const bool& preparedIntercept, const bool gpu, const int gpuMinSize);
+RcppExport SEXP _sommer_ai_mme_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computeCiSEXP, SEXP solverSEXP, SEXP pcgTolSEXP, SEXP pcgMaxItersSEXP, SEXP pcgTraceProbesSEXP, SEXP pcgLanczosStepsSEXP, SEXP remlSEXP, SEXP responsePreparedSEXP, SEXP preparedMeanSEXP, SEXP preparedSdSEXP, SEXP preparedInterceptSEXP, SEXP gpuSEXP, SEXP gpuMinSizeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type ZI(ZISEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type Zind(ZindSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type y0(y0SEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type H(HSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type useH(useHSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type residualBlockI(residualBlockISEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type residualIndexI(residualIndexISEXP);
+    Rcpp::traits::input_parameter< int >::type nIters(nItersSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParConvLL(tolParConvLLSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParConvNorm(tolParConvNormSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParInv(tolParInvSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type covStructI(covStructISEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weightEmInf(weightEmInfSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weightInf(weightInfSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
+    Rcpp::traits::input_parameter< const int& >::type computeCi(computeCiSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type solver(solverSEXP);
+    Rcpp::traits::input_parameter< const double& >::type pcgTol(pcgTolSEXP);
+    Rcpp::traits::input_parameter< const int& >::type pcgMaxIters(pcgMaxItersSEXP);
+    Rcpp::traits::input_parameter< const int& >::type pcgTraceProbes(pcgTraceProbesSEXP);
+    Rcpp::traits::input_parameter< const int& >::type pcgLanczosSteps(pcgLanczosStepsSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type reml(remlSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type responsePrepared(responsePreparedSEXP);
+    Rcpp::traits::input_parameter< const double& >::type preparedMean(preparedMeanSEXP);
+    Rcpp::traits::input_parameter< const double& >::type preparedSd(preparedSdSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type preparedIntercept(preparedInterceptSEXP);
+    Rcpp::traits::input_parameter< const bool >::type gpu(gpuSEXP);
+    Rcpp::traits::input_parameter< const int >::type gpuMinSize(gpuMinSizeSEXP);
+    rcpp_result_gen = Rcpp::wrap(ai_mme_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept, gpu, gpuMinSize));
+    return rcpp_result_gen;
+END_RCPP
+}
+// evaluate_covstruct_cpp
+arma::mat evaluate_covstruct_cpp(const Rcpp::List& covStruct, const arma::vec& par);
+RcppExport SEXP _sommer_evaluate_covstruct_cpp(SEXP covStructSEXP, SEXP parSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type covStruct(covStructSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type par(parSEXP);
+    rcpp_result_gen = Rcpp::wrap(evaluate_covstruct_cpp(covStruct, par));
+    return rcpp_result_gen;
+END_RCPP
+}
+// ai_reml_direct_sp2
+Rcpp::List ai_reml_direct_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computePev, const bool& reml, const bool& responsePrepared, const double& preparedMean, const double& preparedSd, const bool& preparedIntercept);
+RcppExport SEXP _sommer_ai_reml_direct_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computePevSEXP, SEXP remlSEXP, SEXP responsePreparedSEXP, SEXP preparedMeanSEXP, SEXP preparedSdSEXP, SEXP preparedInterceptSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type ZI(ZISEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type Zind(ZindSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type y0(y0SEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type H(HSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type useH(useHSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type residualBlockI(residualBlockISEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type residualIndexI(residualIndexISEXP);
+    Rcpp::traits::input_parameter< int >::type nIters(nItersSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParConvLL(tolParConvLLSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParConvNorm(tolParConvNormSEXP);
+    Rcpp::traits::input_parameter< double >::type tolParInv(tolParInvSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type covStructI(covStructISEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weightEmInf(weightEmInfSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type weightInf(weightInfSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
+    Rcpp::traits::input_parameter< const int& >::type computePev(computePevSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type reml(remlSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type responsePrepared(responsePreparedSEXP);
+    Rcpp::traits::input_parameter< const double& >::type preparedMean(preparedMeanSEXP);
+    Rcpp::traits::input_parameter< const double& >::type preparedSd(preparedSdSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type preparedIntercept(preparedInterceptSEXP);
+    rcpp_result_gen = Rcpp::wrap(ai_reml_direct_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mme_gpu_runtime_status
+Rcpp::List mme_gpu_runtime_status();
+RcppExport SEXP _sommer_mme_gpu_runtime_status() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(mme_gpu_runtime_status());
+    return rcpp_result_gen;
+END_RCPP
+}
+// post_mme_Cinverse_cpp
+Rcpp::List post_mme_Cinverse_cpp(Rcpp::List model, const int mode);
+RcppExport SEXP _sommer_post_mme_Cinverse_cpp(SEXP modelSEXP, SEXP modeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< const int >::type mode(modeSEXP);
+    rcpp_result_gen = Rcpp::wrap(post_mme_Cinverse_cpp(model, mode));
+    return rcpp_result_gen;
+END_RCPP
+}
+// predict_mmes_vcov_cpp
+arma::mat predict_mmes_vcov_cpp(Rcpp::List model, const arma::sp_mat& Dmat);
+RcppExport SEXP _sommer_predict_mmes_vcov_cpp(SEXP modelSEXP, SEXP DmatSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type model(modelSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type Dmat(DmatSEXP);
+    rcpp_result_gen = Rcpp::wrap(predict_mmes_vcov_cpp(model, Dmat));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mmes_vcov_factor_cpp
+SEXP mmes_vcov_factor_cpp(Rcpp::List model);
+RcppExport SEXP _sommer_mmes_vcov_factor_cpp(SEXP modelSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< Rcpp::List >::type model(modelSEXP);
+    rcpp_result_gen = Rcpp::wrap(mmes_vcov_factor_cpp(model));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mmes_vcov_solve_cpp
+arma::mat mmes_vcov_solve_cpp(SEXP pointer, const arma::sp_mat& Dmat);
+RcppExport SEXP _sommer_mmes_vcov_solve_cpp(SEXP pointerSEXP, SEXP DmatSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type pointer(pointerSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type Dmat(DmatSEXP);
+    rcpp_result_gen = Rcpp::wrap(mmes_vcov_solve_cpp(pointer, Dmat));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mme_pcg_solve
+Rcpp::List mme_pcg_solve(const Rcpp::S4& design, const Rcpp::NumericVector& y, const int nFixed, const Rcpp::IntegerVector& termStart, const Rcpp::IntegerVector& termLevels, const Rcpp::List& AiI, const Rcpp::List& lambdaI, const Rcpp::List& residualCovStruct, const arma::vec& residualPar, const Rcpp::IntegerVector& residualBlock, const Rcpp::IntegerVector& residualIndex, const Rcpp::NumericVector& weights, const double tol, const int maxIter, const int denseFixedMax, const int maxResidualBlock, const Rcpp::NumericVector& start, const bool verbose);
+RcppExport SEXP _sommer_mme_pcg_solve(SEXP designSEXP, SEXP ySEXP, SEXP nFixedSEXP, SEXP termStartSEXP, SEXP termLevelsSEXP, SEXP AiISEXP, SEXP lambdaISEXP, SEXP residualCovStructSEXP, SEXP residualParSEXP, SEXP residualBlockSEXP, SEXP residualIndexSEXP, SEXP weightsSEXP, SEXP tolSEXP, SEXP maxIterSEXP, SEXP denseFixedMaxSEXP, SEXP maxResidualBlockSEXP, SEXP startSEXP, SEXP verboseSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Rcpp::S4& >::type design(designSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const int >::type nFixed(nFixedSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type termStart(termStartSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type termLevels(termLevelsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type lambdaI(lambdaISEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type residualCovStruct(residualCovStructSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type residualPar(residualParSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type residualBlock(residualBlockSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type residualIndex(residualIndexSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type weights(weightsSEXP);
+    Rcpp::traits::input_parameter< const double >::type tol(tolSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxIter(maxIterSEXP);
+    Rcpp::traits::input_parameter< const int >::type denseFixedMax(denseFixedMaxSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxResidualBlock(maxResidualBlockSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type start(startSEXP);
+    Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
+    rcpp_result_gen = Rcpp::wrap(mme_pcg_solve(design, y, nFixed, termStart, termLevels, AiI, lambdaI, residualCovStruct, residualPar, residualBlock, residualIndex, weights, tol, maxIter, denseFixedMax, maxResidualBlock, start, verbose));
+    return rcpp_result_gen;
+END_RCPP
+}
+// amat
+arma::mat amat(const arma::mat& Xo, const bool& vanraden, double minMAF);
+RcppExport SEXP _sommer_amat(SEXP XoSEXP, SEXP vanradenSEXP, SEXP minMAFSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Xo(XoSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type vanraden(vanradenSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    rcpp_result_gen = Rcpp::wrap(amat(Xo, vanraden, minMAF));
+    return rcpp_result_gen;
+END_RCPP
+}
+// dmat
+arma::mat dmat(const arma::mat& Xo, const bool& nishio, double minMAF);
+RcppExport SEXP _sommer_dmat(SEXP XoSEXP, SEXP nishioSEXP, SEXP minMAFSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Xo(XoSEXP);
+    Rcpp::traits::input_parameter< const bool& >::type nishio(nishioSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    rcpp_result_gen = Rcpp::wrap(dmat(Xo, nishio, minMAF));
+    return rcpp_result_gen;
+END_RCPP
+}
+// emat
+arma::mat emat(const arma::mat& X1, const arma::mat& X2);
+RcppExport SEXP _sommer_emat(SEXP X1SEXP, SEXP X2SEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
+    rcpp_result_gen = Rcpp::wrap(emat(X1, X2));
+    return rcpp_result_gen;
+END_RCPP
+}
+// emat_genotypes
+arma::mat emat_genotypes(const arma::mat& Xo, bool nishio, const std::string& type, double minMAF);
+RcppExport SEXP _sommer_emat_genotypes(SEXP XoSEXP, SEXP nishioSEXP, SEXP typeSEXP, SEXP minMAFSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Xo(XoSEXP);
+    Rcpp::traits::input_parameter< bool >::type nishio(nishioSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type type(typeSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    rcpp_result_gen = Rcpp::wrap(emat_genotypes(Xo, nishio, type, minMAF));
+    return rcpp_result_gen;
+END_RCPP
+}
+// hmat
+arma::mat hmat(const arma::mat& A, const arma::mat& G22, const arma::vec& index, double tolparinv, double tau, double omega);
+RcppExport SEXP _sommer_hmat(SEXP ASEXP, SEXP G22SEXP, SEXP indexSEXP, SEXP tolparinvSEXP, SEXP tauSEXP, SEXP omegaSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type A(ASEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type G22(G22SEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type index(indexSEXP);
+    Rcpp::traits::input_parameter< double >::type tolparinv(tolparinvSEXP);
+    Rcpp::traits::input_parameter< double >::type tau(tauSEXP);
+    Rcpp::traits::input_parameter< double >::type omega(omegaSEXP);
+    rcpp_result_gen = Rcpp::wrap(hmat(A, G22, index, tolparinv, tau, omega));
+    return rcpp_result_gen;
+END_RCPP
+}
+// scorecalc
+arma::cube scorecalc(const arma::mat& Mimv, const arma::mat& Ymv, const arma::mat& Zmv, const arma::mat& Xmv, const arma::mat& Vinv, int nt, double minMAF);
+RcppExport SEXP _sommer_scorecalc(SEXP MimvSEXP, SEXP YmvSEXP, SEXP ZmvSEXP, SEXP XmvSEXP, SEXP VinvSEXP, SEXP ntSEXP, SEXP minMAFSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type Mimv(MimvSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Ymv(YmvSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Zmv(ZmvSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Xmv(XmvSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Vinv(VinvSEXP);
+    Rcpp::traits::input_parameter< int >::type nt(ntSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    rcpp_result_gen = Rcpp::wrap(scorecalc(Mimv, Ymv, Zmv, Xmv, Vinv, nt, minMAF));
+    return rcpp_result_gen;
+END_RCPP
+}
+// gwasForLoop
+arma::cube gwasForLoop(const arma::mat& M, const arma::mat& Y, const arma::mat& Z, const arma::mat& X, const arma::mat& Vinv, double minMAF, bool display_progress);
+RcppExport SEXP _sommer_gwasForLoop(SEXP MSEXP, SEXP YSEXP, SEXP ZSEXP, SEXP XSEXP, SEXP VinvSEXP, SEXP minMAFSEXP, SEXP display_progressSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type M(MSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type Vinv(VinvSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
+    rcpp_result_gen = Rcpp::wrap(gwasForLoop(M, Y, Z, X, Vinv, minMAF, display_progress));
+    return rcpp_result_gen;
+END_RCPP
+}
 // currentDateTime
 const std::string currentDateTime();
 RcppExport SEXP _sommer_currentDateTime() {
@@ -147,139 +509,6 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// amat
-arma::mat amat(const arma::mat& Xo, const bool& vanraden, double minMAF);
-RcppExport SEXP _sommer_amat(SEXP XoSEXP, SEXP vanradenSEXP, SEXP minMAFSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::mat& >::type Xo(XoSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type vanraden(vanradenSEXP);
-    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
-    rcpp_result_gen = Rcpp::wrap(amat(Xo, vanraden, minMAF));
-    return rcpp_result_gen;
-END_RCPP
-}
-// dmat
-arma::mat dmat(const arma::mat& Xo, const bool& nishio, double minMAF);
-RcppExport SEXP _sommer_dmat(SEXP XoSEXP, SEXP nishioSEXP, SEXP minMAFSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::mat& >::type Xo(XoSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type nishio(nishioSEXP);
-    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
-    rcpp_result_gen = Rcpp::wrap(dmat(Xo, nishio, minMAF));
-    return rcpp_result_gen;
-END_RCPP
-}
-// emat
-arma::mat emat(const arma::mat& X1, const arma::mat& X2);
-RcppExport SEXP _sommer_emat(SEXP X1SEXP, SEXP X2SEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::mat& >::type X1(X1SEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type X2(X2SEXP);
-    rcpp_result_gen = Rcpp::wrap(emat(X1, X2));
-    return rcpp_result_gen;
-END_RCPP
-}
-// emat_genotypes
-arma::mat emat_genotypes(const arma::mat& Xo, bool nishio, const std::string& type, double minMAF);
-RcppExport SEXP _sommer_emat_genotypes(SEXP XoSEXP, SEXP nishioSEXP, SEXP typeSEXP, SEXP minMAFSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::mat& >::type Xo(XoSEXP);
-    Rcpp::traits::input_parameter< bool >::type nishio(nishioSEXP);
-    Rcpp::traits::input_parameter< const std::string& >::type type(typeSEXP);
-    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
-    rcpp_result_gen = Rcpp::wrap(emat_genotypes(Xo, nishio, type, minMAF));
-    return rcpp_result_gen;
-END_RCPP
-}
-// hmat
-arma::mat hmat(const arma::mat& A, const arma::mat& G22, const arma::vec& index, double tolparinv, double tau, double omega);
-RcppExport SEXP _sommer_hmat(SEXP ASEXP, SEXP G22SEXP, SEXP indexSEXP, SEXP tolparinvSEXP, SEXP tauSEXP, SEXP omegaSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::mat& >::type A(ASEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type G22(G22SEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type index(indexSEXP);
-    Rcpp::traits::input_parameter< double >::type tolparinv(tolparinvSEXP);
-    Rcpp::traits::input_parameter< double >::type tau(tauSEXP);
-    Rcpp::traits::input_parameter< double >::type omega(omegaSEXP);
-    rcpp_result_gen = Rcpp::wrap(hmat(A, G22, index, tolparinv, tau, omega));
-    return rcpp_result_gen;
-END_RCPP
-}
-// scorecalc
-arma::cube scorecalc(const arma::mat& Mimv, const arma::mat& Ymv, const arma::mat& Zmv, const arma::mat& Xmv, const arma::mat& Vinv, int nt, double minMAF);
-RcppExport SEXP _sommer_scorecalc(SEXP MimvSEXP, SEXP YmvSEXP, SEXP ZmvSEXP, SEXP XmvSEXP, SEXP VinvSEXP, SEXP ntSEXP, SEXP minMAFSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::mat& >::type Mimv(MimvSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type Ymv(YmvSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type Zmv(ZmvSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type Xmv(XmvSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type Vinv(VinvSEXP);
-    Rcpp::traits::input_parameter< int >::type nt(ntSEXP);
-    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
-    rcpp_result_gen = Rcpp::wrap(scorecalc(Mimv, Ymv, Zmv, Xmv, Vinv, nt, minMAF));
-    return rcpp_result_gen;
-END_RCPP
-}
-// gwasForLoop
-arma::cube gwasForLoop(const arma::mat& M, const arma::mat& Y, const arma::mat& Z, const arma::mat& X, const arma::mat& Vinv, double minMAF, bool display_progress);
-RcppExport SEXP _sommer_gwasForLoop(SEXP MSEXP, SEXP YSEXP, SEXP ZSEXP, SEXP XSEXP, SEXP VinvSEXP, SEXP minMAFSEXP, SEXP display_progressSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::mat& >::type M(MSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type Y(YSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type Z(ZSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type Vinv(VinvSEXP);
-    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
-    Rcpp::traits::input_parameter< bool >::type display_progress(display_progressSEXP);
-    rcpp_result_gen = Rcpp::wrap(gwasForLoop(M, Y, Z, X, Vinv, minMAF, display_progress));
-    return rcpp_result_gen;
-END_RCPP
-}
-// newton_di_sp
-Rcpp::List newton_di_sp(const arma::sp_mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::sp_mat& W, const bool& isInvW, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled, const arma::vec& stepweight, const arma::vec& emweight, const Rcpp::List& thetaConstOri, const arma::vec& thetaIndex);
-RcppExport SEXP _sommer_newton_di_sp(SEXP YSEXP, SEXP XSEXP, SEXP GxSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP RSEXP, SEXP GeSEXP, SEXP GeISEXP, SEXP WSEXP, SEXP isInvWSEXP, SEXP itersSEXP, SEXP tolparSEXP, SEXP tolparinvSEXP, SEXP aiSEXP, SEXP pevSEXP, SEXP verboseSEXP, SEXP retscaledSEXP, SEXP stepweightSEXP, SEXP emweightSEXP, SEXP thetaConstOriSEXP, SEXP thetaIndexSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type Y(YSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type Gx(GxSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type Z(ZSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type K(KSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type R(RSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type Ge(GeSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type GeI(GeISEXP);
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type W(WSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type isInvW(isInvWSEXP);
-    Rcpp::traits::input_parameter< int >::type iters(itersSEXP);
-    Rcpp::traits::input_parameter< double >::type tolpar(tolparSEXP);
-    Rcpp::traits::input_parameter< double >::type tolparinv(tolparinvSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type ai(aiSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type pev(pevSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type retscaled(retscaledSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type stepweight(stepweightSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type emweight(emweightSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaConstOri(thetaConstOriSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type thetaIndex(thetaIndexSEXP);
-    rcpp_result_gen = Rcpp::wrap(newton_di_sp(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight, thetaConstOri, thetaIndex));
-    return rcpp_result_gen;
-END_RCPP
-}
 // convertSparse
 arma::sp_mat convertSparse(Rcpp::S4 mat);
 RcppExport SEXP _sommer_convertSparse(SEXP matSEXP) {
@@ -317,214 +546,27 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
-// post_mme_Cinverse_cpp
-Rcpp::List post_mme_Cinverse_cpp(Rcpp::List model, const int mode);
-RcppExport SEXP _sommer_post_mme_Cinverse_cpp(SEXP modelSEXP, SEXP modeSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::List >::type model(modelSEXP);
-    Rcpp::traits::input_parameter< const int >::type mode(modeSEXP);
-    rcpp_result_gen = Rcpp::wrap(post_mme_Cinverse_cpp(model, mode));
-    return rcpp_result_gen;
-END_RCPP
-}
-// predict_mmes_vcov_cpp
-arma::mat predict_mmes_vcov_cpp(Rcpp::List model, const arma::sp_mat& Dmat);
-RcppExport SEXP _sommer_predict_mmes_vcov_cpp(SEXP modelSEXP, SEXP DmatSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< Rcpp::List >::type model(modelSEXP);
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type Dmat(DmatSEXP);
-    rcpp_result_gen = Rcpp::wrap(predict_mmes_vcov_cpp(model, Dmat));
-    return rcpp_result_gen;
-END_RCPP
-}
-// ai_mme_sp
-Rcpp::List ai_mme_sp(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const Rcpp::List& SI, const Rcpp::List& partitionsS, const arma::sp_mat& H, const bool& useH, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& thetaI, const Rcpp::List& thetaCI, const arma::mat& thetaF, const arma::vec& addScaleParam, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose);
-RcppExport SEXP _sommer_ai_mme_sp(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP SISEXP, SEXP partitionsSSEXP, SEXP HSEXP, SEXP useHSEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP thetaISEXP, SEXP thetaCISEXP, SEXP thetaFSEXP, SEXP addScaleParamSEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type ZI(ZISEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type Zind(ZindSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type y0(y0SEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type SI(SISEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type partitionsS(partitionsSSEXP);
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type H(HSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type useH(useHSEXP);
-    Rcpp::traits::input_parameter< int >::type nIters(nItersSEXP);
-    Rcpp::traits::input_parameter< double >::type tolParConvLL(tolParConvLLSEXP);
-    Rcpp::traits::input_parameter< double >::type tolParConvNorm(tolParConvNormSEXP);
-    Rcpp::traits::input_parameter< double >::type tolParInv(tolParInvSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaI(thetaISEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type thetaCI(thetaCISEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type thetaF(thetaFSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type addScaleParam(addScaleParamSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type weightEmInf(weightEmInfSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type weightInf(weightInfSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(ai_mme_sp(X, ZI, Zind, AiI, y0, SI, partitionsS, H, useH, nIters, tolParConvLL, tolParConvNorm, tolParInv, thetaI, thetaCI, thetaF, addScaleParam, weightEmInf, weightInf, verbose));
-    return rcpp_result_gen;
-END_RCPP
-}
-// MNR
-Rcpp::List MNR(const arma::mat& Y, const Rcpp::List& X, const Rcpp::List& Gx, const Rcpp::List& Z, const Rcpp::List& K, const Rcpp::List& R, const Rcpp::List& Ge, const Rcpp::List& GeI, const arma::mat& W, const bool& isInvW, int iters, double tolpar, double tolparinv, const bool& ai, const bool& pev, const bool& verbose, const bool& retscaled, const arma::vec& stepweight, const arma::vec& emweight);
-RcppExport SEXP _sommer_MNR(SEXP YSEXP, SEXP XSEXP, SEXP GxSEXP, SEXP ZSEXP, SEXP KSEXP, SEXP RSEXP, SEXP GeSEXP, SEXP GeISEXP, SEXP WSEXP, SEXP isInvWSEXP, SEXP itersSEXP, SEXP tolparSEXP, SEXP tolparinvSEXP, SEXP aiSEXP, SEXP pevSEXP, SEXP verboseSEXP, SEXP retscaledSEXP, SEXP stepweightSEXP, SEXP emweightSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::mat& >::type Y(YSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type Gx(GxSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type Z(ZSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type K(KSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type R(RSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type Ge(GeSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type GeI(GeISEXP);
-    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type isInvW(isInvWSEXP);
-    Rcpp::traits::input_parameter< int >::type iters(itersSEXP);
-    Rcpp::traits::input_parameter< double >::type tolpar(tolparSEXP);
-    Rcpp::traits::input_parameter< double >::type tolparinv(tolparinvSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type ai(aiSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type pev(pevSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type retscaled(retscaledSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type stepweight(stepweightSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type emweight(emweightSEXP);
-    rcpp_result_gen = Rcpp::wrap(MNR(Y, X, Gx, Z, K, R, Ge, GeI, W, isInvW, iters, tolpar, tolparinv, ai, pev, verbose, retscaled, stepweight, emweight));
-    return rcpp_result_gen;
-END_RCPP
-}
-// evaluate_covstruct_cpp
-arma::mat evaluate_covstruct_cpp(const Rcpp::List& covStruct, const arma::vec& par);
-RcppExport SEXP _sommer_evaluate_covstruct_cpp(SEXP covStructSEXP, SEXP parSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type covStruct(covStructSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type par(parSEXP);
-    rcpp_result_gen = Rcpp::wrap(evaluate_covstruct_cpp(covStruct, par));
-    return rcpp_result_gen;
-END_RCPP
-}
-// ai_reml_direct_sp2
-Rcpp::List ai_reml_direct_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computePev, const bool& reml, const bool& responsePrepared, const double& preparedMean, const double& preparedSd, const bool& preparedIntercept);
-RcppExport SEXP _sommer_ai_reml_direct_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computePevSEXP, SEXP remlSEXP, SEXP responsePreparedSEXP, SEXP preparedMeanSEXP, SEXP preparedSdSEXP, SEXP preparedInterceptSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type ZI(ZISEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type Zind(ZindSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type y0(y0SEXP);
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type H(HSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type useH(useHSEXP);
-    Rcpp::traits::input_parameter< const arma::uvec& >::type residualBlockI(residualBlockISEXP);
-    Rcpp::traits::input_parameter< const arma::uvec& >::type residualIndexI(residualIndexISEXP);
-    Rcpp::traits::input_parameter< int >::type nIters(nItersSEXP);
-    Rcpp::traits::input_parameter< double >::type tolParConvLL(tolParConvLLSEXP);
-    Rcpp::traits::input_parameter< double >::type tolParConvNorm(tolParConvNormSEXP);
-    Rcpp::traits::input_parameter< double >::type tolParInv(tolParInvSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type covStructI(covStructISEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type weightEmInf(weightEmInfSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type weightInf(weightInfSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
-    Rcpp::traits::input_parameter< const int& >::type computePev(computePevSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type reml(remlSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type responsePrepared(responsePreparedSEXP);
-    Rcpp::traits::input_parameter< const double& >::type preparedMean(preparedMeanSEXP);
-    Rcpp::traits::input_parameter< const double& >::type preparedSd(preparedSdSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type preparedIntercept(preparedInterceptSEXP);
-    rcpp_result_gen = Rcpp::wrap(ai_reml_direct_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept));
-    return rcpp_result_gen;
-END_RCPP
-}
-// mme_pcg_solve
-Rcpp::List mme_pcg_solve(const Rcpp::S4& design, const Rcpp::NumericVector& y, const int nFixed, const Rcpp::IntegerVector& termStart, const Rcpp::IntegerVector& termLevels, const Rcpp::List& AiI, const Rcpp::List& lambdaI, const Rcpp::List& residualCovStruct, const arma::vec& residualPar, const Rcpp::IntegerVector& residualBlock, const Rcpp::IntegerVector& residualIndex, const Rcpp::NumericVector& weights, const double tol, const int maxIter, const int denseFixedMax, const int maxResidualBlock, const Rcpp::NumericVector& start, const bool verbose);
-RcppExport SEXP _sommer_mme_pcg_solve(SEXP designSEXP, SEXP ySEXP, SEXP nFixedSEXP, SEXP termStartSEXP, SEXP termLevelsSEXP, SEXP AiISEXP, SEXP lambdaISEXP, SEXP residualCovStructSEXP, SEXP residualParSEXP, SEXP residualBlockSEXP, SEXP residualIndexSEXP, SEXP weightsSEXP, SEXP tolSEXP, SEXP maxIterSEXP, SEXP denseFixedMaxSEXP, SEXP maxResidualBlockSEXP, SEXP startSEXP, SEXP verboseSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Rcpp::S4& >::type design(designSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type y(ySEXP);
-    Rcpp::traits::input_parameter< const int >::type nFixed(nFixedSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type termStart(termStartSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type termLevels(termLevelsSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type lambdaI(lambdaISEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type residualCovStruct(residualCovStructSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type residualPar(residualParSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type residualBlock(residualBlockSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type residualIndex(residualIndexSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type weights(weightsSEXP);
-    Rcpp::traits::input_parameter< const double >::type tol(tolSEXP);
-    Rcpp::traits::input_parameter< const int >::type maxIter(maxIterSEXP);
-    Rcpp::traits::input_parameter< const int >::type denseFixedMax(denseFixedMaxSEXP);
-    Rcpp::traits::input_parameter< const int >::type maxResidualBlock(maxResidualBlockSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::NumericVector& >::type start(startSEXP);
-    Rcpp::traits::input_parameter< const bool >::type verbose(verboseSEXP);
-    rcpp_result_gen = Rcpp::wrap(mme_pcg_solve(design, y, nFixed, termStart, termLevels, AiI, lambdaI, residualCovStruct, residualPar, residualBlock, residualIndex, weights, tol, maxIter, denseFixedMax, maxResidualBlock, start, verbose));
-    return rcpp_result_gen;
-END_RCPP
-}
-// ai_mme_sp2
-Rcpp::List ai_mme_sp2(const arma::sp_mat& X, const Rcpp::List& ZI, const arma::vec& Zind, const Rcpp::List& AiI, const arma::sp_mat& y0, const arma::sp_mat& H, const bool& useH, const arma::uvec& residualBlockI, const arma::uvec& residualIndexI, int nIters, double tolParConvLL, double tolParConvNorm, double tolParInv, const Rcpp::List& covStructI, const arma::vec& weightEmInf, const arma::vec& weightInf, const bool& verbose, const int& computeCi, const std::string& solver, const double& pcgTol, const int& pcgMaxIters, const int& pcgTraceProbes, const int& pcgLanczosSteps, const bool& reml, const bool& responsePrepared, const double& preparedMean, const double& preparedSd, const bool& preparedIntercept, const bool gpu, const int gpuMinSize);
-RcppExport SEXP _sommer_ai_mme_sp2(SEXP XSEXP, SEXP ZISEXP, SEXP ZindSEXP, SEXP AiISEXP, SEXP y0SEXP, SEXP HSEXP, SEXP useHSEXP, SEXP residualBlockISEXP, SEXP residualIndexISEXP, SEXP nItersSEXP, SEXP tolParConvLLSEXP, SEXP tolParConvNormSEXP, SEXP tolParInvSEXP, SEXP covStructISEXP, SEXP weightEmInfSEXP, SEXP weightInfSEXP, SEXP verboseSEXP, SEXP computeCiSEXP, SEXP solverSEXP, SEXP pcgTolSEXP, SEXP pcgMaxItersSEXP, SEXP pcgTraceProbesSEXP, SEXP pcgLanczosStepsSEXP, SEXP remlSEXP, SEXP responsePreparedSEXP, SEXP preparedMeanSEXP, SEXP preparedSdSEXP, SEXP preparedInterceptSEXP, SEXP gpuSEXP, SEXP gpuMinSizeSEXP) {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type X(XSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type ZI(ZISEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type Zind(ZindSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type AiI(AiISEXP);
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type y0(y0SEXP);
-    Rcpp::traits::input_parameter< const arma::sp_mat& >::type H(HSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type useH(useHSEXP);
-    Rcpp::traits::input_parameter< const arma::uvec& >::type residualBlockI(residualBlockISEXP);
-    Rcpp::traits::input_parameter< const arma::uvec& >::type residualIndexI(residualIndexISEXP);
-    Rcpp::traits::input_parameter< int >::type nIters(nItersSEXP);
-    Rcpp::traits::input_parameter< double >::type tolParConvLL(tolParConvLLSEXP);
-    Rcpp::traits::input_parameter< double >::type tolParConvNorm(tolParConvNormSEXP);
-    Rcpp::traits::input_parameter< double >::type tolParInv(tolParInvSEXP);
-    Rcpp::traits::input_parameter< const Rcpp::List& >::type covStructI(covStructISEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type weightEmInf(weightEmInfSEXP);
-    Rcpp::traits::input_parameter< const arma::vec& >::type weightInf(weightInfSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type verbose(verboseSEXP);
-    Rcpp::traits::input_parameter< const int& >::type computeCi(computeCiSEXP);
-    Rcpp::traits::input_parameter< const std::string& >::type solver(solverSEXP);
-    Rcpp::traits::input_parameter< const double& >::type pcgTol(pcgTolSEXP);
-    Rcpp::traits::input_parameter< const int& >::type pcgMaxIters(pcgMaxItersSEXP);
-    Rcpp::traits::input_parameter< const int& >::type pcgTraceProbes(pcgTraceProbesSEXP);
-    Rcpp::traits::input_parameter< const int& >::type pcgLanczosSteps(pcgLanczosStepsSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type reml(remlSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type responsePrepared(responsePreparedSEXP);
-    Rcpp::traits::input_parameter< const double& >::type preparedMean(preparedMeanSEXP);
-    Rcpp::traits::input_parameter< const double& >::type preparedSd(preparedSdSEXP);
-    Rcpp::traits::input_parameter< const bool& >::type preparedIntercept(preparedInterceptSEXP);
-    Rcpp::traits::input_parameter< const bool >::type gpu(gpuSEXP);
-    Rcpp::traits::input_parameter< const int >::type gpuMinSize(gpuMinSizeSEXP);
-    rcpp_result_gen = Rcpp::wrap(ai_mme_sp2(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept, gpu, gpuMinSize));
-    return rcpp_result_gen;
-END_RCPP
-}
-// mme_gpu_runtime_status
-Rcpp::List mme_gpu_runtime_status();
-RcppExport SEXP _sommer_mme_gpu_runtime_status() {
-BEGIN_RCPP
-    Rcpp::RObject rcpp_result_gen;
-    Rcpp::RNGScope rcpp_rngScope_gen;
-    rcpp_result_gen = Rcpp::wrap(mme_gpu_runtime_status());
-    return rcpp_result_gen;
-END_RCPP
-}
 
 static const R_CallMethodDef CallEntries[] = {
+    {"_sommer_newton_di_sp", (DL_FUNC) &_sommer_newton_di_sp, 21},
+    {"_sommer_ai_mme_sp", (DL_FUNC) &_sommer_ai_mme_sp, 20},
+    {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 19},
+    {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 30},
+    {"_sommer_evaluate_covstruct_cpp", (DL_FUNC) &_sommer_evaluate_covstruct_cpp, 2},
+    {"_sommer_ai_reml_direct_sp2", (DL_FUNC) &_sommer_ai_reml_direct_sp2, 23},
+    {"_sommer_mme_gpu_runtime_status", (DL_FUNC) &_sommer_mme_gpu_runtime_status, 0},
+    {"_sommer_post_mme_Cinverse_cpp", (DL_FUNC) &_sommer_post_mme_Cinverse_cpp, 2},
+    {"_sommer_predict_mmes_vcov_cpp", (DL_FUNC) &_sommer_predict_mmes_vcov_cpp, 2},
+    {"_sommer_mmes_vcov_factor_cpp", (DL_FUNC) &_sommer_mmes_vcov_factor_cpp, 1},
+    {"_sommer_mmes_vcov_solve_cpp", (DL_FUNC) &_sommer_mmes_vcov_solve_cpp, 2},
+    {"_sommer_mme_pcg_solve", (DL_FUNC) &_sommer_mme_pcg_solve, 18},
+    {"_sommer_amat", (DL_FUNC) &_sommer_amat, 3},
+    {"_sommer_dmat", (DL_FUNC) &_sommer_dmat, 3},
+    {"_sommer_emat", (DL_FUNC) &_sommer_emat, 2},
+    {"_sommer_emat_genotypes", (DL_FUNC) &_sommer_emat_genotypes, 4},
+    {"_sommer_hmat", (DL_FUNC) &_sommer_hmat, 6},
+    {"_sommer_scorecalc", (DL_FUNC) &_sommer_scorecalc, 7},
+    {"_sommer_gwasForLoop", (DL_FUNC) &_sommer_gwasForLoop, 7},
     {"_sommer_currentDateTime", (DL_FUNC) &_sommer_currentDateTime, 0},
     {"_sommer_seqCpp", (DL_FUNC) &_sommer_seqCpp, 2},
     {"_sommer_mat_to_vecCpp", (DL_FUNC) &_sommer_mat_to_vecCpp, 2},
@@ -537,26 +579,9 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_isIdentity_spmat", (DL_FUNC) &_sommer_isIdentity_spmat, 1},
     {"_sommer_isDiagonal_mat", (DL_FUNC) &_sommer_isDiagonal_mat, 1},
     {"_sommer_isDiagonal_spmat", (DL_FUNC) &_sommer_isDiagonal_spmat, 1},
-    {"_sommer_amat", (DL_FUNC) &_sommer_amat, 3},
-    {"_sommer_dmat", (DL_FUNC) &_sommer_dmat, 3},
-    {"_sommer_emat", (DL_FUNC) &_sommer_emat, 2},
-    {"_sommer_emat_genotypes", (DL_FUNC) &_sommer_emat_genotypes, 4},
-    {"_sommer_hmat", (DL_FUNC) &_sommer_hmat, 6},
-    {"_sommer_scorecalc", (DL_FUNC) &_sommer_scorecalc, 7},
-    {"_sommer_gwasForLoop", (DL_FUNC) &_sommer_gwasForLoop, 7},
-    {"_sommer_newton_di_sp", (DL_FUNC) &_sommer_newton_di_sp, 21},
     {"_sommer_convertSparse", (DL_FUNC) &_sommer_convertSparse, 1},
     {"_sommer_mat_to_vecCpp2", (DL_FUNC) &_sommer_mat_to_vecCpp2, 2},
     {"_sommer_nearPDcpp", (DL_FUNC) &_sommer_nearPDcpp, 4},
-    {"_sommer_post_mme_Cinverse_cpp", (DL_FUNC) &_sommer_post_mme_Cinverse_cpp, 2},
-    {"_sommer_predict_mmes_vcov_cpp", (DL_FUNC) &_sommer_predict_mmes_vcov_cpp, 2},
-    {"_sommer_ai_mme_sp", (DL_FUNC) &_sommer_ai_mme_sp, 20},
-    {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 19},
-    {"_sommer_evaluate_covstruct_cpp", (DL_FUNC) &_sommer_evaluate_covstruct_cpp, 2},
-    {"_sommer_ai_reml_direct_sp2", (DL_FUNC) &_sommer_ai_reml_direct_sp2, 23},
-    {"_sommer_mme_pcg_solve", (DL_FUNC) &_sommer_mme_pcg_solve, 18},
-    {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 30},
-    {"_sommer_mme_gpu_runtime_status", (DL_FUNC) &_sommer_mme_gpu_runtime_status, 0},
     {NULL, NULL, 0}
 };
 

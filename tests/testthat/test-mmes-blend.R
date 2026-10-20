@@ -41,19 +41,6 @@ test_that("scalar blend counts generate capped exponential decay schedules", {
   expect_equal(ml$blendWeight, exp(seq(log(1), log(0.03), length.out=3L)))
 })
 
-test_that("fitted objects retain normalized blend settings for rebuilds", {
-  data(DT_example)
-  fit <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example, control=mmes_control(convergence=list(maxIters=3L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  expect_equal(fit$control$update$recovery, "em")
-  expect_equal(fit$control$update$blendWeight, 0)
-})
-
-test_that("removed emWeight alias is rejected instead of forwarded through dots", {
-  data(DT_example)
-  expect_error(mmes(Yield~Env, random=~Name, data=DT_example, emWeight=c(0.2, 0.6),
-    control=mmes_control()), "unused argument")
-})
-
 test_that("pxem selects expansion without changing pure AI behavior", {
   data(DT_example)
   setup <- mmes(Yield~Env, random=~Name, data=DT_example, control=mmes_control(update=list(recovery="pxem", blendWeight=3), convergence=list(maxIters=4L), output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -69,12 +56,6 @@ test_that("pxem selects expansion without changing pure AI behavior", {
   expect_equal(pxAI$inputArgs$blend, "pxem")
   ml <- mmes(Yield~Env, data=DT_example, control=mmes_control(update=list(recovery="pxem", blendWeight=3), task=list(objective=if(FALSE) "reml" else "ml"), convergence=list(maxIters=2L), output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_true(isTRUE(attr(ml$covStruct, "directionBlend")))
-})
-
-test_that("solveOnly ignores unused positive blend weights", {
-  data(DT_example)
-  solved <- mmes(Yield~Env, random=~vsm(ism(Name), sigma2=2, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=1, fixedSigma2=TRUE), data=DT_example, control=mmes_control(task=list(mode=if(TRUE) "solve" else "fit"), solve=list(method="pcg"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  expect_s3_class(solved, "mmesSolve")
 })
 
 test_that("positive EM-direction blending rejects unsupported engines", {

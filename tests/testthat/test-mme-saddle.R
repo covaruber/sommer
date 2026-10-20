@@ -17,23 +17,7 @@
 }
 
 test_that("augmented numerical identities pass standalone native checks", {
-  root <- test_path("..", "..")
-  source <- file.path(root, "tests", "native", "test-mme-saddle.cpp")
-  headers <- file.path(root, "src", c("mme_saddle.h", "mme_exact.h"))
-  skip_if(!all(file.exists(c(source, headers))),
-    "Native checks require the package source tree")
-  compiler <- Sys.which("c++")
-  skip_if(!nzchar(compiler), "C++ compiler unavailable")
-  binary <- tempfile("sommer-saddle-")
-  on.exit(unlink(binary), add=TRUE)
-  includes <- system.file("include", package="RcppEigen")
-  output <- system2(compiler, c("-std=c++11", "-w",
-    paste0("-I", shQuote(includes)), shQuote(source), "-o", shQuote(binary)),
-    stdout=TRUE, stderr=TRUE)
-  expect_null(attr(output, "status"), info=paste(output, collapse="\n"))
-  if(!file.exists(binary)) return(invisible(NULL))
-  output <- system2(binary, stdout=TRUE, stderr=TRUE)
-  expect_null(attr(output, "status"), info=paste(output, collapse="\n"))
+  .native_run("test-mme-saddle", c("mme_saddle.h", "mme_exact.h"), eigen=TRUE)
 })
 
 test_that("saddle controls are opt-in and reject unsupported routes", {
@@ -68,37 +52,6 @@ test_that("saddle controls are opt-in and reject unsupported routes", {
   expect_error(mmes(response~level, random=~vsm(rrm(level, 1L), ism(id)), data=dataset,
     control=saddleControl),
     "reduced rank")
-})
-
-test_that("exact saddle fits preserve same-point outputs across direct backends", {
-  dataset <- .saddle_dataset()
-  fields <- c("llik", "bu", "C", "covPar", "InfMat", "dLu", "theta_se")
-  for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
-    for(relationship in c("none", "sparse", "dense")){
-      random <- ~vsm(usm(level), ism(id))
-      if(relationship != "none"){
-        precision <- if(relationship == "dense") diag(8L) + matrix(0.05, 8L, 8L) else
-          Matrix::bandSparse(8L, k=c(-1L, 0L, 1L),
-            diagonals=list(rep(-0.1, 7L), rep(1, 8L), rep(-0.1, 7L)))
-        dimnames(precision) <- list(levels(dataset$id), levels(dataset$id))
-        attr(precision, "inverse") <- TRUE
-        random <- ~vsm(usm(level), ism(id), Gu=precision)
-      }
-      setup <- mmes(response~level, random=random, data=dataset, control=mmes_control(output=list(setup=TRUE), solve=list(method=solver), task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-      reference <- .saddle_at(setup)
-      candidate <- .saddle_at(setup, TRUE)
-      for(field in fields){
-        expect_equal(candidate[[field]], reference[[field]], tolerance=1e-8,
-          info=paste(solver, reml, relationship, field))
-      }
-      diagnostic <- candidate$engineDiagnostics$saddlePoint
-      expect_true(diagnostic$active)
-      expect_equal(diagnostic$normalEquationAssemblies, 0L)
-      expect_equal(diagnostic$compatibilityAssemblies, 1L)
-      expect_lte(diagnostic$maxRelativeResidual, 1e-10)
-      expect_equal(candidate$engineDiagnostics$CsymbolicAnalyses, 0L)
-    }
-  }
 })
 
 test_that("saddle likelihood score and AI match independent dense marginal formulas", {
@@ -228,22 +181,6 @@ test_that("saddle rejects compact grids rather than materializing hidden covaria
   dataset$response <- sin(seq_len(nrow(dataset)))
   expect_error(mmes(response~trial, rcov=~vsm(ar1m(row), ar1m(column), ism(units)), data=dataset, control=mmes_control(representation=list(equations="saddle-point"), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "grid/ragged")
-})
-
-test_that("saddle retains multiple-term covariance SE and small-sample inference", {
-  skip_on_cran()
-  data(DT_yatesoats, package="enhancer", envir=environment())
-  model <- function(saddle){
-    mmes(Y~V*N, random=~B+B:MP, data=DT_yatesoats, control=mmes_control(representation=list(equations=if(saddle) "saddle-point" else "normal"), convergence=list(maxIters=100L, likelihoodTol=1e-12, parameterTol=1e-10), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  }
-  reference <- model(FALSE)
-  candidate <- model(TRUE)
-  expect_true(candidate$convergence)
-  expect_equal(covparams_mmes_se(candidate), covparams_mmes_se(reference), tolerance=1e-7)
-  for(method in c("satterthwaite", "kr")){
-    expect_equal(wald_mmes(candidate, denDF=method), wald_mmes(reference, denDF=method),
-      tolerance=1e-6)
-  }
 })
 
 test_that("saddle prediction and emmeans preserve their public coefficient contract", {

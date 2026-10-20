@@ -244,79 +244,9 @@
         "Use the 'dateWarning' argument to disable the warning message.\n", sep="")
   }
   
-  # ---- Helpers ---------------------------------------------------------
-  formula_env <- function(f, fallback){
-    e <- if(inherits(f, "formula")) environment(f) else NULL
-    if(is.null(e)) fallback else e
-  }
-  
-  # Split only top-level additions. '+' inside I(), vsm(), etc. is untouched.
-  split_plus <- function(expr){
-    if(is.call(expr) && identical(expr[[1L]], as.name("+"))){
-      c(split_plus(expr[[2L]]), split_plus(expr[[3L]]))
-    } else list(expr)
-  }
-  
-  expr_label <- function(x) paste(deparse(x, width.cutoff=500L), collapse="")
-
-  call_name <- function(expr){
-    if(!is.call(expr)) return(NULL)
-    head <- expr[[1L]]
-    if(is.symbol(head)) return(as.character(head))
-    if(is.call(head) && length(head) == 3L &&
-       as.character(head[[1L]]) %in% c("::", ":::")){
-      return(as.character(head[[3L]]))
-    }
-    NULL
-  }
-  
-  has_call <- function(expr, names){
-    if(!is.call(expr)) return(FALSE)
-    head <- call_name(expr)
-    if(length(head) == 1L && head %in% names) return(TRUE)
-    any(vapply(as.list(expr)[-1L], has_call, logical(1), names=names))
-  }
-  
-  eval_model_expr <- function(expr, data_full, enclos){
-    if(is.null(data_full)) eval(expr, envir=enclos)
-    else eval(expr, envir=data_full, enclos=enclos)
-  }
-  
-  # Observation-level variables are symbols resolving to vectors of length n,
-  # or matrices/data.frames with n rows. Objects such as Gu/Ai are therefore
-  # not mistaken for observation variables unless they actually have n rows.
-  observation_ok <- function(expr, data_full, enclos, n){
-    vars <- unique(all.vars(expr))
-    if(!length(vars)) return(rep(TRUE, n))
-    ok <- rep(TRUE, n)
-    for(v in vars){
-      val <- tryCatch({
-        if(!is.null(data_full) && v %in% names(data_full)) data_full[[v]]
-        else get(v, envir=enclos, inherits=TRUE)
-      }, error=function(e) NULL)
-      if(is.null(val)) next
-      if(is.data.frame(val) || is.matrix(val)){
-        if(nrow(val) == n) ok <- ok & stats::complete.cases(val)
-      } else if(length(val) == n){
-        ok <- ok & !is.na(val)
-      }
-    }
-    ok
-  }
-  
-  method_keep <- function(ok, method, what){
-    method <- tolower(method)
-    if(method %in% c("exclude", "omit")) return(ok)
-    if(method %in% c("include", "pass")) return(rep(TRUE, length(ok)))
-    if(method == "fail" && any(!ok))
-      stop("Missing values found in ", what, ".", call.=FALSE)
-    if(method == "fail") return(rep(TRUE, length(ok)))
-    stop("Unknown missing-data method '", method, "' for ", what, ".", call.=FALSE)
-  }
-  
   # ---- Unified evaluation context -------------------------------------
   callEnv <- parent.frame()
-  fixedEnv <- formula_env(fixed, callEnv)
+  fixedEnv <- .mmes_formula_env(fixed, callEnv)
   if(missing(rcov)){
     rcov <- stats::as.formula("~units", env=fixedEnv)
   } else if(is.null(environment(rcov))){
@@ -361,20 +291,20 @@
   }
   
   # ---- Parse/evaluate random and residual expressions on full rows -----
-  randomExprs <- if(missing(random)) list() else split_plus(random[[2L]])
-  randomLabels <- vapply(randomExprs, expr_label, character(1))
+  randomExprs <- if(missing(random)) list() else .mmes_split_plus(random[[2L]])
+  randomLabels <- vapply(randomExprs, .mmes_expr_label, character(1))
   randomFits <- vector("list", length(randomExprs))
   
   if(length(randomExprs)){
-    randomEnv <- formula_env(random, fixedEnv)
+    randomEnv <- .mmes_formula_env(random, fixedEnv)
     for(u in seq_along(randomExprs)){
       ex <- randomExprs[[u]]
-      if(!has_call(ex, c("vsm", "covm", "strm", "spl2Dc"))){
+      if(!.mmes_has_call(ex, c("vsm", "covm", "strm", "spl2Dc"))){
         ex <- as.call(list(as.name("vsm"), as.call(list(as.name("ism"), ex))))
       }
       randomExprs[[u]] <- ex
-      randomLabels[u] <- expr_label(ex)
-      randomFits[[u]] <- eval_model_expr(ex, data_full, randomEnv)
+      randomLabels[u] <- .mmes_expr_label(ex)
+      randomFits[[u]] <- .mmes_eval_model_expr(ex, data_full, randomEnv)
       ff <- randomFits[[u]]
       if(is.null(ff$covStruct) || !identical(ff$covStruct$type, "kron") ||
          is.null(ff$covStruct$descriptor_version) || ff$covStruct$descriptor_version < 2L){
@@ -402,20 +332,20 @@
     }
   }
   
-  rcovExprs <- split_plus(rcov[[2L]])
+  rcovExprs <- .mmes_split_plus(rcov[[2L]])
   if(length(rcovExprs) != 1L){
     stop("The Henderson interface accepts one residual vsm() term. Use arbitrary Kronecker products inside that vsm() term instead of summing residual terms.",
          call.=FALSE)
   }
   residualExpr <- rcovExprs[[1L]]
-  if(!has_call(residualExpr, c("vsm", "gvs", "spl2Da", "spl2Db"))){
+  if(!.mmes_has_call(residualExpr, c("vsm", "gvs", "spl2Da", "spl2Db"))){
     residualExpr <- as.call(list(as.name("vsm"), as.call(list(as.name("ism"), residualExpr))))
   }
-  residualLabel <- expr_label(residualExpr)
+  residualLabel <- .mmes_expr_label(residualExpr)
   # A final ism(key) other than ism(units) names the residual pairing key.
   residualKeyExpr <- NULL
   swap_key <- function(ex){
-    nm <- call_name(ex)
+    nm <- .mmes_call_name(ex)
     if(identical(nm, "dsumm")){
       ex[[2L]] <- swap_key(ex[[2L]])
       return(ex)
@@ -427,7 +357,7 @@
     if(!length(positional)) return(ex)
     last <- positional[length(positional)]
     term <- ex[[last]]
-    if(identical(call_name(term), "ism") && length(term) == 2L &&
+    if(identical(.mmes_call_name(term), "ism") && length(term) == 2L &&
        !identical(term[[2L]], as.name("units")) && length(positional) > 1L){
       residualKeyExpr <<- term[[2L]]
       ex[[last]] <- quote(ism(units))
@@ -435,15 +365,15 @@
     ex
   }
   residualExpr <- swap_key(residualExpr)
-  residualEnv <- formula_env(rcov, fixedEnv)
+  residualEnv <- .mmes_formula_env(rcov, fixedEnv)
   residualKeyFull <- NULL
   if(!is.null(residualKeyExpr)){
-    residualKeyFull <- eval_model_expr(residualKeyExpr, data_full, residualEnv)
+    residualKeyFull <- .mmes_eval_model_expr(residualKeyExpr, data_full, residualEnv)
     if(length(residualKeyFull) != nObs){
       stop("The residual pairing key must have one value per observation.", call.=FALSE)
     }
   }
-  rf_full <- eval_model_expr(residualExpr, data_full, residualEnv)
+  rf_full <- .mmes_eval_model_expr(residualExpr, data_full, residualEnv)
   if(is.null(rf_full$covStruct) || !identical(rf_full$covStruct$type, "kron") ||
      is.null(rf_full$covStruct$descriptor_version) || rf_full$covStruct$descriptor_version < 2L){
     stop("The residual covariance term must use the CovarianceFactor v2 vsm() descriptor interface.",
@@ -463,16 +393,16 @@
   
   randomOK <- rep(TRUE, nObs)
   if(length(randomExprs)){
-    for(ex in randomExprs) randomOK <- randomOK & observation_ok(ex, data_full, formula_env(random, fixedEnv), nObs)
+    for(ex in randomExprs) randomOK <- randomOK & .mmes_observation_ok(ex, data_full, .mmes_formula_env(random, fixedEnv), nObs)
   }
   residualOK <- if(isTRUE(rf_full$residualSelfMasked)) !is.na(rf_full$residualLocalIndex) else
-    observation_ok(residualExpr, data_full, residualEnv, nObs) & !is.na(rf_full$residualLocalIndex)
+    .mmes_observation_ok(residualExpr, data_full, residualEnv, nObs) & !is.na(rf_full$residualLocalIndex)
   if(!is.null(residualKeyFull)) residualOK <- residualOK & !is.na(residualKeyFull)
   
-  keepY <- method_keep(responseOK, naMethodY, "the response")
-  keepX <- method_keep(fixedOK, naMethodX, "fixed-effect variables")
-  keepRandom <- method_keep(randomOK, naMethodRandom, "random-effect variables")
-  keepResidual <- method_keep(residualOK, naMethodR, "residual covariance variables")
+  keepY <- .mmes_method_keep(responseOK, naMethodY, "the response")
+  keepX <- .mmes_method_keep(fixedOK, naMethodX, "fixed-effect variables")
+  keepRandom <- .mmes_method_keep(randomOK, naMethodRandom, "random-effect variables")
+  keepResidual <- .mmes_method_keep(residualOK, naMethodR, "residual covariance variables")
   keep <- keepY & keepX & keepRandom & keepResidual
   if(!is.null(weightBlocksFull) && any(keep & is.na(weightBlocksFull))){
     stop("The weights block formula has missing values on retained observations.", call.=FALSE)
@@ -991,26 +921,10 @@
     }, error=function(e) NULL)
   }
 
-  pqlWarmStarted <- FALSE
-  if(.pqlInner && !is.null(.pqlStart) &&
-     identical(.pqlStart$included, obsInfo$included) &&
-     length(.pqlStart$covStruct) == length(covStruct)){
-    compatible <- vapply(seq_along(covStruct), function(index){
-      old <- .pqlStart$covStruct[[index]]
-      current <- covStruct[[index]]
-      identical(old$par_names, current$par_names) && identical(old$dim, current$dim) &&
-        identical(old$levels, current$levels) && identical(old$free, current$free) &&
-        length(.pqlStart$parameters[[index]]) == length(current$par) &&
-        all(is.finite(.pqlStart$parameters[[index]]))
-    }, logical(1))
-    if(all(compatible)){
-      for(index in seq_along(covStruct)){
-        free <- covStruct[[index]]$free
-        covStruct[[index]]$par[free] <- .pqlStart$parameters[[index]][free]
-      }
-      pqlWarmStarted <- TRUE
-    }
-  }
+  warmStart <- .mmes_warm_start(covStruct,
+    if(.pqlInner) .pqlStart else NULL, included=obsInfo$included)
+  covStruct <- warmStart$covStruct
+  pqlWarmStarted <- warmStart$compatible
 
   if(responsePrepared){
     standardizedResponse <- (rotationInfo$yOriginal - preparedMean) / preparedSd
@@ -1018,74 +932,11 @@
   }
   
   # ---- Weights ---------------------------------------------------------
-  if(!is.null(.pqlWorkingPrecision)){
-    if(length(.pqlWorkingPrecision) == nObs){
-      workingPrecision <- .pqlWorkingPrecision[keep]
-    }else if(length(.pqlWorkingPrecision) == sum(keep)){
-      workingPrecision <- .pqlWorkingPrecision
-    }else{
-      stop("PQL working precision must have one value per original or retained observation.",
-           call.=FALSE)
-    }
-    if(any(!is.finite(workingPrecision)) || any(workingPrecision <= 0)){
-      stop("PQL working precision must be finite and positive.", call.=FALSE)
-    }
-
-    if(!is.null(.pqlBaseFactor)){
-      if(nrow(.pqlBaseFactor) != length(workingPrecision) ||
-         ncol(.pqlBaseFactor) != length(workingPrecision)){
-        stop("Cached PQL base factor has incompatible dimensions.", call.=FALSE)
-      }
-      baseFactor <- .pqlBaseFactor
-    }else if(is.null(.pqlBaseW)){
-      baseW <- Matrix::Diagonal(n=length(workingPrecision), x=1)
-    }else if(nrow(.pqlBaseW) == nObs && ncol(.pqlBaseW) == nObs){
-      baseW <- .pqlBaseW[keep, keep, drop=FALSE]
-    }else if(nrow(.pqlBaseW) == sum(keep) && ncol(.pqlBaseW) == sum(keep)){
-      baseW <- .pqlBaseW
-    }else{
-      stop("PQL base W must have dimensions equal to either the original or retained number of observations.",
-           call.=FALSE)
-    }
-    if(is.null(.pqlBaseFactor)){
-      baseW <- as(as(as(baseW, "dMatrix"), "generalMatrix"), "CsparseMatrix")
-      if(!isSymmetric(baseW)){
-        stop("PQL base W must be symmetric positive definite.", call.=FALSE)
-      }
-      baseFactor <- tryCatch(Matrix::chol(baseW), error=function(e) NULL)
-      if(is.null(baseFactor)){
-        stop("PQL base W must be positive definite.", call.=FALSE)
-      }
-    }
-    weightedFactor <- Matrix::Diagonal(n=length(workingPrecision),
-                                       x=sqrt(workingPrecision)) %*% baseFactor
-    W <- Matrix::crossprod(weightedFactor)
-    W <- as(as(as(W, "dMatrix"), "generalMatrix"), "CsparseMatrix")
-    useH <- TRUE
-  }else if(missing(W)){
-    W <- Matrix::Diagonal(n=nrow(yvar), x=1)
-    useH <- FALSE
-  }else{
-    # W may be supplied for all original rows or already-filtered rows.
-    if(nrow(W) == nObs && ncol(W) == nObs) W <- W[keep, keep, drop=FALSE]
-    else if(nrow(W) != sum(keep) || ncol(W) != sum(keep))
-      stop("W must have dimensions equal to either the original or retained number of observations.", call.=FALSE)
-    W <- as(as(as(W, "dMatrix"), "generalMatrix"), "CsparseMatrix")
-    useH <- TRUE
-  }
-  if(!is.null(weightBlocks)){
-    if(WWasMissing && is.null(.pqlWorkingPrecision)){
-      stop("weights block formulas describe a supplied W matrix; provide W as well.", call.=FALSE)
-    }
-    if(length(weightBlocks) != nrow(W)){
-      stop("The weights block formula does not match the retained W dimensions.", call.=FALSE)
-    }
-    nonzeroWeights <- Matrix::summary(W)
-    if(nrow(nonzeroWeights) && any(weightBlocks[nonzeroWeights$i] !=
-                                   weightBlocks[nonzeroWeights$j])){
-      stop("W contains nonzero entries across groups declared independent by weights.", call.=FALSE)
-    }
-  }
+  preparedWeights <- .mmes_prepare_weights(WInput, WWasMissing,
+    nObs, keep, nrow(yvar), weightBlocks, .pqlWorkingPrecision,
+    .pqlBaseW, .pqlBaseFactor)
+  W <- preparedWeights$W
+  useH <- preparedWeights$useH
 
   if(solveOnly){
     return(finishThreads(.mmes_solve(X, Z, Zind, Ai, yvar, W, useH, residualBlock, localIndex,
@@ -1145,22 +996,10 @@
     rtermss <- factorScoreInfo$terms
     rTermsNames <- c(factorScoreInfo$termNames, list(residualTermNames))
   }
-  if(factorScoreAugmentation == "fixed-shape" && .pqlInner && !is.null(.pqlStart) &&
-     length(.pqlStart$covStruct) == length(covStruct)){
-    compatible <- vapply(seq_along(covStruct), function(index){
-      old <- .pqlStart$covStruct[[index]]
-      current <- covStruct[[index]]
-      identical(old$par_names, current$par_names) && identical(old$dim, current$dim) &&
-        identical(old$levels, current$levels) && length(.pqlStart$parameters[[index]]) == length(current$par) &&
-        all(is.finite(.pqlStart$parameters[[index]]))
-    }, logical(1))
-    if(all(compatible)){
-      for(index in seq_along(covStruct)){
-        free <- covStruct[[index]]$free
-        covStruct[[index]]$par[free] <- .pqlStart$parameters[[index]][free]
-      }
-      factorProfileWarmStarted <- TRUE
-    }
+  if(factorScoreAugmentation == "fixed-shape" && .pqlInner){
+    warmStart <- .mmes_warm_start(covStruct, .pqlStart, checkFree=FALSE)
+    covStruct <- warmStart$covStruct
+    factorProfileWarmStarted <- warmStart$compatible
   }
 
   if(isTRUE(henderson)){
@@ -1270,23 +1109,11 @@
   if(!is.null(weightBlocks)) attr(covStruct, "weightBlocks") <- weightBlocks
   attr(covStruct, "retainLDLTCache") <- .pqlInner && identical(solver, "ldlt")
   attr(covStruct, "retainCholmodCache") <- .pqlInner && identical(solver, "cholmod")
-  attr(covStruct, "retainCholmodCache") <- .pqlInner && identical(solver, "cholmod")
-  if(pqlWarmStarted && !is.null(.pqlStart$ldltCache)){
-    attr(covStruct, "ldltCache") <- .pqlStart$ldltCache
+  if(pqlWarmStarted || factorProfileWarmStarted){
+    for(cache in c("ldltCache", "cholmodCache")){
+      if(!is.null(.pqlStart[[cache]])) attr(covStruct, cache) <- .pqlStart[[cache]]
+    }
   }
-  if(pqlWarmStarted && !is.null(.pqlStart$cholmodCache)){
-    attr(covStruct, "cholmodCache") <- .pqlStart$cholmodCache
-  }
-  if(factorProfileWarmStarted && !is.null(.pqlStart$ldltCache)){
-    attr(covStruct, "ldltCache") <- .pqlStart$ldltCache
-  }
-  if(factorProfileWarmStarted && !is.null(.pqlStart$cholmodCache)){
-    attr(covStruct, "cholmodCache") <- .pqlStart$cholmodCache
-  }
-  if(pqlWarmStarted && !is.null(.pqlStart$cholmodCache)){
-    attr(covStruct, "cholmodCache") <- .pqlStart$cholmodCache
-  }
-
   vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
   if(!is.null(factorScoreInfo)){
     factorScoreConstraints <- lapply(seq_along(factorScoreInfo$constrainedStructures), function(index){
@@ -1503,4 +1330,27 @@
     res$covParNative <- get(".covparams_mmes_se", mode="function")(res)
   }
   finishThreads(res, threadScope, verbose)
+}
+
+.mmes_warm_start <- function(covStruct, start, included=NULL, checkFree=TRUE){
+  compatible <- !is.null(start) && length(start$covStruct) == length(covStruct) &&
+    (is.null(included) || identical(start$included, included))
+  if(compatible){
+    compatible <- all(vapply(seq_along(covStruct), function(index){
+      old <- start$covStruct[[index]]
+      current <- covStruct[[index]]
+      parameters <- start$parameters[[index]]
+      identical(old$par_names, current$par_names) && identical(old$dim, current$dim) &&
+        identical(old$levels, current$levels) &&
+        (!checkFree || identical(old$free, current$free)) &&
+        length(parameters) == length(current$par) && all(is.finite(parameters))
+    }, logical(1)))
+  }
+  if(compatible){
+    for(index in seq_along(covStruct)){
+      free <- covStruct[[index]]$free
+      covStruct[[index]]$par[free] <- start$parameters[[index]][free]
+    }
+  }
+  list(covStruct=covStruct, compatible=compatible)
 }

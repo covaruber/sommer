@@ -23,7 +23,7 @@ run_mme_benchmark(
 \item{replications}{Number of timed repetitions (warmup run excluded). Default is 3.}
 
 \item{verifyParity}{Logical; whether to assert that experimental candidates match the reference
-engine in likelihood, variance components, and BLUPs. Default is TRUE.}
+engine in final likelihood, variance components, and BLUPs. Default is TRUE.}
 
 \item{tolerance}{Numerical tolerance for parity verification. Default is 1e-5.}
 
@@ -32,7 +32,12 @@ engine in likelihood, variance components, and BLUPs. Default is TRUE.}
 \item{verbose}{Logical; whether to print progress. Default is TRUE.}
 }
 \value{
-An object of class \code{"sommer_mme_benchmark"}.
+An object of class \code{"sommer_mme_benchmark"}. Warmup and timed-run failures
+retain the same result columns with an \code{error} message. The
+\code{converged} column records the fitted model's \code{convergence} flag.
+\code{parity_ok} is \code{NA} when parity is not checked or the reference
+engine failed; numerical comparisons use final likelihoods and estimates,
+not the lengths of their optimization histories.
 }
 \description{
 Executes a battery of workloads across candidate solver engines, measuring wall-clock time,

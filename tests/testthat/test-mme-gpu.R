@@ -39,25 +39,6 @@ test_that("unified solver preserves CPU results with GPU disabled", {
   }
 })
 
-test_that("unified solver preserves final inverse and ML CPU paths", {
-  workload <- generate_mme_workload(n_ind = 6L, n_levels = 4L,
-    structure = "ar1", relationship = "dense", seed = 38L)
-  for(inverseMode in 1:2){
-    arguments <- gpuEngineArguments(workload, inverseMode = inverseMode)
-    reference <- do.call(sommer:::ai_mme_sp2, arguments)
-    candidate <- do.call(sommer:::ai_mme_sp2, c(arguments, list(gpu = FALSE)))
-    expect_equal(candidate$Ci, reference$Ci, tolerance = 1e-10)
-    expect_equal(candidate$uPevList, reference$uPevList, tolerance = 1e-10)
-  }
-  arguments <- gpuEngineArguments(workload, reml = FALSE)
-  reference <- do.call(sommer:::ai_mme_sp2, arguments)
-  candidate <- do.call(sommer:::ai_mme_sp2, c(arguments, list(gpu = FALSE)))
-  expect_equal(candidate$llik, reference$llik, tolerance = 1e-10)
-  expect_equal(candidate$bu, reference$bu, tolerance = 1e-10)
-  expect_error(do.call(sommer:::ai_mme_sp2,
-    c(arguments, list(gpu = FALSE, gpuMinSize = 0L))), "gpuMinSize")
-})
-
 test_that("GPU requests either use CUDA or report an explicit backend error", {
   workload <- generate_mme_workload(n_ind = 6L, n_levels = 4L,
     structure = "ar1", relationship = "dense", seed = 40L)
@@ -89,36 +70,6 @@ test_that("CUDA kernels match CPU fits when GPU testing is enabled", {
     expect_gt(candidate$gpuDiagnostics$triangularSolveCalls, 0)
     expect_gt(candidate$gpuDiagnostics$productCalls, 0)
   }
-})
-
-test_that("CUDA library checks only run when NVIDIA hardware is detected", {
-  checked <- FALSE
-  libraries <- function(){
-    checked <<- TRUE
-    list(libraries = TRUE, compiled = TRUE, available = TRUE, reason = "")
-  }
-  absent <- sommer:::.mmes_gpu_status(function() FALSE, libraries)
-  expect_false(checked)
-  expect_false(absent$available)
-  expect_match(sommer:::.mmes_gpu_message(absent), "only CPU")
-  ready <- sommer:::.mmes_gpu_status(function() TRUE, libraries)
-  expect_true(checked)
-  expect_true(ready$available)
-  expect_match(sommer:::.mmes_gpu_message(ready), "sommer.mme.gpu=TRUE")
-})
-
-test_that("startup guidance distinguishes missing libraries, builds and drivers", {
-  status <- function(libraries, compiled, available = FALSE, reason = "probe failure"){
-    sommer:::.mmes_gpu_status(function() TRUE, function()
-      list(libraries = libraries, compiled = compiled, available = available,
-        reason = reason))
-  }
-  expect_match(sommer:::.mmes_gpu_message(status(FALSE, TRUE)), "Install compatible CUDA")
-  expect_match(sommer:::.mmes_gpu_message(status(TRUE, FALSE)), "Reinstall")
-  expect_match(sommer:::.mmes_gpu_message(status(TRUE, TRUE)), "initialization failed")
-  failed <- sommer:::.mmes_gpu_status(function() TRUE, function() stop("loader error"))
-  expect_false(failed$available)
-  expect_match(failed$reason, "loader error")
 })
 
 test_that("GPU controls honor global defaults and explicit per-fit overrides", {

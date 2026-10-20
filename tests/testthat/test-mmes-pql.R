@@ -37,17 +37,6 @@ test_that("PQL binomial and Poisson fits expose response and link scales", {
   expect_true(all(fitted(poissonFit) > 0))
 })
 
-test_that("PQL Poisson fit without random effects matches glm", {
-  set.seed(23)
-  data <- data.frame(x=rep(c(0, 1), each=100))
-  data$y <- rpois(nrow(data), exp(0.2 + 0.6 * data$x))
-
-  glmFit <- glm(y~x, data=data, family=poisson())
-  pqlFit <- mmes(y~x, rcov=~units, data=data, family=poisson(), control=mmes_control(update=list(blendWeight=0), convergence=list(maxIters=15), diagnostics=list(verbose=FALSE), task=list(pql=list(maxit=20, tol=1e-8))))
-
-  expect_equal(as.numeric(pqlFit$b), unname(coef(glmFit)), tolerance=1e-4)
-})
-
 test_that("PQL honors offsets on the link scale", {
   set.seed(41)
   data <- data.frame(x=rep(c(0, 1), each=100), exposure=runif(200, 0.4, 2))

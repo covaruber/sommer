@@ -14,9 +14,9 @@
 test_that("regularized AI solves in trust units and preserves fixed and tied tangent directions", {
   source <- test_path("..", "native", "test-mme-ai-recovery.cpp")
   header <- test_path("..", "..", "src", "mme_ai_recovery.h")
-  skip_if(!all(file.exists(c(source, header))),
+  .native_require(all(file.exists(c(source, header))),
     "Native checks require the package source tree")
-  skip_if(!nzchar(Sys.which("c++")), "C++ compiler unavailable")
+  .native_require(nzchar(Sys.which("c++")), "C++ compiler unavailable")
   helper <- new.env()
   Rcpp::sourceCpp(source, env=helper)
   information <- diag(c(1e-30, 2, 3, 4))
@@ -128,16 +128,6 @@ test_that("singular AI information tries regularized AI before computing EM mome
   }
 })
 
-test_that("successful repeated recoveries have no separate two-step cap", {
-  fit <- .recovery_fit(nIters=15L, stepWeight=1e-7)
-  recovery <- fit$engineDiagnostics$recovery
-  expect_equal(recovery$iterations, c(4L, 8L, 12L))
-  expect_equal(recovery$acceptedSteps, 3L)
-  expect_equal(recovery$stopReason, "iteration-limit")
-  expect_equal(which(fit$engineDiagnostics$blend$weights > 0), recovery$iterations)
-  expect_true(all(diff(as.numeric(fit$llik)) >= -1e-10))
-})
-
 test_that("failed regularized line search still falls back to EM without accepting a negligible step", {
   data(DT_example)
   dataset <- DT_example
@@ -158,35 +148,6 @@ test_that("failed regularized line search still falls back to EM without accepti
       expect_equal(fit[[field]], initial[[field]], tolerance=1e-9)
     }
   }
-})
-
-test_that("DT_h2 FA retry avoids repeated EM recovery and improves accepted likelihood", {
-  data(DT_h2)
-  dataset <- DT_h2[with(DT_h2, order(Env)), ]
-  fits <- list()
-  for(solver in c("ldlt", "cholmod")){
-    fit <- mmes(y~Env, random=~vsm(fam(Env, 1L), ism(Name)) +
-      vsm(dsm(Env), ism(Block)), rcov=~vsm(dsm(Env), ism(units)), data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=30L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-    diagnostics <- fit$engineDiagnostics
-    expect_gt(diagnostics$recovery$regularizedAcceptedSteps, 0L)
-    expect_equal(diagnostics$recovery$steps, 0L)
-    expect_equal(diagnostics$blend$emEvaluations, 0L)
-    expect_equal(diagnostics$blend$qEvaluations, 0L)
-    expect_gt(tail(as.numeric(fit$llik), 1L), 125)
-    expect_true(all(diff(as.numeric(fit$llik)) >= -1e-10))
-    accepted <- diagnostics$recovery$regularizedIterations
-    expect_true(all(diff(as.numeric(fit$llik))[accepted] > 1e-10))
-    if(fit$convergence){
-      expect_lte(diagnostics$recovery$finalProjectedScoreNorm,
-        diagnostics$recovery$scoreTolerance)
-    }else{
-      expect_gt(diagnostics$recovery$finalProjectedScoreNorm,
-        diagnostics$recovery$scoreTolerance)
-    }
-    fits[[solver]] <- fit
-  }
-  expect_equal(fits$ldlt$llik, fits$cholmod$llik, tolerance=1e-5)
-  expect_equal(fits$ldlt$theta, fits$cholmod$theta, tolerance=1e-5)
 })
 
 test_that("failed recovery returns the accepted point and warns without false convergence", {

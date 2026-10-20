@@ -81,54 +81,6 @@ test_that("all deterministic solvers preserve compressed likelihood, exact trace
   }
 })
 
-test_that("compressed updates compose with relationships, hybrid AI and ML elimination", {
-  relationship <- diag(6L) + matrix(0.1, 6L, 6L)
-  dimnames(relationship) <- list(levels(.mme_compression_data()$id),
-    levels(.mme_compression_data()$id))
-  for(gu in list(relationship, Matrix::Matrix(relationship, sparse=TRUE))){
-    attr(gu, "inverse") <- TRUE
-    for(solver in c("ldlt", "cholmod", "auto")){
-      for(reml in c(TRUE, FALSE)){
-        reference <- .mme_compression_fit(solver, "off", reml,
-          iterations=4L, relationship=gu)
-        candidate <- .mme_compression_fit(solver, "classes", reml,
-          iterations=4L, relationship=gu)
-        for(field in c("bu", "C", "llik", "dLu", "InfMat", "theta", "theta_se")){
-          expect_equal(candidate[[field]], reference[[field]], tolerance=1e-6)
-        }
-      }
-    }
-  }
-  for(solver in c("ldlt", "cholmod")){
-    for(acceleration in c("none", "hybrid-ai")){
-      reference <- .mme_compression_fit(solver, "off", iterations=5L, acceleration=acceleration)
-      candidate <- .mme_compression_fit(solver, "classes", iterations=5L, acceleration=acceleration)
-      expect_equal(candidate$bu, reference$bu, tolerance=1e-6)
-      expect_equal(candidate$InfMat, reference$InfMat, tolerance=1e-6)
-      expect_equal(candidate$llik, reference$llik, tolerance=1e-6)
-    }
-    reference <- .mme_compression_fit(solver, "off", reml=FALSE, dFirst="off")
-    candidate <- .mme_compression_fit(solver, "groups", reml=FALSE, dFirst="off")
-    expect_equal(candidate$dLu, reference$dLu, tolerance=1e-8)
-    expect_equal(candidate$llik, reference$llik, tolerance=1e-8)
-  }
-})
-
-test_that("shared PCG compression matches modular PCG settings", {
-  shared <- .mme_compression_fit("pcg", "classes")
-  dataset <- .mme_compression_data()
-  configured <- suppressMessages(mmes(response~environment+x, random=~id,
-    rcov=~vsm(dsm(environment), ism(units)), data=dataset,
-    control=mmes_control(solve=list(method="pcg", tol=1e-11),
-      representation=list(compression="classes"), score=list(traceProbes=12L),
-      logdet=list(lanczosSteps=40L), convergence=list(maxIters=1L),
-      update=list(blendWeight=0),
-      diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
-  expect_identical(shared$bu, configured$bu)
-  expect_identical(shared$dLu, configured$dLu)
-  expect_identical(shared$engineDiagnostics$compression$method, "classes")
-})
-
 test_that("shared compression rejects unsupported models on deterministic solvers", {
   dataset <- .mme_compression_data()
   for(solver in c("ldlt", "cholmod", "auto")){

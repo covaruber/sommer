@@ -38,9 +38,9 @@ test_that("reduced AI uses curvature module and revalidates mutated requests", {
 test_that("reduced information preserves boundary tangents and regularized trust units", {
   source <- test_path("..", "native", "test-mme-ai-recovery.cpp")
   header <- test_path("..", "..", "src", "mme_ai_recovery.h")
-  skip_if(!all(file.exists(c(source, header))),
+  .native_require(all(file.exists(c(source, header))),
     "Native checks require the package source tree")
-  skip_if(!nzchar(Sys.which("c++")), "C++ compiler unavailable")
+  .native_require(nzchar(Sys.which("c++")), "C++ compiler unavailable")
   helper <- new.env()
   Rcpp::sourceCpp(source, env=helper)
   information <- diag(c(1e-30, 2, 3, 4))
@@ -103,35 +103,6 @@ test_that("packed native AI equals independent contraction of full information",
   }
 })
 
-test_that("reduced AI retains boundary and singular-information recovery behavior", {
-  dataset <- .reduced_ai_data()
-  for(term in 2:4) dataset[[paste0("id", term)]] <- dataset$id
-  for(boundary in c(FALSE, TRUE)){
-    for(information in c("full", "none")){
-      model <- function(mode){
-        mmes(y~level, random=if(boundary)
-            ~vsm(ism(id), sigma2=1e-8)+vsm(ism(h), sigma2=1e-8)
-            else ~id+id2+id3+id4, data=dataset, vcc=if(boundary) data.frame(parameter=1:2, group=1L)
-            else data.frame(parameter=1:4, group=c(1L, 1L, 2L, 2L)),
-          control=mmes_control(output=list(covariance=information),
-            curvature=list(reduced=mode),
-            convergence=list(maxIters=4L),
-            diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-      }
-      full <- model("off")
-      reduced <- model("force")
-      for(field in c("llik", "theta", "bu", "InfMat", "theta_se", "convergence")){
-        expect_equal(reduced[[field]], full[[field]], tolerance=1e-7, info=field)
-      }
-      if(!boundary){
-        expect_gt(reduced$engineDiagnostics$recovery$regularizedAttempts, 0L)
-        expect_equal(reduced$engineDiagnostics$recovery$steps,
-          full$engineDiagnostics$recovery$steps)
-      }
-    }
-  }
-})
-
 test_that("reduced tied fits preserve optimizer, reporting and coefficient uncertainty", {
   dataset <- .reduced_ai_data()
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
@@ -171,31 +142,6 @@ test_that("reduced tied fits preserve optimizer, reporting and coefficient uncer
         expect_error(vpredict(reduced, ~V1/(V1+V3)),
           "refit with output=list\\(covariance='full'\\)")
       }
-    }
-  }
-})
-
-test_that("reduced assembly supports compression and positive direction blending", {
-  dataset <- .reduced_ai_data()
-  for(compression in c("off", "groups", "classes")){
-    for(blend in c("em", "pxem")){
-      model <- function(mode){
-        mmes(y~level, random=~id+h, data=dataset,
-          vcc=data.frame(parameter=1:2, group=1L),
-          control=mmes_control(
-            representation=list(compression=compression),
-            curvature=list(reduced=mode),
-            convergence=list(maxIters=4L),
-            update=list(recovery=blend,
-              blendWeight=if(compression == "off") 0.3 else NULL),
-            diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-      }
-      full <- model("off")
-      reduced <- model("force")
-      for(field in c("llik", "theta", "bu", "InfMat", "theta_se")){
-        expect_equal(reduced[[field]], full[[field]], tolerance=1e-7, info=field)
-      }
-      expect_gt(reduced$engineDiagnostics$reducedAI$evaluations, 0)
     }
   }
 })

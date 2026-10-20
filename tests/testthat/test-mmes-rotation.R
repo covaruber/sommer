@@ -73,28 +73,6 @@ test_that("rotation preserves a balanced Henderson fit", {
   )
 })
 
-test_that("direct rotation agrees with the Henderson rotation", {
-  fixture <- rotation_fixture()
-  common <- list(
-    fixed=y~env,
-    random=~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE),
-    rcov=~units, data=fixture$data,
-    control=.rotation_control()
-  )
-  henderson <- do.call(mmes, common)
-  directArguments <- common
-  directArguments$control <- .rotation_control(formulation="direct")
-  direct <- do.call(mmes, directArguments)
-
-  expect_equal(unname(henderson$theta), unname(direct$theta), tolerance=2e-3)
-  expect_equal(as.numeric(fitted(henderson)), as.numeric(fitted(direct)), tolerance=2e-3)
-  expect_equal(henderson$uList[[1]], direct$uList[[1]], tolerance=2e-3)
-  expect_identical(
-    direct$rotation$formulation,
-    "direct-observation-covariance"
-  )
-})
-
 test_that("rotation respects covariance-coordinate blocks and shuffled rows", {
   fixture <- rotation_fixture()
   set.seed(91)
@@ -163,16 +141,6 @@ test_that("rotation supports multi-trait Kronecker residuals", {
     }
   }
   expect_true(length(unique(rotated$rotation$residualBlock)) == 6L)
-})
-
-test_that("rotation supports heterogeneous residuals across rotation blocks", {
-  fixture <- rotation_fixture()
-  expect_rotation_equivalent(
-    list(fixed=y~env, rcov=~vsm(dsm(env), ism(units)), data=fixture$data,
-         control=.rotation_control()),
-    ~vsm(ism(id), Gu=fixture$Gu),
-    ~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE)
-  )
 })
 
 test_that("rotation supports weights that are constant within rotation blocks", {

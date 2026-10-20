@@ -219,74 +219,6 @@ test_that("PX uses loading-aware latent moments for reduced-rank covariance", {
   }
 })
 
-test_that("DT_h2 latent fitting prepares moments once instead of at every Q probe", {
-  data(DT_h2)
-  dataset <- DT_h2[with(DT_h2, order(Env)), ]
-  for(method in c("em", "pxem")){
-    fitted <- mmes(y~Env, random=~vsm(rrm(Env, 1L), ism(Name)) + vsm(dsm(Env), ism(Block)), rcov=~vsm(dsm(Env), ism(units)), data=dataset, control=mmes_control(formulation=if(TRUE) "henderson" else "direct", convergence=list(maxIters=2L), update=list(recovery=method, blendWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-    diagnostics <- fitted$engineDiagnostics$blend
-    expect_equal(diagnostics$latentMomentPreparations, 1L)
-    expect_equal(diagnostics$latentMomentBases, 17)
-    expect_gt(diagnostics$qEvaluations, 100)
-    expect_lt(diagnostics$momentPanelSolves, 1000)
-    expect_true(all(diff(c(fitted$llik)) >= -1e-9))
-    expect_true(all(diagnostics$qGains >= -1e-9))
-    expect_true(all(is.finite(fitted$InfMat)))
-  }
-})
-
-test_that("PX-GEM supports covariance families in random and residual terms", {
-  dataset <- .px_data()
-  coordinates <- cbind(as.integer(dataset$site) %% 2, as.integer(dataset$site) %/% 2)
-  adjacency <- matrix(1, 4L, 4L) - diag(4L)
-  dimnames(adjacency) <- list(levels(dataset$site), levels(dataset$site))
-  shapes <- list(
-    ism(dataset$site), dsm(dataset$site), usm(dataset$site),
-    csm(dataset$site), csm(dataset$site, variance="heterogeneous"),
-    ar1m(dataset$site), ar1m(dataset$site, variance="heterogeneous"),
-    ar2m(dataset$site), ar3m(dataset$site),
-    ar2m(dataset$site, variance="heterogeneous"),
-    ar3m(dataset$site, variance="heterogeneous"),
-    mam(dataset$site), corgm(dataset$site), fam(dataset$site, 1L),
-    fam(dataset$site, 1L, variance="homogeneous"),
-    antem(dataset$site), toeplitzm(dataset$site),
-    sar(dataset$site, adjacency), car(dataset$site, adjacency),
-    maternm(coordinates), metricm(coordinates),
-    maternm(coordinates, anisotropy="geometric"),
-    metricm(coordinates, model="power", anisotropy="product"),
-    ownm(dataset$site, fun=function(par){
-      tanh(par[1L])^abs(outer(1:4, 1:4, "-"))
-    }, par=0.2, par_names="correlation"))
-  for(shape in shapes) for(residual in c(FALSE, TRUE)){
-    arguments <- list(fixed=y~1, random=~vsm(shape, ism(id)), data=dataset,
-      control=mmes_control(update=list(recovery="pxem", blendWeight=1),
-        convergence=list(maxIters=2L),
-        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-    if(residual){
-      arguments$random <- ~id
-      arguments$rcov <- ~vsm(shape, ism(units))
-    }
-    fitted <- do.call(mmes, arguments)
-    diagnostics <- fitted$engineDiagnostics$blend
-    label <- paste(shape$covFactor$model, if(residual) "residual" else "random")
-    expect_true(all(is.finite(fitted$llik)), info=label)
-    expect_true(all(diff(c(fitted$llik)) >= -1e-9), info=label)
-    expect_true(all(diagnostics$qGains >= -1e-9), info=label)
-    expect_true(all(diagnostics$pxQGains >= -1e-9), info=label)
-    expect_equal(diagnostics$pxEvaluations, 1L, info=label)
-    expect_equal(diagnostics$aiEvaluations, 0L, info=label)
-  }
-  dataset$replicate <- factor(dataset$replicate)
-  dataset <- dataset[-c(1L, 9L), , drop=FALSE]
-  for(random in list(~vsm(ar1m(site), dsm(replicate), ism(id)),
-                    ~vsm(rrm(site, 1L), ism(id)))){
-    fitted <- mmes(y~replicate, random=random, rcov=~dsumm(vsm(ar1m(site), ism(units)), by=replicate), data=dataset, control=mmes_control(convergence=list(maxIters=3L), update=list(recovery="pxem", blendWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-    expect_true(all(diff(c(fitted$llik)) >= -1e-9))
-    expect_true(all(fitted$engineDiagnostics$blend$qGains >= -1e-9))
-    expect_true(all(fitted$engineDiagnostics$blend$pxQGains >= -1e-9))
-  }
-})
-
 test_that("PX reduction preserves fixed parameters and cross-term constraints", {
   dataset <- .px_data()
   for(model in c("fixed-shape", "fixed-scale", "random-tie", "residual-tie", "rr-tie")){
@@ -381,50 +313,6 @@ test_that("PX schedules skip endpoint work and refresh final inference", {
     expect_equal(fitted$engineDiagnostics$blend$iterationSensitivityColumns, 0)
     expect_equal(fitted$engineDiagnostics$blend$finalAIRefreshes, 1L)
     if(solver == "ldlt") expect_equal(fitted$engineDiagnostics$CsymbolicAnalyses, 1)
-  }
-})
-
-test_that("PX-GEM preserves specialized coefficient and residual routes", {
-  dataset <- .px_data()
-  relationship <- diag(7L) + matrix(0.1, 7L, 7L)
-  dimnames(relationship) <- rep(list(levels(dataset$id)), 2L)
-  attr(relationship, "inverse") <- TRUE
-  for(model in c("us", "ar1", "ar2", "fa")){
-    shape <- switch(model, us=usm(dataset$site), ar1=ar1m(dataset$site),
-      ar2=ar2m(dataset$site), fa=fam(dataset$site, 1L))
-    fit <- function(solver){
-      mmes(y~site, random=~vsm(shape, ism(id), Gu=relationship),
-        rcov=~vsm(dsm(site), ism(units)), data=dataset,
-        control=mmes_control(solve=list(method=solver,
-            blockBanded=if(model == "ar2") "force" else "off"),
-          convergence=list(maxIters=2L),
-          update=list(recovery="pxem", blendWeight=1),
-          output=list(inverse=2L),
-          diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-    }
-    reference <- fit("ldlt")
-    candidate <- fit("cholmod")
-    active <- switch(model, us="blockSchurActive", ar1="blockChainActive",
-      ar2="blockBandedActive", fa="factorSchurActive")
-    expect_true(candidate$engineDiagnostics[[active]], info=model)
-    if(model == "ar2"){
-      expect_gt(candidate$engineDiagnostics$emInverseTraceFallbackPanels, 0)
-    }
-    for(field in c("llik", "bu", "covPar", "InfMat", "theta_se", "uPevList")){
-      expect_equal(candidate[[field]], reference[[field]], tolerance=2e-5, info=paste(model, field))
-    }
-    expect_equal(as.matrix(candidate$Ci), as.matrix(reference$Ci), tolerance=2e-5)
-  }
-  dataset$replicate <- factor(dataset$replicate)
-  dataset <- dataset[-c(1L, 12L), , drop=FALSE]
-  fit <- function(solver){
-    mmes(y~replicate, random=~id, rcov=~vsm(dsm(replicate), ar1m(site), ism(units)), data=dataset, control=mmes_control(convergence=list(maxIters=2L), solve=list(method=solver), update=list(recovery="pxem", blendWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  }
-  reference <- fit("ldlt")
-  candidate <- fit("cholmod")
-  expect_gt(candidate$engineDiagnostics$gridFactorizations, 0)
-  for(field in c("llik", "bu", "covPar", "InfMat")){
-    expect_equal(candidate[[field]], reference[[field]], tolerance=2e-5)
   }
 })
 

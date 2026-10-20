@@ -88,8 +88,8 @@ S3method("[", binm)
 ###########
   import("methods")
   import("Matrix")
-  import("MASS")
-  import("crayon")
+  importFrom("crayon", "red", "blue", "bgGreen", "bgRed", "bgWhite",
+             "bold", "magenta", "white", "yellow")
   import("enhancer")
 ############
 # IMPORTS

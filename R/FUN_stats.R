@@ -75,7 +75,8 @@ postPEV <- function(object, mode = 1L){
   precision
 }
 
-.mmes_prior_vcov <- function(object, D, precision=.mmes_random_precision(object)){
+.mmes_prior_vcov <- function(object, D, precision=.mmes_random_precision(object),
+                             factors=NULL){
   out <- matrix(0, nrow(D), nrow(D))
   for(index in seq_along(object$uList)){
     ranges <- object$partitions[[index]]
@@ -91,7 +92,9 @@ postPEV <- function(object, mode = 1L){
     blocks <- lapply(seq_len(nrow(ranges)), function(coordinate){
       D[,seq.int(ranges[coordinate,1], ranges[coordinate,2]),drop=FALSE]
     })
-    factor <- Matrix::Cholesky(Matrix::forceSymmetric(precision[[index]]), LDL=FALSE)
+    factor <- if(is.null(factors)){
+      Matrix::Cholesky(Matrix::forceSymmetric(precision[[index]]), LDL=FALSE)
+    }else factors[[index]]
     solved <- Matrix::solve(factor, do.call(cbind, lapply(blocks, t)), system="A")
     for(first in seq_along(blocks)){
       for(second in seq_along(blocks)){
@@ -103,16 +106,17 @@ postPEV <- function(object, mode = 1L){
   (out+t(out))/2
 }
 
+.mmes_vcov_solver <- function(object){
+  .mmes_require_coefficient_matrix(object)
+  factor <- mmes_vcov_factor_cpp(object)
+  function(D){
+    mmes_vcov_solve_cpp(factor, to_sparse(.mmes_engine_contrast(object, D)))
+  }
+}
+
 .mmes_henderson_vcov <- function(object, contrasts){
-  mapped <- lapply(contrasts, function(D) .mmes_engine_contrast(object, D))
-  sizes <- vapply(mapped, nrow, integer(1))
-  joint <- to_sparse(do.call(rbind, mapped))
-  covariance <- predict_mmes_vcov_cpp(object, joint)
-  offsets <- c(0L, cumsum(sizes))
-  lapply(seq_along(sizes), function(index){
-    rows <- offsets[index] + seq_len(sizes[index])
-    covariance[rows,rows,drop=FALSE]
-  })
+  solve <- .mmes_vcov_solver(object)
+  lapply(contrasts, solve)
 }
 
 postVarU <- function(object, mode=1L){
@@ -127,13 +131,16 @@ postVarU <- function(object, mode=1L){
     return(object)
   }
   precision <- .mmes_random_precision(object)
+  priorFactors <- lapply(precision, function(x)
+    Matrix::Cholesky(Matrix::forceSymmetric(x), LDL=FALSE))
+  solve <- .mmes_vcov_solver(object)
   nFixed <- nrow(object$b)
   nRandom <- nrow(object$bu)-nFixed
   diagonal <- numeric(nRandom)
   if(mode == 2L){
     D <- cbind(Matrix::Matrix(0, nRandom, nFixed, sparse=TRUE), Matrix::Diagonal(nRandom))
-    error <- .mmes_henderson_vcov(object, list(D))[[1L]]
-    object$VarU <- .mmes_prior_vcov(object, D, precision)-error
+    error <- solve(D)
+    object$VarU <- .mmes_prior_vcov(object, D, precision, priorFactors)-error
     labels <- unlist(lapply(seq_along(object$uList), function(index){
       effects <- object$uList[[index]]
       paste(names(object$uList)[index],
@@ -149,8 +156,8 @@ postVarU <- function(object, mode=1L){
       rows <- seq.int(start, min(start+127L, nRandom))
       D <- Matrix::sparseMatrix(i=seq_along(rows), j=nFixed+rows, x=1,
                                 dims=c(length(rows), nrow(object$bu)))
-      error <- .mmes_henderson_vcov(object, list(D))[[1L]]
-      diagonal[rows] <- diag(.mmes_prior_vcov(object, D, precision)-error)
+      error <- solve(D)
+      diagonal[rows] <- diag(.mmes_prior_vcov(object, D, precision, priorFactors)-error)
     }
   }
   object$uVarList <- lapply(seq_along(object$uList), function(index){
@@ -243,8 +250,9 @@ r2 <- function(object, object2=NULL){
     variance <- apply(data.frame(variance0),1,function(x){rep(x,nrow(pev))})
     if(!is.null(object2)){
       if(!is.null(object2$Ai)){
+        relationshipDiagonal <- diag(solve(object2$Ai[[iPart]]))
         for(iVar in 1:length(variance0)){ # if user provided A matrices we subsitute with more accurate values
-          variance[,iVar] <- variance0[iVar] * diag(solve(object2$Ai[[iPart]]))
+          variance[,iVar] <- variance0[iVar] * relationshipDiagonal
         }
       }else{
         stop("object2 needs to be a model that sets the argument 'returnParam=TRUE' so we can extract the relationship matrices. Please correct. ", call. = FALSE)

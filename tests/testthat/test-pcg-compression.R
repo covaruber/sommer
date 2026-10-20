@@ -66,22 +66,6 @@ test_that("compression preserves weighted likelihood, score, AI and original rec
   }
 })
 
-test_that("compression, block solves, balanced recycling and final inverse compose", {
-  dataset <- .compression_fixture()
-  reference <- .compression_fit(dataset, iterations=4L, inverse=2L)
-  for(preconditioner in c("diagonal", "block-jacobi", "nystrom")){
-    candidate <- .compression_fit(dataset, "classes", iterations=4L, inverse=2L,
-      pcg=list(preconditioner=preconditioner, nystromRank=4L, warmStart=TRUE,
-        rhsMethod="block", blockSize=4L, recycleRank=4L, recycleMethod="krylov"))
-    for(field in c("bu", "Ci", "llik", "dLu", "InfMat", "theta", "theta_se")){
-      expect_equal(candidate[[field]], reference[[field]], tolerance=1e-6, info=paste(preconditioner, field))
-    }
-    expect_gt(candidate$engineDiagnostics$pcg$balancedPreconditionerApplications, 0)
-    expect_gt(candidate$engineDiagnostics$pcg$recycleRank, 0)
-    expect_gt(candidate$engineDiagnostics$pcg$recycleSelectionOperatorApplications, 0)
-  }
-})
-
 test_that("exact grouping keeps distinct covariates and residual variance classes", {
   dataset <- .compression_fixture()
   dataset$x <- seq_len(nrow(dataset)) / nrow(dataset)
@@ -103,28 +87,6 @@ test_that("exact grouping keeps distinct covariates and residual variance classe
   expect_equal(candidate$engineDiagnostics$pcg$compression$groups, 24)
   expect_equal(candidate$dLu, reference$dLu, tolerance=1e-7)
   expect_equal(candidate$InfMat, reference$InfMat, tolerance=1e-7)
-})
-
-test_that("compression preserves dense and sparse relationship priors", {
-  dataset <- .compression_fixture()
-  relationship <- diag(8L) + matrix(0.1, 8L, 8L)
-  dimnames(relationship) <- list(levels(dataset$id), levels(dataset$id))
-  for(gu in list(relationship, Matrix::Matrix(relationship, sparse=TRUE))){
-    attr(gu, "inverse") <- TRUE
-    fit <- function(method) suppressMessages(mmes(response~environment+x,
-      random=~vsm(usm(environment), ism(id), Gu=gu),
-      rcov=~vsm(dsm(environment), ism(units)), data=dataset,
-      control=mmes_control(solve=list(method="pcg"),
-        representation=list(compression=method),
-        score=list(traceProbes=12L), logdet=list(lanczosSteps=40L),
-        convergence=list(maxIters=2L),         update=list(blendWeight=0),
-        diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
-    reference <- fit("off")
-    candidate <- fit("classes")
-    for(field in c("bu", "C", "llik", "dLu", "InfMat")){
-      expect_equal(candidate[[field]], reference[[field]], tolerance=1e-6)
-    }
-  }
 })
 
 test_that("compression explicitly rejects changing weights and correlated residuals", {

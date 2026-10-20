@@ -68,7 +68,8 @@ int main() {
   assert(policy.negligibleGains == 0 && policy.difficultSteps == 0);
   SparseMatrix matrix(4, 4);
   matrix.setIdentity();
-  matrix.coeffRef(1, 0) = matrix.coeffRef(0, 1) = 0.2;
+  matrix.coeffRef(1, 0) = 0.2;
+  matrix.coeffRef(0, 1) = 0.2;
   matrix.makeCompressed();
   std::vector<int> outer, inner;
   assert(!sommer::eigenSparsePatternMatches(matrix, outer, inner));
@@ -103,7 +104,8 @@ int main() {
 
   SparseMatrix changed(4, 4);
   changed.setIdentity();
-  changed.coeffRef(2, 0) = changed.coeffRef(0, 2) = 0.1;
+  changed.coeffRef(2, 0) = 0.1;
+  changed.coeffRef(0, 2) = 0.1;
   changed.makeCompressed();
   assert(changed.nonZeros() == matrix.nonZeros());
   assert(!sommer::eigenSparsePatternMatches(changed, outer, inner));

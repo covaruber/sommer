@@ -11,6 +11,8 @@
 #include "mme_pcg.h"
 #include "mme_pcg_estimators.h"
 #include "mme_sufficient.h"
+#include "mme_layout.h"
+#include "mme_progress.h"
 #include <mutex>
 #include <numeric>
 #include <unordered_set>
@@ -327,22 +329,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   execution.profile = parseExpMode("profile", "sommer.mme.profile", sommer::control::Mode::Off);
   const std::string profileMode = sommer::control::modeName(execution.profile);
   sommer::PhaseProfile phaseProfile(execution.profile == sommer::control::Mode::Force);
-  struct ProfileTimer {
-    double * elapsedSeconds;
-    std::chrono::steady_clock::time_point started;
-    ProfileTimer(double & elapsed, bool enabled)
-      : elapsedSeconds(enabled ? &elapsed : nullptr),
-        started(enabled ? std::chrono::steady_clock::now()
-                        : std::chrono::steady_clock::time_point()) {}
-    void stop(){
-      if(elapsedSeconds != nullptr){
-        *elapsedSeconds += std::chrono::duration<double>(
-          std::chrono::steady_clock::now() - started).count();
-        elapsedSeconds = nullptr;
-      }
-    }
-    ~ProfileTimer(){ stop(); }
-  };
+  using sommer::ProfileTimer;
   double traceDerivativePreparationSeconds = 0.0;
   double traceRandomPrecisionDerivativeSeconds = 0.0;
   double traceFactorCovarianceDerivativeSeconds = 0.0;
@@ -1071,44 +1058,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   // CHANGE 1: cache objects that never change across iterations
   // ============================================================
 
-  // W = [X Z] is constant.
-  {
-    std::vector<Eigen::Triplet<double>> Wtriplets;
-    const Eigen::SparseMatrix<double> Xeig = armaSparseToEigenGlobal(X);
-    Wtriplets.reserve(
-      static_cast<std::size_t>(Xeig.nonZeros())
-    );
-    for(int col = 0; col < Xeig.outerSize(); ++col){
-      for(Eigen::SparseMatrix<double>::InnerIterator it(Xeig, col); it; ++it){
-        Wtriplets.emplace_back(
-          static_cast<int>(it.row()),
-          static_cast<int>(it.col()),
-          it.value()
-        );
-      }
-    }
-    int columnOffset = static_cast<int>(Xeig.cols());
-    if(nZs > 0){
-      for(int i = 0; i < nZs; ++i){
-        const Eigen::SparseMatrix<double> Zeig = armaSparseToEigenGlobal(Z(i));
-        Wtriplets.reserve(
-          Wtriplets.size() + static_cast<std::size_t>(Zeig.nonZeros())
-        );
-        for(int col = 0; col < Zeig.outerSize(); ++col){
-          for(Eigen::SparseMatrix<double>::InnerIterator it(Zeig, col); it; ++it){
-            Wtriplets.emplace_back(
-              static_cast<int>(it.row()),
-              columnOffset + static_cast<int>(it.col()),
-              it.value()
-            );
-          }
-        }
-        columnOffset += static_cast<int>(Zeig.cols());
-      }
-    }
-    W.setFromTriplets(Wtriplets.begin(), Wtriplets.end());
-    W.makeCompressed();
-  }
+  sommer::assembleMMEDesign(W, X, Z, nZs);
 
   std::vector<Eigen::SparseMatrix<double>> AiEigenCache(
     static_cast<std::size_t>(nRe)

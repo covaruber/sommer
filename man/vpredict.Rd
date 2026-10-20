@@ -28,10 +28,14 @@ vpredict(object, transform)
   
   The delta method (e.g., Lynch and Walsh 1998, Appendix 1; Ver Hoef 2012) uses
   a Taylor series expansion to approximate the moments of a function of
-  parameters. Here, a second-order Taylor series expansion is implemented to
-  approximate the standard error for a function of (co)variance parameters.
+  parameters. A first-order delta-method approximation is used for the
+  standard error of a function of (co)variance parameters.
   Partial first derivatives of the function are calculated by algorithmic
   differentiation with \code{\link[stats]{deriv}}.
+  Estimates use the stored native-scale covariance parameter table, and
+  uncertainty uses its full covariance matrix, including covariance between
+  different fitted terms. Parameters with zero derivatives do not contribute
+  uncertainty to the requested transformation.
 
 Though \code{vpredict} can calculate standard errors for non-linear functions
   of (co)variance parameters from a fitted \code{mmes} model, it is limited

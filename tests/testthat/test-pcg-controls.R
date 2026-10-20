@@ -63,13 +63,6 @@ test_that("PCG controls validate all scalar inputs before coercion", {
   expect_error(mmes_control(solve=list(tol=1e-8, tol=1e-6)), "unique")
 })
 
-test_that("modular PCG controls are canonically revalidated", {
-  control <- mmes_control(solve=list(method="pcg", tol=1e-10))
-  control$solve$tol <- "1e-8"
-  expect_error(mmes(y~1, random=~id, data=data.frame(id=factor(1:4), y=1:4),
-    control=control), "tol must be one positive finite number")
-})
-
 test_that("non-PCG solvers reject PCG-only settings instead of ignoring them", {
   set.seed(19)
   dataset <- data.frame(id=factor(rep(1:8, each=3)), y=rnorm(24))

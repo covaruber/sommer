@@ -1,4 +1,0 @@
-"model","heldout_cells","log_RMSE","admitted","admitted_losses_over_10pct","worst_admitted","missed_wins_over_20pct"
-"fill_only",108,0.725063154113653,29,4,0.463208395802113,5
-"main_effects",108,0.605333970097252,42,1,0.89716748768486,1
-"two_factor",108,0.42989584174376,40,1,0.89716748768486,2

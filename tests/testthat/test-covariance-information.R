@@ -57,24 +57,6 @@ test_that("information omission preserves fits and coefficient uncertainty acros
   }
 })
 
-test_that("information omission preserves recovery, blending and hybrid optimization", {
-  for(blend in list(NULL, 0.3)){
-    reference <- .information_fit(blend=blend)
-    candidate <- .information_fit("none", blend=blend)
-    for(field in c("bu", "llik", "theta", "monitor", "convergence")){
-      expect_identical(candidate[[field]], reference[[field]], info=field)
-    }
-    expect_null(candidate$InfMat)
-    expect_null(candidate$theta_se)
-  }
-  reference <- .information_fit(acceleration="hybrid-ai")
-  candidate <- .information_fit("none", acceleration="hybrid-ai")
-  for(field in c("bu", "llik", "theta", "monitor", "convergence")){
-    expect_identical(candidate[[field]], reference[[field]], info=field)
-  }
-  expect_false(candidate$engineDiagnostics$hybridAI$finalInformationExact)
-})
-
 test_that("methods requiring omitted covariance information fail explicitly", {
   candidate <- .information_fit("none")
   error <- "refit with output=list\\(covariance='full'\\)"

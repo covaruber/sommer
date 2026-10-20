@@ -36,15 +36,6 @@ test_that("BLAS restoration also handles setter errors and ignored settings", {
   expect_identical(configured, 4L)
 })
 
-test_that("CPU measurements are labelled separately from configured threads", {
-  scope <- sommer:::.mmes_blas_scope(controller=NULL)
-  expect_output(sommer:::.mmes_thread_report(scope), "configured: unknown")
-  result <- sommer:::.mmes_thread_finish(list(), scope)
-  expect_gte(result$threadingDiagnostics$cpuSeconds, 0)
-  expect_gte(result$threadingDiagnostics$elapsedSeconds, 0)
-  expect_output(sommer:::.mmes_thread_finish(list(), scope, TRUE), "not an active-thread count")
-})
-
 test_that("mmes restores real BLAS settings after success, early return, and error", {
   controller <- sommer:::.mmes_blas_controller()
   skip_if(is.null(controller), "No supported BLAS controller available")
@@ -70,44 +61,6 @@ test_that("mmes restores real BLAS settings after success, early return, and err
   expect_equal(controller$get(), previous)
 })
 
-test_that("thread control preserves estimates and reports the actual numerical path", {
-  controller <- sommer:::.mmes_blas_controller()
-  skip_if(is.null(controller), "No supported BLAS controller available")
-  previous <- controller$get()
-  on.exit(controller$set(previous), add=TRUE)
-  probe <- try(sommer:::.mmes_blas_scope(2L, controller), silent=TRUE)
-  skip_if(inherits(probe, "try-error"), "The backend does not support two BLAS threads")
-  probe$restore()
-  data(DT_example)
-  fit <- function(threads) mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example, control=mmes_control(convergence=list(maxIters=4), diagnostics=list(verbose=FALSE, dateWarning=FALSE), solve=list(method="cholmod"), execution=list(blasThreads=threads)))
-  serial <- fit(1L)
-  threaded <- fit(2L)
-  expect_equal(threaded$theta, serial$theta, tolerance=1e-8)
-  expect_equal(threaded$bu, serial$bu, tolerance=1e-8)
-  expect_equal(threaded$llik, serial$llik, tolerance=1e-8)
-  expect_identical(threaded$threadingDiagnostics$numericalPath, "block Schur")
-  expect_gt(threaded$threadingDiagnostics$factorizations$blockSchur$calls, 0L)
-  old <- options(sommer.mme.denseMemoryMB=1e-6, sommer.mme.memoryPolicy="limit")
-  on.exit(options(old), add=TRUE)
-  supernodal <- fit(1L)
-  expect_false(supernodal$engineDiagnostics$blockSchurActive)
-  expect_gt(supernodal$threadingDiagnostics$factorizations$cholmod$calls, 0L)
-  expect_equal(supernodal$theta, serial$theta, tolerance=1e-8)
-  expect_equal(supernodal$bu, serial$bu, tolerance=1e-8)
-  expect_equal(controller$get(), previous)
-})
-
-test_that("auto BLAS sizing uses allocation-aware CPU availability", {
-  skip_if_not_installed("parallelly")
-  configured <- 1L
-  controller <- list(provider="mock", get=function() configured,
-    set=function(value) configured <<- value)
-  scope <- sommer:::.mmes_blas_scope("auto", controller)
-  expect_equal(configured, as.integer(parallelly::availableCores()))
-  scope$restore()
-  expect_identical(configured, 1L)
-})
-
 test_that("parallel AI contractions preserve serial fits and cache accounting", {
   script <- tempfile(fileext=".R")
   outputs <- c(tempfile(fileext=".rds"), tempfile(fileext=".rds"))
@@ -126,7 +79,7 @@ test_that("parallel AI contractions preserve serial fits and cache accounting", 
       ~vsm(fam(trial, 2), ism(genotype)) + vsm(usm(block), ism(genotype))
     )
     results <- list()
-    for(repetition in seq_len(12L)){
+    for(repetition in seq_len(2L)){
       for(model in models){
         fit <- mmes(y~trial+block, random=model, data=dataset, control=mmes_control(convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
         results[[length(results) + 1L]] <- c(

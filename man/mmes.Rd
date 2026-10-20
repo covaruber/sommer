@@ -529,11 +529,11 @@ MMT <- MMT + diag(1e-05, ncol(MMT), ncol(MMT))
 rg <- enhancer::simGECorMat(nEnvs, 1, mu=0.2, v=0.2)
 rg <- Matrix::nearPD(rg)$mat
 rg # desired genetic correlation
-u <- mvrnorm(n = nMarks, rep(0, nEnvs), Sigma=rg) # marker effects
+u <- MASS::mvrnorm(n = nMarks, rep(0, nEnvs), Sigma=rg) # marker effects
 g <- crossprod(t(M),u) # genetic values
 h2 <- 0.2  #heritability 
 envEffect <- rnorm(nEnvs, mean = abs(rnorm(1))) # environment means
-e <- mvrnorm(n = nInds, envEffect, Sigma=(1-h2)/h2*diag(diag(var(g)))) # errors
+e <- MASS::mvrnorm(n = nInds, envEffect, Sigma=(1-h2)/h2*diag(diag(var(g)))) # errors
 p = g + e # phenotypes
 y <- as.vector(p) # phenotypes as vector
 env <- sort(rep(paste0("e",1:nEnvs), nrow(g))) # environment labels

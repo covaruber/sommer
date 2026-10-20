@@ -1,5 +1,13 @@
 # `ai_mme_sp2`: Prioritized Improvement Roadmap
 
+**Archive notice (2026-10-20):** benchmark scripts, installed libraries and
+result files cited below were removed during package consolidation. These are
+historical measurements, not runnable checkout paths. Current regression
+coverage lives in `tests/`; use `benchmarks/run.R` for the essential performance
+suite and `CONTRIBUTING.md` for the current architecture and validation commands.
+Direct fitting and known-covariance solving now live in `src/mme_direct.cpp`
+and `src/mme_solve.cpp`, not `src/MNR.cpp`.
+
 **Target:** `src/ai_mme_sp2.cpp` (`ai_mme_sp2`; shared support in `src/mme_sp2_support.h`)
 **Status reconciled:** local working tree, 2026-10-18. Historical measurements
 below retain their original dates and baselines; implemented does not mean

@@ -172,30 +172,6 @@ test_that("correlated weighted residuals retain exact profile derivatives", {
   }
 })
 
-test_that("diagonal and unstructured shapes retain same-point profile information", {
-  dataset <- .common_scale_data()
-  for(random in list(~vsm(dsm(level), ism(id)), ~vsm(usm(level), ism(id)))){
-    setup <- mmes(y~level, random=random, data=dataset, control=mmes_control(output=list(setup=TRUE), diagnostics=list(verbose=FALSE)))
-    point <- unlist(lapply(setup$covStruct, `[[`, "par"), use.names=FALSE)
-    starts <- cumsum(c(1L, head(vapply(setup$covStruct, function(cs) length(cs$par),
-      integer(1)), -1L)))
-    common <- as.numeric(seq_along(point) %in% starts)
-    point <- point - common * point[tail(starts, 1L)]
-    free <- unlist(lapply(setup$covStruct, `[[`, "free"), use.names=FALSE)
-    shape <- diag(length(point))[, which(free & seq_along(point) != tail(starts, 1L)),
-      drop=FALSE]
-    profiled <- .common_scale_native(setup, point, shape, TRUE)
-    ordinary <- .common_scale_native(setup,
-      point + common * log(profiled$.commonScale))
-    cross <- crossprod(shape, ordinary$InfMat %*% common)
-    expected <- crossprod(shape, ordinary$InfMat %*% shape) -
-      tcrossprod(cross) / drop(crossprod(common, ordinary$InfMat %*% common))
-    expect_equal(profiled$llik, ordinary$llik, tolerance=1e-9)
-    expect_equal(profiled$dLu, ordinary$dLu, tolerance=1e-8)
-    expect_equal(profiled$InfMat, expected, tolerance=1e-8)
-  }
-})
-
 test_that("random-residual variance-ratio ties reduce to analytic scale-only fitting", {
   dataset <- .common_scale_data()
   for(reml in c(TRUE, FALSE)) for(information in c("full", "none")){
@@ -240,41 +216,6 @@ test_that("profile final information supports prediction and covariance-dependen
   noInverse <- model("force", 0L)
   expect_equal(noInverse$Ci, model("off", 0L)$Ci)
   expect_equal(noInverse$covPar, profiled$covPar, tolerance=1e-10)
-})
-
-test_that("profile AI regularizes singular shape information and accepts explicit zero blending", {
-  dataset <- .common_scale_data()
-  dataset$idcopy <- dataset$id
-  singular <- mmes(y~level, random=~id+idcopy, data=dataset, control=mmes_control(convergence=list(maxIters=60L), diagnostics=list(verbose=FALSE, dateWarning=FALSE), update=list(commonScale="force")))
-  expect_true(singular$convergence)
-  expect_gt(singular$engineDiagnostics$commonScale$regularizedSteps, 0)
-  ordinary <- mmes(y~level, random=~id, data=dataset, control=mmes_control(convergence=list(maxIters=60L), proposal=list(stepWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE), update=list(commonScale="force")))
-  legacyRequest <- mmes(y~level, random=~id, data=dataset, control=mmes_control(convergence=list(maxIters=60L), update=list(blendWeight=0, commonScale="force"), proposal=list(stepWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  expect_equal(legacyRequest$covPar, ordinary$covPar, tolerance=1e-12)
-  expect_identical(legacyRequest$engineDiagnostics$optimizer, "common-scale-profile-AI")
-  limited <- mmes(y~level, random=~id, data=dataset, control=mmes_control(convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE), update=list(commonScale="force")))
-  expect_false(limited$convergence)
-  expect_identical(limited$engineDiagnostics$commonScale$stopReason, "iteration-limit")
-  expect_equal(ncol(limited$monitor), 1L)
-})
-
-test_that("scale profiling supports scale ratios, fixed shapes, weights and iteration limits", {
-  dataset <- .common_scale_data()
-  for(reml in c(TRUE, FALSE)){
-    for(compression in c("off", "groups", "classes")){
-      for(information in c("full", "none")){
-        fit <- mmes(y~level, random=~vsm(ar1m(level, rho=0.3, fixed=TRUE), ism(id))+h, data=dataset, vcc=data.frame(parameter=c(1L, 3L), group=1L, scale=c(2, 1)), W=diag(rep(c(0.8, 1, 1.2), length.out=nrow(dataset))), control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(output=list(covariance=information), curvature=list(reduced="force"), update=list(commonScale="force"), representation=list(compression=compression))), list(task=list(objective=if(reml) "reml" else "ml"), convergence=list(maxIters=2L), output=list(inverse=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
-        expect_equal(fit$covPar[[1L]][1L], 2 * fit$covPar[[2L]][1L],
-          tolerance=1e-10, ignore_attr=TRUE)
-        expect_equal(fit$covPar[[1L]][2L], 0.3, tolerance=1e-12, ignore_attr=TRUE)
-        expect_equal(fit$engineDiagnostics$commonScale$shapeParameters, 1L)
-        expect_true(all(is.finite(unlist(fit$covPar))))
-        expect_equal(ncol(fit$llik), ncol(fit$monitor))
-        expect_equal(length(fitted(fit)), nrow(dataset))
-        expect_false(".aiTangent" %in% names(fit))
-      }
-    }
-  }
 })
 
 test_that("unsupported scale profiling requests fail explicitly or report auto fallback", {

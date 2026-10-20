@@ -34,12 +34,14 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
                unname(fit_fa$theta[[term_fa]]), tolerance=1e-6)
 
   scores_fa <- scores_mmes(fit_fa, term_fa, varianceScale = FALSE, rotation = FALSE)
-  expect_equal(dim(scores_fa), c(24L, 2L))
-  expect_true(all(is.finite(scores_fa)))
+  blups <- fit_fa$uList[[term_fa]][, rownames(fa$loadings), drop=FALSE]
+  expect_equal(scores_fa, blups %*% solve(fit_fa$theta[[term_fa]], fa$loadings),
+               tolerance=1e-8)
 
   scores_fa_bartlett <- scores_mmes(fit_fa, term_fa, method="bartlett", varianceScale = FALSE, rotation = FALSE)
-  expect_equal(dim(scores_fa_bartlett), c(24L, 2L))
-  expect_true(all(is.finite(scores_fa_bartlett)))
+  weights <- diag(1 / (fa$sigma2 * fa$specific))
+  expect_equal(scores_fa_bartlett, blups %*% weights %*% fa$loadings %*%
+    solve(crossprod(fa$loadings, weights %*% fa$loadings)), tolerance=1e-8)
 
   fit_rr <- mmes(BLUEs ~ trial, random=~vsm(rrm(trial, 1), ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=20), diagnostics=list(verbose=FALSE)))
 
@@ -74,7 +76,7 @@ test_that("loadings_mmes gives an informative error for unsupported terms", {
     trial=factor(paste0("C", seq_len(4L))),
     genotype=factor(paste0("G", seq_len(10L)))
   )
-  data$BLUEs <- rnorm(nrow(data))
+  data$BLUEs <- sin(seq_len(nrow(data)))
 
   fit <- mmes(BLUEs ~ trial, random=~vsm(ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE)))
 

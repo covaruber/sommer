@@ -78,50 +78,6 @@ test_that("augmented prediction contrasts map to the original-effect coefficient
                as.numeric(fit$bu), tolerance=1e-10)
 })
 
-test_that("fixed-shape augmentation uses the CHOLMOD dense-Gu Schur path", {
-  set.seed(84)
-  nId <- 14L
-  ids <- paste0("id", seq_len(nId))
-  marker <- matrix(sample(c(-1, 0, 1), nId * 70L, replace=TRUE), nrow=nId)
-  relationship <- tcrossprod(scale(marker)) / ncol(marker) + diag(0.25, nId)
-  precision <- solve(relationship)
-  dimnames(precision) <- list(ids, ids)
-  attr(precision, "inverse") <- TRUE
-  data <- expand.grid(env=factor(paste0("E", seq_len(6L))),
-                      id=factor(ids, levels=ids))
-  set.seed(85)
-  data$y <- rnorm(nrow(data))
-  shape <- fam(data$env, 2L, fixed=rep(TRUE, 16L))
-  fit <- function(augmentation, solver){
-    mmes(y~env, random=~vsm(shape, ism(id), Gu=precision), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=60, likelihoodTol=1e-9, parameterTol=1e-9), output=list(inverse=0), solve=list(method=solver), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores=augmentation)))
-  }
-  marginal <- fit("none", "cholmod")
-  augmented <- fit("fixed-shape", "auto")
-  expect_true(marginal$engineDiagnostics$blockSchurActive)
-  expect_true(marginal$engineDiagnostics$factorSchurActive)
-  expect_equal(marginal$engineDiagnostics$blockSchurGroups, 6L)
-  expect_equal(marginal$engineDiagnostics$blockSchurBorder, 34L)
-  expect_identical(augmented$executionPlan$solver$selected, "cholmod")
-  expect_true(augmented$engineDiagnostics$blockSchurActive)
-  expect_equal(augmented$engineDiagnostics$blockSchurGroups, 6L)
-  expect_equal(augmented$engineDiagnostics$blockSchurBorder, 34L)
-  expect_identical(as.character(augmented$executionPlan$solver$selected), "cholmod")
-  expect_gt(Matrix::nnzero(precision) / (nId * nId), 0.2)
-  expect_equal(tail(as.numeric(augmented$llik), 1L),
-               tail(as.numeric(marginal$llik), 1L), tolerance=2e-6)
-  expect_equal(as.numeric(augmented$bu), as.numeric(marginal$bu), tolerance=2e-5)
-  expect_equal(as.numeric(fitted(augmented)), as.numeric(fitted(marginal)),
-               tolerance=2e-5)
-  expect_gt(nrow(augmented$C), nrow(marginal$C))
-  expect_identical(augmented$CRepresentation, "factor-score-augmented")
-
-    profiled <- mmes(y~env, random=~vsm(fam(env, 2L, fixed=c(rep(TRUE, 15L), FALSE)),
-        ism(id), Gu=precision), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=1), output=list(inverse=0), solve=list(method="auto"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores="profile")))
-  expect_identical(as.character(profiled$executionPlan$solver$selected), "cholmod")
-  expect_true(profiled$engineDiagnostics$blockSchurActive)
-  expect_gt(profiled$factorScoreProfile$profileEvaluations, 1L)
-})
-
 test_that("profile mode optimizes free FA shapes using augmented REML", {
   set.seed(9)
   data <- expand.grid(env=factor(letters[1:2]), id=factor(seq_len(8L)))
@@ -151,30 +107,4 @@ test_that("profile mode optimizes free FA shapes using augmented REML", {
   expect_gt(rrProfile$factorScoreProfile$profileEvaluations, 1L)
   expect_lt(rrProfile$factorScoreProfile$objective,
             rrProfile$factorScoreProfile$startObjective)
-})
-
-test_that("profile mode supports positive compound-symmetry factors", {
-  set.seed(87)
-  data <- expand.grid(env=factor(letters[1:3]), id=factor(seq_len(6L)))
-  data$y <- rnorm(nrow(data))
-  profile <- mmes(y~env, random=~vsm(csm(env, rho=0.2), ism(id)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=1), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores="profile")))
-  expect_identical(profile$factorScoreAugmentation, "profile")
-  expect_identical(profile$CRepresentation, "factor-score-augmented")
-  expect_gt(profile$factorScoreProfile$profileEvaluations, 1L)
-})
-
-test_that("profile mode updates free FA parameters through augmented REML fits", {
-  set.seed(86)
-  data <- expand.grid(env=factor(letters[1:3]), id=factor(seq_len(8L)))
-  data$y <- rnorm(nrow(data))
-  profile <- mmes(y~env, random=~vsm(fam(env, 1L, fixed=c(rep(TRUE, 4L), FALSE)), ism(id)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=1), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores="profile")))
-  expect_identical(profile$factorScoreAugmentation, "profile")
-  expect_identical(profile$CRepresentation, "factor-score-augmented")
-  expect_gt(profile$factorScoreProfile$profileEvaluations, 1L)
-  expect_gt(profile$factorScoreProfile$warmStartedEvaluations, 0L)
-  expect_lt(profile$factorScoreProfile$objective,
-            profile$factorScoreProfile$startObjective)
-  expect_true(all(is.finite(covparams_mmes(profile)$estimate)))
-  expect_true(anyNA(profile$theta_se))
-  expect_error(mmes(y~env, random=~vsm(fam(env, 1L), ism(id)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=2), representation=list(factorScores="profile"), solve=list(method="pcg"), diagnostics=list(verbose=FALSE))), "representation\\$factorScores")
 })

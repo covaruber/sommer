@@ -13,6 +13,24 @@
 
 namespace sommer {
 
+class ProfileTimer {
+  double * elapsedSeconds;
+  std::chrono::steady_clock::time_point started;
+public:
+  ProfileTimer(double & elapsed, bool enabled)
+    : elapsedSeconds(enabled ? &elapsed : nullptr),
+      started(enabled ? std::chrono::steady_clock::now()
+                      : std::chrono::steady_clock::time_point()) {}
+  void stop(){
+    if(elapsedSeconds != nullptr){
+      *elapsedSeconds += std::chrono::duration<double>(
+        std::chrono::steady_clock::now() - started).count();
+      elapsedSeconds = nullptr;
+    }
+  }
+  ~ProfileTimer(){ stop(); }
+};
+
 class MMEProgress {
   std::chrono::steady_clock::time_point started = std::chrono::steady_clock::now();
   std::vector<int> widths;

@@ -1,11 +1,11 @@
 # Run from the repository root. Set TMPDIR to a directory inside the repository
 # when the environment restricts compiler scratch files.
-local({
-  cache <- "tests/native/.mme-control-cache"
+(function(){
+  cache <- tempfile("sommer-control-cache-")
   on.exit(unlink(cache, recursive = TRUE), add = TRUE)
   Rcpp::sourceCpp("tests/native/test-mme-control-transport.cpp",
                   cacheDir = cache, showOutput = FALSE)
-  old <- options(c("sommer.mme.testMode", "sommer.mme.memoryPolicy"))
+  old <- options("sommer.mme.testMode", "sommer.mme.memoryPolicy")
   on.exit(options(old), add = TRUE)
   descriptor <- list()
   fails <- function(expr, message) {
@@ -72,4 +72,4 @@ local({
   options(sommer.mme.memoryPolicy = TRUE)
   fails(control_memory_probe(descriptor), "memoryPolicy must be 'speed' or 'limit'.")
   cat("Native control transport tests passed.\n")
-})
+})()

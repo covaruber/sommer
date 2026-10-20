@@ -22,6 +22,9 @@ The fitted \code{theta_se} matrix describes uncertainty in the reported
 \code{covparams_mmes_se} numerically evaluates the Jacobian of its descriptor's
 native reporting callback and applies the multivariate delta method,
 \deqn{V_{native} = J V_{covPar} J^{\mathsf T}.}
+The Jacobian is assembled jointly for all selected terms, preserving
+cross-term covariance in the returned \code{vcov} attribute rather than
+assuming that terms are independent.
 Consequently, coupled transformations use the complete covariance information.
 For example, the standard error of a \code{dsm()} level variance accounts for
 uncertainty and covariance in both the overall variance and its variance ratio.
@@ -37,6 +40,8 @@ sampling uncertainty: their rows and columns in \code{theta_se} are excluded
 before transformation. A native quantity involving both fixed and free
 parameters can still have a nonzero standard error through its free parameters.
 Both fixed and estimated native quantities are returned.
+Unavailable uncertainty affects only native quantities that depend on the
+corresponding parameters, not independent reported terms.
 
 The same table is stored automatically in \code{object$covParNativeSE} by
 \code{mmes()}.
@@ -45,6 +50,8 @@ The same table is stored automatically in \code{object$covParNativeSE} by
 A data frame containing \code{term}, \code{factor}, \code{parameter},
 \code{estimate}, \code{StdError}, and \code{Zratio}. A zero standard error is
 reported for a fully fixed native quantity, with \code{Zratio=NA}.
+The \code{vcov} attribute contains the full native-scale covariance matrix in
+the same order as the returned rows, including covariance between terms.
 }
 \examples{
 \dontrun{

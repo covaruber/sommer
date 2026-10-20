@@ -174,27 +174,56 @@ mme_workload_grid <- function(structures = c("ar1", "us", "diag"),
       reml = reml,
       computeCi = row$computeCi
     )
+    if(length(unique(computeCi)) > 1L){
+      wl$name <- paste0(wl$name, "_Ci", row$computeCi)
+    }
     workloads[[wl$name]] <- wl
   }
   workloads
 }
 
+.mme_benchmark_row <- function(workload, name, engine, fit=NULL,
+                                elapsed=NA_real_, parity=NA, difference=NA_real_,
+                                error=NA_character_){
+  diagnostics <- fit$engineDiagnostics
+  data.frame(workload=name, structure=workload$dimensions$structure,
+    n_levels=workload$dimensions$n_levels, n_ind=workload$dimensions$n_ind,
+    relationship=workload$dimensions$relationship, engine=engine,
+    elapsed_sec=elapsed,
+    iterations=if(is.null(fit$monitor)) NA_integer_ else ncol(fit$monitor),
+    converged=isTRUE(fit$convergence),
+    blockSchurActive=isTRUE(diagnostics$blockSchurActive),
+    blockBandedActive=isTRUE(diagnostics$blockBandedActive),
+    factorSchurActive=isTRUE(diagnostics$factorSchurActive),
+    parity_ok=parity, max_rel_diff=difference, error=error,
+    .mme_profile_columns(diagnostics), stringsAsFactors=FALSE)
+}
+
+.mme_benchmark_difference <- function(fit, reference){
+  relative <- function(candidate, baseline){
+    if(!length(candidate) || length(candidate) != length(baseline) ||
+       any(!is.finite(candidate)) || any(!is.finite(baseline))) return(Inf)
+    max(abs(candidate - baseline) / (abs(baseline) + 1))
+  }
+  max(relative(tail(as.numeric(fit$llik), 1L), tail(as.numeric(reference$llik), 1L)),
+      relative(unlist(fit$theta, use.names=FALSE), unlist(reference$theta, use.names=FALSE)),
+      relative(as.numeric(fit$bu), as.numeric(reference$bu)))
+}
+
 #' Run Experimental MME Benchmark Suite
 #'
-#' Executes a battery of workloads across candidate solver engines, measuring wall-clock time,
-#' iterations, peak memory (if available), active numerical paths, and asserting numerical parity.
-#'
+#' Executes workloads across solver engines, recording elapsed time, convergence,
+#' active numerical paths and numerical parity.
 #' @param workloads A list of \code{mme_workload} objects (or a single workload).
-#' @param engines A named list of \code{\link{mmes_control}} objects. Defaults to comparing
-#'   \code{baseline} (standard auto solver) against candidate experimental toggles.
-#' @param replications Number of timed repetitions (warmup run excluded). Default is 3.
-#' @param verifyParity Logical; whether to assert that experimental candidates match the reference
-#'   engine in likelihood, variance components, and BLUPs. Default is TRUE.
-#' @param tolerance Numerical tolerance for parity verification. Default is 1e-5.
-#' @param nIters Maximum REML/ML iterations for benchmark fits. Default is 5.
-#' @param verbose Logical; whether to print progress. Default is TRUE.
-#'
-#' @return An object of class \code{"sommer_mme_benchmark"}.
+#' @param engines A named list of \code{\link{mmes_control}} objects.
+#' @param replications Positive number of timed repetitions, excluding warmup.
+#' @param verifyParity Whether to compare candidates against the first engine.
+#' @param tolerance Positive relative tolerance for parity verification.
+#' @param nIters Maximum REML/ML iterations for benchmark fits.
+#' @param verbose Whether to print progress.
+#' @return A \code{sommer_mme_benchmark} object. Failed runs retain the same
+#'   result columns with an error message. Parity is \code{NA} when not checked
+#'   or when the reference failed; comparisons use final likelihoods and estimates.
 #' @export
 run_mme_benchmark <- function(workloads,
                               engines = NULL,
@@ -203,6 +232,8 @@ run_mme_benchmark <- function(workloads,
                               tolerance = 1.0e-5,
                               nIters = 5L,
                               verbose = TRUE){
+  replications <- .mme_positive(replications, "replications", integer=TRUE)
+  tolerance <- .mme_positive(tolerance, "tolerance")
   if(inherits(workloads, "mme_workload")){
     workloads <- list(workloads)
     names(workloads) <- workloads[[1L]]$name
@@ -245,37 +276,34 @@ run_mme_benchmark <- function(workloads,
 
       if(!is.null(warm_fit$error)){
         if(verbose) message(crayon::red(paste("FAILED:", warm_fit$error)))
-        results[[length(results) + 1L]] <- data.frame(
-          workload = wl_name,
-          structure = wl$dimensions$structure,
-          n_levels = wl$dimensions$n_levels,
-          n_ind = wl$dimensions$n_ind,
-          relationship = wl$dimensions$relationship,
-          engine = eng_name,
-          elapsed_sec = NA_real_,
-          iterations = NA_integer_,
-          converged = FALSE,
-          error = warm_fit$error,
-          stringsAsFactors = FALSE
-        )
+        results[[length(results) + 1L]] <-
+          .mme_benchmark_row(wl, wl_name, eng_name, error=warm_fit$error)
         next
       }
 
       # Timed replications
-      reps <- max(1L, as.integer(replications))
+      reps <- replications
       times <- numeric(reps)
       last_fit <- warm_fit
 
       for(r in seq_len(reps)){
         t0 <- proc.time()
-        last_fit <- mmesFn(fixed = wl$fixed, random = wl$random, rcov = wl$rcov, data = wl$data,
-                           control = ctrl)
+        last_fit <- tryCatch(
+          mmesFn(fixed=wl$fixed, random=wl$random, rcov=wl$rcov, data=wl$data,
+                 control=ctrl),
+          error=function(e) list(error=conditionMessage(e)))
+        if(!is.null(last_fit$error)) break
         t1 <- proc.time()
         times[r] <- (t1 - t0)[3L]
       }
+      if(!is.null(last_fit$error)){
+        if(verbose) message(crayon::red(paste("FAILED:", last_fit$error)))
+        results[[length(results) + 1L]] <-
+          .mme_benchmark_row(wl, wl_name, eng_name, error=last_fit$error)
+        next
+      }
 
       med_time <- stats::median(times)
-      n_conv <- if(!is.null(last_fit$monitor)) ncol(last_fit$monitor) else NA_integer_
       diag <- last_fit$engineDiagnostics
 
       if(verbose){
@@ -290,27 +318,14 @@ run_mme_benchmark <- function(workloads,
       }
 
       # Parity check against reference engine
-      parity_ok <- TRUE
-      max_rel_diff <- 0.0
+      parity_ok <- NA
+      max_rel_diff <- NA_real_
       if(eng_name == ref_engine_name){
         ref_fit <- last_fit
+        max_rel_diff <- .mme_benchmark_difference(last_fit, ref_fit)
+        parity_ok <- max_rel_diff <= tolerance
       } else if(verifyParity && !is.null(ref_fit)){
-        # Compare likelihood
-        rel_llik <- abs(last_fit$llik - ref_fit$llik) / (abs(ref_fit$llik) + 1.0)
-        # Compare variance components
-        v_last <- unlist(last_fit$theta)
-        v_ref <- unlist(ref_fit$theta)
-        rel_theta <- if(length(v_last) == length(v_ref)){
-          max(abs(v_last - v_ref) / (abs(v_ref) + 1.0))
-        } else 1.0
-        # Compare BLUPs
-        u_last <- as.numeric(last_fit$bu)
-        u_ref <- as.numeric(ref_fit$bu)
-        rel_bu <- if(length(u_last) == length(u_ref)){
-          max(abs(u_last - u_ref) / (abs(u_ref) + 1.0))
-        } else 1.0
-
-        max_rel_diff <- max(rel_llik, rel_theta, rel_bu, na.rm=TRUE)
+        max_rel_diff <- .mme_benchmark_difference(last_fit, ref_fit)
         parity_ok <- (max_rel_diff <= tolerance)
         if(!parity_ok && verbose){
           message(crayon::yellow(sprintf("    Warning: Parity deviation = %.2e (tolerance = %.2e)",
@@ -318,25 +333,8 @@ run_mme_benchmark <- function(workloads,
         }
       }
 
-      results[[length(results) + 1L]] <- data.frame(
-        workload = wl_name,
-        structure = wl$dimensions$structure,
-        n_levels = wl$dimensions$n_levels,
-        n_ind = wl$dimensions$n_ind,
-        relationship = wl$dimensions$relationship,
-        engine = eng_name,
-        elapsed_sec = med_time,
-        iterations = n_conv,
-        converged = isTRUE(last_fit$converged),
-        blockSchurActive = isTRUE(diag$blockSchurActive),
-        blockBandedActive = isTRUE(diag$blockBandedActive),
-        factorSchurActive = isTRUE(diag$factorSchurActive),
-        parity_ok = parity_ok,
-        max_rel_diff = max_rel_diff,
-        error = NA_character_,
-        .mme_profile_columns(diag),
-        stringsAsFactors = FALSE
-      )
+      results[[length(results) + 1L]] <- .mme_benchmark_row(
+        wl, wl_name, eng_name, last_fit, med_time, parity_ok, max_rel_diff)
     }
   }
 
@@ -368,15 +366,14 @@ run_mme_benchmark <- function(workloads,
   if(is.list(prof)){
     secs <- prof$seconds
     cols[paste0("phase_", names(secs))] <- as.list(unname(secs))
-    counters$nEffects <- prof$counters$nEffects
-    counters$nnzC <- prof$counters$nnzC
-    counters$freeParams <- prof$counters$freeCovarianceParameters
-    counters$numericFactorSeconds <- prof$counters$numericFactorSeconds
-    if(!is.null(prof$counters$sensitivityRHSColumns)){
-      counters$sensitivityRHSColumns <- prof$counters$sensitivityRHSColumns
-      counters$exactAIRefreshes <- prof$counters$exactAIRefreshes
+    sourceNames <- c(nEffects="nEffects", nnzC="nnzC",
+      freeParams="freeCovarianceParameters", numericFactorSeconds="numericFactorSeconds",
+      sensitivityRHSColumns="sensitivityRHSColumns", exactAIRefreshes="exactAIRefreshes")
+    for(name in names(sourceNames)){
+      value <- prof$counters[[sourceNames[[name]]]]
+      if(!is.null(value)) counters[[name]] <- value
     }
-    dominant <- names(which.max(secs))
+    if(length(secs)) dominant <- names(which.max(secs))
   }
   as.data.frame(c(cols, counters, list(dominantPhase = dominant)), stringsAsFactors = FALSE)
 }
@@ -471,7 +468,8 @@ analyze_mme_crossovers <- function(benchmark,
                   suffixes=c(".base", ".cand"))
 
   merged$speedup <- merged$elapsed_sec.base / merged$elapsed_sec.cand
-  merged$advantageous <- merged$speedup > 1.05 & merged$parity_ok.cand
+  merged$advantageous <- is.finite(merged$speedup) & merged$speedup > 1.05 &
+    !is.na(merged$parity_ok.cand) & merged$parity_ok.cand
 
   # Categorize by structure and levels
   crossover_summary <- list()

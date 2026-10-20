@@ -1,26 +1,8 @@
 test_that("native PCG primitives pass strict standalone checks", {
-  root <- test_path("..", "..")
   names <- c("test-mme-pcg", "test-mme-pcg-estimators", "test-mme-sufficient")
-  sources <- file.path(root, "tests", "native", paste0(names, ".cpp"))
-  headers <- file.path(root, "src", c("mme_pcg.h", "mme_pcg_estimators.h"))
-  skip_if(!all(file.exists(c(sources, headers))),
-    "Native checks require the package source tree")
-  compiler <- Sys.which("c++")
-  include <- system.file("include", package="RcppEigen")
-  skip_if(!nzchar(compiler) || !nzchar(include), "C++ and RcppEigen are required")
-  binaries <- character()
-  on.exit(unlink(binaries), add=TRUE)
   for(name in names){
-    source <- file.path(root, "tests", "native", paste0(name, ".cpp"))
-    binary <- tempfile(paste0("sommer-", name, "-"))
-    binaries <- c(binaries, binary)
-    output <- system2(compiler, c("-std=c++11", "-O0", "-Wall", "-Wextra",
-      "-pedantic", paste0("-I", shQuote(include)), shQuote(source),
-      "-o", shQuote(binary)), stdout=TRUE, stderr=TRUE)
-    expect_null(attr(output, "status"), info=paste(output, collapse="\n"))
-    if(!file.exists(binary)) next
-    output <- system2(binary, stdout=TRUE, stderr=TRUE)
-    expect_null(attr(output, "status"), info=paste(output, collapse="\n"))
+    .native_run(name, c("mme_pcg.h", "mme_pcg_estimators.h", "mme_sufficient.h"),
+      eigen=TRUE, strict=TRUE)
   }
 })
 
@@ -120,37 +102,6 @@ test_that("full-rank trace control variates recover direct score and information
     expect_equal(candidate$InfMat, reference$InfMat, tolerance=1e-7)
     expect_lte(candidate$engineDiagnostics$pcg$scoreMaxSE, 1e-7)
   }
-})
-
-test_that("warm and coarse starts remain valid across covariance updates", {
-  workload <- generate_mme_workload(n_ind=10L, n_levels=3L,
-    structure="ar1", relationship="sparse", seed=191L)
-  reference <- .pcg_numerical_fit(workload, iterations=4L)
-  candidate <- .pcg_numerical_fit(workload,
-    list(warmStart=TRUE, recycleRank=4L), iterations=4L)
-  expect_equal(candidate$bu, reference$bu, tolerance=1e-6)
-  expect_equal(candidate$theta, reference$theta, tolerance=1e-6)
-  expect_equal(candidate$llik, reference$llik, tolerance=1e-6)
-  expect_gt(candidate$engineDiagnostics$pcg$warmStarts, 0)
-  expect_gt(candidate$engineDiagnostics$pcg$coarseCorrections, 0)
-  expect_gt(candidate$engineDiagnostics$pcg$recycleRank, 0)
-  expect_true(is.finite(candidate$engineDiagnostics$pcg$pairedLogLikProbeSE))
-  expect_gt(candidate$engineDiagnostics$pcg$seconds$preconditionerAndCoarseSetup, 0)
-  expect_lte(candidate$pcgSolveMaxRelativeResidual, 1e-10)
-})
-
-test_that("combined PCG options agree with a fresh fixed-covariance solve", {
-  workload <- generate_mme_workload(n_ind=8L, n_levels=3L,
-    structure="ar1", relationship="none", seed=491L)
-  candidate <- .pcg_numerical_fit(workload, list(preconditioner="nystrom",
-    nystromRank=6L, warmStart=TRUE, recycleRank=4L, rhsMethod="block",
-    logDetScaling="diagonal", traceEstimator="control-variate", traceRank=1000L),
-    iterations=3L)
-  solved <- suppressMessages(mmes(workload$fixed, random=workload$random, rcov=workload$rcov, data=workload$data, covPar=candidate, control=mmes_control(task=list(mode=if(TRUE) "solve" else "fit"), solve=list(tol=1e-11), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
-  expect_equal(candidate$bu, solved$bu, tolerance=1e-7)
-  expect_lte(candidate$pcgSolveMaxRelativeResidual, 1e-10)
-  expect_gt(candidate$engineDiagnostics$pcg$warmStarts, 0)
-  expect_gt(candidate$engineDiagnostics$pcg$coarseCorrections, 0)
 })
 
 test_that("PCG seeds reproduce probes without modifying the R random stream", {

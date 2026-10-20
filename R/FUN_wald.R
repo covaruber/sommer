@@ -92,16 +92,11 @@
     }
     for(k in seq_len(e - s + 1L)){
       idx <- s + k - 1L
-      v <- theta[idx]
-      work[idx] <- switch(report$transform[k],
-        identity=v,
-        exp=log(v),
-        tanh=atanh(v),
-        bounded_logit={
-          lo <- report$lower[k]; hi <- report$upper[k]
-          stats::qlogis((v - lo) / (hi - lo))
-        },
-        stop("Unknown report transform: ", report$transform[k], call.=FALSE))
+      if(!report$transform[k] %in% c("identity", "exp", "tanh", "bounded_logit")){
+        stop("Unknown report transform: ", report$transform[k], call.=FALSE)
+      }
+      work[idx] <- .vc_to_working(theta[idx], report$transform[k],
+                                 report$lower[k], report$upper[k])
     }
   }
   work

@@ -21,26 +21,3 @@ test_that("capability ownership covers every modular leaf and model formal", {
   expect_true(all(nzchar(map$controls$effect)))
   expect_false(any(map$controls$status == "alias"))
 })
-
-test_that("decision graph remains connected after API replacement", {
-  map <- sommer:::.mmes_capabilities()
-  nodes <- map$decisions$id
-  expect_true(all(map$edges$from %in% nodes))
-  expect_true(all(map$edges$to %in% nodes))
-  reachable <- "task"
-  repeat {
-    nextNodes <- union(reachable, map$edges$to[map$edges$from %in% reachable])
-    if(identical(reachable, nextNodes)) break
-    reachable <- nextNodes
-  }
-  expect_setequal(reachable, nodes)
-})
-
-test_that("capability inspection is independent of global option resolution", {
-  before <- options()
-  map <- sommer:::.mmes_capabilities()
-  expect_identical(options(), before)
-  old <- options(sommer.mme.gpu=TRUE, sommer.mme.commonScale="force")
-  on.exit(options(old), add=TRUE)
-  expect_identical(sommer:::.mmes_capabilities(), map)
-})

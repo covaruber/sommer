@@ -56,15 +56,28 @@
   tolower(value)
 }
 
-.mme_pcg_public <- function(name){
-  paths <- c(logDetScaling="logdet$scaling", lanczosSteps="logdet$lanczosSteps",
+.mme_pcg_mapping <- function(){
+  c(tol="solve$tol", maxIters="solve$maxIters",
+    preconditioner="solve$preconditioner", nystromRank="solve$nystromRank",
+    warmStart="solve$warmStart", recycleRank="solve$recycleRank",
+    recycleMethod="solve$recycleMethod", recycleState="solve$recycleState",
+    exportRecycle="solve$exportRecycle", rhsMethod="solve$rhsMethod",
+    blockSize="solve$blockSize", residualRefresh="solve$residualRefresh",
+    logDetScaling="logdet$scaling", lanczosSteps="logdet$lanczosSteps",
     traceProbes="score$traceProbes", traceEstimator="score$estimator",
     traceRank="score$rank", accuracy="convergence$accuracy",
     maxTraceProbes="convergence$maxTraceProbes",
     maxLanczosSteps="convergence$maxLanczosSteps", logDetTol="convergence$logDetTol",
     scoreTol="convergence$scoreTol", seed="execution$seed",
     compression="representation$compression")
-  if(name %in% names(paths)) paths[[name]] else paste0("solve$", name)
+}
+
+.mme_pcg_public <- function(name){
+  paths <- .mme_pcg_mapping()
+  if(!name %in% names(paths)){
+    stop("Unknown internal PCG setting: ", name, ".", call.=FALSE)
+  }
+  paths[[name]]
 }
 
 .mme_pcg_control <- function(pcg = list(), checkLimits = TRUE){

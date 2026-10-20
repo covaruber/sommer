@@ -56,9 +56,7 @@ spl2Dc <-  function(x.coord,y.coord,at.var=NULL,at.levels=NULL, type="PSANOVA",
 
   Rten2 <-
     function(X1,X2) {
-      one.1 <- matrix(1,1,ncol(X1))
-      one.2 <- matrix(1,1,ncol(X2))
-      kronecker(X1,one.2)*kronecker(one.1,X2)
+      .spatial_row_tensor(X1, X2)
     }
 
   MM.basis <-
@@ -91,7 +89,7 @@ spl2Dc <-  function(x.coord,y.coord,at.var=NULL,at.levels=NULL, type="PSANOVA",
       } else if(decom == 4) { # Wood's 2013
         X = B%*%((P.svd$u)[,-(1:(m-penaltyord))])
         id.v <- rep(1, nrow(X))
-        D.temp = X - ((id.v%*%t(id.v))%*%X)/nrow(X)
+        D.temp = sweep(X, 2, colMeans(X), "-")
         Xf <- svd(crossprod(D.temp))$u[,ncol(D.temp):1]
         X <- X%*%Xf
         U.X = ((P.svd$u)[,-(1:(m-penaltyord)), drop = FALSE])%*%Xf
@@ -368,6 +366,23 @@ spl2Dc <-  function(x.coord,y.coord,at.var=NULL,at.levels=NULL, type="PSANOVA",
   return(S3)
 }
 
+.spatial_row_tensor <- function(x, y) {
+  x <- as.matrix(x)
+  y <- as.matrix(y)
+  if (nrow(x) != nrow(y)) {
+    stop("x and y must have the same number of rows", call. = FALSE)
+  }
+
+  nx <- ncol(x)
+  ny <- ncol(y)
+  result <- matrix(0, nrow = nrow(x), ncol = nx * ny)
+  for (i in seq_len(nx)) {
+    columns <- ((i - 1L) * ny + 1L):(i * ny)
+    result[, columns] <- x[, i] * y
+  }
+  result
+}
+
 spl2Dmats <-  function(x.coord.name,
                        y.coord.name,
                        data,                       
@@ -447,8 +462,8 @@ spl2Dmats <-  function(x.coord.name,
   })
   # print(str(multires))
   nrows <- unlist(lapply(data0,nrow))
-  end <- numeric(); for(l in 1:length(nrows)){end[l] <- sum(nrows[1:l]) }
-  start <- numeric(); for(l in 1:length(nrows)){start[l] <- end[l]-nrows[l]+1 }
+  end <- cumsum(nrows)
+  start <- end - nrows + 1
   #############################################
   ## CAPTURE COLNAMES AND BUILD A MATRIX WITH THOSE NAMES
   nColList <- list()
@@ -581,7 +596,7 @@ tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NU
   diagc <- L.c^2
   BcU <- Bc %*% U.Zc
   BcX <- Bc %*% U.Xc
-  BcULi <- BcU %*% diag(1/L.c)
+  BcULi <- sweep(BcU, 2, 1/L.c, "*")
   if ("include" %in% eigenvalues) {
     BcZmat.df <- as.data.frame(BcULi)
     BcZmat <- BcULi
@@ -591,8 +606,7 @@ tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NU
     BcZmat <- BcU
   }
   BcZmat.df$TP.col <- col
-  mat1c <- matrix(rep(1, nuc), nrow = nuc)
-  BcXadj <- BcX - mat1c %*% t(mat1c) %*% BcX/nuc
+  BcXadj <- sweep(BcX, 2, colMeans(BcX), "-")
   Xfc <- (svd(crossprod(BcXadj)))$u[, c(ncol(BcXadj):1)]
   BcX <- BcX %*% Xfc
   if (BcX[1, 1] < 0) 
@@ -629,7 +643,7 @@ tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NU
   diagr <- L.r^2
   BrU <- Br %*% U.Zr
   BrX <- Br %*% U.Xr
-  BrULi <- BrU %*% diag(1/L.r)
+  BrULi <- sweep(BrU, 2, 1/L.r, "*")
   if ("include" %in% eigenvalues) {
     BrZmat.df <- as.data.frame(BrULi)
     BrZmat <- BrULi
@@ -639,8 +653,7 @@ tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NU
     BrZmat <- BrU
   }
   BrZmat.df$TP.row <- row
-  mat1r <- matrix(rep(1, nur), nrow = nur)
-  BrXadj <- BrX - mat1r %*% t(mat1r) %*% BrX/nur
+  BrXadj <- sweep(BrX, 2, colMeans(BrX), "-")
   Xfr <- (svd(crossprod(BrXadj)))$u[, c(ncol(BrXadj):1)]
   BrX <- BrX %*% Xfr
   if (BrX[1, 1] < 0) 
@@ -667,11 +680,8 @@ tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NU
   col.index <- rep(col, each = nur)
   index <- A * col.index + row.index
   C.R <- A * data[[columncoordinates]] + data[[rowcoordinates]]
-  BcrZ1 <- BcnU[col.match, ] %x% matrix(rep(1, nbrn), nrow = 1, 
-                                        ncol = nbrn)
-  BcrZ2 <- matrix(rep(1, nbcn), nrow = 1, ncol = nbcn) %x% 
-    BrnU[row.match, ]
-  BcrZ <- BcrZ1 * BcrZ2
+  BcrZ <- .spatial_row_tensor(BcnU[col.match, , drop = FALSE],
+                              BrnU[row.match, , drop = FALSE])
   diagrx <- rep(L.cn^2, each = nbrn)
   diagcx <- rep(L.rn^2, times = nbcn)
   if ("Lee" %in% method) {
@@ -683,7 +693,7 @@ tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NU
   if (!("Lee" %in% method) & !("Wood" %in% method)) {
     stop("Invalid setting of method argument")
   }
-  BcrZLi <- BcrZ %*% diag(1/sqrt(diagcr))
+  BcrZLi <- sweep(BcrZ, 2, 1/sqrt(diagcr), "*")
   if ("include" %in% eigenvalues) {
     BcrZmat.df <- as.data.frame(BcrZLi)
     BcrZmat <- BcrZLi
@@ -696,39 +706,34 @@ tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NU
   tracelist <- list()
   for (i in 1:diff.c) {
     nm <- paste0("Xc", i, ":Zr")
-    tempmat <- (BcX[col.match, i] %x% matrix(rep(1, nbr), 
-                                             nrow = 1)) * BrZmat[row.match, ]
+    tempmat <- .spatial_row_tensor(matrix(BcX[col.match, i], ncol = 1L),
+                                   BrZmat[row.match, , drop = FALSE])
     if ("include" %in% eigenvalues) 
       tempmatsc <- tempmat
-    else tempmatsc <- tempmat * (rep(1, nv) %*% matrix((1/diagr), 
-                                                       nrow = 1))
+    else tempmatsc <- sweep(tempmat, 2, 1/diagr, "*")
     tracelist[nm] <- sum(tempmatsc * tempmat)
   }
   for (i in 1:diff.r) {
     nm <- paste0("Zc:Xr", i)
-    tempmat <- BcZmat[col.match, ] * (matrix(rep(1, nbc), 
-                                             nrow = 1) %x% BrX[row.match, i])
+    tempmat <- .spatial_row_tensor(BcZmat[col.match, , drop = FALSE],
+                                   matrix(BrX[row.match, i], ncol = 1L))
     if ("include" %in% eigenvalues) 
       tempmatsc <- tempmat
-    else tempmatsc <- tempmat * (rep(1, nv) %*% matrix((1/diagc), 
-                                                       nrow = 1))
+    else tempmatsc <- sweep(tempmat, 2, 1/diagc, "*")
     tracelist[nm] <- sum(tempmatsc * tempmat)
   }
   if ("include" %in% eigenvalues) 
     tracelist["Zc:Zr"] <- sum(BcrZmat * BcrZmat)
   else {
-    tempmatsc <- BcrZmat * (rep(1, nv) %*% matrix((1/diagcr), 
-                                                  nrow = 1))
+    tempmatsc <- sweep(BcrZmat, 2, 1/diagcr, "*")
     tracelist["Zc:Zr"] <- sum(tempmatsc * BcrZmat)
   }
   outdata <- as.data.frame(data)
   outdata$TP.col <- data[[columncoordinates]]
   outdata$TP.row <- data[[rowcoordinates]]
   outdata$TP.CxR <- C.R
-  BcrX1 <- BcX[col.match, ] %x% matrix(rep(1, diff.r), nrow = 1)
-  BcrX2 <- matrix(rep(1, diff.c), nrow = 1) %x% BrX[row.match, 
-  ]
-  BcrX <- BcrX1 * BcrX2
+  BcrX <- .spatial_row_tensor(BcX[col.match, , drop = FALSE],
+                              BrX[row.match, , drop = FALSE])
   fixed <- list()
   fixed$col <- data.frame(row.names = C.R)
   for (i in 1:diff.c) {
@@ -869,18 +874,16 @@ tpsmmbwrapper <- function (columncoordinates, rowcoordinates, data, nsegments=NU
     listnames[1] <- "All"
     start <- length(outdata)
     nm0 <- "Xc_Zr"
-    Xc_Zr <- (BcX[col.match, ] %x% matrix(rep(1, nbr), nrow = 1)) * 
-      (matrix(rep(1, diff.c), nrow = 1) %x% BrZmat[row.match, 
-      ])
+    Xc_Zr <- .spatial_row_tensor(BcX[col.match, , drop = FALSE],
+                                 BrZmat[row.match, , drop = FALSE])
     nXc_Zr <- ncol(Xc_Zr)
     for (i in 1:nXc_Zr) {
       nm <- paste0(nm0, "_", i)
       outdata[nm] <- Xc_Zr[, i]
     }
     nm0 <- "Zc_Xr"
-    Zc_Xr <- (BcZmat[col.match, ] %x% matrix(rep(1, diff.r), 
-                                             nrow = 1)) * (matrix(rep(1, nbc), nrow = 1) %x% BrX[row.match, 
-                                             ])
+    Zc_Xr <- .spatial_row_tensor(BcZmat[col.match, , drop = FALSE],
+                                 BrX[row.match, , drop = FALSE])
     nZc_Xr <- ncol(Zc_Xr)
     for (i in 1:nZc_Xr) {
       nm <- paste0(nm0, "_", i)

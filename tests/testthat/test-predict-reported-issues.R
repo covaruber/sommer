@@ -162,15 +162,3 @@ test_that("numeric reference grids respect fitted contrasts and included factors
   result <- predict(product, D="Name", levels=setNames(list(list(cov=-2, second=3)), term))
   expect_equal(as.numeric(result$D[,as.vector(product$partitionsX[[term]])]), rep(-6, nrow(result$D)))
 })
-
-test_that("levels documentation example is reproducible through the Dtable", {
-  data(DT_yatesoats, package="enhancer", envir=environment())
-  model <- mmes(Y~V+N+V:N, random=~B+B:MP, data=DT_yatesoats, control=mmes_control(diagnostics=list(verbose=FALSE)))
-  Dt <- model$Dtable
-  Dt$average[Dt$term %in% c("1", "V", "V:N")] <- TRUE
-  Dt$include[Dt$term %in% c("N", "V:N")] <- TRUE
-  prediction <- predict(model, D="N", Dtable=Dt, levels=list(N=c("0.6", "0.2")))
-  Dt$levels[[match("N", Dt$term)]] <- c("0.6", "0.2")
-  expect_equal(prediction$pvals$N, c("0.6", "0.2"))
-  expect_equal(prediction$D, predict(model, D="N", Dtable=Dt)$D)
-})

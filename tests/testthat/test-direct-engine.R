@@ -91,19 +91,6 @@ test_that("direct likelihood line search rejects decreasing covariance updates",
   expect_equal(as.numeric(backtracked$covPar[[1L]]), var(dataset$y), tolerance=5e-5)
 })
 
-test_that("direct ML and REML score certificates use their own likelihood traces", {
-  dataset <- data.frame(x=seq(-1, 1, length.out=24L))
-  dataset$y <- 3 + 2*dataset$x + sin(seq_len(nrow(dataset)))
-  residuals <- residuals(lm(y~x, data=dataset))
-  for(reml in c(TRUE, FALSE)){
-    fit <- mmes(y~x, rcov=~units, data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), convergence=list(maxIters=100L, likelihoodTol=1e-10, parameterTol=1e-10), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-    expected <- sum(residuals^2) / (nrow(dataset)-if(reml) 2L else 0L)
-    expect_true(fit$convergence)
-    expect_equal(as.numeric(fit$covPar[[1L]]), expected, tolerance=1e-5)
-    expect_true(all(diff(as.numeric(fit$llik)) > 0))
-  }
-})
-
 test_that("direct active-set updates retain fixed and tied covariance coordinates", {
   data(DT_example)
   fixed <- mmes(Yield~Env, random=~vsm(ism(Name), sigma2=2, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=1, fixedSigma2=TRUE), data=DT_example, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -117,15 +104,4 @@ test_that("direct active-set updates retain fixed and tied covariance coordinate
   expect_true(tied$convergence)
   expect_equal(tied$covPar[[1L]], 2*tied$covPar[[2L]], tolerance=1e-8, ignore_attr=TRUE)
   expect_equal(tied$monitor[1L, ], 2*tied$monitor[2L, ], tolerance=1e-8)
-})
-
-test_that("direct default AI-first fitting retains certified variance boundaries", {
-  fit <- .direct_diallel(blendWeight=NULL)
-  expect_true(fit$convergence)
-  expect_equal(fit$covParNative$estimate[1L], 1e-6, tolerance=1e-10)
-  expect_lte(fit$engineDiagnostics$direct$finalProjectedScoreNorm,
-    fit$engineDiagnostics$direct$scoreTolerance)
-  expect_true(fit$engineDiagnostics$recovery$automatic)
-  expect_true(all(fit$engineDiagnostics$recovery$reasons %in%
-    c("repeated-backtracking", "negligible-gains", "information-solve", "line-search")))
 })

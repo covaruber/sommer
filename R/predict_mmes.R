@@ -557,8 +557,8 @@
   ## calculate predictions and standard errors
   bu <- object$bu
   predicted.value <- D %*% bu
-  engineD <- to_sparse(.mmes_engine_contrast(object, D))
-  vcov <- predict_mmes_vcov_cpp(object, engineD)
+  solveVcov <- .mmes_vcov_solver(object)
+  vcov <- solveVcov(D)
   pev <- if(PEV) vcov else NULL
   varU <- NULL
   samplingVcov <- NULL
@@ -568,18 +568,12 @@
     randomD <- D
     if(nFixed) randomD[, seq_len(nFixed)] <- 0
     prior <- .mmes_prior_vcov(object, randomD)
-    randomError <- predict_mmes_vcov_cpp(
-      object,
-      to_sparse(.mmes_engine_contrast(object, randomD))
-    )
+    randomError <- solveVcov(randomD)
     varU <- prior - randomError
     varU <- (varU + t(varU))/2
     fixedD <- D
     if(nFixed < ncol(D)) fixedD[, seq.int(nFixed + 1L, ncol(D))] <- 0
-    fixedSampling <- predict_mmes_vcov_cpp(
-      object,
-      to_sparse(.mmes_engine_contrast(object, fixedD))
-    )
+    fixedSampling <- solveVcov(fixedD)
     samplingVcov <- fixedSampling + varU
   }
   std.error <- sqrt(diag(vcov))

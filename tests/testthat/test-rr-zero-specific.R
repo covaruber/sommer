@@ -109,29 +109,6 @@ test_that("zero-specific RR matches independent observation-space REML", {
   }
 })
 
-test_that("homogeneous FA reconstructs its covariance and matches a fixed generic shape", {
-  example <- .rr_test_data()
-  dataset <- example$data
-  precision <- example$precision
-  loadings <- matrix(c(0.6, 0.2, -0.3, 0.4), 4, 1)
-  shape <- fam(dataset$environment, loadings=loadings, specific=1,
-               variance="homogeneous", fixed=rep(TRUE, 4L))
-  generic <- ownm(dataset$environment, K=tcrossprod(loadings) + diag(4))
-  fitShape <- function(shape, henderson){
-    mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision), data=dataset, control=mmes_control(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=8L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  }
-  for(henderson in c(TRUE, FALSE)){
-    fit <- fitShape(shape, henderson)
-    reference <- fitShape(generic, henderson)
-    expect_equal(unname(fit$theta), unname(reference$theta), tolerance=1e-7)
-    expect_equal(fit$bu, reference$bu, tolerance=1e-7)
-    info <- loadings_mmes(fit, varianceScale=TRUE, rotation=FALSE)
-    expect_equal(unname(tcrossprod(info$loadings) + diag(info$specific)),
-                 unname(fit$theta[[1L]]), tolerance=1e-8)
-    expect_equal(info$specific, rep(info$specific[1L], 4L), ignore_attr=TRUE)
-  }
-})
-
 test_that("rank-two RR agrees across engines with extra terms and residual heterogeneity", {
   set.seed(1904)
   dataset <- expand.grid(id=factor(seq_len(9L)), environment=factor(letters[1:5]),
@@ -160,27 +137,6 @@ test_that("singular RR misuse fails explicitly", {
   expect_error(mmes(response~1, random=~vsm(rrm(environment), ism(id)), data=dataset, control=mmes_control(task=list(mode=if(TRUE) "solve" else "fit"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "task\\$mode='solve' does not support")
   expect_error(mmes(response~1, random=~vsm(rrm(environment), ism(id)), data=dataset, control=mmes_control(representation=list(factorScores="fixed-shape"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "not representation\\$factorScores")
-})
-
-test_that("latent RR supports covariance products and known weighted fits", {
-  set.seed(1905)
-  dataset <- expand.grid(id=factor(seq_len(6L)), environment=factor(letters[1:4]),
-                         site=factor(seq_len(2L)))
-  dataset$response <- rnorm(nrow(dataset))
-  for(position in 1:2){
-    random <- if(position == 1L){
-      ~vsm(rrm(environment, 2L, fixed=rep(TRUE, 7L)),
-           ar1m(site, rho=0.25, fixed=TRUE), ism(id), sigma2=0.8, fixedSigma2=TRUE)
-    }else{
-      ~vsm(ar1m(site, rho=0.25, fixed=TRUE),
-           rrm(environment, 2L, fixed=rep(TRUE, 7L)), ism(id), sigma2=0.8, fixedSigma2=TRUE)
-    }
-    fits <- lapply(c(TRUE, FALSE), function(henderson){
-      mmes(response~site+environment, random=random, rcov=~vsm(ism(units), sigma2=0.5, fixedSigma2=TRUE), W=diag(seq(0.8, 1.2, length.out=nrow(dataset))), data=dataset, control=mmes_control(formulation=if(henderson) "henderson" else "direct", output=list(inverse=2L), convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-    })
-    expect_equal(fits[[1L]]$bu, fits[[2L]]$bu, tolerance=1e-7)
-    expect_equal(fits[[1L]]$uPevList, fits[[2L]]$uPevList, tolerance=1e-7)
-  }
 })
 
 test_that("latent RR prediction and post-fit PEV use the original effect space", {

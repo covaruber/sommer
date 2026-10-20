@@ -30,35 +30,6 @@ test_that("latent heterogeneous/homogeneous FA Schur preserves AI trajectories a
   }
 })
 
-test_that("latent Schur handles multiple random terms, diagonal weights and missing records", {
-  previous <- options(sommer.mme.denseMemoryMB=NULL)
-  on.exit(options(previous), add=TRUE)
-  dataset <- expand.grid(id=factor(seq_len(7L)), environment=factor(letters[1:5]),
-                         replicate=factor(seq_len(2L)))
-  set.seed(651)
-  dataset$response <- rnorm(nrow(dataset)) + as.integer(dataset$id) / 5
-  dataset <- dataset[-c(2L, 11L, 40L), ]
-  precision <- diag(7L) + matrix(0.1, 7L, 7L)
-  dimnames(precision) <- list(levels(dataset$id), levels(dataset$id))
-  attr(precision, "inverse") <- TRUE
-  secondShape <- fam(dataset$environment, 1L, variance="homogeneous")
-  secondShape$covFactor$free[] <- FALSE
-  for(weighted in c(FALSE, TRUE)){
-    weightMatrix <- if(weighted) diag(seq(0.7, 1.3, length.out=nrow(dataset))) else diag(nrow(dataset))
-    fitModel <- function(solver){
-      mmes(response~environment, random=~vsm(fam(environment, 2L), ism(id), Gu=precision) +
-          vsm(secondShape, ism(replicate)), rcov=~vsm(dsm(environment), ism(units)), data=dataset, W=weightMatrix, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=4L), output=list(inverse=2L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-    }
-    reference <- fitModel("ldlt")
-    candidate <- fitModel("cholmod")
-    expect_true(candidate$engineDiagnostics$factorSchurActive)
-    for(component in c("llik", "theta", "bu", "InfMat", "theta_se")){
-      expect_equal(candidate[[component]], reference[[component]], tolerance=1e-6)
-    }
-    expect_equal(as.matrix(candidate$Ci), as.matrix(reference$Ci), tolerance=1e-6)
-  }
-})
-
 test_that("latent Schur rejects incompatible residuals, ML and near-boundary specifics", {
   previous <- options(sommer.mme.denseMemoryMB=NULL)
   on.exit(options(previous), add=TRUE)

@@ -83,7 +83,7 @@ familym <- function(by, ...){
 
 .mmes_pql <- function(fixed, random, rcov, data, W, family, pqlControl,
                       mmesArgs){
-  defaults <- list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)
+  defaults <- .mme_pql_defaults
   if(!is.list(pqlControl) || is.null(names(pqlControl)) && length(pqlControl)){
     stop("pqlControl must be a named list.", call.=FALSE)
   }

@@ -1,5 +1,0 @@
-"group_size","n_groups","density","border","pattern","seed","engine_subtype","parity_relative","contrast_valid","actual_input_fraction","time_on","time_off","sparseNnzL","sparseFlops","schurCost","blockSchurActive_on","blockSchurActive_off","blockSchurGroups","blockSchurBorder","nEffects","paired_ratios","llik_diff"
-8,3,0.5,2,"random",1,"chain",1.73412709573868e-13,TRUE,0.5,0.106,0.131,256,2834,0,1,0,3,3,27,"1.2358491",8.5265128291212e-14
-4,3,0.5,2,"banded",1,"chain",3.01670281159214e-13,TRUE,0.5,0.111,0.126,88,592,0,1,0,3,3,15,"1.1351351",6.57252030578093e-13
-8,3,0.5,2,"banded",1,"chain",2.25650301139716e-13,TRUE,0.5,0.104,0.131,237,2351,0,1,0,3,3,27,"1.2596154",9.59232693276135e-14
-4,3,0.5,2,"random",1,"chain",3.01670281159214e-13,TRUE,0.5,0.103,0.128,88,592,0,1,0,3,3,15,"1.2427184",6.57252030578093e-13

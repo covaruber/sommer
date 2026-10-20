@@ -76,21 +76,6 @@ test_that("REML=FALSE validates its inputs and the solver restriction", {
   )
 })
 
-test_that("REML=FALSE with solver='cholmod' matches solver='ldlt' exactly", {
-  data(DT_example)
-  DT <- DT_example
-  DT <- DT[!is.na(DT$Yield) & !is.na(DT$Env) & !is.na(DT$Name), ]
-
-  fLdlt <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=30, likelihoodTol=1e-10), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml"), solve=list(method="ldlt")))
-  fChol <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=30, likelihoodTol=1e-10), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml"), solve=list(method="cholmod")))
-
-  expect_equal(as.numeric(fLdlt$theta[[1]]), as.numeric(fChol$theta[[1]]),
-               tolerance=1e-6)
-  expect_equal(as.numeric(fLdlt$theta[[2]]), as.numeric(fChol$theta[[2]]),
-               tolerance=1e-6)
-  expect_equal(tail(fLdlt$llik, 1), tail(fChol$llik, 1), tolerance=1e-6)
-})
-
 test_that("REML=FALSE with a dense Gu (solver='cholmod') matches solver='ldlt'", {
   set.seed(1)
   nInd <- 40

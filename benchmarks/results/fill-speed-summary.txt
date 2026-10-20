@@ -1,2 +1,0 @@
-dense: n=78, paired log-log slope=-0.2007, R2=0.097, fitted equality at nnz(L)=1931 (outside observed range); wins >1.2x=0
-chain: n=232, paired log-log slope=0.1426, R2=0.260, fitted equality at nnz(L)=30395 (inside observed range); wins >1.2x=48

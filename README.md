@@ -10,7 +10,48 @@ You can install the development version of `sommer` from GitHub:
 remotes::install_github('covaruber/sommer')
 ```
 
-### Optional GPU Kernels
+## A first mixed model
+
+Fit environment means and a random genotype effect, then obtain genotype
+predictions with their uncertainty:
+
+```r
+library(sommer)
+data("DT_example", package = "enhancer")
+
+fit <- mmes(
+  Yield ~ Env,
+  random = ~ Name,
+  data = DT_example,
+  control = mmes_control(
+    output = list(inverse = 2),
+    diagnostics = list(verbose = FALSE, dateWarning = FALSE)
+  )
+)
+
+summary(fit)
+genotypes <- predict(fit, D = "Name")
+head(genotypes$pvals)
+```
+
+Check `fit$convergence` before interpreting a fit. The explicit inverse request
+above makes coefficient uncertainty available; retaining a full inverse is
+appropriate for this small example, not a default recommendation for large
+models.
+
+## Choose the next step
+
+- [Quantitative-genetics tutorial](https://covaruber.github.io/sommer/articles/sommer.qg.html)
+- [Covariance structures](https://covaruber.github.io/sommer/articles/sommer.covariance.structures.html)
+- [Solver decision tree](https://covaruber.github.io/sommer/mmes-options.html)
+- [Generalized mixed models](https://covaruber.github.io/sommer/articles/sommer.glmm.html)
+- [Contributor guide](CONTRIBUTING.md) for architecture, tests, and benchmarks.
+
+Start with the default deterministic Henderson formulation. Use direct inversion
+when observation-space fitting suits the problem; use PCG only with its
+stochastic accuracy controls and diagnostics in mind. GPU support is optional.
+
+## Optional GPU Kernels
 
 The Henderson solver uses one implementation for CPU and optional CUDA dense
 kernels. CPU is the default. Package startup checks NVIDIA hardware first, then

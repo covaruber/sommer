@@ -58,14 +58,14 @@
   "curvature$reduced", "update$commonScale", "output$selectedInverse",
   "diagnostics$profile")
 
-.mme_pcg_paths <- c(paste0("solve$", c("tol", "maxIters", "preconditioner",
-  "nystromRank", "warmStart", "recycleRank", "recycleMethod", "recycleState",
-  "exportRecycle", "rhsMethod", "blockSize", "residualRefresh")),
-  "logdet$scaling", "logdet$lanczosSteps", "score$traceProbes",
-  "score$estimator", "score$rank", "convergence$accuracy",
-  "convergence$maxTraceProbes", "convergence$maxLanczosSteps",
-  "convergence$logDetTol", "convergence$scoreTol",
+.mme_pcg_paths <- c(setdiff(unname(.mme_pcg_mapping()),
+  c("representation$compression", "execution$seed")),
   "representation$matrixFree", "execution$seed")
+
+.mme_pcg_solve_names <- names(.mme_pcg_mapping())[
+  startsWith(.mme_pcg_mapping(), "solve$")]
+
+.mme_pql_defaults <- list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)
 
 .mme_control_paths <- function(control){
   unlist(lapply(setdiff(names(control), "formulation"), function(module)
@@ -260,11 +260,10 @@ mmes_control <- function(formulation="henderson", task=list(),
   base <- .mmes_engine_control()
   formulation <- .mme_choice(formulation, c("henderson", "direct"), "formulation")
   task <- .mme_module(task, list(mode="fit", objective="reml",
-    pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)), "task")
+    pql=.mme_pql_defaults), "task")
   task$mode <- .mme_choice(task$mode, c("fit", "solve"), "task$mode")
   task$objective <- .mme_choice(task$objective, c("reml", "ml"), "task$objective")
-  task$pql <- .mme_module(task$pql,
-    list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE), "task$pql")
+  task$pql <- .mme_module(task$pql, .mme_pql_defaults, "task$pql")
   task$pql$maxit <- .mme_positive(task$pql$maxit, "task$pql$maxit", TRUE)
   task$pql$tol <- .mme_positive(task$pql$tol, "task$pql$tol")
   for(name in c("estimateTheta", "warmStart")){
@@ -280,9 +279,7 @@ mmes_control <- function(formulation="henderson", task=list(),
     c("none", "fixed-shape", "profile"), "representation$factorScores")
   representation$equations <- .mme_choice(representation$equations,
     c("normal", "saddle-point"), "representation$equations")
-  pcgSolve <- c("tol", "maxIters", "preconditioner", "nystromRank", "warmStart",
-    "recycleRank", "recycleMethod", "recycleState", "exportRecycle", "rhsMethod",
-    "blockSize", "residualRefresh")
+  pcgSolve <- .mme_pcg_solve_names
   solve <- .mme_module(solve, c(list(method="auto"), base$pcg[pcgSolve],
     base$experimental[c("blockSchur", "blockBanded", "factorSchurMultiFactor", "dFirstML")]), "solve")
   solve$method <- .mme_choice(solve$method, c("auto", "ldlt", "cholmod", "pcg"), "solve$method")
@@ -367,15 +364,9 @@ mmes_control <- function(formulation="henderson", task=list(),
 }
 
 .mmes_compile_control <- function(control){
-  pcg <- control$solve[intersect(names(control$solve), names(.mme_pcg_control()))]
-  pcg <- c(pcg, list(logDetScaling=control$logdet$scaling,
-    lanczosSteps=control$logdet$lanczosSteps, traceProbes=control$score$traceProbes,
-    traceEstimator=control$score$estimator, traceRank=control$score$rank,
-    accuracy=control$convergence$accuracy,
-    maxTraceProbes=control$convergence$maxTraceProbes,
-    maxLanczosSteps=control$convergence$maxLanczosSteps,
-    logDetTol=control$convergence$logDetTol, scoreTol=control$convergence$scoreTol,
-    seed=control$execution$seed))
+  mapping <- .mme_pcg_mapping()
+  mapping <- mapping[names(mapping) != "compression"]
+  pcg <- lapply(mapping, function(path) .mme_path_value(control, path))
   experimental <- c(control$solve[c("blockSchur", "blockBanded", "factorSchurMultiFactor", "dFirstML")],
     list(sparseFactors=control$representation$sparseFactors,
       matrixFreePcg=control$representation$matrixFree,
@@ -497,7 +488,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
 
 .mmes_check_family_controls <- function(control, supplied, family, internal){
   if(!is.null(internal) || !"task$pql" %in% supplied ||
-     identical(control$task$pql, .mmes_control_build()$task$pql)) return(invisible(TRUE))
+     identical(control$task$pql, .mme_pql_defaults)) return(invisible(TRUE))
   if(inherits(family, "family") && identical(family$family, "gaussian") &&
      identical(family$link, "identity")){
     stop("Incompatible mmes() settings:\n* task$pql only applies to non-Gaussian families fitted by PQL. Offending: task$pql. Remove it or supply a non-Gaussian family.",

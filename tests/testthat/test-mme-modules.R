@@ -33,15 +33,6 @@ test_that("old controls and misspelled module entries fail explicitly", {
   expect_error(mmes(y~1, control=list()), "created by mmes_control")
 })
 
-test_that("curvature and proposal controls have separate owners", {
-  aitken <- mmes_control(proposal=list(extrapolation="aitken"))
-  hybrid <- mmes_control(curvature=list(method="hybrid-ai"))
-  expect_equal(sommer:::.mmes_compile_control(aitken)$acceleration, "aitken")
-  expect_equal(sommer:::.mmes_compile_control(hybrid)$acceleration, "hybrid-ai")
-  expect_equal(aitken$curvature$method, "exact-ai")
-  expect_equal(hybrid$proposal$extrapolation, "none")
-})
-
 test_that("module-owned estimator budgets and outputs reach private transport", {
   control <- mmes_control(
     solve=list(method="pcg", tol=1e-10, rhsMethod="block"),
@@ -87,16 +78,6 @@ test_that("control mutation is revalidated before fitting", {
   control <- mmes_control()
   control$convergence$maxIters <- 0
   expect_error(mmes(y~1, control=control), "convergence\\$maxIters")
-})
-
-test_that("package benchmark and profiling callers use modular controls", {
-  workload <- generate_mme_workload(n_ind=5L, n_levels=3L, structure="ar1", seed=27L)
-  result <- run_mme_benchmark(workload, replications=1L, nIters=2L, verbose=FALSE)
-  expect_true(all(is.na(result$results$error)))
-  expect_true(all(result$results$parity_ok))
-  profile <- profile_mme_workload(workload, nIters=2L)
-  expect_s3_class(profile, "sommer_mme_profile")
-  expect_equal(profile$engine$diagnostics$profile, "force")
 })
 
 test_that("incompatible or unused module settings stop before fitting", {

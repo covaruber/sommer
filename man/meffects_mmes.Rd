@@ -31,9 +31,11 @@ meffects_mmes(object, term, M, method = c("A.mat", "custom"),
   \item{blend}{\eqn{\lambda} if the fitted matrix was \eqn{(1-\lambda)G+\lambda I}.
   Small bending constants added only for invertibility can be left at 0.}
   \item{Gu}{Optional relationship matrix (or inverse, with \code{attr(Gu,"inverse")=TRUE}).
-  By default the inverse used in the fit is rebuilt from the model inputs.}
+  By default the retained precision used in the fit is reused; it is rebuilt
+  from the model inputs only when it is unavailable.}
   \item{se}{If \code{TRUE}, add standard errors, z statistics and p-values.}
-  \item{chunk}{Number of markers processed per block when \code{se=TRUE}.}
+  \item{chunk}{Positive integer number of markers processed per block when
+  \code{se=TRUE}.}
 }
 \details{
 If the fitted relationship matrix is \eqn{G=(1-\lambda)sZZ^\top+\lambda I}, the
@@ -50,10 +52,13 @@ where \eqn{\sigma^2_c} is the variance of the coordinate and \eqn{C^{uu}} the
 prediction error covariance of the term; \eqn{z=\hat a/\mathrm{SE}} gives
 back-solved GWAS tests. Only diagonal elements are formed: the \eqn{C^{uu}}
 part uses solves with the stored coefficient matrix in blocks of \code{chunk}
-markers. The cost grows as \eqn{O(mn^2)} for m markers and n individuals.
+markers, sharing one coefficient-matrix factorization across blocks and
+coordinates. The marker transform \eqn{G^{-1}Z} is formed only for each block;
+effects-only calculations do not materialize it for all markers.
 
-The rebuild of \eqn{G^{-1}} requires the data used in the original call; supply
-\code{Gu} otherwise. Markers removed by the filters are returned as \code{NA}.
+Rebuilding \eqn{G^{-1}}, if no retained precision is available, requires the
+data used in the original call; supply \code{Gu} otherwise. Markers removed by
+the filters are returned as \code{NA}.
 }
 \value{A data frame with columns \code{marker}, \code{coordinate} (structured
 terms only), \code{effect} and, if \code{se=TRUE}, \code{se}, \code{z} and

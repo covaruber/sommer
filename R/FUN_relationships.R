@@ -109,15 +109,17 @@ APY <- function(G, core, tol=1e-10, return.details=FALSE){
     Qcn <- matrix(numeric(), length(coreIndex), 0L)
   }
 
-  Q <- Matrix::Matrix(0, nrow(G), ncol(G), sparse=TRUE)
-  Q[coreIndex, coreIndex] <- Matrix::Matrix(Qcc, sparse=TRUE)
-  if(length(nonCoreIndex)){
-    Q[coreIndex, nonCoreIndex] <- Matrix::Matrix(Qcn, sparse=TRUE)
-    Q[nonCoreIndex, coreIndex] <- Matrix::t(Q[coreIndex, nonCoreIndex])
-    Q[cbind(nonCoreIndex, nonCoreIndex)] <- 1 / conditionalVariance
-  }
-  dimnames(Q) <- list(ids, ids)
-  Q <- methods::as(Q, "CsparseMatrix")
+  crossRows <- rep(coreIndex, times=length(nonCoreIndex))
+  crossColumns <- rep(nonCoreIndex, each=length(coreIndex))
+  Q <- Matrix::drop0(Matrix::sparseMatrix(
+    i=c(rep(coreIndex, times=length(coreIndex)),
+        crossRows, crossColumns, nonCoreIndex),
+    j=c(rep(coreIndex, each=length(coreIndex)),
+        crossColumns, crossRows, nonCoreIndex),
+    x=c(as.vector(Qcc), as.vector(Qcn), as.vector(Qcn),
+        1 / conditionalVariance),
+    dims=dim(G), dimnames=list(ids, ids)
+  ))
   attr(Q, "inverse") <- TRUE
   attr(Q, "APY") <- list(
     core=if(is.null(ids)) coreIndex else ids[coreIndex],
