@@ -40,6 +40,39 @@ Dense makeK(const Dense & r, const Dense & a, const Dense & q) {
 }  // namespace
 
 int main() {
+  {
+    Dense inverse(3, 3);
+    inverse << 2.0, 0.2, -0.1, 0.2, 1.5, 0.3, -0.1, 0.3, 1.0;
+    Dense design(6, 3);
+    design << 1, 0, 2, 0, 0, 0, 0, -1, 0,
+              1, 1, 0, 0, 2, 1, 1, 0, -1;
+    for(int count : {2, 6}) for(int availability : {0, 1, 2}) {
+      const Sparse a = sparse(design.topRows(count));
+      int solvedColumns = 0;
+      const Eigen::VectorXd actual = sommer::exactInverseRowQuadratics(a, 2,
+        [&](const Dense & rhs) -> Dense {
+          solvedColumns += rhs.cols();
+          return inverse * rhs;
+        },
+        [&](Eigen::Index row, Eigen::Index column, double & value) {
+          value = inverse(row, column);
+          return availability == 2 || (availability == 1 && row == column);
+        });
+      const Dense expected = Dense(a) * inverse * Dense(a.transpose());
+      assert((actual - expected.diagonal()).norm() < 1e-12);
+      assert(solvedColumns <= std::min(count, 3));
+      if(availability == 2) { assert(solvedColumns == 0); }
+    }
+    const Sparse empty(4, 0);
+    assert(sommer::exactInverseRowQuadratics(empty, 2, nullptr, nullptr).isZero());
+    expectFailure([&]() {
+      sommer::exactInverseRowQuadratics(sparse(design), 0, nullptr, nullptr);
+    });
+    expectFailure([&]() {
+      sommer::exactInverseRowQuadratics(sparse(design), 2,
+        [](const Dense &) -> Dense { return Dense::Zero(1, 1); }, nullptr);
+    });
+  }
   Dense r(3, 3);
   r << 4.0, 0.5, 0.0,
        0.5, 3.0, 0.25,

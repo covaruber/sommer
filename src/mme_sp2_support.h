@@ -452,21 +452,29 @@ static inline Eigen::SparseMatrix<double> armaSparseToEigenGlobal(
 }
 
 static inline arma::sp_mat eigenSparseToArmaGlobal(
-    const Eigen::SparseMatrix<double> & src){
+    const Eigen::SparseMatrix<double> & input){
+  // Compressed Eigen storage is already CSC with sorted rows: copy it directly
+  // instead of sorting coordinate triplets.
+  Eigen::SparseMatrix<double> compressedCopy;
+  if(!input.isCompressed()){
+    compressedCopy = input;
+    compressedCopy.makeCompressed();
+  }
+  const Eigen::SparseMatrix<double> & src = input.isCompressed() ? input : compressedCopy;
   const arma::uword nnz = static_cast<arma::uword>(src.nonZeros());
-  arma::umat locations(2, nnz);
+  const arma::uword columns = static_cast<arma::uword>(src.outerSize());
+  arma::uvec rowIndices(nnz), columnPointers(columns + 1);
   arma::vec values(nnz);
-  arma::uword k = 0;
-  for(int col = 0; col < src.outerSize(); ++col){
-    for(Eigen::SparseMatrix<double>::InnerIterator it(src, col); it; ++it){
-      locations(0,k) = static_cast<arma::uword>(it.row());
-      locations(1,k) = static_cast<arma::uword>(it.col());
-      values(k) = it.value();
-      ++k;
-    }
+  for(arma::uword column = 0; column <= columns; ++column){
+    columnPointers(column) = static_cast<arma::uword>(src.outerIndexPtr()[column]);
+  }
+  for(arma::uword k = 0; k < nnz; ++k){
+    rowIndices(k) = static_cast<arma::uword>(src.innerIndexPtr()[k]);
+    values(k) = src.valuePtr()[k];
   }
   return arma::sp_mat(
-    locations,
+    rowIndices,
+    columnPointers,
     values,
     static_cast<arma::uword>(src.rows()),
     static_cast<arma::uword>(src.cols())

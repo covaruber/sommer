@@ -2336,6 +2336,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   int factorSchurFallbacks = 0;
   int traceFallbackSolves = 0;
   int emInverseTraceCalls = 0, emInverseTraceFallbackPanels = 0, emDesignTraceCalls = 0;
+  int diagonalResidualTraceCalls = 0, diagonalResidualTraceSolveColumns = 0;
   int traceBatchSolves = 0;
   double traceBatchWorkspaceBytes = 0.0;
   int gridFactorizations = 0;
@@ -2374,8 +2375,13 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     blockEngine.banded = false;
     blockEngine.latent = false;
     if(blockSchurMode == "off"){ return false; }
-    if(A.isCompressed()){
-      // Predicted sparse-factor fill and work (AMD order), the basis for pricing sparse versus Schur.
+    blockEngine.sparseFactorNonzeros = 0;
+    blockEngine.sparseFactorFlops = std::numeric_limits<double>::quiet_NaN();
+    // Predicted sparse-factor fill and work (AMD order), the basis for pricing sparse versus Schur.
+    // Computed only when a dense plan is priced: latent/chain/banded routes do not need it, and
+    // AMD plus symbolic counts on a dense marginal C are expensive.
+    auto estimateSparseFactor = [&]() {
+      if(!A.isCompressed()){ return; }
       Eigen::AMDOrdering<int> amd;
       Eigen::PermutationMatrix<Eigen::Dynamic, Eigen::Dynamic, int> amdOrder;
       amd(A, amdOrder);
@@ -2387,7 +2393,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
         sizeA, outerA, innerA, orderA, static_cast<std::size_t>(blockSchurPolicy.maxDoubles));
       blockEngine.sparseFactorNonzeros = symbolic.nonzeros;
       blockEngine.sparseFactorFlops = symbolic.valid ? symbolic.flops : std::numeric_limits<double>::quiet_NaN();
-    }
+    };
     if(reml && factorSchurResidualEligible){
       for(int term = 0; term < nRe && nZs > 0; ++term){
         const DescriptorPrecisionState & state = randomPrecisionState[static_cast<std::size_t>(term)];
@@ -2649,8 +2655,10 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     std::sort(couplings.begin(), couplings.end());
     couplings.erase(std::unique(couplings.begin(), couplings.end()), couplings.end());
 
+    bool sparseFactorEstimated = false;
     auto densePlanAdmissible = [&](const sommer::BlockSchurPlan & candidate) -> bool {
       if(blockSchurMode == "force"){ return true; }
+      if(!sparseFactorEstimated){ estimateSparseFactor(); sparseFactorEstimated = true; }
       return blockSchurPolicy.fillFavoursSchur(
         blockEngine.sparseFactorFlops,
         blockSchurPolicy.cost(candidate.groups, candidate.border.size()),
@@ -6742,7 +6750,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       if(rrCallback){
         sommer::RRConditionalOperators operators;
         operators.W = eigenSparseToArmaGlobal(W);
-        operators.C = eigenSparseToArmaGlobal(C);
+        // Callbacks only use C's dimensions; solves go through operators.solve.
+        operators.C = arma::sp_mat(static_cast<arma::uword>(C.rows()),
+                                   static_cast<arma::uword>(C.cols()));
         operators.y = yDense;
         operators.mean = bu;
         if(useH) { operators.residualTransform = Hs.t(); }
@@ -6768,6 +6778,31 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           if(!solved.allFinite()){ Rcpp::stop("Non-finite reduced-rank ML AI coefficient solve."); }
           return arma::mat(solved.data(), solved.rows(), solved.cols());
         };
+        bool rrInversePrepared = false, rrInverseAvailable = false;
+        if(reml && !saddleActive && !dFirstMLActive && CnumericReady &&
+           (solverName == "cholmod" || solverName == "ldlt")){
+          operators.inverseEntry = [&](arma::uword row, arma::uword column, double & value) -> bool {
+            if(!rrInversePrepared){
+              rrInversePrepared = true;
+              try {
+                if(solverName == "ldlt"){
+                  buildSelectedInverseSubset(Cfactor, "C", CselectedTopology, reuseCselectedTopology);
+                  CselectedTopologyReady = true;
+                  rrInverseAvailable = true;
+                } else {
+                  if(!cholmodInvCache.ready){ buildCholmodInverseBlockCache(); }
+                  rrInverseAvailable = cholmodInvCache.ready;
+                }
+              } catch(const std::exception &) {
+                rrInverseAvailable = false;
+              }
+            }
+            if(!rrInverseAvailable){ return false; }
+            const int i = static_cast<int>(row), j = static_cast<int>(column);
+            return solverName == "cholmod" ? cholmodInverseLookup(i, j, value)
+              : getSelectedInverseOriginal(CselectedTopology, i, j, value);
+          };
+        }
         operators.posteriorSolve = [&](const arma::mat & rhs) -> arma::mat {
           Eigen::Map<const Eigen::MatrixXd> mapped(rhs.memptr(), rhs.n_rows, rhs.n_cols);
           const Eigen::MatrixXd solved = sommer::posteriorCoefficientSolve(mapped, nX, reml,
@@ -6869,6 +6904,40 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           };
         }
         Eigen::SparseMatrix<double, Eigen::RowMajor> rrRowDesign;
+        if(residualPlan.elementwisePrecision() && !emMomentsOnly) {
+          operators.residualDiagonalDerivative = [&](arma::uword parameter) -> arma::vec {
+            const arma::mat & derivative = cachedCovarianceD1(residualStruct, parameter);
+            arma::vec diagonal(nR);
+            for(int row = 0; row < nR; ++row) {
+              const int coordinate = residualLocalOfRow[static_cast<std::size_t>(row)];
+              diagonal(row) = derivative(coordinate, coordinate);
+            }
+            return diagonal;
+          };
+          operators.residualDiagonalContraction = [&]() -> arma::vec {
+            prepareEMInverseCache();
+            ++diagonalResidualTraceCalls;
+            EigenSpMat design = reml ? W : EigenSpMat(W.rightCols(Nu));
+            const Eigen::VectorXd quadratic = sommer::exactInverseRowQuadratics(
+              design, sommer::WorkspacePolicy::panelColumns(),
+              [&](const Eigen::MatrixXd & rhs) -> Eigen::MatrixXd {
+                Rcpp::checkUserInterrupt();
+                diagonalResidualTraceSolveColumns += rhs.cols();
+                return reml ? solveCMatrix(rhs, "diagonal residual contraction")
+                  : solveRandomBlock(rhs, "ML diagonal residual contraction");
+              },
+              [&](Eigen::Index row, Eigen::Index column, double & value) {
+                if(!reml) {
+                  return getSelectedInverseOriginal(DselectedTopology, row, column, value);
+                }
+                return solverName == "cholmod"
+                  ? cholmodInverseLookup(row, column, value)
+                  : getSelectedInverseOriginal(CselectedTopology, row, column, value);
+              });
+            const arma::vec correction(quadratic.data(), quadratic.size());
+            return RdiagInv - (RdiagInv % effectiveRiDiag % correction);
+          };
+        }
         if(Rgrid && !emMomentsOnly){
           rrRowDesign = W;
           operators.derivative = [&](arma::uword parameter, const arma::mat & values) -> arma::mat {
@@ -8094,6 +8163,76 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           }
         }
         const int traceColumnCount = static_cast<int>(lambda(iR).n_cols);
+        // Dense block-Schur cross blocks are C^{-1}_gh = F_g S^{-1} F_h', so
+        // tr(Ai C^{-1}_gh) = accu(F_g S^{-1} % (Ai F_h)): one BLAS-3 product per
+        // block instead of a border-length dot product per stored Ai entry.
+        arma::umat crossTraceReady(traceColumnCount, traceColumnCount, arma::fill::zeros);
+        arma::mat crossTraceValues(traceColumnCount, traceColumnCount, arma::fill::zeros);
+        if(reml && !saddleActive && solverName == "cholmod" && blockEngine.active &&
+           !blockEngine.chain && !blockEngine.banded && cholmodInvCache.ready &&
+           !cholmodInvCache.selReady && cholmodInvCache.crossAvailable &&
+           !randomStructurallyDiagonal[static_cast<std::size_t>(iR)] && traceColumnCount > 1){
+          std::vector<int> columnGroup(static_cast<std::size_t>(traceColumnCount), -1);
+          std::vector<arma::uvec> columnLocal(static_cast<std::size_t>(traceColumnCount));
+          for(int column = 0; column < traceColumnCount; ++column){
+            const arma::uword start = static_cast<arma::uword>(partitionsP(column, 0) - 1);
+            const arma::uword width = static_cast<arma::uword>(partitionsP(column, 1) - partitionsP(column, 0) + 1);
+            if(width != Ai(iR).n_rows || Ai(iR).n_rows != Ai(iR).n_cols){ columnGroup.assign(columnGroup.size(), -1); break; }
+            arma::uvec local(width);
+            int group = cholmodInvCache.groupOf[start];
+            for(arma::uword j = 0; j < width && group >= 0; ++j){
+              const std::size_t index = static_cast<std::size_t>(start + j);
+              if(cholmodInvCache.borderPos[index] >= 0 || cholmodInvCache.groupOf[index] != group){
+                group = -1;
+              }else{
+                local(j) = static_cast<arma::uword>(cholmodInvCache.localOf[index]);
+              }
+            }
+            columnGroup[static_cast<std::size_t>(column)] = group;
+            columnLocal[static_cast<std::size_t>(column)] = std::move(local);
+          }
+          std::vector<char> needColumn(static_cast<std::size_t>(traceColumnCount), 0);
+          for(int column = 0; column < traceColumnCount; ++column){
+            for(int row = 0; row < column; ++row){
+              const int g = columnGroup[static_cast<std::size_t>(row)];
+              const int h = columnGroup[static_cast<std::size_t>(column)];
+              if(traceSupport(row, column) != 0 && g >= 0 && h >= 0 && g != h){
+                needColumn[static_cast<std::size_t>(row)] = needColumn[static_cast<std::size_t>(column)] = 1;
+              }
+            }
+          }
+          const double border = static_cast<double>(blockEngine.borderCols.size());
+          const double neededDoubles = 2.0 * std::count(needColumn.begin(), needColumn.end(), 1) *
+            static_cast<double>(Ai(iR).n_rows) * border;
+          if(border > 0.0 && neededDoubles <= blockSchurPolicy.maxDoubles){
+            const bool denseAi = static_cast<double>(Ai(iR).n_nonzero) >
+              0.1 * static_cast<double>(Ai(iR).n_rows) * static_cast<double>(Ai(iR).n_cols);
+            const arma::mat AiDense = denseAi ? arma::mat(Ai(iR)) : arma::mat();
+            std::vector<arma::mat> leftPanels(static_cast<std::size_t>(traceColumnCount));
+            std::vector<arma::mat> rightPanels(static_cast<std::size_t>(traceColumnCount));
+            for(int column = 0; column < traceColumnCount; ++column){
+              if(!needColumn[static_cast<std::size_t>(column)]){ continue; }
+              const std::size_t g = static_cast<std::size_t>(columnGroup[static_cast<std::size_t>(column)]);
+              const arma::uvec & local = columnLocal[static_cast<std::size_t>(column)];
+              leftPanels[static_cast<std::size_t>(column)] = cholmodInvCache.FS[g].rows(local);
+              const arma::mat factorRows = blockEngine.Fg[g].rows(local);
+              rightPanels[static_cast<std::size_t>(column)] = denseAi
+                ? arma::mat(AiDense * factorRows) : arma::mat(Ai(iR) * factorRows);
+            }
+            for(int column = 0; column < traceColumnCount; ++column){
+              for(int row = 0; row < column; ++row){
+                const int g = columnGroup[static_cast<std::size_t>(row)];
+                const int h = columnGroup[static_cast<std::size_t>(column)];
+                if(traceSupport(row, column) == 0 || g < 0 || h < 0 || g == h){ continue; }
+                // sum_{a,b} Ai(a,b) C^{-1}(row a, column b).
+                crossTraceValues(row, column) = arma::accu(
+                  leftPanels[static_cast<std::size_t>(row)] %
+                  rightPanels[static_cast<std::size_t>(column)]);
+                crossTraceReady(row, column) = 1;
+              }
+            }
+          }
+        }
         if(batchTraces){
           const int blockWidth = static_cast<int>(partitionsP(0, 1) - partitionsP(0, 0) + 1);
           for(int column = 0; column < traceColumnCount; ++column){
@@ -8223,6 +8362,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           for(int iRow = 0; iRow <= iCol; ++iRow){
 
             if(traceSupport(iRow, iCol) == 0){
+              continue;
+            }
+            if(crossTraceReady(iRow, iCol) != 0){
+              traces(iRow, iCol) = crossTraceValues(iRow, iCol);
               continue;
             }
 
@@ -10069,7 +10212,13 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           : "D-trace";
 
         Rcpp::Rcout << "MME path: " << solverDesc << " + " << residDesc
-                    << " residual (" << traceDesc << " traces)" << arma::endl;
+                    << " residual (" << traceDesc << " traces) ["
+                    << sommer::mmePathStatus(solverName, rrConditional,
+                      blockEngine.active, blockEngine.active && blockEngine.chain,
+                      blockEngine.active && blockEngine.banded,
+                      blockEngine.active && blockEngine.latent, blockSchurMode,
+                      Rgrid ? "grid" : Rdiag ? "diagonal" : Rkron ? "kronecker" : "sparse")
+                    << "]" << arma::endl;
 
         progress.header();
       }
@@ -10867,8 +11016,14 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
   // return results in a list form
   // W/C are native Eigen sparse matrices internally; bridge to arma::sp_mat
   // only here, for the R-facing Matrix output.
+  // Intermediate EM-blend evaluations never become the returned fit; skip
+  // exporting their (possibly dense) coefficient matrix.
+  const bool omitCoefficientMatrix = covStructI.hasAttribute("omitCoefficientMatrix") &&
+    Rcpp::as<bool>(covStructI.attr("omitCoefficientMatrix"));
   const arma::sp_mat Wout = eigenSparseToArmaGlobal(W);
-  const arma::sp_mat Cout = eigenSparseToArmaGlobal(C);
+  const arma::sp_mat Cout = omitCoefficientMatrix
+    ? arma::sp_mat(static_cast<arma::uword>(C.rows()), static_cast<arma::uword>(C.cols()))
+    : eigenSparseToArmaGlobal(C);
   phaseProfile.finish();
   Rcpp::RObject profileOut = R_NilValue;
   if(phaseProfile.enabled()){
@@ -11105,6 +11260,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       Rcpp::Named("compression") = compressionDiagnostics,
       Rcpp::Named("coefficientEvaluations") = coefficientEvaluations,
       Rcpp::Named("emInverseTraceCalls") = emInverseTraceCalls,
+      Rcpp::Named("diagonalResidualTraceCalls") = diagonalResidualTraceCalls,
+      Rcpp::Named("diagonalResidualTraceSolveColumns") = diagonalResidualTraceSolveColumns,
       Rcpp::Named("emInverseTraceFallbackPanels") = emInverseTraceFallbackPanels,
       Rcpp::Named("emDesignTraceCalls") = emDesignTraceCalls,
       Rcpp::Named("nativeAISensitivityColumns") = static_cast<double>(sensitivityRHSColumns),
@@ -11149,6 +11306,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         ? static_cast<int>(blockEngine.bandWidth) : 0,
       Rcpp::Named("factorSchurActive") = blockEngine.active && blockEngine.latent,
       Rcpp::Named("factorSchurFallbacks") = factorSchurFallbacks,
+      Rcpp::Named("residualEngine") = residualPlan.grid() ? "grid"
+        : residualPlan.diagonal() ? "diagonal" : residualPlan.kronecker() ? "kronecker" : "sparse",
       Rcpp::Named("gridFactorizations") = gridFactorizations,
       Rcpp::Named("gridFactorReuses") = gridFactorReuses,
       Rcpp::Named("pcgResidualTraceContractions") = pcgResidualTraceContractions,

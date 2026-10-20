@@ -11,6 +11,97 @@ namespace sommer {
 
 typedef std::function<Eigen::MatrixXd(const Eigen::MatrixXd &)> DensePanelOperator;
 
+// diag(A C^{-1} A'): use available inverse entries before coefficient panels.
+inline Eigen::VectorXd exactInverseRowQuadratics(
+    const Eigen::SparseMatrix<double> & design, Eigen::Index panelColumns,
+    const DensePanelOperator & solve,
+    const std::function<bool(Eigen::Index, Eigen::Index, double &)> & lookup) {
+  if(panelColumns < 1) {
+    throw std::runtime_error("Invalid inverse row quadratic panel size.");
+  }
+  typedef Eigen::SparseMatrix<double, Eigen::RowMajor> RowSparse;
+  const RowSparse rows = design;
+  Eigen::VectorXd result = Eigen::VectorXd::Zero(design.rows());
+  std::vector<bool> missing(static_cast<std::size_t>(design.rows()), false);
+  std::vector<bool> active(static_cast<std::size_t>(design.cols()), false);
+  Eigen::Index missingRows = 0;
+  for(Eigen::Index row = 0; row < rows.rows(); ++row) {
+    bool complete = true;
+    for(RowSparse::InnerIterator first(rows, row); first && complete; ++first) {
+      for(RowSparse::InnerIterator second(rows, row); second; ++second) {
+        if(second.col() > first.col()) { break; }
+        double value = 0.0;
+        if(!lookup || !lookup(first.col(), second.col(), value)) {
+          complete = false;
+          break;
+        }
+        result(row) += (first.col() == second.col() ? 1.0 : 2.0) *
+          first.value() * second.value() * value;
+      }
+    }
+    if(!complete) {
+      missing[static_cast<std::size_t>(row)] = true;
+      ++missingRows;
+      result(row) = 0.0;
+      for(RowSparse::InnerIterator entry(rows, row); entry; ++entry) {
+        active[static_cast<std::size_t>(entry.col())] = true;
+      }
+    }
+  }
+  std::vector<Eigen::Index> columns;
+  for(Eigen::Index column = 0; column < design.cols(); ++column) {
+    if(active[static_cast<std::size_t>(column)]) { columns.push_back(column); }
+  }
+  // Choose the smaller RHS space; neither route materializes an inverse.
+  const bool coefficientPanels = columns.size() < static_cast<std::size_t>(missingRows);
+  std::vector<Eigen::Index> sources = columns;
+  if(!coefficientPanels) {
+    sources.clear();
+    for(Eigen::Index row = 0; row < design.rows(); ++row) {
+      if(missing[static_cast<std::size_t>(row)]) { sources.push_back(row); }
+    }
+  }
+  for(std::size_t first = 0; first < sources.size(); first += panelColumns) {
+    const Eigen::Index count = std::min<std::size_t>(panelColumns, sources.size() - first);
+    Eigen::MatrixXd rhs = Eigen::MatrixXd::Zero(design.cols(), count);
+    for(Eigen::Index local = 0; local < count; ++local) {
+      const Eigen::Index source = sources[first + local];
+      if(coefficientPanels) { rhs(source, local) = 1.0; }
+      else {
+        for(RowSparse::InnerIterator entry(rows, source); entry; ++entry) {
+          rhs(entry.col(), local) = entry.value();
+        }
+      }
+    }
+    const Eigen::MatrixXd solved = solve(rhs);
+    if(solved.rows() != design.cols() || solved.cols() != count || !solved.allFinite()) {
+      throw std::runtime_error("Invalid inverse action in row quadratic panels.");
+    }
+    if(coefficientPanels) {
+      const Eigen::MatrixXd applied = design * solved;
+      for(Eigen::Index local = 0; local < count; ++local) {
+        const Eigen::Index column = sources[first + local];
+        for(Eigen::SparseMatrix<double>::InnerIterator entry(design, column); entry; ++entry) {
+          if(missing[static_cast<std::size_t>(entry.row())]) {
+            result(entry.row()) += entry.value() * applied(entry.row(), local);
+          }
+        }
+      }
+    } else {
+      for(Eigen::Index local = 0; local < count; ++local) {
+        const Eigen::Index row = sources[first + local];
+        for(RowSparse::InnerIterator entry(rows, row); entry; ++entry) {
+          result(row) += entry.value() * solved(entry.col(), local);
+        }
+      }
+    }
+  }
+  if(!result.allFinite()) {
+    throw std::runtime_error("Non-finite inverse row quadratics.");
+  }
+  return result;
+}
+
 // Contract inverse coefficient blocks against one shared relationship precision.
 inline Eigen::MatrixXd exactInverseBlockTraces(
     Eigen::Index dimension, const std::vector<Eigen::Index> & starts,

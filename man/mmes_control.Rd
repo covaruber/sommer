@@ -204,6 +204,12 @@ same names.}
 no direct replacement. Use \code{diagnostics$verbose} for fit messages and
 \code{diagnostics$profile} for implemented phase profiling.}
 }
+With \code{diagnostics$verbose=TRUE}, the existing Henderson \code{MME path}
+line includes the coefficient solver, active/inactive latent reduced-rank and
+Schur variants, and the selected residual engine (including inactive grid and
+repeated-Kronecker paths). An inactive automatic Schur path is reported as
+``not selected'', not as proof that the model lacks exploitable structure;
+disabled controls and unsupported coefficient backends are distinguished.
 }
 \section{Compatibility}{
 Settings are checked against one compatibility table when the control is

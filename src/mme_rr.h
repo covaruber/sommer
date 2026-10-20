@@ -29,6 +29,8 @@ struct RRConditionalOperators {
   std::function<arma::mat(const arma::mat &)> precision;
   std::function<arma::mat(const arma::mat &)> solve;
   std::function<arma::mat(const arma::mat &)> solveRandom;
+  // Optional exact REML C^{-1}(row, column) lookup; false means unavailable.
+  std::function<bool(arma::uword, arma::uword, double &)> inverseEntry;
   std::function<arma::mat(const arma::mat &)> posteriorSolve;
   std::function<arma::mat(int, bool)> posteriorRandomTraces;
   std::function<double(const arma::sp_mat &)> posteriorTrace;
@@ -38,6 +40,8 @@ struct RRConditionalOperators {
   arma::mat informationTangent;
   std::function<arma::mat(arma::uword, const arma::mat &)> derivative;
   std::function<arma::mat(arma::uword)> residualContraction;
+  std::function<arma::vec()> residualDiagonalContraction;
+  std::function<arma::vec(arma::uword)> residualDiagonalDerivative;
 };
 
 using RRConditionalCallback = std::function<void(const RRConditionalOperators &)>;
@@ -269,8 +273,10 @@ inline RRAIResult reducedRankInformation(
   const arma::vec & residualParameters = standardizedParameters.back();
   const arma::uword residualDimension = Rcpp::as<int>(residualDescriptor["dim"]);
   const arma::uword residualBlocks = residualBlock.max();
-  residualStates.reserve(residualBlocks);
-  for(arma::uword block = 1; block <= residualBlocks; ++block) {
+  const bool diagonalResidual = operators.residualDiagonalContraction &&
+    operators.residualDiagonalDerivative;
+  if(!diagonalResidual) { residualStates.reserve(residualBlocks); }
+  for(arma::uword block = 1; !diagonalResidual && block <= residualBlocks; ++block) {
     ResidualBlockState state;
     state.rows = arma::find(residualBlock == block);
     if(state.rows.is_empty()) { continue; }
@@ -362,6 +368,13 @@ inline RRAIResult reducedRankInformation(
         });
       } else {
         derivatives.emplace_back([&, local](const arma::mat & v) {
+          if(diagonalResidual) {
+            arma::vec diagonal = operators.residualDiagonalDerivative(local);
+            if(useH) { diagonal %= arma::square(inverseTransformDiagonal); }
+            arma::mat output = v;
+            output.each_col() %= diagonal;
+            return output;
+          }
           if(operators.derivative) { return operators.derivative(local, v); }
           arma::mat input = v;
           if(useH) { input = solveTransform(input, false, "residual derivative"); }
@@ -437,8 +450,54 @@ inline RRAIResult reducedRankInformation(
     const arma::mat precisionSpan = latentPrecision * leftInverse * span;
     arma::mat contractions(q, span.n_cols, arma::fill::zeros);
     out.randomTraceDirections += span.n_cols;
+    std::vector<arma::mat> tangents;
+    arma::umat needed(q, span.n_cols, arma::fill::zeros);
+    for(arma::uword parameter = offsets[term]; parameter < offsets[term + 1]; ++parameter) {
+      const arma::mat derivativeSpan = derivativeCovariances[parameter] * span;
+      tangents.push_back(derivativeSpan - 0.5 * span * (span.t() * derivativeSpan));
+      needed = needed || (tangents.back() != 0.0);
+    }
+    // contraction(t,s) = sum_j sum_k (W'R^{-1}Z_t)(k,j) C^{-1}(k, latent(s,j)): only
+    // C^{-1} entries inside the coefficient pattern are needed, as in Takahashi traces.
+    auto inverseContractions = [&]() -> bool {
+      std::vector<double> entries(mapping.n_cols, 0.0);
+      for(arma::uword target = 0; target < q; ++target) {
+        const arma::uvec sources = arma::find(needed.row(target).t());
+        if(sources.is_empty()) { continue; }
+        std::vector<arma::uword> axes;
+        for(arma::uword axis = 0; axis < mapping.n_cols; ++axis) {
+          if(arma::any(arma::vectorise(precisionSpan.submat(arma::uvec{axis}, sources)) != 0.0)) { axes.push_back(axis); }
+        }
+        if(axes.empty()) { continue; }
+        for(arma::uword first = 0; first < width; first += panelWidth) {
+          Rcpp::checkUserInterrupt();
+          const arma::uword count = std::min(panelWidth, width - first);
+          const arma::mat designPanel(arma::sp_mat(
+            state.designs[target].cols(first, first + count - 1)));
+          const arma::sp_mat coupling = W.t() * arma::sp_mat(applyRi(designPanel));
+          for(arma::sp_mat::const_iterator entry = coupling.begin();
+              entry != coupling.end(); ++entry) {
+            const arma::uword column = first + entry.col();
+            for(const arma::uword axis : axes) {
+              if(!operators.inverseEntry(entry.row(), latentOffset + axis * width + column,
+                                         entries[axis])) {
+                return false;
+              }
+            }
+            for(const arma::uword source : sources) {
+              double value = 0.0;
+              for(const arma::uword axis : axes) { value += precisionSpan(axis, source) * entries[axis]; }
+              contractions(target, source) += *entry * value;
+            }
+          }
+        }
+      }
+      return true;
+    };
+    const bool lookedUp = reml && operators.inverseEntry && inverseContractions();
+    if(!lookedUp) { contractions.zeros(); }
     // dG = A Q' + Q A' for an orthonormal loading span Q; only Q needs P solves.
-    for(arma::uword first = 0; first < width; first += panelWidth) {
+    for(arma::uword first = 0; !lookedUp && first < width; first += panelWidth) {
       Rcpp::checkUserInterrupt();
       const arma::uword count = std::min(panelWidth, width - first);
       for(arma::uword source = 0; source < span.n_cols; ++source) {
@@ -464,9 +523,7 @@ inline RRAIResult reducedRankInformation(
       }
     }
     for(arma::uword parameter = offsets[term]; parameter < offsets[term + 1]; ++parameter) {
-      const arma::mat derivativeSpan = derivativeCovariances[parameter] * span;
-      const arma::mat tangent = derivativeSpan - 0.5 * span * (span.t() * derivativeSpan);
-      traces(parameter) = 2.0 * arma::accu(tangent % contractions);
+      traces(parameter) = 2.0 * arma::accu(tangents[parameter - offsets[term]] % contractions);
     }
     latentOffset += mapping.n_cols * width;
   }
@@ -485,6 +542,11 @@ inline RRAIResult reducedRankInformation(
   }
   const arma::uword residualFirst = offsets[terms - 1];
   const bool residualHasShape = nParameters - residualFirst > 1;
+  if(diagonalResidual) { out.largestResidualBlock = 1; }
+  arma::vec diagonalContraction;
+  if(residualHasShape && diagonalResidual) {
+    diagonalContraction = operators.residualDiagonalContraction();
+  }
   if(residualHasShape && operators.residualContraction) {
     for(std::size_t block = 0; block < residualStates.size(); ++block) {
       const ResidualBlockState & state = residualStates[block];
@@ -495,7 +557,7 @@ inline RRAIResult reducedRankInformation(
       residualContractions[block] = contraction.submat(observationOrder, observationOrder);
     }
   }
-  for(arma::uword first = 0; residualHasShape && !operators.residualContraction &&
+  for(arma::uword first = 0; residualHasShape && !diagonalResidual && !operators.residualContraction &&
       first < n; first += panelWidth) {
     Rcpp::checkUserInterrupt();
     const arma::uword count = std::min(panelWidth, n - first);
@@ -518,6 +580,11 @@ inline RRAIResult reducedRankInformation(
     }
   }
   for(arma::uword parameter = residualFirst + 1; parameter < nParameters; ++parameter) {
+    if(diagonalResidual) {
+      traces(parameter) = arma::dot(
+        operators.residualDiagonalDerivative(parameter - residualFirst), diagonalContraction);
+      continue;
+    }
     for(std::size_t block = 0; block < residualStates.size(); ++block) {
       const arma::mat derivative = engine.evaluateObservedDescriptor(residualDescriptor,
         residualParameters, residualStates[block].index, parameter - residualFirst);
@@ -531,6 +598,7 @@ inline RRAIResult reducedRankInformation(
   }
   out.phaseSeconds(2) = secondsSince(residualTraceStarted);
   const auto informationStarted = std::chrono::steady_clock::now();
+  arma::uvec active(nParameters, arma::fill::zeros);
   for(arma::uword parameter = 0; parameter < nParameters; ++parameter) {
     if(zeroDerivatives[parameter]) {
       applied[parameter].zeros(n, 1);
@@ -538,11 +606,23 @@ inline RRAIResult reducedRankInformation(
       continue;
     }
     applied[parameter] = derivatives[parameter](py);
-    projected[parameter] = applyP(applied[parameter]);
+    active(parameter) = 1;
     ++out.sensitivityColumns;
     const double quadratic = arma::dot(py, applied[parameter]);
 
     out.score(parameter) = 0.5 * (quadratic - traces(parameter));
+  }
+  // One multi-column P application shares each coefficient solve across parameters.
+  const arma::uvec activeParameters = arma::find(active);
+  if(!activeParameters.is_empty()) {
+    arma::mat stacked(n, activeParameters.n_elem);
+    for(arma::uword column = 0; column < activeParameters.n_elem; ++column) {
+      stacked.col(column) = applied[activeParameters(column)].col(0);
+    }
+    const arma::mat stackedProjected = applyP(stacked);
+    for(arma::uword column = 0; column < activeParameters.n_elem; ++column) {
+      projected[activeParameters(column)] = stackedProjected.col(column);
+    }
   }
   for(arma::uword first = 0; first < nParameters; ++first) {
     for(arma::uword second = first; second < nParameters; ++second) {
@@ -715,10 +795,6 @@ inline Rcpp::List fitReducedRank(
   double acceptedTrustScale = 1.0, acceptedLineAlpha = 1.0;
   const std::clock_t progressStart = std::clock();
   MMEProgress progressPrinter(terms);
-  if(verbose) {
-    Rcpp::Rcout << "MME path: exact latent reduced rank + shared analytic AI traces"
-                << arma::endl;
-  }
   for(int iteration = 0; iteration < iterations; ++iteration) {
     Rcpp::checkUserInterrupt();
     const arma::vec current = unpack(reduced);
@@ -734,6 +810,8 @@ inline Rcpp::List fitReducedRank(
     }
     if(verbose && iteration == 0) {
       const Rcpp::List diagnostics = result["engineDiagnostics"];
+      Rcpp::Rcout << "MME path: exact latent reduced rank + shared analytic AI traces"
+                  << " [" << mmePathStatus(result, true) << "]" << arma::endl;
       if(Rcpp::as<bool>(diagnostics["blockSchurActive"])) {
         const std::string engine = Rcpp::as<bool>(diagnostics["factorSchurActive"])
           ? "Latent-factor Schur" : Rcpp::as<bool>(diagnostics["blockChainActive"])

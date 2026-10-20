@@ -192,6 +192,7 @@ inline Rcpp::List fitEMBlend(
                             "gridFactorizations", "gridFactorReuses",
                             "factorEvaluationReuses", "sparseSpatialFactorizationReuses",
                             "emInverseTraceCalls", "emInverseTraceFallbackPanels",
+                            "diagonalResidualTraceCalls", "diagonalResidualTraceSolveColumns",
                             "emDesignTraceCalls"}) {
       if(diagnostics.containsElementNamed(name)) {
         engineCounters[name] += Rcpp::as<double>(diagnostics[name]);
@@ -316,6 +317,8 @@ inline Rcpp::List fitEMBlend(
       covariance.attr("covarianceInformation") = "none";
     }
     covariance.attr("emMomentsOnly") = !nativeAI && (!callback || !iterationNeedsAI);
+    // Only native-information fits can be returned without a final refit.
+    covariance.attr("omitCoefficientMatrix") = !nativeInformation;
     if(callback && !nativeAI) {
       for(int term = 0; term < terms; ++term) {
         Rcpp::List descriptor = covariance[term];
@@ -1083,10 +1086,11 @@ inline Rcpp::List fitEMBlend(
       if(iteration == 0) {
         const Rcpp::List diagnostics = result["engineDiagnostics"];
         Rcpp::Rcout << (adaptive
-          ? "MME path: AI-first with on-demand EM/PX-GEM recovery\n"
+          ? "MME path: AI-first with on-demand EM/PX-GEM recovery"
           : parameterExpanded
-          ? "MME path: scalar PX-GEM + AI direction blending\n"
-          : "MME path: exact EM/GEM + AI direction blending\n");
+          ? "MME path: scalar PX-GEM + AI direction blending"
+          : "MME path: exact EM/GEM + AI direction blending")
+          << " [" << mmePathStatus(result, lowRank) << "]\n";
         if(Rcpp::as<bool>(diagnostics["blockSchurActive"])) {
           const std::string coefficientEngine = Rcpp::as<bool>(diagnostics["factorSchurActive"])
             ? "Latent-factor Schur" : Rcpp::as<bool>(diagnostics["blockChainActive"])

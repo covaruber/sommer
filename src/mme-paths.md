@@ -314,6 +314,22 @@ conditional coefficient engine, and each accepted likelihood.
 `engineDiagnostics$randomTraceDirections` reports the total loading-span
 directions used across random terms.
 
+Diagonal residual score contractions use covariance capabilities, not model
+names. Any structurally diagonal residual descriptor with no weights or a
+diagonal weight transform uses `diag(Ri - Ri W C^{-1} W' Ri)` in residual
+coordinates (random-only `D^{-1}` for ML). Sparse design-row quadratics reuse
+the active backend's selected inverse or Schur inverse-block cache. Missing
+entries use bounded exact solve panels in the smaller of the active coefficient
+and unresolved design-row spaces, without retaining a full inverse. One shared
+diagonal serves every residual derivative; derivative actions are elementwise.
+The scalar-residual trace identity still avoids this preparation entirely.
+The choice is independent of random covariance families and relationship
+matrices, and applies to both standalone RR AI and automatic AI/recovery.
+`diagonalResidualTraceCalls` and `diagonalResidualTraceSolveColumns` expose
+use of the path and its exact fallback cost. Non-diagonal weight transforms
+retain the general residual contractions; grid, Kronecker and sparse residual
+engines keep their existing eligibility and exact fallbacks.
+
 The RR coefficient-engine message precedes its progress header.
 `mme_progress.h` owns the shared compact Henderson table: `iter`, `LogLik`,
 `deltaLL`, `update`, `policy`, `trust`, `line`, `notPD`, and `time(s)`.
@@ -341,6 +357,16 @@ maps the full latent inverse. The route reports `reducedRankActive`,
 PCG, `vcc`, covariance-update acceleration and zero-specific residuals are
 explicitly unsupported. Conditional sparse/GPU backend controls remain active.
 
+REML RR random score traces contract `W' R^{-1} Z_t` with exact `C^{-1}`
+entries at matching latent coordinates, which all lie in C's stored pattern.
+Entries come from the block-Schur/CHOLMOD inverse-block cache or the LDLT
+Takahashi subset, built at most once per conditional fit. Only
+(design, loading-span) pairs with a nonzero derivative tangent are contracted.
+Any unavailable entry, ML, saddle-point or D-first fits use the previous
+`width * span` solve panels for that term. Information products share one
+multi-column `P` application. With dense genomic `Gu`, this removed the
+dominant per-iteration cost: 8,800 solve columns for 10 environments x 800
+individuals, a ~4x end-to-end speedup.
 | Request | Coefficient factorization | Accepted-state trace preparation |
 | --- | --- | --- |
 | LDLT | Cached Eigen symbolic/numeric LDLT | Takahashi selected inverse |
@@ -398,8 +424,16 @@ coefficients are zero and virtual solutions are not returned.
 The existing marginal analytic score, AI updates and uncertainty reporting
 are retained, including free loadings and specifics. Cross-environment random
 score traces contract `Ai * F_g * S^-1` with `F_h` directly rather than forming
-every dense inverse block. The public C and coefficient ordering remain
-marginal; C is still explicitly assembled during optimization.
+every dense inverse block: for each (row, column) score-parameter pair the
+trace is `sum((F_g S^-1)[rows] % (Ai F_h[cols]))`, one BLAS-3 product per pair
+precomputed before the trace loop (bounded by `blockSchurPolicy.maxDoubles`,
+otherwise per-entry inverse lookups are used). The public C and coefficient
+ordering remain marginal; C is still explicitly assembled during optimization.
+The AMD/symbolic sparse-factor estimate used to price ordinary dense plans is
+computed lazily, so latent, chain and banded admissions skip it on dense C.
+EM-blend evaluations that cannot become the returned fit (callback/EM and
+non-native trials) do not export C, and conditional callbacks receive only its
+dimensions.
 Admission uses `3 b^2 + mainSize^2 + sum_g (4 m_g^2 + 6 m_g b)` doubles,
 where b includes virtual equations. This separate resource rule has no fixed
 2000-effect latent-border cap. It does not change the limits of the ordinary

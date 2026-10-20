@@ -253,6 +253,60 @@ test_that("latent AI matches independently optimized ML", {
                reference$information, tolerance=2e-6)
 })
 
+test_that("diagonal residual contractions are exact across layouts, solvers and weights", {
+  fixture <- .rr_ai_fixture()
+  dataset <- fixture$data
+  dataset <- dataset[rev(seq_len(nrow(dataset))), ]
+  precision <- fixture$precision
+  shape <- rrm(dataset$environment, 1L, loadings=fixture$loading[, 1L, drop=FALSE])
+  diagonal <- diag(seq(0.7, 1.4, length.out=nrow(dataset)))
+  correlated <- diagonal + 0.02 * 0.4^abs(outer(seq_len(nrow(dataset)),
+                                               seq_len(nrow(dataset)), "-"))
+  for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
+    for(residual in list(~dsumm(vsm(ism(units), sigma2=0.6), by=environment),
+                        ~vsm(dsm(environment), ism(units), sigma2=0.6))){
+      for(weights in list(NULL, diagonal, correlated)){
+        fitModel <- function(setup, blend=0){
+          arguments <- list(fixed=response~environment,
+            random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9) +
+              vsm(csm(replicate, rho=0.2), sigma2=0.2),
+            rcov=residual, data=dataset,
+            control=mmes_control(solve=list(method=solver),
+              task=list(objective=if(reml) "reml" else "ml"),
+              convergence=list(maxIters=1L), output=list(setup=setup),
+              update=list(blendWeight=blend),
+              diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+          if(!is.null(weights)) arguments$W <- weights
+          do.call(mmes, arguments)
+        }
+        setup <- fitModel(TRUE)
+        fit <- fitModel(FALSE)
+        diagnostics <- fit$engineDiagnostics
+        reference <- .rr_ai_dense_reference(setup,
+          unlist(fit$covParWorking, use.names=FALSE), reml)
+        expect_equal(reference$score, reference$numericalScore, tolerance=1e-6)
+        expect_equal(as.numeric(diagnostics$scoreWorking), reference$score, tolerance=2e-6)
+        expect_equal(as.matrix(diagnostics$averageInformationWorking),
+          reference$information, tolerance=2e-6)
+        eligible <- is.null(weights) || identical(weights, diagonal)
+        expect_equal(diagnostics$diagonalResidualTraceCalls, as.numeric(eligible))
+        if(eligible){
+          expect_lte(diagnostics$diagonalResidualTraceSolveColumns,
+            diagnostics$latentCoefficients)
+          if(reml && solver == "cholmod" && diagnostics$blockSchurActive){
+            expect_equal(diagnostics$diagonalResidualTraceSolveColumns, 0)
+          }
+        }
+        automatic <- fitModel(FALSE, NULL)
+        expect_equal(as.numeric(automatic$engineDiagnostics$scoreWorking),
+          reference$score, tolerance=2e-6)
+        expect_gte(automatic$engineDiagnostics$diagonalResidualTraceCalls,
+          as.numeric(eligible))
+      }
+    }
+  }
+})
+
 test_that("latent RR sectioned spatial scores and AI match dense observation formulas", {
   set.seed(729)
   dataset <- expand.grid(environment=factor(letters[1:3]),

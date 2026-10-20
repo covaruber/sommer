@@ -176,7 +176,8 @@ inline Rcpp::List fitCommonScale(
     norms.insert_cols(norms.n_cols, arma::vec({arma::norm(direction, 1), scoreNorm, relativeStep}));
     if(verbose){
       if(iteration == 0){
-        Rcpp::Rcout << "MME path: exact common-scale profile AI\n";
+        Rcpp::Rcout << "MME path: exact common-scale profile AI"
+                    << " [" << mmePathStatus(fit, false) << "]\n";
         progress.header();
       }
       progress.row(iteration + 1, likelihood, previousLikelihood,

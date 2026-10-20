@@ -13,6 +13,39 @@
 
 namespace sommer {
 
+inline std::string mmePathStatus(const std::string & solver, bool latentRR,
+    bool schur, bool chain, bool banded, bool factorSchur,
+    const std::string & schurMode, const std::string & residual) {
+  const auto state = [](bool active) { return active ? "active" : "inactive"; };
+  std::ostringstream text;
+  text << "solver=" << solver << "; latent RR=" << state(latentRR)
+       << "; Schur=" << state(schur);
+  if(!schur) {
+    text << (schurMode == "off" ? " (disabled)"
+      : solver != "cholmod" ? " (requires CHOLMOD)"
+      : schurMode == "force" ? " (forced, no eligible plan)"
+      : " (auto: not selected)");
+  }
+  text << "; chain=" << state(chain) << "; banded=" << state(banded)
+       << "; factor-Schur=" << state(factorSchur)
+       << "; residual=" << residual
+       << "; grid=" << state(residual == "grid")
+       << "; repeated-Kronecker=" << state(residual == "kronecker");
+  return text.str();
+}
+
+inline std::string mmePathStatus(const Rcpp::List & result, bool latentRR) {
+  const Rcpp::List diagnostics = result["engineDiagnostics"];
+  const Rcpp::List control = diagnostics["control"];
+  return mmePathStatus(Rcpp::as<std::string>(result["solver"]), latentRR,
+    Rcpp::as<bool>(diagnostics["blockSchurActive"]),
+    Rcpp::as<bool>(diagnostics["blockChainActive"]),
+    Rcpp::as<bool>(diagnostics["blockBandedActive"]),
+    Rcpp::as<bool>(diagnostics["factorSchurActive"]),
+    Rcpp::as<std::string>(control["blockSchur"]),
+    Rcpp::as<std::string>(diagnostics["residualEngine"]));
+}
+
 class ProfileTimer {
   double * elapsedSeconds;
   std::chrono::steady_clock::time_point started;
