@@ -42,7 +42,9 @@ test_that("predict.mmes gives exact SEs without requiring the full Ci inverse", 
 test_that("predict.mmes averages fixed interactions over their full level space", {
   data(DT_yatesoats)
 
-  model <- mmes(Y ~ B + B:MP, random=~V, rcov=~units, data=DT_yatesoats, control=mmes_control(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE)))
+  expect_warning(
+    model <- mmes(Y ~ B + B:MP, random=~V, rcov=~units, data=DT_yatesoats, control=mmes_control(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE))),
+    "Omitting 1 structurally unestimable")
   prediction <- predict(model, D="V")
 
   bColumns <- as.vector(model$partitionsX[["B"]])

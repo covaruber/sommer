@@ -167,9 +167,11 @@ head(long)
 
 # Step 1: REML on a subset of herds
 
-Variance components are estimated on 60 of the 300 herds (about 20% of the
-records). The relationship inverse is built from the sub-pedigree of those
-animals and all their ancestors, so the REML problem stays small.
+Variance components are estimated on 40 of the 300 herds (about 13% of the
+records), with one REML iteration to keep the vignette run short. The
+relationship inverse is built from the sub-pedigree of those animals and all
+their ancestors, so the REML problem stays small. Increase the sample and
+iteration limit for a full analysis.
 
 ```{r subset}
 trace_pedigree <- function(ped, index){
@@ -186,7 +188,7 @@ trace_pedigree <- function(ped, index){
   sub
 }
 
-pilotHerds <- levels(long$herd)[1:60]
+pilotHerds <- levels(long$herd)[1:40]
 pilot <- droplevels(long[long$herd %in% pilotHerds, ])
 pilotPed <- trace_pedigree(ped, recorded$index[recorded$herd %in% pilotHerds])
 c(records=nrow(pilot), animals=length(unique(pilot$id)), pedigree=nrow(pilotPed))
@@ -203,7 +205,8 @@ timeReml <- system.time(
   random = ~ vsm(usm(trait), ism(id), Gu=Ainv),
   rcov = ~ vsm(usm(trait), ism(record)),
   data=pilot,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L),
+                         diagnostics = list(verbose = FALSE)))
 )
 timeReml[["elapsed"]]
 ```

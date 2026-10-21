@@ -51,6 +51,10 @@ covmatrix_mmes <- function(object, term, se=TRUE, max.dim=500L, rel_step=1e-5){
     s <- sqrt(diag(K))
     R <- K / outer(s, s)
     diag(R) <- 1
+    if(!is.null(cs$reml_omitted)){
+      R[cs$reml_omitted,] <- NA_real_
+      R[,cs$reml_omitted] <- NA_real_
+    }
     R
   }
   V <- evalAt(natural)
@@ -81,6 +85,12 @@ covmatrix_mmes <- function(object, term, se=TRUE, max.dim=500L, rel_step=1e-5){
     out$covariance.se <- toMat(Jc)
     out$correlation.se <- toMat(Jr)
     diag(out$correlation.se) <- 0
+    if(!is.null(cs$reml_omitted)){
+      out$covariance.se[cs$reml_omitted,] <- NA_real_
+      out$covariance.se[,cs$reml_omitted] <- NA_real_
+      out$correlation.se[cs$reml_omitted,] <- NA_real_
+      out$correlation.se[,cs$reml_omitted] <- NA_real_
+    }
   }
   out
 }

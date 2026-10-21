@@ -71,7 +71,8 @@
   coef$Std.Error <- sqrt(abs(s2.beta))
   coef$t.value <- coef$Estimate/coef$Std.Error
   
-varcomp <- object$covParNative[,c("term",  "parameter", "estimate",  "StdError",  "Zratio"  )]
+varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "Zratio",
+                                intersect("status", names(object$covParNative)))]
 
   # lapply(object$covStruct, function(x){x$free})
   # constraints <- unlist(lapply(object$thetaC, as.vector))
@@ -79,6 +80,7 @@ varcomp <- object$covParNative[,c("term",  "parameter", "estimate",  "StdError",
   # varcomp$Constraint <- replace.values(constraints, 1:3, c("Positive","Unconstr","Fixed"))
 
   output <- list(varcomp=varcomp, betas=coef, method=method,logo=LLAIC,
+                 remlOmissions=object$remlOmissions,
                  REML=if(is.null(object$REML)) TRUE else object$REML,
                  family=object$family,
                  pqlConverged=object$pqlConverged)
@@ -118,6 +120,9 @@ varcomp <- object$covParNative[,c("term",  "parameter", "estimate",  "StdError",
   print(x$logo)#, digits = digits)
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\nVariance-Covariance components:\n")
+  if(!is.null(x$remlOmissions)){
+    cat("Structurally unestimable REML components were omitted; their zeros are not variance estimates and their standard errors are unavailable.\n")
+  }
   if(identical(x$covarianceInformation, "none")){
     cat("Covariance information omitted (covarianceInformation='none'); standard errors are unavailable.\n")
   }
@@ -480,7 +485,7 @@ rotate_back_mmes <- function(object){
   names(columns) <- names(rows[[1L]])
   out <- as.data.frame(columns, stringsAsFactors=FALSE)
   rownames(out) <- NULL
-  out
+  .mmes_reml_report_status(object, out)
 }
 
 "covparams_mmes" <- function(object, term=NULL){
@@ -630,7 +635,7 @@ rotate_back_mmes <- function(object){
   rownames(out) <- NULL
   attr(out, "vcov") <- nativeCovariance
   
-  out
+  .mmes_reml_report_status(object, out)
 }
 
 "covparams_mmes_se" <- function(object, term=NULL, rel_step=1e-6){

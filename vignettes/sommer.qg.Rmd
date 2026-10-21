@@ -148,10 +148,9 @@ ans1 <- mmes(Yield~1,
   random= ~ Name + Env + Env:Name + Env:Block,
   rcov= ~ units,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(ans1)$varcomp
-(n.env <- length(levels(DT$Env)))
-vpredict(ans1, h2 ~ V1 / ( V1 + (V3/n.env) + (V5/(2*n.env)) ) )
+vpredict(ans1, h2 ~ V1 / ( V1 + (V3/5) + (V5/10) ) )
 ```
 That is an estimate of broad-sense heritability.
 
@@ -208,7 +207,7 @@ modFD <- mmes(Yield~1,
   random=~ vsm(atm(Location,c("3","4")),ism(GCA2)),
   rcov= ~ vsm(dsm(Location),ism(units)),
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(modFD)
 ```
 
@@ -269,7 +268,7 @@ modFD <- mmes(Yield~Location,
   random=~GCA1+GCA2+SCA,
   rcov=~units,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 (suma <- summary(modFD)$varcomp)
 Vgca <- sum(suma[1:2,"estimate"])
 Vsca <- suma[3,"estimate"]
@@ -299,7 +298,7 @@ modh <- mmes(sugar~1,
   random=~vsm(ism(overlay(femalef,malef)) )
              + genof,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(modh)$varcomp
 ```
 
@@ -317,12 +316,15 @@ $y = X\beta + Zu + \epsilon$
 
 and takes advantage of the variance covariance matrix for the genotype effect known as the additive relationship matrix (A) and calculated using the `A.mat` function to establish connections among all individuals and predict the BLUPs for individuals that were not measured. The prediction accuracy depends on several factors such as the heritability ($h^2$), training population used (TP), size of TP, etc.
 
+The example below uses 250 lines and 100 markers and limits each fit to one iteration so the vignette stays quick; increase the data and iteration limits for a full analysis.
+
 ```{r}
 
 data(DT_wheat, package="enhancer")
-DT <- DT_wheat
-GT <- apply(GT_wheat,2,as.numeric) - 1
-rownames(GT) <- rownames(GT_wheat)
+DT <- DT_wheat[seq_len(min(250L, nrow(DT_wheat))), , drop=FALSE]
+GT <- apply(GT_wheat[seq_len(nrow(DT)), seq_len(min(100L, ncol(GT_wheat))), drop=FALSE],
+            2, as.numeric) - 1
+rownames(GT) <- rownames(DT)
 
 colnames(DT) <- paste0("X",1:ncol(DT))
 DT <- as.data.frame(DT);DT$id <- as.factor(rownames(DT))
@@ -346,13 +348,15 @@ ans <- mmes(X1~1,
   random=~vsm(ism(id),Gu=Ki),
   rcov=~units,
   data=y.trn,
-  control = mmes_control(diagnostics = list(verbose = FALSE))) # kinship based
+  control = mmes_control(convergence = list(maxIters = 1L),
+                         diagnostics = list(verbose = FALSE))) # kinship based
 cor(ans$u[vv,] ,DT[vv,"X1"], use="complete")
 
 ## rrBLUP with mmer
 ans2 <- mmer(X1~1,
              random=~vsr(list(GT)), 
              rcov=~units, getPEV = TRUE,
+             nIters = 1,
              data=y.trn, verbose = FALSE) # kinship based
 
 u <- GT %*% ans2$U$`u:GT`$X1 # BLUPs for individuals
@@ -373,7 +377,7 @@ Ki <- solve(0.99 * G + 0.01 * diag(nrow(G))); attr(Ki, "inverse") <- TRUE
 ans <- mmes(X1 ~ 1,
   random = ~ vsm(ism(id), Gu = Ki),
   data = y.trn,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 markers <- meffects_mmes(ans,
   1,
   GT,
@@ -398,7 +402,7 @@ modDGE <- mmes(trait ~ block,
   random = ~ focal,
   rcov = ~ units,
   data = DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(modDGE)$varcomp
 
 ```
@@ -632,7 +636,7 @@ M <- GT_cpdata
 mix.marker <- mmer(Yield~1,
                    random=~Rowf+vsr(list(M)),
                    rcov=~units,data=DT, 
-                   verbose = FALSE)
+                   nIters = 1, verbose = FALSE)
 
 
 me.marker <- mix.marker$U$`u:M`$Yield
@@ -651,7 +655,7 @@ mix.part <- mmes(Yield~1,
   random=~Rowf+vsm(ism(id), Gu=MMTinv),
   rcov=~units,
   data=DT,
-  control = mmes_control(convergence = list(maxIters = 20),
+  control = mmes_control(convergence = list(maxIters = 1L),
   diagnostics = list(verbose = FALSE)))
 
 #convert BLUPs to marker effects me=M'(M'M)- u
@@ -670,12 +674,16 @@ Under the covariance construction and regularization used in this example, the t
 
 An eigendecomposition of a symmetric relationship matrix can be written \(A=UDU^\prime\), with orthogonal eigenvectors \(U\) and diagonal eigenvalue matrix \(D\). Premultiplying the model by \(U^\prime\) rotates the observations and design matrices into this eigenbasis, so the relationship component becomes diagonal. The `mmes()` interface performs this transformation internally when `rotation=TRUE` is supplied to the relationship `vsm()` term; users should provide the named relationship **precision** matrix through `Gu`, just as in an ordinary `mmes()` fit.
 
+To keep these rotation examples quick, the wheat data are restricted to 200 lines and 100 markers, and each fit is capped at one REML iteration. Increase these limits for a full analysis.
+
 ```{r}
 
 data("DT_wheat", package="enhancer")
 rownames(GT_wheat) <- rownames(DT_wheat)
-GT <- apply(GT_wheat,2,as.numeric) - 1
-rownames(GT) <- rownames(GT_wheat)
+DT <- DT_wheat[seq_len(min(200L, nrow(DT_wheat))), , drop=FALSE]
+GT <- apply(GT_wheat[rownames(DT), seq_len(min(100L, ncol(GT_wheat))), drop=FALSE],
+            2, as.numeric) - 1
+rownames(GT) <- rownames(DT)
 A <- A.mat(GT)
 Ai <- solve(A + diag(1e-5, nrow(A)))
 Ai[lower.tri(Ai)] <- t(Ai)[lower.tri(Ai)] # fill the lower triangular
@@ -685,14 +693,15 @@ isSymmetric(Ai)
 # One complete observation per relationship level gives a balanced example.
 DTn <- data.frame(
   id=rownames(A),
-  y=as.numeric(DT_wheat[,1])
+  y=as.numeric(DT[,1])
 )
 
 model_regular <- mmes(y~1,
   random=~vsm(ism(id), Gu=Ai),
   rcov=~units,
   data=DTn,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L),
+                         diagnostics = list(verbose = FALSE)))
 
 # Henderson MME formulation with eigenbasis random coefficients.
 model_rotation_h <- mmes(y~1,
@@ -700,6 +709,7 @@ model_rotation_h <- mmes(y~1,
   rcov=~units,
   data=DTn,
   control = mmes_control(formulation = "henderson",
+  convergence = list(maxIters = 1L),
   diagnostics = list(verbose = FALSE)))
 
 # Lee--van der Werf direct observation-covariance formulation.
@@ -708,6 +718,7 @@ model_rotation_d <- mmes(y~1,
   rcov=~units,
   data=DTn,
   control = mmes_control(formulation = "direct",
+  convergence = list(maxIters = 1L),
   diagnostics = list(verbose = FALSE)))
 
 model_regular$covParNative
@@ -727,8 +738,10 @@ Another example of how usefult this can be is in the multi-trait models:
 
 data("DT_wheat", package="enhancer")
 rownames(GT_wheat) <- rownames(DT_wheat)
-GT <- apply(GT_wheat,2,as.numeric) - 1
-rownames(GT) <- rownames(GT_wheat)
+DT <- DT_wheat[seq_len(min(200L, nrow(DT_wheat))), , drop=FALSE]
+GT <- apply(GT_wheat[rownames(DT), seq_len(min(100L, ncol(GT_wheat))), drop=FALSE],
+            2, as.numeric) - 1
+rownames(GT) <- rownames(DT)
 A <- A.mat(GT)
 Ai <- solve(A + diag(1e-5, nrow(A)))
 Ai[lower.tri(Ai)] <- t(Ai)[lower.tri(Ai)] # fill the lower triangular
@@ -737,9 +750,10 @@ attr(Ai, "inverse") <- TRUE
 isSymmetric(Ai)
 # One complete observation per relationship level gives a balanced example.
 data(DT_wheat)
-DT <- DT_wheat
-GT <- apply(GT_wheat,2,as.numeric) - 1
-rownames(GT) <- rownames(GT_wheat)
+DT <- DT_wheat[rownames(A), , drop=FALSE]
+GT <- apply(GT_wheat[rownames(A), seq_len(min(100L, ncol(GT_wheat))), drop=FALSE],
+            2, as.numeric) - 1
+rownames(GT) <- rownames(DT)
 DT <- data.frame(pheno=as.vector(DT),
                  env=as.factor(paste0("e", sort(rep(1:4,nrow(DT))))),
                  id=rep(rownames(DT),4))
@@ -750,6 +764,7 @@ model_rotation_h <- mmes(pheno~1,
   rcov=~vsm(dsm(env),ism(units)),
   data=DT,
   control = mmes_control(formulation = "henderson",
+  convergence = list(maxIters = 1L),
   diagnostics = list(verbose = FALSE)))
 
 # genetic correlation
@@ -796,7 +811,7 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 mix2 <- mmes(yield~ setf + setf:repf,
   random=~femalef:malef:setf + malef:setf,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 vc <- summary(mix2)$varcomp; vc
 Vfm <- vc[1,"estimate"]
 Vm <- vc[2,"estimate"]
@@ -858,7 +873,7 @@ Vg=c(Va,Vd); names(Vg) <- c("Va","Vd"); Vg
 mix2 <- mmes(yield~ setf + setf:repf,
   random=~femalef:malef:setf + malef:setf + femalef:setf,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 vc <- summary(mix2)$varcomp; vc
 Vfm <- vc[1,"estimate"]
 Vm <- vc[2,"estimate"]

@@ -198,6 +198,7 @@
     if(!isGaussianIdentity || .pqlInner){
       stop("task$mode='solve' requires a Gaussian identity-link model.", call.=FALSE)
     }
+
     if(factorScoreAugmentation != "none" || !is.null(vcc)){
       stop("task$mode='solve' does not use representation$factorScores or vcc; supply the final parameters in covPar.",
            call.=FALSE)
@@ -811,6 +812,35 @@
     }
   }
   
+  remlOmissionInfo <- NULL
+  originalRandomExprs <- randomExprs
+  if(!solveOnly && isTRUE(REML) && isGaussianIdentity && !.pqlInner &&
+     is.null(vcc) && factorScoreAugmentation == "none" && !length(rotationTerms)){
+    remlOmissionInfo <- .mmes_reml_omit(X, Z, Zind, Ai, covStruct,
+                                     rtermss, rTermsNames)
+    if(!is.null(remlOmissionInfo)){
+      if(!returnParam){
+        warning("Omitting ", nrow(remlOmissionInfo$omitted),
+                " structurally unestimable random covariance component(s) from REML: ",
+                paste(paste(remlOmissionInfo$omitted$term,
+                            remlOmissionInfo$omitted$parameter, sep=": "),
+                      collapse="; "),
+                ". Their random designs lie in the fixed-effect space; zero denotes omission, not an estimated zero variance.",
+                call.=FALSE)
+      }
+      Z <- remlOmissionInfo$Z
+      Zind <- remlOmissionInfo$Zind
+      Ai <- remlOmissionInfo$Ai
+      covStruct <- remlOmissionInfo$covStruct
+      rtermss <- remlOmissionInfo$terms
+      rTermsNames <- remlOmissionInfo$termNames
+      randomFits <- randomFits[remlOmissionInfo$activeTerms]
+      randomExprs <- randomExprs[remlOmissionInfo$activeTerms]
+      nRandomStruct <- length(rtermss)
+      residualStructIndex <- nRandomStruct + 1L
+    }
+  }
+
   # ---- Data-driven starting values for variance-component scales ------
   # Replaces vsm()'s flat sigma2 default (0.15 random / 0.75 residual, both
   # scale-blind) with values informed by the data. Only touches par[1]
@@ -1183,6 +1213,7 @@
                 factorScoreInfo=factorScoreInfo,
                 responsePrepared=responsePrepared, preparedMean=preparedMean,
                 preparedSd=preparedSd, preparedIntercept=preparedIntercept,
+                remlOmissionInfo=remlOmissionInfo,
                 engine=engineControl))
   }
 
@@ -1237,6 +1268,21 @@
     res$InfMatAugmented <- res$InfMat
     res$factorScoreAugmentation <- "fixed-shape"
   }
+  if(!is.null(remlOmissionInfo)){
+    restored <- .mmes_reml_restore(res, remlOmissionInfo, X)
+    res <- restored$result
+    covStruct <- restored$covStruct
+    Z <- remlOmissionInfo$original$Z
+    rtermss <- remlOmissionInfo$original$terms
+    randomExprs <- originalRandomExprs
+    rTermsNames <- lapply(seq_along(covStruct), function(i){
+      prefix <- if(i <= length(rtermss)){
+        paste(all.vars(randomExprs[[i]]), collapse=":")
+      }else paste(all.vars(residualExpr), collapse=":")
+      paste(prefix, covStruct[[i]]$par_names, sep=":")
+    })
+    vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
+  }
   res$engine <- if(isTRUE(henderson)) "henderson" else "direct"
   res$call <- mmesCall
   res$inputArgs <- list(naMethodX=naMethodX, naMethodY=naMethodY,
@@ -1248,7 +1294,7 @@
                         engine=engineControl)
 
   rownames(res$b) <- colnames(X)
-  if(length(randomFits) && length(res$u)){
+  if(length(rtermss) && length(res$u)){
     randomZForNames <- if(is.null(factorScoreInfo)) Z else originalRandomZ
     rownames(res$u) <- unlist(lapply(randomZForNames, colnames))
   }
@@ -1270,7 +1316,7 @@
     res$engineDiagnostics$controlObject <- engineControl
   }
   
-  if(length(randomFits) && length(rtermss)){
+  if(length(rtermss)){
     names(res$theta) <- c(rtermss, residualLabel)
     names(res$covPar) <- c(rtermss, residualLabel)
     names(res$covStruct) <- c(rtermss, residualLabel)

@@ -931,6 +931,13 @@ version 4.4.90 (2026-10-13)
    across LDLT, CHOLMOD, PCG and direct fitting, and strengthened prediction
    fixtures to require converged fits away from zero-variance boundaries.
 
+ + Gaussian REML fits now omit independent random covariance components whose
+   designs lie entirely in the fixed-effect space. The conservative check
+   handles free single-axis dsm/atm variances and whole free-scale terms with
+   fixed shapes. Omitted components retain zero covariance and random effects
+   in public outputs, with NA uncertainty, an explicit status and an audit
+   table; numerical regularization is no longer mistaken for estimability.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes

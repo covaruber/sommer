@@ -104,6 +104,7 @@
 
 # Information of the fixed effects, X'V^{-1}X, at natural covariance parameters.
 .mmes_fixed_information_at <- function(object, inputs, thetaList){
+  if(!is.null(object$remlActiveTerms)) thetaList <- thetaList[object$remlActiveTerms]
   cs <- inputs$covStruct
   attr(cs, "commonScale") <- "off"
   for(i in seq_along(cs)){

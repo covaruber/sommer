@@ -301,6 +301,40 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
 }
 \details{
 
+\strong{Structurally unestimable REML components}
+
+For Gaussian identity-link REML fits, \code{mmes()} checks whether an
+independently scaled random component contributes anything outside the
+fixed-effect design space, using the observations retained by the common
+missing-data filter. A component whose entire random design lies in that
+space is invisible to the restricted likelihood. Such components are
+removed before optimization, with a warning, rather than assigned an
+arbitrary variance by a regularized information-matrix solve.
+
+The conservative check handles a whole random term with a free variance
+scale and fixed covariance shape, or individual levels of a single
+\code{dsm()} or \code{atm()} shaping factor when its scale and all variance
+ratios are free. For example, with fixed locale means, a locale-specific
+independent block variance is omitted when that locale has only one
+observed block. A shared block variance is retained if other locales
+provide information about it. Correlated, multiply shaped, constrained or
+partly fixed structures are not automatically reduced at individual levels.
+The check does not diagnose general aliasing between covariance terms or
+weak identification near a variance boundary.
+
+Automatic omission is not applied to ML, PQL, known-covariance solve tasks,
+\code{vcc} constraints, observation rotation or factor-score augmentation.
+For supported fits, omitted components retain their original positions in
+random-effect and covariance outputs, with zero covariance and zero random
+effects. These zeros denote an omission convention, not variances estimated
+to be zero. Their native-scale standard errors and Z-ratios are \code{NA};
+\code{summary()} and \code{covparams_mmes()} label them
+\code{"unestimable (omitted)"}. Only retained free parameters contribute to
+optimization and information criteria. Omission preserves the restricted
+likelihood information about retained parameters; it does not establish
+zero between-block variation in the population. Inference on fixed means
+and predictions is conditional on the omission convention.
+
 \strong{Numerical controls}
 
 \code{mmes()} keeps model specification separate from numerical policy.
@@ -354,6 +388,10 @@ If all parameters are correctly indicated the program will return a list with th
                filter. It includes the original row index, validity indicators for
                response, fixed, random, and residual model components, the final
                inclusion indicator, and the reason for exclusion when applicable.}
+\item{remlOmissions}{when present, a data frame identifying structurally
+unestimable random covariance components omitted from REML, with columns
+\code{term}, \code{parameter} and \code{reason}. It is also available in
+\code{engineDiagnostics$remlOmissions}.}
 \item{Dtable}{the table to be used for the predict function to help the program
               recognize the factors available.}
 \item{llik}{the vector of log-likelihoods across iterations}

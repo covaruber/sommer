@@ -44,7 +44,7 @@ ansSingle <- mmes(Yield~1,
   random= ~ vsm(ism(Name), Gu=Ai),
   rcov= ~ units,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(ansSingle)
 
 
@@ -62,7 +62,7 @@ ansMain <- mmes(Yield~Env,
   random= ~ vsm(ism(Name), Gu=Ai),
   rcov= ~ units,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(ansMain)
 
 
@@ -78,7 +78,7 @@ ansDG <- mmes(Yield~Env,
   random= ~ vsm(dsm(Env),ism(Name), Gu=Ai),
   rcov= ~ units,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(ansDG)
 
 ```
@@ -101,7 +101,7 @@ ansCS <- mmes(Yield~Env,
   random= ~ vsm(ism(Name), Gu=Ai) + vsm(ism(Env:Name), Gu=EAi),
   rcov= ~ units,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(ansCS)
 
 ```
@@ -116,7 +116,7 @@ ansUS <- mmes(Yield~Env,
   random= ~ vsm(usm(Env),ism(Name), Gu=Ai),
   rcov= ~ units,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(ansUS)
 
 
@@ -134,7 +134,7 @@ ansRR <- mmes(Yield~Env,
   random= ~ vsm(dsm(leg(EnvN,1)),ism(Name)),
   rcov= ~ units,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(ansRR)
 
 ```
@@ -149,7 +149,7 @@ ansRR <- mmes(Yield~Env,
   random= ~ vsm(usm(leg(EnvN,1)),ism(Name)),
   rcov= ~ units,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(ansRR)
 
 ```
@@ -165,7 +165,7 @@ ansAR1 <- mmes(Yield~Env,
   random= ~ vsm(csm(Env),ism(Name)),
   rcov= ~ units,
   data=DT,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(ansAR1)
 
 ```
@@ -242,7 +242,7 @@ ansFA2 <- mmes(y~Env,
   rcov=~units,
   data=DT,
   control = mmes_control(
-    # convergence = list(maxIters = 100),
+    convergence = list(maxIters = 1L),
   diagnostics = list(verbose = FALSE)))
 
 Dt <- ansFA2$Dtable; Dt
@@ -266,7 +266,7 @@ ansRR2 <- mmes(y~Env,
               rcov=~units,
   data=DT,
   control = mmes_control(formulation = "henderson",
-  # convergence = list(maxIters = 100),
+              convergence = list(maxIters = 1L),
   diagnostics = list(verbose = FALSE)))
 
 
@@ -349,7 +349,8 @@ for(i in 1:length(envs)){
   ans1 <- mmes(y~Name-1,
   random=~Block,
   data=droplevels(DT[which(DT$Env == envs[i]),]),
-  control = mmes_control(diagnostics = list(verbose = FALSE),
+  control = mmes_control(convergence = list(maxIters = 1L),
+  diagnostics = list(verbose = FALSE),
   output = list(inverse = 2)))
   ans1$Beta$Env <- envs[i]
   
@@ -379,6 +380,7 @@ ans2 <- mmes(Estimate~Env,
   W=OM,
   data=DT2,
   control = mmes_control(formulation = "henderson",
+  convergence = list(maxIters = 1L),
   diagnostics = list(verbose = FALSE)))
 summary(ans2)$varcomp
 

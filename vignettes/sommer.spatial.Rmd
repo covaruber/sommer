@@ -86,11 +86,11 @@ $$
 \text{yield} = 50 + g_{\text{genotype}} + \xi_{\text{range,row}} + \varepsilon ,
 $$
 
-with genetic values $g \sim N(0, 9)$, a separable AR1 spatial field $\xi$ with variance 8, $\rho_\text{range}=0.7$ and $\rho_\text{row}=0.4$, and an independent nugget $\varepsilon \sim N(0,1)$. Fifteen plots are then deleted to mimic missing data.
+with genetic values $g \sim N(0, 9)$, a separable AR1 spatial field $\xi$ with variance 8, $\rho_\text{range}=0.7$ and $\rho_\text{row}=0.4$, and an independent nugget $\varepsilon \sim N(0,1)$. Six plots are then deleted to mimic missing data.
 
 ```{r}
 set.seed(3)
-nRange <- 16; nRow <- 24; nGeno <- 96
+nRange <- 6; nRow <- 8; nGeno <- 12
 g <- setNames(rnorm(nGeno, sd=3), sprintf("G%02d", seq_len(nGeno)))
 
 field <- expand.grid(range=seq_len(nRange), row=seq_len(nRow))
@@ -98,7 +98,7 @@ field$geno <- sample(rep(names(g), each=4))
 trueField <- as.vector(t(chol(8 * kronecker(ar1(nRow, 0.4), ar1(nRange, 0.7)))) %*%
                          rnorm(nrow(field)))
 field$yield <- 50 + g[field$geno] + trueField + rnorm(nrow(field), sd=1)
-field <- field[-sample(nrow(field), 15), ]
+field <- field[-sample(nrow(field), 6), ]
 
 field$geno <- factor(field$geno)
 field$rangef <- factor(field$range, levels=seq_len(nRange))
@@ -109,7 +109,7 @@ head(field)
 
 ### 3.2 Five candidate models
 
-All models share the same fixed effects (an intercept) and a random genotype effect; they differ only in how the field is described.
+All models share the same fixed effects (an intercept) and a random genotype effect; they differ only in how the field is described. Each fit is capped at one REML iteration to keep this chunk quick; allow convergence for a complete analysis.
 
 ```{r}
 fits <- list(
@@ -117,29 +117,34 @@ fits <- list(
   iid    = mmes(yield ~ 1,
   random=~geno,
   data=field,
-  control = mmes_control(diagnostics = list(verbose = FALSE))),
+  control = mmes_control(convergence = list(maxIters = 1L),
+                         diagnostics = list(verbose = FALSE))),
   # M1: independent random range and row effects (large-scale strips)
   rowcol = mmes(yield ~ 1,
   random=~geno + rangef + rowf,
   data=field,
-  control = mmes_control(diagnostics = list(verbose = FALSE))),
+  control = mmes_control(convergence = list(maxIters = 1L),
+                         diagnostics = list(verbose = FALSE))),
   # M2: a smooth 2D surface built from tensor-product P-splines
   spline = mmes(yield ~ 1,
   random=~geno + vsm(ism(spl2Dc(row, range)$Z$`A:all`)),
   data=field,
-  control = mmes_control(diagnostics = list(verbose = FALSE))),
+  control = mmes_control(convergence = list(maxIters = 1L),
+                         diagnostics = list(verbose = FALSE))),
   # M3: correlated residuals (R side)
   ar1Res = mmes(yield ~ 1,
   random=~geno,
   rcov=~vsm(ar1m(rangef), ar1m(rowf), ism(units)),
   data=field,
-  control = mmes_control(diagnostics = list(verbose = FALSE))),
+  control = mmes_control(convergence = list(maxIters = 1L),
+                         diagnostics = list(verbose = FALSE))),
   # M4: a random AR1 x AR1 spatial field (G side) plus an iid nugget
   ar1Fld = mmes(yield ~ 1,
   random=~geno + vsm(ar1m(rangef), ar1m(rowf), ism(site)),
   rcov=~units,
   data=field,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L),
+                         diagnostics = list(verbose = FALSE)))
 )
 ```
 
@@ -168,13 +173,13 @@ The pattern is typical of real trials. Ignoring the field (M0) gives the worst f
 knitr::kable(covparams_mmes(fits$ar1Fld)[, c("factor", "parameter", "estimate")], digits=3)
 ```
 
-Compare with the truth: genetic variance 9 (the 96 values actually drawn have variance 6.7, which is what the model can recover), spatial variance 8, $\rho_\text{range}=0.7$, $\rho_\text{row}=0.4$, nugget 1. Note that in a Kronecker product the single variance is reported once, on the first factor (`ar1m(rangef)`); the second factor only contributes its correlation.
+Compare with the truth: genetic variance 9, spatial variance 8, $\rho_\text{range}=0.7$, $\rho_\text{row}=0.4$, and nugget 1. The realized genetic variance can differ from 9 because only 12 genotypes are sampled. Note that in a Kronecker product the single variance is reported once, on the first factor (`ar1m(rangef)`); the second factor only contributes its correlation.
 
 The difference between M3 and M4 is the nugget. M3 assumes that plot-level noise is perfectly correlated with the spatial pattern, while M4 separates a smooth-ish correlated field from independent plot error. With real data both are worth trying; the likelihood tells you which describes your field better.
 
 ### 3.6 Reproducing SpATS with P-spline ANOVA
 
-The single-kernel spline used in M2 (`spl2Dc()`) fits the whole 2D surface with one variance component. The SpATS package (Rodriguez-Alvarez et al., 2018) instead splits the surface into five components (smooth trends along each direction and their interactions), each with its own variance. `spl2Dmats()` builds the same design matrices, so `mmes()` reproduces the SpATS fit. The classic Yates oats trial is used here, with SpATS output shown for reference. 
+The single-kernel spline used in M2 (`spl2Dc()`) fits the whole 2D surface with one variance component. The SpATS package (Rodriguez-Alvarez et al., 2018) instead splits the surface into five components (smooth trends along each direction and their interactions), each with its own variance. `spl2Dmats()` builds the same five-component design-matrix structure, so `mmes()` can reproduce the SpATS fit when configured with matching segmentation. The classic Yates oats trial is used here, with SpATS output shown for reference. To keep this example quick, the active fit uses fewer spline segments and one REML iteration; use the fuller segmentation and allow convergence for a complete analysis.
 
 ```{r}
 data(DT_yatesoats, package="enhancer")
@@ -220,8 +225,8 @@ DT$C <- as.factor(DT$col)
 # Residual          3.987e+02     1.997e+01 
 
 # SOMMER MODEL
-M <- spl2Dmats(x.coord.name = "col", y.coord.name = "row", data=DT, 
-               nseg =c(14,21), degree = c(3,3), penaltyord = c(2,2) 
+M <- spl2Dmats(x.coord.name = "col", y.coord.name = "row", data=DT,
+               nseg =c(6,8), degree = c(3,3), penaltyord = c(2,2)
                )
 mix <- mmes(Y~V,
   random=~ R + C + vsm(ism(M$fC)) + vsm(ism(M$fR)) +
@@ -230,6 +235,7 @@ mix <- mmes(Y~V,
   rcov=~units,
   data=M$data,
   control = mmes_control(formulation = "henderson",
+  convergence = list(maxIters = 1L),
   diagnostics = list(verbose = FALSE)))
 summary(mix)$varcomp
 
