@@ -14,6 +14,8 @@ struct RRAIResult {
   arma::uword randomTraceDirections = 0;
   arma::uword sensitivityColumns = 0;
   arma::uword largestResidualBlock = 0;
+  arma::uword sparseTracePanels = 0;
+  arma::uword denseTracePanels = 0;
   std::string residualEngine;
   arma::vec phaseSeconds = arma::vec(4, arma::fill::zeros);
 };
@@ -27,6 +29,7 @@ struct RRConditionalOperators {
   double scale;
   std::string residualEngine;
   std::function<arma::mat(const arma::mat &)> precision;
+  arma::vec precisionDiagonal;
   std::function<arma::mat(const arma::mat &)> solve;
   std::function<arma::mat(const arma::mat &)> solveRandom;
   // Optional exact REML C^{-1}(row, column) lookup; false means unavailable.
@@ -472,9 +475,20 @@ inline RRAIResult reducedRankInformation(
         for(arma::uword first = 0; first < width; first += panelWidth) {
           Rcpp::checkUserInterrupt();
           const arma::uword count = std::min(panelWidth, width - first);
-          const arma::mat designPanel(arma::sp_mat(
-            state.designs[target].cols(first, first + count - 1)));
-          const arma::sp_mat coupling = W.t() * arma::sp_mat(applyRi(designPanel));
+          arma::sp_mat designPanel = state.designs[target].cols(first, first + count - 1);
+          arma::sp_mat weightedPanel;
+          if(operators.precisionDiagonal.n_elem == n){
+            ++out.sparseTracePanels;
+            weightedPanel = designPanel;
+            for(arma::sp_mat::iterator entry = weightedPanel.begin();
+                entry != weightedPanel.end(); ++entry){
+              *entry *= operators.precisionDiagonal(entry.row());
+            }
+          }else{
+            ++out.denseTracePanels;
+            weightedPanel = arma::sp_mat(applyRi(arma::mat(designPanel)));
+          }
+          const arma::sp_mat coupling = W.t() * weightedPanel;
           for(arma::sp_mat::const_iterator entry = coupling.begin();
               entry != coupling.end(); ++entry) {
             const arma::uword column = first + entry.col();
@@ -1055,6 +1069,8 @@ inline Rcpp::List fitReducedRank(
   diagnostics["optimizer"] = "AI-Henderson-analytic";
   diagnostics["traceMethod"] = "shared-covariance-contractions";
   diagnostics["randomTraceDirections"] = static_cast<double>(rrInformation.randomTraceDirections);
+  diagnostics["sparseRandomTracePanels"] = static_cast<double>(rrInformation.sparseTracePanels);
+  diagnostics["denseRandomTracePanels"] = static_cast<double>(rrInformation.denseTracePanels);
   diagnostics["largestResidualBlock"] = static_cast<double>(rrInformation.largestResidualBlock);
   diagnostics["residualEvaluation"] = "observed-blocks";
   diagnostics["residualEngine"] = rrInformation.residualEngine;

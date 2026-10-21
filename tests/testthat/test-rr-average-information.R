@@ -123,6 +123,46 @@ test_that("latent RR analytic scores and AI match independent dense formulas", {
   }
 })
 
+test_that("RR trace caches select pattern entries and restore general lookups on demand", {
+  fixture <- .rr_ai_fixture()
+  dataset <- fixture$data
+  precision <- fixture$precision
+  for(zeroLoading in c(FALSE, TRUE)){
+    loading <- matrix(c(1, 0.6, if(zeroLoading) 0 else -0.4, 1.1), 4L)
+    shape <- rrm(dataset$environment, 1L, loadings=loading)
+    fitModel <- function(solver="cholmod", setup=FALSE, inverse=0L){
+      mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9) +
+          vsm(dsm(environment), ism(id), Gu=precision, sigma2=0.3),
+        data=dataset, control=mmes_control(
+          solve=list(method=solver, blockSchur="off"),
+          output=list(setup=setup, inverse=inverse),
+          convergence=list(maxIters=1L), update=list(blendWeight=0),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    }
+    fit <- fitModel()
+    diagnostics <- fit$engineDiagnostics
+    expect_gt(diagnostics$patternInverseCacheBuilds, 0L)
+    expect_gt(diagnostics$sparseRandomTracePanels, 0)
+    expect_equal(diagnostics$denseRandomTracePanels, 0)
+    if(zeroLoading){
+      expect_gt(diagnostics$patternInverseCacheFallbacks, 0L)
+    }else{
+      expect_equal(diagnostics$patternInverseCacheFallbacks, 0L)
+    }
+    setup <- fitModel(setup=TRUE)
+    reference <- .rr_ai_dense_reference(setup, unlist(fit$covParWorking), TRUE)
+    expect_equal(as.numeric(diagnostics$scoreWorking), reference$score, tolerance=2e-6)
+    expect_equal(diagnostics$averageInformationWorking, reference$information, tolerance=2e-6)
+    ldlt <- fitModel(solver="ldlt")
+    for(component in c("llik", "bu", "InfMat", "dLu")){
+      expect_equal(fit[[component]], ldlt[[component]], tolerance=1e-7)
+    }
+    full <- fitModel(inverse=2L)
+    ldltFull <- fitModel(solver="ldlt", inverse=2L)
+    expect_equal(as.matrix(full$Ci), as.matrix(ldltFull$Ci), tolerance=1e-7)
+  }
+})
+
 test_that("latent RR updates honor step weights and retain an iteration history", {
   fixture <- .rr_ai_fixture()
   dataset <- fixture$data
@@ -220,6 +260,13 @@ test_that("latent AI scores and information honor residual weights", {
                  tolerance=2e-6)
     expect_equal(as.matrix(fit$engineDiagnostics$averageInformationWorking),
                  reference$information, tolerance=2e-6)
+    if(identical(weightMatrix, weights)){
+      expect_gt(fit$engineDiagnostics$sparseRandomTracePanels, 0)
+      expect_equal(fit$engineDiagnostics$denseRandomTracePanels, 0)
+    }else{
+      expect_equal(fit$engineDiagnostics$sparseRandomTracePanels, 0)
+      expect_gt(fit$engineDiagnostics$denseRandomTracePanels, 0)
+    }
   }
 })
 

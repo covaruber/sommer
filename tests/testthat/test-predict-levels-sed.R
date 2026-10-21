@@ -68,8 +68,10 @@ test_that("levels can request random-effect levels without phenotypes", {
   dimnames(G) <- list(ids, ids)
   Gi <- solve(G); attr(Gi, "inverse") <- TRUE
   d <- data.frame(id=factor(rep(ids[1:10], each=3), levels=ids))
-  d$y <- rnorm(30)
+  genetic <- drop(t(chol(G)) %*% rnorm(length(ids)))
+  d$y <- genetic[as.integer(d$id)] + rnorm(nrow(d), sd=0.5)
   m <- mmes(y~1, random=~vsm(ism(id), Gu=Gi), data=d, control=mmes_control(diagnostics=list(verbose=FALSE)))
+  expect_true(m$convergence)
   term <- m$Dtable$term[2]
   p <- predict(m, D="id", levels=setNames(list(c("i1", "i12")), term))
   expect_equal(p$pvals$id, c("i1", "i12"))

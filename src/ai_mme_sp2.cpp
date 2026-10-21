@@ -2327,6 +2327,9 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     std::size_t sparseFactorNonzeros = 0;
     double sparseFactorFlops = 0.0;
     double schurCostFlops = 0.0;
+    double latentWorkFlops = std::numeric_limits<double>::quiet_NaN();
+    double marginalWorkFlops = std::numeric_limits<double>::quiet_NaN();
+    std::string latentAdmission = "not-applicable";
     arma::mat Ls;
     double logDet = 0.0;
   };
@@ -2334,6 +2337,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   std::vector<DescriptorPrecisionState> randomPrecisionState(static_cast<std::size_t>(nRe));
   bool factorSchurResidualEligible = false;
   int factorSchurFallbacks = 0;
+  int factorSchurNumericalFallbacks = 0;
   int traceFallbackSolves = 0;
   int emInverseTraceCalls = 0, emInverseTraceFallbackPanels = 0, emDesignTraceCalls = 0;
   int diagonalResidualTraceCalls = 0, diagonalResidualTraceSolveColumns = 0;
@@ -2362,7 +2366,15 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
       lowRankDimensions.push_back(static_cast<int>(state.lowRankSpecific.n_elem));
       lowRankDimensions.push_back(static_cast<int>(state.lowRankLoadings.n_cols));
     }
-    if(blockEngine.patternChecked &&
+    bool cachedLatentWellScaled = true;
+    if(blockEngine.patternChecked && blockEngine.latent &&
+       blockEngine.latentAdmission == "work-estimate"){
+      const DescriptorPrecisionState & state =
+        randomPrecisionState[static_cast<std::size_t>(blockEngine.latentTerm)];
+      cachedLatentWellScaled = sommer::LatentSchurPolicy::specificsWellScaled(
+        arma::accu(arma::square(state.lowRankLoadings)), state.lowRankSpecific.min());
+    }
+    if(blockEngine.patternChecked && cachedLatentWellScaled &&
        eigenSparsePatternMatches(A, blockEngine.outerPattern, blockEngine.innerPattern) &&
        lowRankDimensions == blockEngine.lowRankDimensions){
       return blockEngine.eligible;
@@ -2374,6 +2386,9 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     blockEngine.chain = false;
     blockEngine.banded = false;
     blockEngine.latent = false;
+    blockEngine.latentWorkFlops = std::numeric_limits<double>::quiet_NaN();
+    blockEngine.marginalWorkFlops = std::numeric_limits<double>::quiet_NaN();
+    blockEngine.latentAdmission = "not-applicable";
     if(blockSchurMode == "off"){ return false; }
     blockEngine.sparseFactorNonzeros = 0;
     blockEngine.sparseFactorFlops = std::numeric_limits<double>::quiet_NaN();
@@ -2447,12 +2462,63 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
         const std::size_t originalBorder = static_cast<std::size_t>(nEffects) -
           termPartitions.n_rows * mainSize;
         const std::size_t border = originalBorder + rank * baseSize;
-        if(state.factorPrecision.size() > 1 && factorSchurMultiFactorMode == "auto" &&
-           !sommer::LatentSchurPolicy::isAdvantageousMultiFactor(lowRankDimension, border)){
-          continue;
-        }
         const double storage = blockSchurPolicy.latentStorageDoubles(groups, border, baseSize);
         if(storage > blockSchurPolicy.maxDoubles){ continue; }
+        blockEngine.latentWorkFlops = std::numeric_limits<double>::quiet_NaN();
+        blockEngine.marginalWorkFlops = std::numeric_limits<double>::quiet_NaN();
+        if(state.factorPrecision.size() > 1 && factorSchurMultiFactorMode == "auto"){
+          if(sommer::LatentSchurPolicy::isAdvantageousMultiFactor(lowRankDimension, border)){
+            blockEngine.latentAdmission = "small-border";
+          }else{
+            // Price the marginal alternative's actual connected components, not
+            // one dense tensor: diagonal axes may leave much cheaper blocks.
+            const auto & priorGroups = randomTensorPlans[static_cast<std::size_t>(term)].groups;
+            sommer::DisjointComponents components(priorGroups.size());
+            std::vector<int> marginalGroupOf(static_cast<std::size_t>(nEffects), -1);
+            for(std::size_t group = 0; group < priorGroups.size(); ++group){
+              for(const int coordinate : priorGroups[group]){
+                const int partition = coordinate / static_cast<int>(mainSize);
+                const int level = coordinate % static_cast<int>(mainSize);
+                const int column = static_cast<int>(termPartitions(partition, 0)) - 1 + level;
+                marginalGroupOf[column] = static_cast<int>(group);
+              }
+            }
+            for(int column = 0; column < nEffects; ++column){
+              const int group = marginalGroupOf[column];
+              if(group < 0){ continue; }
+              for(EigenSpMat::InnerIterator entry(A, column); entry; ++entry){
+                const int other = marginalGroupOf[entry.row()];
+                if(other >= 0 && other != group){ components.unite(group, other); }
+              }
+            }
+            const std::vector<int> labels = components.labels();
+            std::vector<std::size_t> widths;
+            for(std::size_t group = 0; group < priorGroups.size(); ++group){
+              const std::size_t component = static_cast<std::size_t>(labels[group]);
+              if(widths.size() <= component){ widths.resize(component + 1, 0); }
+              widths[component] += priorGroups[group].size();
+            }
+            blockEngine.latentWorkFlops = sommer::LatentSchurPolicy::latentWork(
+              lowRankDimension, baseSize, border);
+            blockEngine.marginalWorkFlops = sommer::LatentSchurPolicy::marginalWork(
+              widths, originalBorder);
+            if(!sommer::LatentSchurPolicy::workFavoursLatent(
+                blockEngine.latentWorkFlops, blockEngine.marginalWorkFlops)){
+              blockEngine.latentAdmission = "work-rejected";
+              continue;
+            }
+            if(!sommer::LatentSchurPolicy::specificsWellScaled(
+                arma::accu(arma::square(state.lowRankLoadings)), state.lowRankSpecific.min())){
+              blockEngine.latentAdmission = "work-numerical-rejected";
+              ++factorSchurFallbacks;
+              ++factorSchurNumericalFallbacks;
+              continue;
+            }
+            blockEngine.latentAdmission = "work-estimate";
+          }
+        }else{
+          blockEngine.latentAdmission = state.factorPrecision.size() > 1 ? "forced" : "single-factor";
+        }
 
         blockEngine.groups = std::move(groups);
         blockEngine.groupOf = std::move(groupOf);
@@ -2661,8 +2727,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
       if(!sparseFactorEstimated){ estimateSparseFactor(); sparseFactorEstimated = true; }
       return blockSchurPolicy.fillFavoursSchur(
         blockEngine.sparseFactorFlops,
-        blockSchurPolicy.cost(candidate.groups, candidate.border.size()),
-        couplings.empty() && candidate.groups.size() > 1);
+        blockSchurPolicy.cost(candidate.groups, candidate.border.size()));
     };
     sommer::BlockSchurPlan plan = sommer::planBlockSchur(
       candidates, couplings, nX, blockSchurPolicy, densePlanAdmissible);
@@ -3214,6 +3279,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   };
   struct CholmodInverseBlockCache : CholmodSelectedInverseState {
     bool ready = false;
+    bool patternOnly = false;
     arma::mat Cxx;
     std::vector<arma::mat> Cuu;
     std::vector<arma::mat> Cxu;
@@ -3227,6 +3293,8 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     // Supernodal selected inverse: C^{-1} on the pattern of L, laid out like L->x.
   };
   CholmodInverseBlockCache cholmodInvCache;
+  int patternInverseCacheBuilds = 0;
+  int patternInverseCacheFallbacks = 0;
 
   struct CrossGroupTraceDemand {
     std::vector<std::size_t> groupSizes;
@@ -3468,8 +3536,9 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     return true;
   };
 
-  auto buildCholmodInverseBlockCache = [&]() -> void {
+  auto buildCholmodInverseBlockCache = [&](bool patternLocal = false) -> void {
     cholmodInvCache.ready = false;
+    cholmodInvCache.patternOnly = false;
     cholmodInvCache.selReady = false;
     cholmodInvCache.crossBlocks.clear();
     cholmodInvCache.crossBlockDoubles = 0.0;
@@ -3617,6 +3686,25 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
       iperm[static_cast<std::size_t>(perm[k])] = k;
     }
 
+    double largestFront = 0.0;
+    const int * supernodeRows = static_cast<const int *>(L->pi);
+    for(std::size_t node = 0; node < L->nsuper; ++node){
+      largestFront = std::max(largestFront,
+        static_cast<double>(supernodeRows[node + 1] - supernodeRows[node]));
+    }
+    const double patternSelectedDoubles = static_cast<double>(L->xsize) +
+      4.0 * largestFront * largestFront;
+    if(sommer::InverseCachePolicy::preferSelected(
+        patternLocal, patternSelectedDoubles, cholmodInvCacheMaxDoubles)){
+      if(buildCholmodSelectedInverse(L, iperm, cholmodInvCache)){
+        cholmodInvCache.patternOnly = true;
+        cholmodInvCache.ready = true;
+        ++patternInverseCacheBuilds;
+        return;
+      }
+      ++patternInverseCacheFallbacks;
+    }
+
     cholmodInvCache.borderPos.assign(static_cast<std::size_t>(nEffects), -1);
     cholmodInvCache.groupOf.assign(static_cast<std::size_t>(nEffects), -1);
     cholmodInvCache.localOf.assign(static_cast<std::size_t>(nEffects), -1);
@@ -3684,12 +3772,6 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
       }
     }
     YX.reset();
-    double largestFront = 0.0;
-    const int * supernodeRows = static_cast<const int *>(L->pi);
-    for(std::size_t node = 0; node < L->nsuper; ++node){
-      largestFront = std::max(largestFront,
-        static_cast<double>(supernodeRows[node + 1] - supernodeRows[node]));
-    }
     const double selectedPeakDoubles = retainedDoubles + static_cast<double>(L->xsize) +
       4.0 * largestFront * largestFront;
     if(skippedGroup && selectedPeakDoubles <= cholmodInvCacheMaxDoubles){
@@ -3706,6 +3788,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
       return false;
     }
     if(cholmodInvCache.selReady && cholmodSelectedLookup(i, j, value)){ return true; }
+    if(cholmodInvCache.patternOnly){ return false; }
     const std::size_t si = static_cast<std::size_t>(i);
     const std::size_t sj = static_cast<std::size_t>(j);
     const int bi = cholmodInvCache.borderPos[si];
@@ -6766,6 +6849,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         operators.residualEngine = Rgrid ? "grid" : Rdiag ? "diagonal"
           : Rkron ? "kronecker" : "sparse";
         operators.precision = applyRiDense;
+        operators.precisionDiagonal = effectiveRiDiag;
         operators.solve = [&](const arma::mat & rhs) -> arma::mat {
           Eigen::Map<const Eigen::MatrixXd> mapped(rhs.memptr(), rhs.n_rows, rhs.n_cols);
           const Eigen::MatrixXd solved = solveCMatrix(mapped, "reduced-rank AI");
@@ -6790,7 +6874,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                   CselectedTopologyReady = true;
                   rrInverseAvailable = true;
                 } else {
-                  if(!cholmodInvCache.ready){ buildCholmodInverseBlockCache(); }
+                  if(!cholmodInvCache.ready){ buildCholmodInverseBlockCache(true); }
                   rrInverseAvailable = cholmodInvCache.ready;
                 }
               } catch(const std::exception &) {
@@ -6799,8 +6883,18 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             }
             if(!rrInverseAvailable){ return false; }
             const int i = static_cast<int>(row), j = static_cast<int>(column);
-            return solverName == "cholmod" ? cholmodInverseLookup(i, j, value)
-              : getSelectedInverseOriginal(CselectedTopology, i, j, value);
+            if(solverName == "ldlt"){
+              return getSelectedInverseOriginal(CselectedTopology, i, j, value);
+            }
+            if(cholmodInverseLookup(i, j, value)){ return true; }
+            if(cholmodInvCache.patternOnly){
+              // Zero loading coordinates can request entries outside C's
+              // pattern. Restore the general cache before exact solve fallback.
+              ++patternInverseCacheFallbacks;
+              buildCholmodInverseBlockCache();
+              return cholmodInverseLookup(i, j, value);
+            }
+            return false;
           };
         }
         operators.posteriorSolve = [&](const arma::mat & rhs) -> arma::mat {
@@ -10745,6 +10839,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
   }
   bu = bu*stdy;
   b = b*stdy;
+  if(nZs > 0){ u = bu(uInd); }
   if(hasIntercept && muy != 0.0){
     for(arma::uword j = 0; j < b.n_elem; ++j){
       b(j) += muy * cShift(j);
@@ -11107,6 +11202,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         Rcpp::Named("selectedTopologyReuses") = DselectedTopologyReuses,
         Rcpp::Named("selectedTopologyBuilds") = DselectedTopologyBuilds,
         Rcpp::Named("factorSchurFallbacks") = factorSchurFallbacks,
+        Rcpp::Named("patternInverseCacheBuilds") = patternInverseCacheBuilds,
+        Rcpp::Named("patternInverseCacheFallbacks") = patternInverseCacheFallbacks,
         Rcpp::Named("traceFallbackSolves") = traceFallbackSolves,
         Rcpp::Named("traceBatchSolves") = traceBatchSolves,
         Rcpp::Named("traceBatchWorkspaceBytes") = traceBatchWorkspaceBytes,
@@ -11306,6 +11403,14 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         ? static_cast<int>(blockEngine.bandWidth) : 0,
       Rcpp::Named("factorSchurActive") = blockEngine.active && blockEngine.latent,
       Rcpp::Named("factorSchurFallbacks") = factorSchurFallbacks,
+      Rcpp::Named("patternInverseCacheBuilds") = patternInverseCacheBuilds,
+      Rcpp::Named("patternInverseCacheFallbacks") = patternInverseCacheFallbacks,
+      Rcpp::Named("factorSchurPlanning") = Rcpp::List::create(
+        Rcpp::Named("admission") = blockEngine.latentAdmission,
+        Rcpp::Named("numericalFallbacks") = factorSchurNumericalFallbacks,
+        Rcpp::Named("latentWorkFlops") = blockEngine.latentWorkFlops,
+        Rcpp::Named("marginalWorkFlops") = blockEngine.marginalWorkFlops,
+        Rcpp::Named("requiredWorkRatio") = 0.8),
       Rcpp::Named("residualEngine") = residualPlan.grid() ? "grid"
         : residualPlan.diagonal() ? "diagonal" : residualPlan.kronecker() ? "kronecker" : "sparse",
       Rcpp::Named("gridFactorizations") = gridFactorizations,

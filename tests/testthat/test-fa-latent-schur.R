@@ -106,3 +106,61 @@ test_that("latent Schur supports a low-rank axis at any position in longer produ
     }
   }
 })
+
+test_that("multi-factor latent admission prices rank, border and marginal connectivity", {
+  fitModel <- function(e=6L, n=12L, m=2L, rank=1L, correlated=FALSE,
+                       position="first", mode="auto", inverse=0L, specific=NULL){
+    dataset <- expand.grid(id=factor(seq_len(n)), environment=factor(seq_len(e)),
+      extra=factor(seq_len(m)), replicate=1:2)
+    dataset$response <- sin(seq_len(nrow(dataset))/7) + as.integer(dataset$id)/n
+    relationship <- diag(n) + matrix(0.1, n, n)
+    dimnames(relationship) <- rep(list(levels(dataset$id)), 2L)
+    attr(relationship, "inverse") <- TRUE
+    shape <- if(is.null(specific)) fam(dataset$environment, rank) else
+      fam(dataset$environment, rank, specific=specific)
+    extraShape <- if(correlated) ar1m(dataset$extra, rho=0.4) else dsm(dataset$extra)
+    random <- if(position == "first") ~vsm(shape, extraShape, ism(id), Gu=relationship) else
+      ~vsm(extraShape, shape, ism(id), Gu=relationship)
+    mmes(response~environment, random=random, data=dataset,
+      control=mmes_control(solve=list(method="cholmod", blockSchur=if(mode == "generic") "off" else "auto",
+        factorSchurMultiFactor=if(mode == "dense") "off" else if(mode == "forced") "force" else "auto"),
+        output=list(inverse=inverse), convergence=list(maxIters=1L),
+        update=list(blendWeight=0),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  }
+  for(position in c("first", "last")) for(inverse in c(0L, 2L)){
+    automatic <- fitModel(position=position, inverse=inverse)
+    expect_true(automatic$engineDiagnostics$factorSchurActive)
+    planning <- automatic$engineDiagnostics$factorSchurPlanning
+    expect_equal(planning$admission, "work-estimate")
+    expect_lte(planning$latentWorkFlops, 0.8 * planning$marginalWorkFlops)
+    reference <- fitModel(position=position, mode="generic", inverse=inverse)
+    for(component in c("llik", "covPar", "bu", "InfMat", "dLu")){
+      expect_equal(automatic[[component]], reference[[component]], tolerance=1e-7)
+    }
+    if(inverse == 2L){
+      expect_equal(as.matrix(automatic$Ci), as.matrix(reference$Ci), tolerance=1e-7)
+    }
+  }
+  diagonal <- fitModel(e=4L, m=3L)
+  correlated <- fitModel(e=4L, m=3L, correlated=TRUE)
+  expect_false(diagonal$engineDiagnostics$factorSchurActive)
+  expect_equal(diagonal$engineDiagnostics$factorSchurPlanning$admission, "work-rejected")
+  expect_true(correlated$engineDiagnostics$factorSchurActive)
+  expect_equal(correlated$engineDiagnostics$factorSchurPlanning$admission, "work-estimate")
+  expect_gt(correlated$engineDiagnostics$factorSchurPlanning$marginalWorkFlops,
+    diagonal$engineDiagnostics$factorSchurPlanning$marginalWorkFlops)
+  expect_false(fitModel(rank=3L)$engineDiagnostics$factorSchurActive)
+  expect_false(fitModel(mode="dense")$engineDiagnostics$factorSchurActive)
+  expect_true(fitModel(e=4L, m=3L, mode="forced")$engineDiagnostics$factorSchurActive)
+  expect_equal(fitModel(e=8L)$engineDiagnostics$factorSchurPlanning$admission, "small-border")
+  nearBoundary <- fitModel(specific=c(0.5, 1e-6, rep(0.7, 4L)))
+  boundaryReference <- fitModel(specific=c(0.5, 1e-6, rep(0.7, 4L)), mode="generic")
+  expect_false(nearBoundary$engineDiagnostics$factorSchurActive)
+  expect_equal(nearBoundary$engineDiagnostics$factorSchurPlanning$admission,
+    "work-numerical-rejected")
+  expect_gt(nearBoundary$engineDiagnostics$factorSchurPlanning$numericalFallbacks, 0L)
+  for(component in c("llik", "bu", "InfMat", "dLu")){
+    expect_equal(nearBoundary[[component]], boundaryReference[[component]], tolerance=1e-7)
+  }
+})

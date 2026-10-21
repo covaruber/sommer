@@ -109,3 +109,30 @@ test_that("native reporting callbacks must preserve their output shape", {
     covPar=list(a=1), theta_se=matrix(1)), class="mmes")
   expect_error(covparams_mmes_se(fit), "changed output shape")
 })
+
+test_that("random-effect outputs share the original response scale", {
+  set.seed(214)
+  dataset <- data.frame(id=factor(rep(seq_len(8L), each=3L)))
+  dataset$y <- 20 + 7 * (rep(rnorm(8L), each=3L) +
+    rnorm(nrow(dataset), sd=0.5))
+  X <- matrix(1, nrow(dataset), 1L)
+  Z <- model.matrix(~id-1, dataset)
+  W <- cbind(X, Z)
+  precision <- crossprod(W) / 12.25 + diag(c(0, rep(1 / 49, 8L)))
+  expected <- solve(precision, crossprod(W, dataset$y) / 12.25)
+  for(method in c("ldlt", "cholmod", "pcg", "direct")){
+    control <- mmes_control(
+      formulation=if(method == "direct") "direct" else "henderson",
+      solve=if(method == "direct") list() else list(method=method),
+      convergence=list(maxIters=1L),
+      diagnostics=list(verbose=FALSE, dateWarning=FALSE))
+    fit <- mmes(y~1, random=~vsm(ism(id), sigma2=49, fixedSigma2=TRUE),
+      rcov=~vsm(ism(units), sigma2=12.25, fixedSigma2=TRUE),
+      data=dataset, control=control)
+    expect_equal(as.numeric(fit$bu), as.numeric(expected), tolerance=1e-6)
+    expect_equal(as.numeric(fit$u), as.numeric(expected[-1L]), tolerance=1e-6)
+    expect_equal(as.numeric(fit$uList[[1L]]), as.numeric(fit$u), tolerance=1e-8)
+    expect_equal(as.numeric(fit$bu), c(as.numeric(fit$b), as.numeric(fit$u)),
+      tolerance=1e-8)
+  }
+})

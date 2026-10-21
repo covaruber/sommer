@@ -62,6 +62,13 @@ struct WorkspacePolicy {
   }
 };
 
+struct InverseCachePolicy {
+  static bool preferSelected(bool patternLocal, double selectedDoubles, double budgetDoubles) {
+    return patternLocal && std::isfinite(selectedDoubles) && selectedDoubles > 0.0 &&
+      std::isfinite(budgetDoubles) && selectedDoubles <= budgetDoubles;
+  }
+};
+
 // Phases are consecutive laps of one fit; Factorization also covers the
 // symbolic analysis and any PCG preparation, Final covers post-loop output.
 enum class FitPhase {
@@ -428,18 +435,19 @@ struct BlockSchurPolicy {
     double result = (5.0 / 3.0) * borderSize * borderSize * borderSize;
     for(const auto & group : groups) {
       const double size = static_cast<double>(group.size());
-      result += (5.0 / 3.0) * size * size * size
-        + 4.0 * borderSize * size * size
-        + 2.0 * size * borderSize * borderSize;
+      result += blockWork(size, borderSize);
     }
     return result;
   }
 
-  bool fillFavoursSchur(double sparseFlops, double schurCost,
-                        bool independentGroups = false) const {
+  static double blockWork(double size, double border) {
+    return (5.0 / 3.0) * size * size * size +
+      4.0 * border * size * size + 2.0 * size * border * border;
+  }
+
+  bool fillFavoursSchur(double sparseFlops, double schurCost) const {
     if(!std::isfinite(schurCost) || schurCost <= 0.0) { return false; }
     if(!std::isfinite(sparseFlops) || sparseFlops < 0.0) { return false; }
-    if(independentGroups) { return true; }
     return sparseFlops >= minFillRatio * schurCost;
   }
   bool needsDensityCheck(double /*effects*/, double group) const {
@@ -530,9 +538,38 @@ struct BlockBandPolicy {
 
 struct LatentSchurPolicy {
   static bool isAdvantageousMultiFactor(std::size_t lowRankDimension, std::size_t borderSize) {
-    // Multi-factor latent Woodbury Schur is advantageous when the low-rank
-    // dimension is sufficiently large (>= 8) and the virtual border is compact (<= 300).
+    // Preserve the established compact-border region; work estimates admit
+    // additional cases without changing those existing decisions.
     return (lowRankDimension >= 8 && borderSize <= 300);
+  }
+  static double latentWork(std::size_t blocks, std::size_t width, std::size_t border) {
+    const double b = static_cast<double>(border);
+    return (5.0 / 3.0) * b * b * b +
+      static_cast<double>(blocks) * BlockSchurPolicy::blockWork(
+        static_cast<double>(width), b);
+  }
+  static double marginalWork(const std::vector<std::size_t> & widths,
+                             std::size_t border) {
+    const double b = static_cast<double>(border);
+    double work = (5.0 / 3.0) * b * b * b;
+    if(widths.empty()) { return std::numeric_limits<double>::quiet_NaN(); }
+    for(const std::size_t width : widths) {
+      if(width == 0) { return std::numeric_limits<double>::quiet_NaN(); }
+      work += BlockSchurPolicy::blockWork(static_cast<double>(width), b);
+    }
+    return work;
+  }
+  static bool workFavoursLatent(double latent, double marginal) {
+    return std::isfinite(latent) && latent > 0.0 &&
+      std::isfinite(marginal) && marginal > 0.0 && latent <= 0.8 * marginal;
+  }
+  static bool specificsWellScaled(double loadingEnergy, double smallestSpecific) {
+    // The latent Schur subtraction and information contractions can compound
+    // loss of precision as specific variances approach zero.
+    return std::isfinite(loadingEnergy) && loadingEnergy >= 0.0 &&
+      std::isfinite(smallestSpecific) && smallestSpecific > 0.0 &&
+      loadingEnergy / smallestSpecific <=
+        1.0 / std::sqrt(std::sqrt(std::numeric_limits<double>::epsilon()));
   }
 };
 

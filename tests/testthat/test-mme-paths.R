@@ -82,7 +82,7 @@ test_that("blockSchur toggle disables or forces the block engines", {
   expect_true(forced$engineDiagnostics$blockSchurActive)
 })
 
-test_that("fill guard rejects coupled low-fill blocks and retains independent groups", {
+test_that("fill guard rejects coupled low-fill blocks and retains tiny independent components", {
   set.seed(303L)
   size <- 128L
   precision <- diag(size)
@@ -112,4 +112,42 @@ test_that("fill guard rejects coupled low-fill blocks and retains independent gr
   dimnames(identity) <- dimnames(precision)
   attr(identity, "inverse") <- TRUE
   expect_true(fit("auto", identity)$engineDiagnostics$blockSchurActive)
+})
+
+test_that("independent groups still require enough sparse fill to justify dense Schur", {
+  size <- 128L
+  ids <- paste0("g", seq_len(size))
+  dataset <- expand.grid(id=factor(ids, levels=ids),
+    environment=factor(1:4), replicate=1:2)
+  dataset$response <- sin(seq_len(nrow(dataset))) + as.integer(dataset$id) / size
+  sparse <- Matrix::bandSparse(size, k=c(0, 1), symmetric=TRUE,
+    diagonals=list(rep(1.5, size), rep(-0.2, size - 1L)))
+  dense <- diag(size) + matrix(0.08, size, size)
+  dimnames(sparse) <- dimnames(dense) <- list(ids, ids)
+  attr(sparse, "inverse") <- attr(dense, "inverse") <- TRUE
+  fit <- function(relationship, mode, inverse=0L){
+    mmes(response~environment,
+      random=~vsm(dsm(environment), ism(id), Gu=relationship), data=dataset,
+      control=mmes_control(solve=list(method="cholmod", blockSchur=mode),
+        output=list(inverse=inverse), convergence=list(maxIters=2L),
+        update=list(blendWeight=0),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  }
+  for(inverse in c(0L, 2L)){
+    reference <- fit(sparse, "off", inverse)
+    automatic <- fit(sparse, "auto", inverse)
+    forced <- fit(sparse, "force", inverse)
+    expect_false(automatic$engineDiagnostics$blockSchurActive)
+    expect_true(forced$engineDiagnostics$blockSchurActive)
+    expect_equal(forced$engineDiagnostics$blockSchurGroups, 4L)
+    for(candidate in list(automatic, forced)){
+      for(component in c("llik", "covPar", "bu", "InfMat", "dLu", "uPevList")){
+        expect_equal(candidate[[component]], reference[[component]], tolerance=1e-7)
+      }
+      if(inverse == 2L){
+        expect_equal(as.matrix(candidate$Ci), as.matrix(reference$Ci), tolerance=1e-7)
+      }
+    }
+  }
+  expect_true(fit(dense, "auto")$engineDiagnostics$blockSchurActive)
 })

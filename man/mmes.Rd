@@ -357,9 +357,11 @@ If all parameters are correctly indicated the program will return a list with th
 \item{Dtable}{the table to be used for the predict function to help the program
               recognize the factors available.}
 \item{llik}{the vector of log-likelihoods across iterations}
-\item{b}{the vector of fixed effect.}
-\item{u}{the vector of random effect.}
-\item{bu}{the vector of fixed and random effects together.}
+\item{b}{the vector of fixed effects on the original response scale.}
+\item{u}{the vector of random effects on the original response scale, consistent
+with \code{uList}.}
+\item{bu}{the vector of fixed and random effects together on the original response
+scale, formed by concatenating \code{b} and \code{u}.}
 \item{Ci}{the inverse of the coefficient matrix.}
 \item{Ci_11}{the inverse of the coefficient matrix pertaining to the fixed effects.}
 \item{theta}{a list of estimated variance covariance matrices. Each element of 

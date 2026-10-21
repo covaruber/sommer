@@ -19,6 +19,15 @@ int main() {
   assert(sommer::WorkspacePolicy::crossBlockWorthCaching(200, 100));
   assert(!sommer::WorkspacePolicy::crossBlockWorthCaching(199, 100));
   assert(sommer::WorkspacePolicy::panelColumns() == 32);
+  assert(sommer::InverseCachePolicy::preferSelected(true, 100.0, 100.0));
+  assert(!sommer::InverseCachePolicy::preferSelected(false, 100.0, 100.0));
+  assert(!sommer::InverseCachePolicy::preferSelected(true, 101.0, 100.0));
+  for(double invalid : {0.0, -1.0, std::numeric_limits<double>::infinity(),
+                        std::numeric_limits<double>::quiet_NaN()}){
+    assert(!sommer::InverseCachePolicy::preferSelected(true, invalid, 100.0));
+  }
+  assert(!sommer::InverseCachePolicy::preferSelected(
+    true, 100.0, std::numeric_limits<double>::quiet_NaN()));
   assert(sommer::WorkspacePolicy::inversePanelColumns() == 64);
   assert(sommer::FactorPolicy::shiftedCholesky(1, 128));
   assert(!sommer::FactorPolicy::shiftedCholesky(2, 128));
@@ -107,6 +116,39 @@ int main() {
   assert(sommer::LatentSchurPolicy::isAdvantageousMultiFactor(16, 300));
   assert(!sommer::LatentSchurPolicy::isAdvantageousMultiFactor(4, 200));
   assert(!sommer::LatentSchurPolicy::isAdvantageousMultiFactor(8, 350));
+  using sommer::LatentSchurPolicy;
+  const double lowRankWork = LatentSchurPolicy::latentWork(6, 128, 134);
+  const double diagonalMarginalWork = LatentSchurPolicy::marginalWork({384, 384}, 6);
+  assert(LatentSchurPolicy::workFavoursLatent(lowRankWork, diagonalMarginalWork));
+  assert(!LatentSchurPolicy::workFavoursLatent(
+    LatentSchurPolicy::latentWork(6, 128, 390), diagonalMarginalWork));
+  const double sameLatentWork = LatentSchurPolicy::latentWork(4, 192, 196);
+  assert(!LatentSchurPolicy::workFavoursLatent(
+    sameLatentWork, LatentSchurPolicy::marginalWork({256, 256, 256}, 4)));
+  assert(LatentSchurPolicy::workFavoursLatent(
+    sameLatentWork, LatentSchurPolicy::marginalWork({768}, 4)));
+  assert(LatentSchurPolicy::workFavoursLatent(80, 100));
+  assert(!LatentSchurPolicy::workFavoursLatent(80.001, 100));
+  for(double invalid : {0.0, -1.0, std::numeric_limits<double>::infinity(),
+                        std::numeric_limits<double>::quiet_NaN()}){
+    assert(!LatentSchurPolicy::workFavoursLatent(invalid, 100));
+    assert(!LatentSchurPolicy::workFavoursLatent(100, invalid));
+  }
+  assert(std::isnan(LatentSchurPolicy::marginalWork({}, 1)));
+  assert(std::isnan(LatentSchurPolicy::marginalWork({0}, 1)));
+  assert(LatentSchurPolicy::specificsWellScaled(1.0, 0.5));
+  assert(LatentSchurPolicy::specificsWellScaled(1e-8, 5e-9));
+  assert(!LatentSchurPolicy::specificsWellScaled(1.0, 1e-6));
+  const double numericalLimit =
+    1.0 / std::sqrt(std::sqrt(std::numeric_limits<double>::epsilon()));
+  assert(LatentSchurPolicy::specificsWellScaled(numericalLimit, 1.0));
+  assert(!LatentSchurPolicy::specificsWellScaled(numericalLimit + 1.0, 1.0));
+  for(double invalid : {0.0, -1.0, std::numeric_limits<double>::infinity(),
+                        std::numeric_limits<double>::quiet_NaN()}){
+    assert(!LatentSchurPolicy::specificsWellScaled(1.0, invalid));
+  }
+  assert(!LatentSchurPolicy::specificsWellScaled(
+    std::numeric_limits<double>::infinity(), 1.0));
   for(bool sectioned : {false, true}) {
     for(bool nonDiagonal : {false, true}) {
       for(bool complete : {false, true}) {
@@ -209,8 +251,6 @@ int main() {
   assert(!policy.fillFavoursSchur(1e4, 1e8));
   assert(!policy.fillFavoursSchur(0.049999 * 1e8, 1e8));
   assert(policy.fillFavoursSchur(0.05 * 1e8, 1e8));
-  assert(policy.fillFavoursSchur(1e4, 1e8, true));
-  assert(!policy.fillFavoursSchur(1e4, 1e8, false));
   assert(!policy.fillFavoursSchur(-1.0, 1e8));
   assert(!policy.fillFavoursSchur(std::numeric_limits<double>::infinity(), 1e8));
   assert(!policy.fillFavoursSchur(std::numeric_limits<double>::quiet_NaN(), 1e8));
@@ -240,6 +280,14 @@ int main() {
   assert(independent.eligible);
   assert(independent.border == std::vector<int>({0, 1}));
   assert(independent.groups == std::vector<std::vector<int>>({{2, 3}, {4, 5}}));
+  assert(!sommer::planBlockSchur({{2, 3}, {4, 5}}, {}, 2, policy,
+    [&](const sommer::BlockSchurPlan & plan) {
+      return policy.fillFavoursSchur(1.0, policy.cost(plan.groups, plan.border.size()));
+    }).eligible);
+  assert(sommer::planBlockSchur({{2, 3}, {4, 5}}, {}, 2, policy,
+    [&](const sommer::BlockSchurPlan & plan) {
+      return policy.fillFavoursSchur(1e6, policy.cost(plan.groups, plan.border.size()));
+    }).eligible);
   const auto merged = sommer::planBlockSchur({{2}, {3}}, {{0, 1}}, 2, policy);
   assert(merged.eligible);
   assert(merged.border == std::vector<int>({0, 1}));

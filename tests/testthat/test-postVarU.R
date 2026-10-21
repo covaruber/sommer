@@ -106,8 +106,11 @@ test_that("joint VarU retains sampling covariance between independent prior term
 test_that("VarU maps rotation and factor-score effects into public coordinates", {
   fixture <- varu_fixture()
   data <- fixture$data[fixture$data$replicate == 1,]
+  data$y <- data$y + as.integer(data$id)
   ordinary <- mmes(y~env, random=~vsm(ism(id),Gu=fixture$precision), data=data, control=mmes_control(diagnostics=list(verbose=FALSE)))
   rotated <- mmes(y~env, random=~vsm(ism(id),Gu=fixture$precision,rotation=TRUE), data=data, control=mmes_control(diagnostics=list(verbose=FALSE)))
+  expect_true(ordinary$convergence)
+  expect_true(rotated$convergence)
   expect_equal(postVarU(rotated)$uVarList[[1]],postVarU(ordinary)$uVarList[[1]],tolerance=1e-6)
   expect_equal(unname(postVarU(rotated,2)$VarU),unname(postVarU(ordinary,2)$VarU),tolerance=1e-6)
   expect_equal(predict(rotated,D="id")$VarU,predict(ordinary,D="id")$VarU,tolerance=1e-6)

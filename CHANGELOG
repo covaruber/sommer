@@ -926,6 +926,11 @@ version 4.4.90 (2026-10-13)
    dependencies; use qualified calls (e.g. MASS::mvrnorm) in user scripts.
    Matrix and enhancer remain attached for the established model interface.
 
+ + Fixed Henderson random-effect vector u to use the original response scale,
+   consistent with bu and uList. Added independent mixed-model equation checks
+   across LDLT, CHOLMOD, PCG and direct fitting, and strengthened prediction
+   fixtures to require converged fits away from zero-variance boundaries.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes

@@ -358,15 +358,66 @@ PCG, `vcc`, covariance-update acceleration and zero-specific residuals are
 explicitly unsupported. Conditional sparse/GPU backend controls remain active.
 
 REML RR random score traces contract `W' R^{-1} Z_t` with exact `C^{-1}`
-entries at matching latent coordinates, which all lie in C's stored pattern.
-Entries come from the block-Schur/CHOLMOD inverse-block cache or the LDLT
-Takahashi subset, built at most once per conditional fit. Only
+entries at matching latent coordinates. On generic supernodal CHOLMOD, these
+predominantly pattern-local requests first use the supernodal selected inverse
+when `factor xsize + 4 * largestFront^2` doubles fit the inverse-cache budget.
+This avoids preparing dense inverse blocks that the trace does not need,
+including repeated forward solves for many small random-effect groups.
+Zero loading coordinates can request entries outside the stored factor
+pattern: the first such miss restores the general inverse-block cache before
+the existing exact solve fallback. Active Schur engines keep their existing
+inverse-block path, and ordinary AI/EM cache preparation is unchanged.
+LDLT retains its Takahashi subset. Only
 (design, loading-span) pairs with a nonzero derivative tangent are contracted.
 Any unavailable entry, ML, saddle-point or D-first fits use the previous
 `width * span` solve panels for that term. Information products share one
 multi-column `P` application. With dense genomic `Gu`, this removed the
 dominant per-iteration cost: 8,800 solve columns for 10 environments x 800
 individuals, a ~4x end-to-end speedup.
+
+For diagonal effective residual precision, including diagonal weights, RR trace
+coupling panels retain sparse design storage and scale only stored entries.
+They no longer densify `observations * panelWidth` entries and convert them
+back to sparse for each `W' R^{-1} Z_t` product. Non-diagonal weights or residual
+precision retain the existing general precision operator. This distinction
+uses the effective precision capability, not a covariance-family name.
+`patternInverseCacheBuilds` and `patternInverseCacheFallbacks` identify the
+selected-first cache and its fallbacks; `sparseRandomTracePanels` and
+`denseRandomTracePanels` count coupling panels in the reported RR information
+evaluation. Cache counters belong to the returned conditional evaluation,
+not a cumulative count across all optimizer trials.
+
+### Sparse-incidence RR crossover validation
+
+A 5,050-observation RR-plus-diagonal model with additional environment-specific
+design terms retained 14,752 latent coefficients (25,712 public coefficients).
+The initial inverse cache prepared 1,133 groups and still required selected
+inversion for ten large sparse groups. Its measured cache preparation cost
+was about 0.414 seconds, versus 0.043 seconds for selected inversion alone.
+Automatic generic CHOLMOD was already preferable to LDLT and forced ordinary
+Schur; forcing Schur did not improve this workload.
+
+Five post-warmup, one-thread repeats measured steady-state iterations directly
+from the existing elapsed-time table (iterations 2--4, excluding setup and the
+truncated final iteration). Selected-first preparation alone reduced median
+iteration time from 1.350 to 0.947 seconds (29.9%). With sparse diagonal
+precision panels, the measured median was approximately 0.49 seconds; a
+reverse-order baseline was 1.29 seconds. Both changes therefore exceeded the
+study's required 25% per-iteration elapsed-time reduction on the motivating
+workload. One-thread likelihood histories, coefficients, covariance estimates,
+score and information were unchanged. Five iterations are not convergence.
+
+The controlled inverse-cache screen covered 48 size/rank/relationship-graph/
+nuisance-group configurations and 24 held-out sizes, seeds and ragged layouts.
+Design-panel checks covered 20 sparse/dense-design and weight configurations,
+plus eight larger configurations varying unused relationship levels.
+The large sparse-panel cases reduced fixed-state time by 34--61%; small and
+dense-design controls often showed little change and are not claimed as 25%
+speed wins. These results explain why sparse incidence, repeated panel scans
+and many inverse groups matter; total coefficient count alone is insufficient.
+They do not establish a universal fastest solver or parity with ASReml's
+different five-iteration optimization trajectory.
+
 | Request | Coefficient factorization | Accepted-state trace preparation |
 | --- | --- | --- |
 | LDLT | Cached Eigen symbolic/numeric LDLT | Takahashi selected inverse |
@@ -408,8 +459,8 @@ the fixed-effect border; score traces use exact solve fallbacks rather than an
 approximate banded inverse. Keep the generic CHOLMOD path as the default until
 representative end-to-end benchmarks show a crossover.
 
-Before the block-chain attempt, a latent-factor Schur engine admits a single
-random covariance factor with a validated Woodbury decomposition
+Before the block-chain attempt, a latent-factor Schur engine admits a random
+covariance axis with a validated Woodbury decomposition
 `K = L L' + diag(psi)`. It requires positive, sufficiently well-conditioned
 specifics, dense relationship precision, equal-width covariance-coordinate
 blocks with disjoint incidence rows, and diagonal effective residual precision.
@@ -437,8 +488,9 @@ dimensions.
 Admission uses `3 b^2 + mainSize^2 + sum_g (4 m_g^2 + 6 m_g b)` doubles,
 where b includes virtual equations. This separate resource rule has no fixed
 2000-effect latent-border cap. It does not change the limits of the ordinary
-dense or chain planners. Correlated residuals, overlapping incidence blocks,
-extra covariance factors, ML, or near-boundary specifics retain existing paths.
+dense or chain planners. Correlated residuals, overlapping incidence blocks and
+ML retain existing paths. Longer factor products retain their
+factor-wise precision; multi-factor automatic admission is described below.
 Numerical latent Cholesky failures fall back to the original marginal CHOLMOD
 factorization for that evaluation. Diagnostics report `factorSchurActive` and
 `factorSchurFallbacks`; `blockSchurActive` includes the latent engine.
@@ -494,9 +546,15 @@ effects * group size fits the inverse-cache budget, density is not tested.
 Otherwise stored within-group density must be >= 0.1.
 
 Cost ties still choose the border strategy. Each storage-feasible strategy is
-checked against the density limit before cost selection; an inadmissible
+checked against the sparse-fill work guard before cost selection; an inadmissible
 cheaper strategy does not hide the other feasible strategy. If neither fits,
 the generic CHOLMOD path is used. Numerical block-Cholesky failure remains an error.
+Automatic dense admission also requires predicted sparse Cholesky work to be
+at least `0.05 * denseSchurCost`, including when random groups are independent.
+Independence establishes a valid block decomposition, not a reason to discard
+sparsity within each block. `blockSchur="force"` bypasses this performance
+guard, but not the storage/border safeguards. Chain and latent-factor engines
+retain their separate admission rules.
 For coupled Kronecker terms, m is the full coefficient-group dimension, not
 the main-effect dimension: the current dense engine factors that full matrix.
 Main-effect-sized admission requires an actual banded or latent-factor
@@ -514,6 +572,55 @@ repeated-block workspaces through `ResidualPolicy`, independently of the dense
 coefficient budget. The block-chain engine budgets its actual main-effect-sized
 blocks; the latent-factor engine likewise uses its own estimate rather than
 reuse the coupled-dense estimate.
+
+### Independent-group crossover evidence
+
+A controlled study starting from `3a35257` compared exact engines at identical
+covariance parameters, checking likelihood, coefficients, score and AI. The
+initial decision-tree screen completed 98 of 99 configurations within a 4 GiB
+per-process virtual-memory ceiling; its 838 timed evaluations passed relative
+parity at `1e-7`. This is screening evidence, not a convergence certificate.
+The revised automatic policy also passed a separate 99-configuration
+generic-versus-auto validation with no parity failures.
+
+Isolated confirmation used one BLAS/OpenMP thread, one worker, one warmup and
+seven randomized-order repetitions per candidate. With four independent
+environment groups and tridiagonal relationship precision:
+
+| Levels per group | Old automatic dense Schur | Generic CHOLMOD | Old / generic |
+| --- | --- | --- | --- |
+| 128 | 0.005 s | 0.004 s | 1.25 |
+| 256 | 0.019 s | 0.007 s | 2.71 |
+| 512 | 0.086 s | 0.016 s | 5.38 |
+
+The 256-level case's predicted sparse/dense work ratio was approximately
+`0.000126`, well below the existing `0.05` crossover guard. The former
+independent-group exemption admitted it anyway. Dense factor/inverse work
+grows cubically within a group; a low-fill sparse factor preserves the narrow
+precision graph. Trace preparation, not just factorization, amplified the
+penalty. Removing that exemption does not change the crossover constant.
+Further five-repeat checks reached the study's 2000-level limit: two
+2000-level groups with tridiagonal precision took 0.671 s under the old
+automatic choice and 0.019 s under the revised choice (generic: 0.018 s).
+These are single fixed-state evaluations, not complete-fit speedups.
+
+Eight separate end-to-end models all converged with matching iteration counts,
+likelihood histories, covariance parameters, coefficients and information.
+For four 512-level tridiagonal groups, complete-fit median elapsed time fell
+from 0.567 s to 0.207 s; reversed measurement order confirmed 0.592 s versus
+0.205 s. This smaller gain than the kernel ratio reflects unchanged setup and
+other fit costs.
+
+At the same four-group dimensions with dense precision, dense Schur remained
+useful (512 levels: 0.187 s versus 0.546 s). Random-graph confirmation also
+showed changing winners as fill increased; input density alone is not the
+selection criterion. Tiny disconnected components can still pass the work
+test. These measurements motivate a bounded heuristic, not a proof of global
+optimality: border width, graph ordering, trace demand, outputs, hardware and
+parameter state can move the crossover. Do not extrapolate these ratios to
+other machines or use them to enable banded/latent paths automatically.
+The host was shared; isolated timing means a single study worker, not
+exclusive access to the physical machine.
 
 ## Precision And Trace Fallbacks
 
@@ -596,11 +703,35 @@ Each experimental path toggle supports a three-state mode:
 
 Calibrated crossover rules:
 - **`factorSchurMultiFactor`**: Multi-factor latent Woodbury Schur complements
-  (e.g., `fam(env, 1) \otimes dsm(rep) \otimes ism(id)`) deliver up to 1.73x speedup
-  over CHOLMOD when `lowRankDimension >= 8` (e.g., $\ge 8$ environments) and the
-  virtual latent border `borderSize <= 300`. It is automatically admitted under `"auto"`
-  via `LatentSchurPolicy::isAdvantageousMultiFactor`. For smaller environment counts or
-  large borders, generic CHOLMOD is retained.
+  retain the established `lowRankDimension >= 8 && totalBorder <= 300`
+  admission region. Outside it, `"auto"` also admits candidates with at least
+  20% lower estimated elimination work than a marginal block decomposition
+  with the same real border. This is a bounded extension, not a replacement
+  of previously established choices. With `e` low-rank-axis coordinates,
+  local width `d`, rank `r`, and real border `p`, latent work is
+  `F(rep(d, e), p + r*d)`, where
+  `F(widths,b) = (5/3)*b^3 + sum((5/3)*w^3 + 4*b*w^2 + 2*w*b^2)`.
+  The marginal alternative uses actual connected-component widths and border
+  `p`. Prior tensor components are merged by stored coefficient couplings;
+  diagonal extra axes can leave several small components, whereas correlated
+  axes can produce one much larger component. These alternatives can have
+  the same total dimension but different costs.
+  The 0.8 ratio is a conservative work margin for unmodeled overhead, not a
+  universal measured runtime crossover. Existing validity, conditioning,
+  incidence, residual and memory safeguards still apply; `"off"`/`"force"`
+  retain their meaning. Newly work-admitted plans also recheck specific-variance
+  scaling at every coefficient factorization. If loading energy divided by the
+  smallest specific variance exceeds `epsilon^(-1/4)`, dispatch is replanned
+  through the ordinary marginal routes. This conservative cancellation guard
+  protects the expanded admission region near covariance boundaries; it is not
+  a condition-number guarantee and does not alter legacy or forced admissions.
+  An ordinary plan selected by this fallback remains cached for the same
+  structural pattern. Single-factor admission, RR, ML and banded rules are
+  unchanged. `engineDiagnostics$factorSchurPlanning` records the admission
+  reason (`small-border`, `work-estimate`, `work-rejected`, `work-numerical-rejected`, `forced`,
+  `single-factor` or `not-applicable`), estimated work when evaluated, and
+  required ratio and numerical fallback count. The active/fallback diagnostics
+  establish actual execution.
 - **`dFirstML`**: Maximum Likelihood estimation avoids joint $(p+q) \times (p+q)$
   factorization by factoring $D = Z'R^{-1}Z + G^{-1}$ and solving a compact $p \times p$
   Schur complement, providing 1.1x to 2.2x speedup across LDLT and CHOLMOD when
@@ -614,6 +745,48 @@ Calibrated crossover rules:
 - **`blockBanded`**: SuiteSparse CHOLMOD's supernodal amalgamation outperforms scalar
   banded Cholesky on tested sequential AR graphs; `"auto"` safely retains generic
   CHOLMOD, while `"force"` remains available for dedicated experiments.
+
+### Multi-factor FA crossover evidence and limits
+
+A controlled comparison used 56 screening and 50 held-out configurations,
+varying loading rank, relationship precision connectivity/density, extra-axis
+covariance, factor order, real border, missing observations, residual weights
+and inverse demand. Generic CHOLMOD, ordinary dense Schur and latent Schur
+were evaluated at identical parameters, with diagnostics checking actual paths.
+Isolated timing used one worker and one BLAS thread, warmup and seven repeats.
+Representative median fixed-state times (seconds) were:
+
+| Main levels | FA coordinates | Extra coordinates | Rank | Extra covariance | Previous auto | Revised auto |
+| --- | --- | --- | --- | --- | --- | --- |
+| 96 | 6 | 2 | 1 | Diagonal | 0.092 | 0.054 |
+| 64 | 6 | 3 | 1 | AR1 | 0.169 | 0.064 |
+| 96 | 8 | 2 | 2 | Diagonal | 0.166 | 0.114 |
+
+The connectivity distinction is essential: at 64 main levels, four FA
+coordinates and three extra coordinates, estimated latent/marginal work ratios
+were 0.307 with AR1 extra covariance versus 2.692 with diagonal extra covariance.
+Higher rank increases the virtual border and can reverse the choice. Some
+conservative rejections miss modest latent gains; this is not a fastest-path
+oracle or a calibrated comparison against every possible sparse ordering.
+
+Seven of eight full-fit fixtures converged in both versions. Six non-boundary
+fixtures retained iteration counts and likelihoods/coefficients to numerical
+precision. One representative full fit improved from 3.315 to 1.421 seconds
+(reverse-order baseline 3.337 seconds). The two boundary fixtures triggered
+numerical replanning: one remained nonconverged in both versions; the other
+converged but retained a reported likelihood discrepancy of about 0.0103, while
+an independent observation-covariance calculation differed by only 1.5e-7.
+Neither boundary fixture is evidence of an end-to-end numerical or speed win.
+This exposes remaining boundary sensitivity, not justification to relax
+convergence checks.
+
+The final fixed-state sweep completed 104 of 108 configurations with no parity
+or requested-path failures; four larger cases exceeded a 4 GiB per-process
+address-space ceiling. The isolated sweep completed 13 cases with 364 timed
+evaluations and no parity/path failures, excluding one memory-limited case.
+Independent dense score/AI/finite-difference checks covered eight small cases.
+Timing was on a shared host, not exclusive hardware. These are bounded
+synthetic results, not exhaustive coverage of all models below 2000 levels.
 
 An experimental benchmarking and crossover calibration framework is provided via
 `generate_mme_workload()`, `mme_workload_grid()`, `run_mme_benchmark()`, and
