@@ -335,7 +335,63 @@ likelihood information about retained parameters; it does not establish
 zero between-block variation in the population. Inference on fixed means
 and predictions is conditional on the omission convention.
 
+\strong{Fixed factors with many levels}
+
+In Henderson fits the fixed-effect design \code{X} is stored as a sparse
+matrix. The coefficient matrix \code{C} of the mixed model equations is
+factorized with sparse methods at every REML iteration, whatever the
+\code{control$output$inverse} setting. The fill-reducing ordering of the
+sparse factorization eliminates the fixed-effect equations within the same
+factor as the random ones, which is equivalent to absorbing them. A fixed
+factor with thousands of levels, such as contemporary groups, does not
+create a dense fixed-effect block during estimation. Variance components,
+BLUEs and BLUPs are identical to those of an explicit absorption of the
+fixed effects.
+
+\code{control$output$inverse} only controls work done after convergence:
+\describe{
+  \item{\code{0} (default)}{No inverse of \code{C} is formed. Fixed-effect
+  standard errors in \code{summary()} are \code{NA}.}
+  \item{\code{1}}{Elements of the inverse are computed only within the
+  sparsity pattern of the factor (Takahashi selected inverse), giving
+  random-effect PEVs. The fixed part stays sparse. Fixed-effect standard
+  errors in \code{summary()} remain \code{NA}.}
+  \item{\code{2}}{The complete inverse of \code{C}, including the fixed
+  block, is formed as a dense matrix. This needs about
+  \eqn{8(p+q)^2} bytes for \eqn{p} fixed and \eqn{q} random effects
+  (around 1.4 GB for 13,000 effects) and is the mode that reports
+  fixed-effect standard errors in \code{summary()}.}
+}
+With many fixed levels, keep \code{inverse=0} or \code{1}. When standard
+errors of particular fixed-effect combinations are needed, use
+\code{\link{predict.mmes}}, which computes exact standard errors from the
+sparse \code{C} without forming \code{Ci}. \code{\link{postPEV}} can add
+PEVs or the full inverse after fitting.
+
+When even the sparse REML fit is too slow, a practical alternative is to
+estimate the variance components with the large factor fitted as random,
+optionally on a well-connected subset of the data. Then refit with the
+factor as fixed using \code{control=mmes_control(task=list(mode="solve"))}
+and \code{covPar} to obtain BLUEs and BLUPs with a single factorization.
+Simply omitting the factor during REML is not equivalent: its variation is
+then attributed to the residual and to confounded random terms.
+
 \strong{Numerical controls}
+
+The opt-in \code{control$representation$equations="conditional"} path fits Gaussian
+FA models using sparse latent equations with exact REML AI updates by default,
+or conditional-moment EM through \code{control$update$method="em"}. The earlier
+\code{control$update$method="conditional-fa"} selector retains its EM behavior.
+Both optimizers support incomplete and
+unbalanced observations. It accepts one FA relationship term and diagonal
+or FA residuals. Matching \code{fam(shared="group")} tags request common
+trait loadings across genetic and residual sources. The default AI path is
+unchanged. See \code{\link{mmes_control}} and the conditional FA section of
+\code{vignette("sommer.mmes.options")} for eligibility and output restrictions.
+Conditional fits retain factorized covariance descriptors, not dense
+\code{theta} matrices, public \code{C}, coefficient uncertainty, or
+covariance-parameter uncertainty. Use \code{covmatrix_mmes(..., se=FALSE)}
+to explicitly reconstruct a bounded-size covariance.
 
 \code{mmes()} keeps model specification separate from numerical policy.
 The \code{control} argument defaults to \code{mmes_control()}, whose

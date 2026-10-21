@@ -7,6 +7,40 @@
 
 namespace sommer {
 
+inline arma::vec covarianceVarianceLowerBounds(
+    const Rcpp::List & descriptors, double inverseTolerance, double logResponseVariance = 0.0) {
+  std::vector<double> bounds;
+  const double floor = std::log(std::max(1.0e-8, inverseTolerance));
+  for(int term = 0; term < descriptors.size(); ++term) {
+    const Rcpp::List descriptor = descriptors[term];
+    const arma::vec parameters = Rcpp::as<arma::vec>(descriptor["par"]);
+    const Rcpp::LogicalVector free = descriptor["free"];
+    const arma::uword offset = bounds.size();
+    bounds.resize(offset + parameters.n_elem, -std::numeric_limits<double>::infinity());
+    if(parameters.n_elem == 0) { continue; }
+    if(free[0] == TRUE) { bounds[offset] = floor - logResponseVariance; }
+    const Rcpp::List factors = descriptor["factors"];
+    for(int axis = 0; axis < factors.size(); ++axis) {
+      const Rcpp::List factor = factors[axis];
+      const int first = Rcpp::as<int>(factor["par_start"]) - 1;
+      const Rcpp::CharacterVector names = factor["par_names"];
+      const Rcpp::List report = factor["report"];
+      if(Rcpp::as<std::string>(report["backend"]) != "builtin") { continue; }
+      const Rcpp::CharacterVector transforms = report["transform"];
+      for(int j = 0; j < names.size(); ++j) {
+        const std::string name = Rcpp::as<std::string>(names[j]);
+        const bool variance = name.compare(0, 15, "variance_ratio[") == 0 ||
+          name.compare(0, 15, "specific_ratio[") == 0 ||
+          name.compare(0, 17, "innovation_ratio[") == 0;
+        if(variance && Rcpp::as<std::string>(transforms[j]) == "exp" && free[first + j] == TRUE) {
+          bounds[offset + first + j] = floor;
+        }
+      }
+    }
+  }
+  return arma::vec(bounds);
+}
+
 inline arma::vec covarianceWorkingStepCaps(const Rcpp::List & descriptors) {
   std::vector<double> values;
   for(int term = 0; term < descriptors.size(); ++term) {

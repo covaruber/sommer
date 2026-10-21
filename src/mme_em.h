@@ -16,35 +16,27 @@ using EMConditionalFit = std::function<Rcpp::List(
   const Rcpp::List &, const arma::vec &, const Rcpp::List &, int,
   const RRConditionalCallback *)>;
 
-inline arma::mat restrictEMScaleTangent(
-    const arma::mat & tangent, const arma::vec & point,
-    const std::vector<arma::uword> & offsets, const double logFloor,
-    const arma::vec & direction) {
-  std::vector<arma::uword> active;
-  for(std::size_t term = 0; term + 1 < offsets.size(); ++term) {
-    const arma::uword index = offsets[term];
-    if(point(index) <= logFloor + 1.0e-10 && direction(index) < 0.0 &&
-       arma::any(tangent.row(index) != 0.0)) {
-      active.push_back(index);
-    }
-  }
-  if(active.empty()) { return tangent; }
-  return tangent * arma::null(tangent.rows(arma::uvec(active)));
-}
-
 inline double projectedEMScoreNorm(
     const arma::mat & tangent, const arma::vec & point,
-    const std::vector<arma::uword> & offsets, double logFloor,
+    const arma::vec & lower,
     const arma::vec & score, const arma::mat & information, double tolerance,
     const arma::mat & informationTangent = arma::mat()) {
-  const arma::mat feasible = restrictEMScaleTangent(tangent, point, offsets,
-    logFloor, arma::vec(tangent * (tangent.t() * score)));
+  const arma::mat feasible = varianceFloorTangent(tangent, point, lower,
+    arma::vec(tangent * (tangent.t() * score)));
   const arma::vec projected = feasible.t() * score;
   const arma::mat curvature = aiInformationInTangent(information, informationTangent, feasible);
   double norm = 0.0;
   for(arma::uword j = 0; j < projected.n_elem; ++j) {
+    double floor = tolerance;
+    for(arma::uword k = 0; k < point.n_elem; ++k) {
+      if(feasible(k, j) != 0.0 && std::isfinite(lower(k)) &&
+         point(k) <= lower(k) + 1.0e-10 * (1.0 + std::abs(lower(k)))) {
+        floor = std::numeric_limits<double>::min();
+        break;
+      }
+    }
     norm = std::max(norm, std::abs(projected(j)) /
-      std::sqrt(std::max(tolerance, std::abs(curvature(j, j)))));
+      std::sqrt(std::max(floor, std::abs(curvature(j, j)))));
   }
   return norm;
 }
@@ -93,6 +85,7 @@ inline Rcpp::List fitEMBlend(
   const arma::uword count = offsets.back();
   const arma::vec stepCaps = covarianceWorkingStepCaps(descriptors);
   const double logFloor = std::log(std::max(1.0e-8, inverseTolerance));
+  arma::vec varianceLower = covarianceVarianceLowerBounds(descriptors, inverseTolerance);
   arma::vec parameters(count), freeFlags(count, arma::fill::zeros);
   for(int term = 0; term < terms; ++term) {
     const Rcpp::List descriptor = descriptors[term];
@@ -104,6 +97,9 @@ inline Rcpp::List fitEMBlend(
     }
   }
   const arma::uvec free = arma::find(freeFlags > 0.5);
+  for(arma::uword j = 0; j < count; ++j) {
+    varianceLower(j) = std::min(varianceLower(j), parameters(j));
+  }
   const VarianceParameterMap map = readVarianceParameterMap(descriptors, count);
   arma::mat tangent(count, free.n_elem, arma::fill::zeros);
   for(arma::uword j = 0; j < free.n_elem; ++j) { tangent(free(j), j) = 1.0; }
@@ -270,11 +266,12 @@ inline Rcpp::List fitEMBlend(
     if(lowRank) {
       candidateCovariance = latentCovarianceModel(descriptors, Z, Zind, point, offsets).covariance;
     }
-    for(int term = 0; term < terms; ++term) {
-      if(freeFlags(offsets[term]) > 0.5 &&
-         point(offsets[term]) < std::min(parameters(offsets[term]), logFloor)) {
+    for(arma::uword j = 0; j < count; ++j) {
+      if(point(j) < varianceLower(j) - 1.0e-10) {
         return false;
       }
+    }
+    for(int term = 0; term < terms; ++term) {
       const double scale = std::exp(point(offsets[term]));
       if(!std::isfinite(scale) || scale <= 0.0) { return false; }
       const Rcpp::List descriptor = candidateCovariance[term];
@@ -348,6 +345,7 @@ inline Rcpp::List fitEMBlend(
     bool closedFormAccepted = false;
     bool recoveryMomentsReady = false;
     bool regularizedAI = false;
+    arma::vec cappedAIDirection(count, arma::fill::zeros);
     std::string recoveryReason;
     const auto requestRecovery = [&](const std::string & reason) {
       weight = 1.0;
@@ -375,61 +373,39 @@ inline Rcpp::List fitEMBlend(
             if(!score.is_finite() || !ai.information.is_finite()) {
               Rcpp::stop("Non-finite AI score or information in adaptive recovery.");
             }
-            currentScoreNorm = projectedEMScoreNorm(tangent, parameters, offsets,
-              logFloor, score, ai.information, inverseTolerance, operators.informationTangent);
+            currentScoreNorm = projectedEMScoreNorm(tangent, parameters, varianceLower,
+              score, ai.information, inverseTolerance, operators.informationTangent);
+            if(iteration == iterations - 1) { return; }
+            const FeasibleAIDirection proposal = feasibleAIDirection(
+              ai.information, score, operators.informationTangent, tangent,
+              parameters, varianceLower, stepCaps);
+            regularizedAttempts += proposal.regularizedAttempts;
+            if(!proposal.reliable) {
+              requestRecovery("information-solve");
+              return;
+            }
+            aiDirection = proposal.direction;
+            cappedAIDirection = proposal.cappedDirection;
+            regularizedAI = proposal.ridge > 0.0;
+            if(regularizedAI) {
+              regularizedIterations.push_back(iteration + 1);
+              regularizedRidges.push_back(proposal.ridge);
+            }
+            return;
           }
-          arma::mat feasible = adaptive
-            ? restrictEMScaleTangent(tangent, parameters, offsets, logFloor,
-                arma::vec(tangent * (tangent.t() * score)))
-            : tangent;
+          arma::mat feasible = tangent;
           for(int activeSet = 0; activeSet <= terms && feasible.n_cols > 0; ++activeSet) {
             const arma::mat information = aiInformationInTangent(
               ai.information, operators.informationTangent, feasible);
             const arma::vec projected = feasible.t() * score;
             arma::vec direction;
-            if(adaptive) {
-              arma::mat upper;
-              const bool reliable = reliableAIInformation(information, aiTrustScale(feasible, stepCaps)) &&
-                arma::chol(upper, information) &&
-                arma::solve(direction, information, projected,
-                  arma::solve_opts::likely_sympd + arma::solve_opts::no_approx) &&
-                direction.is_finite() &&
-                arma::norm(information * direction - projected, 2) <=
-                  1.0e-6 * (1.0 + arma::norm(projected, 2)) &&
-                (arma::dot(direction, projected) > 0.0 || currentScoreNorm <= scoreTolerance);
-              if(!reliable) {
-                if(currentScoreNorm > scoreTolerance && iteration < iterations - 1) {
-                  ++regularizedAttempts;
-                  const RegularizedAIDirection stabilized = operators.informationTangent.n_rows > 0
-                    ? regularizedReducedAIDirection(information, projected, feasible, stepCaps)
-                    : regularizedAIDirection(ai.information, score, feasible, stepCaps);
-                  if(stabilized.reliable) {
-                    aiDirection = stabilized.direction;
-                    regularizedAI = true;
-                    const arma::mat next = restrictEMScaleTangent(
-                      feasible, parameters, offsets, logFloor, aiDirection);
-                    if(next.n_cols != feasible.n_cols) {
-                      feasible = next;
-                      regularizedAI = false;
-                      aiDirection.zeros();
-                      continue;
-                    }
-                    regularizedIterations.push_back(iteration + 1);
-                    regularizedRidges.push_back(stabilized.ridge);
-                    break;
-                  }
-                  requestRecovery("information-solve");
-                }
-                aiDirection.zeros();
-                break;
-              }
-            }else if(!arma::solve(direction, information, projected, arma::solve_opts::likely_sympd)) {
+            if(!arma::solve(direction, information, projected, arma::solve_opts::likely_sympd)) {
               direction = arma::pinv(information) * projected;
             }
             if(!direction.is_finite()) { Rcpp::stop("Non-finite AI direction in EM blending."); }
             aiDirection = feasible * direction;
-            const arma::mat next = restrictEMScaleTangent(
-              feasible, parameters, offsets, logFloor, aiDirection);
+            const arma::mat next = varianceFloorTangent(
+              feasible, parameters, varianceLower, aiDirection);
             if(next.n_cols == feasible.n_cols) { break; }
             feasible = next;
             aiDirection.zeros();
@@ -762,9 +738,8 @@ inline Rcpp::List fitEMBlend(
         if(!amplitudes.is_finite() || arma::any(amplitudes <= 0.0)) {
           return std::numeric_limits<double>::infinity();
         }
-        for(int term = 0; term < terms; ++term) {
-          if(freeFlags(offsets[term]) > 0.5 &&
-             point(offsets[term]) < std::min(parameters(offsets[term]), logFloor)) {
+        for(arma::uword j = 0; j < count; ++j) {
+          if(point(j) < varianceLower(j) - 1.0e-10) {
             return std::numeric_limits<double>::infinity();
           }
         }
@@ -1174,16 +1149,16 @@ inline Rcpp::List fitEMBlend(
       double alpha = damping;
       if(weight < 1.0 && attempt == 0) {
         for(arma::uword j = 0; j < count; ++j) {
-          if(std::abs(direction(j)) > 0.0) {
-            alpha = std::min(alpha, stepCaps(j) / std::abs(direction(j)));
+          const double step = adaptive && weight == 0.0 ? cappedAIDirection(j) : direction(j);
+          if(std::abs(step) > 0.0) {
+            alpha = std::min(alpha, stepCaps(j) / std::abs(step));
           }
         }
       }
-      for(int term = 0; term < terms; ++term) {
-        const arma::uword index = offsets[term];
-        if(freeFlags(index) > 0.5 && direction(index) < 0.0) {
+      for(arma::uword index = 0; index < count; ++index) {
+        if(std::isfinite(varianceLower(index)) && direction(index) < 0.0) {
           alpha = std::min(alpha,
-            (parameters(index) - std::min(parameters(index), logFloor)) / -direction(index));
+            std::max(0.0, (parameters(index) - varianceLower(index)) / -direction(index)));
         }
       }
       progressTrust = damping > 0.0 ? alpha / damping : 1.0;
@@ -1262,13 +1237,15 @@ inline Rcpp::List fitEMBlend(
     profileIterations.row(profileIterations.n_rows - 1) +=
       (profileSeconds - recordedProfile).t();
   }
-  const arma::vec finalScore = Rcpp::as<arma::vec>(result["dLu"]);
+  // The latent RR return uses +2 score; native conditional fits use -2 score.
+  const arma::vec finalScore = (lowRank ? -1.0 : 1.0) *
+    Rcpp::as<arma::vec>(result["dLu"]);
   const arma::mat finalInformation = Rcpp::as<arma::mat>(result["InfMat"]);
   const arma::mat finalInformationTangent = result.containsElementNamed(".aiTangent")
     ? Rcpp::as<arma::mat>(result[".aiTangent"]) : arma::mat();
   double projectedScoreNorm = 0.0;
-  const arma::mat finalTangent = restrictEMScaleTangent(tangent, parameters, offsets,
-    logFloor, arma::vec(-tangent * (tangent.t() * finalScore)));
+  const arma::mat finalTangent = varianceFloorTangent(tangent, parameters, varianceLower,
+    arma::vec(-tangent * (tangent.t() * finalScore)));
   if(finalTangent.n_cols > 0) {
     const arma::vec projectedScore = finalTangent.t() * finalScore;
     const arma::mat projectedInformation = aiInformationInTangent(
@@ -1279,8 +1256,8 @@ inline Rcpp::List fitEMBlend(
     }
   }
   if(adaptive) {
-    projectedScoreNorm = projectedEMScoreNorm(tangent, parameters, offsets,
-      logFloor, arma::vec(-0.5 * finalScore), arma::mat(0.5 * finalInformation),
+    projectedScoreNorm = projectedEMScoreNorm(tangent, parameters, varianceLower,
+      arma::vec(-0.5 * finalScore), arma::mat(0.5 * finalInformation),
       inverseTolerance, finalInformationTangent);
   }
   converged = converged && projectedScoreNorm <=

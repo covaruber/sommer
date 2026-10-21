@@ -35,8 +35,10 @@ If \code{sommer.mme.saddlePoint} resolves to \code{"force"}, the default
 \code{equations} becomes \code{"saddle-point"}.
 \code{compression} is \code{"off"}, \code{"groups"}, or \code{"classes"};
 \code{factorScores} is \code{"none"}, \code{"fixed-shape"}, or
-\code{"profile"}; \code{equations} is \code{"normal"} or
-\code{"saddle-point"}. The remaining fields use experimental mode values
+\code{"profile"}; \code{equations} is \code{"normal"},
+\code{"saddle-point"}, or \code{"conditional"} (experimental latent FA
+equations with independently selected AI/EM updates).
+The remaining fields use experimental mode values
 \code{"auto"}, \code{"off"}, or \code{"force"} (logical TRUE/FALSE are
 accepted). This module owns equation, compression, covariance-factor, and
 factor-score representations.}
@@ -69,11 +71,41 @@ covariance checks.}
 \code{reduced="off"} by default. The method is \code{"exact-ai"} or
 \code{"hybrid-ai"}; \code{reduced} accepts experimental mode values.
 This module owns the AI metric and reduced-direction assembly.}
-\item{update}{Named list with \code{recovery="em"},
+\item{update}{Named list with \code{method="ai"}, \code{recovery="em"},
 \code{blendWeight=NULL}, and \code{commonScale="off"} by default.
 \code{recovery} is \code{"em"} or \code{"pxem"}; \code{commonScale}
 accepts experimental mode values. This module owns covariance-coordinate
-updates, EM/PXEM recovery, blending, and common-scale profiling.}
+updates, EM/PXEM recovery, blending, and common-scale profiling.
+\code{method="ai"} remains the default optimizer. With
+\code{representation$equations="conditional"}, it uses exact REML scores,
+average-information curvature, safeguarded steps and EM recovery in latent
+FA coordinates. \code{method="em"} selects conditional-moment EM and requires
+that representation. The earlier \code{method="conditional-fa"} selector
+continues to select conditional EM, not AI.
+Conditional equations support one FA relationship term with diagonal or FA
+residuals, including missing and unbalanced observations, using sparse LDLT
+posterior solves and selected inverse panels. They require Gaussian
+identity Henderson REML, \code{solve$method="auto"} or \code{"ldlt"},
+\code{output=list(inverse=0, covariance="none", coefficientMatrix=FALSE)},
+and no weights, rotation, \code{vcc}, other representation requests, or
+acceleration. Each source must be entirely free or entirely fixed.
+Conditional AI bounds its dense derivative-RHS and curvature workspace by
+\code{execution$denseMemoryMB}; \code{output$panelSize} also bounds projection
+solve panels. A rank-revealing eigensolve removes numerically null curvature
+directions. Accepted AI steps satisfy an observed-REML ascent check; failed
+proposals use an audited EM recovery step, never a silent estimator change.
+AI convergence requires a small diagonally scaled score using
+\code{convergence$parameterTol}; at numerical bounds it uses the projected
+(KKT) score. Conditional AI bounds free physical specific variances below by
+\code{max(1e-8, execution$inverseTol) * var(y)}, and shared genetic allocations
+to \code{[max(1e-8, execution$inverseTol), 1-max(1e-8, execution$inverseTol)]}.
+This prevents nearly deterministic latent equations from producing unreliable
+likelihoods. Starting values must respect these bounds;
+\code{execution$inverseTol} must be less than 0.5 on this path.
+The floors and active coordinate indices are reported in \code{conditionalFA$ai}.
+EM retains its existing machine-precision floor and likelihood/parameter
+stabilization; it is not silently changed to this constrained AI optimizer.
+See the conditional FA section of \code{vignette("sommer.mmes.options")}.}
 \item{proposal}{Named list with \code{stepWeight=NULL} and
 \code{extrapolation="none"} by default. Extrapolation is \code{"none"} or
 \code{"aitken"}. This module owns proposal scaling and extrapolation.
@@ -144,7 +176,8 @@ positive \code{solve$recycleRank}. \code{logdet$scaling} and Lanczos depth
 apply to stochastic determinant evaluation. \code{score$rank} is used by the
 control-variate estimator. Adaptive trace and Lanczos budgets apply to
 stochastic PCG accuracy. \code{output$panelSize} applies to full inverse
-panels, not selected-inverse mode.
+panels and conditional FA posterior-moment/projection panels, not ordinary selected-inverse
+mode.
 
 Experimental mode fields accept \code{"auto"}, \code{"off"}, or
 \code{"force"}; logical TRUE and FALSE mean force and off. Package options

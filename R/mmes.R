@@ -54,6 +54,8 @@
   if(!inherits(engineControl, "sommer_mmes_engine")){
     stop("Internal fitting requires a compiled modular control.", call.=FALSE)
   }
+  conditionalFA <- identical(engineControl$updateMethod, "conditional-fa") ||
+    identical(engineControl$conditionalEquations, TRUE)
   solver <- engineControl$solver
   compression <- engineControl$compression
   if(identical(solver, "pcg") && compression == "off"){
@@ -96,7 +98,7 @@
   isGaussianIdentity <- inherits(family, "family") &&
     identical(family$family, "gaussian") &&
     identical(family$link, "identity")
-  if(!engineControl$retainCoefficientMatrix &&
+  if(!conditionalFA && !engineControl$retainCoefficientMatrix &&
      (!isGaussianIdentity || .pqlInner || !henderson || solveOnly ||
       factorScoreAugmentation != "none" ||
       !identical(engineControl$experimental$saddlePoint, "force") ||
@@ -104,7 +106,7 @@
     stop("output$coefficientMatrix=FALSE requires a Gaussian identity-link Henderson fit with representation$equations='saddle-point' and output$inverse=0, without PQL, task$mode='solve' or representation$factorScores.",
          call.=FALSE)
   }
-  if(engineControl$covarianceInformation == "none" &&
+  if(!conditionalFA && engineControl$covarianceInformation == "none" &&
      (!isGaussianIdentity || .pqlInner || !henderson || solveOnly ||
       factorScoreAugmentation != "none")){
     stop("output$covariance='none' requires a Gaussian identity-link Henderson fit without PQL, task$mode='solve' or representation$factorScores.",
@@ -127,7 +129,7 @@
   supportsEM <- isGaussianIdentity && !.pqlInner &&
     (!henderson || !identical(tolower(solver), "pcg")) &&
     acceleration == "none" && factorScoreAugmentation == "none" &&
-    !identical(engineControl$experimental$saddlePoint, "force")
+    !identical(engineControl$experimental$saddlePoint, "force") && !conditionalFA
   adaptiveRecovery <- automaticBlendWeight && supportsEM && !isTRUE(solveOnly)
   commonScaleReason <- ""
   if(engineControl$experimental$commonScale != "off"){
@@ -213,6 +215,13 @@
     return(finishThreads(
       .mmes_factor_score_profile(match.call(), parent.frame(), family,
         nIters, REML, henderson, computeCi, vcc, solver), threadScope, verbose))
+  }
+  if(conditionalFA && (!isGaussianIdentity || .pqlInner || !henderson || !REML ||
+     solveOnly || !is.null(vcc) || computeCi != 0L ||
+     engineControl$covarianceInformation != "none" ||
+     engineControl$retainCoefficientMatrix || !solver %in% c("auto", "ldlt"))){
+    stop("Conditional FA requires Gaussian Henderson REML, solve$method='auto' or 'ldlt', output=list(inverse=0, covariance='none', coefficientMatrix=FALSE), and no vcc or PQL.",
+      call.=FALSE)
   }
   if(!.pqlInner && !isGaussianIdentity){
     return(finishThreads(get(".mmes_pql", mode="function")(
@@ -475,6 +484,11 @@
   }
   residualStructIndex <- nRandomStruct + 1L
   covStruct[[residualStructIndex]] <- rf$covStruct
+  sharedTerms <- vapply(covStruct, function(cs) any(vapply(cs$factors,
+    function(f) !is.null(f$shared), logical(1))), logical(1))
+  if(any(sharedTerms) && !conditionalFA){
+    stop("fam(shared=...) requires update$method='conditional-fa' or representation$equations='conditional'; independent fitting would change the requested covariance model.", call.=FALSE)
+  }
   hasReducedRank <- function(structure){
     any(vapply(structure$factors, function(factor)
       isTRUE(factor$representation$loadings$zero_specific), logical(1)))
@@ -814,7 +828,7 @@
   
   remlOmissionInfo <- NULL
   originalRandomExprs <- randomExprs
-  if(!solveOnly && isTRUE(REML) && isGaussianIdentity && !.pqlInner &&
+  if(!conditionalFA && !solveOnly && isTRUE(REML) && isGaussianIdentity && !.pqlInner &&
      is.null(vcc) && factorScoreAugmentation == "none" && !length(rotationTerms)){
     remlOmissionInfo <- .mmes_reml_omit(X, Z, Zind, Ai, covStruct,
                                      rtermss, rTermsNames)
@@ -967,6 +981,9 @@
     .pqlBaseW, .pqlBaseFactor)
   W <- preparedWeights$W
   useH <- preparedWeights$useH
+  if(conditionalFA && (useH || length(rotationTerms) || !is.null(weights))){
+    stop("update$method='conditional-fa' does not currently support W/weights or rotation=TRUE; missing and unbalanced trait observations are supported directly.", call.=FALSE)
+  }
 
   if(solveOnly){
     return(finishThreads(.mmes_solve(X, Z, Zind, Ai, yvar, W, useH, residualBlock, localIndex,
@@ -1032,7 +1049,11 @@
     factorProfileWarmStarted <- warmStart$compatible
   }
 
-  if(isTRUE(henderson)){
+  if(conditionalFA){
+    solver <- "ldlt"
+    conditionalModel <- .conditional_fa_prepare(X, Z, Ai, yvar,
+      residualBlock, localIndex, covStruct)
+  }else if(isTRUE(henderson)){
     # ---- Solver selection ------------------------------------------------
     # "auto" (the default) picks a solver based on the density of the random-
     # effect relationship matrices actually supplied: pedigree-style Ai
@@ -1217,7 +1238,12 @@
                 engine=engineControl))
   }
 
-  if(isTRUE(henderson)){
+  if(conditionalFA){
+    res <- .mmes_conditional_fa(conditionalModel, covStruct, engineControl,
+      nIters, tolParConvLL, tolParConvNorm, verbose)
+    covStruct <- res$covStruct
+    vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
+  }else if(isTRUE(henderson)){
     res <- .Call("_sommer_ai_mme_sp2", PACKAGE="sommer",
                  X, Z, Zind, Ai, yvar, W, useH,
                  residualBlock, localIndex,
@@ -1283,7 +1309,7 @@
     })
     vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
   }
-  res$engine <- if(isTRUE(henderson)) "henderson" else "direct"
+  res$engine <- if(conditionalFA) "conditional-fa" else if(isTRUE(henderson)) "henderson" else "direct"
   res$call <- mmesCall
   res$inputArgs <- list(naMethodX=naMethodX, naMethodY=naMethodY,
                         naMethodRandom=naMethodRandom, naMethodR=naMethodR,

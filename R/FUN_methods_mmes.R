@@ -664,7 +664,6 @@ rotate_back_mmes <- function(object){
   }
 
   L <- fa$loadings
-  Sigma <- object$theta[[term]]
   U <- object$uList[[term]]
 
   if(!all(rownames(L) %in% colnames(U))){
@@ -684,7 +683,13 @@ rotate_back_mmes <- function(object){
     }
     scores <- U %*% t(solve(crossprod(L), t(L)))
   }else if(method == "regression"){
-    scores <- U %*% solve(Sigma, L)
+    # Woodbury contraction needs only a rank-by-rank solve, including when
+    # the fit deliberately retains no dense trait covariance.
+    specific <- fa$specific * if(varianceScale) 1 else fa$sigma2
+    weightedL <- sweep(L, 1L, specific, `/`)
+    core <- diag(ncol(L)) + crossprod(L, weightedL) *
+      if(varianceScale) 1 else fa$sigma2
+    scores <- (U %*% weightedL) %*% solve(core)
   }else{
     weights <- 1 / (fa$sigma2 * fa$specific)
     weightedL <- sweep(L, 1L, weights, `*`)

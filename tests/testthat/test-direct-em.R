@@ -128,7 +128,7 @@ test_that("direct EM retains fixed tiny variances and admits starts below the fr
     fit <- mmes(y~trait, random=~vsm(ism(id), sigma2=1e-10, fixedSigma2=fixed), data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_true(all(diff(as.numeric(fit$llik)) >= -1e-8))
     if(fixed){
-      expect_equal(as.numeric(fit$covPar[[1L]]), 1e-10, tolerance=1e-18)
+      expect_equal(as.numeric(fit$covPar[[1L]]) / 1e-10, 1, tolerance=1e-14)
     } else {
       expect_true(all(fit$monitor[1L, ] >= 1e-10 * (1-1e-10)))
     }

@@ -357,6 +357,9 @@ For an unreliable information solve, ordinary AI first retries with a
 scaled, ridge-regularized direction in the feasible parameter tangent.
 Trust-cap scaling and an increasing ridge bound each working-coordinate step,
 preventing a nearly flat coordinate from shrinking all other updates.
+An otherwise usable ordinary AI direction also takes this retry when its
+undamped trust multiplier would be below `0.1`; user-requested step damping
+does not trigger it.
 The `AI-reg` / `info-solve` row identifies this retry. It must remain feasible
 and improve observed likelihood by more than `1e-10` through backtracking.
 Only if that direction or its line search fails are EM/PXEM moments computed.
@@ -370,11 +373,29 @@ last accepted parameters, warns, and reports `convergence=FALSE`. An approaching
 variance floor alone does not trigger recovery. These are initial fixed
 heuristics, not guarantees that recovery will improve speed on every model.
 
+Variance floors apply to free product-level log variances and to log variance,
+specific-variance and innovation-variance ratios, not to log loadings,
+Cholesky factors or spatial range parameters. The floor is
+`max(1e-8, execution$inverseTol)` in each parameter's natural units (absolute
+variance for product scales, relative variance for ratios).
+Adaptive AI uses a boundary-constrained solve: a joint step that crosses a
+floor, supported by an outward marginal score/curvature step, fixes that
+coordinate at the floor and re-solves the remaining directions. Correlated
+overshoots without this marginal support retain the trust safeguard instead.
+Boundary moves do not shrink unrelated coordinates through the global trust
+multiplier. Fixed parameters and equality/scaling constraints remain exact;
+a floor-bound parameter can re-enter the solve when its score points inward.
+All such proposals still require observed-likelihood acceptance.
+Experimental common-scale profiling rejects proposals at any variance floor;
+refit with common-scale profiling off when a boundary is needed.
+
 Convergence requires both a small projected score and either a small likelihood
 change or relative parameter step. The score is projected through the free/tied
 parameter tangent and removes outward directions at variance floors. Each
 component is scaled by the square root of its projected AI diagonal, floored
-at `execution$inverseTol`; the maximum must not exceed
+at `execution$inverseTol`. Inward-pointing directions at a variance floor use
+the unfloored curvature (bounded away from numerical zero), so a vanishing
+log-variance derivative cannot falsely certify convergence. The maximum must not exceed
 `sqrt(max(convergence$likelihoodTol, convergence$parameterTol))`.
 
 `engineDiagnostics$recovery` records the method, attempted and accepted step

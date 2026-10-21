@@ -503,5 +503,23 @@ out <- list(modules = structure(list(id = c("model", "task", "formulation",
 "join", "join")), class = "data.frame", row.names = c(NA, 17L
 )))
 out$controls <- out$controls[out$controls$path != "control.output.pev", , drop=FALSE]
+out$controls$values[out$controls$path == "control.representation.equations"] <-
+  "normal, saddle-point, conditional."
+out$controls$effect[out$controls$path == "control.representation.equations"] <-
+  "Select ordinary, saddle-point, or sparse conditional latent equations independently of AI/EM update blocks."
+out$controls <- rbind(out$controls, data.frame(
+  path="control.update.method", module="update", values="ai, em, conditional-fa.",
+  default="ai", requires="Conditional FA: Gaussian Henderson REML, one FA relationship term, diagonal/FA residuals, no weights/rotation/vcc, omitted covariance information and public C.",
+  excludes="PCG, augmentation, compression, weights, rotation, vcc and uncertainty outputs; conditional AI uses its own exact curvature and EM recovery.",
+  fallback="Explicit eligibility error; no change of estimator.",
+  effect="Select AI or conditional EM; representation.equations='conditional' selects reusable latent equations. conditional-fa remains the legacy EM selector.",
+  source="R/FUN_mme_conditional.R", status="experimental", previous="new"))
+out$decisions <- rbind(out$decisions, data.frame(
+  id="conditional-fa", parent="henderson",
+  condition="representation$equations='conditional' or update$method='conditional-fa': eligible Gaussian FA REML model.",
+  result="Sparse posterior moments + cached contractions; independent AI/EM update blocks, no uncertainty outputs.",
+  modules="representation, update"))
+out$edges <- rbind(out$edges, data.frame(from="henderson", to="conditional-fa", kind="branch"),
+  data.frame(from="conditional-fa", to="outputs", kind="join"))
 out
 }

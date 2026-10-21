@@ -9,9 +9,22 @@
 }
 
 .reml_estimability_control <- function(...){
-  mmes_control(convergence=list(maxIters=4), execution=list(blasThreads=1),
+  mmes_control(convergence=list(maxIters=4),
                diagnostics=list(verbose=FALSE, dateWarning=FALSE), ...)
 }
+
+test_that("REML omission works without runtime BLAS control", {
+  local_mocked_bindings(.mmes_blas_controller=function() NULL, .package="sommer")
+  d <- .reml_estimability_data()
+  control <- .reml_estimability_control()
+  expect_warning(fit <- mmes(y~environment,
+    random=~vsm(dsm(environment), ism(block)), data=d, control=control),
+    "Omitting 1 structurally unestimable")
+  expect_identical(fit$threadingDiagnostics$controller, "unavailable")
+  expect_null(fit$threadingDiagnostics$blasThreadsRequested)
+  expect_true(is.na(fit$threadingDiagnostics$blasThreadsConfigured))
+  expect_identical(covparams_mmes(fit, 1)$estimate[1], 0)
+})
 
 test_that("REML omits only independent block variances in the fixed space", {
   d <- .reml_estimability_data()

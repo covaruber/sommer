@@ -81,7 +81,7 @@ the prior numerical bundle; they do not authorize new combinations.
 | `logdet` | Determinant approximation | `scaling="none"`, `lanczosSteps=20L`. |
 | `score` | Covariance derivatives and trace estimation | `traceProbes=8L`, `estimator="hutchinson"`, `rank=16L`, `covarianceChecks="auto"`, `traceBatch="off"`. |
 | `curvature` | AI metric and reduced-direction assembly | `method="exact-ai"`, `reduced="off"`. |
-| `update` | Covariance-coordinate update and recovery | `recovery="em"`, `blendWeight=NULL`, `commonScale="off"`. |
+| `update` | Covariance-coordinate update and recovery | `method="ai"`, `recovery="em"`, `blendWeight=NULL`, `commonScale="off"`. |
 | `proposal` | Proposal scaling and extrapolation | `stepWeight=NULL`, `extrapolation="none"`. |
 | `convergence` | Inner iterations and stochastic accuracy | `maxIters=30L`, `likelihoodTol=1e-4`, `parameterTol=1e-4`, `accuracy="fixed"`, `maxTraceProbes=NULL`, `maxLanczosSteps=NULL`, `logDetTol=1e-3`, `scoreTol=1e-3`. |
 | `output` | Coefficient and covariance uncertainty; setup output | `inverse=0L`, `covariance="full"`, `coefficientMatrix=TRUE`, `setup=FALSE`, `selectedInverse="auto"`, `panelSize=64L`. |
@@ -113,10 +113,11 @@ Constructors and valid values:
 * `solve$method`: `"auto"`, `"ldlt"`, `"cholmod"`, or `"pcg"`.
 * `representation$compression`: `"off"`, `"groups"`, or `"classes"`.
 * `representation$factorScores`: `"none"`, `"fixed-shape"`, or `"profile"`.
-* `representation$equations`: `"normal"` or `"saddle-point"`.
+* `representation$equations`: `"normal"`, `"saddle-point"` or experimental `"conditional"`.
 * `logdet$scaling`: `"none"` or `"diagonal"`.
 * `score$estimator`: `"hutchinson"` or `"control-variate"`.
 * `curvature$method`: `"exact-ai"` or `"hybrid-ai"`.
+* `update$method`: `"ai"`, conditional `"em"`, or the earlier `"conditional-fa"` EM selector.
 * `update$recovery`: `"em"` or `"pxem"`.
 * `proposal$extrapolation`: `"none"` or `"aitken"`.
 * `convergence$accuracy`: `"fixed"` or `"adaptive"`.
@@ -130,6 +131,262 @@ The complete field reference and mapping from old names are in
 `?mmes_control`.
 
 # Decision graph and constraints
+
+## Conditional FA: reusable posterior moments with AI or EM
+
+The default ordinary AI workflow is unchanged. The opt-in
+`representation$equations="conditional"` selects sparse latent FA equations
+using the existing formula preparation, observation map, covariance
+descriptors, model methods, controls, and execution-plan reporting.
+The optimizer is a separate block: `update$method="ai"` (the default)
+uses exact REML scores and average-information curvature on these equations;
+`update$method="em"` uses conditional-moment EM. The earlier
+`update$method="conditional-fa"` API retains its EM behavior even without
+an explicit representation request.
+
+```r
+long <- stackTraits(wide, traits = trait_names, keep = "id")
+Ainv <- solve(A)
+attr(Ainv, "inverse") <- TRUE
+
+fit <- mmes(
+  value ~ trait,
+  random = ~ vsm(fam(trait, k = 2), ism(id), Gu = Ainv),
+  rcov = ~ vsm(fam(trait, k = 1), ism(record)),
+  data = long,
+  control = mmes_control(
+    representation = list(equations = "conditional"),
+    update = list(method = "ai"),
+    convergence = list(maxIters = 300),
+    output = list(covariance = "none", coefficientMatrix = FALSE,
+                  inverse = 0, panelSize = 32)
+  )
+)
+fit$convergence
+fit$conditionalFA$likelihood
+fit$conditionalFA$updates  # accepted AI steps and any EM recovery
+fit$conditionalFA$ai       # final score norm, curvature rank and workspace
+fit$executionPlan$admission$conditionalFA
+covmatrix_mmes(fit, term = 1, se = FALSE)
+```
+
+Missing responses are excluded by the usual observation map, not imputed.
+Repeated individuals and incomplete residual pairing blocks are supported;
+`record` must identify the actual experimental unit. The genetic incidence
+must select exactly one individual and one trait per observed value.
+The fixed design may contain covariates and interactions but must have full
+column rank. Each trait must retain observations. Known positive-definite
+relationship **precision** matrices retain the usual `Gu` contract.
+Each covariance source must be entirely free or entirely fixed. FA specifics
+can be heterogeneous or homogeneous; diagonal and homogeneous residuals
+are also supported.
+
+### Mathematical blocks
+
+Write the latent model as
+
+$$
+y=Xb+Z_g(L_g f_g+s_g)+L_e f_e+\epsilon,\quad
+\operatorname{Var}(s_g)=\Psi_g\otimes A,\quad
+\operatorname{Var}(\epsilon)=\operatorname{diag}(\psi_{e,t(i)}).
+$$
+
+Residual factors are indexed by pairing key, genetic factors by individual.
+The prepared sparse design is denoted by $D$ and its random-effect precision
+by $Q$ (with zeros on fixed-effect coordinates). At every iteration:
+
+1. Assemble $H=D^\mathsf{T}R_0^{-1}D+Q$ and factor it numerically.
+2. Compute conditional means and the entries of $H^{-1}$ needed by the
+   complete-data quadratics, including fixed-effect uncertainty.
+3. Select the update block: exact REML score/AI contractions, or loading
+   regressions and expected quadratic forms for EM. Do **not** treat
+   predicted factors as observed data.
+4. Evaluate the observed restricted log likelihood and reject a material
+   decrease. EM convergence requires likelihood and parameter stabilization;
+   AI requires a small diagonally scaled REML score.
+
+On the original response scale, omitting the Gaussian normalizing constant,
+the restricted objective uses
+
+$$
+-2\ell_R=\log|R_0|-\log|Q_{\mathrm{random}}|+\log|H|
+ +(y-D\hat a)^\mathsf{T}R_0^{-1}(y-D\hat a)
+ +\hat a^\mathsf{T}Q\hat a .
+$$
+
+Integrating the fixed coefficients with a flat measure gives the restricted
+objective; their conditional second moments are essential to the EM update.
+Specific variances have a machine-precision positive floor to keep the
+conditional distribution well-defined during EM. AI uses log-specific
+coordinates and, for shared factors, logit allocations.
+
+### Exact score and AI blocks
+
+For covariance coordinate $\theta_i$, let $V_i=\partial V/\partial\theta_i$,
+$P=V^{-1}-V^{-1}X(X^\mathsf{T}V^{-1}X)^{-1}X^\mathsf{T}V^{-1}$,
+and $z=Py$. The score and average information are
+
+$$
+s_i=\tfrac12(z^\mathsf{T}V_i z-\operatorname{tr}(PV_i)),\qquad
+\mathcal A_{ij}=\tfrac12(V_i z)^\mathsf{T}P(V_j z).
+$$
+
+The implementation differentiates the sparse latent design, residual
+diagonal and random precision. Selected posterior moments give the exact
+score traces; relationship-factor solves apply random prior covariances
+without forming a dense relationship inverse. The already factored $H$
+projects derivative right-hand sides in bounded panels. Neither $V$ nor $P$
+is constructed. Shared loading derivatives affect both covariance sources
+in the same coordinate.
+
+Independent loading matrices retain rotationally redundant coordinates.
+A diagonally scaled, rank-revealing curvature eigensolve drops numerically
+null directions rather than inverting a singular information matrix.
+Steps have a bounded coordinate displacement and a backtracking
+observed-likelihood Armijo test. If no AI proposal is accepted, an EM recovery
+step uses the same posterior moments; `conditionalFA$updates` records
+`"ai"` or `"em-recovery"` explicitly. This changes optimization, not the
+REML objective. `conditionalFA$ai$scoreNorm` is the diagonally scaled score
+checked against `convergence$parameterTol`; a small displacement alone cannot
+certify AI convergence.
+
+Near-zero conditional noise can make the latent equations ill-conditioned
+even when the marginal covariance remains well-conditioned. Conditional AI
+therefore has explicit numerical bounds: writing
+$\tau=\max(10^{-8},\texttt{execution\$inverseTol})$, free physical specifics
+must be at least $\tau\operatorname{var}(y)$ and shared allocations lie in
+$[\tau,1-\tau]$ (`inverseTol` must be below 0.5). Initial values must satisfy
+these bounds. An active-set solve excludes outward directions at a bound;
+convergence uses the projected KKT score, not an unconstrained zero-gradient
+claim. The actual `varianceFloor`, `allocationFloor`, and `activeBounds`
+are reported in `conditionalFA$ai`. These physical-coordinate constraints are
+not identical to the ordinary engine's descriptor-coordinate bounds.
+EM recovery stays within the AI feasible set. Explicit conditional EM retains
+its earlier machine-precision floor, so optima at numerical boundaries need
+not match exactly between optimizers.
+
+`conditionalFA$rawLikelihood` retains this original-scale objective.
+For compatibility with the ordinary solver's standardized-response reporting,
+`llik` and `conditionalFA$likelihood` add
+$(n-\operatorname{ncol}(X))\log(\operatorname{sd}(y))$.
+This constant does not affect updates or convergence. `AIC` and `BIC`
+retain the existing solver's fixed-design-column penalty convention; the
+covariance-model parameter count is recorded separately rather than silently
+changing those established fields.
+
+### Reuse and memory policy
+
+The native conditional-moment block reuses symbolic LDLT analysis only while
+the sparse pattern is identical. Numeric factors are recomputed at every
+covariance update. Fixed sparse quadratic contractions are compiled once;
+identical factor incidence/missingness patterns share their Gram contractions.
+Selected inverse entries are obtained in bounded panels. No dense
+observation covariance or full posterior inverse is constructed. EM does
+not assemble an AI matrix; conditional AI does assemble a dense
+parameter-by-parameter matrix and observation-by-parameter derivative RHS.
+
+`output$panelSize` controls inverse/projection-panel width;
+`execution$denseMemoryMB` admits their dense workspace and, for AI, the
+retained RHS/curvature/eigensolve workspace (not a process-memory cap).
+Oversized AI requests fail explicitly rather than switching optimizers.
+Sparse factor fill, latent genetic specifics, and the number of exact
+inverse solves can still be expensive, especially with dense relationships.
+This first engine prioritizes exactness and bounded dense intermediates;
+it is **not a claim of MegaLMM-like thousand-trait runtime**. EM can converge
+slowly near boundaries. Compare converged objectives and predictions, not
+equal iteration counts.
+
+### Shared-loading covariance model
+
+For common trait axes, use matching tags:
+
+```r
+random = ~ vsm(fam(trait, k = 2, shared = "axes"), ism(id), Gu = Ainv)
+rcov   = ~ vsm(fam(trait, k = 2, shared = "axes"), ism(record))
+```
+
+This changes the covariance family to
+$G=L D_g L^\mathsf{T}+\Psi_g$ and
+$R=L D_e L^\mathsf{T}+\Psi_e$.
+Both sources must be free with equal rank. Diagonal factor variances are
+updated from conditional quadratics and normalized so $D_g+D_e=I$;
+the compensating scale is absorbed into $L$. Starting loading columns must
+be positive scalar multiples between sources. Defaults satisfy this.
+The common basis is in `fit$conditionalFA$state$loading`, with allocations
+`weightG` and `weightE`; sign and ordering are not uniquely identified.
+`loadings_mmes()` instead reports triangular marginal loadings for each source.
+Other engines reject shared tags rather than ignoring the restriction.
+
+### Output and compatibility
+
+Fits remain `mmes` objects. `fitted()`, `residuals()`, `coef()`, covariance
+parameter reports, and explicit `covmatrix_mmes(..., se=FALSE)` remain
+available. `theta` has named empty entries rather than dense trait matrices.
+The covariance descriptors and conditional state are the authoritative
+factorized covariance representation. Covariance-parameter SEs, retained
+public `C`, coefficient PEVs, and uncertainty-dependent methods are not
+available on this path; they fail explicitly. No implicit handoff to another
+estimator is made. For shared models, the usual marginal parameter reports
+are redundant representations; the independent parameter count is reported
+in `fit$conditionalFA$parameterCount`.
+The public `llik` retains its usual one-row history shape. `monitor` contains
+the final marginal covariance parameters only, not every intermediate EM
+state; the likelihood history is retained in `conditionalFA$likelihood`.
+
+Weights, non-Gaussian families, ML, multiple random covariance sources,
+rotation, user `vcc`, random-regression/overlapping incidence, `rrm()`,
+spatial residuals, and combinations with AI acceleration/augmentation are
+not admitted. Such models continue to use the unchanged ordinary engine
+unless the conditional engine is explicitly requested.
+
+### Validation and measured limits
+
+The posterior kernel is checked against dense means, inverse entries and
+log determinants, including symbolic reuse/invalidation. End-to-end tests
+compare incomplete-record REML, GLS and genetic BLUPs with dense reference
+equations, check shared and independent EM monotonicity, and verify convergence
+against a separately optimized one-dimensional restricted likelihood with
+a fixed genetic covariance. Unequal genetic/residual ranks and homogeneous
+specifics have separate coverage. Conditional AI scores and curvature are
+also checked against independently finite-differenced marginal covariance
+matrices, including rank-two shared loadings and homogeneous specifics.
+Convergence is compared with a separately optimized restricted likelihood;
+numerical-bound KKT convergence, EM recovery and legacy-EM parity have
+separate tests.
+
+Baseline-versus-candidate checks used the enhancer split-plot, compound-symmetry
+and diagonal GxE, multivariate, random-regression, field row/column, and genomic
+relationship models. Covariance parameters, BLUPs, likelihood histories and
+convergence flags matched exactly for all seven. This is regression evidence,
+not an independent certification of a model optimum. The earlier conditional
+EM selector and the explicit conditional EM control also produce identical
+histories, parameters and predictions. Measured R allocations changed by less than 0.03%;
+elapsed times were noisy on the shared machine, so unchanged ordinary paths
+are not claimed as a speedup.
+
+A separate single-thread, synthetic score benchmark with 2,000 traits, rank
+5 and 200 individuals compared the new regression score routine with
+`U %*% solve(Sigma, L)`: maximum absolute difference was below $5\,10^{-14}$,
+median elapsed time was 0.003 versus 0.146 seconds (seven repetitions), and
+profiled R allocations were 3.84 versus 30.67 MiB. This measures **score
+calculation only**, not model fitting or process peak memory.
+
+Conditional EM is not uniformly competitive with AI. In a four-trait,
+24-individual, four-replicate incomplete-data experiment with a near-boundary
+genetic specific variance, AI converged in about 5 seconds; conditional EM
+had not met both convergence tolerances after 1,500 updates and about
+123 seconds. The engine reports nonconvergence explicitly. These measurements
+motivate future acceleration/reduced-latent-system work; they do not establish
+thousand-trait fitting scalability.
+
+On the same near-boundary fixture, conditional AI with active numerical bounds
+converged in 16 updates rather than the 1,500 unfinished EM updates.
+Conditional AI took about 1.5 seconds versus 0.6 seconds for ordinary AI.
+These shared-machine timings do not establish
+a general speed advantage; the numerical bounds and stopping rules must
+also be considered when comparing optima.
+
+## Ordinary fitting paths
 
 The sequence below shows dependencies, not a sequence of arbitrary method
 switches. Several paths dispatch early, and later choices remain gated by the

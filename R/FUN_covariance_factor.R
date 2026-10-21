@@ -7,8 +7,12 @@
 # Lambda is lower-triangular in its leading k x k block for rotational
 # identification. Leading loading diagonals are positive (log parameterized).
 fam <- function(x, k=1L, loadings=NULL, specific=NULL, fixed=NULL,
-                variance=c("heterogeneous", "homogeneous")){
+                variance=c("heterogeneous", "homogeneous"), shared=NULL){
   variance <- match.arg(variance)
+  if(!is.null(shared) && (!is.character(shared) || length(shared) != 1L ||
+     is.na(shared) || !nzchar(shared))){
+    stop("shared in fam() must be NULL or one non-empty loading-group name.", call.=FALSE)
+  }
   expr <- as.character(substitute(x))
   dummy <- .cov_dummy(x, expr)
   q <- ncol(dummy)
@@ -111,6 +115,7 @@ fam <- function(x, k=1L, loadings=NULL, specific=NULL, fixed=NULL,
       fa_col=cols,
       fa_diag=diag_loading,
       variance=variance,
+      shared=shared,
       fa_specific_reference=labs[1]
     ))
   )

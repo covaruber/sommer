@@ -153,7 +153,8 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     for(arma::uword k = 0; k < covPar(i).n_elem; ++k){
       covFree(i)(k) = freeR[static_cast<int>(k)] ? 1.0 : 0.0;
     }
-    covLower(i) = arma::vec(covPar(i).n_elem, arma::fill::value(-std::numeric_limits<double>::infinity()));
+    covLower(i) = sommer::covarianceVarianceLowerBounds(
+      Rcpp::List::create(cs), tolParInv, std::log(vary));
     covUpper(i) = arma::vec(covPar(i).n_elem, arma::fill::value(std::numeric_limits<double>::infinity()));
 
     covPar(i)(0) -= std::log(vary);
@@ -673,8 +674,27 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     }
 
     arma::vec delta(nVcTotal, arma::fill::zeros);
+    arma::vec cappedDelta(nVcTotal, arma::fill::zeros);
     arma::mat feasible = scoreTangent;
-    for(int activeSet = 0; weight < 1.0 && activeSet <= nVcTotal && feasible.n_cols > 0; ++activeSet){
+    if(adaptive && weight < 1.0 && iIter < nIters - 1) {
+      ++aiUpdateSolves;
+      const sommer::FeasibleAIDirection proposal = sommer::feasibleAIDirection(
+        AI, score, arma::mat(), tangent, thetaUnlisted, lowerUnlisted, stepCaps);
+      regularizedAttempts += proposal.regularizedAttempts;
+      if(proposal.reliable) {
+        delta = proposal.direction;
+        cappedDelta = proposal.cappedDirection;
+        regularized = proposal.ridge > 0.0;
+        if(regularized) {
+          regularizedRidges.push_back(proposal.ridge);
+          regularizedIterations.push_back(iIter + 1);
+        }
+      } else {
+        weight = 1.0;
+        recoveryReason = "information-solve";
+      }
+    }
+    for(int activeSet = 0; !adaptive && weight < 1.0 && activeSet <= nVcTotal && feasible.n_cols > 0; ++activeSet){
       const arma::mat information = feasible.t() * AI * feasible;
       const arma::vec gradient = feasible.t() * score;
       arma::vec scaling = arma::sqrt(arma::clamp(arma::abs(information.diag()),
@@ -685,25 +705,6 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
       ++aiUpdateSolves;
       bool solved = arma::solve(direction, normalized, rhs,
         arma::solve_opts::likely_sympd + arma::solve_opts::no_approx);
-      if(adaptive && (!solved || !direction.is_finite() ||
-          arma::norm(normalized * direction - rhs, 2) >
-            1.0e-6 * (1.0 + arma::norm(rhs, 2)) ||
-          !sommer::reliableAIInformation(
-          information, 1.0 / scaling))) {
-        ++regularizedAttempts;
-        const sommer::RegularizedAIDirection retry =
-          sommer::regularizedAIDirection(AI, score, feasible, stepCaps);
-        if(retry.reliable) {
-          delta = retry.direction;
-          regularized = true;
-          regularizedRidges.push_back(retry.ridge);
-          regularizedIterations.push_back(iIter + 1);
-          break;
-        }
-        weight = 1.0;
-        recoveryReason = "information-solve";
-        break;
-      }
       if(!solved){ direction = arma::pinv(normalized) * rhs; }
       delta = feasible * (direction / scaling);
       if(!delta.is_finite() || arma::dot(delta, score) <= 0.0){
@@ -794,8 +795,9 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
         const bool fullEM = weight == 1.0 || attempt > 0;
         double alpha = adaptive && fullEM ? 1.0 : weightInf(iIter);
         for(int k = 0; k < nVcTotal; ++k) {
-          if(!fullEM && delta(k) != 0.0) {
-            alpha = std::min(alpha, stepCaps(k) / std::abs(delta(k)));
+          const double capped = adaptive && weight == 0.0 ? cappedDelta(k) : delta(k);
+          if(!fullEM && capped != 0.0) {
+            alpha = std::min(alpha, stepCaps(k) / std::abs(capped));
           }
           if(delta(k) < 0.0 && std::isfinite(lowerUnlisted(k))) {
             alpha = std::min(alpha, std::max(0.0, (thetaUnlisted(k) - lowerUnlisted(k)) / -delta(k)));

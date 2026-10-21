@@ -17,6 +17,14 @@ ai_mme_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIn
     .Call(`_sommer_ai_mme_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computeCi, solver, pcgTol, pcgMaxIters, pcgTraceProbes, pcgLanczosSteps, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept, gpu, gpuMinSize)
 }
 
+mme_conditional_moments_cpp <- function(H, pattern, rhs, workspace, moments, panelSize, memoryMB) {
+    .Call(`_sommer_mme_conditional_moments_cpp`, H, pattern, rhs, workspace, moments, panelSize, memoryMB)
+}
+
+mme_conditional_solve_cpp <- function(workspace, rhs, memoryMB) {
+    .Call(`_sommer_mme_conditional_solve_cpp`, workspace, rhs, memoryMB)
+}
+
 evaluate_covstruct_cpp <- function(covStruct, par) {
     .Call(`_sommer_evaluate_covstruct_cpp`, covStruct, par)
 }

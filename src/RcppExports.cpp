@@ -142,6 +142,36 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// mme_conditional_moments_cpp
+Rcpp::List mme_conditional_moments_cpp(const Eigen::MappedSparseMatrix<double>& H, const Eigen::MappedSparseMatrix<double>& pattern, const Eigen::VectorXd& rhs, SEXP workspace, bool moments, int panelSize, double memoryMB);
+RcppExport SEXP _sommer_mme_conditional_moments_cpp(SEXP HSEXP, SEXP patternSEXP, SEXP rhsSEXP, SEXP workspaceSEXP, SEXP momentsSEXP, SEXP panelSizeSEXP, SEXP memoryMBSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::MappedSparseMatrix<double>& >::type H(HSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MappedSparseMatrix<double>& >::type pattern(patternSEXP);
+    Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type rhs(rhsSEXP);
+    Rcpp::traits::input_parameter< SEXP >::type workspace(workspaceSEXP);
+    Rcpp::traits::input_parameter< bool >::type moments(momentsSEXP);
+    Rcpp::traits::input_parameter< int >::type panelSize(panelSizeSEXP);
+    Rcpp::traits::input_parameter< double >::type memoryMB(memoryMBSEXP);
+    rcpp_result_gen = Rcpp::wrap(mme_conditional_moments_cpp(H, pattern, rhs, workspace, moments, panelSize, memoryMB));
+    return rcpp_result_gen;
+END_RCPP
+}
+// mme_conditional_solve_cpp
+Eigen::MatrixXd mme_conditional_solve_cpp(SEXP workspace, const Eigen::MatrixXd& rhs, double memoryMB);
+RcppExport SEXP _sommer_mme_conditional_solve_cpp(SEXP workspaceSEXP, SEXP rhsSEXP, SEXP memoryMBSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type workspace(workspaceSEXP);
+    Rcpp::traits::input_parameter< const Eigen::MatrixXd& >::type rhs(rhsSEXP);
+    Rcpp::traits::input_parameter< double >::type memoryMB(memoryMBSEXP);
+    rcpp_result_gen = Rcpp::wrap(mme_conditional_solve_cpp(workspace, rhs, memoryMB));
+    return rcpp_result_gen;
+END_RCPP
+}
 // evaluate_covstruct_cpp
 arma::mat evaluate_covstruct_cpp(const Rcpp::List& covStruct, const arma::vec& par);
 RcppExport SEXP _sommer_evaluate_covstruct_cpp(SEXP covStructSEXP, SEXP parSEXP) {
@@ -552,6 +582,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_ai_mme_sp", (DL_FUNC) &_sommer_ai_mme_sp, 20},
     {"_sommer_MNR", (DL_FUNC) &_sommer_MNR, 19},
     {"_sommer_ai_mme_sp2", (DL_FUNC) &_sommer_ai_mme_sp2, 30},
+    {"_sommer_mme_conditional_moments_cpp", (DL_FUNC) &_sommer_mme_conditional_moments_cpp, 7},
+    {"_sommer_mme_conditional_solve_cpp", (DL_FUNC) &_sommer_mme_conditional_solve_cpp, 3},
     {"_sommer_evaluate_covstruct_cpp", (DL_FUNC) &_sommer_evaluate_covstruct_cpp, 2},
     {"_sommer_ai_reml_direct_sp2", (DL_FUNC) &_sommer_ai_reml_direct_sp2, 23},
     {"_sommer_mme_gpu_runtime_status", (DL_FUNC) &_sommer_mme_gpu_runtime_status, 0},

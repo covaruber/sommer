@@ -166,11 +166,25 @@
       settings=function(x) "update$commonScale",
       hint="Remove update$commonScale or use update$blendWeight=0."),
     list(id="coefficient-matrix",
-      when=function(x) x$representation$equations != "saddle-point" ||
-        x$output$inverse != 0L,
+      when=function(x) x$update$method != "conditional-fa" &&
+        x$representation$equations != "conditional" &&
+        (x$representation$equations != "saddle-point" || x$output$inverse != 0L),
       message="output$coefficientMatrix=FALSE requires representation$equations='saddle-point' and output$inverse=0.",
       settings=function(x) "output$coefficientMatrix",
-      hint="Remove it or set those two settings.")
+      hint="Remove it or set those two settings."),
+    list(id="conditional-fa",
+      when=function(x) x$update$method == "conditional-fa" ||
+        x$representation$equations == "conditional",
+      message="Conditional FA uses sparse latent equations with AI or EM updates, without PCG, augmentation, rotation, covariance uncertainty or a retained public coefficient matrix.",
+      settings=function(x) setdiff(.mme_control_paths(x), c(
+        "task$mode", "task$objective", "update$method", "solve$method",
+        "representation$equations",
+        "convergence$maxIters", "convergence$likelihoodTol", "convergence$parameterTol",
+        "output$covariance", "output$coefficientMatrix", "output$inverse",
+        "output$panelSize", "output$setup", "execution$denseMemoryMB",
+        if(x$update$method == "ai") "execution$inverseTol",
+        "execution$blasThreads", "diagnostics$verbose", "diagnostics$dateWarning")),
+      hint="Remove unrelated method requests or use update$method='ai'.")
   )
 }
 
@@ -278,7 +292,7 @@ mmes_control <- function(formulation="henderson", task=list(),
   representation$factorScores <- .mme_choice(representation$factorScores,
     c("none", "fixed-shape", "profile"), "representation$factorScores")
   representation$equations <- .mme_choice(representation$equations,
-    c("normal", "saddle-point"), "representation$equations")
+    c("normal", "saddle-point", "conditional"), "representation$equations")
   pcgSolve <- .mme_pcg_solve_names
   solve <- .mme_module(solve, c(list(method="auto"), base$pcg[pcgSolve],
     base$experimental[c("blockSchur", "blockBanded", "factorSchurMultiFactor", "dFirstML")]), "solve")
@@ -293,8 +307,15 @@ mmes_control <- function(formulation="henderson", task=list(),
     reduced=base$experimental$reducedAI), "curvature")
   curvature$method <- .mme_choice(curvature$method,
     c("exact-ai", "hybrid-ai"), "curvature$method")
-  update <- .mme_module(update, list(recovery="em", blendWeight=NULL,
+  update <- .mme_module(update, list(method="ai", recovery="em", blendWeight=NULL,
     commonScale=base$experimental$commonScale), "update")
+  update$method <- .mme_choice(update$method, c("ai", "em", "conditional-fa"), "update$method")
+  if(update$method == "em" && representation$equations != "conditional"){
+    stop("update$method='em' requires representation$equations='conditional'; ordinary AI workflows use update$recovery for EM recovery.",call.=FALSE)
+  }
+  if(update$method == "conditional-fa" && representation$equations == "saddle-point"){
+    stop("update$method='conditional-fa' cannot use saddle-point equations.",call.=FALSE)
+  }
   update$recovery <- .mme_choice(update$recovery, c("em", "pxem"), "update$recovery")
   update["blendWeight"] <- list(.mme_blend_weight(update$blendWeight))
   proposal <- .mme_module(proposal, list(stepWeight=NULL, extrapolation="none"), "proposal")
@@ -386,6 +407,9 @@ mmes_control <- function(formulation="henderson", task=list(),
     denseMemoryMB=control$execution$denseMemoryMB,
     memoryPolicy=control$execution$memoryPolicy, gpu=control$execution$gpu,
     gpuMinSize=control$execution$gpuMinSize)
+  engine$updateMethod <- control$update$method
+  engine$conditionalEquations <- control$representation$equations == "conditional"
+  engine$conditionalInverseTol <- control$execution$inverseTol
   class(engine) <- "sommer_mmes_engine"
   engine
 }
@@ -519,7 +543,9 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     curvature=control$curvature, proposal=control$proposal,
     admission=list(compression=selected("compression"),
       reducedAI=selected("reducedAI"), commonScale=selected("commonScale"),
-      hybridAI=selected("hybridAI"), saddlePoint=selected("saddlePoint")),
+      hybridAI=selected("hybridAI"), saddlePoint=selected("saddlePoint"),
+      conditionalFA=selected("conditionalFA")),
+    update=control$update,
     output=control$output,
     status=if(control$output$setup && control$task$mode == "fit") "assembled" else "evaluated")
 }

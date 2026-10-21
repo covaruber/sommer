@@ -56,7 +56,7 @@ inline Rcpp::List fitCommonScale(
     shape.col(column++) = tangent.col(k) -
       tangent.col(anchor) * (tangent(reference, k) / tangent(reference, anchor));
   }
-  const double logFloor = std::log(std::max(1.0e-8, inverseTolerance));
+  const arma::vec varianceLower = covarianceVarianceLowerBounds(descriptors, inverseTolerance);
   const arma::vec caps = covarianceWorkingStepCaps(descriptors);
   const bool retainInformation = !descriptors.hasAttribute("covarianceInformation") ||
     Rcpp::as<std::string>(descriptors.attr("covarianceInformation")) == "full";
@@ -116,8 +116,8 @@ inline Rcpp::List fitCommonScale(
   };
   const auto insideScaleBounds = [&](const arma::vec & point){
     if(!point.is_finite()){ return false; }
-    for(int term = 0; term < terms; ++term){
-      if(point(offsets[term]) <= logFloor){ return false; }
+    for(arma::uword k = 0; k < count; ++k){
+      if(point(k) <= varianceLower(k)){ return false; }
     }
     return true;
   };

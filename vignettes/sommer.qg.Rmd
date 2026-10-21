@@ -571,6 +571,157 @@ Mixed-family traits are also supported through `familym()`. For example, a binar
 
 Other examples of multi-trait models can be found in the documentation of the rice dataset (DT_rice) and in the example dataset (DT_example).
 
+#### Low-rank genetic covariances with conditional FA REML
+
+For more traits, `fam(trait, k)` replaces an unstructured covariance with
+$G=L_gL_g^\mathsf{T}+\Psi_g$, where $k$ is the number of factors and
+$\Psi_g$ contains trait-specific variances. The default AI engine can fit
+this covariance model. Alternatively, the experimental conditional FA
+equation representation uses exact sparse posterior moments with either
+REML AI or EM updates, without forming a dense observation covariance.
+The representation and optimizer are separate building blocks, not a
+separate model-fitting function.
+
+The following self-contained example simulates four Gaussian traits measured
+on three records per genotype. The named relationship precision has the same
+`Gu` contract as the earlier genomic examples; a genomic relationship matrix
+can replace `A.fa`. Missing responses are deliberately retained in the wide
+data. `stackTraits()` supplies a distinct `record` key for each wide row, so
+residual correlations connect traits on the same record, not every record
+of the same genotype.
+
+The fitting chunks are not evaluated when building this vignette because fitting
+may require many iterations. Run them interactively and check convergence
+before interpreting estimates.
+
+```{r qg-conditional-fa, eval=FALSE}
+library(sommer)
+set.seed(2026)
+n.fa <- 20L
+p.fa <- 4L
+traits.fa <- paste0("T", seq_len(p.fa))
+ids.fa <- paste0("g", seq_len(n.fa))
+A.fa <- outer(seq_len(n.fa), seq_len(n.fa),
+              function(i, j) 0.3^abs(i - j))
+dimnames(A.fa) <- list(ids.fa, ids.fa)
+Ai.fa <- solve(A.fa)
+attr(Ai.fa, "inverse") <- TRUE
+
+L.fa <- matrix(c(0.9, 0.6, -0.5, 0.8), p.fa, 1L)
+G.fa <- 0.7 * tcrossprod(L.fa) + diag(c(0.4, 0.5, 0.6, 0.4))
+R.fa <- 0.3 * tcrossprod(L.fa) + diag(c(0.7, 0.6, 0.8, 0.9))
+U.fa <- t(chol(A.fa)) %*% matrix(rnorm(n.fa * p.fa), n.fa, p.fa) %*%
+  chol(G.fa)
+wide.fa <- data.frame(id = factor(rep(ids.fa, each = 3L), levels = ids.fa))
+Y.fa <- U.fa[as.integer(wide.fa$id), , drop = FALSE] +
+  matrix(rnorm(nrow(wide.fa) * p.fa), nrow(wide.fa), p.fa) %*% chol(R.fa)
+wide.fa[traits.fa] <- as.data.frame(Y.fa)
+wide.fa$T2[c(2, 17)] <- NA
+wide.fa$T4[9] <- NA
+long.fa <- stackTraits(wide.fa, traits = traits.fa, keep = "id")
+
+control.fa <- mmes_control(
+  representation = list(equations = "conditional"),
+  update = list(method = "ai"),
+  convergence = list(maxIters = 500L),
+  output = list(inverse = 0, covariance = "none",
+                coefficientMatrix = FALSE, panelSize = 16L),
+  diagnostics = list(verbose = FALSE)
+)
+
+fit.fa <- mmes(
+  value ~ trait,
+  random = ~ vsm(fam(trait, k = 1), ism(id), Gu = Ai.fa),
+  rcov = ~ vsm(fam(trait, k = 1), ism(record)),
+  data = long.fa, control = control.fa
+)
+fit.fa$convergence
+plot(fit.fa$conditionalFA$likelihood, type = "l",
+     xlab = "Covariance update (including initial state)", ylab = "Restricted log likelihood")
+fit.fa$conditionalFA$updates  # AI or EM recovery at each accepted update
+```
+
+This first fit estimates independent genetic and residual loading axes.
+To impose common axes, give both FA factors the same `shared` tag:
+
+```{r qg-shared-fa, eval=FALSE}
+fit.shared.fa <- mmes(
+  value ~ trait,
+  random = ~ vsm(fam(trait, k = 1, shared = "axes"), ism(id), Gu = Ai.fa),
+  rcov = ~ vsm(fam(trait, k = 1, shared = "axes"), ism(record)),
+  data = long.fa, control = control.fa
+)
+fit.shared.fa$convergence
+fit.shared.fa$conditionalFA$state$loading
+fit.shared.fa$conditionalFA$state$weightG
+fit.shared.fa$conditionalFA$state$weightE
+
+if (fit.shared.fa$convergence) {
+  covmatrix_mmes(fit.shared.fa, term = 1, se = FALSE)$correlation
+  covmatrix_mmes(fit.shared.fa, term = 2, se = FALSE)$correlation
+  loadings_mmes(fit.shared.fa, term = names(fit.shared.fa$uList)[1L])
+  scores_mmes(fit.shared.fa, term = names(fit.shared.fa$uList)[1L])
+}
+```
+
+The shared model is $G=LD_gL^\mathsf{T}+\Psi_g$ and
+$R=LD_eL^\mathsf{T}+\Psi_e$, with diagonal factor allocations normalized to
+$D_g+D_e=I$. It changes the covariance family; it is not merely a faster
+implementation of independent FA terms. The common basis is in
+`conditionalFA$state$loading`, whereas `loadings_mmes()` reports equivalent
+marginal loadings for the selected covariance source. Common axes require
+equal genetic and residual ranks; independent FA terms may have different
+ranks. For uncorrelated residuals, replace the residual formula by
+`~vsm(dsm(trait), ism(record))` and omit shared tags.
+
+The same sparse representation can instead use conditional EM:
+
+```{r qg-conditional-em-control, eval=FALSE}
+control.em.fa <- mmes_control(
+  representation = list(equations = "conditional"),
+  update = list(method = "em"),
+  convergence = list(maxIters = 500L),
+  output = list(inverse = 0, covariance = "none",
+                coefficientMatrix = FALSE, panelSize = 16L),
+  diagnostics = list(verbose = FALSE)
+)
+```
+
+Pass `control.em.fa` in either fit to change only the optimizer. The earlier
+`update=list(method="conditional-fa")` interface still selects EM.
+Without a conditional representation request, the default AI workflow is
+unchanged. Conditional AI uses exact scores and a rank-revealing AI solve,
+backtracks proposals against the observed REML objective, and records any
+EM recovery in `conditionalFA$updates`.
+To keep nearly deterministic latent equations numerically stable, conditional
+AI uses a physical-specific floor of
+`max(1e-8, execution$inverseTol) * var(value)` and analogous dimensionless
+shared-allocation bounds. Inspect `conditionalFA$ai` for the actual floors
+and active bound indices; convergence at a bound is a projected-score
+condition, not a claim of an unconstrained interior optimum. Explicit EM
+retains its earlier machine-precision floor.
+
+The conditional engine currently supports one genetic FA covariance source
+with a known positive-definite relationship precision, Gaussian REML,
+and diagonal or FA residuals. Missing and unbalanced records are supported;
+weights, rotation, additional random terms and covariance-parameter constraints
+are not. Covariances are retained in factorized form: request a small explicit
+covariance with `covmatrix_mmes(..., se=FALSE)` rather than using `theta`.
+Coefficient PEVs and covariance-parameter standard errors are unavailable on
+this path, so it cannot supply the uncertainty needed by the earlier
+heritability/`vpredict()` examples.
+
+EM can be much slower than AI near variance boundaries, and 500 updates do
+not guarantee convergence. A nonconverged fit produces a warning; inspect
+the likelihood history, consider increasing the limit or revising the rank,
+and compare only converged fits. This engine is an experimental memory/reuse
+foundation, not a guarantee of thousand-trait fitting speed.
+Conditional AI additionally retains a dense covariance-parameter curvature
+matrix and derivative RHS; oversized workspaces are rejected through
+`execution$denseMemoryMB`. Neither optimizer guarantees a global optimum.
+See `vignette("sommer.mmes.options", package="sommer")` for equations, reporting
+conventions, eligibility and measured performance limits.
+
 ### 9) Bivariate model with repeated records
 
 We first mimic the availability of 2 traits (TRAIT) with repeated records across several 

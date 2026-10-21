@@ -46,6 +46,10 @@ struct WorkspacePolicy {
   static std::size_t cacheEntries() { return 1048576; }
   static std::size_t panelColumns() { return 32; }
   static std::size_t inversePanelColumns() { return 64; }
+  static double inversePanelBytes(std::size_t rows, std::size_t columns) {
+    return 3.0 * sizeof(double) * static_cast<double>(rows) *
+      static_cast<double>(columns);
+  }
   static std::size_t nystromRank() { return 32; }
   static std::size_t crossGroups() { return 128; }
   static std::size_t indexedColumnRows() { return 64; }

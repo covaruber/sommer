@@ -67,6 +67,9 @@ CUDA tests require suitable hardware, a CUDA-enabled build, and
 `SOMMER_TEST_CUDA=true`. A CPU-only check does not certify CUDA behavior.
 Scope global options, BLAS settings, temporary files, and working directories
 so they are restored on both success and failure.
+Tests unrelated to thread control should leave `execution$blasThreads=NULL`:
+optional controller packages do not guarantee a controllable BLAS backend.
+Set process-level thread limits before launching R when needed.
 
 ## Release checks and documentation
 

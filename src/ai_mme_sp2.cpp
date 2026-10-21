@@ -676,13 +676,8 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
         arma::fill::zeros
       );
 
-    covLower(i) =
-      arma::vec(
-        covPar(i).n_elem,
-        arma::fill::value(
-          -std::numeric_limits<double>::infinity()
-        )
-      );
+    covLower(i) = sommer::covarianceVarianceLowerBounds(
+      Rcpp::List::create(cs), tolParInv, std::log(vary));
 
     covUpper(i) =
       arma::vec(

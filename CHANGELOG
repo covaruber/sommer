@@ -938,6 +938,32 @@ version 4.4.90 (2026-10-13)
    in public outputs, with NA uncertainty, an explicit status and an audit
    table; numerical regularization is no longer mistaken for estimability.
 
+ + Added opt-in Gaussian REML conditional FA updates through
+   mmes_control(update=list(method="conditional-fa")). Sparse posterior
+   moments are a separate mathematical block with per-fit symbolic reuse,
+   refreshed numeric factors, cached sparse quadratic contractions and
+   bounded inverse panels. Incomplete/repeated records and diagonal or FA
+   residuals are supported; unsupported combinations fail explicitly.
+ + Added fam(shared="group") for common genetic/residual loading axes and
+   source-specific diagonal factor variances on the conditional path.
+   Factorized outputs omit dense trait covariances and uncertainty matrices.
+   This exact EM foundation is experimental, not a thousand-trait speed
+   guarantee; convergence may be slow near variance boundaries.
+ + Regression FA scores now use a rank-sized Woodbury solve instead of a
+   dense trait covariance solve, including factorized conditional-fit output.
+
+ + Separated latent FA equations from optimization: use
+   representation=list(equations="conditional") with update$method="ai"
+   (default) or "em". The earlier method="conditional-fa" remains EM.
+   Added exact analytic REML scores and average-information contractions,
+   joint shared-loading derivatives, reusable posterior-factor RHS solves,
+   rank-revealing safeguarded AI steps and explicit EM recovery diagnostics.
+   Physical-specific/allocation bounds use execution$inverseTol and report
+   their active KKT coordinates, preventing near-deterministic latent systems
+   from accepting numerically unreliable likelihood improvements.
+   Conditional AI admits dense derivative/curvature workspace through the
+   existing memory policy; ordinary AI and conditional EM defaults are unchanged.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes
