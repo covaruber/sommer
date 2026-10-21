@@ -62,6 +62,15 @@ test_that("mmes restores real BLAS settings after success, early return, and err
 })
 
 test_that("parallel AI contractions preserve serial fits and cache accounting", {
+  environment <- c(R_LIBS=paste(.libPaths(), collapse=.Platform$path.sep),
+    OMP_NUM_THREADS="1", OMP_THREAD_LIMIT="2",
+    OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1", BLIS_NUM_THREADS="1")
+  previous <- Sys.getenv(names(environment), unset=NA_character_)
+  on.exit({
+    Sys.unsetenv(names(previous)[is.na(previous)])
+    do.call(Sys.setenv, as.list(previous[!is.na(previous)]))
+  }, add=TRUE)
+  do.call(Sys.setenv, as.list(environment))
   script <- tempfile(fileext=".R")
   outputs <- c(tempfile(fileext=".rds"), tempfile(fileext=".rds"))
   on.exit(unlink(c(script, outputs)), add=TRUE)
@@ -92,13 +101,12 @@ test_that("parallel AI contractions preserve serial fits and cache accounting", 
   })), script)
   for(index in seq_along(outputs)){
     threads <- c(1L, 2L)[index]
+    Sys.setenv(OMP_NUM_THREADS=threads)
     output <- system2(file.path(R.home("bin"), "Rscript"),
       c("--vanilla", shQuote(script), shQuote(outputs[index])),
-      env=c(paste0("R_LIBS=", paste(.libPaths(), collapse=.Platform$path.sep)),
-        paste0("OMP_NUM_THREADS=", threads), "OMP_THREAD_LIMIT=2",
-        "OPENBLAS_NUM_THREADS=1", "MKL_NUM_THREADS=1", "BLIS_NUM_THREADS=1"),
       stdout=TRUE, stderr=TRUE)
     expect_null(attr(output, "status"), info=paste(output, collapse="\n"))
+    expect_true(file.exists(outputs[index]), info=paste(output, collapse="\n"))
     if(!file.exists(outputs[index])) return(invisible(NULL))
   }
   serial <- readRDS(outputs[1L])

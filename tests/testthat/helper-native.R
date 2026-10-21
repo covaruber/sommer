@@ -6,6 +6,19 @@
   testthat::skip(reason)
 }
 
+.native_ai_recovery <- function(){
+  source <- testthat::test_path("..", "native", "test-mme-ai-recovery.cpp")
+  header <- testthat::test_path("..", "..", "src", "mme_ai_recovery.h")
+  .native_require(all(file.exists(c(source, header))),
+    "Native checks require the package source tree")
+  .native_require(nzchar(Sys.which("c++")), "C++ compiler unavailable")
+  .native_require(requireNamespace("RcppArmadillo", quietly=TRUE),
+    "RcppArmadillo unavailable")
+  helper <- new.env()
+  Rcpp::sourceCpp(source, env=helper)
+  helper
+}
+
 .native_run <- function(name, headers, eigen=FALSE, strict=FALSE){
   root <- testthat::test_path("..", "..")
   source <- file.path(root, "tests", "native", paste0(name, ".cpp"))

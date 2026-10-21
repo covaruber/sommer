@@ -47,11 +47,15 @@ Rscript --vanilla -e 'testthat::test_local(stop_on_failure=TRUE)'
 `test_local()` compiles the working-tree native code and loads the working-tree
 R sources. Tests against an older installed package are not sufficient.
 The native wrappers normally skip when source headers or a compiler are absent.
+The Rcpp-based AI probes also require `RcppArmadillo` at test time; its
+`LinkingTo` declaration only guarantees availability during package compilation.
+These probes skip when that dependency is unavailable during installed-package
+checks; the model-fitting tests in the same files still run.
 The required source-tree CI job turns those missing prerequisites into failures:
 
 ```sh
 SOMMER_REQUIRE_NATIVE=true Rscript --vanilla -e \
-  'testthat::test_local(filter="mme-control|mme-paths|mme-solver|mme-saddle|pcg-numerics|ai-recovery|reduced-ai", stop_on_failure=TRUE)'
+  'testthat::test_local(filter="mme-control|mme-paths|mme-solver|mme-saddle|pcg-numerics|ai-recovery|ai-variance-floor|reduced-ai", stop_on_failure=TRUE)'
 ```
 
 | Native source | Automated test entry |
@@ -61,7 +65,7 @@ SOMMER_REQUIRE_NATIVE=true Rscript --vanilla -e \
 | `test-mme-sparse.cpp` | `test-mme-solver.R` |
 | `test-mme-saddle.cpp` | `test-mme-saddle.R` |
 | `test-mme-pcg.cpp`, `test-mme-pcg-estimators.cpp`, `test-mme-sufficient.cpp` | `test-pcg-numerics.R` |
-| `test-mme-ai-recovery.cpp` | `test-ai-recovery.R`, `test-reduced-ai.R` |
+| `test-mme-ai-recovery.cpp` | `test-ai-recovery.R`, `test-ai-variance-floor.R`, `test-reduced-ai.R` |
 
 CUDA tests require suitable hardware, a CUDA-enabled build, and
 `SOMMER_TEST_CUDA=true`. A CPU-only check does not certify CUDA behavior.
@@ -70,6 +74,10 @@ so they are restored on both success and failure.
 Tests unrelated to thread control should leave `execution$blasThreads=NULL`:
 optional controller packages do not guarantee a controllable BLAS backend.
 Set process-level thread limits before launching R when needed.
+Child-process tests should set and restore the parent's environment so the child
+inherits it; `system2(env=...)` is not portable for arbitrary Windows executables.
+Solver-parity tests requiring tight parameter agreement should explicitly request
+tight fitting tolerances rather than rely on the default stopping criteria.
 
 ## Release checks and documentation
 

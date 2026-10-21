@@ -72,4 +72,4 @@ jobs:
       - name: Run native checks against the source tree
         shell: Rscript {0}
         run: |
-          testthat::test_local(filter = "mme-control|mme-paths|mme-solver|mme-saddle|pcg-numerics|ai-recovery|reduced-ai", stop_on_failure = TRUE)
+          testthat::test_local(filter = "mme-control|mme-paths|mme-solver|mme-saddle|pcg-numerics|ai-recovery|ai-variance-floor|reduced-ai", stop_on_failure = TRUE)

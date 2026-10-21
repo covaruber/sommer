@@ -1,7 +1,5 @@
 test_that("AI reaches variance floors without damping unrelated or tied coordinates", {
-  .native_require(nzchar(Sys.which("c++")), "C++ compiler unavailable")
-  helper <- new.env()
-  Rcpp::sourceCpp(test_path("..", "native", "test-mme-ai-recovery.cpp"), env=helper)
+  helper <- .native_ai_recovery()
   lower <- c(-10, -Inf, -10, -Inf)
   point <- c(-4, 0, -3, 2)
   information <- diag(c(1e-10, 2, 1, 1))
@@ -33,9 +31,7 @@ test_that("AI reaches variance floors without damping unrelated or tied coordina
 })
 
 test_that("small undamped AI trust invokes a regularized direction", {
-  .native_require(nzchar(Sys.which("c++")), "C++ compiler unavailable")
-  helper <- new.env()
-  Rcpp::sourceCpp(test_path("..", "native", "test-mme-ai-recovery.cpp"), env=helper)
+  helper <- .native_ai_recovery()
   step <- helper$feasible_ai_probe(diag(2), c(100, 1), diag(2),
     c(0, 0), c(-Inf, -Inf), c(1, 1))
   expect_true(step$reliable)
@@ -49,9 +45,7 @@ test_that("small undamped AI trust invokes a regularized direction", {
 })
 
 test_that("correlated Newton overshoots do not pin marginally supported variances", {
-  .native_require(nzchar(Sys.which("c++")), "C++ compiler unavailable")
-  helper <- new.env()
-  Rcpp::sourceCpp(test_path("..", "native", "test-mme-ai-recovery.cpp"), env=helper)
+  helper <- .native_ai_recovery()
   information <- matrix(c(1, 0.99, 0.99, 1), 2)
   step <- helper$feasible_ai_probe(information, c(-1, 1), diag(2),
     c(0, 0), c(-10, -Inf), c(1, 1))
@@ -71,7 +65,8 @@ test_that("diagonal variance floors converge consistently on direct and MME path
         data=dataset, control=mmes_control(
           formulation=if(solver == "direct") "direct" else "henderson",
           solve=list(method=if(solver == "direct") "auto" else solver),
-          task=list(objective=objective), convergence=list(maxIters=20),
+          task=list(objective=objective),
+          convergence=list(maxIters=20, likelihoodTol=1e-12, parameterTol=1e-12),
           diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     })
     for(fit in fits){

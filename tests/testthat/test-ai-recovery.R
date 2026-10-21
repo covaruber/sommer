@@ -12,13 +12,7 @@
 }
 
 test_that("regularized AI solves in trust units and preserves fixed and tied tangent directions", {
-  source <- test_path("..", "native", "test-mme-ai-recovery.cpp")
-  header <- test_path("..", "..", "src", "mme_ai_recovery.h")
-  .native_require(all(file.exists(c(source, header))),
-    "Native checks require the package source tree")
-  .native_require(nzchar(Sys.which("c++")), "C++ compiler unavailable")
-  helper <- new.env()
-  Rcpp::sourceCpp(source, env=helper)
+  helper <- .native_ai_recovery()
   information <- diag(c(1e-30, 2, 3, 4))
   score <- c(-1e-8, 3, 2, 1)
   tangent <- cbind(c(1, 0, 0, 0), c(0, 2, 1, 0))
