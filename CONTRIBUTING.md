@@ -49,6 +49,7 @@ R sources. Tests against an older installed package are not sufficient.
 The native wrappers normally skip when source headers or a compiler are absent.
 The Rcpp-based AI probes also require `RcppArmadillo` at test time; its
 `LinkingTo` declaration only guarantees availability during package compilation.
+It is also declared in `Suggests` because tests check its namespace at runtime.
 These probes skip when that dependency is unavailable during installed-package
 checks; the model-fitting tests in the same files still run.
 The required source-tree CI job turns those missing prerequisites into failures:
@@ -78,6 +79,9 @@ Child-process tests should set and restore the parent's environment so the child
 inherits it; `system2(env=...)` is not portable for arbitrary Windows executables.
 Solver-parity tests requiring tight parameter agreement should explicitly request
 tight fitting tolerances rather than rely on the default stopping criteria.
+Avoid near-machine-precision fitting tolerances and platform-specific iteration
+counts: require certified convergence within the configured iteration budget,
+and check parameter agreement, score, boundary values and likelihood monotonicity.
 
 ## Release checks and documentation
 
@@ -106,6 +110,9 @@ To validate the solver decision tree:
 Rscript --vanilla pkgdown/mmes-options/build-mmes-options.R
 Rscript --vanilla pkgdown/mmes-options/check-mmes-options.R
 ```
+
+When compatibility rules change, update the guide's rule contexts and relevant
+decision nodes together; the guide checker validates rule and node references.
 
 ## Numerical and performance changes
 

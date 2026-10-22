@@ -15,6 +15,11 @@ placed <- unlist(lapply(data$nodes, `[[`, "controls"), use.names=FALSE)
 stopifnot(!anyDuplicated(paths), !anyDuplicated(ids), setequal(paths, placed),
   !"control.output.pev" %in% paths)
 for(edge in data$edges) stopifnot(edge$from %in% ids, edge$to %in% ids)
+rule_ids <- vapply(data$rules, `[[`, "", "id")
+source_rules <- vapply(src$.mmes_compatibility_rules(), `[[`, "", "id")
+stopifnot(!anyDuplicated(rule_ids), all(source_rules %in% rule_ids))
+for(rule in data$rules) stopifnot(all(unlist(rule$nodes) %in% ids))
+for(node in data$nodes) stopifnot(all(unlist(node$rules) %in% rule_ids))
 for(row in data$controls){
   stopifnot(nzchar(row$values), nzchar(row$default), nzchar(row$effect), nzchar(row$usage))
 }
@@ -32,8 +37,10 @@ for(row in data$structures){
   }
 }
 defaults <- src$mmes_control()
+conditional <- src$mmes_control(representation=list(equations="conditional"))
 stopifnot(identical(defaults$output$inverse, 0L),
   identical(defaults$formulation, "henderson"),
-  identical(defaults$solve$method, "auto"))
+  identical(defaults$solve$method, "auto"),
+  identical(conditional$representation$equations, "conditional"))
 cat(sprintf("Guide checks passed: %d options, %d boxes, all constructor examples valid.\n",
   length(paths), length(ids)))
