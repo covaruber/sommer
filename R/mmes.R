@@ -1152,8 +1152,12 @@
   }
   for(structureIndex in seq_along(covStruct)){
     for(factorIndex in seq_along(covStruct[[structureIndex]]$factors)){
-      covStruct[[structureIndex]]$factors[[factorIndex]]$sparse_kernels <-
-        identical(engineControl$experimental$sparseFactors, "force")
+      factor <- covStruct[[structureIndex]]$factors[[factorIndex]]
+      sparseMode <- engineControl$experimental$sparseFactors
+      factor$sparse_kernels <- identical(sparseMode, "force") ||
+        (identical(sparseMode, "auto") &&
+         .mme_sparse_factor_kernels_auto(factor))
+      covStruct[[structureIndex]]$factors[[factorIndex]] <- factor
     }
   }
   attr(covStruct, "panelCi2") <- as.integer(engineControl$experimental$panelCi2)

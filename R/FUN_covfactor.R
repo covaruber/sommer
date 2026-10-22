@@ -618,6 +618,37 @@
   f
 }
 
+.mme_sparse_factor_kernels_auto <- function(factor){
+  representation <- factor$representation
+  dimension <- factor$dim
+  if(!is.numeric(dimension) || length(dimension) != 1L ||
+     !is.finite(dimension)){
+    return(FALSE)
+  }
+  if(identical(representation$form, "modified_cholesky") &&
+     dimension >= 64L && is.list(representation$innovation)){
+    innovation <- representation$innovation
+    rows <- innovation$rows
+    columns <- innovation$columns
+    count <- innovation$coefficient_count
+    return(is.numeric(count) && length(count) == 1L && is.finite(count) &&
+      count > 0L && count == length(rows) && count == length(columns) &&
+      is.numeric(rows) && is.numeric(columns) &&
+      all(is.finite(rows)) && all(is.finite(columns)) &&
+      all(rows > columns) && max(rows - columns) <= 3L)
+  }
+  if(dimension >= 500L && is.character(representation$form) &&
+     length(representation$form) == 1L &&
+     representation$form %in% c("normalized_normal_equations",
+                                "normalized_affine_precision") &&
+     is.list(representation$spatial)){
+    weights <- representation$spatial$weights
+    return(is.matrix(weights) && identical(dim(weights), c(dimension, dimension)) &&
+      all(is.finite(weights)) && mean(weights != 0) <= 0.01)
+  }
+  FALSE
+}
+
 .validate_covfactor <- function(f){
   required <- c("dim","levels","par","free","par_names","evaluator",
                 "derivative","report","native_report","trust_cap",

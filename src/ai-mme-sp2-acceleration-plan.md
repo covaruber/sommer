@@ -20,6 +20,103 @@ This roadmap replaces the separate review and acceleration-plan notes. It ranks 
 This section supersedes older descriptions of remaining PCG work. Historical
 sections below remain evidence, not a current task checklist.
 
+### Capability-gated sparse innovation dispatch (2026-10-22)
+
+`sparseFactors="auto"` admits exact sparse innovation kernels only for
+modified-Cholesky factors of dimension at least 64 and maximum innovation lag
+three. It also admits normalized SAR/CAR precision factors only at dimension
+500 or greater and when at most 1% of supplied spatial weights are nonzero.
+Other families remain on their prior paths; explicit `"off"` and `"force"`
+retain their existing meanings.
+
+Local Linux factor-kernel comparisons used one BLAS/OpenMP thread, two REML
+iterations, three alternating paired runs, and output comparisons at `1e-7`.
+On q=64, sparse ANTE orders 1, 2 and 3 improved median whole-fit time from
+0.877 to 0.381 s (2.30x), 1.730 to 0.674 s (2.57x), and 2.927 to 1.082 s
+(2.71x), respectively. q=64 ANTE(2) also passed parity while q=128 improved
+from 35.971 to 15.275 s (2.36x). Auto therefore admits the measured ANTE
+orders through three, not wider innovation structures.
+
+Stationary autoregressive kernels are not auto-enabled. AR(2)/AR(3) showed
+mixed or negative timing at q=64, 256 and 512; AR(1) gains were small or failed
+to reproduce at q=512/1000. Spatial kernels also remain off for smaller or
+dense layouts: q=300 dense SAR was 18% slower and dense CAR was within noise,
+while sparse q=300 CAR was 10% slower. At q=500 with symmetric bandwidth-two
+adjacency (density 0.008), five paired runs improved median whole-fit SAR time
+from 0.759 to 0.593 s (1.27x) and CAR from 0.688 to 0.572 s (1.20x); output
+parity passed at `1e-7`. The large/low-density gate is intentionally
+conservative, based on this crossover and earlier q=1000 sparse spatial
+measurements. These screening fits are not convergence certificates or
+cross-machine performance guarantees.
+
+### Kronecker contraction profiling (2026-10-22)
+
+Profiled two-iteration AR(2) and unstructured-covariance fits at small,
+medium, and large scales (`n_ind` 16, 48, and 96; five covariance levels).
+The broad `aiAssembly` phase ranged from 0.0004 to 0.0013 seconds per fit;
+`scoreTraces`, which includes more than Kronecker contractions, ranged from
+0.0027 to 0.0119 seconds. Neither phase is a clear whole-fit bottleneck, so no
+alternative contraction kernel was promoted. These timings are a screening
+profile, not a paired baseline-versus-candidate benchmark; revisit only if
+profiling identifies contraction time itself as material.
+
+### Paired tensor-versus-explicit-Kronecker MET screening (2026-10-22)
+
+Compared the existing mode-wise `applyKroneckerRight` operation with an
+explicit dense Kronecker product applied at the same call sites. Each pair used
+the same seeded data, 500 genotypes, 1,000 markers, five years, five locations
+(12,500 observations), covariance model, solver controls, and two AI-REML
+iterations. Two paired runs per model reversed execution order. RR was excluded
+from the timing conclusion because its reduced-rank path bypasses this kernel.
+
+Median whole-fit tensor speedups (dense-reference time / tensor time) across
+the paired runs were 1.006x for AR(1), 0.962x for CS, and 1.007x for FA. Thus
+AR(1) and FA were effectively tied at this scale, while CS was about 4% slower
+with the tensor kernel. AR(2) was inconsistent: tensor runs took 117.2 and
+117.8 s, while dense-reference runs took 115.8 and 505.5 s, so its apparent
+2.64x median speedup is dominated by one outlier and is not evidence of a
+repeatable gain. Across the tested paths, likelihood, parameters,
+coefficients, information matrices, and standard errors matched within
+`2.3e-9` relative difference. The fits did not converge in two iterations, so
+this is a runtime/parity screen, not a convergence assessment.
+
+The explicit dense reference was used only for this benchmark and was removed
+afterward; production dispatch is unchanged. Together with the small profile
+fractions above, these results do not justify changing defaults or adding a
+general tensor-contraction switch. Larger covariance axes or profiling that
+shows these contractions dominate should be investigated before another
+implementation attempt.
+
+### Product-grid and low-rank Schur screening (2026-10-22)
+
+Compared the generic path with the existing latent Schur path on seeded
+single-FA and two-FA product grids, at 192, 384, and 768 observations.
+Numerical differences in likelihood, parameters, and coefficients were at
+most `4.3e-14`. With the multi-factor mode forced, single-FA whole-fit medians
+were mixed (speedups 1.02x, 0.84x, and 0.94x for increasing sizes); the
+two-FA medians were 0.74x, 1.10x, and 1.28x. With automatic admission on the
+two-FA fixtures, paired medians ranged from 0.81x at the small size through
+1.08x medium to 1.60x large. The small/medium fits emitted singular-system
+warnings and all runs used only two optimizer iterations, so these do not
+support a new multi-low-rank factorization or a broader admission rule.
+Automatic multi-factor latent Schur remains as-is; multiple low-rank axes are
+still not represented as a joint low-rank tensor.
+
+### Banded prior storage screening (2026-10-22)
+
+Prototyped sparse Kronecker prior construction and sparse coefficient
+assembly, comparing the force/off paths in the same candidate build over five
+timed repetitions. Simple AR(2) cases used q=128/384/768; the more complex
+AR(2)-by-AR(1) product cases used q=192/576/1152. Force/off median time
+ratios were 1.06x, 0.99x, and 1.02x for the simple cases, and 0.99x, 0.97x,
+and 1.01x for the complex cases (above 1.0 means force was slower). At q=2304,
+a one-fit process check was 2.67 seconds off versus 2.59 seconds forced, with
+peak RSS 252,952 versus 253,492 KiB. A separate exact-output regression
+passed for a sparse AR(2) prior, but the timings and RSS show no repeatable
+whole-fit or memory improvement.
+The prototype was discarded; dense compatibility construction remains
+unchanged pending a larger, measured crossover.
+
 ### AI work-reduction continuation (2026-10-18)
 
 This separately approved continuation follows the closed acceleration batch.
@@ -355,7 +452,7 @@ rows, output errors, source/binary hashes and process-log paths. Timing log:
 
 Already implemented and therefore not proposed again: matrix-free PCG panel solves; D-first ML on eligible direct fits; AR1 derivative dispatch; AR(p)/ANTE innovation-row precision assembly; normalized SAR/CAR precision and derivatives; factor/grid evaluation caches; bounded selected-inverse dependency caches; guarded CHOLMOD mode-1 extraction; aggregate inverse-cache budgets; same-probe PCG residual traces without `Btrace`; support-aware tensor contractions; sufficient PD certificates; and PCG probe-error/true-residual diagnostics.
 
-Important limits: sparse AR(p)/ANTE precision operands and sparse SAR/CAR evaluation are opt-in, but dense compatibility storage remains for some consumers; trace planning is not fully demand-driven; default PCG estimator and tolerance settings remain unchanged, with additional opt-in choices described in the current status above; product-grid elimination and multiple low-rank axes are unsupported. The exact block-banded prototype is opt-in (force only) because it was up to 80x slower than generic CHOLMOD on AR1/AR2 fixtures.
+Important limits: sparse AR(p) kernels and sparse factor paths outside the narrow ANTE/SAR/CAR auto gates remain opt-in, and dense compatibility storage remains for some consumers; trace planning is not fully demand-driven; default PCG estimator and tolerance settings remain unchanged, with additional opt-in choices described in the current status above; product-grid elimination and multiple low-rank axes are unsupported. The exact block-banded prototype is opt-in (force only) because it was up to 80x slower than generic CHOLMOD on AR1/AR2 fixtures.
 
 ## Progress Checklist (2026-10-13)
 
@@ -363,7 +460,7 @@ Important limits: sparse AR(p)/ANTE precision operands and sparse SAR/CAR evalua
 
 ### Sparse Factor Kernels (2026-10-14)
 
-- [x] Add opt-in `mmes_control(experimental = list(sparseFactors = "force"))`. Default and `"auto"` remain off. Native AR1/AR(p)/ANTE innovation precisions provide exact sparse operands for derivative sandwich products and tensor-mode applications, including compact residual blocks and matrix-free prior application. ANTE precision construction uses compact innovation rows instead of a dense transition temporary. ANTE covariance evaluation uses the exact row recurrence in both fitting engines, avoiding triangular inversion and cubic covariance multiplication. Public dense covariance and existing derivative contracts are retained.
+- [x] Add opt-in `mmes_control(experimental = list(sparseFactors = "force"))`. At this initial implementation stage, the default was off and `"auto"` did not select kernels; see the 2026-10-22 capability-gated dispatch above for current defaults. Native AR1/AR(p)/ANTE innovation precisions provide exact sparse operands for derivative sandwich products and tensor-mode applications, including compact residual blocks and matrix-free prior application. ANTE precision construction uses compact innovation rows instead of a dense transition temporary. ANTE covariance evaluation uses the exact row recurrence in both fitting engines, avoiding triangular inversion and cubic covariance multiplication. Public dense covariance and existing derivative contracts are retained.
 - [x] Add exact sparse SAR/CAR covariance and working-coordinate derivative evaluation. Assemble `Q = (I-rho W)'(I-rho W)` for SAR or `Q = D-rho W` for CAR, factor by sparse LDLT, and solve identity/derivative RHS panels of at most 32 columns. Normalize by `Q^{-1}[1,1]`. Obtain determinant and normalization derivatives from the same factor and sparse precision products. Preserve signed/asymmetric SAR weights, CAR dependence intervals, normalization and the existing downstream PD checks. No derivative support threshold, probe-policy change or optimizer change is introduced.
 - [x] Isolated paired whole-fit benchmark: ten fixtures, AR2/AR3 at 200/1000 levels, free ANTE(2) at 8/16 levels with 32 IDs, SAR/CAR at 200/1000 levels. Other families use six IDs. Four OpenMP threads, single-thread BLAS, REML, LDLT, Schur off, trace batching force on in both modes, four iterations, one warmup and three timed repetitions per mode in fresh processes, alternating mode order. Maximum relative difference across likelihood trajectories, monitor, covariance matrices/parameters, BLUE/BLUP, scores, AI and uncertainty is 5.23e-9. These are four-iteration whole-fit timings, not claims about fully converged large-fit runtime.
 
@@ -387,9 +484,9 @@ Artifacts: `benchmarks/validate_factor_kernels.R`, `benchmarks/results/factor-ke
 - [x] ANTE derivative storage: beta/innovation precision derivatives use exact sparse row-support matrices; covariance derivatives recompute on demand, not one dense q-by-q matrix per parameter. AI forms same-factor ANTE derivative products sparsely. Order-2 ANTE with 8 IDs: q=64 whole-fit median 2.205 s -> 1.631 s, peak RSS 285300 -> 268964 KiB. q=128: 21.793 s -> 9.337 s, peak RSS 451072 -> 299796 KiB (-147.7 MiB). Paired outputs match within 3.60e-9 across all kernel fixtures. These 2-iteration q>=64 runs use 8 IDs; smaller fixtures use 32 IDs.
 - [x] Reuse normalized SAR/CAR sparse LDLT across covariance, precision and derivative consumers. `sparseSpatialFactorizationReuses` records six hits per fitted spatial term in the crossover fixtures. Repeated covariance, logdet, precision and derivative outputs pass parity.
 - [x] Crossover measurement: 18 paired fixtures, three repetitions, SAR directed and CAR symmetric weights, q={60,150,300}, requested off-diagonal densities {0.05,0.25,1.0}, REML/LDLT, four threads, three iterations. Maximum relative fit-output error is 2.30e-14. No stable density-only cutoff emerged. At q=300 and density 1, sparse mode is 29% slower for SAR and 11% slower for CAR. At q=60/150, differences are mostly within a few percent and change sign across family/density. Peak RSS is lower by about 5-27 MiB, with six factor-cache reuses per sparse fit.
-- [x] Extended fully dense q=1000 checks (three pairs/family): SAR off 35.4-37.4 s versus force 58.9-61.7 s; CAR off 32.6-34.6 s versus force 44.5-47.6 s. Sparse mode raises peak RSS from 596316 to 685904 KiB for SAR and 624180 to 675356 KiB for CAR. Maximum relative fit-output error is 4.50e-14. Thus keep sparseFactors opt-in; no automatic crossover rule is justified. This dense 1000-level SAR/CAR fit uses six IDs and four-thread runs. The host was loaded, so use timings as fixture-specific evidence, not universal constants.
+- [x] Extended fully dense q=1000 checks (three pairs/family): SAR off 35.4-37.4 s versus force 58.9-61.7 s; CAR off 32.6-34.6 s versus force 44.5-47.6 s. Sparse mode raises peak RSS from 596316 to 685904 KiB for SAR and 624180 to 675356 KiB for CAR. Maximum relative fit-output error is 4.50e-14. At this historical stage, the dense results argued against unconditional auto dispatch. The narrow large/sparse auto gate was added later (2026-10-22). This dense 1000-level SAR/CAR fit uses six IDs and four-thread runs. The host was loaded, so use timings as fixture-specific evidence, not universal constants.
 
-Conclusion: sparse adjacency can pay off at large q, but full/dense adjacency reverses that result. Keep `sparseFactors="force"` opt-in. Remaining limits: direct-engine mode 2 for this fixture is a pre-existing failure; public dense covariance/derivative outputs and SAR/CAR constructor spectral bounds remain dense; no full suite rerun after the final state-storage edits.
+Conclusion: sparse adjacency can pay off at large q, but full/dense adjacency reverses that result. Keep unconditional sparse spatial dispatch opt-in; the 2026-10-22 auto policy admits only very large, low-density factors. Remaining limits: direct-engine mode 2 for this fixture is a pre-existing failure; public dense covariance/derivative outputs and SAR/CAR constructor spectral bounds remain dense; no full suite rerun after the final state-storage edits.
 
 Final current-source build passes. Focused factor suite: nine test blocks, zero failures/errors. The prior full-suite run passed 182 tests, zero failures/errors, six existing skips; full suite has not been rerun after the last state-storage/tensor edits. Logs: `benchmarks/results/factor-kernels-tests.log` and `factor-kernels-full-tests.log`.
 

@@ -29,8 +29,14 @@ the defaults shown. These fields own task selection and outer PQL iteration,
 not inner covariance iterations.}
 \item{representation}{Named list with \code{compression="off"},
 \code{factorScores="none"}, \code{equations="normal"},
-\code{sparseFactors="off"}, and \code{matrixFree="auto"} by default,
+\code{sparseFactors="auto"}, and \code{matrixFree="auto"} by default,
 unless corresponding \code{sommer.mme.*} options override experimental modes.
+\code{sparseFactors="auto"} enables exact sparse innovation kernels for
+modified-Cholesky factors of dimension at least 64 and maximum innovation
+lag three. It also enables sparse SAR/CAR kernels when the factor dimension
+is at least 500 and at most one percent of adjacency weights are nonzero.
+Other factors retain their existing path. Use \code{"off"} to disable or
+\code{"force"} to enable eligible sparse factor kernels regardless of size.
 If \code{sommer.mme.saddlePoint} resolves to \code{"force"}, the default
 \code{equations} becomes \code{"saddle-point"}.
 \code{compression} is \code{"off"}, \code{"groups"}, or \code{"classes"};

@@ -25,6 +25,50 @@ test_that("correlation variance modes create consistent covariance descriptors",
   }
 })
 
+test_that("automatic sparse factor kernels use exact structure and crossover gates", {
+  control <- mmes_control()
+  expect_identical(control$representation$sparseFactors, "auto")
+
+  large <- antem(factor(seq_len(64L)), order=2L)$covFactor
+  small <- antem(factor(seq_len(63L)), order=2L)$covFactor
+  wider <- antem(factor(seq_len(64L)), order=3L)$covFactor
+  widest <- antem(factor(seq_len(64L)), order=4L)$covFactor
+  ar1 <- ar1m(factor(seq_len(64L)))$covFactor
+  autoregressive <- ar2m(factor(seq_len(64L)))$covFactor
+  unrelatedLarge <- list(dim=600L, representation=list(kind="dense"))
+  expect_true(sommer:::.mme_sparse_factor_kernels_auto(large))
+  expect_false(sommer:::.mme_sparse_factor_kernels_auto(small))
+  expect_true(sommer:::.mme_sparse_factor_kernels_auto(wider))
+  expect_false(sommer:::.mme_sparse_factor_kernels_auto(widest))
+  expect_false(sommer:::.mme_sparse_factor_kernels_auto(ar1))
+  expect_false(sommer:::.mme_sparse_factor_kernels_auto(autoregressive))
+  expect_false(sommer:::.mme_sparse_factor_kernels_auto(unrelatedLarge))
+
+  malformed <- large
+  malformed$representation$innovation <- NULL
+  expect_false(sommer:::.mme_sparse_factor_kernels_auto(malformed))
+
+  sparseWeights <- matrix(0, 500L, 500L)
+  for(offset in 1:2){
+    index <- seq_len(500L - offset)
+    sparseWeights[cbind(index, index + offset)] <- 1
+    sparseWeights[cbind(index + offset, index)] <- 1
+  }
+  denseWeights <- matrix(1, 500L, 500L)
+  diag(denseWeights) <- 0
+  sparseSpatial <- list(dim=500L, representation=list(
+    form="normalized_normal_equations", spatial=list(weights=sparseWeights)))
+  denseSpatial <- list(dim=500L, representation=list(
+    form="normalized_affine_precision", spatial=list(weights=denseWeights)))
+  smallSpatial <- sparseSpatial
+  smallSpatial$dim <- 300L
+  smallSpatial$representation$spatial$weights <-
+    sparseWeights[seq_len(300L), seq_len(300L), drop=FALSE]
+  expect_true(sommer:::.mme_sparse_factor_kernels_auto(sparseSpatial))
+  expect_false(sommer:::.mme_sparse_factor_kernels_auto(denseSpatial))
+  expect_false(sommer:::.mme_sparse_factor_kernels_auto(smallSpatial))
+})
+
 test_that("native covariance reporting returns model-scale parameters", {
   DT_example <- get("DT_example", envir=asNamespace("sommer"))
   envFixed <- rep(FALSE, nlevels(DT_example$Env) - 1L)
@@ -343,15 +387,25 @@ test_that("factor capabilities are label independent and spatial products have e
 
 test_that("large ANTE sparse derivative storage preserves fit outputs", {
   set.seed(2401L)
-  dataset <- expand.grid(id = factor(seq_len(16L)), level = factor(seq_len(48L)), replicate = 1:2)
+  dataset <- expand.grid(id = factor(seq_len(8L)), level = factor(seq_len(64L)), replicate = 1:2)
   dataset$response <- rnorm(nrow(dataset)) + as.integer(dataset$id) / 5 + as.integer(dataset$level) / 20
-  shape <- antem(dataset$level, order = 2L)
-  fitWith <- function(mode){
-    mmes(response ~ 1, random=~vsm(shape, ism(id)), rcov=~units, data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(representation=list(sparseFactors=mode))), list(convergence=list(maxIters=2L), output=list(inverse=0L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
-  }
-  reference <- fitWith("off")
-  candidate <- fitWith("force")
-  for(field in c("llik", "monitor", "theta", "covPar", "bu", "InfMat", "dLu", "theta_se")){
-    expect_equal(candidate[[field]], reference[[field]], tolerance = 1e-7)
+  for(order in 1:3){
+    shape <- antem(dataset$level, order=order)
+    fitWith <- function(mode){
+      mmes(response ~ 1, random=~vsm(shape, ism(id)), rcov=~units, data=dataset,
+        control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(
+          representation=list(sparseFactors=mode))), list(
+            convergence=list(maxIters=2L), output=list(inverse=0L),
+            diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
+    }
+    reference <- fitWith("off")
+    candidate <- fitWith("force")
+    automatic <- fitWith("auto")
+    for(field in c("llik", "monitor", "theta", "covPar", "bu", "InfMat", "dLu", "theta_se")){
+      expect_equal(candidate[[field]], reference[[field]], tolerance=1e-7,
+        info=paste("forced sparse ANTE order", order, field))
+      expect_equal(automatic[[field]], reference[[field]], tolerance=1e-7,
+        info=paste("automatic sparse ANTE order", order, field))
+    }
   }
 })
