@@ -89,8 +89,32 @@ Build in a separate output directory, then check the resulting source tarball:
 
 ```sh
 R CMD build /path/to/sommer
-R CMD check --no-manual sommer_4.5.01.tar.gz
+R CMD check --as-cran sommer_4.5.11.tar.gz
 ```
+
+Use the tarball version from DESCRIPTION. Full release checks require
+`pdflatex` and `makeindex` from a TeX installation, `checkbashisms` (provided by
+Debian's `devscripts`), and `qpdf` on `PATH`. HTML Tidy (`tidy`) enables the optional
+HTML manual check. Missing tools are check-environment problems, not reasons to
+remove the manual, configure script, or vignettes.
+
+On clusters, load the available TeX module before starting R. To test PDF
+generation without recompiling the package:
+
+```sh
+R CMD Rd2pdf --no-preview --output=sommer-manual.pdf /path/to/sommer
+```
+
+Compiler flags inherited from `R CMD config CXXFLAGS` or user/site Makevars can
+produce portability notes even when the package does not set those flags.
+Use a portable R toolchain or a check-only `R_MAKEVARS_USER` file to remove
+architecture-specific flags; do not override the user's compiler flags in the
+package Makevars.
+
+Incoming URL, DOI, ORCID, and current-time checks need working outbound network
+access. Investigate TLS failures or unavailable services from another network
+before changing identifiers or reporting them as broken. Installed-size notes
+are informational; keep required documentation and libraries.
 
 Do not suppress vignette building for the release gate. A quick check with
 `--no-build-vignettes` does not certify generated articles.

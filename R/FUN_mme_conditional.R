@@ -1,3 +1,5 @@
+utils::globalVariables(c("par_end", "par_start"))
+
 .conditional_fa_component <- function(cs){
   factor <- cs$factors[[1L]]
   if(identical(factor$model, "fa")){

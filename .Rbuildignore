@@ -10,6 +10,7 @@
 ^\.windsurf$
 ^AGENTS\.md$
 ^benchmarks$
+^figure$
 ^src/.*\.md$
 ^sommer.*\.tar\.gz$
 ^\.\.Rcheck$
