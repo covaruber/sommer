@@ -6,7 +6,8 @@
 }
 \usage{
 \method{predict}{mmes}(object, Dtable=NULL, D, levels=NULL, sed=FALSE,
-        pairwise=FALSE, adjust="none", df=Inf, PEV=TRUE, VarU=TRUE, \dots)
+        pairwise=FALSE, adjust="none", df=Inf, PEV=TRUE, VarU=TRUE,
+        observed=FALSE, maxMemoryMB=NULL, \dots)
 }
 \arguments{
  \item{object}{a mixed model of class \code{"mmes"}}
@@ -27,16 +28,31 @@
   
   The default rule to invoke when the user doesn't provide the Dtable is to include and average all terms that match the argument D.
 
-  The \code{levels} column is a list-column. \code{NULL} means all factor
-  levels and default numeric settings. Entries restrict levels or specify
-  covariate settings; see the \code{levels} argument. The returned Dtable also
-  records resolved settings for numeric terms and can be reused.
+  Dtable contains only term-level rules, not level selections or numeric
+  settings. Supply these through the \code{levels} argument; resolved
+  settings are returned separately as \code{levels}. A \code{levels} column
+  in a supplied Dtable is rejected; move its non-NULL entries to the named
+  \code{levels} argument.
+
+   With \code{observed=TRUE}, start from \code{object$Dtable} and change the
+   random-term flags. Fixed flags must remain unchanged: all fixed terms use
+   empirical retained-record averages. For random terms, \code{include=TRUE}
+   alone uses the empirical within-group average of the fitted random design.
+   With an indicator design, \code{include=TRUE, average=TRUE} instead gives
+   equal weight to selected coefficient levels that co-occur with each
+   prediction group. A group with no such levels is an error.
+   \code{include=FALSE, average=TRUE} gives equal weight to all selected fitted
+   coefficient levels, even if not observed within a prediction group.
+   Both flags \code{FALSE} exclude the term. Random-level restrictions may be
+   supplied through the \code{levels} argument.
+   These observed-path weights do not construct a Cartesian grid.
  
  }
  \item{D}{a character string specifying the variable used to extract levels for the rows of the D matrix and its construction. Alternatively, the D matrix (of class dgCMatrix) specifying the matrix to be used for the predictions directly.}
  \item{levels}{an optional named list whose names are values of \code{Dtable$term}.
-  Each element is stored in the \code{levels} column of the returned Dtable,
-  so the Dtable remains the complete description of how D was built. Levels
+  Selections and resolved numeric settings are returned separately as
+  \code{levels}, and can be reused alongside the returned \code{Dtable}. NULL
+  entries mean unrestricted factor levels or default numeric settings. Levels
   are written as data levels for fixed factors (\code{"a:b"} for
   interactions, e.g. \code{"Victory:0.2"}), as cell labels for categorical random
   terms (e.g. \code{"CA.2011:genotype1"} for an Env by Name term), and as numeric
@@ -73,10 +89,55 @@
  These calculations require a Gaussian Henderson fit. For PQL predictions
  use \code{VarU=FALSE}; their existing working-model uncertainty remains an
  approximation.}
+ \item{observed}{Logical, default \code{FALSE}. For rank-reduced Henderson fits,
+ character classify predictions stop before expanding a Cartesian grid by
+ default. Opt in with \code{observed=TRUE} to predict the observation-weighted
+ fixed predictor within each observed categorical combination of \code{D}
+ in the retained fitting data. All fixed terms contribute their empirical
+ within-group averages; random contributions are excluded by default but
+ can be explicitly included or averaged using random rows of \code{Dtable}.
+ This is not a balanced-grid marginal mean. Only categorical classify
+ variables in the fixed formula are supported.
+ \code{levels} may contain an entry named
+ exactly as \code{D}, with unique observed labels to select and order rows,
+ and entries named by fitted random terms to restrict their coefficients.
+ Random labels may be coefficient names, main-effect levels, covariance
+ coordinate levels, or structured cell labels such as \code{"north:b3"}.
+ Unobserved requested combinations are errors, not silently removed.
+ Explicit matrix contrasts must use \code{observed=FALSE} and are still
+ checked for estimability. This option is not used for full-rank fits.}
+ \item{maxMemoryMB}{Positive finite workspace budget in decimal MB for
+ rank-reduced predictions. Defaults to the fitted
+ \code{control$execution$denseMemoryMB}, or 1000 MB for older objects.
+ Before grouped design construction or covariance solves, an estimate includes
+ dense engine-coordinate right-hand sides, solve copies, covariance outputs,
+ and requested SED/pairwise workspace. It is an allocation safeguard, not a
+ bound on total process memory or sparse factorization fill-in.
+ Exceeding the budget raises an error suggesting fewer levels or smaller
+ explicit contrast batches. \code{PEV=FALSE} does not eliminate the mandatory
+ full \code{vcov}. Increase the budget only when memory is available.
+ Existing full-rank prediction behavior is unchanged.}
  \item{\dots}{Further arguments to be passed.}
 }
 \details{
   This function allows to produce predictions specifying those variables that define the margins of the hypertable to be predicted (argument D). Predictions are obtained for each combination of values of the specified variables that is present in the data set used to fit the model. See vignettes for more details. 
+
+  For a rank-reduced fit, \code{predict(fit, D="locale:cultivar",
+  observed=TRUE)} constructs sparse averages directly from retained observed
+  combinations, without generating the locale-by-cultivar Cartesian product.
+  Returned rows are ordered by first appearance unless \code{levels} specifies
+  their order. Missing-response rows excluded from the fit cannot create
+  prediction rows. An observed marginal prediction, such as
+  \code{D="locale"}, averages the fitted fixed predictor using the observed
+  records in each locale; it is not an equally weighted or cultivar-adjusted
+  comparison. Estimability is checked before covariance computation.
+  Manual random contributions are added in the same public coefficient
+  coordinates as explicit contrasts, so their prediction-error, sampling
+  covariance and pairwise calculations follow the usual Henderson path.
+  When \code{include=TRUE} alone has random-level restrictions, omitted
+  coefficient contributions are zeroed without renormalizing the empirical
+  group weights. Use \code{include=TRUE, average=TRUE} for equally weighted
+  selected co-occurring indicator levels.
 
   For categorical structured random terms, the fitted covariance-coordinate
   and main-effect levels define the genetic prediction weights, even when a
@@ -150,7 +211,17 @@
   
   \item{D}{the model matrix for predictions as defined in Welham et al.(2004).}
   
-  \item{Dtable}{the table specifying the terms to include and terms to be averaged, including the \code{levels} used.}
+  \item{Dtable}{the compact table specifying the terms to include and terms to be averaged.}
+  \item{levels}{the named list of level selections and resolved numeric settings
+  used to construct D. Numeric defaults on the regular prediction path are
+  retained-data means. With \code{observed=TRUE}, fixed numeric contributions
+  remain empirical within-group averages; numeric overrides require explicit
+  estimable contrasts.}
+  \item{observed}{For \code{observed=TRUE}, a list containing the classify
+  values, retained observation counts per prediction, and a description of
+  the empirical weighting and selected random terms. The returned
+  \code{Dtable} records the resolved random flags; \code{levels} stores
+  level restrictions separately.}
 
   \item{sed, avsed}{when \code{sed=TRUE}: the standard errors of differences, sqrt(v_ii + v_jj - 2 v_ij) from \code{vcov}, and their mean, minimum and maximum.}
 
@@ -227,7 +298,7 @@ pp=predict(object=m3, Dtable=Dt, D="N:V")
 pp$pvals
 
 #############################
-## select levels through the argument or the Dtable
+## select levels through the argument, keeping Dtable compact
 #############################
 Dt <- m3$Dtable
 Dt$average[Dt$term \%in\% c("1", "V", "V:N")] <- TRUE
@@ -236,10 +307,9 @@ Dt$include[Dt$term \%in\% c("N", "V:N")] <- TRUE
 p <- predict(m3, D="N", Dtable=Dt,
              levels=list(N=c("0.6", "0.2")))
 p$pvals
-p$Dtable$levels[[match("N", p$Dtable$term)]]
+p$levels[["N"]]
 
-Dt$levels[[match("N", Dt$term)]] <- c("0.6", "0.2")
-p2 <- predict(m3, D="N", Dtable=Dt)
+p2 <- predict(m3, D="N", Dtable=p$Dtable, levels=p$levels)
 all.equal(p$D, p2$D)
 
 ## Covariances of the requested linear combinations

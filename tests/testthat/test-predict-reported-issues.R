@@ -116,17 +116,21 @@ test_that("mixed terms use numeric means and preserve supplied numeric values", 
     prediction <- predict(model, D="Name")
     expect_equal(unname(as.matrix(prediction$D[,columns])),
                  matrix(mean(data$cov)/3, nrow(prediction$D), 3))
-    expect_equal(prediction$Dtable$levels[[match(term, prediction$Dtable$term)]]$cov,
+    expect_equal(prediction$levels[[term]]$cov,
                  mean(data$cov))
     for(value in c(-2, 0, 5)){
       evaluated <- predict(model, D="Name", levels=setNames(list(value), term))
       expect_equal(unname(as.matrix(evaluated$D[,columns])),
                    matrix(value/3, nrow(prediction$D), 3))
+      expect_equal(evaluated$levels[[term]]$cov, value)
+      expect_equal(predict(model, D="Name", Dtable=evaluated$Dtable,
+                           levels=evaluated$levels)$D, evaluated$D)
     }
     selected <- predict(model, D="Name", levels=setNames(list(list(Env="CA.2012", cov=-2)), term))
     expect_equal(unname(as.matrix(selected$D[,columns])),
                  matrix(rep(c(0, -2, 0), each=nrow(selected$D)), nrow(selected$D)))
-    expect_equal(predict(model, D="Name", Dtable=selected$Dtable)$D, selected$D)
+    expect_equal(predict(model, D="Name", Dtable=selected$Dtable,
+                         levels=selected$levels)$D, selected$D)
     expect_error(predict(model, D="Name", levels=setNames(list(NA_real_), term)), "finite")
     expect_error(predict(model, D="Name", levels=setNames(list(list(cov=2, wrong=1)), term)), "Unknown variables")
     Dt <- prediction$Dtable
@@ -161,4 +165,23 @@ test_that("numeric reference grids respect fitted contrasts and included factors
   term <- names(product$partitionsX)[grepl("cov", names(product$partitionsX))]
   result <- predict(product, D="Name", levels=setNames(list(list(cov=-2, second=3)), term))
   expect_equal(as.numeric(result$D[,as.vector(product$partitionsX[[term]])]), rep(-6, nrow(result$D)))
+  expect_equal(result$levels[[term]], list(cov=-2, second=3))
+  expect_equal(predict(product, D="Name", Dtable=result$Dtable,
+                       levels=result$levels)$D, result$D)
+})
+
+test_that("standalone numeric settings remain separate from compact term rules", {
+  predictionData <- prediction_issue_data()
+  fittedModel <- mmes(Yield~Env+cov, random=~Name, data=predictionData,
+    control=mmes_control(diagnostics=list(verbose=FALSE)))
+  covariateColumns <- as.vector(fittedModel$partitionsX[["cov"]])
+  for(referenceValue in c(-2, 0, 5)){
+    predictions <- predict(fittedModel, D="Name", levels=list(cov=referenceValue))
+    expect_equal(as.numeric(predictions$D[,covariateColumns]),
+      rep(referenceValue, nrow(predictions$D)))
+    expect_equal(predictions$levels$cov, list(cov=referenceValue))
+    expect_false("levels" %in% names(predictions$Dtable))
+    expect_equal(predict(fittedModel, D="Name", Dtable=predictions$Dtable,
+      levels=predictions$levels)$D, predictions$D)
+  }
 })

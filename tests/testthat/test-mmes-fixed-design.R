@@ -53,7 +53,7 @@ test_that("parent and cell effects report aliasing even without zero columns", {
   )
   expect_error(
     mmes(maturity ~ locale + cell, data=maturityRecords, control=quietControl),
-    "does not automatically drop aliased fixed effects"
+    "control=mmes_control\\(representation=list\\(fixedRank='drop'\\)\\)"
   )
   maturityRecords$covariate <- seq_len(nrow(maturityRecords))
   maturityRecords$duplicate <- maturityRecords$covariate
@@ -61,6 +61,28 @@ test_that("parent and cell effects report aliasing even without zero columns", {
     mmes(maturity ~ covariate + duplicate, data=maturityRecords, control=quietControl),
     "rank 2 < 3 columns"
   )
+})
+
+test_that("rank-reduction advice precedes long diagnostic labels and truncation", {
+  for(hasZeroColumns in c(TRUE, FALSE)){
+    diagnosticDesign <- Matrix::Matrix(cbind(diag(2L),
+      if(hasZeroColumns) c(0, 0) else c(1, 1)), sparse=TRUE)
+    colnames(diagnosticDesign) <- paste0(
+      c("first", "second", "third"), strrep("long_coefficient_label", 100L))
+    attr(diagnosticDesign, "assign") <- rep(1L, 3L)
+    diagnosticError <- tryCatch(
+      sommer:::.mmes_check_fixed_design(diagnosticDesign,
+        strrep("long_term_label", 100L)),
+      error=identity)
+    expect_s3_class(diagnosticError, "error")
+    visibleMessage <- substr(conditionMessage(diagnosticError), 1L, 1000L)
+    expect_match(visibleMessage,
+      "control=mmes_control(representation=list(fixedRank='drop'))", fixed=TRUE)
+    expect_match(visibleMessage, "Omitted coefficients are constrained to zero", fixed=TRUE)
+    expect_match(visibleMessage, "supported Gaussian models", fixed=TRUE)
+    expect_lt(regexpr("control=mmes_control", visibleMessage, fixed=TRUE)[[1L]],
+      regexpr("long_term_label", conditionMessage(diagnosticError), fixed=TRUE)[[1L]])
+  }
 })
 
 test_that("wide nonzero designs report rank deficiency without QR warnings", {

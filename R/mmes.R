@@ -1414,7 +1414,6 @@
     res$Dtable <- data.frame(type=rep("fixed",length(res$partitionsX)),
                              term=names(res$partitionsX), include=FALSE, average=FALSE)
   }
-  res$Dtable$levels <- vector("list", nrow(res$Dtable))
 
   if(!is.null(rotationInfo)){
     res$buEngine <- res$bu

@@ -49,14 +49,15 @@
     stop("The fixed-effect design matrix X is rank deficient after observation filtering: ",
          length(zeroColumns), " of ", designColumns, " columns are all zero (",
          nrow(fixedDesign), " retained observations).\n",
+         "To fit supported Gaussian models with aliased columns removed, use:\n",
+         "control=mmes_control(representation=list(fixedRank='drop'))\n",
+         "Omitted coefficients are constrained to zero, not independently estimated.\n",
          "Affected fixed terms: ", describeTerms(zeroColumns), ".\n",
          "Example zero columns: ", describeColumns(zeroColumns), ".\n",
          "Check unused factor levels, unobserved factor combinations, and covariates that become zero after missing-value filtering. ",
          "Use droplevels() on the retained data; for sparse interactions, consider an observed-cell factor ",
          "created with interaction(..., drop=TRUE) and a cell-means formula such as response ~ 0 + cell. ",
-         "Dropping unused levels alone may not remove unobserved combinations or other aliases. ",
-         "mmes() does not automatically drop aliased fixed effects or constrain them to zero by default. ",
-         "For supported Gaussian fits, explicitly opt in with control=mmes_control(representation=list(fixedRank='drop')).",
+         "Dropping unused levels alone may not remove unobserved combinations or other aliases.",
          call.=FALSE)
   }
   # Sparse QR requires a tall matrix; transposition preserves rank.
@@ -73,13 +74,14 @@
     stop("The fixed-effect design matrix X is rank deficient after observation filtering: rank ",
          designRank, " < ", designColumns, " columns (", nrow(fixedDesign),
          " retained observations). Fixed-effect coefficients are not uniquely estimable.\n",
+         "To fit supported Gaussian models with aliased columns removed, use:\n",
+         "control=mmes_control(representation=list(fixedRank='drop'))\n",
+         "Omitted coefficients are constrained to zero, not independently estimated.\n",
          "Fixed terms: ", describeTerms(seq_len(designColumns)), ".\n",
          "Check redundant terms, duplicated/constant covariates, and nested factors. ",
          "For example, a locale effect is already contained in unrestricted locale-cultivar cell effects. ",
          "Use a full-column-rank parameterization, such as response ~ 0 + cell for observed cell means; ",
-         "do not also include the parent factor unless explicit identifying contrasts are used. ",
-         "mmes() does not automatically drop aliased fixed effects or constrain them to zero by default. ",
-         "For supported Gaussian fits, explicitly opt in with control=mmes_control(representation=list(fixedRank='drop')).",
+         "do not also include the parent factor unless explicit identifying contrasts are used.",
          call.=FALSE)
   }
   invisible(NULL)

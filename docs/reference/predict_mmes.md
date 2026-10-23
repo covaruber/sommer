@@ -36,9 +36,11 @@ predict(object, Dtable=NULL, D, levels=NULL, sed=FALSE,
   The default rule to invoke when the user doesn't provide the Dtable is
   to include and average all terms that match the argument D.
 
-  The `levels` column is a list-column. `NULL` means all factor levels and
-  default numeric settings. The returned table records resolved numeric
-  settings and can be reused.
+  Level selections and numeric settings belong in the `levels` argument,
+  not in `Dtable`. `NULL` means all factor levels and
+  default numeric settings. The returned `levels` list records selections
+  and resolved numeric settings and can be reused with the compact `Dtable`.
+  A `levels` column in a supplied `Dtable` is rejected.
 
 - D:
 
@@ -189,7 +191,12 @@ SEDs and pairwise tests retain their PEV-based meaning.
 
 - Dtable:
 
-  the table specifying included and averaged terms and resolved levels/settings.
+  the compact table specifying included and averaged terms.
+
+- levels:
+
+  The named list of selections and resolved numeric settings, separate from
+  `Dtable`. Reuse it with `levels=p$levels`.
 
 - sed, avsed, pairwise:
 
@@ -349,8 +356,8 @@ pp$pvals
 #> N0.6:VVictory       N0.6:VVictory        88.37500  7.470608
 ```
 
-The `levels` argument and the `Dtable$levels` list-column are equivalent.
-This example selects nitrogen levels in the requested order:
+Use the `levels` argument to select nitrogen levels in the requested order,
+without adding labels to `Dtable`:
 
 ```r
 Dt <- m3$Dtable
@@ -360,10 +367,9 @@ Dt$include[Dt$term %in% c("N", "V:N")] <- TRUE
 p <- predict(m3, D="N", Dtable=Dt,
              levels=list(N=c("0.6", "0.2")))
 p$pvals
-p$Dtable$levels[[match("N", p$Dtable$term)]]
+p$levels[["N"]]
 
-Dt$levels[[match("N", Dt$term)]] <- c("0.6", "0.2")
-p2 <- predict(m3, D="N", Dtable=Dt)
+p2 <- predict(m3, D="N", Dtable=p$Dtable, levels=p$levels)
 all.equal(p$D, p2$D)
 #> [1] TRUE
 ```

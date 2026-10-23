@@ -45,7 +45,9 @@ If \code{sommer.mme.saddlePoint} resolves to \code{"force"}, the default
 \code{"saddle-point"}, or \code{"conditional"} (experimental latent FA
 equations with independently selected AI/EM updates).
 \code{fixedRank="error"} retains the default error for rank-deficient fixed
-designs. Opt in with \code{fixedRank="drop"} to select a full-column-rank
+designs. These errors show the opt-in syntax before potentially long term
+and column labels so it remains visible when error output is truncated.
+Opt in with \code{fixedRank="drop"} to select a full-column-rank
 subset after observation filtering, before either the Henderson or direct
 engine runs. A shared C++ sparse QR removes zero columns and detects linear
 dependencies on unit-norm columns, using pivot threshold
@@ -70,6 +72,12 @@ an explicitly full-rank refit. Existing direct-engine prediction/VarU
 limitations remain unchanged. REML likelihoods from different choices of
 fixed-effect basis can differ by an additive constant; compare covariance
 estimates and fitted values, not raw REML likelihoods across different bases.
+For rank-reduced fits, character classify predictions stop before allocating
+a Cartesian grid. Use \code{predict(fit, D="locale:cultivar", observed=TRUE)}
+for observation-weighted fixed predictions at combinations present in the
+retained data, or supply explicit estimable contrasts. The prediction
+\code{maxMemoryMB} safeguard checks dense solve/covariance workspace before
+allocation; see \code{\link{predict.mmes}} for weighting and limitations.
 The remaining fields use experimental mode values
 \code{"auto"}, \code{"off"}, or \code{"force"} (logical TRUE/FALSE are
 accepted). This module owns equation, compression, covariance-factor, and

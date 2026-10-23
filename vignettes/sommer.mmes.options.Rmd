@@ -166,6 +166,43 @@ likelihood-ratio comparisons, Satterthwaite/Kenward-Roger inference, and
 `emmeans` require an explicitly full-rank refit. Existing direct-engine
 prediction limitations are unchanged.
 
+Character classify predictions for rank-reduced fits stop before a Cartesian
+level grid is constructed. To explicitly request observed combinations:
+
+```{r, eval=FALSE}
+cells <- predict(fit, D = "locale:cell", observed = TRUE)
+cells$observed
+```
+
+This path averages the fixed predictor over retained records within each
+observed group and excludes random contributions by default. It is not an
+equally weighted balanced-grid marginal mean. Random contributions can be
+requested explicitly through `Dtable`, without changing its fixed rows:
+
+```{r, eval=FALSE}
+rules <- fit$Dtable
+rules$include[rules$type == "random"] <- TRUE
+conditional <- predict(fit, D = "locale:cell", observed = TRUE, Dtable = rules)
+```
+
+For random terms, include alone uses empirical within-group design averages;
+include plus average uses equally weighted co-occurring indicator levels;
+average alone uses equally weighted selected fitted coefficient levels.
+Random level restrictions are given through entries of
+`levels` named by the fitted random term. The returned `Dtable` contains only
+term-level rules; selections are returned separately in `levels` and can be
+reused with those rules. A
+`levels` entry named exactly as `D` may select and order observed labels.
+Unobserved requests produce an error. Numeric classify variables and custom
+fixed-effect rules require explicit estimable contrasts instead. See
+`?predict.mmes` for random-level filtering and weighting details.
+
+Observed combinations can still produce a large dense covariance.
+`maxMemoryMB` defaults to the fitted dense memory budget (1000 MB otherwise)
+and checks estimated prediction workspace before constructing grouped
+contrasts or solving. Restrict `levels` or use smaller explicit contrast
+batches if necessary. `PEV = FALSE` does not remove the mandatory `vcov`.
+
 This option is not supported with PQL, solve mode, conditional FA, factor
 scores, observation rotation or compression; these combinations fail
 explicitly rather than silently ignore the rank policy.
