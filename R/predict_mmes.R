@@ -460,7 +460,7 @@
   }
   ## if user has provided D as a classify then we create the D matrix
   if(is.character(D)){
-    termLevels <- setNames(vector("list", nrow(Dtable)), Dtable$term)
+    termLevels <- stats::setNames(vector("list", nrow(Dtable)), Dtable$term)
     if(length(levels)){
       if(!is.list(levels) || is.null(names(levels)) || any(names(levels) == "")){
         stop("levels must be a named list whose names are terms of the Dtable.", call.=FALSE)
