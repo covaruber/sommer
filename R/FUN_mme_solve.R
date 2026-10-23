@@ -29,6 +29,62 @@
   X
 }
 
+.mmes_check_fixed_design <- function(fixedDesign, fixedTerms){
+  designColumns <- ncol(fixedDesign)
+  if(!designColumns) return(invisible(NULL))
+  columnLabels <- colnames(fixedDesign)
+  columnTerms <- attr(fixedDesign, "assign")
+  describeColumns <- function(columnIndices){
+    examples <- head(columnLabels[columnIndices], 5L)
+    paste0(paste(examples, collapse=", "),
+           if(length(columnIndices) > 5L) ", ..." else "")
+  }
+  describeTerms <- function(columnIndices){
+    termIndices <- unique(columnTerms[columnIndices])
+    paste(c(if(0L %in% termIndices) "(Intercept)",
+            fixedTerms[termIndices[termIndices > 0L]]), collapse=", ")
+  }
+  zeroColumns <- which(Matrix::colSums(abs(fixedDesign)) == 0)
+  if(length(zeroColumns)){
+    stop("The fixed-effect design matrix X is rank deficient after observation filtering: ",
+         length(zeroColumns), " of ", designColumns, " columns are all zero (",
+         nrow(fixedDesign), " retained observations).\n",
+         "Affected fixed terms: ", describeTerms(zeroColumns), ".\n",
+         "Example zero columns: ", describeColumns(zeroColumns), ".\n",
+         "Check unused factor levels, unobserved factor combinations, and covariates that become zero after missing-value filtering. ",
+         "Use droplevels() on the retained data; for sparse interactions, consider an observed-cell factor ",
+         "created with interaction(..., drop=TRUE) and a cell-means formula such as response ~ 0 + cell. ",
+         "Dropping unused levels alone may not remove unobserved combinations or other aliases. ",
+         "mmes() does not automatically drop aliased fixed effects or constrain them to zero by default. ",
+         "For supported Gaussian fits, explicitly opt in with control=mmes_control(representation=list(fixedRank='drop')).",
+         call.=FALSE)
+  }
+  # Sparse QR requires a tall matrix; transposition preserves rank.
+  designRank <- withCallingHandlers(
+    .sparse_rank(if(nrow(fixedDesign) < designColumns)
+      Matrix::t(fixedDesign) else fixedDesign),
+    warning=function(rankWarning){
+      if(startsWith(conditionMessage(rankWarning),
+                    "matrix is structurally rank deficient; using augmented matrix")){
+        invokeRestart("muffleWarning")
+      }
+    })
+  if(designRank < designColumns){
+    stop("The fixed-effect design matrix X is rank deficient after observation filtering: rank ",
+         designRank, " < ", designColumns, " columns (", nrow(fixedDesign),
+         " retained observations). Fixed-effect coefficients are not uniquely estimable.\n",
+         "Fixed terms: ", describeTerms(seq_len(designColumns)), ".\n",
+         "Check redundant terms, duplicated/constant covariates, and nested factors. ",
+         "For example, a locale effect is already contained in unrestricted locale-cultivar cell effects. ",
+         "Use a full-column-rank parameterization, such as response ~ 0 + cell for observed cell means; ",
+         "do not also include the parent factor unless explicit identifying contrasts are used. ",
+         "mmes() does not automatically drop aliased fixed effects or constrain them to zero by default. ",
+         "For supported Gaussian fits, explicitly opt in with control=mmes_control(representation=list(fixedRank='drop')).",
+         call.=FALSE)
+  }
+  invisible(NULL)
+}
+
 .set_covstruct_par <- function(cs, work){
   cs$par <- as.numeric(work)
   cs$free[] <- FALSE

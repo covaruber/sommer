@@ -28,7 +28,7 @@ Defaults: \code{mode="fit"}, \code{objective="reml"}, and
 the defaults shown. These fields own task selection and outer PQL iteration,
 not inner covariance iterations.}
 \item{representation}{Named list with \code{compression="off"},
-\code{factorScores="none"}, \code{equations="normal"},
+\code{factorScores="none"}, \code{fixedRank="error"}, \code{equations="normal"},
 \code{sparseFactors="auto"}, and \code{matrixFree="auto"} by default,
 unless corresponding \code{sommer.mme.*} options override experimental modes.
 \code{sparseFactors="auto"} enables exact sparse innovation kernels for
@@ -44,6 +44,32 @@ If \code{sommer.mme.saddlePoint} resolves to \code{"force"}, the default
 \code{"profile"}; \code{equations} is \code{"normal"},
 \code{"saddle-point"}, or \code{"conditional"} (experimental latent FA
 equations with independently selected AI/EM updates).
+\code{fixedRank="error"} retains the default error for rank-deficient fixed
+designs. Opt in with \code{fixedRank="drop"} to select a full-column-rank
+subset after observation filtering, before either the Henderson or direct
+engine runs. A shared C++ sparse QR removes zero columns and detects linear
+dependencies on unit-norm columns, using pivot threshold
+\code{max(nrow(X), ncol(X)) * .Machine$double.eps}. COLAMD ordering and
+numerical pivoting choose the basis; retained columns are then restored to
+their original order. This need not select the same constraints as ASReml.
+No ridge penalty or generalized inverse is substituted for the fitted model.
+Omitted coefficients are returned as zero identification constraints, with
+unavailable standard errors and tests in summaries. \code{fit$fixedRank}
+records retained/omitted indices, original column names, rank, tolerance,
+and a sparse relation satisfying \code{X_original = X_retained \%*\% relation}
+to numerical precision. Direct-engine \code{VarBeta} remains in retained-column
+coordinates to avoid allocating a dense covariance over all original columns.
+Supported workflows are Gaussian identity-link fits, with normal or
+saddle-point Henderson equations or direct inversion, without PQL, solve mode,
+conditional FA, factor scores, observation rotation, or compression.
+Henderson predictions accept only contrasts estimable under the original
+fixed model; non-estimable rows produce an explicit error. Wald term tests,
+likelihood-ratio comparisons,
+Satterthwaite/Kenward-Roger inference, and \code{emmeans} currently require
+an explicitly full-rank refit. Existing direct-engine prediction/VarU
+limitations remain unchanged. REML likelihoods from different choices of
+fixed-effect basis can differ by an additive constant; compare covariance
+estimates and fitted values, not raw REML likelihoods across different bases.
 The remaining fields use experimental mode values
 \code{"auto"}, \code{"off"}, or \code{"force"} (logical TRUE/FALSE are
 accepted). This module owns equation, compression, covariance-factor, and

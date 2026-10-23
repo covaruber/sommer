@@ -30,6 +30,7 @@
 }
 
 .fixed_rank <- function(object){
+  if(!is.null(object$fixedRank)) return(object$fixedRank$rank)
   .sparse_rank(object$W[, seq_len(nrow(object$b)), drop=FALSE])
 }
 
@@ -140,6 +141,7 @@
 # Numerical derivatives of M = X'V^{-1}X with respect to the free covariance
 # parameters on their reported scale (the scale of theta_se).
 .mmes_df_machinery <- function(object, second=FALSE, rel_step=1e-3){
+  .mmes_require_full_rank_inference(object, "Satterthwaite/Kenward-Roger inference")
   .mmes_require_coefficient_matrix(object)
   .mmes_require_covariance_information(object)
   if(inherits(object, "mmes.glmm")){
@@ -253,6 +255,7 @@ wald_mmes <- function(object, ssType=c("incremental", "conditional"),
                       denDF=c("none", "residual", "satterthwaite", "kr"),
                       terms=NULL){
   if(!inherits(object, "mmes")) stop("object must inherit from class 'mmes'.", call.=FALSE)
+  .mmes_require_full_rank_inference(object, "Wald term tests")
   ssType <- match.arg(ssType)
   denDF <- match.arg(denDF)
   cols <- .wald_term_columns(object)

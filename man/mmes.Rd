@@ -29,6 +29,32 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
 
   \emph{response ~ covariate}
 
+  By default, the fixed-effect design must have full column rank after observation
+  filtering. Before fitting, \code{mmes()} reports all-zero columns (for
+  example, unused levels or unobserved interaction combinations) or linearly
+  dependent columns (for example, a parent factor together with unrestricted
+  nested cell effects). Aliased coefficients are not automatically dropped
+  or constrained to zero unless explicitly requested with
+  \code{control=mmes_control(representation=list(fixedRank="drop"))}.
+  This option selects a full-rank subset using shared native sparse QR for
+  the Henderson and direct engines. The original coefficient layout is
+  preserved, with omitted coefficients returned as zero identification
+  constraints and flagged in \code{summary(fit)$betas}; these zeros are not
+  estimates of independently identifiable effects. Details, mappings and
+  supported inference workflows are documented in \code{\link{mmes_control}}.
+
+  Apply \code{droplevels()} to the retained data to remove unused factor
+  levels. For a sparse interaction, an observed-cell factor created with
+  \code{interaction(..., drop=TRUE)} and a formula such as
+  \code{response ~ 0 + cell} can represent the same fitted cell means without
+  redundant columns. Adding the parent factor again reintroduces aliasing.
+  Dropping unused levels alone does not remove all unobserved interaction
+  combinations. The diagnostic setup mode
+  (\code{control=mmes_control(output=list(setup=TRUE))}) still returns the
+  design without requiring full column rank, allowing it to be inspected.
+  With \code{fixedRank="drop"}, setup instead returns the reduced design and
+  its \code{fixedRank} mapping.
+
   }
 
   \item{random}{A formula specifying the \strong{random effects}, e.g.,

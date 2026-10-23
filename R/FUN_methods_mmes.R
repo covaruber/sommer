@@ -58,18 +58,28 @@
   nX <- length(object$b)
   if(identical(object$engine, "direct")){
     VarBeta <- object$VarBeta
-    s2.beta <- if(is.null(VarBeta)) rep(NA, nX) else diag(as.matrix(VarBeta))
+    s2.beta <- rep(NA_real_, nX)
+    if(!is.null(VarBeta)){
+      varianceColumns <- if(is.null(object$fixedRank)) seq_len(nX) else object$fixedRank$retained
+      s2.beta[varianceColumns] <- diag(as.matrix(VarBeta))
+    }
   }else if(object$CiMode == 0){
     s2.beta <- rep(NA, length(1:nX))
   }else if(object$CiMode == 1){
     s2.beta <- rep(NA, length(1:nX))
   }else if(object$CiMode == 2){
     VarBeta <- object$Ci[1:nX,1:nX]
-    s2.beta <- diag(as.matrix(VarBeta))
+    s2.beta <- Matrix::diag(VarBeta)
   }else{}
   
   coef$Std.Error <- sqrt(abs(s2.beta))
   coef$t.value <- coef$Estimate/coef$Std.Error
+  if(!is.null(object$fixedRank)){
+    coef$Status <- "retained (conditional on zero constraints)"
+    coef$Status[object$fixedRank$omitted] <- "aliased (constrained to zero)"
+    coef$Std.Error[object$fixedRank$omitted] <- NA_real_
+    coef$t.value[object$fixedRank$omitted] <- NA_real_
+  }
   
 varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "Zratio",
                                 intersect("status", names(object$covParNative)))]
@@ -80,7 +90,7 @@ varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "
   # varcomp$Constraint <- replace.values(constraints, 1:3, c("Positive","Unconstr","Fixed"))
 
   output <- list(varcomp=varcomp, betas=coef, method=method,logo=LLAIC,
-                 remlOmissions=object$remlOmissions,
+                 remlOmissions=object$remlOmissions, fixedRank=object$fixedRank,
                  REML=if(is.null(object$REML)) TRUE else object$REML,
                  family=object$family,
                  pqlConverged=object$pqlConverged)
@@ -132,6 +142,9 @@ varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "
   print(x$varcomp, digits = digits)
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\nFixed effects:\n")
+  if(!is.null(x$fixedRank)){
+    cat("Rank-reduced fit: aliased coefficients are constrained to zero, not estimated; retained coefficients are conditional on these constraints.\n")
+  }
   if(nrow(x$betas) > 8){
     print(x$betas[1:8,], digits = digits)
     cat("   ... please access the object to see more\n")
@@ -719,6 +732,8 @@ anova.mmes <- function(object, object2=NULL, ...) {
   if(is.null(object2)){
     return(wald_mmes(object, ...))
   }
+  .mmes_require_full_rank_inference(object, "Likelihood-ratio comparisons")
+  .mmes_require_full_rank_inference(object2, "Likelihood-ratio comparisons")
   if(inherits(object, "mmes.glmm") || inherits(object2, "mmes.glmm")){
     stop("Likelihood ratio tests are not available for PQL fits: their log-likelihood is that of a working Gaussian model, not of the GLMM.", call.=FALSE)
   }

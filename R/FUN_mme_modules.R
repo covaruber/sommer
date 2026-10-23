@@ -103,6 +103,7 @@
         "task$objective", "task$pql", "update$recovery", "update$blendWeight",
         "proposal$stepWeight", "convergence$maxIters", "convergence$likelihoodTol",
         "convergence$parameterTol", "output$setup",
+        "representation$fixedRank",
         "execution$denseMemoryMB", "execution$memoryPolicy",
         "execution$blasThreads", "execution$inverseTol",
         paste0("diagnostics$", names(x$diagnostics)))),
@@ -284,11 +285,13 @@ mmes_control <- function(formulation="henderson", task=list(),
     task$pql[[name]] <- .mme_flag(task$pql[[name]], paste0("task$pql$", name))
   }
   representation <- .mme_module(representation, list(
-    compression="off", factorScores="none",
+    compression="off", factorScores="none", fixedRank="error",
     equations=if(base$experimental$saddlePoint == "force") "saddle-point" else "normal",
     sparseFactors=base$experimental$sparseFactors,
     matrixFree=base$experimental$matrixFreePcg), "representation")
   representation$compression <- .mme_compression_control(representation$compression)
+  representation$fixedRank <- .mme_choice(representation$fixedRank,
+    c("error", "drop"), "representation$fixedRank")
   representation$factorScores <- .mme_choice(representation$factorScores,
     c("none", "fixed-shape", "profile"), "representation$factorScores")
   representation$equations <- .mme_choice(representation$equations,
@@ -410,6 +413,7 @@ mmes_control <- function(formulation="henderson", task=list(),
   engine$updateMethod <- control$update$method
   engine$conditionalEquations <- control$representation$equations == "conditional"
   engine$conditionalInverseTol <- control$execution$inverseTol
+  engine$fixedRank <- control$representation$fixedRank
   class(engine) <- "sommer_mmes_engine"
   engine
 }

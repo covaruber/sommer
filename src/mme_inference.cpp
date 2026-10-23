@@ -53,15 +53,29 @@ Rcpp::List post_mme_Cinverse_cpp(Rcpp::List model, const int mode = 1){
     const arma::uword originalEffects = mapping.n_rows;
     arma::sp_mat Ci(originalEffects, originalEffects);
     if(mode == 2){
-      const arma::sp_mat identity = arma::speye<arma::sp_mat>(originalEffects, originalEffects);
-      Ci = arma::sp_mat(predict_mmes_vcov_cpp(model, identity));
+      // Invert in engine coordinates before expanding zero-constrained effects.
+      const Rcpp::List engineModel = Rcpp::List::create(
+        Rcpp::Named("C")=model["C"], Rcpp::Named("Cscale")=model["Cscale"]);
+      const arma::sp_mat identity = arma::speye<arma::sp_mat>(C.n_rows, C.n_rows);
+      const arma::sp_mat engineInverse(predict_mmes_vcov_cpp(engineModel, identity));
+      Ci = mapping * engineInverse * mapping.t();
     }else{
-      for(arma::uword first = 0; first < originalEffects; first += 32){
-        const arma::uword count = std::min<arma::uword>(32, originalEffects - first);
+      std::vector<bool> usedRows(originalEffects, false);
+      for(arma::sp_mat::const_iterator entry = mapping.begin(); entry != mapping.end(); ++entry){
+        if(*entry != 0.0) usedRows[entry.row()] = true;
+      }
+      std::vector<arma::uword> activeRows;
+      for(arma::uword rowIndex = 0; rowIndex < originalEffects; ++rowIndex){
+        if(usedRows[rowIndex]) activeRows.push_back(rowIndex);
+      }
+      for(arma::uword first = 0; first < activeRows.size(); first += 32){
+        const arma::uword count = std::min<arma::uword>(32, activeRows.size() - first);
         arma::sp_mat selection(count, originalEffects);
-        for(arma::uword row = 0; row < count; ++row){ selection(row, first + row) = 1.0; }
+        for(arma::uword row = 0; row < count; ++row){ selection(row, activeRows[first + row]) = 1.0; }
         const arma::mat block = predict_mmes_vcov_cpp(model, selection);
-        for(arma::uword row = 0; row < count; ++row){ Ci(first + row, first + row) = block(row, row); }
+        for(arma::uword row = 0; row < count; ++row){
+          Ci(activeRows[first + row], activeRows[first + row]) = block(row, row);
+        }
       }
     }
     Rcpp::List pevs(partitions.size());

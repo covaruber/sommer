@@ -76,7 +76,7 @@ the prior numerical bundle; they do not authorize new combinations.
 |:--|:--|:--|
 | `formulation` | Equation domain | `"henderson"`; `"henderson"` or `"direct"`. |
 | `task` | Fit versus known-covariance solve; objective; outer PQL | `mode="fit"`, `objective="reml"`, `pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)`. |
-| `representation` | Equation/covariance representation | `compression="off"`, `factorScores="none"`, `equations="normal"`, `sparseFactors="off"`, `matrixFree="auto"`; modes can inherit global options, and `equations` defaults to `"saddle-point"` if that mode is globally forced. |
+| `representation` | Equation/covariance representation | `compression="off"`, `factorScores="none"`, `fixedRank="error"`, `equations="normal"`, `sparseFactors="off"`, `matrixFree="auto"`; modes can inherit global options, and `equations` defaults to `"saddle-point"` if that mode is globally forced. |
 | `solve` | Linear solves, preconditioning, reuse, elimination | `method="auto"`; PCG fields below; `blockSchur`, `blockBanded`, `factorSchurMultiFactor`, and `dFirstML` default to `"auto"`. |
 | `logdet` | Determinant approximation | `scaling="none"`, `lanczosSteps=20L`. |
 | `score` | Covariance derivatives and trace estimation | `traceProbes=8L`, `estimator="hutchinson"`, `rank=16L`, `covarianceChecks="auto"`, `traceBatch="off"`. |
@@ -113,6 +113,7 @@ Constructors and valid values:
 * `solve$method`: `"auto"`, `"ldlt"`, `"cholmod"`, or `"pcg"`.
 * `representation$compression`: `"off"`, `"groups"`, or `"classes"`.
 * `representation$factorScores`: `"none"`, `"fixed-shape"`, or `"profile"`.
+* `representation$fixedRank`: `"error"` (default) or opt-in `"drop"`.
 * `representation$equations`: `"normal"`, `"saddle-point"` or experimental `"conditional"`.
 * `logdet$scaling`: `"none"` or `"diagonal"`.
 * `score$estimator`: `"hutchinson"` or `"control-variate"`.
@@ -131,6 +132,43 @@ The complete field reference and mapping from old names are in
 `?mmes_control`.
 
 # Decision graph and constraints
+
+## Rank-deficient fixed effects
+
+By default, `mmes()` stops with diagnostics when the fixed design contains
+zero columns or linear dependencies. For Gaussian identity-link fits, both
+the Henderson and direct engines can instead use a shared sparse C++ QR
+basis selected once after observation filtering:
+
+```{r, eval=FALSE}
+fit <- mmes(
+  response ~ locale + cell,
+  data = observations,
+  control = mmes_control(representation = list(fixedRank = "drop"))
+)
+fit$fixedRank[c("rank", "retained", "omitted")]
+summary(fit)$betas
+```
+
+The original coefficient layout is retained. Omitted coefficients are
+constrained to zero and explicitly marked aliased, with no inferential
+standard errors or tests. Retained coefficients are conditional on those
+constraints. This preserves the fitted-mean space but need not reproduce
+ASReml's particular coefficient constraints. Different fixed bases can
+shift REML likelihoods by a constant.
+
+`fit$fixedRank$relation` is a sparse map from the retained design to the
+original columns. Direct-engine `VarBeta` stays in retained coordinates;
+it is not expanded to a potentially huge original-column covariance.
+Henderson prediction contrasts are checked against the original model's
+estimability relations. Non-estimable rows are rejected. Wald tests,
+likelihood-ratio comparisons, Satterthwaite/Kenward-Roger inference, and
+`emmeans` require an explicitly full-rank refit. Existing direct-engine
+prediction limitations are unchanged.
+
+This option is not supported with PQL, solve mode, conditional FA, factor
+scores, observation rotation or compression; these combinations fail
+explicitly rather than silently ignore the rank policy.
 
 ## Conditional FA: reusable posterior moments with AI or EM
 

@@ -555,6 +555,7 @@
     if(length(interceptColumn) > 0){D[,interceptColumn] = 1}
   }else{ }# user has provided D as a matrix to do direct multiplication
   ## calculate predictions and standard errors
+  .mmes_check_estimable_fixed(object, D)
   bu <- object$bu
   predicted.value <- D %*% bu
   solveVcov <- .mmes_vcov_solver(object)

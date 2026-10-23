@@ -514,6 +514,15 @@ out$controls <- rbind(out$controls, data.frame(
   fallback="Explicit eligibility error; no change of estimator.",
   effect="Select AI or conditional EM; representation.equations='conditional' selects reusable latent equations. conditional-fa remains the legacy EM selector.",
   source="R/FUN_mme_conditional.R", status="experimental", previous="new"))
+out$controls <- rbind(out$controls, data.frame(
+  path="control.representation.fixedRank", module="representation",
+  values="error, drop.", default="error",
+  requires="Gaussian identity-link Henderson or direct fit; rank selection uses shared native sparse QR after observation filtering.",
+  excludes="PQL, solve mode, conditional FA, factor scores, rotation and compression; automatic rank-reduced term inference requires a full-rank refit.",
+  fallback="Default error; opt-in drop warns and records the selected basis and zero constraints.",
+  effect="Fit a full-rank subset while preserving original coefficient names; aliased coefficients are zero constraints, not independently estimated effects.",
+  source="R/FUN_fixed_rank.R, src/mme_fixed_rank.cpp",
+  status="supported", previous="new"))
 out$decisions <- rbind(out$decisions, data.frame(
   id="conditional-fa", parent="henderson",
   condition="representation$equations='conditional' or update$method='conditional-fa': eligible Gaussian FA REML model.",

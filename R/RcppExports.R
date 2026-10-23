@@ -33,6 +33,10 @@ ai_reml_direct_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, re
     .Call(`_sommer_ai_reml_direct_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept)
 }
 
+fixed_design_basis_cpp <- function(fixedDesign) {
+    .Call(`_sommer_fixed_design_basis_cpp`, fixedDesign)
+}
+
 mme_gpu_runtime_status <- function() {
     .Call(`_sommer_mme_gpu_runtime_status`)
 }

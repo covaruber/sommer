@@ -217,6 +217,17 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// fixed_design_basis_cpp
+Rcpp::List fixed_design_basis_cpp(const Eigen::MappedSparseMatrix<double>& fixedDesign);
+RcppExport SEXP _sommer_fixed_design_basis_cpp(SEXP fixedDesignSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const Eigen::MappedSparseMatrix<double>& >::type fixedDesign(fixedDesignSEXP);
+    rcpp_result_gen = Rcpp::wrap(fixed_design_basis_cpp(fixedDesign));
+    return rcpp_result_gen;
+END_RCPP
+}
 // mme_gpu_runtime_status
 Rcpp::List mme_gpu_runtime_status();
 RcppExport SEXP _sommer_mme_gpu_runtime_status() {
@@ -586,6 +597,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_mme_conditional_solve_cpp", (DL_FUNC) &_sommer_mme_conditional_solve_cpp, 3},
     {"_sommer_evaluate_covstruct_cpp", (DL_FUNC) &_sommer_evaluate_covstruct_cpp, 2},
     {"_sommer_ai_reml_direct_sp2", (DL_FUNC) &_sommer_ai_reml_direct_sp2, 23},
+    {"_sommer_fixed_design_basis_cpp", (DL_FUNC) &_sommer_fixed_design_basis_cpp, 1},
     {"_sommer_mme_gpu_runtime_status", (DL_FUNC) &_sommer_mme_gpu_runtime_status, 0},
     {"_sommer_post_mme_Cinverse_cpp", (DL_FUNC) &_sommer_post_mme_Cinverse_cpp, 2},
     {"_sommer_predict_mmes_vcov_cpp", (DL_FUNC) &_sommer_predict_mmes_vcov_cpp, 2},

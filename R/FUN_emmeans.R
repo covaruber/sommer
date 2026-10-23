@@ -43,6 +43,7 @@ recover_data.mmes <- function(object, data=NULL, ...) {
 }
 
 emm_basis.mmes <- function(object, trms, xlev, grid, ...) {
+	.mmes_require_full_rank_inference(object, "emmeans")
 	if(ncol(object$y) != 1L)
 		stop("emmeans support for mmes currently requires a univariate response.", call.=FALSE)
 

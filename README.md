@@ -45,7 +45,6 @@ models.
 - [Covariance structures](https://covaruber.github.io/sommer/articles/sommer.covariance.structures.html)
 - [Solver decision tree](https://covaruber.github.io/sommer/mmes-options.html)
 - [Generalized mixed models](https://covaruber.github.io/sommer/articles/sommer.glmm.html)
-- [Contributor guide](CONTRIBUTING.md) for architecture, tests, and benchmarks.
 
 Start with the default deterministic Henderson formulation. Use direct inversion
 when observation-space fitting suits the problem; use PCG only with its

@@ -98,6 +98,13 @@
   isGaussianIdentity <- inherits(family, "family") &&
     identical(family$family, "gaussian") &&
     identical(family$link, "identity")
+  dropFixedAliases <- identical(engineControl$fixedRank, "drop")
+  if(dropFixedAliases &&
+     (!isGaussianIdentity || .pqlInner || solveOnly || conditionalFA ||
+      factorScoreAugmentation != "none" || compression != "off")){
+    stop("representation$fixedRank='drop' currently requires a Gaussian identity-link fit with normal or saddle-point equations, without PQL, task$mode='solve', conditional FA, factor scores or compression.",
+         call.=FALSE)
+  }
   if(!conditionalFA && !engineControl$retainCoefficientMatrix &&
      (!isGaussianIdentity || .pqlInner || !henderson || solveOnly ||
       factorScoreAugmentation != "none" ||
@@ -575,6 +582,7 @@
   fixedTerms <- attr(tt, "term.labels")
   assignX <- attr(X, "assign")
   if(is.null(assignX)) assignX <- attr(stats::model.matrix(tt, mf, contrasts.arg=contrasts), "assign")
+  if(!returnParam && !dropFixedAliases) .mmes_check_fixed_design(X, fixedTerms)
   partitionsX <- list()
   if(attr(tt, "intercept") == 1L){
     ii <- which(assignX == 0L)
@@ -585,6 +593,32 @@
     if(length(ii)) partitionsX[[fixedTerms[ix]]] <- matrix(ii, nrow=1L)
   }
   if("(Intercept)" %in% colnames(X)) colnames(X)[colnames(X) == "(Intercept)"] <- "Intercept"
+  fixedRankInfo <- NULL
+  fixedPartitionsOriginal <- partitionsX
+  if(dropFixedAliases){
+    if(any(vapply(randomFits, function(randomFit) !is.null(randomFit$rotation), logical(1)))){
+      stop("representation$fixedRank='drop' does not currently support rotation=TRUE.",
+           call.=FALSE)
+    }
+    fixedReduction <- .mmes_reduce_fixed(X)
+    X <- fixedReduction$X
+    fixedRankInfo <- fixedReduction$info
+    if(!is.null(fixedRankInfo)){
+      partitionsX <- lapply(partitionsX, function(partition){
+        reducedIndices <- match(as.vector(partition), fixedRankInfo$retained)
+        matrix(reducedIndices[!is.na(reducedIndices)], nrow=1L)
+      })
+      partitionsX <- partitionsX[vapply(partitionsX, length, integer(1)) > 0L]
+      if(!returnParam){
+        warning("Fixed-effect rank reduction retained ", ncol(X), " of ",
+                length(fixedRankInfo$columnNames), " columns; ",
+                length(fixedRankInfo$omitted), " aliased coefficients are constrained to zero. ",
+                "These zeros are identification constraints, not independently estimated effects. ",
+                "See fit$fixedRank and summary(fit)$betas.",
+                call.=FALSE)
+      }
+    }
+  }
 
   # ---- Optional Lee-van der Werf observation rotation -----------------
   rotationTerms <- which(vapply(
@@ -1239,7 +1273,7 @@
                 responsePrepared=responsePrepared, preparedMean=preparedMean,
                 preparedSd=preparedSd, preparedIntercept=preparedIntercept,
                 remlOmissionInfo=remlOmissionInfo,
-                engine=engineControl))
+                engine=engineControl, fixedRank=fixedRankInfo))
   }
 
   if(conditionalFA){
@@ -1312,6 +1346,12 @@
       paste(prefix, covStruct[[i]]$par_names, sep=":")
     })
     vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
+  }
+  if(!is.null(fixedRankInfo)){
+    if(is.null(res$W)) res$W <- do.call(cbind, c(list(X), Z))
+    res <- .mmes_restore_fixed(res, fixedRankInfo)
+    X <- fixedRankInfo$original
+    partitionsX <- fixedPartitionsOriginal
   }
   res$engine <- if(conditionalFA) "conditional-fa" else if(isTRUE(henderson)) "henderson" else "direct"
   res$call <- mmesCall

@@ -157,6 +157,7 @@ nodes <- list(
     "Can an exact equivalent representation make the equations cheaper?",
     "These are alternatives, not a sequence. Each has its own eligibility and several exclude each other. Conditional equations use sparse latent FA equations with AI or EM updates, without a retained public coefficient matrix or covariance uncertainty. Rotation and latent reduced rank are requested from the model formula.",
     c("control.representation.compression", "control.representation.factorScores",
+      "control.representation.fixedRank",
       "control.representation.equations", "control.representation.sparseFactors",
       "model.rotation", "model.latentRR"),
     c("saddle-point", "factor-scores", "conditional-fa"),
