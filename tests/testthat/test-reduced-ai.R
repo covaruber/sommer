@@ -21,6 +21,32 @@
     0, 1, FALSE, solver=setup$solver, reml=setup$REML)
 }
 
+test_that("empty and random-only AI tangents preserve likelihoods and information shapes", {
+  dataset <- .reduced_ai_data()
+  for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
+    for(compression in c("off", "groups")){
+      setup <- mmes(y~level, random=~id+h, data=dataset,
+        control=mmes_control(solve=list(method=solver),
+          task=list(objective=if(reml) "reml" else "ml"),
+          representation=list(compression=compression),
+          output=list(setup=TRUE), diagnostics=list(verbose=FALSE)))
+      full <- .reduced_ai_native(setup)
+      for(tangent in list(matrix(numeric(), 3L, 0L),
+                          matrix(c(1, 0, 0), 3L, 1L))){
+        reduced <- .reduced_ai_native(setup, tangent)
+        expect_equal(dim(reduced$InfMat), rep(ncol(tangent), 2L))
+        if(ncol(tangent) > 0L){
+          expect_equal(reduced$InfMat, crossprod(tangent, full$InfMat %*% tangent),
+            tolerance=1e-8)
+        }
+        for(field in c("llik", "bu", "dLu")){
+          expect_equal(reduced[[field]], full[[field]], tolerance=1e-10)
+        }
+      }
+    }
+  }
+})
+
 test_that("reduced AI uses curvature module and revalidates mutated requests", {
   expect_identical(mmes_control()$curvature$reduced, "off")
   expect_identical(mmes_control(curvature=list(reduced="force"))$curvature$reduced,

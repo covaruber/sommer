@@ -168,7 +168,7 @@ arma::mat emat_genotypes(const arma::mat & Xo, bool nishio,
   if(type == "A#D") {
     E %= relationshipKernel(Xo, markers, false, nishio);
   }else{
-    E %= E;
+    E = arma::square(E);
   }
   return E;
 }

@@ -173,13 +173,15 @@ find.package("sommer")
 stopifnot("control" %in% names(formals(mmes)))
 ```
 
-The following example runs only when the required controller and
-`parallelly` are available. It uses small synthetic data, rather than requiring
+Run the following example interactively after configuring your BLAS backend.
+It is not evaluated when building this vignette: even when a controller and
+`parallelly` are installed, a backend or administrator-imposed thread limit
+can reject a request. It uses small synthetic data, rather than requiring
 your `DT` or `MMTi` objects. It tests a one-thread request first, then
 allocation-aware automatic sizing. Both are short verification fits, not
 convergence or performance benchmarks.
 
-```{r verification-fit}
+```{r verification-fit, eval=FALSE}
 blas <- unname(extSoftVersion()["BLAS"])
 hasFlexiBLAS <- requireNamespace("flexiblas", quietly=TRUE) &&
   isTRUE(tryCatch(flexiblas::flexiblas_avail(), error=function(error) FALSE))

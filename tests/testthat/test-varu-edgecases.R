@@ -19,6 +19,8 @@ test_that("fixed-only models have zero random VarU", {
   prediction <- predict(model,D="group")
   expect_equal(unname(prediction$VarU),matrix(0,2,2))
   expect_equal(prediction$sampling.vcov,prediction$PEV)
+  emptyDesign <- Matrix::Matrix(0, 0L, nrow(model$C), sparse=TRUE)
+  expect_equal(dim(sommer:::predict_mmes_vcov_cpp(model, emptyDesign)), c(0L, 0L))
 })
 
 test_that("saved precision makes VarU independent of later external Gu changes", {

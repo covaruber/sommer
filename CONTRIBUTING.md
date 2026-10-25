@@ -122,6 +122,15 @@ CI checks Linux, Windows, macOS, previous-release R, and R-devel. That matrix
 does not by itself establish that every dependency combination allowed by the
 historical minimum R version in DESCRIPTION works.
 
+Release validation also needs GCC and Clang undefined-behavior sanitizer builds:
+ordinary test success does not detect null-pointer arithmetic in empty matrix
+views. Run the tests against each freshly instrumented installation with
+`UBSAN_OPTIONS=halt_on_error=1:print_stacktrace=1`. Keep zero-column AI tangent,
+scale-only, compressed-model, and fixed-only prediction cases in that coverage.
+Test BLAS-dependent documentation on the available backends. Examples that
+change runtime thread settings are opt-in, since a controller's presence does
+not guarantee that the BLAS accepts those settings.
+
 The project mixes manually maintained Rd/namespace entries and roxygen comments.
 Do not regenerate all documentation blindly. Update the directly related help
 pages and verify code/documentation consistency with `R CMD check`.

@@ -66,7 +66,7 @@ test_that("diagonal variance floors converge consistently on direct and MME path
           formulation=if(solver == "direct") "direct" else "henderson",
           solve=list(method=if(solver == "direct") "auto" else solver),
           task=list(objective=objective),
-          convergence=list(maxIters=20, likelihoodTol=1e-8, parameterTol=1e-8),
+          convergence=list(maxIters=20, likelihoodTol=1e-10, parameterTol=1e-10),
           diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     })
     for(fit in fits){

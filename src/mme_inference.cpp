@@ -465,6 +465,7 @@ public:
   }
 
   const int k = static_cast<int>(design.n_rows);
+  if(k == 0){ return arma::mat(0, 0); }
 
   Eigen::MatrixXd rhs = Eigen::MatrixXd::Zero(nEffects, k);
   for(arma::sp_mat::const_iterator it = design.begin(); it != design.end(); ++it){

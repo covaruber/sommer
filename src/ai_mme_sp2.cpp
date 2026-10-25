@@ -3251,6 +3251,7 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   auto solveDfirstJoint = [&](const Eigen::Ref<const Eigen::MatrixXd> & rhs,
                                const std::string & context) -> Eigen::MatrixXd {
     Eigen::MatrixXd result(nEffects, rhs.cols());
+    if(rhs.cols() == 0){ return result; }
     Eigen::MatrixXd random = solveRandomBlock(Eigen::MatrixXd(rhs.bottomRows(Nu)), context);
     if(nX > 0){
       const Eigen::MatrixXd fixedRhs = rhs.topRows(nX) - dFirstCross * random;
@@ -7294,12 +7295,12 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     const arma::uword nRandomVc =
       residualVcStart;
-    const arma::mat residualAITangent = reducedAIAssembly
+    const arma::mat residualAITangent = reducedAIAssembly && aiDimension > 0
       ? aiTangent.rows(residualVcStart, nVcTotal - 1) : arma::mat();
-    const arma::uvec residualAICoordinates = reducedAIAssembly
+    const arma::uvec residualAICoordinates = reducedAIAssembly && aiDimension > 0
       ? arma::find(arma::sum(arma::abs(residualAITangent), 0).t() > 0.0) : arma::uvec();
-    const arma::mat packedResidualTangent = reducedAIAssembly
-      ? residualAITangent.cols(residualAICoordinates) : arma::mat();
+    const arma::mat packedResidualTangent = reducedAIAssembly && residualAICoordinates.n_elem > 0
+      ? residualAITangent.cols(residualAICoordinates) : arma::mat(nResidualPar, 0);
     const arma::uword residualAIDimension = reducedAIAssembly
       ? residualAICoordinates.n_elem : nResidualPar;
 
@@ -7484,7 +7485,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             ] = dLambda;
           }
 
-          if(!required){ continue; }
+          if(!required || aiDimension == 0){ continue; }
 
           // (dC_k) b for this random covariance structure is
           //
@@ -7531,6 +7532,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     }
 
     if(!required){ return; }
+    if(aiDimension == 0){
+      avInf.zeros(0, 0);
+      sensitivityRHSColumnsSkipped += nVcTotal;
+      return;
+    }
 
     // ------------------------------------------------------------
     // Residual sensitivities.
@@ -7543,7 +7549,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       arma::fill::zeros
     );
 
-    for(arma::uword iP = 0; !compressedData && iP < nResidualPar; ++iP){
+    for(arma::uword iP = 0; !compressedData && residualAIDimension > 0 && iP < nResidualPar; ++iP){
       if(residualDerivativesBlockLocal){
         for(int block = 0; block < residualKronNBlocks; ++block){
           const arma::uvec & rows =
@@ -7590,7 +7596,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     if(compressedData){
       Eigen::MatrixXd groupedRhs(sufficient.groups.size(),
         residualAIDimension);
-      for(std::size_t group = 0; group < sufficient.groups.size(); ++group){
+      for(std::size_t group = 0; residualAIDimension > 0 && group < sufficient.groups.size(); ++group){
         const auto & statistics = sufficient.groups[group];
         const int category = statistics.residualClass;
         const double variance = compressedVariance(category);
