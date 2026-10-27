@@ -228,6 +228,78 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// sommer_laplace_glmm_eval
+Rcpp::List sommer_laplace_glmm_eval(const arma::sp_mat& fixedDesign, const arma::sp_mat& randomDesign, const arma::sp_mat& randomPrecision, const arma::vec& response, const arma::vec& offset, const arma::vec& fixedEffects, const arma::vec& modeStart, const std::string& family, const double logDetPrecision, const int maxModeIterations, const double tolerance);
+RcppExport SEXP _sommer_sommer_laplace_glmm_eval(SEXP fixedDesignSEXP, SEXP randomDesignSEXP, SEXP randomPrecisionSEXP, SEXP responseSEXP, SEXP offsetSEXP, SEXP fixedEffectsSEXP, SEXP modeStartSEXP, SEXP familySEXP, SEXP logDetPrecisionSEXP, SEXP maxModeIterationsSEXP, SEXP toleranceSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type fixedDesign(fixedDesignSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type randomDesign(randomDesignSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type randomPrecision(randomPrecisionSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type response(responseSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type offset(offsetSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type fixedEffects(fixedEffectsSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type modeStart(modeStartSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type family(familySEXP);
+    Rcpp::traits::input_parameter< const double >::type logDetPrecision(logDetPrecisionSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxModeIterations(maxModeIterationsSEXP);
+    Rcpp::traits::input_parameter< const double >::type tolerance(toleranceSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_laplace_glmm_eval(fixedDesign, randomDesign, randomPrecision, response, offset, fixedEffects, modeStart, family, logDetPrecision, maxModeIterations, tolerance));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_laplace_objective_create
+SEXP sommer_laplace_objective_create(const arma::sp_mat& fixedDesign, const arma::sp_mat& randomDesign, const arma::vec& response, const arma::vec& offset, const std::string& family, const Rcpp::List& descriptors, const Rcpp::List& relationships, const double memoryMB, Rcpp::Nullable<Rcpp::List> familySpecs, Rcpp::Nullable<Rcpp::IntegerVector> familyIndex, Rcpp::Nullable<Rcpp::NumericVector> trials);
+RcppExport SEXP _sommer_sommer_laplace_objective_create(SEXP fixedDesignSEXP, SEXP randomDesignSEXP, SEXP responseSEXP, SEXP offsetSEXP, SEXP familySEXP, SEXP descriptorsSEXP, SEXP relationshipsSEXP, SEXP memoryMBSEXP, SEXP familySpecsSEXP, SEXP familyIndexSEXP, SEXP trialsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type fixedDesign(fixedDesignSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type randomDesign(randomDesignSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type response(responseSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type offset(offsetSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type family(familySEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type descriptors(descriptorsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type relationships(relationshipsSEXP);
+    Rcpp::traits::input_parameter< const double >::type memoryMB(memoryMBSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::List> >::type familySpecs(familySpecsSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::IntegerVector> >::type familyIndex(familyIndexSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericVector> >::type trials(trialsSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_laplace_objective_create(fixedDesign, randomDesign, response, offset, family, descriptors, relationships, memoryMB, familySpecs, familyIndex, trials));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_laplace_objective_eval
+Rcpp::List sommer_laplace_objective_eval(SEXP context, const arma::vec& parameters, const int maxModeIterations, const double tolerance, const bool gradient);
+RcppExport SEXP _sommer_sommer_laplace_objective_eval(SEXP contextSEXP, SEXP parametersSEXP, SEXP maxModeIterationsSEXP, SEXP toleranceSEXP, SEXP gradientSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type context(contextSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxModeIterations(maxModeIterationsSEXP);
+    Rcpp::traits::input_parameter< const double >::type tolerance(toleranceSEXP);
+    Rcpp::traits::input_parameter< const bool >::type gradient(gradientSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_laplace_objective_eval(context, parameters, maxModeIterations, tolerance, gradient));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_glmm_family_eval
+Rcpp::List sommer_glmm_family_eval(const arma::vec& response, const arma::vec& predictor, const Rcpp::List& familySpecs, const Rcpp::IntegerVector& familyIndex, const arma::vec& trials);
+RcppExport SEXP _sommer_sommer_glmm_family_eval(SEXP responseSEXP, SEXP predictorSEXP, SEXP familySpecsSEXP, SEXP familyIndexSEXP, SEXP trialsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type response(responseSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type predictor(predictorSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type familySpecs(familySpecsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::IntegerVector& >::type familyIndex(familyIndexSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type trials(trialsSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_glmm_family_eval(response, predictor, familySpecs, familyIndex, trials));
+    return rcpp_result_gen;
+END_RCPP
+}
 // mme_gpu_runtime_status
 Rcpp::List mme_gpu_runtime_status();
 RcppExport SEXP _sommer_mme_gpu_runtime_status() {
@@ -598,6 +670,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_evaluate_covstruct_cpp", (DL_FUNC) &_sommer_evaluate_covstruct_cpp, 2},
     {"_sommer_ai_reml_direct_sp2", (DL_FUNC) &_sommer_ai_reml_direct_sp2, 23},
     {"_sommer_fixed_design_basis_cpp", (DL_FUNC) &_sommer_fixed_design_basis_cpp, 1},
+    {"_sommer_sommer_laplace_glmm_eval", (DL_FUNC) &_sommer_sommer_laplace_glmm_eval, 11},
+    {"_sommer_sommer_laplace_objective_create", (DL_FUNC) &_sommer_sommer_laplace_objective_create, 11},
+    {"_sommer_sommer_laplace_objective_eval", (DL_FUNC) &_sommer_sommer_laplace_objective_eval, 5},
+    {"_sommer_sommer_glmm_family_eval", (DL_FUNC) &_sommer_sommer_glmm_family_eval, 5},
     {"_sommer_mme_gpu_runtime_status", (DL_FUNC) &_sommer_mme_gpu_runtime_status, 0},
     {"_sommer_post_mme_Cinverse_cpp", (DL_FUNC) &_sommer_post_mme_Cinverse_cpp, 2},
     {"_sommer_predict_mmes_vcov_cpp", (DL_FUNC) &_sommer_predict_mmes_vcov_cpp, 2},

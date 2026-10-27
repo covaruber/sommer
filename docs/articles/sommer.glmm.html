@@ -5,24 +5,31 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+<meta name="description" content="sommer">
 <title>Generalized linear mixed models with sommer • sommer</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><link href="../extra.css" rel="stylesheet">
+<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
+<!-- bootstrap-toc --><script src="https://cdn.jsdelivr.net/gh/afeld/bootstrap-toc@v1.0.1/dist/bootstrap-toc.min.js" integrity="sha256-4veVQbu7//Lk5TSmc7YV48MxtMy98e26cf5MrgZYnwo=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js" integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script><!-- search --><script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.4.6/fuse.js" integrity="sha512-zv6Ywkjyktsohkbp9bb45V6tEMoWhzFzXis+LrMehmJZZSys19Yxf1dopHx7WzIKxr5tK2dVcYmaCk2uqdjF4A==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/autocomplete.js/0.38.0/autocomplete.jquery.min.js" integrity="sha512-GU9ayf+66Xx2TmpxqJpliWbT5PiGYxpaG8rfnBEk1LL8l1KGkRShhngwdXK1UgqhAzWpZHSiYPc09/NwDQIGyg==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js" integrity="sha512-5CYOlHXGh6QpOFA/TeTylKLWfB3ftPsde7AnmhuitiTX4K5SqCLBeKro6sPS8ilsz1Q4NRx3v8Ko2IBiszzdww==" crossorigin="anonymous"></script><!-- pkgdown --><script src="../pkgdown.js"></script><link href="../extra.css" rel="stylesheet">
 <meta property="og:title" content="Generalized linear mixed models with sommer">
-<meta name="theme-color" content="#f7f8f3">
+<meta property="og:description" content="sommer">
+<!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
+<script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+<![endif]--><meta name="theme-color" content="#f7f8f3">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
+    <nav class="navbar fixed-top navbar-light navbar-expand-lg bg-light"><div class="container">
 
     <a class="navbar-brand me-2" href="../index.html">sommer</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.4.8</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.12</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -31,26 +38,42 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="nav-item">
+  <a class="nav-link" href="../reference/index.html">Reference</a>
+</li>
+<li class="nav-item">
+  <a class="nav-link" href="../mmes-options.html">Decision tree</a>
+</li>
 <li class="active nav-item dropdown">
-  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
-  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
-<li><a class="dropdown-item" href="../articles/sommer.covariance.structures.html">Using covariance structures with sommer</a></li>
-    <li><a class="dropdown-item" href="../articles/sommer.fa.and.rr.models.html">Factor analytic and reduced rank models in sommer</a></li>
-    <li><a class="dropdown-item" href="../articles/sommer.glmm.html">Generalized linear mixed models with sommer</a></li>
-    <li><a class="dropdown-item" href="../articles/sommer.gxe.html">Fitting genotype by environment models in sommer</a></li>
-    <li><a class="dropdown-item" href="../articles/sommer.qg.html">Quantitative genetics using the sommer package</a></li>
-    <li><a class="dropdown-item" href="../articles/sommer.spatial.html">Spatial modeling using the sommer package</a></li>
-    <li><a class="dropdown-item" href="../articles/sommer.theory.html">Theory: how sommer parameterizes and optimizes covariance structures</a></li>
-    <li><a class="dropdown-item" href="../articles/sommer.vs.lme4.html">Translating lme4 models to sommer</a></li>
-  </ul>
+  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
+  <div class="dropdown-menu" aria-labelledby="dropdown-articles">
+    <a class="dropdown-item" href="../articles/sommer.blas.threads.html">Installing and configuring BLAS thread control</a>
+    <a class="dropdown-item" href="../articles/sommer.covariance.structures.html">Using covariance structures with sommer</a>
+    <a class="dropdown-item" href="../articles/sommer.fa.and.rr.models.html">Factor analytic and reduced rank models in sommer</a>
+    <a class="dropdown-item" href="../articles/sommer.genetic.evaluation.html">Genetic evaluation with known variance components in sommer</a>
+    <a class="dropdown-item" href="../articles/sommer.glmm.html">Generalized linear mixed models with sommer</a>
+    <a class="dropdown-item" href="../articles/sommer.glmm.theory.html">Theory and practice of generalized linear mixed models in sommer</a>
+    <a class="dropdown-item" href="../articles/sommer.gxe.html">Fitting genotype by environment models in sommer</a>
+    <a class="dropdown-item" href="../articles/sommer.machinery.html">Inside sommer: the ai_mme_sp2 engine</a>
+    <a class="dropdown-item" href="../articles/sommer.mmes.options.html">Modular numerical controls for sommer::mmes</a>
+    <a class="dropdown-item" href="../articles/sommer.qg.html">Quantitative genetics using the sommer package</a>
+    <a class="dropdown-item" href="../articles/sommer.spatial.html">Spatial modeling using the sommer package</a>
+    <a class="dropdown-item" href="../articles/sommer.theory.html">Theory: how sommer parameterizes and optimizes covariance structures</a>
+    <a class="dropdown-item" href="../articles/sommer.vs.lme4.html">Translating lme4 models to sommer</a>
+  </div>
 </li>
       </ul>
-<ul class="navbar-nav">
-<li class="nav-item"><form class="form-inline" role="search">
- <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
-</form></li>
-<li class="nav-item"><a class="external-link nav-link" href="https://github.com/covaruber/sommer/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
+<form class="form-inline my-2 my-lg-0" role="search">
+        <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off">
+</form>
+
+      <ul class="navbar-nav">
+<li class="nav-item">
+  <a class="external-link nav-link" href="https://github.com/covaruber/sommer/" aria-label="github">
+    <span class="fab fa fab fa-github fa-lg"></span>
+
+  </a>
+</li>
       </ul>
 </div>
 
@@ -63,19 +86,18 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-
-      <h1>Generalized linear mixed models with sommer</h1>
+      <img src="" class="logo" alt=""><h1>Generalized linear mixed models with sommer</h1>
                         <h4 data-toc-skip class="author">sommer
 development team</h4>
-            
-            <h4 data-toc-skip class="date">2026-09-26</h4>
-      
+
+            <h4 data-toc-skip class="date">2026-10-27</h4>
+
       <small class="dont-index">Source: <a href="https://github.com/covaruber/sommer/blob/HEAD/vignettes/sommer.glmm.Rmd" class="external-link"><code>vignettes/sommer.glmm.Rmd</code></a></small>
       <div class="d-none name"><code>sommer.glmm.Rmd</code></div>
     </div>
 
-    
-    
+
+
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/covaruber/sommer" class="external-link">sommer</a></span><span class="op">)</span></span></code></pre></div>
 <div class="section level2">
@@ -84,35 +106,348 @@ development team</h4>
 <p><code><a href="../reference/mmes.html">mmes()</a></code> fits generalized linear mixed models (GLMMs) when
 given a non-Gaussian <code><a href="https://rdrr.io/r/stats/family.html" class="external-link">stats::family()</a></code> object. The model has
 conditional mean</p>
-<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo>E</mo><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>y</mi><mi>i</mi></msub><mo>∣</mo><mi>u</mi><mo stretchy="true" form="postfix">)</mo></mrow><mo>=</mo><msub><mi>μ</mi><mi>i</mi></msub><mo>,</mo><mspace width="2.0em"></mspace><msub><mi>η</mi><mi>i</mi></msub><mo>=</mo><mi>g</mi><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>μ</mi><mi>i</mi></msub><mo stretchy="true" form="postfix">)</mo></mrow><mo>=</mo><msub><mi>o</mi><mi>i</mi></msub><mo>+</mo><msubsup><mi>x</mi><mi>i</mi><mi>𝖳</mi></msubsup><mi>β</mi><mo>+</mo><msubsup><mi>z</mi><mi>i</mi><mi>𝖳</mi></msubsup><mi>u</mi><mo>,</mo></mrow><annotation encoding="application/x-tex">
+<p><span class="math display">\[
 \operatorname{E}(y_i \mid u) = \mu_i,
 \qquad
 \eta_i = g(\mu_i) = o_i + x_i^\mathsf{T}\beta + z_i^\mathsf{T}u,
-</annotation></semantics></math></p>
-<p>where
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>g</mi><annotation encoding="application/x-tex">g</annotation></semantics></math>
-is the link function,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>o</mi><mi>i</mi></msub><annotation encoding="application/x-tex">o_i</annotation></semantics></math>
-is an optional offset, and the random effects retain sommer’s usual
-structured Gaussian covariance model,
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>u</mi><mo>∼</mo><mi>N</mi><mrow><mo stretchy="true" form="prefix">(</mo><mn>0</mn><mo>,</mo><mi>G</mi><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">u \sim N(0, G)</annotation></semantics></math>.
-Thus, <code>random</code>, <code>rcov</code>, <code><a href="../reference/vsm.html">vsm()</a></code>,
-relationship precision matrices, and covariance structures are specified
-exactly as for a Gaussian mixed model.</p>
+\]</span></p>
+<p>where <span class="math inline">\(g\)</span> is the link function,
+<span class="math inline">\(o_i\)</span> is an optional offset, and the
+random effects retain sommer’s usual structured Gaussian covariance
+model, <span class="math inline">\(u \sim N(0, G)\)</span>. Thus,
+<code>random</code>, <code>rcov</code>, <code><a href="../reference/vsm.html">vsm()</a></code>, relationship
+precision matrices, and covariance structures are specified exactly as
+for a Gaussian mixed model.</p>
+<p>For the detailed statistical development—including the hierarchical
+model, the Laplace approximation, covariance parameterization,
+uncertainty, prediction targets, and validation strategy—see the
+companion <a href="sommer.glmm.theory.Rmd">GLMM theory vignette</a>.</p>
 <p>The default <code>family = gaussian()</code> with its identity link
 takes the ordinary linear mixed-model path. Supply another family
 explicitly for a GLMM:</p>
 <div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  fixed <span class="op">=</span> <span class="va">outcome</span> <span class="op">~</span> <span class="va">treatment</span>,</span>
+<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span>fixed <span class="op">=</span> <span class="va">outcome</span> <span class="op">~</span> <span class="va">treatment</span>,</span>
 <span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">subject</span>,</span>
 <span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">binomial</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
-<p>The initial implementation accepts one numeric response. Binomial
-responses may be a zero/one numeric vector; grouped-binomial matrix
-responses are not yet supported.</p>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">binomial</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>PQL uses a single numeric response, with grouped-binomial proportions
+carrying their trials through <code><a href="../reference/binm.html">binm()</a></code>. Native Laplace
+additionally accepts two-column binomial successes/failures and the
+mixed-family trials-column interface described below.</p>
+</div>
+<div class="section level2">
+<h2 id="estimation-methods">Estimation methods<a class="anchor" aria-label="anchor" href="#estimation-methods"></a>
+</h2>
+<p>PQL remains the default, and its structured covariance and
+relationship-matrix support are unchanged. An opt-in native Laplace
+method is available for binomial (logit, probit or complementary
+log-log), Poisson-log, zero-inflated Poisson, NB2-log, Gaussian-identity
+and Gamma-log models, including long-format <code><a href="../reference/familym.html">familym()</a></code>:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_laplace</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
+<span>  <span class="va">outcome</span> <span class="op">~</span> <span class="va">treatment</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">subject</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">binomial</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
+<span>    task <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"ml"</span>, glmm <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>method <span class="op">=</span> <span class="st">"laplace"</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_laplace</span><span class="op">)</span></span>
+<span><span class="va">fit_laplace</span><span class="op">$</span><span class="va">covParNative</span></span></code></pre></div>
+<p>The likelihood and conditional random-effect mode are evaluated by
+sommer’s native C++ module. It consumes the fixed/random designs and
+covariance precision structures prepared by sommer, including supported
+<code>CovarianceFactor</code> random covariance shapes and relationship
+precision matrices. Covariance parameters and fixed effects are
+optimized against the Laplace likelihood using <code>nlminb</code>, with
+native first derivatives of the full marginal Laplace objective
+(including mode dependence and the random Hessian determinant).
+<code>task$glmm$maxit</code> controls this outer optimization and
+<code>modeMaxit</code>/<code>modeTol</code> control the inner
+random-effect mode solve. <code>ai_mme_sp2()</code> and
+<code>ai_reml_direct_sp2()</code> retain their Gaussian objective and
+are not called as if they optimized the GLMM likelihood. This creates a
+shared native design/covariance seam without modifying their Gaussian
+score equations.</p>
+<p>Preparation now stops after constructing designs and descriptors,
+retaining the actual response family without fitting a Gaussian working
+model. Reusable native family and precision modules supply stable log
+densities, scores, curvature derivatives and descriptor-native precision
+derivatives. Relationship factorizations are computed once per fitting
+context; covariance states and CHOLMOD symbolic analysis are reused when
+unchanged. Exact first-score traces use bounded dense solve panels
+rather than a full <code>H_uu^-1</code> or <code>Z H_uu^-1 Z'</code>.
+Sparse Kronecker precision blocks are still assembled: this is not a
+fully matrix-free implementation or a total-memory guarantee. Set the
+panel budget with <code>execution$denseMemoryMB</code>; other
+non-default Gaussian resource controls remain unsupported on this route.
+The fitting-local context is not stored in the fitted object.</p>
+<p>The native likelihood supports binary and grouped-binomial responses,
+formula offsets, and random covariance structures accepted by the
+Henderson setup. It requires <code>task$objective = "ml"</code>.
+Structured residual covariance, <code>W</code>, weights formulas,
+<code>vcc</code>, direct formulation, and known-covariance solve mode
+are not yet supported. Native Laplace fitting requires
+<code>output$inverse=0</code>; PEV is calculated only after fitting with
+<code>postPEV(fit, mode = 1L or 2L)</code>. New-data predictions support
+conditional effects for known levels, zero-random-effect means, and a
+restricted response-scale population mean for independent random
+intercepts. Use <code>predict(fit, newdata, se.fit=TRUE)</code> for
+conditional or zero-random-effect standard errors.
+<code>cov.fit=TRUE</code> additionally returns the full prediction
+covariance when it fits within <code>execution$denseMemoryMB</code>.
+These are local observed-information approximations conditional on
+fitted covariance/family parameters. Uncertainty for population-marginal
+means and general population integration are not implemented. No other
+mixed-model package is used as a fitting backend.</p>
+<div class="section level3">
+<h3 id="expanded-response-families-and-mixed-traits">Expanded response families and mixed traits<a class="anchor" aria-label="anchor" href="#expanded-response-families-and-mixed-traits"></a>
+</h3>
+<p>Use <code>binm(successes, trials=trials)</code> or
+<code>cbind(successes, failures)</code> for grouped binomial responses.
+Positive integer trial totals and integer counts are required. The
+marginal likelihood retains combinatorial constants. Fitted values and
+response/working residuals are proportions, and Pearson variance is
+<code>p*(1-p)/trials</code>; trial counts are stored in
+<code>priorWeights</code>. Binomial logit, probit and complementary
+log-log links are supported.</p>
+<p><code>nbinom2(theta=2)</code> is sommer’s native NB2 family
+constructor: <code>Var(Y|u) = mu + mu^2/theta</code>, with a log link.
+Shape is jointly estimated by default. To fix it, use
+<code>task$glmm$familyParameters=list(theta=2, estimate=FALSE)</code>.
+<code>zipoisson(pi=0.1)</code> adds a structural-zero mixture to a
+Poisson count component. It estimates a separate intercept-only logit
+probability by default; fix it with
+<code>task$glmm$familyParameters=list(zeroInflation=0.2, estimate=FALSE)</code>.
+The count linear predictor models the underlying Poisson mean, while
+fitted and response-scale predictions report <code>(1-pi)*mu</code>. A
+fixed-effects zero formula is available with
+<code>zipoisson(zero=~covariates)</code> as described below;
+zero-component random effects remain unsupported. This is not a hurdle
+model or zero-inflated NB2.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_zip</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
+<span>  <span class="va">count</span> <span class="op">~</span> <span class="va">treatment</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">subject</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/zipoisson.html">zipoisson</a></span><span class="op">(</span>pi <span class="op">=</span> <span class="fl">0.1</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>task <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    objective <span class="op">=</span> <span class="st">"ml"</span>,</span>
+<span>    glmm <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>method <span class="op">=</span> <span class="st">"laplace"</span>,</span>
+<span>      familyParameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>zeroInflation <span class="op">=</span> <span class="fl">0.1</span>, estimate <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">fit_zip</span><span class="op">$</span><span class="va">familyParameters</span></span></code></pre></div>
+<p>For a covariate-dependent structural-zero probability, use a separate
+fixed-effects logit formula:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_zip_formula</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
+<span>  <span class="va">count</span> <span class="op">~</span> <span class="va">treatment</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">subject</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/zipoisson.html">zipoisson</a></span><span class="op">(</span>pi<span class="op">=</span><span class="fl">0.1</span>, zero<span class="op">=</span><span class="op">~</span><span class="va">treatment</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>task<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>objective<span class="op">=</span><span class="st">"ml"</span>,</span>
+<span>    glmm<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>method<span class="op">=</span><span class="st">"laplace"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">fit_zip_formula</span><span class="op">$</span><span class="va">zeroCoefficients</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit_zip_formula</span><span class="op">)</span><span class="op">$</span><span class="va">zeroCoefficients</span></span></code></pre></div>
+<p>The zero formula has its own design and optional offset; it does not
+add terms to the count predictor. An intercept starts at
+<code>qlogis(pi)</code> and other zero coefficients at zero. A formula
+without an intercept starts all its coefficients at zero. Such a formula
+requires <code>estimate=TRUE</code>; a fixed scalar probability still
+uses <code>zero=~1</code> and <code>familyParameters</code>. Formula
+coefficients are reported on the logit scale in
+<code>zeroCoefficients</code>, not as a single structural-zero
+probability in <code>familyParameters</code>. All fitted and response
+predictions, simulations, and residuals use the row-specific
+probabilities. Missing zero covariates follow <code>naMethodX</code>,
+only on their declared ZIP trait’s rows in a mixed-family model.
+Prediction preserves training factor coding and transformed terms and
+rejects missing covariates or unseen factor levels.</p>
+<p>The formula extension has a bounded calibration envelope, not a
+universal identifiability guarantee. In development calibration with 300
+datasets per scenario, the three moderate-rate settings (rate 2, 60
+groups, six records per group, zero slopes 0/0.3/0.6) passed all
+registered gates. At rate 0.5 with zero slope 0.6, convergence was
+97.7%, joint SE availability 81.3%, and both zero coefficients failed
+the bias tolerance. Sparse and exact-Poisson stress settings were less
+reliable. Use particular caution with low counts, nearly separated zero
+designs and boundary estimates; do not interpret an available Wald
+interval as proof of regular inference.</p>
+<p>With a nontrivial zero formula, <code>predict(se.fit=TRUE)</code>
+uses post-fit joint outer-parameter curvature, propagating zero
+coefficients and their cross-covariances as well as count/covariance
+parameters. Conditional known-level predictions also propagate mode
+dependence and add the local conditional latent-effect covariance. These
+local delta approximations differ from the parameter-fixed coefficient
+approximation used by the legacy intercept-only prediction path. Neither
+includes future-response sampling noise. Boundary or invalid joint
+curvature makes uncertainty unavailable; sparse-data separation can also
+produce a numerical-boundary error rather than a usable fit.</p>
+<p>In <code><a href="../reference/familym.html">familym()</a></code>, use <code><a href="../reference/zipoisson.html">zipoisson()</a></code> only for a
+trait that needs a zero-inflated Poisson likelihood; put its
+<code>familyParameters</code> settings in that trait’s named nested
+list. Gaussian-identity and Gamma-log families likewise estimate a
+positive dispersion by default; configure them with
+<code>list(dispersion=0.7, estimate=FALSE)</code> or an estimated
+starting value. Gaussian dispersion is residual variance. Gamma
+dispersion satisfies <code>Var(Y|u)=dispersion*mu^2</code>, so Gamma
+shape is its reciprocal. Gaussian integration is exact, but ordinary
+Gaussian fitting remains on its existing engine unless Laplace is
+explicitly selected.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit_mixed</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
+<span>  <span class="va">outcome</span> <span class="op">~</span> <span class="va">trait</span> <span class="op">-</span> <span class="fl">1</span> <span class="op">+</span> <span class="va">trait</span><span class="op">:</span><span class="va">covariate</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/usm.html">usm</a></span><span class="op">(</span><span class="va">trait</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">subject</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">long_data</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="../reference/familym.html">familym</a></span><span class="op">(</span></span>
+<span>    <span class="st">"trait"</span>, binary <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">binomial</a></span><span class="op">(</span><span class="st">"probit"</span><span class="op">)</span>, counts <span class="op">=</span> <span class="fu"><a href="../reference/nbinom2.html">nbinom2</a></span><span class="op">(</span>theta<span class="op">=</span><span class="fl">2</span><span class="op">)</span>,</span>
+<span>    positive <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">Gamma</a></span><span class="op">(</span><span class="st">"log"</span><span class="op">)</span>, continuous <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">gaussian</a></span><span class="op">(</span><span class="op">)</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
+<span>    task <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>objective<span class="op">=</span><span class="st">"ml"</span>, glmm<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>      method<span class="op">=</span><span class="st">"laplace"</span>,</span>
+<span>      familyParameters<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>        counts<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>theta<span class="op">=</span><span class="fl">2</span>, estimate<span class="op">=</span><span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>        positive<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>dispersion<span class="op">=</span><span class="fl">0.3</span>, estimate<span class="op">=</span><span class="cn">TRUE</span><span class="op">)</span>,</span>
+<span>        continuous<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>dispersion<span class="op">=</span><span class="fl">1</span>, estimate<span class="op">=</span><span class="cn">FALSE</span><span class="op">)</span></span>
+<span>      <span class="op">)</span></span>
+<span>    <span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">fit_mixed</span><span class="op">$</span><span class="va">familyParameters</span></span>
+<span><span class="va">fit_mixed</span><span class="op">$</span><span class="va">dispersion</span></span></code></pre></div>
+<p>Every retained row has a declared observation family. Random
+covariance can connect traits; observation densities are conditionally
+independent given those random effects. Unlike PQL, this does not
+require a trait-structured residual term or placing a fixed-dispersion
+trait first. Omit <code>rcov</code> or use <code>~units</code>;
+structured residual correlation is still unsupported.</p>
+<p>For grouped-binomial rows among other response types, use
+<code>familym("trait", ..., trials="trial_count")</code>. The response
+contains integer successes on binomial rows and ordinary response values
+on other rows. The trial column holds positive integer totals for
+binomial rows and one for all other rows. Missing trait/trial values
+join the fixed-covariate filtering policy; unknown non-missing traits
+error. Do not additionally declare trials in a response attribute or
+two-column response.</p>
+<p>Native Taylor derivative kernels provide likelihood scores, observed
+curvature and its first/second predictor derivatives, plus log-shape/
+dispersion mixed derivatives. Nuisance scores include both
+conditional-mode and Laplace determinant dependence. The fitted
+<code>familyParameters</code> reports estimated or fixed natural-scale
+values, including the zero-inflation probability;
+<code>summary(fit)$familyParameters</code> adds approximate delta-method
+uncertainty after fitting when joint curvature is valid. Estimated
+parameters count in AIC/BIC. For single-family NB2 fits,
+<code>theta.nb</code> is available on the fitted object; use the summary
+table for its post-fit standard error. The numerical Hessian and
+existing boundary restrictions still apply. These families do not yet
+imply beta-binomial, zero-inflated NB2, hurdle, other links, or
+arbitrary user-defined native likelihood support.</p>
+</div>
+<div class="section level3">
+<h3 id="native-laplace-validation-and-diagnostics">Native Laplace validation and diagnostics<a class="anchor" aria-label="anchor" href="#native-laplace-validation-and-diagnostics"></a>
+</h3>
+<p>Use <code>task$glmm$maxit</code>, <code>modeMaxit</code> and
+<code>modeTol</code> to control this route. Non-default Gaussian solver,
+convergence, proposal, update, output and resource controls are
+rejected, not treated as Laplace controls. The derivative panel memory
+budget, BLAS thread selection and ordinary verbose/date-warning settings
+remain accepted. Covariance coordinates use their descriptor transforms
+and positive-definiteness checks, not a common statistical bound of
+<code>[-25, 25]</code>. Exponential coordinates outside a
+machine-derived numerical range are rejected before evaluation.</p>
+<p><code>fit$laplaceDiagnostics</code> separates
+<code>outerConverged</code>, <code>modeConverged</code>,
+<code>curvatureValid</code>, <code>uncertaintyValid</code>,
+<code>boundary</code>, <code>boundaryParameters</code>, and
+<code>rejectedEvaluations</code>. Rejected proposals retain reasons; a
+mode iteration limit at the starting or final parameters is an error.
+Covariance callback errors propagate instead of being converted into an
+apparently valid fit. Distinct outer proposals start from the same zero
+random-effect vector. Only identical parameters and mode controls reuse
+a converged mode, so scores and numerical Hessians do not depend on the
+order of earlier proposals. <code>gradient</code> records the marginal
+log-likelihood score at the reported parameters. <code>nativeWork</code>
+records objective calls, mode solves, symbolic analyses, relationship
+factorizations and descriptor updates/reuses through the final optimizer
+score evaluation. Uncertainty Hessians are not calculated during
+fitting.</p>
+<p>A successful optimizer return is not evidence that standard errors
+are valid. <code>vcov(fit)</code> and <code>summary(fit)</code>
+calculate uncertainty after fitting, only for a converged, interior fit
+with a positive-definite, numerically nonsingular joint parameter
+Hessian, which is evaluated numerically on demand. Otherwise sommer
+warns and reports <code>NA</code>, rather than clamping negative
+inverse-Hessian diagonal entries to zero. Covariance-parameter standard
+errors are transformed to the natural scale by the delta method and
+appear in <code>summary(fit)$varcomp</code> only when the same
+uncertainty gate is valid. Fixed covariance parameters have no estimated
+standard error. These local curvature approximations are not calibrated
+confidence intervals. Boundary warnings use covariance eigenvalue ratios
+and descriptor-coordinate screening (positive coordinates relative to
+their starting values); they are numerical diagnostics, not calibrated
+hypothesis tests. Check sensitivity to covariance starts.</p>
+<p>For a valid interior fit, <code>vcov(fit)</code> returns the
+fixed-effect block of the joint numerical-Hessian covariance
+approximation. <code>anova(fit)</code> reports term-wise Wald chi-square
+tests using that covariance. A two-model
+<code>anova(smaller, larger)</code> comparison is allowed only for
+converged, strictly nested fixed-effect models with the same
+observations, response family and trials, offsets, random formula, and
+covariance structure. Comparisons are refused if either fit is flagged
+at a boundary. This does not implement variance-component
+likelihood-ratio tests: their null distributions may be nonstandard and
+require parametric bootstrap or other calibration.
+<code>wald_mmes(fit, ssType="conditional", denDF="none", terms=...)</code>
+selects conditional asymptotic term tests; small-sample denominator-df
+approximations are not available for the native Laplace likelihood.</p>
+<p><code>residuals(fit, type="quantile")</code> computes randomized
+probability-integral- transform residuals for discrete responses and
+ordinary fitted-CDF residuals for Gaussian/Gamma responses.
+<code>simulate(fit, nsim=...)</code> generates conditional response
+replicates while holding fitted latent modes fixed.
+<code>simulate(fit, re.form="population")</code> draws new Gaussian
+random effects from the fitted covariance model using sparse
+relationship-precision factors before sampling each response. The
+estimated workspace is guarded by <code>maxMemoryMB</code>, which
+defaults to <code>execution$denseMemoryMB</code>, and the returned
+simulation matrix is included in that budget. Simulations do not include
+parameter-estimation uncertainty. These checks do not establish
+population- level predictive calibration or by themselves test residual
+dependence.</p>
+<p>The fit stores <code>obsInfo</code> so retained rows can be traced to
+the original data. Training factor levels, contrast coding and
+transformed terms are retained for new-data predictions. The default
+<code>re.form=NULL</code> includes fitted conditional random-effect
+modes when predicting for known levels. Conditional predictions for
+unseen levels fail with the variable and level named; use
+<code>re.form=NA</code> to set their random effects to zero. On a
+nonlinear link this zero-random-effect response mean is
+<strong>not</strong> the population mean integrated over random effects.
+<code>re.form="population", type="response"</code> integrates over the
+latent normal effects using Gauss-Hermite quadrature for independent
+random-intercept terms with identity relationship precision. Other
+covariance structures fail explicitly rather than silently treating zero
+effects as a marginal mean. For conditional known-level or
+zero-random-effect predictions, <code>se.fit=TRUE</code> returns
+standard errors and <code>cov.fit=TRUE</code> additionally returns the
+full covariance, subject to the configured dense-workspace budget.
+Response-scale standard errors use the delta method. They condition on
+fitted covariance and family parameters; population-marginal prediction
+uncertainty is propagated through fixed-effect and covariance-parameter
+curvature for the restricted independent-random-intercept case. General
+population integration remains unsupported. Aggregation and PEV-based
+prediction uncertainty flags are rejected; explicit
+<code>PEV=FALSE</code> and <code>VarU=FALSE</code> are accepted. Working
+residuals are <code>(y - mu) / family$mu.eta(eta)</code>, not the
+working response.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="how-the-fit-works">How the fit works<a class="anchor" aria-label="anchor" href="#how-the-fit-works"></a>
@@ -121,31 +456,28 @@ responses are not yet supported.</p>
 <h3 id="pql-and-irls">PQL and IRLS<a class="anchor" aria-label="anchor" href="#pql-and-irls"></a>
 </h3>
 <p>Sommer uses penalized quasi-likelihood (PQL). At outer iteration
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>t</mi><annotation encoding="application/x-tex">t</annotation></semantics></math>,
-it linearizes the GLMM at the current link-scale predictor
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>η</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msup><annotation encoding="application/x-tex">\eta^{(t)}</annotation></semantics></math>.
-With</p>
-<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>μ</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msup><mo>=</mo><msup><mi>g</mi><mrow><mi>−</mi><mn>1</mn></mrow></msup><mrow><mo stretchy="true" form="prefix">(</mo><msup><mi>η</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msup><mo stretchy="true" form="postfix">)</mo></mrow><mo>,</mo><mspace width="2.0em"></mspace><msubsup><mi>h</mi><mi>i</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msubsup><mo>=</mo><mfrac><mrow><mi>d</mi><msub><mi>μ</mi><mi>i</mi></msub></mrow><mrow><mi>d</mi><msub><mi>η</mi><mi>i</mi></msub></mrow></mfrac><mo>,</mo><mspace width="2.0em"></mspace><msubsup><mi>V</mi><mi>i</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msubsup><mo>=</mo><mo>Var</mo><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>y</mi><mi>i</mi></msub><mo>∣</mo><mi>u</mi><mo stretchy="true" form="postfix">)</mo></mrow><mo>,</mo></mrow><annotation encoding="application/x-tex">
+<span class="math inline">\(t\)</span>, it linearizes the GLMM at the
+current link-scale predictor <span class="math inline">\(\eta^{(t)}\)</span>. With</p>
+<p><span class="math display">\[
 \mu^{(t)} = g^{-1}(\eta^{(t)}),
 \qquad
 h_i^{(t)} = \frac{d\mu_i}{d\eta_i},
 \qquad
 V_i^{(t)} = \operatorname{Var}(y_i \mid u),
-</annotation></semantics></math></p>
+\]</span></p>
 <p>the working response and diagonal IRLS precision are</p>
-<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msubsup><mi>z</mi><mi>i</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msubsup><mo>=</mo><msubsup><mi>η</mi><mi>i</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msubsup><mo>+</mo><mfrac><mrow><msub><mi>y</mi><mi>i</mi></msub><mo>−</mo><msubsup><mi>μ</mi><mi>i</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msubsup></mrow><msubsup><mi>h</mi><mi>i</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msubsup></mfrac><mo>−</mo><msub><mi>o</mi><mi>i</mi></msub><mo>,</mo><mspace width="2.0em"></mspace><msubsup><mi>D</mi><mrow><mi>i</mi><mi>i</mi></mrow><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msubsup><mo>=</mo><mfrac><msup><mrow><mo stretchy="true" form="prefix">(</mo><msubsup><mi>h</mi><mi>i</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msubsup><mo stretchy="true" form="postfix">)</mo></mrow><mn>2</mn></msup><msubsup><mi>V</mi><mi>i</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msubsup></mfrac><mi>.</mi></mrow><annotation encoding="application/x-tex">
+<p><span class="math display">\[
 z_i^{(t)} = \eta_i^{(t)} +
 \frac{y_i - \mu_i^{(t)}}{h_i^{(t)}} - o_i,
 \qquad
 D_{ii}^{(t)} = \frac{\left(h_i^{(t)}\right)^2}{V_i^{(t)}}.
-</annotation></semantics></math></p>
+\]</span></p>
 <p>Sommer then calls its existing weighted Gaussian Henderson/AI-REML
-solver on
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>z</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msup><annotation encoding="application/x-tex">z^{(t)}</annotation></semantics></math>.
-This updates fixed effects, BLUPs, and covariance parameters; the new
-predictor is
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>η</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo>+</mo><mn>1</mn><mo stretchy="true" form="postfix">)</mo></mrow></msup><mo>=</mo><mi>o</mi><mo>+</mo><mi>X</mi><mover><mi>β</mi><mo accent="true">̂</mo></mover><mo>+</mo><mi>Z</mi><mover><mi>u</mi><mo accent="true">̂</mo></mover></mrow><annotation encoding="application/x-tex">\eta^{(t+1)} = o + X\hat\beta + Z\hat u</annotation></semantics></math>.
-The outer loop stops when the deviance change is sufficiently small.</p>
+solver on <span class="math inline">\(z^{(t)}\)</span>. This updates
+fixed effects, BLUPs, and covariance parameters; the new predictor is
+<span class="math inline">\(\eta^{(t+1)} = o + X\hat\beta + Z\hat
+u\)</span>. The outer loop stops when the deviance change is
+sufficiently small.</p>
 <p>This approach deliberately reuses <code>ai_mme_sp2()</code> as the
 weighted Gaussian inner optimizer. It does not maximize an exact
 marginal GLMM likelihood. PQL is practical for structured and large
@@ -162,14 +494,13 @@ residual dispersion is fixed to one. For other families, sommer
 estimates the Gaussian working-scale residual covariance using the
 supplied <code>rcov</code> structure. All existing random-effect
 structures remain available. For example:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  <span class="va">y</span> <span class="op">~</span> <span class="va">environment</span>,</span>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">environment</span>,</span>
 <span>  random <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/usm.html">usm</a></span><span class="op">(</span><span class="va">environment</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">genotype</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">poisson</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">poisson</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="offsets-and-precision-weights">Offsets and precision weights<a class="anchor" aria-label="anchor" href="#offsets-and-precision-weights"></a>
@@ -177,27 +508,25 @@ structures remain available. For example:</p>
 <p>Use <code><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset()</a></code> in the fixed formula as in
 <code><a href="https://rdrr.io/r/stats/glm.html" class="external-link">glm()</a></code>. A common Poisson rate model uses the logarithm of an
 exposure:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  <span class="va">events</span> <span class="op">~</span> <span class="va">treatment</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">exposure</span><span class="op">)</span><span class="op">)</span>,</span>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">events</span> <span class="op">~</span> <span class="va">treatment</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">exposure</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">site</span>,</span>
 <span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">poisson</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">poisson</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p><code>W</code> is an optional symmetric positive-definite observation
-precision matrix. It may be sparse and non-diagonal. If
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>W</mi><mo>=</mo><msup><mi>U</mi><mi>𝖳</mi></msup><mi>U</mi></mrow><annotation encoding="application/x-tex">W = U^\mathsf{T}U</annotation></semantics></math>,
-sommer combines it at each PQL iteration with IRLS precision as</p>
-<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msubsup><mi>W</mi><mo>*</mo><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msubsup><mo>=</mo><msup><mi>U</mi><mi>𝖳</mi></msup><msup><mi>D</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>t</mi><mo stretchy="true" form="postfix">)</mo></mrow></msup><mi>U</mi><mi>.</mi></mrow><annotation encoding="application/x-tex">
+precision matrix. It may be sparse and non-diagonal. If <span class="math inline">\(W = U^\mathsf{T}U\)</span>, sommer combines it at
+each PQL iteration with IRLS precision as</p>
+<p><span class="math display">\[
 W_*^{(t)} = U^\mathsf{T}D^{(t)}U.
-</annotation></semantics></math></p>
+\]</span></p>
 <p>This preserves both the user-supplied correlation/precision structure
 and the family-dependent working precision. The sparse Cholesky factor
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>U</mi><annotation encoding="application/x-tex">U</annotation></semantics></math>
-is reused across outer iterations. Missing observations are filtered
-before this factorization, so <code>W</code> may be supplied either for
-all original rows or for the retained rows.</p>
+<span class="math inline">\(U\)</span> is reused across outer
+iterations. Missing observations are filtered before this factorization,
+so <code>W</code> may be supplied either for all original rows or for
+the retained rows.</p>
 </div>
 </div>
 <div class="section level2">
@@ -207,7 +536,7 @@ all original rows or for the retained rows.</p>
 following examples use a random intercept to show the shared GLMM
 syntax. They are illustrative and therefore not run while building this
 vignette.</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">2026</span><span class="op">)</span></span>
 <span><span class="va">n_group</span> <span class="op">&lt;-</span> <span class="fl">30</span></span>
 <span><span class="va">n_per_group</span> <span class="op">&lt;-</span> <span class="fl">8</span></span>
@@ -221,7 +550,7 @@ vignette.</p>
 </h3>
 <p>The Gaussian identity model is the ordinary <code><a href="../reference/mmes.html">mmes()</a></code>
 linear mixed model.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dat</span><span class="op">$</span><span class="va">y_gaussian</span> <span class="op">&lt;-</span> <span class="fl">2</span> <span class="op">+</span> <span class="fl">0.7</span> <span class="op">*</span> <span class="va">dat</span><span class="op">$</span><span class="va">x</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">dat</span><span class="op">)</span>, sd <span class="op">=</span> <span class="fl">1</span><span class="op">)</span></span>
 <span><span class="va">fit_gaussian</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
 <span>  <span class="va">y_gaussian</span> <span class="op">~</span> <span class="va">x</span>, random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
@@ -234,37 +563,42 @@ for the response.</p>
 <div class="section level3">
 <h3 id="binomial">Binomial<a class="anchor" aria-label="anchor" href="#binomial"></a>
 </h3>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">probability</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Logistic.html" class="external-link">plogis</a></span><span class="op">(</span><span class="op">-</span><span class="fl">0.7</span> <span class="op">+</span> <span class="fl">1.1</span> <span class="op">*</span> <span class="va">dat</span><span class="op">$</span><span class="va">x</span><span class="op">)</span></span>
 <span><span class="va">dat</span><span class="op">$</span><span class="va">y_binomial</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Binomial.html" class="external-link">rbinom</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">dat</span><span class="op">)</span>, size <span class="op">=</span> <span class="fl">1</span>, prob <span class="op">=</span> <span class="va">probability</span><span class="op">)</span></span>
-<span><span class="va">fit_binomial</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  <span class="va">y_binomial</span> <span class="op">~</span> <span class="va">x</span>, random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">binomial</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">fit_binomial</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y_binomial</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>,</span>
+<span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">binomial</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="poisson">Poisson<a class="anchor" aria-label="anchor" href="#poisson"></a>
 </h3>
-<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">rate</span> <span class="op">&lt;-</span> <span class="va">dat</span><span class="op">$</span><span class="va">exposure</span> <span class="op">*</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="fl">0.2</span> <span class="op">+</span> <span class="fl">0.4</span> <span class="op">*</span> <span class="va">dat</span><span class="op">$</span><span class="va">x</span><span class="op">)</span></span>
 <span><span class="va">dat</span><span class="op">$</span><span class="va">y_poisson</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/Poisson.html" class="external-link">rpois</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">dat</span><span class="op">)</span>, lambda <span class="op">=</span> <span class="va">rate</span><span class="op">)</span></span>
-<span><span class="va">fit_poisson</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  <span class="va">y_poisson</span> <span class="op">~</span> <span class="va">x</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">exposure</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">poisson</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">fit_poisson</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y_poisson</span> <span class="op">~</span> <span class="va">x</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">exposure</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>,</span>
+<span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">poisson</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="gamma">Gamma<a class="anchor" aria-label="anchor" href="#gamma"></a>
 </h3>
 <p>The Gamma family requires a strictly positive response.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">mean_gamma</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="fl">0.3</span> <span class="op">+</span> <span class="fl">0.25</span> <span class="op">*</span> <span class="va">dat</span><span class="op">$</span><span class="va">x</span><span class="op">)</span></span>
 <span><span class="va">dat</span><span class="op">$</span><span class="va">y_gamma</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/GammaDist.html" class="external-link">rgamma</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">dat</span><span class="op">)</span>, shape <span class="op">=</span> <span class="fl">4</span>, scale <span class="op">=</span> <span class="va">mean_gamma</span> <span class="op">/</span> <span class="fl">4</span><span class="op">)</span></span>
-<span><span class="va">fit_gamma</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  <span class="va">y_gamma</span> <span class="op">~</span> <span class="va">x</span>, random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">Gamma</a></span><span class="op">(</span>link <span class="op">=</span> <span class="st">"log"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">fit_gamma</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y_gamma</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>,</span>
+<span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">Gamma</a></span><span class="op">(</span>link <span class="op">=</span> <span class="st">"log"</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="inverse-gaussian">Inverse Gaussian<a class="anchor" aria-label="anchor" href="#inverse-gaussian"></a>
@@ -272,12 +606,14 @@ for the response.</p>
 <p>The inverse-Gaussian family also requires a strictly positive
 response. The response below is positive synthetic data for
 demonstrating the interface.</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dat</span><span class="op">$</span><span class="va">y_inverse_gaussian</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">exp</a></span><span class="op">(</span><span class="fl">0.2</span> <span class="op">+</span> <span class="fl">0.3</span> <span class="op">*</span> <span class="va">dat</span><span class="op">$</span><span class="va">x</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">dat</span><span class="op">)</span>, sd <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">fit_inverse_gaussian</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  <span class="va">y_inverse_gaussian</span> <span class="op">~</span> <span class="va">x</span>, random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">inverse.gaussian</a></span><span class="op">(</span>link <span class="op">=</span> <span class="st">"log"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">fit_inverse_gaussian</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y_inverse_gaussian</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>,</span>
+<span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">inverse.gaussian</a></span><span class="op">(</span>link <span class="op">=</span> <span class="st">"log"</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level3">
 <h3 id="quasi-families">Quasi families<a class="anchor" aria-label="anchor" href="#quasi-families"></a>
@@ -287,34 +623,37 @@ their corresponding GLM families, but do not define a likelihood.
 Consequently, devience is useful for PQL convergence, while
 likelihood-based comparisons such as AIC or likelihood-ratio tests are
 not appropriate.</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dat</span><span class="op">$</span><span class="va">y_quasi</span> <span class="op">&lt;-</span> <span class="fl">1</span> <span class="op">+</span> <span class="fl">0.5</span> <span class="op">*</span> <span class="va">dat</span><span class="op">$</span><span class="va">x</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/Normal.html" class="external-link">rnorm</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">dat</span><span class="op">)</span>, sd <span class="op">=</span> <span class="fl">0.5</span><span class="op">)</span></span>
-<span><span class="va">fit_quasi</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  <span class="va">y_quasi</span> <span class="op">~</span> <span class="va">x</span>, random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">quasi</a></span><span class="op">(</span>link <span class="op">=</span> <span class="st">"identity"</span>, variance <span class="op">=</span> <span class="st">"constant"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
+<span><span class="va">fit_quasi</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y_quasi</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>,</span>
+<span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">quasi</a></span><span class="op">(</span>link <span class="op">=</span> <span class="st">"identity"</span>, variance <span class="op">=</span> <span class="st">"constant"</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">fit_quasibinomial</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  <span class="va">y_binomial</span> <span class="op">~</span> <span class="va">x</span>, random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">quasibinomial</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span>
+<span><span class="va">fit_quasibinomial</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y_binomial</span> <span class="op">~</span> <span class="va">x</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>,</span>
+<span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">quasibinomial</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
-<span><span class="va">fit_quasipoisson</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  <span class="va">y_poisson</span> <span class="op">~</span> <span class="va">x</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">exposure</span><span class="op">)</span><span class="op">)</span>,</span>
-<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">quasipoisson</a></span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="va">fit_quasipoisson</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y_poisson</span> <span class="op">~</span> <span class="va">x</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">exposure</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>,</span>
+<span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">quasipoisson</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 </div>
 <div class="section level2">
 <h2 id="extracting-results-and-controlling-pql">Extracting results and controlling PQL<a class="anchor" aria-label="anchor" href="#extracting-results-and-controlling-pql"></a>
 </h2>
 <p>For a GLMM, <code><a href="https://rdrr.io/r/stats/fitted.values.html" class="external-link">fitted()</a></code> returns conditional fitted means on
-the response scale. Use <code>type = "link"</code> for
-<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>η</mi><annotation encoding="application/x-tex">\eta</annotation></semantics></math>,
-including any offset. Residuals can be requested on response,
-signed-deviance, or final working scales.</p>
-<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+the response scale. Use <code>type = "link"</code> for <span class="math inline">\(\eta\)</span>, including any offset. Residuals can
+be requested on response, signed-deviance, or final working scales.</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/stats/fitted.values.html" class="external-link">fitted</a></span><span class="op">(</span><span class="va">fit_poisson</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/fitted.values.html" class="external-link">fitted</a></span><span class="op">(</span><span class="va">fit_poisson</span>, type <span class="op">=</span> <span class="st">"link"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/stats/residuals.html" class="external-link">residuals</a></span><span class="op">(</span><span class="va">fit_poisson</span>, type <span class="op">=</span> <span class="st">"deviance"</span><span class="op">)</span></span>
@@ -323,22 +662,25 @@ signed-deviance, or final working scales.</p>
 <span><span class="va">fit_poisson</span><span class="op">$</span><span class="va">pqlMonitor</span></span>
 <span><span class="va">fit_poisson</span><span class="op">$</span><span class="va">pqlConverged</span></span>
 <span><span class="va">fit_poisson</span><span class="op">$</span><span class="va">family</span></span></code></pre></div>
-<p>Use <code>pqlControl</code> to set the outer PQL maximum iterations
-and relative devience tolerance. The usual <code>nIters</code>,
-<code>tolParConvLL</code>, <code>stepWeight</code>,
-<code>emWeight</code>, and solver arguments continue to control the
-Gaussian variance-component fit inside each outer iteration.</p>
-<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  <span class="va">y_poisson</span> <span class="op">~</span> <span class="va">x</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">exposure</span><span class="op">)</span><span class="op">)</span>,</span>
+<p>Use <code>task$pql</code> to set outer PQL iterations and relative
+deviance tolerance. Set <code>update$blendWeight = 0</code> to retain
+pure-AI covariance updates in PQL; positive EM-direction blending is not
+supported. <code>convergence$maxIters</code>,
+<code>convergence$likelihoodTol</code>,
+<code>proposal$stepWeight</code>, and <code>solve$method</code> control
+the Gaussian variance-component fit inside each outer iteration.</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y_poisson</span> <span class="op">~</span> <span class="va">x</span> <span class="op">+</span> <span class="fu"><a href="https://rdrr.io/r/stats/offset.html" class="external-link">offset</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/Log.html" class="external-link">log</a></span><span class="op">(</span><span class="va">exposure</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>,</span>
 <span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="va">units</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
 <span>  family <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">poisson</a></span><span class="op">(</span><span class="op">)</span>,</span>
-<span>  pqlControl <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>maxit <span class="op">=</span> <span class="fl">30</span>, tol <span class="op">=</span> <span class="fl">1e-6</span><span class="op">)</span>,</span>
-<span>  nIters <span class="op">=</span> <span class="fl">20</span>,</span>
-<span>  solver <span class="op">=</span> <span class="st">"auto"</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
+<span>    update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>blendWeight <span class="op">=</span> <span class="fl">0</span><span class="op">)</span>,</span>
+<span>    task <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>pql <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>maxit <span class="op">=</span> <span class="fl">30</span>, tol <span class="op">=</span> <span class="fl">1e-6</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>    convergence <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>maxIters <span class="op">=</span> <span class="fl">20</span><span class="op">)</span>,</span>
+<span>    solve <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>method <span class="op">=</span> <span class="st">"auto"</span><span class="op">)</span></span>
+<span>  <span class="op">)</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
 <h2 id="practical-guidance">Practical guidance<a class="anchor" aria-label="anchor" href="#practical-guidance"></a>
@@ -347,9 +689,10 @@ Gaussian variance-component fit inside each outer iteration.</p>
 <li>Begin with a simple random-intercept GLMM and inspect
 <code>pqlMonitor</code> before adding complex covariance
 structures.</li>
-<li>Check <code>pqlConverged</code>; reaching
-<code>pqlControl$maxit</code> indicates that the outer PQL criterion was
-not met.</li>
+<li>Check <code>pqlConverged</code>; <code>FALSE</code> means the outer
+PQL criterion was not met within <code>task$pql$maxit</code> iterations.
+Convergence on the last allowed iteration is still reported as
+converged.</li>
 <li>Keep binomial responses away from complete separation where
 possible; very small derivatives can create unstable IRLS weights.</li>
 <li>For binary outcomes with few observations per random-effect level or
@@ -360,18 +703,20 @@ feasible.</li>
 fitted values when interpreting additive fixed and random effects.</li>
 </ul>
 </div>
-  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
+  </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>
     </nav></aside>
 </div>
 
 
 
     <footer><div class="pkgdown-footer-left">
-  <p>Developed by Giovanny Covarrubias-Pazaran.</p>
+  <p></p>
+<p>Developed by Giovanny Covarrubias-Pazaran.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p></p>
+<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.7.</p>
 </div>
 
     </footer>

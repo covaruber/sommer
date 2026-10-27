@@ -3,7 +3,8 @@ test_that("capability ownership covers every modular leaf and model formal", {
   leafPaths <- function(value, prefix){
     unlist(lapply(names(value), function(name){
       path <- paste0(prefix, ".", name)
-      if(is.list(value[[name]]) && name == "pql") leafPaths(value[[name]], path) else path
+      if(is.list(value[[name]]) && length(value[[name]]))
+        leafPaths(value[[name]], path) else path
     }), use.names=FALSE)
   }
   control <- mmes_control()

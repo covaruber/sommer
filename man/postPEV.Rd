@@ -13,19 +13,19 @@ postPEV(object, mode = 1L)
 
 \arguments{
   \item{object}{
-A fitted model object of class \code{"mmes"}. The object must contain the final sparse mixed model coefficient matrix and its associated scaling factor.
+A fitted model object of class \code{"mmes"}. Gaussian fits must contain the final sparse mixed model coefficient matrix and its associated scaling factor. Native Laplace fits use the retained fixed/random designs and native conditional mode Hessian instead.
 }
   \item{mode}{
-Integer specifying the post-fit inverse calculation to perform. Use \code{0} to perform no inverse calculation and clear previously computed inverse-derived outputs, \code{1} to compute the prediction error variances using the Takahashi sparse inverse subset approach without forming the complete inverse, or \code{2} to compute the complete inverse of the coefficient matrix and the prediction error variances. The default is \code{1}.
+Integer specifying the post-fit inverse calculation to perform. Use \code{0} to perform no inverse calculation and clear previously computed inverse-derived outputs, \code{1} to compute the prediction error variances without forming the complete inverse, or \code{2} to compute the complete inverse and prediction error variances. The default is \code{1}. Gaussian mode 1 uses a Takahashi sparse inverse subset; native Laplace mode 1 uses bounded sparse solve panels.
 }
 }
 
 \details{
-The function is intended for post-processing models fitted with \code{mmes}, allowing prediction error variances or the complete inverse of the mixed model coefficient matrix to be calculated only when they are needed.
+The function is intended for post-processing models fitted with \code{mmes}, allowing prediction error variances or the complete inverse to be calculated only when they are needed.
 
-When \code{mode = 1}, the sparse mixed model coefficient matrix stored in the fitted object is factorized and the Takahashi equations are used to obtain the selected elements of its inverse required for the diagonal prediction error variances. The complete inverse is not formed.
+For Gaussian fits, when \code{mode = 1}, the sparse mixed model coefficient matrix stored in the fitted object is factorized and the Takahashi equations obtain the selected elements of its inverse required for diagonal prediction error variances. For native Laplace fits, the joint fixed/random observed-information matrix is reconstructed from the fitted design and conditional mode Hessian, then its needed inverse diagonal is obtained with bounded sparse solve panels. The complete inverse is not formed.
 
-When \code{mode = 2}, the complete inverse of the mixed model coefficient matrix is computed. The prediction error variances are then obtained from the corresponding diagonal elements of this inverse.
+When \code{mode = 2}, the complete inverse is computed. For Laplace fits this is the joint fixed/random conditional observed-information inverse, with fitted covariance and family parameters treated as fixed. Its random-effect block supplies approximate PEVs; covariance-parameter uncertainty is not included. The calculation is guarded by \code{execution$denseMemoryMB}.
 
 When \code{mode = 0}, no matrix factorization or inverse calculation is performed and previously stored inverse-derived results are cleared.
 
@@ -37,11 +37,11 @@ PEV and BLUP sampling variance are different quantities. Neither includes
 uncertainty from estimating covariance parameters. \code{postVarU()} leaves
 existing PEV outputs unchanged.
 
-For this post-fit calculation to be available, fit the \code{mmes} model with
-\code{control = mmes_control(output = list(coefficientMatrix = TRUE))} so the
-final coefficient matrix is retained. Models can use
-\code{control$output$inverse = 0} during fitting, then calculate PEVs or the
-complete inverse afterwards only if required.
+For Gaussian fits, the final coefficient matrix must be retained with
+\code{control = mmes_control(output = list(coefficientMatrix = TRUE))}. Native
+Laplace fits retain their required designs and conditional Hessian; no
+coefficient matrix option is required. For either engine,
+\code{control$output$inverse = 0} defers PEV work until this function is called.
 }
 \value{
 

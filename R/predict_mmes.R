@@ -329,6 +329,304 @@
                            pairwise=FALSE, adjust="none", df=Inf,
                            PEV=TRUE, VarU=TRUE, observed=FALSE,
                            maxMemoryMB=NULL, ...){
+  if(inherits(object, "mmes.glmm.laplace")){
+    if(!missing(Dtable) || !missing(D) || !missing(levels) ||
+       !missing(sed) || !missing(pairwise) || !missing(adjust) ||
+       !missing(df) || !missing(observed) || !missing(maxMemoryMB) ||
+       (!missing(PEV) && !identical(PEV, FALSE)) ||
+       (!missing(VarU) && !identical(VarU, FALSE))){
+      stop("Native Laplace predict() supports newdata, type, re.form, se.fit, cov.fit, PEV=FALSE and VarU=FALSE; aggregation and prediction uncertainty flags based on fitted PEV output are not implemented.",
+        call.=FALSE)
+    }
+    predictionArgs <- list(...)
+    if(length(predictionArgs) && (is.null(names(predictionArgs)) ||
+       anyNA(names(predictionArgs)) || any(!nzchar(names(predictionArgs))) ||
+       anyDuplicated(names(predictionArgs)) ||
+       any(!names(predictionArgs) %in%
+         c("newdata", "type", "re.form", "se.fit", "cov.fit")))){
+      stop("Unsupported native Laplace prediction argument; use newdata, type, re.form, se.fit or cov.fit.",
+        call.=FALSE)
+    }
+    seFit <- if(is.null(predictionArgs$se.fit)) FALSE else
+      predictionArgs$se.fit
+    covFit <- if(is.null(predictionArgs$cov.fit)) FALSE else
+      predictionArgs$cov.fit
+    if(!is.logical(seFit) || length(seFit) != 1L || is.na(seFit) ||
+       !is.logical(covFit) || length(covFit) != 1L || is.na(covFit)){
+      stop("se.fit and cov.fit must each be a single TRUE/FALSE value.",
+        call.=FALSE)
+    }
+    if(covFit && !seFit){
+      stop("cov.fit=TRUE requires se.fit=TRUE.", call.=FALSE)
+    }
+    randomForm <- predictionArgs$re.form
+    populationMarginal <- identical(randomForm, "population")
+    if(!is.null(randomForm) && !identical(randomForm, NA) &&
+       !populationMarginal){
+      stop("Native Laplace re.form must be NULL (conditional), NA (zero random effects), or 'population'.",
+        call.=FALSE)
+    }
+    newdata <- predictionArgs$newdata
+    responseScale <- if(is.null(predictionArgs$type)) "link" else
+      match.arg(predictionArgs$type, c("link", "response"))
+    if(populationMarginal && responseScale != "response"){
+      stop("re.form='population' defines a response-scale marginal mean; type must be 'response'.",
+        call.=FALSE)
+    }
+    includeRandom <- is.null(randomForm)
+    needRandomDesign <- includeRandom || populationMarginal
+    populationVariance <- NULL
+    fixedPredictionDesign <- NULL
+    randomPredictionDesign <- NULL
+    populationPredictionDesign <- NULL
+    populationRelationships <- object$randomRelationships
+    populationWidths <- object$randomBlockWidths
+    predictionOffset <- NULL
+    if(is.null(newdata)){
+      fixedPredictionDesign <- object$fixedDesign
+      predictionOffset <- object$offset
+      linearPredictor <- object$offset +
+        as.numeric(object$fixedDesign %*% object$b)
+      if(includeRandom){
+        randomPredictionDesign <- object$randomDesign
+        linearPredictor <- linearPredictor +
+          as.numeric(object$randomDesign %*% object$randomMode)
+      }else{
+        randomPredictionDesign <- Matrix::Matrix(0,
+          nrow=nrow(object$fixedDesign), ncol=ncol(object$randomDesign),
+          sparse=TRUE)
+      }
+      if(populationMarginal){
+        populationPredictionDesign <- object$randomDesign
+        populationVariance <- .laplace_population_variance(
+          object$randomDesign, object$covStruct, object$randomRelationships,
+          object$randomBlockWidths)
+      }
+    }else{
+      fixedTerms <- object$fixedTerms
+      predictionFrame <- stats::model.frame(fixedTerms, data=newdata,
+        na.action=stats::na.pass, xlev=object$fixedXlevels)
+      fixedDesign <- stats::model.matrix(fixedTerms, data=predictionFrame,
+        contrasts.arg=object$contrasts)
+      if(ncol(fixedDesign) != length(object$predictionColumns) ||
+         !setequal(colnames(fixedDesign), object$predictionColumns)){
+        stop("Prediction design differs from the fitted fixed-effects design.",
+          call.=FALSE)
+      }
+      fixedDesign <- fixedDesign[, object$predictionColumns, drop=FALSE]
+      fixedPredictionDesign <- Matrix::Matrix(fixedDesign, sparse=TRUE)
+      offset <- stats::model.offset(predictionFrame)
+      if(is.null(offset)) offset <- rep(0, nrow(fixedDesign))
+      predictionOffset <- offset
+      linearPredictor <- as.numeric(fixedDesign %*% object$b) + offset
+      if(needRandomDesign){
+        predictionData <- as.data.frame(newdata)
+        for(variable in names(object$randomFactorLevels)){
+          if(!variable %in% names(predictionData)) next
+          observedLevels <- unique(as.character(predictionData[[variable]]))
+          observedLevels <- observedLevels[!is.na(observedLevels)]
+          knownLevels <- object$randomFactorLevels[[variable]]
+          unseenLevels <- setdiff(observedLevels, knownLevels)
+          if(includeRandom && length(unseenLevels)){
+            stop("Conditional prediction encountered unseen random-effect level(s) for '",
+              variable, "': ", paste(unseenLevels, collapse=", "),
+              ". Use re.form=NA for a zero-random-effect mean or re.form='population' where the covariance structure supports integration.",
+              call.=FALSE)
+          }
+          predictionLevels <- if(populationMarginal)
+            union(knownLevels, observedLevels) else knownLevels
+          predictionData[[variable]] <- factor(predictionData[[variable]],
+            levels=predictionLevels)
+        }
+        predictionCount <- nrow(predictionData)
+        requiredVariables <- intersect(unique(c(all.vars(object$fixedTerms),
+          all.vars(object$randomFormula))), names(predictionData))
+        scaffoldSource <- which(stats::complete.cases(
+          predictionData[, requiredVariables, drop=FALSE]))[1L]
+        if(is.na(scaffoldSource)){
+          stop("Conditional prediction needs at least one complete new-data row to construct the fitted random-effect basis.",
+            call.=FALSE)
+        }
+        scaffoldLevels <- c(object$randomFactorLevels,
+          object$fixedXlevels[setdiff(names(object$fixedXlevels),
+            names(object$randomFactorLevels))])
+        scaffoldRows <- lapply(names(scaffoldLevels), function(variable){
+          if(!variable %in% names(predictionData)) return(NULL)
+          knownLevels <- if(populationMarginal) union(
+            scaffoldLevels[[variable]],
+            unique(as.character(predictionData[[variable]]))) else
+            scaffoldLevels[[variable]]
+          presentLevels <- unique(as.character(predictionData[[variable]]))
+          missingLevels <- setdiff(knownLevels, presentLevels[!is.na(presentLevels)])
+          if(!length(missingLevels)) return(NULL)
+          rows <- predictionData[rep(scaffoldSource, length(missingLevels)),
+            , drop=FALSE]
+          rows[[variable]] <- factor(missingLevels, levels=knownLevels)
+          rows
+        })
+        scaffoldRows <- Filter(Negate(is.null), scaffoldRows)
+        if(length(scaffoldRows)){
+          scaffoldData <- do.call(rbind, scaffoldRows)
+          if(inherits(object$family, "sommer_familym") &&
+             !is.null(object$family$trials)){
+            scaffoldData[[object$family$trials]] <- 1
+          }
+          predictionData <- rbind(predictionData, scaffoldData)
+        }
+        responseName <- ".sommer_prediction_response"
+        while(responseName %in% names(predictionData)){
+          responseName <- paste0(responseName, "_")
+        }
+        predictionFamilyIndex <- if(inherits(object$family, "sommer_familym"))
+          .laplace_family_index(object$family, predictionData,
+            nrow(predictionData)) else rep(1L, nrow(predictionData))
+        if(anyNA(predictionFamilyIndex)){
+          stop("Conditional prediction requires a declared non-missing familym trait.",
+            call.=FALSE)
+        }
+        dummyResponse <- rep(1, nrow(predictionData))
+        for(familyPosition in seq_along(object$laplaceFamilies)){
+          if(object$familySpecifications[[familyPosition]]$family == "binomial"){
+            dummyResponse[predictionFamilyIndex == familyPosition] <- 0
+          }
+        }
+        predictionData[[responseName]] <- dummyResponse
+        if(!"units" %in% names(predictionData)){
+          predictionData$units <- seq_len(nrow(predictionData))
+        }
+        predictionFormula <- object$fixedFormula
+        predictionFormula[[2L]] <- as.name(responseName)
+        predictionSetup <- object$predictionSettings
+        preparationFamily <- predictionSetup$family
+        if(inherits(preparationFamily, "sommer_familym")){
+          preparationFamily$families <- lapply(preparationFamily$families,
+            function(family){ family$zero <- NULL; family })
+        }else preparationFamily$zero <- NULL
+        preparedPrediction <- .mmes_prepare_model(predictionFormula,
+          object$randomFormula, predictionSetup$rcov, predictionData,
+          preparationFamily, predictionSetup$naMethodY,
+          predictionSetup$mmesArgs)
+        if(!all(preparedPrediction$obsInfo$included) ||
+           length(preparedPrediction$Z) != length(object$randomBlockColumns)){
+          stop("Random-effect prediction could not construct a complete design for every new-data row.",
+            call.=FALSE)
+        }
+        predictionBlocks <- lapply(preparedPrediction$Z, function(block)
+          block[seq_len(predictionCount), , drop=FALSE])
+        if(includeRandom){
+          alignedBlocks <- lapply(seq_along(predictionBlocks), function(termIndex){
+            block <- predictionBlocks[[termIndex]]
+            fittedColumns <- object$randomBlockColumns[[termIndex]]
+            newColumns <- colnames(block)
+            if(!is.null(fittedColumns) && !is.null(newColumns)){
+              fittedPositions <- match(newColumns, fittedColumns)
+              if(anyNA(fittedPositions)){
+                stop("Conditional prediction random-effect design for term ",
+                  termIndex, " differs from the fitted levels or covariance basis.",
+                  call.=FALSE)
+              }
+              sparseEntries <- Matrix::summary(
+                as(as(block, "generalMatrix"), "CsparseMatrix"))
+              block <- Matrix::sparseMatrix(
+                i=sparseEntries$i, j=fittedPositions[sparseEntries$j],
+                x=sparseEntries$x, dims=c(nrow(block), length(fittedColumns)),
+                dimnames=list(rownames(block), fittedColumns))
+            }else if(ncol(block) != object$randomDesignBlockWidths[termIndex]){
+              stop("Conditional prediction random-effect design dimensions differ from the fitted model.",
+                call.=FALSE)
+            }
+            block
+          })
+          randomDesign <- Matrix::Matrix(do.call(cbind, alignedBlocks), sparse=TRUE)
+          if(ncol(randomDesign) != length(object$randomMode)){
+            stop("Conditional prediction random-effect design does not match the fitted mode dimension.",
+              call.=FALSE)
+          }
+          randomPredictionDesign <- randomDesign
+          linearPredictor <- linearPredictor +
+            as.numeric(randomDesign %*% object$randomMode)
+        }else if(populationMarginal){
+          populationDesign <- Matrix::Matrix(do.call(cbind, predictionBlocks),
+            sparse=TRUE)
+          populationPredictionDesign <- populationDesign
+          predictionWidths <- vapply(seq_along(object$covStruct),
+            function(termIndex)
+              sum(vapply(predictionBlocks[
+                preparedPrediction$Zind == termIndex], ncol, integer(1))),
+            integer(1))
+          populationRelationships <- preparedPrediction$Ai[seq_along(predictionWidths)]
+          populationWidths <- predictionWidths
+          populationVariance <- .laplace_population_variance(populationDesign,
+            object$covStruct, preparedPrediction$Ai[seq_along(predictionWidths)],
+            predictionWidths)
+        }
+      }
+      if(!includeRandom && !populationMarginal){
+        randomPredictionDesign <- Matrix::Matrix(0,
+          nrow=nrow(fixedPredictionDesign), ncol=ncol(object$randomDesign),
+          sparse=TRUE)
+      }
+    }
+    if(responseScale == "link" && !seFit) return(linearPredictor)
+    families <- if(is.null(object$laplaceFamilies)) list(object$family) else object$laplaceFamilies
+    if(responseScale == "response" || populationMarginal || seFit){
+      familyIndex <- if(inherits(object$family, "sommer_familym")){
+        if(is.null(newdata)) object$laplaceFamilyIndex else
+          .laplace_family_index(object$family, newdata, length(linearPredictor))
+      }else rep(1L, length(linearPredictor))
+      if(anyNA(familyIndex)){
+        stop("Response-scale prediction requires a declared non-missing familym trait.", call.=FALSE)
+      }
+    }else{
+      familyIndex <- rep(1L, length(linearPredictor))
+    }
+    predictionObject <- object
+    predictionObject$familySpecifications <- .laplace_prediction_specs(object, newdata, familyIndex)
+    families <- .laplace_update_families(families,
+      predictionObject$familySpecifications, familyIndex)
+    if(populationMarginal){
+      predicted <- .laplace_population_mean(predictionObject, linearPredictor,
+        familyIndex, populationVariance)
+    }else if(responseScale == "link"){
+      predicted <- linearPredictor
+    }else{
+      predicted <- .pql_apply(families, familyIndex, "linkinv",
+        linearPredictor)
+    }
+    if(!seFit) return(predicted)
+    hasZeroFormula <- any(vapply(object$familySpecifications,
+      function(specification) !is.null(specification$zeroDesign), logical(1)))
+    if(hasZeroFormula){
+      uncertainty <- .mmes_laplace_zero_prediction_uncertainty(object,
+        fixedPredictionDesign, predictionOffset,
+        if(populationMarginal) populationPredictionDesign else randomPredictionDesign,
+        familyIndex, predictionObject$familySpecifications,
+        population=populationMarginal, conditional=includeRandom,
+        covariance=covFit, relationships=populationRelationships,
+        blockWidths=populationWidths, response=responseScale == "response")
+      return(c(list(fit=predicted), uncertainty))
+    }
+    if(populationMarginal){
+      uncertainty <- .mmes_laplace_population_uncertainty(object,
+        fixedPredictionDesign, predictionOffset, populationPredictionDesign,
+        familyIndex, covariance=covFit)
+    }else{
+      jointDesign <- Matrix::cbind2(fixedPredictionDesign,
+        randomPredictionDesign)
+      uncertainty <- .mmes_laplace_prediction_uncertainty(object, jointDesign,
+        covariance=covFit)
+    }
+    if(responseScale == "response" && !populationMarginal){
+      derivative <- .pql_apply(families, familyIndex, "mu.eta",
+        linearPredictor)
+      uncertainty$se.fit <- abs(derivative) * uncertainty$se.fit
+      if(covFit){
+        uncertainty$cov.fit <- outer(derivative, derivative) *
+          uncertainty$cov.fit
+      }
+    }
+    return(c(list(fit=predicted), uncertainty))
+  }
   .mmes_require_coefficient_matrix(object)
   if(length(PEV) != 1L || is.na(PEV) || !is.logical(PEV)){
     stop("PEV must be TRUE or FALSE.", call.=FALSE)

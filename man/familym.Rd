@@ -4,11 +4,12 @@
 \description{
 Assigns a \code{stats::family()} object to each trait of a long-format
 multi-trait \code{\link{mmes}} model, e.g. a binary disease score together
-with a Gaussian yield, so that their genetic and residual correlations can be
-estimated jointly by penalized quasi-likelihood (PQL).
+with a Gaussian yield. PQL supports its existing working-model covariance
+structures; native Laplace supports a joint latent-effect likelihood with
+conditionally independent observations.
 }
 \usage{
-familym(by, ...)
+familym(by, ..., trials = NULL)
 }
 \arguments{
   \item{by}{Name (character string) of the column of \code{data} that
@@ -17,6 +18,11 @@ familym(by, ...)
   \item{\dots}{Family objects named by the levels of the \code{by} column,
   e.g. \code{Disease = binomial(), Yield = gaussian()}. Every level present in
   the data needs a family.}
+  \item{trials}{Optional trials-column name for native Laplace fits. Binomial
+  responses are then integer success counts, with positive integer trial
+  totals in this column. All non-binomial rows must have a trial value of one.
+  Omit this argument for binary responses or responses made with \code{binm()}.
+  Do not declare trials both here and in a response attribute/matrix.}
 }
 \details{
 The object is passed as the \code{family} argument of \code{mmes}. Each PQL
@@ -41,6 +47,43 @@ trait: one for fixed-dispersion traits, the REML residual variance for the
 others), and \code{fitted()} and \code{residuals()} apply the inverse link and
 variance function of each trait to its rows. Random-effect variances are on
 the link scale of each trait.
+
+For native Laplace, select \code{task=list(objective="ml",
+glmm=list(method="laplace"))}. Supported families are binomial with logit,
+probit or complementary log-log link; Poisson-log;
+\code{\link{zipoisson}} with an intercept-only or fixed-effects formula
+logit structural-zero component; \code{nbinom2()}-log; Gaussian-identity;
+and Gamma-log.
+Zero-inflated Poisson is not a hurdle model and its zero component has no
+random effects. Observations are conditionally independent
+given the shared random effects. A correlated \code{usm(trait)} random
+covariance can connect traits, but structured residual covariance is not
+supported on this route: omit \code{rcov} or use \code{~units}. There is no
+requirement to place a fixed-dispersion trait first.
+
+NB2 shape and Gaussian/Gamma dispersion are estimated separately for each
+declared trait by default; zero-inflated Poisson structural-zero probability
+is also estimated by default. Configure starting/fixed values under
+\code{task$glmm$familyParameters}, for example
+\code{list(count=list(theta=2, estimate=FALSE),
+zeroCount=list(zeroInflation=0.2, estimate=TRUE),
+continuous=list(dispersion=0.7, estimate=TRUE))}.
+Every declared family must retain observations. Missing trait/trials values
+participate in the fixed-covariate missing-data policy; unknown non-missing
+trait labels error. The \code{trials} column argument is currently
+Laplace-only; existing PQL trial responses use \code{binm()}.
+
+Native fits report an approximate marginal log likelihood, AIC/BIC with
+estimated shape, dispersion or zero-inflation parameters counted, a
+\code{familyParameters} table for scalar family parameters,
+\code{zeroCoefficients} for formula-based zero components, per-trait
+\code{dispersion} and observation-family indices. Zero-only missing covariates
+affect only their declared ZIP trait's rows. Fitted
+values and residuals apply each row's fitted family. New-data response-scale
+predictions require the declared trait column. Use \code{re.form=NA} for
+zero-random-effect means, \code{re.form=NULL} for conditional predictions at
+known random-effect levels, or \code{re.form="population"} for supported
+population means; see \code{\link{predict.mmes}} for restrictions.
 }
 \value{An object of class \code{"sommer_familym"}.}
 \seealso{\code{\link{mmes}}, \code{\link{corgm}}, \code{\link{stackTraits}},

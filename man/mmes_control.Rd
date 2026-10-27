@@ -19,11 +19,34 @@ mmes_control(formulation = "henderson", task = list(),
 \item{formulation}{Equation domain: \code{"henderson"} (default) or
 \code{"direct"}. Henderson forms coefficient-space mixed-model equations;
 direct uses observation-space inversion.}
-\item{task}{Named list with \code{mode}, \code{objective}, and \code{pql}.
+\item{task}{Named list with \code{mode}, \code{objective}, \code{glmm}, and
+\code{pql}.
 Defaults: \code{mode="fit"}, \code{objective="reml"}, and
 \code{pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)}.
 \code{mode} is \code{"fit"} or \code{"solve"}; \code{objective} is
-\code{"reml"} or \code{"ml"}. The nested \code{pql} list accepts only
+\code{"reml"} or \code{"ml"}. The nested \code{glmm} list defaults to
+\code{list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8,
+familyParameters=list())}.
+Select \code{method="laplace"} for the native Laplace backend, which requires
+\code{objective="ml"}. \code{maxit} controls outer likelihood optimization;
+\code{modeMaxit} and \code{modeTol} control the native random-effect mode
+solver. The native module uses sommer-prepared covariance precision matrices
+and does not call another mixed-model package.
+\code{familyParameters} is Laplace-only. For a single NB2 family it accepts
+\code{list(theta=2, estimate=TRUE)}; for Gaussian/Gamma it accepts
+\code{list(dispersion=1, estimate=TRUE)}. Estimation is the default, and
+\code{estimate=FALSE} fixes the supplied value. NB2 starts from its family
+constructor shape; estimated Gaussian/Gamma dispersion starts from the
+initial family-specific GLM unless explicitly supplied. In a \code{familym()}
+fit, provide these lists under trait names. Binomial/Poisson have no nuisance
+dispersion parameter, so family settings for them must be empty.
+Non-default Gaussian solver, convergence, update, proposal, representation,
+output and resource controls are rejected on this route rather than silently
+ignored. The fit-task/objective, formulation, GLMM controls, derivative-panel
+memory budget \code{execution$denseMemoryMB}, BLAS thread
+selection, and verbose/date-warning settings retain their documented roles;
+native Laplace still requires fit mode, ML and Henderson formulation.
+The nested \code{pql} list accepts only
 \code{maxit}, \code{tol}, \code{estimateTheta}, and \code{warmStart}, with
 the defaults shown. These fields own task selection and outer PQL iteration,
 not inner covariance iterations.}
@@ -102,10 +125,22 @@ when an eligible PCG path uses them.}
 correction, not linear-solve accuracy.}
 \item{score}{Named list with \code{traceProbes=8L},
 \code{estimator="hutchinson"}, \code{rank=16L},
-\code{covarianceChecks="auto"}, and \code{traceBatch="off"} by default.
+\code{covarianceChecks="auto"}, \code{traceBatch="off"}, and
+\code{denseCrossproduct="auto"} by default.
 The estimator is \code{"hutchinson"} or \code{"control-variate"}.
-\code{covarianceChecks} and \code{traceBatch} accept experimental mode
-values. This module owns covariance derivatives, trace estimation, and
+\code{covarianceChecks}, \code{traceBatch} and \code{denseCrossproduct}
+accept experimental mode values. The last selects exact weighted Gram
+assembly for dense-design diagonal residual scores in Gaussian normal
+Henderson LDLT/CHOLMOD fits. Auto requires a row width of at least 64,
+at least one million row-product contributions and at least eight times
+the squared coefficient dimension, within the workspace budget.
+Off preserves the legacy row-product route. Force bypasses cost gates,
+not diagonal-precision/derivative eligibility or memory checks;
+ineligible forced requests error. Direct, PCG, PQL, compressed, saddle-point,
+conditional and latent reduced-rank equations do not use this path. Diagnostics record
+\code{denseScoreCrossproducts}, \code{legacyScoreCrossproducts},
+\code{denseScoreRowProductsAvoided}, and \code{denseScoreMemoryFallbacks}.
+This module owns covariance derivatives, trace estimation, and
 covariance checks.}
 \item{curvature}{Named list with \code{method="exact-ai"} and
 \code{reduced="off"} by default. The method is \code{"exact-ai"} or
@@ -164,11 +199,19 @@ stochastic accuracy requests.}
 \code{setup=FALSE}, \code{selectedInverse="auto"}, and
 \code{panelSize=64L} by default. \code{inverse} is 0 (no final coefficient
 inverse or fit-time PEV computation),
-1 (selected inverse and random-effect PEVs), or 2 (full inverse and
-random-effect PEVs). Modes 1 and 2 compute PEVs during fitting; mode 1
-does not form the complete coefficient-matrix inverse. With mode 0, use
+1 (random-effect PEVs without a full inverse), or 2 (full inverse and
+random-effect PEVs). Gaussian modes 1 and 2 compute PEVs during fitting; mode 1
+does not form the complete coefficient-matrix inverse. Native Laplace fits
+require \code{inverse=0}; PEV work is post-fit only. Gaussian fits use the
+selected sparse inverse. With mode 0, use
 \code{\link{postPEV}} after fitting to compute PEVs or the full inverse,
-provided \code{coefficientMatrix=TRUE};
+provided \code{coefficientMatrix=TRUE} for Gaussian fits. Native Laplace fits
+use a joint fixed/random conditional observed-information approximation and
+do not require the Gaussian coefficient matrix; mode 2 is guarded by
+\code{execution$denseMemoryMB}. Laplace \code{vcov()} and \code{summary()}
+compute numerical-Hessian uncertainty after fitting. Prediction standard
+errors use \code{output$panelSize} solve panels and full \code{cov.fit}
+requests use the same dense-memory budget;
 \code{covariance} is \code{"full"} or \code{"none"}; \code{selectedInverse}
 accepts experimental mode values. This module owns coefficient uncertainty,
 covariance-parameter uncertainty, retained coefficient-matrix output, and
@@ -180,7 +223,9 @@ default. A non-NULL \code{sommer.mme.denseMemoryMB},
 \code{sommer.mme.memoryPolicy}, \code{sommer.mme.gpu}, or
 \code{sommer.mme.gpuMinSize} option supplies its corresponding default.
 This module owns resource policy, hardware, threading, numerical inverse
-tolerance, and stochastic seed.}
+tolerance, and stochastic seed. Native Laplace accepts \code{denseMemoryMB}
+to bound dense derivative solve panels, not sparse precision/derivative
+blocks or sparse factor fill; it is not a total-memory guarantee.}
 \item{diagnostics}{Named list with \code{verbose=TRUE},
 \code{dateWarning=TRUE}, and \code{profile="off"} by default.
 \code{profile} accepts experimental mode values. This module owns ordinary

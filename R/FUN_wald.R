@@ -255,6 +255,34 @@ wald_mmes <- function(object, ssType=c("incremental", "conditional"),
                       denDF=c("none", "residual", "satterthwaite", "kr"),
                       terms=NULL){
   if(!inherits(object, "mmes")) stop("object must inherit from class 'mmes'.", call.=FALSE)
+  if(inherits(object, "mmes.glmm.laplace")){
+    ssType <- match.arg(ssType)
+    denDF <- match.arg(denDF)
+    if(ssType != "conditional" || denDF != "none"){
+      stop("Native Laplace Wald tests are conditional asymptotic chi-square tests; use ssType='conditional' and denDF='none'.",
+           call.=FALSE)
+    }
+    availableTerms <- attr(object$fixedTerms, "term.labels")
+    if(is.null(terms)) terms <- availableTerms
+    unknownTerms <- setdiff(terms, availableTerms)
+    if(length(unknownTerms)){
+      stop("Unknown fixed terms: ", paste(unknownTerms, collapse=", "),
+        ". Available: ", paste(availableTerms, collapse=", "), call.=FALSE)
+    }
+    if(!length(terms)){
+      stop("No non-intercept fixed terms are available for Wald tests.",
+           call.=FALSE)
+    }
+    waldTable <- .anova_laplace_wald(object)
+    waldTable <- waldTable[match(terms, rownames(waldTable)), , drop=FALSE]
+    output <- data.frame(Df=waldTable$Df, denDF=NA_real_,
+      Wald=waldTable$Chisq, F.value=NA_real_,
+      p.value=waldTable[["Pr(>Chisq)"]], row.names=terms)
+    attr(output, "ssType") <- ssType
+    attr(output, "denDF") <- denDF
+    class(output) <- c("wald.mmes", "data.frame")
+    return(output)
+  }
   .mmes_require_full_rank_inference(object, "Wald term tests")
   ssType <- match.arg(ssType)
   denDF <- match.arg(denDF)

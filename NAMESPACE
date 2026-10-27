@@ -8,7 +8,7 @@ export(
        )
 
 ## FUN_main
-export(mmes, vsm,
+export(mmes, vsm, nbinom2, zipoisson,
        mmes_control,
        generate_mme_workload, mme_workload_grid,
        run_mme_benchmark, analyze_mme_crossovers, profile_mme_workload,
@@ -61,8 +61,10 @@ S3method(vpredict, mmes)
 
 # S3 METHODS mmes
 S3method(anova, mmes)
+S3method(vcov, mmes.glmm.laplace)
 S3method(coef, mmes)
 S3method(fitted, mmes)
+S3method(logLik, mmes)
 S3method(plot, mmes)
 S3method(predict, mmes)
 S3method(print, predict.mmes)
@@ -70,6 +72,7 @@ S3method(print, residuals.mmes)
 S3method(print, fitted.mmes)
 S3method(print, coef.mmes)
 S3method(print, summary.mmes)
+S3method(print, mmes.glmm.laplace)
 S3method(print, wald.mmes)
 S3method(print, mmesSolve)
 S3method(print, sommer_mmes_control)
@@ -77,6 +80,7 @@ S3method(print, sommer_mme_benchmark)
 S3method(print, sommer_mme_crossover)
 S3method(print, sommer_mme_profile)
 S3method(residuals, mmes)
+S3method(simulate, mmes.glmm.laplace)
 S3method(summary, mmes)
 S3method(summary, mmer)
 S3method("[", binm)

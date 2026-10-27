@@ -583,6 +583,72 @@ version 4.4.81 (2026-09-30)
    large data is several times faster and uses far less memory.
 
 ########################
+version 4.5.13 (in development)
+########################
+
+ + Added an opt-in zero-inflated Poisson family for native Laplace ML, with
+   an estimated or fixed intercept-only structural-zero probability. The
+   Poisson and zero components share no predictor coefficients.
+   zipoisson(zero=~covariates) adds a separate fixed-effects logit predictor,
+   including offsets, trait-aware missingness, new-data coding, simulation,
+   residuals and joint post-fit uncertainty. Default zero=~1 preserves the
+   scalar interface. Zero random effects, zero-inflated NB2, hurdle models
+   and PQL support remain out of scope.
+ + Expanded native Laplace families to grouped binomial logit/probit/cloglog,
+   Poisson log, native nbinom2() log, Gaussian identity and Gamma log.
+   Long-format familym() combines them through shared random effects with
+   conditionally independent observations; an optional trials-column
+   interface handles mixed grouped responses. NB2 shape and Gaussian/Gamma
+   dispersion are estimated per trait by default, with starting/fixed
+   values in task$glmm$familyParameters. Full native predictor/nuisance
+   derivatives, fitted-family residuals/prediction, parameter counting and
+   valid-curvature delta-method uncertainty are connected. Native Laplace
+   inference now exposes guarded fixed-effect covariance, natural-scale
+   covariance-parameter standard errors, Wald tests and restricted nested
+   fixed-effect likelihood comparisons. Variance-component LRTs are refused.
+   Conditional prediction for known random-effect levels, zero-random-effect
+   prediction, and a restricted random-intercept population mean are available.
+   Family-aware conditional response simulation, population random-effect
+   simulation with a dense-memory guard, and randomized quantile residuals are
+   available; simulation does not include parameter-estimation uncertainty.
+   Existing PQL and both Gaussian C++ objectives remain unchanged.
+ + Added an opt-in native ML Laplace GLMM likelihood/mode module. It consumes
+   sommer-prepared designs and CovarianceFactor random covariance/relationship
+   precision structures; the Gaussian ai_mme_sp2() and ai_reml_direct_sp2()
+   objectives are unchanged. Initial family support is binomial(logit) and
+   Poisson(log), with structured residual covariance and grouped-binomial
+   trials not yet supported. PQL convergence is recorded explicitly, including
+   convergence on the final allowed outer iteration.
+ + Modularized native Laplace fitting with actual-family preparation-only
+   setup, reusable family/precision modules, invariant relationship and
+   descriptor caches, and reusable CHOLMOD symbolic analysis. nlminb uses
+   native full Laplace first scores including mode/determinant dependence;
+   the uncertainty Hessian remains numerical. execution$denseMemoryMB now
+   controls bounded dense derivative solve panels on the Laplace route. Panels
+   avoid complete inverse matrices; sparse Kronecker blocks are still
+   assembled. Fit diagnostics expose scores and native work counters.
+ + Hardened native Laplace preparation and inference: fitted contrasts,
+   transformed prediction terms, factor levels and missing-data policies are
+   preserved. Native count/precision validation and mode failure reasons are
+   explicit. Removed blanket covariance-coordinate bounds and path-dependent
+   outer mode caching. Invalid curvature, non-convergence and near-boundary
+   fits no longer yield success-shaped standard errors. Unused Gaussian
+   controls and unsupported prediction requests are rejected; working
+   residuals now use the conditional link derivative correctly.
+ + Deferred all native Laplace optimizer-Hessian uncertainty and coefficient
+   PEV calculations until post-fit requests. Laplace now requires
+   output$inverse=0; postPEV(), vcov(), summary() and covparams_mmes_se()
+   perform their work after fitting. Added conditional, zero-random-effect
+   and restricted population-mean prediction standard errors/full covariance,
+   with memory guards from output$panelSize and execution$denseMemoryMB.
+   Population random-effect simulation now samples through sparse
+   relationship-precision factors, and defaults its memory budget to
+   execution$denseMemoryMB. Exact Gaussian marginal-GLS uncertainty and
+   seeded known-covariance interval/predictive calibration regressions cover
+   the post-fit methods. No package dependencies or Gaussian objective
+   changes were introduced.
+
+########################
 version 4.4.90 (2026-10-13)
 ########################
 

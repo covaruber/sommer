@@ -1,0 +1,396 @@
+#ifndef SOMMER_MME_GLMM_FAMILY_H
+#define SOMMER_MME_GLMM_FAMILY_H
+
+#include <RcppArmadillo.h>
+#include <algorithm>
+#include <cmath>
+#include <limits>
+
+namespace sommer {
+
+// Truncated Taylor coefficients in eta (order four) and log shape/dispersion
+// (order one). Mixed coefficients supply score and curvature derivatives.
+struct GLMMTaylor {
+  double coefficient[5][2] = {};
+  GLMMTaylor(double value = 0.0){ coefficient[0][0] = value; }
+};
+
+inline GLMMTaylor operator+(const GLMMTaylor & left, const GLMMTaylor & right){
+  GLMMTaylor result;
+  for(int etaOrder = 0; etaOrder <= 4; ++etaOrder)
+    for(int shapeOrder = 0; shapeOrder <= 1; ++shapeOrder)
+      result.coefficient[etaOrder][shapeOrder] =
+        left.coefficient[etaOrder][shapeOrder] + right.coefficient[etaOrder][shapeOrder];
+  return result;
+}
+
+inline GLMMTaylor operator-(const GLMMTaylor & left, const GLMMTaylor & right){
+  GLMMTaylor result;
+  for(int etaOrder = 0; etaOrder <= 4; ++etaOrder)
+    for(int shapeOrder = 0; shapeOrder <= 1; ++shapeOrder)
+      result.coefficient[etaOrder][shapeOrder] =
+        left.coefficient[etaOrder][shapeOrder] - right.coefficient[etaOrder][shapeOrder];
+  return result;
+}
+
+inline GLMMTaylor operator*(const GLMMTaylor & left, const GLMMTaylor & right){
+  GLMMTaylor result;
+  for(int etaOrder = 0; etaOrder <= 4; ++etaOrder)
+    for(int shapeOrder = 0; shapeOrder <= 1; ++shapeOrder)
+      for(int etaPart = 0; etaPart <= etaOrder; ++etaPart)
+        for(int shapePart = 0; shapePart <= shapeOrder; ++shapePart)
+          result.coefficient[etaOrder][shapeOrder] +=
+            left.coefficient[etaPart][shapePart] *
+            right.coefficient[etaOrder - etaPart][shapeOrder - shapePart];
+  return result;
+}
+
+inline GLMMTaylor glmmExp(const GLMMTaylor & argument){
+  const double baseValue = std::exp(argument.coefficient[0][0]);
+  if(baseValue == 0.0) return GLMMTaylor();
+  GLMMTaylor increment = argument - GLMMTaylor(argument.coefficient[0][0]);
+  GLMMTaylor result(1.0), power(1.0);
+  double inverseFactorial = 1.0;
+  for(int order = 1; order <= 5; ++order){
+    power = power * increment;
+    inverseFactorial /= order;
+    result = result + GLMMTaylor(inverseFactorial) * power;
+  }
+  return GLMMTaylor(baseValue) * result;
+}
+
+inline GLMMTaylor glmmLog(const GLMMTaylor & argument){
+  const double baseValue = argument.coefficient[0][0];
+  GLMMTaylor increment = GLMMTaylor(1.0 / baseValue) *
+    (argument - GLMMTaylor(baseValue));
+  GLMMTaylor result(std::log(baseValue)), power(1.0);
+  for(int order = 1; order <= 5; ++order){
+    power = power * increment;
+    result = result + GLMMTaylor((order % 2 ? 1.0 : -1.0) / order) * power;
+  }
+  return result;
+}
+
+inline GLMMTaylor glmmLog1p(const GLMMTaylor & argument){
+  GLMMTaylor result = glmmLog(GLMMTaylor(1.0) + argument);
+  result.coefficient[0][0] = std::log1p(argument.coefficient[0][0]);
+  return result;
+}
+
+inline GLMMTaylor glmmLogNormalCDF(double predictor){
+  GLMMTaylor result(R::pnorm(predictor, 0.0, 1.0, true, true));
+  double hazard[4] = {};
+  hazard[0] = std::exp(R::dnorm(predictor, 0.0, 1.0, true) -
+    result.coefficient[0][0]);
+  for(int order = 0; order < 3; ++order){
+    double squaredHazard = 0.0;
+    for(int part = 0; part <= order; ++part)
+      squaredHazard += hazard[part] * hazard[order - part];
+    hazard[order + 1] = (-predictor * hazard[order] -
+      (order > 0 ? hazard[order - 1] : 0.0) - squaredHazard) / (order + 1);
+  }
+  for(int order = 1; order <= 4; ++order)
+    result.coefficient[order][0] = hazard[order - 1] / order;
+  return result;
+}
+
+inline GLMMTaylor glmmShapeLGamma(const GLMMTaylor & argument){
+  GLMMTaylor result(R::lgammafn(argument.coefficient[0][0]));
+  result.coefficient[0][1] = R::digamma(argument.coefficient[0][0]) *
+    argument.coefficient[0][1];
+  return result;
+}
+
+struct GLMMFamilySpec {
+  std::string family;
+  std::string link;
+  double logParameter = 0.0;
+  bool free = false;
+  arma::mat zeroDesign;
+  arma::vec zeroCoefficients;
+  arma::vec zeroOffset;
+};
+
+struct GLMMFamilyEvaluation {
+  double logDensity = 0.0;
+  arma::vec mean;
+  arma::vec score;
+  arma::vec curvature;
+  arma::vec curvatureD1;
+  arma::vec curvatureD2;
+  arma::vec parameterScore;
+  arma::vec scoreParameter;
+  arma::vec curvatureParameter;
+};
+
+class GLMMFamilyModel {
+public:
+  std::vector<GLMMFamilySpec> specifications;
+  arma::uvec index;
+  arma::vec trials;
+
+  GLMMFamilyModel(const std::string & family, arma::uword observations,
+      const Rcpp::List & suppliedSpecs = Rcpp::List(),
+      const arma::uvec & suppliedIndex = arma::uvec(),
+      const arma::vec & suppliedTrials = arma::vec()){
+    if(suppliedSpecs.size() == 0){
+      specifications.push_back({family, family == "binomial" ? "logit" : "log",
+        0.0, false});
+    }else{
+      for(int familyPosition = 0; familyPosition < suppliedSpecs.size(); ++familyPosition){
+        const Rcpp::List specification = suppliedSpecs[familyPosition];
+        specifications.push_back({Rcpp::as<std::string>(specification["family"]),
+          Rcpp::as<std::string>(specification["link"]),
+          Rcpp::as<double>(specification["logParameter"]),
+          Rcpp::as<bool>(specification["free"])});
+        if(specification.containsElementNamed("zeroDesign")){
+          auto & stored = specifications.back();
+          stored.zeroDesign = Rcpp::as<arma::mat>(specification["zeroDesign"]);
+          stored.zeroCoefficients = Rcpp::as<arma::vec>(specification["zeroCoefficients"]);
+          stored.zeroOffset = Rcpp::as<arma::vec>(specification["zeroOffset"]);
+          if(stored.family != "ziPoisson" || !stored.free ||
+             stored.zeroDesign.n_rows != observations ||
+             stored.zeroDesign.n_cols != stored.zeroCoefficients.n_elem ||
+             stored.zeroDesign.n_cols == 0 || stored.zeroOffset.n_elem != observations ||
+             !stored.zeroDesign.is_finite() || !stored.zeroCoefficients.is_finite() ||
+             !stored.zeroOffset.is_finite())
+            Rcpp::stop("Invalid native zero-component design or coefficients.");
+        }
+      }
+    }
+    for(const auto & specification : specifications){
+      const bool binomial = specification.family == "binomial" &&
+        (specification.link == "logit" || specification.link == "probit" ||
+         specification.link == "cloglog");
+      const bool logLinked = (specification.family == "poisson" ||
+        specification.family == "ziPoisson" || specification.family == "nbinom2" ||
+        specification.family == "Gamma") &&
+        specification.link == "log";
+      const bool gaussian = specification.family == "gaussian" && specification.link == "identity";
+      if(!binomial && !logLinked && !gaussian)
+        Rcpp::stop("Unsupported native Laplace family/link combination.");
+      if(!std::isfinite(specification.logParameter) ||
+         std::abs(specification.logParameter) >
+           std::log(std::numeric_limits<double>::max()) / 4.0 ||
+         ((specification.family == "binomial" || specification.family == "poisson") &&
+          specification.free))
+        Rcpp::stop("Invalid native family shape/dispersion specification.");
+    }
+    index = suppliedIndex.n_elem ? suppliedIndex : arma::uvec(observations, arma::fill::zeros);
+    trials = suppliedTrials.n_elem ? suppliedTrials : arma::vec(observations, arma::fill::ones);
+    if(index.n_elem != observations || trials.n_elem != observations ||
+       !trials.is_finite() || arma::any(trials <= 0) ||
+       arma::any(trials != arma::floor(trials)) ||
+       (observations && index.max() >= specifications.size()))
+      Rcpp::stop("Native family indices and trials have incompatible or invalid values.");
+    for(std::size_t familyPosition = 0; familyPosition < specifications.size(); ++familyPosition){
+      if(specifications[familyPosition].free &&
+         !arma::any(index == familyPosition))
+        Rcpp::stop("Estimated family parameters require observations of that family.");
+    }
+  }
+
+  arma::uword parameterCount() const {
+    arma::uword result = 0;
+    for(const auto & specification : specifications)
+      if(specification.free) result += specification.zeroDesign.n_cols ?
+        specification.zeroDesign.n_cols : 1;
+    return result;
+  }
+
+  bool update(const arma::vec & parameters){
+    if(parameters.n_elem != parameterCount())
+      Rcpp::stop("Native family parameter vector has incompatible length.");
+    arma::uword parameterPosition = 0;
+    for(auto & specification : specifications){
+      if(specification.free){
+        if(specification.zeroDesign.n_cols){
+          const arma::uword count = specification.zeroDesign.n_cols;
+          specification.zeroCoefficients = parameters.subvec(parameterPosition,
+            parameterPosition + count - 1);
+          parameterPosition += count;
+          if(!specification.zeroCoefficients.is_finite()) return false;
+        }else specification.logParameter = parameters(parameterPosition++);
+      }
+      if(!std::isfinite(specification.logParameter) ||
+         std::abs(specification.logParameter) >
+           std::log(std::numeric_limits<double>::max()) / 4.0) return false;
+    }
+    return true;
+  }
+
+  void validateResponse(const arma::vec & response) const {
+    if(response.n_elem != index.n_elem || !response.is_finite())
+      Rcpp::stop("Native Laplace responses must be finite with compatible dimensions.");
+    for(arma::uword recordPosition = 0; recordPosition < response.n_elem; ++recordPosition){
+      const auto & specification = specifications[index(recordPosition)];
+      const double outcome = response(recordPosition);
+      if(specification.family == "binomial" &&
+         (outcome < 0 || outcome > trials(recordPosition) || outcome != std::floor(outcome)))
+        Rcpp::stop("Native Laplace binomial responses must be integer successes between zero and trials (0/1 for binary data).");
+      if((specification.family == "poisson" || specification.family == "ziPoisson" ||
+          specification.family == "nbinom2") &&
+         (outcome < 0 || outcome != std::floor(outcome)))
+        Rcpp::stop("Native Laplace count responses must be non-negative integers.");
+      if(specification.family == "Gamma" && outcome <= 0)
+        Rcpp::stop("Native Laplace Gamma responses must be strictly positive.");
+      if(specification.family != "binomial" && trials(recordPosition) != 1)
+        Rcpp::stop("Trials are only supported for binomial observations.");
+    }
+  }
+
+  GLMMFamilyEvaluation evaluate(const arma::vec & response, const arma::vec & predictor) const {
+    GLMMFamilyEvaluation result;
+    result.mean.set_size(response.n_elem);
+    result.score.set_size(response.n_elem);
+    result.curvature.set_size(response.n_elem);
+    result.curvatureD1.set_size(response.n_elem);
+    result.curvatureD2.set_size(response.n_elem);
+    result.parameterScore.zeros(response.n_elem);
+    result.scoreParameter.zeros(response.n_elem);
+    result.curvatureParameter.zeros(response.n_elem);
+    for(arma::uword recordPosition = 0; recordPosition < response.n_elem; ++recordPosition){
+      const double linearValue = predictor(recordPosition);
+      const double outcome = response(recordPosition);
+      const auto & specification = specifications[index(recordPosition)];
+      if(!std::isfinite(linearValue)){
+        result.logDensity = -INFINITY;
+        return result;
+      }
+      GLMMTaylor eta(linearValue);
+      eta.coefficient[1][0] = 1.0;
+      const double parameterValue = specification.zeroDesign.n_cols ?
+        arma::dot(specification.zeroDesign.row(recordPosition),
+          specification.zeroCoefficients) + specification.zeroOffset(recordPosition) :
+        specification.logParameter;
+      if(!std::isfinite(parameterValue)){
+        result.logDensity = -INFINITY;
+        return result;
+      }
+      GLMMTaylor logParameter(parameterValue);
+      logParameter.coefficient[0][1] = 1.0;
+      GLMMTaylor density;
+      if(specification.family == "binomial"){
+        GLMMTaylor logSuccess, logFailure;
+        if(specification.link == "logit"){
+          const GLMMTaylor smallTail = glmmExp(GLMMTaylor(linearValue >= 0 ? -1.0 : 1.0) * eta);
+          const GLMMTaylor logDenominator = glmmLog1p(smallTail);
+          logSuccess = (linearValue >= 0 ? GLMMTaylor() : eta) - logDenominator;
+          logFailure = (linearValue >= 0 ? GLMMTaylor() - eta : GLMMTaylor()) - logDenominator;
+          result.mean(recordPosition) = linearValue >= 0 ?
+            1.0 / (1.0 + std::exp(-linearValue)) :
+            std::exp(linearValue) / (1.0 + std::exp(linearValue));
+        }else if(specification.link == "probit"){
+          logSuccess = glmmLogNormalCDF(linearValue);
+          logFailure = glmmLogNormalCDF(-linearValue);
+          for(int derivativeOrder = 1; derivativeOrder <= 4; derivativeOrder += 2)
+            logFailure.coefficient[derivativeOrder][0] *= -1.0;
+          result.mean(recordPosition) = R::pnorm(linearValue, 0.0, 1.0, true, false);
+        }else{
+          if(linearValue > std::log(std::numeric_limits<double>::max())){
+            result.logDensity = -INFINITY;
+            return result;
+          }
+          const GLMMTaylor intensity = glmmExp(eta);
+          logFailure = GLMMTaylor() - intensity;
+          if(intensity.coefficient[0][0] < std::log(2.0)){
+            GLMMTaylor successProbability = GLMMTaylor(1.0) - glmmExp(logFailure);
+            successProbability.coefficient[0][0] = -std::expm1(-intensity.coefficient[0][0]);
+            logSuccess = glmmLog(successProbability);
+          }else{
+            logSuccess = glmmLog1p(GLMMTaylor() - glmmExp(logFailure));
+          }
+          result.mean(recordPosition) = -std::expm1(-intensity.coefficient[0][0]);
+        }
+        density = GLMMTaylor(R::lchoose(trials(recordPosition), outcome));
+        if(outcome > 0) density = density + GLMMTaylor(outcome) * logSuccess;
+        if(outcome < trials(recordPosition))
+          density = density + GLMMTaylor(trials(recordPosition) - outcome) * logFailure;
+      }else if(specification.family == "gaussian"){
+        const GLMMTaylor discrepancy = GLMMTaylor(outcome) - eta;
+        density = GLMMTaylor(-0.5) * (GLMMTaylor(std::log(2.0 * arma::datum::pi)) +
+          logParameter + discrepancy * discrepancy * glmmExp(GLMMTaylor() - logParameter));
+        result.mean(recordPosition) = linearValue;
+      }else{
+        if(linearValue > std::log(std::numeric_limits<double>::max())){
+          result.logDensity = -INFINITY;
+          return result;
+        }
+        const GLMMTaylor intensity = glmmExp(eta);
+        result.mean(recordPosition) = intensity.coefficient[0][0];
+        if(specification.family == "poisson"){
+          density = GLMMTaylor(outcome) * eta - intensity -
+            GLMMTaylor(R::lgammafn(outcome + 1.0));
+        }else if(specification.family == "ziPoisson"){
+          GLMMTaylor logZeroProbability;
+          GLMMTaylor logCountProbability;
+          if(parameterValue >= 0.0){
+            const GLMMTaylor tail =
+              glmmLog1p(glmmExp(GLMMTaylor() - logParameter));
+            logZeroProbability = GLMMTaylor() - tail;
+            logCountProbability = GLMMTaylor() - logParameter - tail;
+          }else{
+            const GLMMTaylor tail = glmmLog1p(glmmExp(logParameter));
+            logZeroProbability = logParameter - tail;
+            logCountProbability = GLMMTaylor() - tail;
+          }
+          const double logCountMean =
+            logCountProbability.coefficient[0][0] + linearValue;
+          if(logCountMean > std::log(std::numeric_limits<double>::max())){
+            result.logDensity = -INFINITY;
+            return result;
+          }
+          result.mean(recordPosition) = std::exp(logCountMean);
+          if(outcome == 0.0){
+            const GLMMTaylor zeroFromInflation = logZeroProbability;
+            const GLMMTaylor zeroFromCount = logCountProbability - intensity;
+            const double shift = std::max(zeroFromInflation.coefficient[0][0],
+              zeroFromCount.coefficient[0][0]);
+            density = GLMMTaylor(shift) +
+              glmmLog(glmmExp(zeroFromInflation - GLMMTaylor(shift)) +
+                glmmExp(zeroFromCount - GLMMTaylor(shift)));
+          }else{
+            density = logCountProbability + GLMMTaylor(outcome) * eta -
+              intensity - GLMMTaylor(R::lgammafn(outcome + 1.0));
+          }
+        }else if(specification.family == "nbinom2"){
+          const GLMMTaylor shape = glmmExp(logParameter);
+          // log(theta + mu) via log-sum-exp avoids overflow in the sum.
+          const GLMMTaylor logTotal = linearValue >= specification.logParameter ?
+            eta + glmmLog1p(glmmExp(logParameter - eta)) :
+            logParameter + glmmLog1p(glmmExp(eta - logParameter));
+          density = glmmShapeLGamma(GLMMTaylor(outcome) + shape) -
+            glmmShapeLGamma(shape) - GLMMTaylor(R::lgammafn(outcome + 1.0)) +
+            shape * (logParameter - logTotal) + GLMMTaylor(outcome) * (eta - logTotal);
+          density.coefficient[0][0] = R::dnbinom_mu(outcome,
+            shape.coefficient[0][0], intensity.coefficient[0][0], true);
+        }else{
+          const GLMMTaylor shape = glmmExp(GLMMTaylor() - logParameter);
+          density = (shape - GLMMTaylor(1.0)) * GLMMTaylor(std::log(outcome)) -
+            GLMMTaylor(outcome) * glmmExp(GLMMTaylor() - eta - logParameter) -
+            glmmShapeLGamma(shape) - shape * (eta + logParameter);
+          density.coefficient[0][0] = R::dgamma(outcome, shape.coefficient[0][0],
+            intensity.coefficient[0][0] * std::exp(specification.logParameter), true);
+        }
+      }
+      result.logDensity += density.coefficient[0][0];
+      result.score(recordPosition) = density.coefficient[1][0];
+      result.curvature(recordPosition) = -2.0 * density.coefficient[2][0];
+      result.curvatureD1(recordPosition) = -6.0 * density.coefficient[3][0];
+      result.curvatureD2(recordPosition) = -24.0 * density.coefficient[4][0];
+      result.parameterScore(recordPosition) = density.coefficient[0][1];
+      result.scoreParameter(recordPosition) = density.coefficient[1][1];
+      result.curvatureParameter(recordPosition) = -2.0 * density.coefficient[2][1];
+    }
+    return result;
+  }
+};
+
+inline GLMMFamilyEvaluation evaluateGLMMFamily(const arma::vec & response,
+    const arma::vec & predictor, const std::string & family){
+  return GLMMFamilyModel(family, response.n_elem).evaluate(response, predictor);
+}
+
+} // namespace sommer
+
+#endif

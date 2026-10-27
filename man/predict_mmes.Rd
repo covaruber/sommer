@@ -195,6 +195,28 @@
   SEDs, pairwise tests and \code{std.error} retain their PEV-based meaning;
   enabling VarU does not change those calculations. Direct and matrix-free
   \code{solveOnly} fits lack the stored coefficient system required here.
+
+  Native Laplace fits accept \code{newdata}, \code{type}, \code{re.form},
+  \code{se.fit}, and \code{cov.fit} through \code{\dots}. For conditional
+  predictions at known random-effect levels or zero-random-effect predictions,
+  \code{se.fit=TRUE} returns a list with \code{fit}, \code{se.fit}, and
+  \code{cov.fit=NULL}. The standard errors use the joint fixed/random
+  conditional observed-information inverse, with fitted covariance and family
+  parameters held fixed. Response-scale standard errors use the delta method.
+  Setting \code{cov.fit=TRUE} additionally returns the complete link-scale
+  or response-scale prediction covariance and requires \code{se.fit=TRUE}.
+  Solve panels are controlled by \code{output$panelSize}, and full covariance
+  workspace is checked against \code{execution$denseMemoryMB}. Population-mean
+  uncertainty is propagated through fixed-effect and covariance-parameter
+  curvature for the supported independent-random-intercept case. General
+  population integration and aggregation are not implemented.
+  With a nontrivial \code{zipoisson(zero=~covariates)} formula, prediction
+  uncertainty instead propagates the joint outer-parameter covariance,
+  including zero coefficients and cross-covariances. Conditional predictions
+  also propagate conditional-mode dependence and local latent covariance.
+  All these calculations occur after fitting; they are local approximations,
+  not future-response prediction intervals. Zero-formula factor coding,
+  transformations and offsets are evaluated from the training basis.
   
  }
 \value{

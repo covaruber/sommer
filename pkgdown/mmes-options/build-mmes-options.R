@@ -45,10 +45,11 @@ controls$values[controls$path == "control.task.pql.estimateTheta"] <- "TRUE or F
 controls$values[controls$path == "control.output.inverse"] <-
   "0: no fit-time PEVs or inverse; 1: selected inverse and PEVs; 2: full inverse and PEVs."
 controls$effect[controls$path == "control.output.inverse"] <-
-  "Controls both fit-time PEV computation and the coefficient inverse. With mode 0 and coefficientMatrix=TRUE, postPEV() can compute these after fitting."
+  "Controls Gaussian fit-time PEV work. Native Laplace requires mode 0 and computes PEV only after fitting through postPEV(); Laplace vcov()/summary() uncertainty is also post-fit. Prediction solve panels use output$panelSize and execution$denseMemoryMB."
 
 public_path <- function(path){
   path <- sub("^control\\.", "", path)
+  if(grepl("^task\\.glmm\\.", path)) return(sub("^task\\.glmm\\.", "task$glmm$", path))
   if(grepl("^task\\.pql\\.", path)) return(sub("^task\\.pql\\.", "task$pql$", path))
   sub(".", "$", path, fixed=TRUE)
 }
@@ -60,6 +61,8 @@ controls$usage <- vapply(controls$path, function(path){
   if(path == "control.formulation") return('mmes_control(formulation = "direct")')
   if(grepl("^control\\.task\\.pql\\.", path))
     return(sprintf("mmes_control(task = list(pql = list(%s = ...)))", sub("^control\\.task\\.pql\\.", "", path)))
+  if(grepl("^control\\.task\\.glmm\\.", path))
+    return(sprintf("mmes_control(task = list(glmm = list(%s = ...)))", sub("^control\\.task\\.glmm\\.", "", path)))
   if(grepl("^control\\.", path)){
     parts <- strsplit(sub("^control\\.", "", path), ".", fixed=TRUE)[[1]]
     return(sprintf("mmes_control(%s = list(%s = ...))", parts[1], parts[2]))
@@ -91,9 +94,10 @@ allowed_under <- function(id, control){
   sort(union(setdiff(everything, rule(id)$settings(control)), bad))
 }
 direct_allowed <- setdiff(allowed_under("direct-engine", build(formulation="direct")),
-  c("task$mode", "task$pql", grep("^diagnostics\\$", src$.mme_control_paths(defaults), value=TRUE)))
+  c("task$mode", "task$pql", "task$glmm",
+    grep("^diagnostics\\$", src$.mme_control_paths(defaults), value=TRUE)))
 solve_allowed <- setdiff(allowed_under("solve-mode", build(task=list(mode="solve"))),
-  c("task$mode", grep("^(diagnostics|execution)\\$", src$.mme_control_paths(defaults), value=TRUE),
+  c("task$mode", "task$glmm", grep("^(diagnostics|execution)\\$", src$.mme_control_paths(defaults), value=TRUE),
     "solve$blockSchur", "solve$blockBanded", "solve$factorSchurMultiFactor", "solve$dFirstML"))
 pcg_only <- src$.mme_pcg_paths
 
@@ -110,7 +114,7 @@ nodes <- list(
   node("task", "Task", "Estimate covariances or solve at known values",
     "Do you need to estimate covariance parameters?",
     "task$mode = 'fit' (default) estimates covariance parameters. task$mode = 'solve' runs a single Henderson PCG solve at covariance parameters supplied through covPar.",
-    c("control.task.mode", "mmes.covPar"), c("solve-mode"),
+    c("control.task.mode", "control.task.glmm.method", "mmes.covPar"), c("solve-mode"),
     'mmes_control(task = list(mode = "fit"))'),
   node("known", "Known-covariance solve", "task$mode = 'solve' | one PCG solve",
     "Solve the mixed model equations at covPar.",
@@ -119,13 +123,18 @@ nodes <- list(
     'fit0 <- mmes(..., control = mmes_control())\nmmes(..., covPar = fit0,\n     control = mmes_control(task = list(mode = "solve"),\n                            solve = list(tol = 1e-10, warmStart = TRUE)))'),
   node("family", "Response family", "Gaussian identity or GLMM",
     "Is the response Gaussian with identity link?",
-    "family selects the statistical response model, not a solver. Gaussian identity fits go straight to the equation domain; other families run an outer PQL loop whose inner working fits follow the Gaussian path.",
+    "family selects the statistical response model, not a solver. Gaussian identity fits go straight to the equation domain. Other families use PQL by default, or the opt-in Laplace backend for its narrower supported model set.",
     "mmes.family", c("gaussian-pql"), 'mmes(y ~ x, random = ~ id, data = d, family = binomial())'),
   node("pql", "Outer PQL loop", "Non-Gaussian or non-identity link",
     "How should the outer PQL iterations run?",
     "task$pql owns outer PQL convergence; convergence$* owns the inner Gaussian working fits. Changing task$pql on a Gaussian identity fit is an error because it would be ignored.",
     grep("^control\\.task\\.pql\\.", controls$path, value=TRUE), c("gaussian-pql"),
     'mmes_control(task = list(pql = list(maxit = 40L, tol = 1e-6)))'),
+  node("laplace", "Native Laplace GLMM", "Binomial or Poisson | ML | native covariance module",
+    "Does this GLMM fit the first Laplace backend?",
+    "Laplace uses sommer's native likelihood/mode and full-score modules with prepared designs and CovarianceFactor random precisions. It supports binomial logit/probit/cloglog (binary or grouped), Poisson log, NB2 log, Gaussian identity and Gamma log, including familym with conditionally independent observations. Shape/dispersion are estimated per trait by default; configure familyParameters to fix them. It requires ML and Henderson formulation. Structured residual covariance, W, weights formulas, vcc and direct formulation remain unsupported. Native Laplace requires output$inverse=0; use postPEV() after fitting for PEV. vcov(), summary() and prediction uncertainty also run only after fitting. output$panelSize and execution$denseMemoryMB control post-fit solve work. Inspect curvature/boundary diagnostics before inference. Both Gaussian engine objectives remain unchanged.",
+    grep("^control\\.task\\.glmm\\.", controls$path, value=TRUE),
+    example='mmes_control(task = list(objective = "ml", glmm = list(method = "laplace")))'),
   node("domain", "Equation domain", "formulation = henderson | direct",
     "Coefficient-space (Henderson) or observation-space (direct V) equations?",
     "Henderson (default) solves the mixed model equations in coefficient space and offers solver, representation and curvature choices. Direct inverts the n x n observation covariance V and accepts a much smaller set of options.",
@@ -150,7 +159,8 @@ nodes <- list(
     "Exact log-determinants and traces. Structured-elimination toggles take 'auto', 'off' or 'force'; 'force' never bypasses structural or memory checks.",
     c("control.task.objective", "control.solve.blockSchur", "control.solve.blockBanded",
       "control.solve.factorSchurMultiFactor", "control.solve.dFirstML",
-      "control.score.covarianceChecks", "control.score.traceBatch"),
+      "control.score.covarianceChecks", "control.score.traceBatch",
+      "control.score.denseCrossproduct"),
     c("deterministic-solver"),
     'mmes_control(solve = list(method = "cholmod", blockSchur = "force"),\n             task = list(objective = "ml"))'),
   node("representation", "Equation representation", "Compression, factor scores, saddle-point, conditional",
@@ -182,7 +192,7 @@ nodes <- list(
     example='mmes_control(convergence = list(maxIters = 50L, likelihoodTol = 1e-6))'),
   node("outputs", "Outputs", "Coefficient and covariance uncertainty",
     "Which inference products should be returned?",
-    "output$inverse = 0 skips fit-time PEVs and coefficient inversion; 1 computes selected-inverse PEVs; 2 computes the full inverse and PEVs. To defer this work, retain coefficientMatrix = TRUE and call postPEV(fit, mode = 1L or 2L). There is no separate output$pev control. Covariance-parameter information is a separate request.",
+    "output$inverse = 0 skips fit-time PEVs and coefficient inversion; 1 computes PEVs; 2 computes the full inverse and PEVs. To defer this work, Gaussian fits need coefficientMatrix = TRUE, while native Laplace fits retain their joint-information inputs automatically; call postPEV(fit, mode = 1L or 2L). There is no separate output$pev control. Covariance-parameter information is a separate request.",
     grep("^control\\.output\\.", controls$path, value=TRUE), c("coefficient-matrix"),
     'mmes_control(output = list(inverse = 1L))'),
   node("policy", "Execution and diagnostics", "Memory, threads, GPU, messages",
@@ -238,6 +248,9 @@ contexts <- list(
     nodes=c("henderson", "deterministic", "pcg"), control=defaults),
   `pcg-estimation`=list(when="Henderson fit with solve$method = 'pcg'", nodes=c("henderson", "pcg"),
     control=build(solve=list(method="pcg"))),
+  `dense-score`=list(when="PCG, compressed, saddle-point or conditional equations",
+    nodes=c("henderson", "deterministic", "representation"),
+    control=build(solve=list(method="pcg"))),
   `accelerated-proposal`=list(when="proposal$extrapolation = 'aitken' or curvature$method = 'hybrid-ai'",
     nodes=c("curvature", "optimizer"), control=build(curvature=list(method="hybrid-ai"))),
   `saddle-point`=list(when="representation$equations = 'saddle-point'", nodes="representation",
@@ -271,6 +284,12 @@ rules <- c(rules, list(
     nodes=c("curvature", "optimizer"),
     message="Hybrid AI and Aitken extrapolation are separate accelerations and cannot be requested together.",
     hint="Choose one of them.", offending=c("curvature$method", "proposal$extrapolation")),
+  list(id="laplace-eligibility", stage="mmes()",
+    when="task$glmm$method = 'laplace'",
+    nodes=c("family", "laplace"),
+    message="Native Laplace requires objective='ml', a supported family/link (including grouped trials or familym), and Henderson formulation.",
+    hint="Use PQL for unsupported residual covariance, W, weights formulas, vcc or direct formulation.",
+    offending="task$glmm$method"),
   list(id="gaussian-pql", stage="mmes() (needs the family)", when="Gaussian identity family",
     nodes=c("family", "pql"),
     message="task$pql controls the outer PQL loop of non-Gaussian fits; a Gaussian identity fit would ignore it.",

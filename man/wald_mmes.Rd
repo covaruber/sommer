@@ -6,6 +6,7 @@
 Pseudo analysis of variance for the fixed terms of an \code{\link{mmes}} fit,
 based on incremental or conditional Wald statistics, with chi-square,
 residual, Satterthwaite or Kenward-Roger reference distributions.
+Native Laplace fits support conditional asymptotic chi-square term tests only.
 }
 \usage{
 wald_mmes(object, ssType = c("incremental", "conditional"),
@@ -24,7 +25,9 @@ wald_mmes(object, ssType = c("incremental", "conditional"),
   \code{"residual"} uses F tests with n - rank(X) denominator df.
   \code{"satterthwaite"} and \code{"kr"} (Kenward-Roger) compute approximate
   denominator df; \code{"kr"} also uses the Kenward-Roger adjusted covariance
-  of the fixed effects and scaled F statistic.}
+  of the fixed effects and scaled F statistic. Native Laplace fits require
+  \code{"none"}; small-sample denominator-df approximations are not available
+  for that likelihood.}
   \item{terms}{optional subset of fixed terms (as named in \code{object$Dtable}).}
 }
 \details{
@@ -49,6 +52,10 @@ The re-evaluation requires the data and objects used in the original call
 to be available, REML estimation, and a Gaussian fit.
 
 \code{anova(object)} with a single model returns \code{wald_mmes(object, ...)}.
+For a native Laplace fit, \code{ssType="conditional"} tests each selected
+fixed term using the joint numerical-Hessian fixed-effect covariance block.
+The chi-square reference is asymptotic and inherits the fit's curvature and
+boundary limitations.
 }
 \value{A data frame of class \code{"wald.mmes"} with columns \code{Df},
 \code{denDF}, \code{Wald}, \code{F.value} and \code{p.value}, one row per term.}

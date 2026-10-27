@@ -281,8 +281,8 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   \code{control$output$setup=TRUE} and stored in the fit. See \code{\link{vcc}}.}
 
   \item{family}{A \code{stats::family()} object. The default Gaussian identity
-  family uses the ordinary linear mixed-model implementation. Other families are
-  fitted by penalized quasi-likelihood (PQL): each outer iteration forms an IRLS
+  family uses the ordinary linear mixed-model implementation. Non-Gaussian
+  families use penalized quasi-likelihood (PQL) by default: each outer iteration forms an IRLS
   working response and weights, then fits the resulting weighted Gaussian mixed
   model with the Henderson solver. The initial implementation supports one numeric
   response. Any family with a valid link can be used, e.g. \code{binomial()}
@@ -304,6 +304,119 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   Formula offsets are included on the link scale. A supplied symmetric positive
   definite \code{W} is combined with the IRLS precision after observation filtering,
   and may be sparse and non-diagonal.
+
+  The opt-in \code{control$task$glmm$method="laplace"} uses sommer's native
+  likelihood and random-effect mode module and requires
+  \code{control$task$objective="ml"}. It supports binomial (logit, probit,
+  complementary log-log), Poisson-log, fixed-effects zero-inflated
+  Poisson via \code{\link{zipoisson}}, \code{\link{nbinom2}}-log,
+  Gaussian-identity and Gamma-log responses, formula offsets, and positive-definite random covariance
+  structures prepared through sommer's \code{CovarianceFactor} interface.
+  Grouped-binomial trials use \code{binm()}, a two-column successes/failures
+  response, or the trials-column interface of \code{familym()}. Native
+  \code{familym()} combines all supported families through shared latent
+  random effects with conditionally independent observations.
+  It does not support structured residual covariance, \code{W}, weights formulas, \code{vcc}, direct
+  formulation. Native Laplace fits require
+  \code{control$output$inverse=0}; all PEV work is post-fit through
+  \code{\link{postPEV}}. The Gaussian objectives in
+  \code{ai_mme_sp2()} and \code{ai_reml_direct_sp2()} are unchanged; the native
+  Laplace module consumes their shared prepared design/covariance inputs
+  without delegating fitting to another mixed-model package. Conditional,
+  zero-random-effect, and restricted response-scale population predictions
+  are available. Conditional predictions require known random-effect levels;
+  population integration is limited to independent random intercepts.
+  The PQL path and its defaults are unchanged.
+  Model preparation retains the actual family and returns before Gaussian
+  fitting. Native precision and family modules provide first derivatives of
+  the full Laplace objective, including mode and determinant dependence, to
+  \code{stats::nlminb}. Relationship factorizations, descriptor states and
+  unchanged sparse symbolic patterns are cached within a fit. Identical
+  parameters and mode controls reuse converged modes; distinct proposals
+  start from zero. Derivative traces use bounded dense solve panels, not a
+  complete inverse; \code{control$execution$denseMemoryMB} sets their budget.
+  Sparse Kronecker precision blocks are still assembled, so this is not a
+  total-memory bound.
+  The fitting-local native context is not stored in the result.
+
+  Native Laplace fits retain observation filtering information in
+  \code{obsInfo}, training terms, factor levels and fitted contrast coding.
+  \code{predict()} accepts \code{newdata}, \code{type="link"} or
+  \code{"response"}, \code{re.form=NULL}, \code{NA}, or
+  \code{"population"}, and optional \code{se.fit=TRUE} and
+  \code{cov.fit=TRUE}. The default
+  \code{NULL} uses conditional random-effect modes for new-data levels already
+  seen in fitting; unseen random-effect levels are reported explicitly and
+  require \code{re.form=NA}, which sets random effects to zero. On a nonlinear
+  link, zero-random-effect means are not population-marginal means. Population
+  marginal means are available on the response scale with
+  \code{re.form="population"} for independent random-intercept terms with
+  identity relationship precision; unsupported covariance structures error
+  explicitly. Prediction standard errors are available for conditional
+  known-level and zero-random-effect predictions; response-scale standard
+  errors use the delta method. They are conditional on fitted covariance and
+  family parameters. Full prediction covariance is optional and guarded by
+  \code{execution$denseMemoryMB}; prediction solve panels use
+  \code{output$panelSize}. Population-mean uncertainty is propagated through
+  fixed-effect and covariance-parameter curvature for the supported
+  independent-random-intercept case; general population integration and
+  aggregation are not implemented.
+  Explicit \code{PEV=FALSE} and \code{VarU=FALSE} are accepted; requests for
+  these uncertainty products are rejected.
+
+  \code{laplaceDiagnostics} separates outer convergence, mode convergence,
+  curvature validity, covariance boundaries and rejected proposal reasons.
+  It also records the marginal log-likelihood \code{gradient} and
+  \code{nativeWork} counters through the final optimizer score evaluation,
+  before the numerical uncertainty Hessian.
+  Fixed-effect and covariance-parameter standard errors are calculated
+  post-fit by \code{vcov()} or \code{summary()}; fitting does not calculate
+  the numerical uncertainty Hessian. They require outer convergence, a
+  positive-definite, numerically nonsingular joint parameter Hessian, and no
+  detected covariance boundary. Otherwise a warning is issued and standard
+  errors are \code{NA}; an optimizer success code alone does not validate
+  uncertainty. Boundary screening uses a relative eigenvalue tolerance and
+  descriptor transforms; it is a numerical warning, not a boundary test.
+  On a valid interior fit, \code{vcov()} returns the fixed-effect block of the
+  joint numerical-Hessian covariance approximation. Free covariance
+  parameters receive natural-scale delta-method standard errors in
+  \code{summary(fit)$varcomp}; fixed parameters and parameters from fits with
+  invalid uncertainty have unavailable standard errors. These are local curvature
+  approximations, not calibrated confidence intervals.
+  \code{anova(fit)} provides term-wise Wald chi-square tests using this
+  covariance approximation. \code{anova(smaller, larger)} is restricted to
+  converged, strictly nested fixed-effect models with identical response
+  rows, family/trial settings, offsets, random formula and covariance
+  structure. Comparisons are refused when a boundary is flagged. Variance
+  component likelihood-ratio tests are not provided; their null distributions
+  can be nonstandard and require parametric bootstrap or other calibration.
+  Working residuals are \eqn{(y-\mu)/(d\mu/d\eta)}. Grouped-binomial fitted
+  values and residuals are on the proportion scale, with Pearson variance
+  \eqn{p(1-p)/n}. Gaussian/Gamma Pearson variances include fitted dispersion;
+  their deviance residual contributions are divided by that dispersion.
+
+  NB2 shape, Gaussian/Gamma dispersion, and the zero-inflation probability
+  for \code{\link{zipoisson}} are estimated by default on the
+  Laplace route. \code{task$glmm$familyParameters} configures starting/fixed
+  values: \code{list(theta=2, estimate=FALSE)} for a single NB2 family,
+  \code{list(zeroInflation=0.2, estimate=FALSE)} for a zero-inflated Poisson
+  family, or trait-named nested lists for \code{familym()}. The
+  zero-inflation component defaults to intercept-only.
+  \code{zipoisson(zero=~covariates)} adds a separate fixed-effects logit
+  predictor with coefficients reported in \code{zeroCoefficients};
+  \code{summary(fit)} adds their post-fit joint-curvature standard errors.
+  Zero-component random effects and zero-inflated NB2 are not supported.
+  The fitted object's
+  \code{familyParameters} table includes estimates; \code{summary(fit)}
+  adds approximate delta-method standard errors after fitting when joint
+  curvature is valid. Gaussian
+  dispersion is the conditional residual variance; Gamma dispersion is
+  \eqn{\operatorname{Var}(Y)/\mu^2}, with shape its reciprocal.
+  Estimated nuisance parameters count toward \code{npar}, AIC and BIC.
+  Shape/dispersion derivatives include conditional-mode and determinant
+  dependence. Gaussian-identity integration is exact on this route, although
+  it still uses the separate native likelihood module rather than changing
+  the ordinary Gaussian fitting defaults.
 
   Long-format multi-trait data with a different family per trait are fitted by
   supplying \code{family = \link{familym}("trait", Disease = binomial(),

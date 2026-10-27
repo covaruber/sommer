@@ -75,7 +75,7 @@ the prior numerical bundle; they do not authorize new combinations.
 | Module | Mathematical ownership | Fields and defaults |
 |:--|:--|:--|
 | `formulation` | Equation domain | `"henderson"`; `"henderson"` or `"direct"`. |
-| `task` | Fit versus known-covariance solve; objective; outer PQL | `mode="fit"`, `objective="reml"`, `pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)`. |
+| `task` | Fit versus known-covariance solve; objective; GLMM estimator and controls | `mode="fit"`, `objective="reml"`, `pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)`, `glmm=list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8)`. Laplace requires `objective="ml"` and the supported native model scope in the GLMM vignette. |
 | `representation` | Equation/covariance representation | `compression="off"`, `factorScores="none"`, `fixedRank="error"`, `equations="normal"`, `sparseFactors="off"`, `matrixFree="auto"`; modes can inherit global options, and `equations` defaults to `"saddle-point"` if that mode is globally forced. |
 | `solve` | Linear solves, preconditioning, reuse, elimination | `method="auto"`; PCG fields below; `blockSchur`, `blockBanded`, `factorSchurMultiFactor`, and `dFirstML` default to `"auto"`. |
 | `logdet` | Determinant approximation | `scaling="none"`, `lanczosSteps=20L`. |
@@ -101,6 +101,14 @@ selected inverse without forming full `Ci`. Mode `2L` forms full `Ci` and
 computes PEVs. To defer this work, retain the default mode `0L` and
 `output$coefficientMatrix=TRUE`, then call `postPEV(fit, mode=1L)` for PEVs
 only or `postPEV(fit, mode=2L)` for PEVs and full `Ci`.
+Native Laplace GLMMs require `output$inverse=0L`; setting it to `1L` or `2L`
+is an error because all GLMM PEV work is post-fit. Use `postPEV()` after
+fitting. Laplace fixed-effect and covariance-parameter standard errors are
+likewise calculated on demand by `vcov()` or `summary()`. For Laplace
+prediction uncertainty, `predict(..., se.fit=TRUE)` uses bounded solve panels;
+`cov.fit=TRUE` requests the full covariance. Both use `execution$denseMemoryMB`
+and `output$panelSize`, and the default simulation memory budget also uses
+`execution$denseMemoryMB`.
 
 Options may supply defaults for experimental modes, memory budget/policy, and
 GPU settings. For example, a non-`NULL` `sommer.mme.denseMemoryMB` option
@@ -605,7 +613,7 @@ Move every numerical choice into `control`; do not pass old formals to
 | `solveOnly=TRUE/FALSE` | `task$mode="solve"/"fit"` |
 | `pqlControl` | `task$pql` |
 | `computeCi` | `output$inverse` |
-| `getPEV` | No separate replacement; `output$inverse` controls fit-time PEVs. Use `postPEV()` to compute PEVs after fitting. |
+| `getPEV` | No separate replacement; Gaussian fits use `output$inverse` for fit-time PEVs. Native Laplace requires `output$inverse=0` and uses `postPEV()` after fitting. |
 | `returnParam` | `output$setup` |
 | `blend`, `blendWeight` | `update$recovery`, `update$blendWeight` |
 | `stepWeight` | `proposal$stepWeight` |

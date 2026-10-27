@@ -267,6 +267,7 @@
     profile = .mme_experimental_mode(experimental$profile, "off", "sommer.mme.profile"),
     blockSchur = .mme_experimental_mode(experimental$blockSchur, "auto", "sommer.mme.blockSchur"),
     traceBatch = .mme_experimental_mode(experimental$traceBatch, "off", "sommer.mme.traceBatch"),
+    denseCrossproduct = .mme_experimental_mode(experimental$denseCrossproduct, "auto"),
     sparseFactors = .mme_experimental_mode(experimental$sparseFactors, "auto", "sommer.mme.sparseFactors"),
     saddlePoint = .mme_experimental_mode(experimental$saddlePoint, "off", "sommer.mme.saddlePoint"),
     reducedAI = .mme_experimental_mode(experimental$reducedAI, "off", "sommer.mme.reducedAI"),

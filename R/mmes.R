@@ -11,8 +11,9 @@
                  contrasts=NULL, getPEV=TRUE, henderson=TRUE,
                  computeCi=0, solver="auto", REML=TRUE, vcc=NULL,
                  family=stats::gaussian(), pqlControl=list(),
+                 glmmControl=.mme_glmm_defaults,
                  solveOnly=FALSE, covPar=NULL, blasThreads=NULL,
-                 engine=NULL, .internal=NULL){
+                 engine=NULL, .internal=NULL, .prepareOnly=FALSE){
   WWasMissing <- missing(W)
   WInput <- if(WWasMissing) NULL else W
   mmesCall <- match.call()
@@ -98,6 +99,11 @@
   isGaussianIdentity <- inherits(family, "family") &&
     identical(family$family, "gaussian") &&
     identical(family$link, "identity")
+  if(identical(engineControl$experimental$denseCrossproduct, "force") &&
+     (!isGaussianIdentity || .pqlInner)){
+    stop("score$denseCrossproduct='force' requires a Gaussian identity-link fit without PQL.",
+      call.=FALSE)
+  }
   dropFixedAliases <- identical(engineControl$fixedRank, "drop")
   if(dropFixedAliases &&
      (!isGaussianIdentity || .pqlInner || solveOnly || conditionalFA ||
@@ -230,7 +236,38 @@
     stop("Conditional FA requires Gaussian Henderson REML, solve$method='auto' or 'ldlt', output=list(inverse=0, covariance='none', coefficientMatrix=FALSE), and no vcc or PQL.",
       call.=FALSE)
   }
-  if(!.pqlInner && !isGaussianIdentity){
+  if(!.prepareOnly && !.pqlInner &&
+     (!isGaussianIdentity || identical(glmmControl$method, "laplace"))){
+    if(identical(glmmControl$method, "laplace")){
+      return(finishThreads(get(".mmes_laplace", mode="function")(
+        fixed=fixed,
+        random=if(missing(random)) NULL else random,
+        rcov=if(missing(rcov)) NULL else rcov,
+        data=if(missing(data)) NULL else data,
+        W=if(missing(W)) NULL else W,
+        weights=weights,
+        family=family,
+        vcc=vcc,
+        REML=REML,
+        maxit=glmmControl$maxit,
+        modeMaxit=glmmControl$modeMaxit,
+        modeTol=glmmControl$modeTol,
+        familyParameters=glmmControl$familyParameters,
+        naMethodY=naMethodY,
+        henderson=henderson,
+        solveOnly=solveOnly,
+        computeCi=computeCi,
+        mmesArgs=list(
+          contrasts=contrasts,
+          naMethodX=naMethodX,
+          naMethodRandom=naMethodRandom,
+          naMethodR=naMethodR,
+          dateWarning=dateWarning,
+          verbose=verbose,
+          engine=engineControl
+        )
+      ), threadScope, verbose))
+    }
     return(finishThreads(get(".mmes_pql", mode="function")(
       fixed=fixed,
       random=if(missing(random)) NULL else random,
@@ -407,6 +444,18 @@
   responseMF <- mf_full[, 1L, drop=FALSE]
   responseOK <- stats::complete.cases(responseMF)
   fixedOK <- if(ncol(mf_full) > 1L) stats::complete.cases(mf_full[, -1L, drop=FALSE]) else rep(TRUE, nObs)
+  if(.prepareOnly){
+    fixedOK <- fixedOK & .laplace_zero_complete(family, data_full, nObs)
+  }
+  if(.prepareOnly && inherits(family, "sommer_familym")){
+    fixedOK <- fixedOK & !is.na(.laplace_family_index(family, data_full, nObs))
+    if(!is.null(family$trials)){
+      if(!family$trials %in% names(data_full)){
+        stop("The familym trials column must be present in data.", call.=FALSE)
+      }
+      fixedOK <- fixedOK & !is.na(data_full[[family$trials]])
+    }
+  }
   
   randomOK <- rep(TRUE, nObs)
   if(length(randomExprs)){
@@ -582,7 +631,7 @@
   fixedTerms <- attr(tt, "term.labels")
   assignX <- attr(X, "assign")
   if(is.null(assignX)) assignX <- attr(stats::model.matrix(tt, mf, contrasts.arg=contrasts), "assign")
-  if(!returnParam && !dropFixedAliases) .mmes_check_fixed_design(X, fixedTerms)
+  if(!returnParam && !.prepareOnly && !dropFixedAliases) .mmes_check_fixed_design(X, fixedTerms)
   partitionsX <- list()
   if(attr(tt, "intercept") == 1L){
     ii <- which(assignX == 0L)
@@ -618,6 +667,16 @@
                 call.=FALSE)
       }
     }
+  }
+
+  if(.prepareOnly){
+    if(any(vapply(randomFits, function(term) !is.null(term$rotation), logical(1)))){
+      stop("Preparation-only models do not support Gaussian observation rotation.",
+        call.=FALSE)
+    }
+    return(list(X=X, Z=Z, Zind=Zind, Ai=Ai, yvar=yvar,
+      covStruct=covStruct, rtermss=rtermss, obsInfo=obsInfo,
+      modelFrame=mf_full, retainedFrame=mf, partitionsX=partitionsX))
   }
 
   # ---- Optional Lee-van der Werf observation rotation -----------------
@@ -1175,6 +1234,8 @@
   attr(covStruct, "profile") <- engineControl$experimental$profile
   attr(covStruct, "blockSchur") <- engineControl$experimental$blockSchur
   attr(covStruct, "traceBatch") <- engineControl$experimental$traceBatch
+  attr(covStruct, "denseCrossproduct") <- if(isGaussianIdentity && !.pqlInner)
+    engineControl$experimental$denseCrossproduct else "off"
   attr(covStruct, "sparseFactors") <- engineControl$experimental$sparseFactors
   attr(covStruct, "saddlePoint") <- engineControl$experimental$saddlePoint
   attr(covStruct, "reducedAI") <- if(nzchar(reducedAIReason)) "off" else

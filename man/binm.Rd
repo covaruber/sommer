@@ -21,6 +21,15 @@ The result is \code{successes/trials} with class \code{"binm"} and attribute
 as a data-frame column. Missing counts give a missing response, handled by the
 \code{naMethodY} rules of \code{mmes}. Fitting a proportion without \code{binm}
 treats every value as one trial, which is wrong unless all trials equal one.
+Counts must be finite integers with positive trial totals. Native Laplace
+fitting supports \code{binm()} with logit, probit and complementary log-log
+links and includes binomial combinatorial constants in its likelihood.
+It also accepts \code{cbind(successes, failures)} with positive row totals.
+Fitted values and response/working residuals stay on the proportion scale;
+Pearson variance is \eqn{p(1-p)/n}. Trials are retained as \code{priorWeights}.
+For mixed-family native fits, \code{\link{familym}(trials="column")}
+can instead declare a trials column with integer success responses for
+binomial rows and trial values of one for other families.
 }
 \value{A numeric vector of proportions of class \code{"binm"}.}
 \seealso{\code{\link{mmes}}}

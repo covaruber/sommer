@@ -243,6 +243,48 @@ summary(mix)$varcomp
 
 The five spline variances together describe the surface; when several of them shrink to zero, the simpler single-kernel `spl2Dc()` model of M2 is usually adequate.
 
+#### Henderson score assembly for dense spline bases
+
+Rotating spline penalties into independent random effects can make the design
+matrices dense, even when the original B-splines are local. In Henderson fits,
+building diagonal residual score cross-products by expanding every pair of
+nonzeros in every observation row can then cost more than factorization.
+`score = list(denseCrossproduct = "auto")` recognizes expensive dense-row
+cases and uses an exact weighted sparse Gram product instead. It changes
+neither the model nor the coefficient solver, selected-inverse traces or AI
+optimizer. Existing elimination policies are unchanged.
+
+For Henderson fitting, `solve = list(method = "cholmod")` selects the supernodal
+coefficient solver. Use `diagnostics = list(profile = "force")` to identify
+whether factorization or score construction dominates. Diagonal residual score
+cross-products are accumulated by sparse matrix multiplication, without
+expanding every pair of nonzeros in every design row into duplicate triplets
+when the dense-design path is selected. `"off"` restores the original path;
+`"force"` bypasses cost gates for eligible diagonal residual scores. Auto
+requires at least 64 nonzeros in an active row, a million row-product
+contributions, eight times the squared coefficient dimension, and sufficient
+workspace. Small/sparse incidence models, non-diagonal effective residual
+precision, PCG, PQL and other equation representations retain their existing
+paths. A forced request cannot bypass structural or memory checks.
+
+```{r, eval=FALSE}
+control <- mmes_control(
+  formulation = "henderson",
+  solve = list(method = "cholmod"),
+  score = list(denseCrossproduct = "auto"),
+  diagnostics = list(profile = "force"))
+# Inspect fit$engineDiagnostics$denseScoreCrossproducts and the MME banner.
+# Set denseCrossproduct = "off" to benchmark the unchanged legacy route.
+```
+
+When comparing with SpATS, also match the unpenalized spatial terms, genotype
+treatment, basis nesting and convergence criteria. For a second-order penalty,
+the spline null space includes linear column and row trends and their bilinear
+interaction; `spl2Dmats()` returns these as `TP.col`, `TP.row` and `TP.CxR` in
+`M$data`, but they are not added automatically to a formula such as `Y ~ V`.
+Absolute likelihoods may use different constants or response scaling, so
+compare fitted values and variance estimates before comparing reported criteria.
+
 ## 4. Several trials at once
 
 Breeding programmes rarely analyse one field. When trials are analysed together, we want to share information about genotypes across trials, while each field keeps its own spatial pattern. The key modelling question is: **which spatial parameters are shared between trials, and which are trial-specific?**

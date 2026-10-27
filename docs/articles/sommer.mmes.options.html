@@ -23,15 +23,15 @@
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
-    
+
 
     <nav class="navbar fixed-top navbar-light navbar-expand-lg bg-light"><div class="container">
-    
+
     <a class="navbar-brand me-2" href="../index.html">sommer</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.4.99</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.12</small>
 
-    
+
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
@@ -52,6 +52,7 @@
     <a class="dropdown-item" href="../articles/sommer.fa.and.rr.models.html">Factor analytic and reduced rank models in sommer</a>
     <a class="dropdown-item" href="../articles/sommer.genetic.evaluation.html">Genetic evaluation with known variance components in sommer</a>
     <a class="dropdown-item" href="../articles/sommer.glmm.html">Generalized linear mixed models with sommer</a>
+    <a class="dropdown-item" href="../articles/sommer.glmm.theory.html">Theory and practice of generalized linear mixed models in sommer</a>
     <a class="dropdown-item" href="../articles/sommer.gxe.html">Fitting genotype by environment models in sommer</a>
     <a class="dropdown-item" href="../articles/sommer.machinery.html">Inside sommer: the ai_mme_sp2 engine</a>
     <a class="dropdown-item" href="../articles/sommer.mmes.options.html">Modular numerical controls for sommer::mmes</a>
@@ -70,13 +71,13 @@
 <li class="nav-item">
   <a class="external-link nav-link" href="https://github.com/covaruber/sommer/" aria-label="github">
     <span class="fab fa fab fa-github fa-lg"></span>
-     
+
   </a>
 </li>
       </ul>
 </div>
 
-    
+
   </div>
 </nav><div class="container template-article">
 
@@ -88,14 +89,14 @@
       <img src="" class="logo" alt=""><h1>Modular numerical controls for sommer::mmes</h1>
                         <h4 data-toc-skip class="author">sommer
 development team</h4>
-            
-      
+
+
       <small class="dont-index">Source: <a href="https://github.com/covaruber/sommer/blob/HEAD/vignettes/sommer.mmes.options.Rmd" class="external-link"><code>vignettes/sommer.mmes.options.Rmd</code></a></small>
       <div class="d-none name"><code>sommer.mmes.options.Rmd</code></div>
     </div>
 
-    
-    
+
+
 <div class="section level2">
 <h2 id="purpose">Purpose<a class="anchor" aria-label="anchor" href="#purpose"></a>
 </h2>
@@ -182,21 +183,25 @@ authorize new combinations.</p>
 </tr>
 <tr class="even">
 <td align="left"><code>task</code></td>
-<td align="left">Fit versus known-covariance solve; objective; outer
-PQL</td>
+<td align="left">Fit versus known-covariance solve; objective; GLMM
+estimator and controls</td>
 <td align="left">
 <code>mode="fit"</code>, <code>objective="reml"</code>,
-<code>pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)</code>.</td>
+<code>pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)</code>,
+<code>glmm=list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8)</code>.
+Laplace requires <code>objective="ml"</code> and the supported native
+model scope in the GLMM vignette.</td>
 </tr>
 <tr class="odd">
 <td align="left"><code>representation</code></td>
 <td align="left">Equation/covariance representation</td>
 <td align="left">
 <code>compression="off"</code>,
-<code>factorScores="none"</code>, <code>equations="normal"</code>,
-<code>sparseFactors="off"</code>, <code>matrixFree="auto"</code>; modes
-can inherit global options, and <code>equations</code> defaults to
-<code>"saddle-point"</code> if that mode is globally forced.</td>
+<code>factorScores="none"</code>, <code>fixedRank="error"</code>,
+<code>equations="normal"</code>, <code>sparseFactors="off"</code>,
+<code>matrixFree="auto"</code>; modes can inherit global options, and
+<code>equations</code> defaults to <code>"saddle-point"</code> if that
+mode is globally forced.</td>
 </tr>
 <tr class="even">
 <td align="left"><code>solve</code></td>
@@ -234,7 +239,7 @@ to <code>"auto"</code>.</td>
 <td align="left"><code>update</code></td>
 <td align="left">Covariance-coordinate update and recovery</td>
 <td align="left">
-<code>recovery="em"</code>,
+<code>method="ai"</code>, <code>recovery="em"</code>,
 <code>blendWeight=NULL</code>, <code>commonScale="off"</code>.</td>
 </tr>
 <tr class="odd">
@@ -300,8 +305,18 @@ without forming full <code>Ci</code>. Mode <code>2L</code> forms full
 default mode <code>0L</code> and
 <code>output$coefficientMatrix=TRUE</code>, then call
 <code>postPEV(fit, mode=1L)</code> for PEVs only or
-<code>postPEV(fit, mode=2L)</code> for PEVs and full
-<code>Ci</code>.</p>
+<code>postPEV(fit, mode=2L)</code> for PEVs and full <code>Ci</code>.
+Native Laplace GLMMs require <code>output$inverse=0L</code>; setting it
+to <code>1L</code> or <code>2L</code> is an error because all GLMM PEV
+work is post-fit. Use <code><a href="../reference/postPEV.html">postPEV()</a></code> after fitting. Laplace
+fixed-effect and covariance-parameter standard errors are likewise
+calculated on demand by <code><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov()</a></code> or <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>.
+For Laplace prediction uncertainty,
+<code>predict(..., se.fit=TRUE)</code> uses bounded solve panels;
+<code>cov.fit=TRUE</code> requests the full covariance. Both use
+<code>execution$denseMemoryMB</code> and <code>output$panelSize</code>,
+and the default simulation memory budget also uses
+<code>execution$denseMemoryMB</code>.</p>
 <p>Options may supply defaults for experimental modes, memory
 budget/policy, and GPU settings. For example, a non-<code>NULL</code>
 <code>sommer.mme.denseMemoryMB</code> option replaces the
@@ -320,8 +335,12 @@ and library availability can still affect execution.</p>
 <code>representation$factorScores</code>: <code>"none"</code>,
 <code>"fixed-shape"</code>, or <code>"profile"</code>.</li>
 <li>
-<code>representation$equations</code>: <code>"normal"</code> or
-<code>"saddle-point"</code>.</li>
+<code>representation$fixedRank</code>: <code>"error"</code>
+(default) or opt-in <code>"drop"</code>.</li>
+<li>
+<code>representation$equations</code>: <code>"normal"</code>,
+<code>"saddle-point"</code> or experimental
+<code>"conditional"</code>.</li>
 <li>
 <code>logdet$scaling</code>: <code>"none"</code> or
 <code>"diagonal"</code>.</li>
@@ -331,6 +350,10 @@ and library availability can still affect execution.</p>
 <li>
 <code>curvature$method</code>: <code>"exact-ai"</code> or
 <code>"hybrid-ai"</code>.</li>
+<li>
+<code>update$method</code>: <code>"ai"</code>, conditional
+<code>"em"</code>, or the earlier <code>"conditional-fa"</code> EM
+selector.</li>
 <li>
 <code>update$recovery</code>: <code>"em"</code> or
 <code>"pxem"</code>.</li>
@@ -358,6 +381,338 @@ mathematical, structural, and memory checks.</li>
 <div class="section level2">
 <h2 id="decision-graph-and-constraints">Decision graph and constraints<a class="anchor" aria-label="anchor" href="#decision-graph-and-constraints"></a>
 </h2>
+<div class="section level3">
+<h3 id="rank-deficient-fixed-effects">Rank-deficient fixed effects<a class="anchor" aria-label="anchor" href="#rank-deficient-fixed-effects"></a>
+</h3>
+<p>By default, <code><a href="../reference/mmes.html">mmes()</a></code> stops with diagnostics when the fixed
+design contains zero columns or linear dependencies. For Gaussian
+identity-link fits, both the Henderson and direct engines can instead
+use a shared sparse C++ QR basis selected once after observation
+filtering:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
+<span>  <span class="va">response</span> <span class="op">~</span> <span class="va">locale</span> <span class="op">+</span> <span class="va">cell</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">observations</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>representation <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>fixedRank <span class="op">=</span> <span class="st">"drop"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">fixedRank</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"rank"</span>, <span class="st">"retained"</span>, <span class="st">"omitted"</span><span class="op">)</span><span class="op">]</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span><span class="op">$</span><span class="va">betas</span></span></code></pre></div>
+<p>The original coefficient layout is retained. Omitted coefficients are
+constrained to zero and explicitly marked aliased, with no inferential
+standard errors or tests. Retained coefficients are conditional on those
+constraints. This preserves the fitted-mean space but need not reproduce
+ASReml’s particular coefficient constraints. Different fixed bases can
+shift REML likelihoods by a constant.</p>
+<p><code>fit$fixedRank$relation</code> is a sparse map from the retained
+design to the original columns. Direct-engine <code>VarBeta</code> stays
+in retained coordinates; it is not expanded to a potentially huge
+original-column covariance. Henderson prediction contrasts are checked
+against the original model’s estimability relations. Non-estimable rows
+are rejected. Wald tests, likelihood-ratio comparisons,
+Satterthwaite/Kenward-Roger inference, and <code>emmeans</code> require
+an explicitly full-rank refit. Existing direct-engine prediction
+limitations are unchanged.</p>
+<p>Character classify predictions for rank-reduced fits stop before a
+Cartesian level grid is constructed. To explicitly request observed
+combinations:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">cells</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit</span>, D <span class="op">=</span> <span class="st">"locale:cell"</span>, observed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="va">cells</span><span class="op">$</span><span class="va">observed</span></span></code></pre></div>
+<p>This path averages the fixed predictor over retained records within
+each observed group and excludes random contributions by default. It is
+not an equally weighted balanced-grid marginal mean. Random
+contributions can be requested explicitly through <code>Dtable</code>,
+without changing its fixed rows:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">rules</span> <span class="op">&lt;-</span> <span class="va">fit</span><span class="op">$</span><span class="va">Dtable</span></span>
+<span><span class="va">rules</span><span class="op">$</span><span class="va">include</span><span class="op">[</span><span class="va">rules</span><span class="op">$</span><span class="va">type</span> <span class="op">==</span> <span class="st">"random"</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
+<span><span class="va">conditional</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit</span>, D <span class="op">=</span> <span class="st">"locale:cell"</span>, observed <span class="op">=</span> <span class="cn">TRUE</span>, Dtable <span class="op">=</span> <span class="va">rules</span><span class="op">)</span></span></code></pre></div>
+<p>For random terms, include alone uses empirical within-group design
+averages; include plus average uses equally weighted co-occurring
+indicator levels; average alone uses equally weighted selected fitted
+coefficient levels. Random level restrictions are given through entries
+of <code>levels</code> named by the fitted random term. The returned
+<code>Dtable</code> contains only term-level rules; selections are
+returned separately in <code>levels</code> and can be reused with those
+rules. A <code>levels</code> entry named exactly as <code>D</code> may
+select and order observed labels. Unobserved requests produce an error.
+Numeric classify variables and custom fixed-effect rules require
+explicit estimable contrasts instead. See <code><a href="../reference/predict_mmes.html">?predict.mmes</a></code> for
+random-level filtering and weighting details.</p>
+<p>Observed combinations can still produce a large dense covariance.
+<code>maxMemoryMB</code> defaults to the fitted dense memory budget
+(1000 MB otherwise) and checks estimated prediction workspace before
+constructing grouped contrasts or solving. Restrict <code>levels</code>
+or use smaller explicit contrast batches if necessary.
+<code>PEV = FALSE</code> does not remove the mandatory
+<code>vcov</code>.</p>
+<p>This option is not supported with PQL, solve mode, conditional FA,
+factor scores, observation rotation or compression; these combinations
+fail explicitly rather than silently ignore the rank policy.</p>
+</div>
+<div class="section level3">
+<h3 id="conditional-fa-reusable-posterior-moments-with-ai-or-em">Conditional FA: reusable posterior moments with AI or EM<a class="anchor" aria-label="anchor" href="#conditional-fa-reusable-posterior-moments-with-ai-or-em"></a>
+</h3>
+<p>The default ordinary AI workflow is unchanged. The opt-in
+<code>representation$equations="conditional"</code> selects sparse
+latent FA equations using the existing formula preparation, observation
+map, covariance descriptors, model methods, controls, and execution-plan
+reporting. The optimizer is a separate block:
+<code>update$method="ai"</code> (the default) uses exact REML scores and
+average-information curvature on these equations;
+<code>update$method="em"</code> uses conditional-moment EM. The earlier
+<code>update$method="conditional-fa"</code> API retains its EM behavior
+even without an explicit representation request.</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">long</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/stackTraits.html">stackTraits</a></span><span class="op">(</span><span class="va">wide</span>, traits <span class="op">=</span> <span class="va">trait_names</span>, keep <span class="op">=</span> <span class="st">"id"</span><span class="op">)</span></span>
+<span><span class="va">Ainv</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/solve.html" class="external-link">solve</a></span><span class="op">(</span><span class="va">A</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">Ainv</span>, <span class="st">"inverse"</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
+<span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
+<span>  <span class="va">value</span> <span class="op">~</span> <span class="va">trait</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/fam.html">fam</a></span><span class="op">(</span><span class="va">trait</span>, k <span class="op">=</span> <span class="fl">2</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">id</span><span class="op">)</span>, Gu <span class="op">=</span> <span class="va">Ainv</span><span class="op">)</span>,</span>
+<span>  rcov <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/fam.html">fam</a></span><span class="op">(</span><span class="va">trait</span>, k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">record</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">long</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
+<span>    representation <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>equations <span class="op">=</span> <span class="st">"conditional"</span><span class="op">)</span>,</span>
+<span>    update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>method <span class="op">=</span> <span class="st">"ai"</span><span class="op">)</span>,</span>
+<span>    convergence <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>maxIters <span class="op">=</span> <span class="fl">300</span><span class="op">)</span>,</span>
+<span>    output <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>covariance <span class="op">=</span> <span class="st">"none"</span>, coefficientMatrix <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>                  inverse <span class="op">=</span> <span class="fl">0</span>, panelSize <span class="op">=</span> <span class="fl">32</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">convergence</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">conditionalFA</span><span class="op">$</span><span class="va">likelihood</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">conditionalFA</span><span class="op">$</span><span class="va">updates</span>  <span class="co"># accepted AI steps and any EM recovery</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">conditionalFA</span><span class="op">$</span><span class="va">ai</span>       <span class="co"># final score norm, curvature rank and workspace</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">executionPlan</span><span class="op">$</span><span class="va">admission</span><span class="op">$</span><span class="va">conditionalFA</span></span>
+<span><span class="fu"><a href="../reference/covmatrix_mmes.html">covmatrix_mmes</a></span><span class="op">(</span><span class="va">fit</span>, term <span class="op">=</span> <span class="fl">1</span>, se <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+<p>Missing responses are excluded by the usual observation map, not
+imputed. Repeated individuals and incomplete residual pairing blocks are
+supported; <code>record</code> must identify the actual experimental
+unit. The genetic incidence must select exactly one individual and one
+trait per observed value. The fixed design may contain covariates and
+interactions but must have full column rank. Each trait must retain
+observations. Known positive-definite relationship
+<strong>precision</strong> matrices retain the usual <code>Gu</code>
+contract. Each covariance source must be entirely free or entirely
+fixed. FA specifics can be heterogeneous or homogeneous; diagonal and
+homogeneous residuals are also supported.</p>
+<div class="section level4">
+<h4 id="mathematical-blocks">Mathematical blocks<a class="anchor" aria-label="anchor" href="#mathematical-blocks"></a>
+</h4>
+<p>Write the latent model as</p>
+<p><span class="math display">\[
+y=Xb+Z_g(L_g f_g+s_g)+L_e f_e+\epsilon,\quad
+\operatorname{Var}(s_g)=\Psi_g\otimes A,\quad
+\operatorname{Var}(\epsilon)=\operatorname{diag}(\psi_{e,t(i)}).
+\]</span></p>
+<p>Residual factors are indexed by pairing key, genetic factors by
+individual. The prepared sparse design is denoted by <span class="math inline">\(D\)</span> and its random-effect precision by
+<span class="math inline">\(Q\)</span> (with zeros on fixed-effect
+coordinates). At every iteration:</p>
+<ol style="list-style-type: decimal">
+<li>Assemble <span class="math inline">\(H=D^\mathsf{T}R_0^{-1}D+Q\)</span> and factor it
+numerically.</li>
+<li>Compute conditional means and the entries of <span class="math inline">\(H^{-1}\)</span> needed by the complete-data
+quadratics, including fixed-effect uncertainty.</li>
+<li>Select the update block: exact REML score/AI contractions, or
+loading regressions and expected quadratic forms for EM. Do
+<strong>not</strong> treat predicted factors as observed data.</li>
+<li>Evaluate the observed restricted log likelihood and reject a
+material decrease. EM convergence requires likelihood and parameter
+stabilization; AI requires a small diagonally scaled REML score.</li>
+</ol>
+<p>On the original response scale, omitting the Gaussian normalizing
+constant, the restricted objective uses</p>
+<p><span class="math display">\[
+-2\ell_R=\log|R_0|-\log|Q_{\mathrm{random}}|+\log|H|
++(y-D\hat a)^\mathsf{T}R_0^{-1}(y-D\hat a)
++\hat a^\mathsf{T}Q\hat a .
+\]</span></p>
+<p>Integrating the fixed coefficients with a flat measure gives the
+restricted objective; their conditional second moments are essential to
+the EM update. Specific variances have a machine-precision positive
+floor to keep the conditional distribution well-defined during EM. AI
+uses log-specific coordinates and, for shared factors, logit
+allocations.</p>
+</div>
+<div class="section level4">
+<h4 id="exact-score-and-ai-blocks">Exact score and AI blocks<a class="anchor" aria-label="anchor" href="#exact-score-and-ai-blocks"></a>
+</h4>
+<p>For covariance coordinate <span class="math inline">\(\theta_i\)</span>, let <span class="math inline">\(V_i=\partial V/\partial\theta_i\)</span>, <span class="math inline">\(P=V^{-1}-V^{-1}X(X^\mathsf{T}V^{-1}X)^{-1}X^\mathsf{T}V^{-1}\)</span>,
+and <span class="math inline">\(z=Py\)</span>. The score and average
+information are</p>
+<p><span class="math display">\[
+s_i=\tfrac12(z^\mathsf{T}V_i z-\operatorname{tr}(PV_i)),\qquad
+\mathcal A_{ij}=\tfrac12(V_i z)^\mathsf{T}P(V_j z).
+\]</span></p>
+<p>The implementation differentiates the sparse latent design, residual
+diagonal and random precision. Selected posterior moments give the exact
+score traces; relationship-factor solves apply random prior covariances
+without forming a dense relationship inverse. The already factored <span class="math inline">\(H\)</span> projects derivative right-hand sides in
+bounded panels. Neither <span class="math inline">\(V\)</span> nor <span class="math inline">\(P\)</span> is constructed. Shared loading
+derivatives affect both covariance sources in the same coordinate.</p>
+<p>Independent loading matrices retain rotationally redundant
+coordinates. A diagonally scaled, rank-revealing curvature eigensolve
+drops numerically null directions rather than inverting a singular
+information matrix. Steps have a bounded coordinate displacement and a
+backtracking observed-likelihood Armijo test. If no AI proposal is
+accepted, an EM recovery step uses the same posterior moments;
+<code>conditionalFA$updates</code> records <code>"ai"</code> or
+<code>"em-recovery"</code> explicitly. This changes optimization, not
+the REML objective. <code>conditionalFA$ai$scoreNorm</code> is the
+diagonally scaled score checked against
+<code>convergence$parameterTol</code>; a small displacement alone cannot
+certify AI convergence.</p>
+<p>Near-zero conditional noise can make the latent equations
+ill-conditioned even when the marginal covariance remains
+well-conditioned. Conditional AI therefore has explicit numerical
+bounds: writing <span class="math inline">\(\tau=\max(10^{-8},\texttt{execution\$inverseTol})\)</span>,
+free physical specifics must be at least <span class="math inline">\(\tau\operatorname{var}(y)\)</span> and shared
+allocations lie in <span class="math inline">\([\tau,1-\tau]\)</span>
+(<code>inverseTol</code> must be below 0.5). Initial values must satisfy
+these bounds. An active-set solve excludes outward directions at a
+bound; convergence uses the projected KKT score, not an unconstrained
+zero-gradient claim. The actual <code>varianceFloor</code>,
+<code>allocationFloor</code>, and <code>activeBounds</code> are reported
+in <code>conditionalFA$ai</code>. These physical-coordinate constraints
+are not identical to the ordinary engine’s descriptor-coordinate bounds.
+EM recovery stays within the AI feasible set. Explicit conditional EM
+retains its earlier machine-precision floor, so optima at numerical
+boundaries need not match exactly between optimizers.</p>
+<p><code>conditionalFA$rawLikelihood</code> retains this original-scale
+objective. For compatibility with the ordinary solver’s
+standardized-response reporting, <code>llik</code> and
+<code>conditionalFA$likelihood</code> add <span class="math inline">\((n-\operatorname{ncol}(X))\log(\operatorname{sd}(y))\)</span>.
+This constant does not affect updates or convergence. <code>AIC</code>
+and <code>BIC</code> retain the existing solver’s fixed-design-column
+penalty convention; the covariance-model parameter count is recorded
+separately rather than silently changing those established fields.</p>
+</div>
+<div class="section level4">
+<h4 id="reuse-and-memory-policy">Reuse and memory policy<a class="anchor" aria-label="anchor" href="#reuse-and-memory-policy"></a>
+</h4>
+<p>The native conditional-moment block reuses symbolic LDLT analysis
+only while the sparse pattern is identical. Numeric factors are
+recomputed at every covariance update. Fixed sparse quadratic
+contractions are compiled once; identical factor incidence/missingness
+patterns share their Gram contractions. Selected inverse entries are
+obtained in bounded panels. No dense observation covariance or full
+posterior inverse is constructed. EM does not assemble an AI matrix;
+conditional AI does assemble a dense parameter-by-parameter matrix and
+observation-by-parameter derivative RHS.</p>
+<p><code>output$panelSize</code> controls inverse/projection-panel
+width; <code>execution$denseMemoryMB</code> admits their dense workspace
+and, for AI, the retained RHS/curvature/eigensolve workspace (not a
+process-memory cap). Oversized AI requests fail explicitly rather than
+switching optimizers. Sparse factor fill, latent genetic specifics, and
+the number of exact inverse solves can still be expensive, especially
+with dense relationships. This first engine prioritizes exactness and
+bounded dense intermediates; it is <strong>not a claim of MegaLMM-like
+thousand-trait runtime</strong>. EM can converge slowly near boundaries.
+Compare converged objectives and predictions, not equal iteration
+counts.</p>
+</div>
+<div class="section level4">
+<h4 id="shared-loading-covariance-model">Shared-loading covariance model<a class="anchor" aria-label="anchor" href="#shared-loading-covariance-model"></a>
+</h4>
+<p>For common trait axes, use matching tags:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">random</span> <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/fam.html">fam</a></span><span class="op">(</span><span class="va">trait</span>, k <span class="op">=</span> <span class="fl">2</span>, shared <span class="op">=</span> <span class="st">"axes"</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">id</span><span class="op">)</span>, Gu <span class="op">=</span> <span class="va">Ainv</span><span class="op">)</span></span>
+<span><span class="va">rcov</span>   <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/fam.html">fam</a></span><span class="op">(</span><span class="va">trait</span>, k <span class="op">=</span> <span class="fl">2</span>, shared <span class="op">=</span> <span class="st">"axes"</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">record</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>This changes the covariance family to <span class="math inline">\(G=L
+D_g L^\mathsf{T}+\Psi_g\)</span> and <span class="math inline">\(R=L D_e
+L^\mathsf{T}+\Psi_e\)</span>. Both sources must be free with equal rank.
+Diagonal factor variances are updated from conditional quadratics and
+normalized so <span class="math inline">\(D_g+D_e=I\)</span>; the
+compensating scale is absorbed into <span class="math inline">\(L\)</span>. Starting loading columns must be
+positive scalar multiples between sources. Defaults satisfy this. The
+common basis is in <code>fit$conditionalFA$state$loading</code>, with
+allocations <code>weightG</code> and <code>weightE</code>; sign and
+ordering are not uniquely identified. <code><a href="../reference/loadings_mmes.html">loadings_mmes()</a></code>
+instead reports triangular marginal loadings for each source. Other
+engines reject shared tags rather than ignoring the restriction.</p>
+</div>
+<div class="section level4">
+<h4 id="output-and-compatibility">Output and compatibility<a class="anchor" aria-label="anchor" href="#output-and-compatibility"></a>
+</h4>
+<p>Fits remain <code>mmes</code> objects. <code><a href="https://rdrr.io/r/stats/fitted.values.html" class="external-link">fitted()</a></code>,
+<code><a href="https://rdrr.io/r/stats/residuals.html" class="external-link">residuals()</a></code>, <code><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef()</a></code>, covariance parameter
+reports, and explicit <code>covmatrix_mmes(..., se=FALSE)</code> remain
+available. <code>theta</code> has named empty entries rather than dense
+trait matrices. The covariance descriptors and conditional state are the
+authoritative factorized covariance representation. Covariance-parameter
+SEs, retained public <code>C</code>, coefficient PEVs, and
+uncertainty-dependent methods are not available on this path; they fail
+explicitly. No implicit handoff to another estimator is made. For shared
+models, the usual marginal parameter reports are redundant
+representations; the independent parameter count is reported in
+<code>fit$conditionalFA$parameterCount</code>. The public
+<code>llik</code> retains its usual one-row history shape.
+<code>monitor</code> contains the final marginal covariance parameters
+only, not every intermediate EM state; the likelihood history is
+retained in <code>conditionalFA$likelihood</code>.</p>
+<p>Weights, non-Gaussian families, ML, multiple random covariance
+sources, rotation, user <code>vcc</code>, random-regression/overlapping
+incidence, <code><a href="../reference/rrm.html">rrm()</a></code>, spatial residuals, and combinations with
+AI acceleration/augmentation are not admitted. Such models continue to
+use the unchanged ordinary engine unless the conditional engine is
+explicitly requested.</p>
+</div>
+<div class="section level4">
+<h4 id="validation-and-measured-limits">Validation and measured limits<a class="anchor" aria-label="anchor" href="#validation-and-measured-limits"></a>
+</h4>
+<p>The posterior kernel is checked against dense means, inverse entries
+and log determinants, including symbolic reuse/invalidation. End-to-end
+tests compare incomplete-record REML, GLS and genetic BLUPs with dense
+reference equations, check shared and independent EM monotonicity, and
+verify convergence against a separately optimized one-dimensional
+restricted likelihood with a fixed genetic covariance. Unequal
+genetic/residual ranks and homogeneous specifics have separate coverage.
+Conditional AI scores and curvature are also checked against
+independently finite-differenced marginal covariance matrices, including
+rank-two shared loadings and homogeneous specifics. Convergence is
+compared with a separately optimized restricted likelihood;
+numerical-bound KKT convergence, EM recovery and legacy-EM parity have
+separate tests.</p>
+<p>Baseline-versus-candidate checks used the enhancer split-plot,
+compound-symmetry and diagonal GxE, multivariate, random-regression,
+field row/column, and genomic relationship models. Covariance
+parameters, BLUPs, likelihood histories and convergence flags matched
+exactly for all seven. This is regression evidence, not an independent
+certification of a model optimum. The earlier conditional EM selector
+and the explicit conditional EM control also produce identical
+histories, parameters and predictions. Measured R allocations changed by
+less than 0.03%; elapsed times were noisy on the shared machine, so
+unchanged ordinary paths are not claimed as a speedup.</p>
+<p>A separate single-thread, synthetic score benchmark with 2,000
+traits, rank 5 and 200 individuals compared the new regression score
+routine with <code>U %*% solve(Sigma, L)</code>: maximum absolute
+difference was below <span class="math inline">\(5\,10^{-14}\)</span>,
+median elapsed time was 0.003 versus 0.146 seconds (seven repetitions),
+and profiled R allocations were 3.84 versus 30.67 MiB. This measures
+<strong>score calculation only</strong>, not model fitting or process
+peak memory.</p>
+<p>Conditional EM is not uniformly competitive with AI. In a four-trait,
+24-individual, four-replicate incomplete-data experiment with a
+near-boundary genetic specific variance, AI converged in about 5
+seconds; conditional EM had not met both convergence tolerances after
+1,500 updates and about 123 seconds. The engine reports nonconvergence
+explicitly. These measurements motivate future
+acceleration/reduced-latent-system work; they do not establish
+thousand-trait fitting scalability.</p>
+<p>On the same near-boundary fixture, conditional AI with active
+numerical bounds converged in 16 updates rather than the 1,500
+unfinished EM updates. Conditional AI took about 1.5 seconds versus 0.6
+seconds for ordinary AI. These shared-machine timings do not establish a
+general speed advantage; the numerical bounds and stopping rules must
+also be considered when comparing optima.</p>
+</div>
+</div>
+<div class="section level3">
+<h3 id="ordinary-fitting-paths">Ordinary fitting paths<a class="anchor" aria-label="anchor" href="#ordinary-fitting-paths"></a>
+</h3>
 <p>The sequence below shows dependencies, not a sequence of arbitrary
 method switches. Several paths dispatch early, and later choices remain
 gated by the model, task, solver, and output request.</p>
@@ -398,7 +753,7 @@ every offending setting and suggests a fix. Restating a default is
 always accepted. Rules that depend on the data, family, <code>vcc</code>
 or rotation are checked at fit time. See <code><a href="../reference/mmes_control.html">?mmes_control</a></code>
 (section Compatibility) for the rule list.</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>solve <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>method <span class="op">=</span> <span class="st">"ldlt"</span><span class="op">)</span>, score <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>traceProbes <span class="op">=</span> <span class="fl">32L</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Error: Incompatible mmes_control() settings:</span></span>
 <span><span class="co">#&gt; * PCG preconditioning, recycling, stochastic log-determinant and</span></span>
@@ -489,7 +844,7 @@ restrictions.</li>
 </ul>
 <p>For the descriptive capability inventory and conceptual decision
 graph, inspect the internal catalog:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">capabilities</span> <span class="op">&lt;-</span> <span class="fu">sommer</span><span class="fu">:::</span><span class="fu">.mmes_capabilities</span><span class="op">(</span><span class="op">)</span></span>
 <span><span class="va">capabilities</span><span class="op">$</span><span class="va">modules</span></span>
 <span><span class="va">capabilities</span><span class="op">$</span><span class="va">controls</span></span>
@@ -498,6 +853,7 @@ graph, inspect the internal catalog:</p>
 <p>This inventory does not inspect a fitted model, resolve eligibility,
 or predict the selected execution path. It complements, but does not
 replace, control validation and fit-time diagnostics.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="migration-from-removed-numerical-formals">Migration from removed numerical formals<a class="anchor" aria-label="anchor" href="#migration-from-removed-numerical-formals"></a>
@@ -557,8 +913,9 @@ conflicting duplicated values.</p>
 </tr>
 <tr class="odd">
 <td align="left"><code>getPEV</code></td>
-<td align="left">No separate replacement; <code>output$inverse</code>
-controls fit-time PEVs. Use <code><a href="../reference/postPEV.html">postPEV()</a></code> to compute PEVs after
+<td align="left">No separate replacement; Gaussian fits use
+<code>output$inverse</code> for fit-time PEVs. Native Laplace requires
+<code>output$inverse=0</code> and uses <code><a href="../reference/postPEV.html">postPEV()</a></code> after
 fitting.</td>
 </tr>
 <tr class="even">
@@ -761,7 +1118,7 @@ fit output and <code>diagnostics$profile</code> for profiling</td>
 </table>
 <p>For example, former settings spread across top-level formals and
 engine lists now have one canonical owner:</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">control</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
 <span>  formulation <span class="op">=</span> <span class="st">"henderson"</span>,</span>
 <span>  task <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"reml"</span><span class="op">)</span>,</span>
@@ -794,9 +1151,9 @@ permission to combine unsupported methods.</p>
     </footer>
 </div>
 
-  
 
-  
+
+
 
   </body>
 </html>

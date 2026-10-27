@@ -189,6 +189,8 @@ inline Rcpp::List fitEMBlend(
                             "factorEvaluationReuses", "sparseSpatialFactorizationReuses",
                             "emInverseTraceCalls", "emInverseTraceFallbackPanels",
                             "diagonalResidualTraceCalls", "diagonalResidualTraceSolveColumns",
+                            "denseScoreCrossproducts", "legacyScoreCrossproducts",
+                            "denseScoreMemoryFallbacks", "denseScoreRowProductsAvoided",
                             "emDesignTraceCalls"}) {
       if(diagnostics.containsElementNamed(name)) {
         engineCounters[name] += Rcpp::as<double>(diagnostics[name]);
@@ -1065,7 +1067,12 @@ inline Rcpp::List fitEMBlend(
           : parameterExpanded
           ? "MME path: scalar PX-GEM + AI direction blending"
           : "MME path: exact EM/GEM + AI direction blending")
-          << " [" << mmePathStatus(result, lowRank) << "]\n";
+          << " [" << mmePathStatus(result, lowRank);
+        if(diagnostics.containsElementNamed("denseScoreCrossproducts") &&
+           Rcpp::as<double>(diagnostics["denseScoreCrossproducts"]) > 0.0){
+          Rcpp::Rcout << "; score-crossproduct=dense-design";
+        }
+        Rcpp::Rcout << "]\n";
         if(Rcpp::as<bool>(diagnostics["blockSchurActive"])) {
           const std::string coefficientEngine = Rcpp::as<bool>(diagnostics["factorSchurActive"])
             ? "Latent-factor Schur" : Rcpp::as<bool>(diagnostics["blockChainActive"])

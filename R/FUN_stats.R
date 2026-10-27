@@ -3,13 +3,22 @@ postPEV <- function(object, mode = 1L){
   if(!inherits(object, "mmes")){
     stop("'object' must inherit from class 'mmes'.", call. = FALSE)
   }
-  .mmes_require_coefficient_matrix(object)
   
   mode <- as.integer(mode)
   
   if(length(mode) != 1L || is.na(mode) || !mode %in% 0:2){
     stop("'mode' must be one of 0, 1, or 2.", call. = FALSE)
   }
+
+  if(inherits(object, "mmes.glmm.laplace")){
+    settings <- object$laplacePostPEVSettings
+    object <- .mmes_laplace_postPEV(object, mode=mode,
+      panelSize=if(is.null(settings$panelSize)) 64L else settings$panelSize,
+      denseMemoryMB=if(is.null(settings$denseMemoryMB)) 1000 else settings$denseMemoryMB)
+    return(object)
+  }
+
+  .mmes_require_coefficient_matrix(object)
 
   if(!is.null(object$rotation) && mode == 1L){
     stop(
@@ -47,6 +56,359 @@ postPEV <- function(object, mode = 1L){
   object
 }
 
+.mmes_laplace_postPEV <- function(object, mode=1L, panelSize=64L,
+                                  denseMemoryMB=1000){
+  if(length(mode) != 1L || is.na(mode) || !mode %in% 0:2){
+    stop("mode must be 0, 1, or 2.", call.=FALSE)
+  }
+  if(mode == 0L){
+    object$Ci <- NULL
+    object$VarU <- NULL
+    object$uPevList <- NULL
+    object$uPevMode <- 0L
+    return(object)
+  }
+  if(!is.numeric(panelSize) || length(panelSize) != 1L ||
+     !is.finite(panelSize) || panelSize < 1 || panelSize != floor(panelSize)){
+    stop("output$panelSize must be a positive integer.", call.=FALSE)
+  }
+  if(!is.numeric(denseMemoryMB) || length(denseMemoryMB) != 1L ||
+     !is.finite(denseMemoryMB) || denseMemoryMB <= 0){
+    stop("execution$denseMemoryMB must be a positive finite number.", call.=FALSE)
+  }
+  fixedDesign <- object$fixedDesign
+  randomDesign <- object$randomDesign
+  curvature <- object$laplaceObservationCurvature
+  randomHessian <- object$laplaceModeHessian
+  fixedCount <- ncol(fixedDesign)
+  randomCount <- ncol(randomDesign)
+  jointCount <- fixedCount + randomCount
+  if(length(curvature) != nrow(fixedDesign) ||
+     !identical(dim(randomHessian), c(randomCount, randomCount))){
+    stop("Laplace post-fit uncertainty inputs are incomplete; refit the model before requesting PEV.",
+         call.=FALSE)
+  }
+
+  weightMatrix <- Matrix::Diagonal(x=curvature)
+  fixedHessian <- Matrix::crossprod(fixedDesign, weightMatrix %*% fixedDesign)
+  fixedRandomHessian <- Matrix::crossprod(fixedDesign, weightMatrix %*% randomDesign)
+  jointHessian <- rbind(
+    cbind(fixedHessian, fixedRandomHessian),
+    cbind(Matrix::t(fixedRandomHessian), randomHessian))
+  jointHessian <- Matrix::forceSymmetric(jointHessian)
+  jointFactor <- Matrix::Cholesky(jointHessian, LDL=FALSE, perm=TRUE)
+  panelSize <- min(as.integer(panelSize), jointCount)
+  panelBytes <- as.double(jointCount) * panelSize * 16
+  if(!is.finite(panelBytes) || panelBytes > denseMemoryMB * 1048576){
+    stop("Laplace PEV solve panel exceeds execution$denseMemoryMB; reduce output$panelSize or increase the memory budget.",
+         call.=FALSE)
+  }
+  randomPosteriorDiagonal <- numeric(randomCount)
+  randomPositions <- fixedCount + seq_len(randomCount)
+  for(panelStart in seq.int(1L, randomCount, by=panelSize)){
+    panelStop <- min(randomCount, panelStart + panelSize - 1L)
+    selected <- randomPositions[panelStart:panelStop]
+    rhs <- Matrix::sparseMatrix(i=selected,
+      j=seq_along(selected), x=1,
+      dims=c(jointCount, length(selected)))
+    solved <- Matrix::solve(jointFactor, rhs, system="A")
+    randomPosteriorDiagonal[panelStart:panelStop] <-
+      solved[cbind(selected, seq_along(selected))]
+  }
+
+  blockWidths <- object$randomBlockWidths
+  if(length(blockWidths) != length(object$covStruct) ||
+     sum(blockWidths) != randomCount ||
+     length(object$randomRelationships) != length(blockWidths)){
+    stop("Laplace random-effect block metadata are inconsistent; refit the model before requesting PEV.",
+         call.=FALSE)
+  }
+  termStart <- 1L
+  termRanges <- vector("list", length(blockWidths))
+  for(termIndex in seq_along(blockWidths)){
+    relationshipCount <- nrow(object$randomRelationships[[termIndex]])
+    covariance <- evaluate_covstruct_cpp(object$covStruct[[termIndex]],
+      object$covStruct[[termIndex]]$par)
+    coordinateCount <- nrow(covariance)
+    expectedWidth <- relationshipCount * coordinateCount
+    if(blockWidths[termIndex] != expectedWidth){
+      stop("Laplace random-effect covariance block has an unexpected width; refit the model before requesting PEV.",
+           call.=FALSE)
+    }
+    termStop <- termStart + blockWidths[termIndex] - 1L
+    termRanges[[termIndex]] <- seq.int(termStart, termStop)
+    termStart <- termStop + 1L
+  }
+  randomPEVDiagonal <- randomPosteriorDiagonal
+  termNames <- object$randomMetadata
+  if(length(termNames) != length(termRanges)){
+    termNames <- paste0("random", seq_along(termRanges))
+  }
+  relationshipNames <- lapply(object$randomRelationships, rownames)
+  if(any(vapply(relationshipNames, is.null, logical(1)))){
+    relationshipNames <- lapply(object$randomRelationships, function(precision)
+      as.character(seq_len(nrow(precision))))
+  }
+  object$uPevList <- lapply(seq_along(termRanges), function(termIndex){
+    relationshipCount <- nrow(object$randomRelationships[[termIndex]])
+    coordinateCount <- blockWidths[termIndex] / relationshipCount
+    start <- min(termRanges[[termIndex]])
+    stop <- max(termRanges[[termIndex]])
+    matrix(randomPEVDiagonal[start:stop], nrow=relationshipCount,
+      ncol=coordinateCount,
+      dimnames=list(relationshipNames[[termIndex]],
+        paste0(termNames[termIndex], ".", seq_len(coordinateCount))))
+  })
+  names(object$uPevList) <- termNames
+  object$uPevMode <- as.integer(mode)
+  object$Ci <- NULL
+  object$VarU <- NULL
+
+  if(mode == 2L){
+    fullBytes <- as.double(jointCount) * jointCount * 8 * 3
+    if(!is.finite(fullBytes) || fullBytes > denseMemoryMB * 1048576){
+      stop("Full Laplace coefficient covariance and random-effect PEV exceed execution$denseMemoryMB; use postPEV(mode=1) or increase the memory budget.",
+           call.=FALSE)
+    }
+    jointCovariance <- as.matrix(Matrix::solve(jointFactor,
+      Matrix::Diagonal(jointCount), system="A"))
+    dimnames(jointCovariance) <- list(
+      c(names(object$b), paste0("u", seq_len(randomCount))),
+      c(names(object$b), paste0("u", seq_len(randomCount))))
+    object$Ci <- jointCovariance
+  }
+  object
+}
+
+.mmes_laplace_prediction_uncertainty <- function(object, design,
+                                                 covariance=FALSE){
+  if(!isTRUE(object$convergence) ||
+     length(object$laplaceDiagnostics$boundaryParameters)){
+    stop("Laplace prediction uncertainty is unavailable for a nonconverged or near-boundary fit.",
+      call.=FALSE)
+  }
+  fixedDesign <- object$fixedDesign
+  randomDesign <- object$randomDesign
+  curvature <- object$laplaceObservationCurvature
+  randomHessian <- object$laplaceModeHessian
+  fixedCount <- ncol(fixedDesign)
+  randomCount <- ncol(randomDesign)
+  jointCount <- fixedCount + randomCount
+  if(length(curvature) != nrow(fixedDesign) ||
+     !identical(dim(randomHessian), c(randomCount, randomCount))){
+    stop("Laplace post-fit uncertainty inputs are incomplete; refit the model before requesting prediction uncertainty.",
+      call.=FALSE)
+  }
+  weightMatrix <- Matrix::Diagonal(x=curvature)
+  fixedHessian <- Matrix::crossprod(fixedDesign, weightMatrix %*% fixedDesign)
+  fixedRandomHessian <- Matrix::crossprod(fixedDesign,
+    weightMatrix %*% randomDesign)
+  jointHessian <- rbind(
+    cbind(fixedHessian, fixedRandomHessian),
+    cbind(Matrix::t(fixedRandomHessian), randomHessian))
+  jointHessian <- Matrix::forceSymmetric(jointHessian)
+  jointFactor <- Matrix::Cholesky(jointHessian, LDL=FALSE, perm=TRUE)
+  predictionCount <- nrow(design)
+  if(!predictionCount){
+    stop("Prediction uncertainty requires at least one prediction row.",
+      call.=FALSE)
+  }
+  settings <- object$laplacePostPEVSettings
+  denseMemoryMB <- if(is.null(settings$denseMemoryMB)) 1000 else
+    settings$denseMemoryMB
+  if(covariance){
+    fullBytes <- as.double(jointCount) * predictionCount * 16 +
+      as.double(predictionCount) * predictionCount * 8
+    if(!is.finite(fullBytes) || fullBytes > denseMemoryMB * 1048576){
+      stop("Full Laplace prediction covariance exceeds execution$denseMemoryMB; request se.fit=TRUE without cov.fit or increase the memory budget.",
+        call.=FALSE)
+    }
+    solved <- Matrix::solve(jointFactor, Matrix::t(design), system="A")
+    covarianceMatrix <- as.matrix(design %*% solved)
+    covarianceMatrix <- (covarianceMatrix + t(covarianceMatrix)) / 2
+    variance <- diag(covarianceMatrix)
+    if(any(!is.finite(variance)) || any(variance < 0)){
+      stop("Laplace prediction covariance has an invalid variance; no standard error was returned.",
+        call.=FALSE)
+    }
+    return(list(se.fit=sqrt(variance),
+      cov.fit=covarianceMatrix))
+  }
+  panelSize <- if(is.null(settings$panelSize)) 64L else settings$panelSize
+  panelSize <- min(as.integer(panelSize), predictionCount)
+  panelBytes <- as.double(jointCount) * panelSize * 16
+  if(!is.finite(panelBytes) || panelBytes > denseMemoryMB * 1048576){
+    stop("Laplace prediction uncertainty solve panel exceeds execution$denseMemoryMB; reduce output$panelSize or increase the memory budget.",
+      call.=FALSE)
+  }
+  variance <- numeric(predictionCount)
+  for(panelStart in seq.int(1L, predictionCount, by=panelSize)){
+    panelStop <- min(predictionCount, panelStart + panelSize - 1L)
+    rows <- panelStart:panelStop
+    panelDesign <- design[rows, , drop=FALSE]
+    solved <- Matrix::solve(jointFactor, Matrix::t(panelDesign), system="A")
+    variance[rows] <- diag(as.matrix(panelDesign %*% solved))
+  }
+  if(any(!is.finite(variance)) || any(variance < 0)){
+    stop("Laplace prediction variance is invalid; no standard error was returned.",
+      call.=FALSE)
+  }
+  list(se.fit=sqrt(variance), cov.fit=NULL)
+}
+
+.mmes_laplace_population_uncertainty <- function(object, fixedDesign, offset,
+                                                  randomDesign, familyIndex,
+                                                  covariance=FALSE){
+  uncertainty <- .mmes_laplace_uncertainty(object)
+  if(!uncertainty$valid){
+    stop("Population prediction uncertainty is unavailable: ",
+      uncertainty$reason, ".", call.=FALSE)
+  }
+  parameters <- object$optimizer$par
+  layout <- object$laplaceParameterLayout
+  fixedCount <- layout$fixedCount
+  randomWidths <- object$randomBlockWidths
+  evaluateMean <- function(proposal){
+    structures <- object$covStruct
+    for(termIndex in seq_along(layout$freePositions)){
+      freePositions <- layout$freePositions[[termIndex]]
+      if(length(freePositions)){
+        parameterPositions <- fixedCount + layout$parameterStarts[termIndex] +
+          seq_along(freePositions)
+        structures[[termIndex]]$par[freePositions] <-
+          proposal[parameterPositions]
+      }
+    }
+    linearPredictor <- offset +
+      as.numeric(fixedDesign %*% proposal[seq_len(fixedCount)])
+    randomVariance <- .laplace_population_variance(randomDesign, structures,
+      object$randomRelationships, randomWidths)
+    .laplace_population_mean(object, linearPredictor, familyIndex,
+      randomVariance)
+  }
+  basePrediction <- evaluateMean(parameters)
+  jacobian <- matrix(0, nrow=length(basePrediction),
+    ncol=length(parameters))
+  for(parameterIndex in seq_along(parameters)){
+    step <- 1e-5 * max(1, abs(parameters[parameterIndex]))
+    upper <- parameters
+    lower <- parameters
+    upper[parameterIndex] <- upper[parameterIndex] + step
+    lower[parameterIndex] <- lower[parameterIndex] - step
+    jacobian[, parameterIndex] <-
+      (evaluateMean(upper) - evaluateMean(lower)) / (2 * step)
+  }
+  weightedJacobian <- jacobian %*% uncertainty$parameterCovariance
+  variance <- rowSums(weightedJacobian * jacobian)
+  if(any(!is.finite(variance)) || any(variance < 0)){
+    stop("Population prediction variance is invalid; no standard error was returned.",
+      call.=FALSE)
+  }
+  if(covariance){
+    denseMemoryMB <- object$laplacePostPEVSettings$denseMemoryMB
+    fullBytes <- as.double(nrow(jacobian))^2 * 8 +
+      2 * as.double(nrow(jacobian)) * ncol(jacobian) * 8
+    if(!is.finite(fullBytes) || fullBytes > denseMemoryMB * 1048576){
+      stop("Full population prediction covariance exceeds execution$denseMemoryMB; request se.fit=TRUE without cov.fit or increase the memory budget.",
+        call.=FALSE)
+    }
+    covarianceMatrix <- weightedJacobian %*% t(jacobian)
+    covarianceMatrix <- (covarianceMatrix + t(covarianceMatrix)) / 2
+    return(list(se.fit=sqrt(variance), cov.fit=covarianceMatrix))
+  }
+  list(se.fit=sqrt(variance), cov.fit=NULL)
+}
+
+
+.mmes_laplace_zero_prediction_uncertainty <- function(object, fixedDesign,
+    offset, randomDesign, familyIndex, specifications, population=FALSE,
+    conditional=FALSE, covariance=FALSE,
+    relationships=object$randomRelationships, blockWidths=object$randomBlockWidths,
+    response=TRUE){
+  uncertainty <- .mmes_laplace_uncertainty(object)
+  if(!uncertainty$valid){
+    stop("Zero-component prediction uncertainty is unavailable: ",
+      uncertainty$reason, ".", call.=FALSE)
+  }
+  parameters <- object$optimizer$par
+  layout <- object$laplaceParameterLayout
+  n <- nrow(fixedDesign)
+  budget <- object$laplacePostPEVSettings$denseMemoryMB * 1048576
+  bytes <- 8 * (4 * as.double(n) * length(parameters) +
+    if(covariance) 3 * as.double(n)^2 else 0)
+  if(!is.finite(bytes) || bytes > budget){
+    stop("Zero-component prediction uncertainty exceeds execution$denseMemoryMB.",
+      call.=FALSE)
+  }
+  context <- if(conditional) sommer_laplace_objective_create(object$fixedDesign,
+    object$randomDesign, object$laplaceNativeResponse, object$offset, "",
+    object$covStruct, object$randomRelationships,
+    object$laplacePostPEVSettings$denseMemoryMB,
+    familySpecs=object$familySpecifications, familyIndex=object$laplaceFamilyIndex,
+    trials=object$priorWeights) else NULL
+  evaluateMean <- function(proposal){
+    local <- object
+    local$familySpecifications <- .laplace_proposal_specs(specifications, proposal, layout)
+    local$laplaceFamilies <- .laplace_update_families(object$laplaceFamilies,
+      local$familySpecifications, familyIndex)
+    eta <- offset + as.numeric(fixedDesign %*% proposal[seq_len(layout$fixedCount)])
+    if(conditional){
+      evaluation <- sommer_laplace_objective_eval(context, proposal,
+        maxModeIterations=object$laplacePostPEVSettings$modeMaxit,
+        tolerance=object$laplacePostPEVSettings$modeTol, gradient=FALSE)
+      if(!isTRUE(evaluation$valid)){
+        stop("Conditional prediction uncertainty encountered an invalid mode: ",
+          evaluation$reason, ".", call.=FALSE)
+      }
+      eta <- eta + as.numeric(randomDesign %*% evaluation$mode)
+    }
+    if(!response) return(eta)
+    if(population){
+      structures <- object$covStruct
+      for(term in seq_along(layout$freePositions)){
+        positions <- layout$freePositions[[term]]
+        if(length(positions)) structures[[term]]$par[positions] <-
+          proposal[layout$fixedCount + layout$parameterStarts[term] + seq_along(positions)]
+      }
+      variance <- .laplace_population_variance(randomDesign, structures,
+        relationships, blockWidths)
+      .laplace_population_mean(local, eta, familyIndex, variance)
+    }else .pql_apply(local$laplaceFamilies, familyIndex, "linkinv", eta)
+  }
+  jacobian <- matrix(0, n, length(parameters))
+  for(position in seq_along(parameters)){
+    step <- 1e-5 * max(1, abs(parameters[position]))
+    upper <- lower <- parameters
+    upper[position] <- upper[position] + step
+    lower[position] <- lower[position] - step
+    jacobian[, position] <- (evaluateMean(upper) - evaluateMean(lower)) / (2 * step)
+  }
+  weighted <- jacobian %*% uncertainty$parameterCovariance
+  variance <- rowSums(weighted * jacobian)
+  resultCovariance <- if(covariance) weighted %*% t(jacobian) else NULL
+  if(conditional){
+    if(16 * as.double(ncol(randomDesign)) * n > budget){
+      stop("Conditional zero-component uncertainty solve exceeds execution$denseMemoryMB.",
+        call.=FALSE)
+    }
+    factor <- Matrix::Cholesky(Matrix::forceSymmetric(object$laplaceModeHessian),
+      LDL=FALSE)
+    solved <- Matrix::solve(factor, Matrix::t(randomDesign), system="A")
+    eta <- offset + as.numeric(fixedDesign %*% object$b) +
+      as.numeric(randomDesign %*% object$randomMode)
+    families <- .laplace_update_families(object$laplaceFamilies, specifications, familyIndex)
+    derivative <- if(response) .pql_apply(families, familyIndex, "mu.eta", eta) else rep(1, n)
+    variance <- variance + derivative^2 *
+      as.numeric(Matrix::rowSums(randomDesign * Matrix::t(solved)))
+    if(covariance) resultCovariance <- resultCovariance +
+      outer(derivative, derivative) * as.matrix(randomDesign %*% solved)
+  }
+  if(any(!is.finite(variance)) || any(variance < 0)){
+    stop("Zero-component prediction variance is invalid; no standard error was returned.",
+      call.=FALSE)
+  }
+  list(se.fit=sqrt(variance), cov.fit=resultCovariance)
+}
 
 .mmes_varu_check <- function(object){
   if(!inherits(object, "mmes") || inherits(object, "mmes.glmm")){

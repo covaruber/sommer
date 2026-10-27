@@ -8,6 +8,8 @@
   sommer](https://covaruber.github.io/sommer/articles/sommer.fa.and.rr.models.md):
 - [Generalized linear mixed models with
   sommer](https://covaruber.github.io/sommer/articles/sommer.glmm.md):
+- [Theory and practice of generalized linear mixed models in
+  sommer](https://covaruber.github.io/sommer/articles/sommer.glmm.theory.html):
 - [Fitting genotype by environment models in
   sommer](https://covaruber.github.io/sommer/articles/sommer.gxe.md):
 - [Quantitative genetics using the sommer

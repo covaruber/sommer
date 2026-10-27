@@ -43,7 +43,13 @@
                       as.numeric(object$BIC), "AI", object$convergence)
   colnames(LLAIC) = c("logLik","AIC","BIC","Method","Converge")
   rownames(LLAIC) <- "Value"
-  if(inherits(object, "mmes.glmm")){
+  laplaceUncertainty <- if(inherits(object, "mmes.glmm.laplace"))
+    .mmes_laplace_uncertainty(object) else NULL
+  if(inherits(object, "mmes.glmm.laplace")){
+    LLAIC <- data.frame(logLik=object$llik,
+      AIC=object$AIC, BIC=object$BIC, Method="Laplace",
+      Converge=object$convergence, row.names="Value")
+  }else if(inherits(object, "mmes.glmm")){
     LLAIC <- data.frame(Deviance=object$deviance,
                         Dispersion=if(length(object$dispersion) > 1L)
                           paste(names(object$dispersion), signif(object$dispersion, 4),
@@ -56,7 +62,12 @@
 
   ## se and t values for fixed effects
   nX <- length(object$b)
-  if(identical(object$engine, "direct")){
+  if(inherits(object, "mmes.glmm.laplace")){
+    coef$Std.Error <- laplaceUncertainty$betaSummary[, "Std. Error"]
+    coef$t.value <- laplaceUncertainty$betaSummary[, "z value"]
+    varcomp <- laplaceUncertainty$covParNative
+    method <- "Laplace"
+  }else if(identical(object$engine, "direct")){
     VarBeta <- object$VarBeta
     s2.beta <- rep(NA_real_, nX)
     if(!is.null(VarBeta)){
@@ -72,8 +83,10 @@
     s2.beta <- Matrix::diag(VarBeta)
   }else{}
   
-  coef$Std.Error <- sqrt(abs(s2.beta))
-  coef$t.value <- coef$Estimate/coef$Std.Error
+  if(!inherits(object, "mmes.glmm.laplace")){
+    coef$Std.Error <- sqrt(abs(s2.beta))
+    coef$t.value <- coef$Estimate/coef$Std.Error
+  }
   if(!is.null(object$fixedRank)){
     coef$Status <- "retained (conditional on zero constraints)"
     coef$Status[object$fixedRank$omitted] <- "aliased (constrained to zero)"
@@ -81,8 +94,10 @@
     coef$t.value[object$fixedRank$omitted] <- NA_real_
   }
   
-varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "Zratio",
-                                intersect("status", names(object$covParNative)))]
+if(!inherits(object, "mmes.glmm.laplace")){
+  varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "Zratio",
+                                  intersect("status", names(object$covParNative)))]
+}
 
   # lapply(object$covStruct, function(x){x$free})
   # constraints <- unlist(lapply(object$thetaC, as.vector))
@@ -93,7 +108,19 @@ varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "
                  remlOmissions=object$remlOmissions, fixedRank=object$fixedRank,
                  REML=if(is.null(object$REML)) TRUE else object$REML,
                  family=object$family,
-                 pqlConverged=object$pqlConverged)
+                 familyParameters=if(is.null(laplaceUncertainty))
+                   object$familyParameters else laplaceUncertainty$familyParameters,
+                 zeroCoefficients=if(is.null(laplaceUncertainty))
+                   object$zeroCoefficients else laplaceUncertainty$zeroCoefficients,
+                 laplaceDiagnostics=if(is.null(laplaceUncertainty))
+                   object$laplaceDiagnostics else
+                     utils::modifyList(object$laplaceDiagnostics, list(
+                       curvatureValid=laplaceUncertainty$valid,
+                       curvatureReason=laplaceUncertainty$reason,
+                       uncertaintyValid=laplaceUncertainty$valid,
+                       uncertaintyComputed=TRUE)),
+                 pqlConverged=object$pqlConverged,
+                 fitMethod=if(inherits(object, "mmes.glmm.laplace")) "Laplace" else NULL)
   if(identical(object$covarianceInformation, "none")){
     output$covarianceInformation <- "none"
   }
@@ -120,7 +147,11 @@ varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "
   digits = max(3, getOption("digits") - 3)
   ################################################
   cat(paste(rep("=",nmaxchar), collapse = ""))
-  cat(paste("\n",rlt,"Multivariate Linear Mixed Model fit by ",
+  cat(paste("\n",rlt,
+            if(identical(x$fitMethod, "Laplace"))
+              "Generalized Linear Mixed Model fit by " else
+              "Multivariate Linear Mixed Model fit by ",
+            if(!is.null(x$fitMethod)) x$fitMethod else
             if(!is.null(x$pqlConverged)) "PQL" else
             if(isTRUE(x$REML)) "REML" else "ML", rlt,"\n", collapse = ""))
   cat(paste(rlh," sommer 4.4 ",rlh, "\n", collapse = ""))
@@ -133,13 +164,23 @@ varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "
   if(!is.null(x$remlOmissions)){
     cat("Structurally unestimable REML components were omitted; their zeros are not variance estimates and their standard errors are unavailable.\n")
   }
+
   if(identical(x$covarianceInformation, "none")){
     cat("Covariance information omitted (covarianceInformation='none'); standard errors are unavailable.\n")
   }
+
   if(identical(x$retainCoefficientMatrix, FALSE)){
     cat("Coefficient matrix C was not retained; post-fit C-based inference requires a refit.\n")
   }
   print(x$varcomp, digits = digits)
+  if(!is.null(x$familyParameters)){
+    cat("\nFamily parameters:\n")
+    print(x$familyParameters, digits=digits, row.names=FALSE)
+  }
+  if(!is.null(x$zeroCoefficients)){
+    cat("\nZero-component coefficients (logit scale):\n")
+    print(x$zeroCoefficients, digits=digits, row.names=FALSE)
+  }
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\nFixed effects:\n")
   if(!is.null(x$fixedRank)){
@@ -160,8 +201,142 @@ varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "
 ## FITTED FUNCTION ##
 #### =========== ####
 
+print.mmes.glmm.laplace <- function(x, ...){
+  print(summary.mmes(x), ...)
+  invisible(x)
+}
+
+vcov.mmes.glmm.laplace <- function(object, ...){
+  if(length(list(...))){
+    stop("vcov() for native Laplace fits does not accept additional arguments.",
+         call.=FALSE)
+  }
+  uncertainty <- .mmes_laplace_uncertainty(object)
+  if(is.null(uncertainty$fixedCovariance)){
+    stop("Fixed-effect covariance is unavailable: ", uncertainty$reason, ".",
+         call.=FALSE)
+  }
+  uncertainty$fixedCovariance
+}
+
+.anova_laplace_wald <- function(object){
+  covariance <- vcov.mmes.glmm.laplace(object)
+  termLabels <- attr(object$fixedTerms, "term.labels")
+  assignment <- object$fixedAssignment
+  testNames <- c("(Intercept)", termLabels)
+  testRows <- lapply(seq_along(testNames), function(termPosition){
+    columns <- if(termPosition == 1L) which(assignment == 0L) else
+      which(assignment == termPosition - 1L)
+    if(!length(columns)) return(NULL)
+    estimate <- as.numeric(object$b[columns])
+    termCovariance <- covariance[columns, columns, drop=FALSE]
+    statistic <- tryCatch(drop(crossprod(estimate,
+      solve(termCovariance, estimate))), error=function(condition){
+        stop("Wald test for ", testNames[termPosition],
+          " failed because its covariance submatrix is singular: ",
+          conditionMessage(condition), call.=FALSE)
+      })
+    degreesFreedom <- length(columns)
+    data.frame(Df=degreesFreedom, Chisq=statistic,
+      `Pr(>Chisq)`=stats::pchisq(statistic, degreesFreedom,
+        lower.tail=FALSE), check.names=FALSE,
+      row.names=testNames[termPosition])
+  })
+  testRows <- Filter(Negate(is.null), testRows)
+  if(!length(testRows)){
+    stop("No estimable fixed-effect terms are available for Wald tests.",
+         call.=FALSE)
+  }
+  result <- do.call(rbind, testRows)
+  class(result) <- c("anova", "data.frame")
+  attr(result, "heading") <- paste(
+    "Term-wise Wald chi-square tests using the Laplace fixed-effect covariance approximation.")
+  result
+}
+
+.anova_laplace_compare <- function(smaller, larger){
+  if(!isTRUE(smaller$convergence) || !isTRUE(larger$convergence)){
+    stop("Likelihood comparisons require both native Laplace fits to converge.",
+         call.=FALSE)
+  }
+  if(isTRUE(smaller$laplaceDiagnostics$boundary) ||
+     isTRUE(larger$laplaceDiagnostics$boundary)){
+    stop("Likelihood comparisons are unavailable when either fit has a flagged boundary parameter; variance-component boundary tests require parametric bootstrap or other nonstandard calibration.",
+         call.=FALSE)
+  }
+  familySignature <- function(fit) lapply(fit$familySpecifications,
+    function(specification) list(family=specification$family,
+      link=specification$link, parameter=specification$parameter,
+      free=specification$free,
+      zeroDesign=specification$zeroDesign, zeroOffset=specification$zeroOffset,
+      fixedValue=if(specification$free) NULL else specification$logParameter))
+  covarianceSignature <- function(fit) lapply(fit$covStruct, function(structure){
+    factorDefinitions <- lapply(structure$factors, function(factor){
+      factor$par <- NULL
+      factor$free <- NULL
+      factor
+    })
+    list(dim=structure$dim, par_names=structure$par_names,
+      free=structure$free,
+      fixedValues=structure$par[!structure$free],
+      factors=factorDefinitions)
+  })
+  sameLikelihood <- identical(smaller$y, larger$y) &&
+    identical(smaller$offset, larger$offset) &&
+    identical(smaller$laplaceFamilyIndex, larger$laplaceFamilyIndex) &&
+    identical(smaller$priorWeights, larger$priorWeights) &&
+    identical(familySignature(smaller), familySignature(larger)) &&
+    identical(deparse(smaller$randomFormula), deparse(larger$randomFormula)) &&
+    identical(smaller$randomDesign, larger$randomDesign) &&
+    identical(smaller$randomRelationships, larger$randomRelationships) &&
+    identical(covarianceSignature(smaller), covarianceSignature(larger))
+  if(!sameLikelihood){
+    stop("Native Laplace likelihood comparisons require identical response rows, offsets, family/trial settings, random formula, and covariance structure; only nested fixed effects may differ.",
+         call.=FALSE)
+  }
+  smallerTerms <- attr(smaller$fixedTerms, "term.labels")
+  largerTerms <- attr(larger$fixedTerms, "term.labels")
+  if(length(smallerTerms) >= length(largerTerms) ||
+     !all(smallerTerms %in% largerTerms)){
+    stop("Models must be strictly nested by fixed-effect terms, with object as the smaller model and object2 as the larger model.",
+         call.=FALSE)
+  }
+  combinedDesign <- cbind(larger$fixedDesign, smaller$fixedDesign)
+  if(Matrix::rankMatrix(combinedDesign)[1L] !=
+     Matrix::rankMatrix(larger$fixedDesign)[1L]){
+    stop("The smaller fixed-effect design is not nested in the larger model's column space.",
+         call.=FALSE)
+  }
+  degreesFreedom <- ncol(larger$fixedDesign) - ncol(smaller$fixedDesign)
+  likelihoodRatio <- 2 * (larger$llik - smaller$llik)
+  if(likelihoodRatio < -1e-7){
+    stop("The larger fixed-effect model has a lower fitted likelihood; refit or check optimizer convergence.",
+         call.=FALSE)
+  }
+  likelihoodRatio <- max(0, likelihoodRatio)
+  modelLabels <- vapply(list(smaller$fixedFormula, larger$fixedFormula),
+    function(formula) paste(deparse(formula), collapse=""), character(1))
+  result <- data.frame(Model=modelLabels,
+    Df=c(ncol(smaller$fixedDesign), ncol(larger$fixedDesign)),
+    AIC=c(smaller$AIC, larger$AIC), BIC=c(smaller$BIC, larger$BIC),
+    logLik=c(smaller$llik, larger$llik),
+    Chisq=c(NA_real_, likelihoodRatio),
+    `Chi Df`=c(NA_real_, degreesFreedom),
+    `Pr(>Chisq)`=c(NA_real_, stats::pchisq(likelihoodRatio,
+      degreesFreedom, lower.tail=FALSE)), check.names=FALSE,
+    row.names=c("smaller", "larger"))
+  class(result) <- c("anova", "data.frame")
+  attr(result, "heading") <- paste(
+    "Likelihood-ratio test for nested fixed effects in native Laplace models.")
+  result
+}
+
 "fitted.mmes" <- function(object, type=c("response", "link"), ...){
 
+  if(inherits(object, "mmes.glmm.laplace")){
+    type <- match.arg(type)
+    return(if(type == "link") object$linear.predictors else object$fitted.values)
+  }
   if(inherits(object, "mmes.glmm")){
     type <- match.arg(type)
     if(type == "link") return(object$linear.predictors)
@@ -187,9 +362,44 @@ varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "
 #### =========== ######
 
 "residuals.mmes" <- function(object,
-                               type=c("response", "deviance", "pearson", "working"), ...) {
+                               type=c("response", "deviance", "pearson", "working",
+                                 "quantile"), ...) {
   if(inherits(object, "mmes.glmm")){
     type <- match.arg(type)
+    if(inherits(object, "mmes.glmm.laplace")){
+      if(type == "quantile") return(.laplace_quantile_residuals(object))
+      response <- as.numeric(object$y)
+      mean <- object$fitted.values
+      families <- if(is.null(object$laplaceFamilies)) list(object$family) else object$laplaceFamilies
+      familyIndex <- if(is.null(object$laplaceFamilyIndex))
+        rep(1L, length(response)) else object$laplaceFamilyIndex
+      trials <- if(is.null(object$priorWeights)) rep(1, length(response)) else object$priorWeights
+      dispersion <- if(is.null(object$dispersion)) rep(1, length(families)) else object$dispersion
+      if(type == "response") return(response - mean)
+      if(type == "pearson"){
+        variance <- .pql_apply(families, familyIndex, "variance", mean) *
+          dispersion[familyIndex] / trials
+        if(any(!is.finite(variance)) || any(variance <= 0)){
+          stop("Pearson residuals are undefined at zero conditional variances.",
+            call.=FALSE)
+        }
+        return((response - mean) / sqrt(variance))
+      }
+      if(type == "working"){
+        derivative <- .pql_apply(families, familyIndex, "mu.eta", object$linear.predictors)
+        if(any(!is.finite(derivative)) || any(derivative <= 0)){
+          stop("Working residuals are undefined at zero link derivatives.",
+            call.=FALSE)
+        }
+        return((response - mean) / derivative)
+      }
+      if(type == "quantile"){
+        stop("Randomized quantile residuals are currently implemented for native Laplace fits only.",
+             call.=FALSE)
+      }
+      contribution <- .laplace_deviance(response, mean, families, familyIndex, trials, dispersion)
+      return(sign(response - mean) * sqrt(pmax(contribution, 0)))
+    }
     y <- as.numeric(object$y)
     mu <- object$fitted.values
     pw <- if(is.null(object$priorWeights)) rep(1, length(y)) else object$priorWeights
@@ -201,6 +411,10 @@ varcomp <- object$covParNative[,c("term", "parameter", "estimate", "StdError", "
     if(type == "pearson") return((y - mu) * sqrt(pw / .pql_apply(families, index, "variance", mu)))
     contribution <- .pql_apply(families, index, "dev.resids", y, mu, pw)
     return(sign(y - mu) * sqrt(pmax(contribution, 0)))
+  }
+  if(length(type) == 1L && identical(type, "quantile")){
+    stop("Randomized quantile residuals are currently implemented for native Laplace fits only.",
+         call.=FALSE)
   }
   digits = max(3, getOption("digits") - 3)
   ff <- fitted.mmes(object)
@@ -240,7 +454,18 @@ rotate_back_mmes <- function(object){
 #### =========== ####
 
 "coef.mmes" <- function(object, ...){
+  if(inherits(object, "mmes.glmm.laplace")) return(object$b)
   object$b
+}
+
+"logLik.mmes" <- function(object, ...){
+  if(!inherits(object, "mmes.glmm.laplace")){
+    stop("A marginal log-likelihood is not available for PQL fits.",
+         call.=FALSE)
+  }
+  structure(object$llik,
+    df=object$npar,
+    nobs=object$nobs, class="logLik")
 }
 
 "print.coef.mmes"<- function(x, digits = max(3, getOption("digits") - 3), ...) {
@@ -506,6 +731,20 @@ rotate_back_mmes <- function(object){
 }
 
 .covparams_mmes_se <- function(object, term=NULL, rel_step=1e-6){
+  if(inherits(object, "mmes.glmm.laplace")){
+    if(length(rel_step) != 1L || !is.finite(rel_step) ||
+       !identical(as.numeric(rel_step), 1e-6)){
+      stop("rel_step applies to Gaussian covariance reporting only; native Laplace uncertainty uses the fitted joint numerical Hessian.",
+        call.=FALSE)
+    }
+    uncertainty <- .mmes_laplace_uncertainty(object)
+    availableTerms <- unique(object$covParNative$term)
+    selected <- .covparams_select_terms(availableTerms, term)
+    rows <- which(object$covParNative$term %in% availableTerms[selected])
+    out <- uncertainty$covParNative[rows, , drop=FALSE]
+    attr(out, "vcov") <- uncertainty$covParCovariance[rows, rows, drop=FALSE]
+    return(out)
+  }
   .mmes_require_covariance_information(object)
   if(length(rel_step) != 1L || !is.finite(rel_step) || rel_step <= 0){
     stop("rel_step must be one positive finite value.", call.=FALSE)
@@ -729,6 +968,17 @@ anova.mmes <- function(object, object2=NULL, ...) {
   }
   ########################################
   digits = max(3, getOption("digits") - 3)
+  if(inherits(object, "mmes.glmm.laplace")){
+    if(length(list(...))){
+      stop("Native Laplace anova() does not accept additional arguments.",
+           call.=FALSE)
+    }
+    if(is.null(object2)) return(.anova_laplace_wald(object))
+    if(!inherits(object2, "mmes.glmm.laplace")){
+      stop("Both models must be native Laplace fits.", call.=FALSE)
+    }
+    return(.anova_laplace_compare(object, object2))
+  }
   if(is.null(object2)){
     return(wald_mmes(object, ...))
   }

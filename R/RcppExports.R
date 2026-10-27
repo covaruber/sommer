@@ -37,6 +37,22 @@ fixed_design_basis_cpp <- function(fixedDesign) {
     .Call(`_sommer_fixed_design_basis_cpp`, fixedDesign)
 }
 
+sommer_laplace_glmm_eval <- function(fixedDesign, randomDesign, randomPrecision, response, offset, fixedEffects, modeStart, family, logDetPrecision, maxModeIterations = 100L, tolerance = 1e-8) {
+    .Call(`_sommer_sommer_laplace_glmm_eval`, fixedDesign, randomDesign, randomPrecision, response, offset, fixedEffects, modeStart, family, logDetPrecision, maxModeIterations, tolerance)
+}
+
+sommer_laplace_objective_create <- function(fixedDesign, randomDesign, response, offset, family, descriptors, relationships, memoryMB = 1000, familySpecs = NULL, familyIndex = NULL, trials = NULL) {
+    .Call(`_sommer_sommer_laplace_objective_create`, fixedDesign, randomDesign, response, offset, family, descriptors, relationships, memoryMB, familySpecs, familyIndex, trials)
+}
+
+sommer_laplace_objective_eval <- function(context, parameters, maxModeIterations = 100L, tolerance = 1e-8, gradient = TRUE) {
+    .Call(`_sommer_sommer_laplace_objective_eval`, context, parameters, maxModeIterations, tolerance, gradient)
+}
+
+sommer_glmm_family_eval <- function(response, predictor, familySpecs, familyIndex, trials) {
+    .Call(`_sommer_sommer_glmm_family_eval`, response, predictor, familySpecs, familyIndex, trials)
+}
+
 mme_gpu_runtime_status <- function() {
     .Call(`_sommer_mme_gpu_runtime_status`)
 }

@@ -583,7 +583,8 @@ vsm <- function(..., Gu=NULL, sigma2=NULL, fixedSigma2=FALSE,
 
   if(is.residual){
 
-    ss <- Matrix::summary(Z0)
+    sparseZ0 <- as(as(Z0, "generalMatrix"), "CsparseMatrix")
+    ss <- Matrix::summary(sparseZ0)
 
     if(anyDuplicated(ss$i) || any(abs(ss$x - 1) > 1e-12)){
       stop(

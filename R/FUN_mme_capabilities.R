@@ -5,7 +5,7 @@ out <- list(modules = structure(list(id = c("model", "task", "formulation",
 "representation", "solve", "logdet", "score", "curvature", "update", 
 "proposal", "convergence", "output", "execution", "diagnostics", 
 "compatibility"), responsibility = c("Build model designs, covariance descriptors, weights and observation indexing.", 
-"Select Gaussian estimation, outer PQL or known-covariance solving.", 
+"Select Gaussian estimation, outer PQL or Laplace GLMM fitting, or known-covariance solving.",
 "Select coefficient-space Henderson or observation-space direct inversion.", 
 "Build equivalent equations, sufficient statistics and structured operators.", 
 "Solve linear systems through a backend-specific operator contract.", 
@@ -503,6 +503,15 @@ out <- list(modules = structure(list(id = c("model", "task", "formulation",
 "join", "join")), class = "data.frame", row.names = c(NA, 17L
 )))
 out$controls <- out$controls[out$controls$path != "control.output.pev", , drop=FALSE]
+out$controls <- rbind(out$controls, data.frame(
+  path="control.score.denseCrossproduct", module="score",
+  values="auto, off, force; TRUE/FALSE aliases.", default="auto",
+  requires="Gaussian normal Henderson equations with deterministic LDLT/CHOLMOD, diagonal effective residual precision and a diagonal residual derivative.",
+  excludes="Direct, PCG, PQL, compressed, saddle-point, conditional and latent reduced-rank equations.",
+  fallback="Auto preserves the legacy row-product path outside dense-row cost and workspace gates; off restores it; force bypasses cost gates, not structural or memory checks.",
+  effect="Use an exact weighted sparse Gram product for dense designs instead of materializing duplicate row-outer-product triplets; coefficient solvers, traces and AI are unchanged.",
+  source="src/mme_dense_score.h, src/ai_mme_sp2.cpp",
+  status="experimental", previous="new"))
 out$controls$values[out$controls$path == "control.representation.equations"] <-
   "normal, saddle-point, conditional."
 out$controls$effect[out$controls$path == "control.representation.equations"] <-
@@ -523,6 +532,50 @@ out$controls <- rbind(out$controls, data.frame(
   effect="Fit a full-rank subset while preserving original coefficient names; aliased coefficients are zero constraints, not independently estimated effects.",
   source="R/FUN_fixed_rank.R, src/mme_fixed_rank.cpp",
   status="supported", previous="new"))
+out$controls <- rbind(out$controls, data.frame(
+  path="control.task.glmm.method", module="task",
+  values="pql, laplace.", default="pql",
+  requires="Laplace: binomial(logit/probit/cloglog), Poisson(log), zero-inflated Poisson with an intercept-only or fixed-effects formula logit component, NB2(log), Gaussian(identity) or Gamma(log), including grouped trials and familym; ML objective, Henderson formulation and supported CovarianceFactor v2 random structures.",
+  excludes="Laplace excludes structured residual covariance, direct formulation, supplied W, weights formulas and vcc.",
+  fallback="PQL remains the default; unsupported Laplace models stop with an eligibility error.",
+  effect="Select the GLMM estimator. Native Laplace fitting uses actual-family preparation-only designs, cached CovarianceFactor/relationship precisions and full native Laplace first scores including mode/determinant dependence. Numerical-Hessian uncertainty and joint fixed/random PEV are calculated only after fitting through vcov(), summary(), predict(se.fit=TRUE) or postPEV(); Laplace requires output$inverse=0. PQL continues through the existing sommer engines.",
+  source="R/FUN_glmm.R, R/mmes.R", status="experimental", previous="new"))
+out$controls <- rbind(out$controls, data.frame(
+  path="control.task.glmm.familyParameters", module="task",
+  values="Named list: theta, dispersion or zeroInflation and estimate; trait-named nested lists for familym.",
+  default="list()", requires="Native Laplace NB2 shape, Gaussian/Gamma dispersion or zero-inflated Poisson structural-zero probability.",
+  excludes="Non-empty settings are rejected by PQL and by fixed-parameter binomial/Poisson families.",
+  fallback="Estimated by default; estimate=FALSE fixes the value. Unknown/invalid settings error.",
+  effect="Jointly estimate or fix per-family shape, dispersion or zero-inflation probability with full marginal scores; estimates count in npar and AIC/BIC.",
+  source="R/FUN_glmm_families.R, src/mme_glmm_family.h", status="experimental", previous="new"))
+laplaceMemoryRow <- out$controls$path == "control.execution.denseMemoryMB"
+out$controls$effect[laplaceMemoryRow] <- paste0(
+  out$controls$effect[laplaceMemoryRow],
+  " Native Laplace uses this budget for dense derivative solve panels only; sparse precision, derivative blocks and factor fill are not a total-memory guarantee.")
+out$controls <- rbind(out$controls, data.frame(
+  path="control.task.glmm.maxit", module="task",
+  values="Positive integer.", default="1000L",
+  requires="Used by the native outer Laplace likelihood optimizer.",
+  excludes="Ignored by PQL.",
+  fallback="The optimizer stops at the requested iteration limit or convergence.",
+  effect="Set the maximum outer iterations for native Laplace likelihood optimization.",
+  source="R/FUN_glmm.R", status="experimental", previous="new"))
+out$controls <- rbind(out$controls, data.frame(
+  path="control.task.glmm.modeMaxit", module="task",
+  values="Positive integer.", default="100L",
+  requires="Used by the native random-effect mode solver.",
+  excludes="Ignored by PQL.",
+  fallback="An invalid or non-converged mode invalidates the outer likelihood evaluation.",
+  effect="Set the maximum Newton iterations for each random-effect mode solve.",
+  source="src/mme_glmm_laplace.cpp", status="experimental", previous="new"))
+out$controls <- rbind(out$controls, data.frame(
+  path="control.task.glmm.modeTol", module="task",
+  values="Positive finite number.", default="1e-8",
+  requires="Used by the native random-effect mode solver.",
+  excludes="Ignored by PQL.",
+  fallback="An invalid or non-converged mode invalidates the outer likelihood evaluation.",
+  effect="Set the score tolerance for random-effect mode convergence.",
+  source="src/mme_glmm_laplace.cpp", status="experimental", previous="new"))
 out$decisions <- rbind(out$decisions, data.frame(
   id="conditional-fa", parent="henderson",
   condition="representation$equations='conditional' or update$method='conditional-fa': eligible Gaussian FA REML model.",

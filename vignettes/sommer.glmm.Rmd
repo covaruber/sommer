@@ -30,6 +30,11 @@ $u \sim N(0, G)$. Thus, `random`, `rcov`, `vsm()`, relationship precision
 matrices, and covariance structures are specified exactly as for a Gaussian
 mixed model.
 
+For the detailed statistical development—including the hierarchical model,
+the Laplace approximation, covariance parameterization, uncertainty,
+prediction targets, and validation strategy—see the companion
+[GLMM theory vignette](sommer.glmm.theory.Rmd).
+
 The default `family = gaussian()` with its identity link takes the ordinary
 linear mixed-model path. Supply another family explicitly for a GLMM:
 
@@ -42,9 +47,313 @@ fit <- mmes(fixed = outcome ~ treatment,
   control = mmes_control(update = list(blendWeight = 0)))
 ```
 
-The initial implementation accepts one numeric response. Binomial responses
-may be a zero/one numeric vector; grouped-binomial matrix responses are not
-yet supported.
+PQL uses a single numeric response, with grouped-binomial proportions
+carrying their trials through `binm()`. Native Laplace additionally accepts
+two-column binomial successes/failures and the mixed-family trials-column
+interface described below.
+
+# Estimation methods
+
+PQL remains the default, and its structured covariance and relationship-matrix
+support are unchanged. An opt-in native Laplace method is available for
+binomial (logit, probit or complementary log-log), Poisson-log,
+zero-inflated Poisson, NB2-log, Gaussian-identity and Gamma-log models,
+including long-format `familym()`:
+
+```{r laplace-call, eval=FALSE}
+fit_laplace <- mmes(
+  outcome ~ treatment,
+  random = ~ subject,
+  data = dat,
+  family = binomial(),
+  control = mmes_control(
+    task = list(objective = "ml", glmm = list(method = "laplace"))
+  )
+)
+summary(fit_laplace)
+fit_laplace$covParNative
+```
+
+The likelihood and conditional random-effect mode are evaluated by sommer's
+native C++ module. It consumes the fixed/random designs and covariance
+precision structures prepared by sommer, including supported `CovarianceFactor`
+random covariance shapes and relationship precision matrices. Covariance
+parameters and fixed effects are optimized against the Laplace likelihood using
+`nlminb`, with native first derivatives of the full marginal Laplace objective
+(including mode dependence and the random Hessian determinant).
+`task$glmm$maxit` controls this outer optimization and
+`modeMaxit`/`modeTol` control the inner random-effect mode solve.
+`ai_mme_sp2()` and `ai_reml_direct_sp2()` retain their Gaussian objective and
+are not called as if they optimized the GLMM likelihood. This creates a shared
+native design/covariance seam without modifying their Gaussian score equations.
+
+Preparation now stops after constructing designs and descriptors, retaining
+the actual response family without fitting a Gaussian working model.
+Reusable native family and precision modules supply stable log densities,
+scores, curvature derivatives and descriptor-native precision derivatives.
+Relationship factorizations are computed once per fitting context; covariance
+states and CHOLMOD symbolic analysis are reused when unchanged. Exact
+first-score traces use bounded dense solve panels rather than a full
+`H_uu^-1` or `Z H_uu^-1 Z'`. Sparse Kronecker precision blocks are still
+assembled: this is not a fully matrix-free implementation or a total-memory
+guarantee. Set the panel budget with `execution$denseMemoryMB`;
+other non-default Gaussian resource controls remain unsupported on this route.
+The fitting-local context is not stored in the fitted object.
+
+The native likelihood supports binary and grouped-binomial responses,
+formula offsets, and random covariance structures accepted by the
+Henderson setup. It requires `task$objective = "ml"`. Structured residual
+covariance, `W`, weights formulas, `vcc`,
+direct formulation, and known-covariance solve mode are not yet supported.
+Native Laplace fitting requires `output$inverse=0`; PEV is calculated only
+after fitting with `postPEV(fit, mode = 1L or 2L)`. New-data predictions
+support conditional effects for known levels, zero-random-effect means, and a
+restricted response-scale population mean for independent random intercepts.
+Use `predict(fit, newdata, se.fit=TRUE)` for conditional or
+zero-random-effect standard errors. `cov.fit=TRUE` additionally returns the
+full prediction covariance when it fits within `execution$denseMemoryMB`.
+These are local observed-information approximations conditional on fitted
+covariance/family parameters. Uncertainty for population-marginal means and
+general population integration are not implemented. No other mixed-model
+package is used as a fitting backend.
+
+## Expanded response families and mixed traits
+
+Use `binm(successes, trials=trials)` or `cbind(successes, failures)` for
+grouped binomial responses. Positive integer trial totals and integer counts
+are required. The marginal likelihood retains combinatorial constants.
+Fitted values and response/working residuals are proportions, and Pearson
+variance is `p*(1-p)/trials`; trial counts are stored in `priorWeights`.
+Binomial logit, probit and complementary log-log links are supported.
+
+`nbinom2(theta=2)` is sommer's native NB2 family constructor:
+`Var(Y|u) = mu + mu^2/theta`, with a log link. Shape is jointly estimated
+by default. To fix it, use
+`task$glmm$familyParameters=list(theta=2, estimate=FALSE)`.
+`zipoisson(pi=0.1)` adds a structural-zero mixture to a Poisson count
+component. It estimates a separate intercept-only logit probability by
+default; fix it with
+`task$glmm$familyParameters=list(zeroInflation=0.2, estimate=FALSE)`.
+The count linear predictor models the underlying Poisson mean, while fitted
+and response-scale predictions report `(1-pi)*mu`. A fixed-effects zero formula
+is available with `zipoisson(zero=~covariates)` as described below; zero-component
+random effects remain unsupported. This is not a hurdle model or zero-inflated NB2.
+
+```{r zero-inflated-poisson-call, eval=FALSE}
+fit_zip <- mmes(
+  count ~ treatment,
+  random = ~ subject,
+  data = dat,
+  family = zipoisson(pi = 0.1),
+  control = mmes_control(task = list(
+    objective = "ml",
+    glmm = list(method = "laplace",
+      familyParameters = list(zeroInflation = 0.1, estimate = TRUE))
+  ))
+)
+fit_zip$familyParameters
+```
+
+For a covariate-dependent structural-zero probability, use a separate
+fixed-effects logit formula:
+
+```{r zero-formula-call, eval=FALSE}
+fit_zip_formula <- mmes(
+  count ~ treatment,
+  random = ~ subject,
+  data = dat,
+  family = zipoisson(pi=0.1, zero=~treatment),
+  control = mmes_control(task=list(objective="ml",
+    glmm=list(method="laplace")))
+)
+fit_zip_formula$zeroCoefficients
+summary(fit_zip_formula)$zeroCoefficients
+```
+
+The zero formula has its own design and optional offset; it does not add
+terms to the count predictor. An intercept starts at `qlogis(pi)` and other
+zero coefficients at zero. A formula without an intercept starts all its
+coefficients at zero. Such a formula requires `estimate=TRUE`; a fixed
+scalar probability still uses `zero=~1` and `familyParameters`. Formula
+coefficients are reported on the logit scale in `zeroCoefficients`, not as a
+single structural-zero probability in `familyParameters`. All fitted and
+response predictions, simulations, and residuals use the row-specific
+probabilities. Missing zero covariates follow `naMethodX`, only on their
+declared ZIP trait's rows in a mixed-family model. Prediction preserves
+training factor coding and transformed terms and rejects missing covariates
+or unseen factor levels.
+
+The formula extension has a bounded calibration envelope, not a universal
+identifiability guarantee. In development calibration with 300 datasets per
+scenario, the three moderate-rate settings (rate 2, 60 groups, six records
+per group, zero slopes 0/0.3/0.6) passed all registered gates. At rate 0.5
+with zero slope 0.6, convergence was 97.7%, joint SE availability 81.3%, and
+both zero coefficients failed the bias tolerance. Sparse and exact-Poisson
+stress settings were less reliable. Use particular caution with low counts,
+nearly separated zero designs and boundary estimates; do not interpret an
+available Wald interval as proof of regular inference.
+
+With a nontrivial zero formula, `predict(se.fit=TRUE)` uses
+post-fit joint outer-parameter curvature, propagating zero coefficients and
+their cross-covariances as well as count/covariance parameters. Conditional
+known-level predictions also propagate mode dependence and add the local
+conditional latent-effect covariance. These local delta approximations
+differ from the parameter-fixed coefficient approximation used by the
+legacy intercept-only prediction path. Neither includes future-response
+sampling noise. Boundary or invalid joint curvature makes uncertainty
+unavailable; sparse-data separation can also produce a numerical-boundary
+error rather than a usable fit.
+
+In `familym()`, use `zipoisson()` only for a trait that needs a zero-inflated
+Poisson likelihood; put its `familyParameters` settings in that trait's named
+nested list.
+Gaussian-identity and Gamma-log families likewise estimate a positive
+dispersion by default; configure them with
+`list(dispersion=0.7, estimate=FALSE)` or an estimated starting value.
+Gaussian dispersion is residual variance. Gamma dispersion satisfies
+`Var(Y|u)=dispersion*mu^2`, so Gamma shape is its reciprocal.
+Gaussian integration is exact, but ordinary Gaussian fitting remains on
+its existing engine unless Laplace is explicitly selected.
+
+```{r native-mixed-call, eval=FALSE}
+fit_mixed <- mmes(
+  outcome ~ trait - 1 + trait:covariate,
+  random = ~ vsm(usm(trait), ism(subject)),
+  data = long_data,
+  family = familym(
+    "trait", binary = binomial("probit"), counts = nbinom2(theta=2),
+    positive = Gamma("log"), continuous = gaussian()
+  ),
+  control = mmes_control(
+    task = list(objective="ml", glmm=list(
+      method="laplace",
+      familyParameters=list(
+        counts=list(theta=2, estimate=TRUE),
+        positive=list(dispersion=0.3, estimate=TRUE),
+        continuous=list(dispersion=1, estimate=FALSE)
+      )
+    ))
+  )
+)
+fit_mixed$familyParameters
+fit_mixed$dispersion
+```
+
+Every retained row has a declared observation family. Random covariance can
+connect traits; observation densities are conditionally independent given
+those random effects. Unlike PQL, this does not require a trait-structured
+residual term or placing a fixed-dispersion trait first. Omit `rcov` or use
+`~units`; structured residual correlation is still unsupported.
+
+For grouped-binomial rows among other response types, use
+`familym("trait", ..., trials="trial_count")`. The response contains integer
+successes on binomial rows and ordinary response values on other rows.
+The trial column holds positive integer totals for binomial rows and one
+for all other rows. Missing trait/trial values join the fixed-covariate
+filtering policy; unknown non-missing traits error. Do not additionally
+declare trials in a response attribute or two-column response.
+
+Native Taylor derivative kernels provide likelihood scores, observed
+curvature and its first/second predictor derivatives, plus log-shape/
+dispersion mixed derivatives. Nuisance scores include both conditional-mode
+and Laplace determinant dependence. The fitted `familyParameters` reports
+estimated or fixed natural-scale values, including the zero-inflation
+probability; `summary(fit)$familyParameters`
+adds approximate delta-method uncertainty after fitting when joint curvature
+is valid. Estimated parameters count in AIC/BIC. For single-family NB2 fits,
+`theta.nb` is available on the fitted object; use the summary table for its
+post-fit standard error. The numerical Hessian and existing boundary
+restrictions still apply.
+These families do not yet imply beta-binomial, zero-inflated NB2, hurdle,
+other links, or arbitrary user-defined native likelihood support.
+
+## Native Laplace validation and diagnostics
+
+Use `task$glmm$maxit`, `modeMaxit` and `modeTol` to control this route.
+Non-default Gaussian solver, convergence, proposal, update, output and resource
+controls are rejected, not treated as Laplace controls. The derivative panel
+memory budget, BLAS thread selection and ordinary verbose/date-warning settings
+remain accepted. Covariance
+coordinates use their descriptor transforms and positive-definiteness checks,
+not a common statistical bound of `[-25, 25]`. Exponential coordinates outside
+a machine-derived numerical range are rejected before evaluation.
+
+`fit$laplaceDiagnostics` separates `outerConverged`, `modeConverged`,
+`curvatureValid`, `uncertaintyValid`, `boundary`, `boundaryParameters`, and
+`rejectedEvaluations`. Rejected proposals retain reasons; a mode iteration
+limit at the starting or final parameters is an error. Covariance callback
+errors propagate instead of being converted into an apparently valid fit.
+Distinct outer proposals start from the same zero random-effect vector.
+Only identical parameters and mode controls reuse a converged mode, so scores
+and numerical Hessians do not depend on the order of earlier proposals.
+`gradient` records the marginal log-likelihood score at the reported parameters.
+`nativeWork` records objective calls, mode solves, symbolic analyses,
+relationship factorizations and descriptor updates/reuses through the final
+optimizer score evaluation. Uncertainty Hessians are not calculated during
+fitting.
+
+A successful optimizer return is not evidence that standard errors are valid.
+`vcov(fit)` and `summary(fit)` calculate uncertainty after fitting, only for a
+converged, interior fit with a positive-definite, numerically nonsingular joint
+parameter Hessian, which is evaluated numerically on demand.
+Otherwise sommer warns and reports `NA`, rather than clamping negative
+inverse-Hessian diagonal entries to zero. Covariance-parameter standard errors
+are transformed to the natural scale by the delta method and appear in
+`summary(fit)$varcomp` only when the same uncertainty gate is valid. Fixed covariance
+parameters have no estimated standard error. These local curvature
+approximations are not calibrated confidence intervals. Boundary warnings
+use covariance eigenvalue ratios and descriptor-coordinate screening
+(positive coordinates relative to their starting values); they are numerical
+diagnostics, not calibrated hypothesis tests. Check sensitivity to covariance
+starts.
+
+For a valid interior fit, `vcov(fit)` returns the fixed-effect block of the
+joint numerical-Hessian covariance approximation. `anova(fit)` reports
+term-wise Wald chi-square tests using that covariance. A two-model
+`anova(smaller, larger)` comparison is allowed only for converged, strictly
+nested fixed-effect models with the same observations, response family and
+trials, offsets, random formula, and covariance structure. Comparisons are
+refused if either fit is flagged at a boundary. This does not implement
+variance-component likelihood-ratio tests: their null distributions may be
+nonstandard and require parametric bootstrap or other calibration.
+`wald_mmes(fit, ssType="conditional", denDF="none", terms=...)` selects
+conditional asymptotic term tests; small-sample denominator-df approximations
+are not available for the native Laplace likelihood.
+
+`residuals(fit, type="quantile")` computes randomized probability-integral-
+transform residuals for discrete responses and ordinary fitted-CDF residuals
+for Gaussian/Gamma responses. `simulate(fit, nsim=...)` generates conditional
+response replicates while holding fitted latent modes fixed.
+`simulate(fit, re.form="population")` draws new Gaussian random effects from
+the fitted covariance model using sparse relationship-precision factors before
+sampling each response. The estimated workspace is guarded by `maxMemoryMB`,
+which defaults to `execution$denseMemoryMB`, and the returned simulation
+matrix is included in that budget. Simulations do not include
+parameter-estimation uncertainty. These checks do not establish population-
+level predictive calibration or by themselves test residual dependence.
+
+The fit stores `obsInfo` so retained rows can be traced to the original data.
+Training factor levels, contrast coding and transformed terms are retained
+for new-data predictions. The default `re.form=NULL` includes fitted
+conditional random-effect modes when predicting for known levels. Conditional
+predictions for unseen levels fail with the variable and level named; use
+`re.form=NA` to set their random effects to zero. On a nonlinear link this
+zero-random-effect response mean is **not** the population mean integrated
+over random effects. `re.form="population", type="response"` integrates over
+the latent normal effects using Gauss-Hermite quadrature for independent
+random-intercept terms with identity relationship precision. Other covariance
+structures fail explicitly rather than silently treating zero effects as a
+marginal mean. For conditional known-level or zero-random-effect predictions,
+`se.fit=TRUE` returns standard errors and `cov.fit=TRUE` additionally returns
+the full covariance, subject to the configured dense-workspace budget.
+Response-scale standard errors use the delta method. They condition on fitted
+covariance and family parameters; population-marginal prediction uncertainty
+is propagated through fixed-effect and covariance-parameter curvature for the
+restricted independent-random-intercept case. General population integration
+remains unsupported. Aggregation and PEV-based prediction uncertainty flags
+are rejected; explicit `PEV=FALSE` and `VarU=FALSE` are accepted.
+Working residuals are `(y - mu) / family$mu.eta(eta)`, not the working
+response.
 
 # How the fit works
 
@@ -286,8 +595,9 @@ fit <- mmes(y_poisson ~ x + offset(log(exposure)),
 
 - Begin with a simple random-intercept GLMM and inspect `pqlMonitor` before
   adding complex covariance structures.
-- Check `pqlConverged`; reaching `task$pql$maxit` indicates that the outer
-  PQL criterion was not met.
+- Check `pqlConverged`; `FALSE` means the outer PQL criterion was not met within
+  `task$pql$maxit` iterations. Convergence on the last allowed iteration is
+  still reported as converged.
 - Keep binomial responses away from complete separation where possible; very
   small derivatives can create unstable IRLS weights.
 - For binary outcomes with few observations per random-effect level or large

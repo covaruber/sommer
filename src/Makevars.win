@@ -25,4 +25,6 @@ ai_mme_sp2.o: mme_paths.h mme_factors.h mme_covariance.h mme_sp2_support.h mme_g
 ai_mme_sp2.o: mme_pcg_recycle.h
 ai_mme_sp2.o: mme_scale.h
 ai_mme_sp2.o: mme_layout.h
+ai_mme_sp2.o: mme_dense_score.h
 mme_gpu.o: mme_gpu.h mme_cuda_runtime.h
+mme_glmm_laplace.o: mme_cholmod.h mme_sparse.h mme_glmm_family.h mme_glmm_precision.h mme_sp2_support.h mme_covariance.h mme_factors.h mme_paths.h mme_control.h mme_control_r.h

@@ -12,6 +12,7 @@
 #include "mme_pcg_estimators.h"
 #include "mme_sufficient.h"
 #include "mme_layout.h"
+#include "mme_dense_score.h"
 #include "mme_progress.h"
 #include <mutex>
 #include <numeric>
@@ -358,10 +359,25 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   elimination.blockSchur = parseExpMode("blockSchur", "sommer.mme.blockSchur", sommer::control::Mode::Auto);
   sommer::control::Traces traces;
   traces.batch = parseExpMode("traceBatch", "sommer.mme.traceBatch", sommer::control::Mode::Off);
+  sommer::control::Mode denseCrossproductMode = sommer::control::Mode::Auto;
+  if(!sommer::control::parseMode(controls.string("denseCrossproduct", "auto"),
+      denseCrossproductMode)){
+    Rcpp::stop("denseCrossproduct must be 'auto', 'off', or 'force'.");
+  }
+  if(denseCrossproductMode == sommer::control::Mode::Force &&
+     (solverPlan.pcg() || rrConditional || rrCallback)){
+    Rcpp::stop("Forced dense score cross-products require deterministic, non-latent Henderson equations.");
+  }
+  int denseScoreCrossproducts = 0, legacyScoreCrossproducts = 0;
+  int denseScoreMemoryFallbacks = 0;
+  double denseScoreRowProducts = 0.0;
   const std::string blockSchurMode = sommer::control::modeName(elimination.blockSchur);
   const std::string traceBatchMode = sommer::control::modeName(traces.batch);
   elimination.saddlePoint = parseExpMode("saddlePoint", "sommer.mme.saddlePoint", sommer::control::Mode::Off);
   const bool saddleActive = elimination.saddlePoint == sommer::control::Mode::Force;
+  if(saddleActive && denseCrossproductMode == sommer::control::Mode::Force){
+    Rcpp::stop("Forced dense score cross-products do not support saddle-point equations.");
+  }
   if(saddleActive && (rrConditional || rrCallback || solverPlan.pcg() ||
       proposal.accelerationRequested)){
     Rcpp::stop("Saddle-point fitting requires a deterministic solver without acceleration.");
@@ -8762,7 +8778,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       RiWisSparse && !compressedData ? eigenSparseToArmaGlobal(RiWsp) : arma::sp_mat();
 
     // With a diagonal effective R^{-1} and diagonal dR/dphi, the C-trace
-    // operand is W' diag(s .* r^2) W; a row-major W touches only rows with s != 0.
+    // operand is W' diag(s .* r^2) W.
     const bool diagonalRiW =
       effectiveRiDiag.n_elem == static_cast<arma::uword>(nR);
     Eigen::SparseMatrix<double, Eigen::RowMajor> WRowMajor;
@@ -8830,6 +8846,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       saddleResidualTraces.tail(nResidualPar - 1) = shapeTraces;
     }
 
+    bool denseScoreEligible = false;
     for(arma::uword iP = 0; iP < nResidualPar; ++iP){
 
       const arma::sp_mat & Sprov =
@@ -9107,31 +9124,62 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           Btrace = eigenSparseToArmaGlobal(localBtrace);
 
         }else if(diagonalRiW && isDiagonalSparse(Sprov)){
-          std::vector<arma::uword> locRows;
-          std::vector<arma::uword> locCols;
-          std::vector<double> locValues;
+          denseScoreEligible = true;
+          Eigen::VectorXd weights = Eigen::VectorXd::Zero(nR);
+          double rowProducts = 0.0;
+          std::size_t widestRow = 0;
           for(arma::sp_mat::const_iterator it = Sprov.begin(); it != Sprov.end(); ++it){
             const arma::uword obs = it.row();
             const double ri = effectiveRiDiag(obs);
-            const double weight = (*it) * ri * ri;
-            if(weight == 0.0){ continue; }
-            const int row = static_cast<int>(obs);
-            for(Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator a(WRowMajor, row); a; ++a){
-              for(Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator c(WRowMajor, row); c; ++c){
-                locRows.push_back(static_cast<arma::uword>(a.col()));
-                locCols.push_back(static_cast<arma::uword>(c.col()));
-                locValues.push_back(weight * a.value() * c.value());
-              }
+            weights(static_cast<Eigen::Index>(obs)) = (*it) * ri * ri;
+            if(weights(static_cast<Eigen::Index>(obs)) != 0.0){
+              const std::size_t width = static_cast<std::size_t>(
+                WRowMajor.outerIndexPtr()[obs + 1] - WRowMajor.outerIndexPtr()[obs]);
+              rowProducts += static_cast<double>(width) * width;
+              widestRow = std::max(widestRow, width);
             }
           }
-          arma::umat locations(2, locValues.size());
-          for(std::size_t q = 0; q < locValues.size(); ++q){
-            locations(0, q) = locRows[q];
-            locations(1, q) = locCols[q];
+          bool denseScore = sommer::DenseScorePolicy::select(
+            denseCrossproductMode, rowProducts, widestRow, nEffects);
+          const double needed = sommer::DenseScorePolicy::workspaceDoubles(
+            static_cast<std::size_t>(W.nonZeros()), nEffects);
+          if(denseScore && needed > blockSchurPolicy.maxDoubles){
+            if(denseCrossproductMode == sommer::control::Mode::Force && memoryStrict){
+              requireMemory("Dense-design score cross-products", needed);
+            }
+            denseScore = false;
+            ++denseScoreMemoryFallbacks;
           }
-          Btrace = arma::sp_mat(true, locations, arma::vec(locValues),
-                                static_cast<arma::uword>(nEffects),
-                                static_cast<arma::uword>(nEffects));
+          if(denseScore){
+            Btrace = eigenSparseToArmaGlobal(sommer::denseDesignScoreCrossproduct(W, weights));
+            ++denseScoreCrossproducts;
+            denseScoreRowProducts += rowProducts;
+          }else{
+            std::vector<arma::uword> locRows;
+            std::vector<arma::uword> locCols;
+            std::vector<double> locValues;
+            for(arma::sp_mat::const_iterator it = Sprov.begin(); it != Sprov.end(); ++it){
+              const arma::uword obs = it.row();
+              const double weight = weights(static_cast<Eigen::Index>(obs));
+              if(weight == 0.0){ continue; }
+              const int row = static_cast<int>(obs);
+              for(Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator a(WRowMajor, row); a; ++a){
+                for(Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator c(WRowMajor, row); c; ++c){
+                  locRows.push_back(static_cast<arma::uword>(a.col()));
+                  locCols.push_back(static_cast<arma::uword>(c.col()));
+                  locValues.push_back(weight * a.value() * c.value());
+                }
+              }
+            }
+            arma::umat locations(2, locValues.size());
+            for(std::size_t q = 0; q < locValues.size(); ++q){
+              locations(0, q) = locRows[q];
+              locations(1, q) = locCols[q];
+            }
+            Btrace = arma::sp_mat(true, locations, arma::vec(locValues),
+              static_cast<arma::uword>(nEffects), static_cast<arma::uword>(nEffects));
+            ++legacyScoreCrossproducts;
+          }
         }else{
           Btrace =
             RiWspArmaShared.t()
@@ -9236,6 +9284,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       }
     }
 
+    if(denseCrossproductMode == sommer::control::Mode::Force && !denseScoreEligible){
+      Rcpp::stop("Forced dense score cross-products require diagonal effective residual precision and a diagonal residual derivative.");
+    }
     if(!emInformationOnly){
       const arma::uword g0 =
         static_cast<arma::uword>(
@@ -10313,6 +10364,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                       blockEngine.active && blockEngine.banded,
                       blockEngine.active && blockEngine.latent, blockSchurMode,
                       Rgrid ? "grid" : Rdiag ? "diagonal" : Rkron ? "kronecker" : "sparse")
+                    << (denseScoreCrossproducts > 0 ? "; score-crossproduct=dense-design" : "")
                     << "]" << arma::endl;
 
         progress.header();
@@ -11359,6 +11411,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       Rcpp::Named("coefficientEvaluations") = coefficientEvaluations,
       Rcpp::Named("emInverseTraceCalls") = emInverseTraceCalls,
       Rcpp::Named("diagonalResidualTraceCalls") = diagonalResidualTraceCalls,
+      Rcpp::Named("denseScoreCrossproducts") = denseScoreCrossproducts,
+      Rcpp::Named("legacyScoreCrossproducts") = legacyScoreCrossproducts,
+      Rcpp::Named("denseScoreMemoryFallbacks") = denseScoreMemoryFallbacks,
+      Rcpp::Named("denseScoreRowProductsAvoided") = denseScoreRowProducts,
       Rcpp::Named("diagonalResidualTraceSolveColumns") = diagonalResidualTraceSolveColumns,
       Rcpp::Named("emInverseTraceFallbackPanels") = emInverseTraceFallbackPanels,
       Rcpp::Named("emDesignTraceCalls") = emDesignTraceCalls,
@@ -11437,6 +11493,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         Rcpp::Named("profile") = profileMode,
         Rcpp::Named("blockSchur") = blockSchurMode,
         Rcpp::Named("traceBatch") = traceBatchMode,
+        Rcpp::Named("denseCrossproduct") = sommer::control::modeName(denseCrossproductMode),
         Rcpp::Named("sparseFactors") = sommer::control::modeName(
           parseExpMode("sparseFactors", "sommer.mme.sparseFactors", sommer::control::Mode::Off)),
         Rcpp::Named("memoryPolicy") = memoryPolicyMode

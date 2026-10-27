@@ -17,29 +17,24 @@ run_mme_benchmark(
 \arguments{
 \item{workloads}{A list of \code{mme_workload} objects (or a single workload).}
 
-\item{engines}{A named list of \code{\link{mmes_control}} objects. Defaults to comparing
-\code{baseline} (standard auto solver) against candidate experimental toggles.}
+\item{engines}{A named list of \code{\link{mmes_control}} objects.}
 
-\item{replications}{Number of timed repetitions (warmup run excluded). Default is 3.}
+\item{replications}{Positive number of timed repetitions, excluding warmup.}
 
-\item{verifyParity}{Logical; whether to assert that experimental candidates match the reference
-engine in final likelihood, variance components, and BLUPs. Default is TRUE.}
+\item{verifyParity}{Whether to compare candidates against the first engine.}
 
-\item{tolerance}{Numerical tolerance for parity verification. Default is 1e-5.}
+\item{tolerance}{Positive relative tolerance for parity verification.}
 
-\item{nIters}{Maximum REML/ML iterations for benchmark fits. Default is 5.}
+\item{nIters}{Maximum REML/ML iterations for benchmark fits.}
 
-\item{verbose}{Logical; whether to print progress. Default is TRUE.}
+\item{verbose}{Whether to print progress.}
 }
 \value{
-An object of class \code{"sommer_mme_benchmark"}. Warmup and timed-run failures
-retain the same result columns with an \code{error} message. The
-\code{converged} column records the fitted model's \code{convergence} flag.
-\code{parity_ok} is \code{NA} when parity is not checked or the reference
-engine failed; numerical comparisons use final likelihoods and estimates,
-not the lengths of their optimization histories.
+A \code{sommer_mme_benchmark} object. Failed runs retain the same
+  result columns with an error message. Parity is \code{NA} when not checked
+  or when the reference failed; comparisons use final likelihoods and estimates.
 }
 \description{
-Executes a battery of workloads across candidate solver engines, measuring wall-clock time,
-iterations, peak memory (if available), active numerical paths, and asserting numerical parity.
+Executes workloads across solver engines, recording elapsed time, convergence,
+active numerical paths and numerical parity.
 }

@@ -42,6 +42,55 @@ Storage and engine selection are deliberately separate. Compact storage does
 not imply grid eligibility, and a diagonal covariance does not imply diagonal
 precision after a non-diagonal weight transformation.
 
+### Dense spline designs and residual score cross-products
+
+For diagonal effective residual precision and a diagonal residual derivative,
+the exact score correction contracts the coefficient inverse with
+`B = W' diag(s * r^2) W`, where `s` is the derivative diagonal and `r` is the
+effective precision diagonal. The dense-design diagonal-score path scales the sparse
+design rows and multiplies `W'` by the weighted design. Sparse multiplication
+accumulates repeated entries into the result instead of retaining one triplet
+for every pair of nonzeros in every observation row. The latter requires
+`sum_r nnz(W[r,])^2` triplets and can dominate both memory and runtime for
+rotated tensor-spline bases, even with only a few hundred observations.
+
+`score=list(denseCrossproduct="auto")` recognizes the special case using
+the derivative's active design rows, not a covariance model name. Admission
+requires at least 64 nonzeros in one active row, at least one million
+row-product contributions, and at least eight times the squared coefficient
+dimension. These conservative work gates avoid changing the established path
+for ordinary incidence designs or short residual sections. The new path also
+requires its conservative workspace bound to fit `denseMemoryMB`.
+`"off"` restores the old row-product route; `"force"` bypasses cost gates,
+but not mathematical eligibility or memory checks. Forced workspace failures
+error under the speed policy and fall back under the limit policy; auto
+falls back under either policy. Ineligible forced requests error. PQL and
+other equation representations retain their existing implementations.
+
+This is an exact score-assembly path, not a new covariance model,
+solver, trace estimator, or optimizer. LDLT and CHOLMOD retain their existing
+inverse contractions and AI sensitivities. Signed derivatives, diagonal
+weights and section-specific residual variances use the same algebra.
+Non-diagonal effective precision/derivatives retain the generic path.
+
+The existing policies in `mme_paths.h` are unchanged. The separate
+`mme_dense_score.h` module owns this admission rule and its weighted Gram
+kernel. The verbose MME banner identifies `score-crossproduct=dense-design`;
+diagnostics count new and legacy cross-products, avoided duplicate row
+products and memory fallbacks. `diagnostics=list(profile="force")`
+distinguishes score construction from factorization costs.
+
+The relevant comparison with LMMsolver is its precomputation of component
+cross-products in
+[`sparseMixedModels.R`](https://github.com/Biometris/LMMsolver/blob/main/R/sparseMixedModels.R)
+and reverse differentiation of sparse Cholesky log-determinants in
+[`ADcholesky.cpp`](https://github.com/Biometris/LMMsolver/blob/main/src/ADcholesky.cpp).
+The former motivates avoiding duplicate cross-product construction work here.
+The latter computes log-determinant gradients; Sommer already has exact
+selected-inverse score contractions and coefficient-sensitivity AI assembly.
+This module changes neither those derivatives nor the variance optimizer,
+and does not incorporate LMMsolver source code.
+
 ### EM and scalar PX-GEM updates
 
 Omitted `blendWeight` selects AI-first recovery on eligible deterministic

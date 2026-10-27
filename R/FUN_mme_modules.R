@@ -54,7 +54,7 @@
 
 .mme_mode_paths <- c("representation$sparseFactors", "representation$matrixFree",
   "solve$blockSchur", "solve$blockBanded", "solve$factorSchurMultiFactor",
-  "solve$dFirstML", "score$covarianceChecks", "score$traceBatch",
+  "solve$dFirstML", "score$covarianceChecks", "score$traceBatch", "score$denseCrossproduct",
   "curvature$reduced", "update$commonScale", "output$selectedInverse",
   "diagnostics$profile")
 
@@ -66,6 +66,8 @@
   startsWith(.mme_pcg_mapping(), "solve$")]
 
 .mme_pql_defaults <- list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)
+.mme_glmm_defaults <- list(method="pql", maxit=1000L,
+  modeMaxit=100L, modeTol=1e-8, familyParameters=list())
 
 .mme_control_paths <- function(control){
   unlist(lapply(setdiff(names(control), "formulation"), function(module)
@@ -141,6 +143,13 @@
       settings=function(x) c(emLinked, "proposal$extrapolation", "curvature$method",
         "representation$equations", "representation$factorScores", "task$objective"),
       hint="Remove them or use solve$method 'auto', 'ldlt' or 'cholmod'."),
+    list(id="dense-score",
+      when=function(x) x$solve$method == "pcg" ||
+        x$representation$equations != "normal" ||
+        x$representation$compression != "off",
+      message="score$denseCrossproduct requires deterministic normal Henderson equations without compression.",
+      settings=function(x) "score$denseCrossproduct",
+      hint="Remove the forced request or use normal Henderson equations with 'ldlt' or 'cholmod'."),
     list(id="accelerated-proposal",
       when=function(x) x$formulation == "henderson" && x$task$mode == "fit" &&
         accelerated(x),
@@ -275,10 +284,22 @@ mmes_control <- function(formulation="henderson", task=list(),
   base <- .mmes_engine_control()
   formulation <- .mme_choice(formulation, c("henderson", "direct"), "formulation")
   task <- .mme_module(task, list(mode="fit", objective="reml",
-    pql=.mme_pql_defaults), "task")
+    pql=.mme_pql_defaults, glmm=.mme_glmm_defaults), "task")
   task$mode <- .mme_choice(task$mode, c("fit", "solve"), "task$mode")
   task$objective <- .mme_choice(task$objective, c("reml", "ml"), "task$objective")
   task$pql <- .mme_module(task$pql, .mme_pql_defaults, "task$pql")
+  task$glmm <- .mme_module(task$glmm, .mme_glmm_defaults, "task$glmm")
+  task$glmm$method <- .mme_choice(task$glmm$method, c("pql", "laplace"),
+    "task$glmm$method")
+  task$glmm$maxit <- .mme_positive(task$glmm$maxit,
+    "task$glmm$maxit", TRUE)
+  task$glmm$modeMaxit <- .mme_positive(task$glmm$modeMaxit,
+    "task$glmm$modeMaxit", TRUE)
+  task$glmm$modeTol <- .mme_positive(task$glmm$modeTol,
+    "task$glmm$modeTol")
+  if(!is.list(task$glmm$familyParameters)){
+    stop("task$glmm$familyParameters must be a list.", call.=FALSE)
+  }
   task$pql$maxit <- .mme_positive(task$pql$maxit, "task$pql$maxit", TRUE)
   task$pql$tol <- .mme_positive(task$pql$tol, "task$pql$tol")
   for(name in c("estimateTheta", "warmStart")){
@@ -305,7 +326,8 @@ mmes_control <- function(formulation="henderson", task=list(),
   score <- .mme_module(score, list(traceProbes=base$pcg$traceProbes,
     estimator=base$pcg$traceEstimator, rank=base$pcg$traceRank,
     covarianceChecks=base$experimental$pdCertificates,
-    traceBatch=base$experimental$traceBatch), "score")
+    traceBatch=base$experimental$traceBatch,
+    denseCrossproduct=base$experimental$denseCrossproduct), "score")
   curvature <- .mme_module(curvature, list(method="exact-ai",
     reduced=base$experimental$reducedAI), "curvature")
   curvature$method <- .mme_choice(curvature$method,
@@ -360,7 +382,7 @@ mmes_control <- function(formulation="henderson", task=list(),
   }
   modes <- list(representation=c("sparseFactors", "matrixFree"),
     solve=c("blockSchur", "blockBanded", "factorSchurMultiFactor", "dFirstML"),
-    score=c("covarianceChecks", "traceBatch"), curvature="reduced",
+    score=c("covarianceChecks", "traceBatch", "denseCrossproduct"), curvature="reduced",
     update="commonScale", output="selectedInverse", diagnostics="profile")
   control <- list(formulation=formulation, task=task, representation=representation,
     solve=solve, logdet=logdet, score=score, curvature=curvature, update=update,
@@ -395,6 +417,7 @@ mmes_control <- function(formulation="henderson", task=list(),
     list(sparseFactors=control$representation$sparseFactors,
       matrixFreePcg=control$representation$matrixFree,
       pdCertificates=control$score$covarianceChecks, traceBatch=control$score$traceBatch,
+      denseCrossproduct=control$score$denseCrossproduct,
       reducedAI=control$curvature$reduced, commonScale=control$update$commonScale,
       saddlePoint=if(control$representation$equations == "saddle-point") "force" else "off",
       cholmodFinalSelected=control$output$selectedInverse,
@@ -429,6 +452,7 @@ mmes_control <- function(formulation="henderson", task=list(),
     henderson=control$formulation == "henderson", computeCi=control$output$inverse,
     solver=control$solve$method, REML=control$task$objective == "reml",
     pqlControl=control$task$pql, solveOnly=control$task$mode == "solve",
+    glmmControl=control$task$glmm,
     blasThreads=control$execution$blasThreads, engine=attr(control, "native"))
 }
 
@@ -515,6 +539,38 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
 }
 
 .mmes_check_family_controls <- function(control, supplied, family, internal){
+  if(identical(control$task$glmm$method, "laplace")){
+    if(control$task$objective != "ml"){
+      stop("Laplace GLMMs use maximum likelihood; set task$objective='ml'.",
+           call.=FALSE)
+    }
+    if(!is.null(internal)){
+      stop("task$glmm$method='laplace' is not supported for internal working-model fits.",
+           call.=FALSE)
+    }
+    if("task$pql" %in% supplied &&
+       !identical(control$task$pql, .mme_pql_defaults)){
+      stop("task$pql controls PQL only; remove it when using task$glmm$method='laplace'.",
+           call.=FALSE)
+    }
+    laplaceDefaults <- mmes_control()
+    laplaceAllowed <- c("formulation", "task$mode", "task$objective",
+      "task$glmm", "task$pql", "output$inverse", "output$panelSize",
+      "execution$blasThreads", "execution$denseMemoryMB",
+      "diagnostics$verbose", "diagnostics$dateWarning")
+    laplaceUnused <- setdiff(.mme_control_paths(control), laplaceAllowed)
+    laplaceChanged <- laplaceUnused[vapply(laplaceUnused, function(path)
+      .mme_requested(control, laplaceDefaults, supplied, path), logical(1))]
+    if(length(laplaceChanged)){
+      stop("Native Laplace fitting does not use these Gaussian engine controls: ",
+        paste(laplaceChanged, collapse=", "),
+        ". Use task$glmm for Laplace iteration controls.", call.=FALSE)
+    }
+  }
+  if(!identical(control$task$glmm$method, "laplace") &&
+     length(control$task$glmm$familyParameters)){
+    stop("task$glmm$familyParameters controls native Laplace only.", call.=FALSE)
+  }
   if(!is.null(internal) || !"task$pql" %in% supplied ||
      identical(control$task$pql, .mme_pql_defaults)) return(invisible(TRUE))
   if(inherits(family, "family") && identical(family$family, "gaussian") &&
@@ -527,7 +583,9 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
 
 .mmes_execution_plan <- function(control, result){
   diagnostics <- result$engineDiagnostics
-  solver <- if(control$task$mode == "solve") "pcg"
+  laplace <- inherits(result, "mmes.glmm.laplace")
+  solver <- if(laplace) "Native Laplace mode solver"
+    else if(control$task$mode == "solve") "pcg"
     else if(control$formulation == "direct") "direct"
     else if(!is.null(result$solver)) result$solver
     else diagnostics$control$solver
@@ -540,9 +598,17 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     list(active=if(is.null(diagnostic$active)) NA else diagnostic$active,
       reason=if(is.null(diagnostic$fallbackReason)) "" else diagnostic$fallbackReason)
   }
-  list(version=1L, task=control$task$mode, objective=control$task$objective,
-    formulation=control$formulation, solver=list(requested=control$solve$method,
+  list(version=1L, task=control$task$mode,
+    objective=if(laplace) "ml (Laplace)" else control$task$objective,
+    formulation=if(laplace) "Native Laplace likelihood module" else control$formulation,
+    solver=list(requested=control$solve$method,
       selected=solver),
+    glmm=list(requested=control$task$glmm$method,
+      selected=if(laplace) "Native Laplace" else
+        if(inherits(result, "mmes.glmm")) "PQL" else NA_character_,
+      maxit=if(laplace) control$task$glmm$maxit else NULL,
+      modeMaxit=if(laplace) control$task$glmm$modeMaxit else NULL,
+      modeTol=if(laplace) control$task$glmm$modeTol else NULL),
     representation=control$representation,
     curvature=control$curvature, proposal=control$proposal,
     admission=list(compression=selected("compression"),
