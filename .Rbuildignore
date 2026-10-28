@@ -12,6 +12,7 @@
 ^benchmarks$
 ^figure$
 ^src/.*\.md$
+^src/Makevars$
 ^sommer.*\.tar\.gz$
 ^\.\.Rcheck$
 ^sommer\.Rcheck$

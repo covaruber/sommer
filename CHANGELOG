@@ -586,6 +586,10 @@ version 4.4.81 (2026-09-30)
 version 4.5.13 (in development)
 ########################
 
+ + BUG FIX explicitly import stats::simulate so the Laplace simulation method
+   registers when the namespace is loaded without stats attached. Exclude
+   configure-generated src/Makevars from source archives on all platforms;
+   Unix configuration and Windows Makevars.win remain unchanged.
  + Added an opt-in zero-inflated Poisson family for native Laplace ML, with
    an estimated or fixed intercept-only structural-zero probability. The
    Poisson and zero components share no predictor coefficients.
