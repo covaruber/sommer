@@ -18,8 +18,8 @@ struct ConditionalWorkspace {
 // symbolic analysis only; every call performs a fresh numeric factorization.
 // [[Rcpp::export]]
 Rcpp::List mme_conditional_moments_cpp(
-    const Eigen::MappedSparseMatrix<double>& H,
-    const Eigen::MappedSparseMatrix<double>& pattern,
+    const Eigen::Map<Eigen::SparseMatrix<double>>& H,
+    const Eigen::Map<Eigen::SparseMatrix<double>>& pattern,
     const Eigen::VectorXd& rhs,
     SEXP workspace,
     bool moments,

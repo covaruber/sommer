@@ -143,13 +143,13 @@ BEGIN_RCPP
 END_RCPP
 }
 // mme_conditional_moments_cpp
-Rcpp::List mme_conditional_moments_cpp(const Eigen::MappedSparseMatrix<double>& H, const Eigen::MappedSparseMatrix<double>& pattern, const Eigen::VectorXd& rhs, SEXP workspace, bool moments, int panelSize, double memoryMB);
+Rcpp::List mme_conditional_moments_cpp(const Eigen::Map<Eigen::SparseMatrix<double>>& H, const Eigen::Map<Eigen::SparseMatrix<double>>& pattern, const Eigen::VectorXd& rhs, SEXP workspace, bool moments, int panelSize, double memoryMB);
 RcppExport SEXP _sommer_mme_conditional_moments_cpp(SEXP HSEXP, SEXP patternSEXP, SEXP rhsSEXP, SEXP workspaceSEXP, SEXP momentsSEXP, SEXP panelSizeSEXP, SEXP memoryMBSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Eigen::MappedSparseMatrix<double>& >::type H(HSEXP);
-    Rcpp::traits::input_parameter< const Eigen::MappedSparseMatrix<double>& >::type pattern(patternSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::SparseMatrix<double>>& >::type H(HSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::SparseMatrix<double>>& >::type pattern(patternSEXP);
     Rcpp::traits::input_parameter< const Eigen::VectorXd& >::type rhs(rhsSEXP);
     Rcpp::traits::input_parameter< SEXP >::type workspace(workspaceSEXP);
     Rcpp::traits::input_parameter< bool >::type moments(momentsSEXP);
@@ -218,12 +218,12 @@ BEGIN_RCPP
 END_RCPP
 }
 // fixed_design_basis_cpp
-Rcpp::List fixed_design_basis_cpp(const Eigen::MappedSparseMatrix<double>& fixedDesign);
+Rcpp::List fixed_design_basis_cpp(const Eigen::Map<Eigen::SparseMatrix<double>>& fixedDesign);
 RcppExport SEXP _sommer_fixed_design_basis_cpp(SEXP fixedDesignSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const Eigen::MappedSparseMatrix<double>& >::type fixedDesign(fixedDesignSEXP);
+    Rcpp::traits::input_parameter< const Eigen::Map<Eigen::SparseMatrix<double>>& >::type fixedDesign(fixedDesignSEXP);
     rcpp_result_gen = Rcpp::wrap(fixed_design_basis_cpp(fixedDesign));
     return rcpp_result_gen;
 END_RCPP

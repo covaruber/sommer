@@ -6,7 +6,7 @@
 #include <vector>
 
 // [[Rcpp::export]]
-Rcpp::List fixed_design_basis_cpp(const Eigen::MappedSparseMatrix<double> & fixedDesign){
+Rcpp::List fixed_design_basis_cpp(const Eigen::Map<Eigen::SparseMatrix<double>> & fixedDesign){
   typedef Eigen::SparseMatrix<double> SparseDesign;
   typedef Eigen::Triplet<double> DesignEntry;
   const int observationTotal = fixedDesign.rows();
@@ -19,7 +19,7 @@ Rcpp::List fixed_design_basis_cpp(const Eigen::MappedSparseMatrix<double> & fixe
   scaledEntries.reserve(fixedDesign.nonZeros());
   for(int columnIndex = 0; columnIndex < columnTotal; ++columnIndex){
     double columnNorm = 0.0;
-    for(Eigen::MappedSparseMatrix<double>::InnerIterator entry(fixedDesign, columnIndex); entry; ++entry){
+    for(Eigen::Map<Eigen::SparseMatrix<double>>::InnerIterator entry(fixedDesign, columnIndex); entry; ++entry){
       if(!std::isfinite(entry.value())){
         Rcpp::stop("The fixed-effect design contains non-finite values.");
       }
@@ -32,7 +32,7 @@ Rcpp::List fixed_design_basis_cpp(const Eigen::MappedSparseMatrix<double> & fixe
     }
     const int scaledColumn = nonzeroColumns.size();
     nonzeroColumns.push_back(columnIndex);
-    for(Eigen::MappedSparseMatrix<double>::InnerIterator entry(fixedDesign, columnIndex); entry; ++entry){
+    for(Eigen::Map<Eigen::SparseMatrix<double>>::InnerIterator entry(fixedDesign, columnIndex); entry; ++entry){
       if(entry.value() != 0.0){
         scaledEntries.emplace_back(entry.row(), scaledColumn, entry.value() / columnNorm);
       }
