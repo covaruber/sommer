@@ -9,7 +9,7 @@ nominalPreparationData <- function(){
 
 nominalPreparationControl <- function(...){
   mmes_control(task=list(objective="ml",glmm=list(method="laplace",modeTol=1e-10)),
-    execution=list(blasThreads=1L),diagnostics=list(verbose=FALSE,dateWarning=FALSE),...)
+    diagnostics=list(verbose=FALSE,dateWarning=FALSE),...)
 }
 
 prepareNominalFixture <- function(data=nominalPreparationData(),fixed=y~x,
@@ -25,6 +25,7 @@ test_that("nominal preparation labels categories and gives each contrast its own
     reference="green",contrasts=list(treatment="contr.sum"))
   expect_identical(data,original)
   expect_s3_class(prepared,"sommer_nominal_preparation")
+  expect_null(prepared$control$execution$blasThreads)
   expect_false(inherits(prepared,"mmes"))
   expect_identical(prepared$nominal$levels,c("red","green","blue"))
   expect_identical(prepared$nominal$nativeLevels,c("red","blue","green"))

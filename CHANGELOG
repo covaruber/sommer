@@ -586,6 +586,8 @@ version 4.4.81 (2026-09-30)
 version 4.5.13 (in development)
 ########################
 
+ + Fixed nominal preparation tests to leave optional runtime BLAS thread
+   control disabled, so they also run without a supported BLAS controller.
  + Started the ordered categorical milestone with internal fixed-cutpoint
    cumulative-logit/probit likelihoods and analytic predictor derivatives
    through fourth order. Added binary-limit, probability, tail, narrow-
