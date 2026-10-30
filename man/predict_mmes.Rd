@@ -217,6 +217,35 @@
   All these calculations occur after fitting; they are local approximations,
   not future-response prediction intervals. Zero-formula factor coding,
   transformations and offsets are evaluated from the training basis.
+
+  Single-family \code{\link{ordinal}} Laplace fits default to
+  \code{type="response"} (or \code{"probabilities"}): a labelled
+  observation-by-category probability matrix. \code{type="link"} returns
+  the latent predictor and \code{type="mean"} the expected numeric category
+  code. The fitted factor basis, column selection and offsets are reused for
+  new data. Conditional predictions require known random levels;
+  \code{re.form=NA} sets random effects to zero.
+  \code{re.form="population"} integrates category probabilities with exact
+  normal convolution for probit and 24-node Gaussian quadrature for logit,
+  under the same restricted covariance eligibility as other Laplace
+  population predictions.
+  Ordinal uncertainty propagates the full outer-parameter covariance,
+  including cutpoint cross-covariances and conditional-mode dependence;
+  conditional predictions additionally include local random-mode variance.
+  Probability \code{se.fit} has the same labelled matrix shape as \code{fit}.
+  Probability \code{cov.fit} uses column-major order (all prediction rows for
+  category one, then category two, etc.), with labels \code{category:row}.
+  These are post-fit local approximations, not calibrated response intervals.
+
+  Single-family \code{\link{multinomial}} fits return labelled category
+  probabilities by default; \code{type="link"} returns the \eqn{K-1}
+  reference-category logits. Conditional prediction requires known random
+  levels, while \code{re.form=NA} sets random effects to zero.
+  Population-marginal nominal prediction and classify-table aggregation are
+  not currently supported. \code{se.fit=TRUE} returns probability standard
+  errors by the delta method and uses the joint fixed/random conditional
+  curvature with fitted covariance parameters held fixed. These calculations
+  happen after fitting; they are not calibrated prediction intervals.
   
  }
 \value{

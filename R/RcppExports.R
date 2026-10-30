@@ -53,6 +53,30 @@ sommer_glmm_family_eval <- function(response, predictor, familySpecs, familyInde
     .Call(`_sommer_sommer_glmm_family_eval`, response, predictor, familySpecs, familyIndex, trials)
 }
 
+sommer_multinomial_family_eval <- function(response, predictor, direction, denseMemoryMB = 1000.0) {
+    .Call(`_sommer_sommer_multinomial_family_eval`, response, predictor, direction, denseMemoryMB)
+}
+
+sommer_multinomial_mode_create <- function(response, randomDesign, randomPrecision, dimension, denseMemoryMB = 1000.0) {
+    .Call(`_sommer_sommer_multinomial_mode_create`, response, randomDesign, randomPrecision, dimension, denseMemoryMB)
+}
+
+sommer_multinomial_mode_eval <- function(pointer, fixedPredictor, modeStart, maxModeIterations = 100L, tolerance = 1e-8) {
+    .Call(`_sommer_sommer_multinomial_mode_eval`, pointer, fixedPredictor, modeStart, maxModeIterations, tolerance)
+}
+
+sommer_multinomial_laplace_eval <- function(pointer, fixedPredictor, randomPrecision, fixedDesign, precisionDerivatives, modeStart, maxModeIterations = 100L, tolerance = 1e-8, gradient = TRUE) {
+    .Call(`_sommer_sommer_multinomial_laplace_eval`, pointer, fixedPredictor, randomPrecision, fixedDesign, precisionDerivatives, modeStart, maxModeIterations, tolerance, gradient)
+}
+
+sommer_multinomial_objective_create <- function(response, fixedDesign, randomDesign, offset, descriptors, relationships, denseMemoryMB = 1000.0) {
+    .Call(`_sommer_sommer_multinomial_objective_create`, response, fixedDesign, randomDesign, offset, descriptors, relationships, denseMemoryMB)
+}
+
+sommer_multinomial_objective_eval <- function(pointer, parameters, maxModeIterations = 100L, tolerance = 1e-8, gradient = TRUE) {
+    .Call(`_sommer_sommer_multinomial_objective_eval`, pointer, parameters, maxModeIterations, tolerance, gradient)
+}
+
 mme_gpu_runtime_status <- function() {
     .Call(`_sommer_mme_gpu_runtime_status`)
 }

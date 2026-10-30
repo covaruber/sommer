@@ -838,11 +838,432 @@ well-tested initial native binomial/Poisson release.
 
 ## 7. Recommended next deliverable
 
-The next deliverable is broad frozen-snapshot regression and package
-qualification, followed by statistically broader non-Gaussian interval
-coverage and simulation-diagnostic studies. Keep the current explicit
-boundary guards, post-fit uncertainty contract, and restricted population-
-marginal covariance support.
+### Staged ASReml-gap roadmap
+
+The approved sequence is reliability, ordered categorical responses, then
+nominal multinomial responses. These are distinct milestones, not aliases
+for one scalar family extension.
+
+1. **Reliability foundation implemented:** `boot_mmes()` provides opt-in
+   post-fit population parametric bootstrap for parameter-recovery summaries
+   and nested count-fixed-effect likelihood-ratio tests. It reuses stored
+   native likelihood designs/specifications, including mixed families,
+   grouped binomial trials and ZIP zero formulas. Refits use native first
+   derivatives without numerical Hessians or PEV. Covariance/family draws
+   retain their declared optimizer coordinates rather than silently
+   masquerading as natural parameters.
+   - Simulations draw new random effects. Sparse relationship factors are
+     reused across replicates, and their caches no longer modify fitted
+     relationship metadata.
+   - Every planned replicate has diagnostics for convergence, boundaries,
+     likelihoods, scores, rejected evaluations, warnings and errors.
+     Failed refits are not replaced. Any failure makes the ordinary p-value
+     unavailable; failure-sensitivity bounds retain the planned denominator.
+   - No Gaussian fitting controls, LMM routes, dependencies or fit-time
+     uncertainty behavior changed. The bootstrap's outer limit is a
+     post-fit argument; inner mode/resource settings come from the fit.
+   - This does not yet provide covariance-component or structural-zero
+     selection tests, profile intervals, automatic separation correction,
+     or release-level calibration. A small external null-behavior screen
+     is descriptive evidence, not proof of 95% coverage.
+   - The external `bootstrap-v1` screen completed 40 Poisson and 40 grouped-
+     binomial null datasets, with 49 paired replicates each: 3,920 pairs
+     (7,840 native refits), all successful. Rejection at 5% was 0/40 for
+     Poisson and 1/40 for grouped binomial; Wilson intervals were
+     [0, 0.088] and [0.004, 0.129]. The 0.02 p-value resolution and small
+     dataset count preclude a general calibration claim. Algorithm hashes
+     and every plus-one p-value/denominator passed verification.
+   - Bootstrap/ZIP, native-family and shared-preparation regressions pass;
+     the pre-existing structured-covariance false-convergence warning
+     remains. Rd checks, selected article renders and source build pass.
+2. **Ordered categorical public implementation available experimentally:** cumulative logit/probit with
+   a single predictor, explicitly ordered responses, identified location,
+   ordered thresholds, category-aware prediction/simulation and joint
+   post-fit uncertainty. Implementation gates pass; broader recovery/coverage
+   calibration remains a qualification gate, not a claim implied by fitting.
+   - **First likelihood slice implemented, internal only:** the native family
+     evaluator accepts fixed, finite, strictly increasing cutpoints and
+     integer categories `1,...,K`, with
+     `P(Y <= k | u) = F(cutpoint[k] - eta)`. Positive predictor coefficients
+     favor higher categories. The link scale is fixed to standard logistic
+     or standard normal; no ordinal residual dispersion is estimated.
+     It returns log category densities, expected category codes, predictor
+     scores, observed curvature and its first two predictor derivatives.
+     Logistic intervals use a stable factored identity; probit intervals use
+     log-tail differences and a bounded narrow-interval density expansion.
+     No numerical Hessian, PEV, dependency or Gaussian-path change is needed.
+   - **Joint cutpoint estimation implemented internally:** free ordinal
+     specifications now contribute one coordinate per cutpoint rather than
+     using the one-scalar dispersion slot. The first coordinate is the first
+     cutpoint; subsequent coordinates are log-positive successive gaps.
+     Native updates reject overflow, underflow and gaps lost to floating-point
+     rounding. Analytic endpoint density/probability ratios supply cutpoint
+     scores and mixed predictor/curvature derivatives. Marginal scores include
+     random-mode and log-determinant dependence, and transform to log-gap
+     coordinates by the chain rule. A common cutpoint shift uses the negative
+     predictor-shift identity to avoid narrow-interval cancellation.
+     Per-family cutpoint vectors are aggregated without an observation-by-
+     cutpoint derivative matrix. At this development stage public
+     `mmes(family=ordinal())` was kept disabled. The constructor's
+     variance/deviance/GLM methods now error explicitly instead of pretending
+     ordinal data have Bernoulli variance or zero deviance.
+   - Native objective construction checks location identification once, not
+     inside optimizer evaluations. It rejects any linear combination of fixed
+     columns confounded with free ordinal trait-location indicators, including
+     equivalent intercepts and cross-trait indicator combinations. The dense
+     rank check is admitted through the existing memory budget. Every declared
+     category must be observed when estimating cutpoints; fixed-cutpoint
+     evaluation does not impose that restriction. Other native families retain
+     their existing parameter ordering and score machinery.
+   - **Response/control preparation implemented internally:** the common
+     preparation entry point recognizes a single ordinal family and reuses
+     the existing observation map, missing-data policies, random structures
+     and fixed design. Ordered labels/declared levels are preserved; plain
+     numeric codes must be contiguous integers `1,...,K`. Unordered factors,
+     characters, matrices and invalid codes error before row filtering.
+     Every category must remain observed for estimated cutpoints; fixed
+     cutpoints can retain absent ordered-factor levels.
+   - Internal preparation uses existing `task$glmm$familyParameters` keys
+     `thresholds` and `estimate`, with control thresholds taking precedence
+     over constructor thresholds. Estimated cutpoints default to empirical
+     cumulative-link quantiles computed after filtering. Fixed cutpoints
+     require explicit values. Exactly `K-1` cutpoints are required. Estimated
+     cutpoints remove only the existing intercept column (not formula `-1`,
+     which would change factor contrasts). Remaining constant confounding and
+     fixed-design rank deficiency error. Fixed cutpoints retain an intercept.
+     Column selections, partitions, original formula/labels, contrasts and
+     levels are retained for subsequent public prediction integration.
+     Ordinal proposal updates and parameter counts use the same gap
+     coordinates as the native objective.
+   - Preparation initially kept public fit assembly gated until all downstream
+     interfaces could be connected. Ordinal `familym()` remains explicitly
+     unsupported.
+   - Preparation-to-optimizer testing exposed an exactly-zero-curvature sparse
+     iterator invalidation in native GLMM mode-Hessian scaling. Replaced both
+     iterative and final native row-scaling loops with sparse diagonal
+     multiplication, without changing Gaussian engines or mode objectives.
+     Saturated ordinal and binomial regressions require finite valid results,
+     not exceptions or suppressed errors.
+   - **Public surfaces connected:** single-family cumulative-logit/probit
+     fitting now assembles complete objects. Fitted/predicted distributions
+     default to labelled category probability matrices; latent predictor and
+     coding-dependent expected code are explicit types. Simulation preserves
+     ordered labels, residuals use the category distribution or explicitly
+     defined numeric-code moments, and likelihood counts include every free
+     cutpoint. Comparison signatures preserve category labels and fixed
+     thresholds; bootstrap refits retain gap coordinates and report missing-
+     category failures. Mixed-family ordinal fitting remains unsupported.
+   - Post-fit joint marginal-Hessian uncertainty transforms gap coordinates
+     to natural cutpoint SEs. Prediction propagates all parameter cross-
+     covariances and mode dependence, adding conditional random-mode variance
+     when applicable. Probability SEs retain matrix shape; full covariance
+     is column-major with category/row labels. Ordinal postPEV uses the same
+     joint-parameter/mode decomposition instead of conditioning on estimated
+     cutpoints. No fit-time numerical Hessian/PEV or R dependency is added.
+   - Population probabilities use exact probit normal convolution and the
+     existing 24-node Gaussian quadrature for logit, within existing random-
+     covariance eligibility. Independent integration, probability, binary-
+     limit and `MASS::polr()` likelihood tests cover the public interfaces.
+   - **Acceptance gates:** independent category probabilities must sum to one
+     within `1e-12`; binary-category limits must match native binomial
+     likelihoods/derivatives within `1e-12`; predictor/mixed derivatives must
+     match numerical references within `1e-6`, and full marginal gradients
+     within `2e-5` in interior fixtures. Include both tails, narrow cutpoints,
+     invalid responses and cutpoints. Joint-estimation integration must also
+     establish identification, independent fixed-effect likelihood agreement,
+     recovery, sparse-category failure reporting and external coverage gates
+     before claiming a supported ordinal GLMM. Kernel checks alone do not
+     qualify inference or fitting.
+   - **Initial validation:** an isolated native package build and focused
+     ordinal-kernel, native-Laplace, expanded-family, bootstrap and Gaussian
+     fixed-design suites completed with 1,023 passing assertions, no failures
+     or skips, and the known structured-covariance false-convergence warning
+     in `test-mmes-laplace.R`. Both modified Rd files parse and check cleanly.
+     Tail/narrow-probit derivatives also agree with independent integrated
+     normal-density derivative references. These are implementation checks,
+     not statistical calibration or a full cross-platform package check.
+   - **Joint-estimation validation:** an isolated build and the same focused
+     suites now complete with 1,195 passing assertions, no failures or skips,
+     and only the known structured-covariance warning. Full marginal-gradient
+     differences are checked against the absolute `2e-5` gate for both links,
+     binary/multiple cutpoints, gaps down to `1e-5`, and multiple ordinal
+     families alongside estimated Gaussian dispersion. Optimized likelihoods
+     agree with independent `MASS::polr()` fits in a fixed vanishing-random-
+     variance limit within `1e-5`, with coefficients/cutpoints within `1e-4`.
+     Tests also cover equivalent intercepts, joint trait-location confounding,
+     no fixed columns, memory admission, missing categories, parameter-vector
+     lengths and recovery after rejected proposals. These do not establish
+     random-variance recovery, ordinal interval coverage or public fit support.
+   - **Preparation validation:** isolated installation and the expanded focused
+     suites complete with 1,318 passing assertions, no failures or skips,
+     and the same known structured-covariance warning. Ordered labels,
+     retained-row initialization, fixed/estimated controls, missing levels,
+     contrasts, formula environments, offsets, intercept-only designs and
+     invalid schemas are checked. Prepared factor/offset models optimized
+     through the native objective agree with independent `MASS::polr()` fits
+     in the vanishing-random-variance limit at the existing `1e-5` likelihood
+     and `1e-4` coefficient/cutpoint gates. The new Rd content parses and checks.
+     This preparation-stage validation did not claim public fit or
+     statistical-coverage qualification.
+   - **Public-interface validation:** isolated installation and ordinal kernel,
+     preparation/public API, native Laplace/families, ZIP formula, bootstrap,
+     PQL, fixed-design and Gaussian ML/REML regressions complete with 1,720
+     passing assertions, zero failures/skips, and only the known structured-
+     covariance false-convergence warning. Public ordinal tests include both
+     links, independent `polr()` likelihood limits, binary equivalence,
+     fixed/estimated/intercept-only fits, filtered category schemas, new-data
+     factor/offset coding, known/unseen random levels, simulation frequencies
+     and RNG restoration, population integration, independent joint delta-
+     method covariance, cutpoint SEs, PEV, bootstrap and comparison eligibility.
+     Mocked uncertainty routines confirm fitting never invokes post-fit
+     parameter uncertainty, PEV or `optimHess()`. Rd checks, selected article
+     renders and generated option-guide checks pass. No Gaussian native
+     solver policy or dependency was changed. Broader ordinal recovery/
+     coverage calibration remains pending; these are implementation tests.
+   - **Targeted ordinal calibration completed (external `ordinal-v1` study):**
+     frozen source, 3,000 paired datasets (300 per link/design combination),
+     6,900 fits including higher-order `ordinal::clmm(nAGQ=9)`, AGQ1 and
+     alternate-start sensitivities. The external reference was already
+     installed; no package dependency was added. Four fresh-process workers
+     avoided fork/BLAS locks. The contract, source/binary hashes, deterministic
+     checkpoints, raw fit records, CSV summaries, independent verifier and
+     HTML report live outside the sommer source tree.
+   - Both links were tested with four categories and random intercepts:
+     60 groups x 8 records and 100 x 10 regular designs, plus short-cluster,
+     sparse-category and near-zero-variance stress designs. All 1,200 regular
+     primary fits converged; joint SE availability was 99.7--100%. All
+     registered fixed-effect/cutpoint bias and natural random-variance bias
+     gates passed. Regular alternate starts produced no likelihood gain
+     exceeding `1e-4`. All numerical Hessian/interval work remained post-fit.
+   - **The full targeted envelope did not qualify:** 18 of 712 registered
+     regular gates failed, without changing thresholds after observing data.
+     Fourteen concern probability calibration (three RMSE cells above 0.04
+     and eleven Wilson-coverage checks), three indicate conservative parameter
+     coverage, and one concerns AGQ1 reference agreement. Regular pointwise
+     probability coverage ranged from 90.3% to 98.0%; every raw coverage-range
+     gate passed, but some Wilson intervals excluded nominal 95%.
+     These many correlated pointwise gates are not a simultaneous-coverage
+     test; failures still block an unqualified validation claim.
+   - A separate post-study scalar random-intercept Laplace calculation at
+     each implementation's own estimates checked 120 regular sensitivity
+     datasets. Sommer's maximum absolute likelihood difference was below
+     `7.4e-9`; the AGQ1 reference differed by up to `1.76e-4`, including one
+     reference nonconvergence. This localizes the failed reference-comparison
+     gate to reference precision rather than demonstrating a native likelihood
+     bug. The original gate remains failed; no record or tolerance was replaced.
+   - Sparse fit availability was 78% (logit) and 14% (probit), exactly matching
+     66/258 datasets with an absent declared category and intentional
+     identification rejection. Every primary dataset with all categories
+     observed converged. Joint SE availability across all planned sparse
+     datasets was only 51.7%/9.7%; weak-variance designs supplied SEs in only
+     52.3%/54.3% despite 100% optimizer convergence. Short-cluster logit
+     variance recovery also differed from higher-order quadrature. These
+     regimes are not qualified for ordinary interior inference.
+   - Independent audit verified every dataset/fit count, source/binary hash,
+     seed/checkpoint reproducibility, probability truth and sum-to-one,
+     parameter/probability coverage numerator and denominator, and registered
+     gate decision. The study does not qualify random-effect PEV coverage,
+     fixed-cutpoint inference, general covariance, or cross-platform release.
+     The next ordinal statistical objective is bounded post-fit probability-
+     interval calibration (current Wald versus transformed/bootstrap intervals),
+     with weak-information diagnostics, before broad inferential claims or
+     a nominal-multinomial expansion. Do not silently change the Laplace
+     estimator or drop failed/missing-category replicates.
+   - **Held-out probability-interval calibration completed:** an independent
+     frozen-source run generated 1,200 fresh datasets (300 per regular scenario)
+     with seed base `328000000`, distinct from the original study. The same
+     fitted probabilities/SEs were used for paired 95% Wald, logit, probit and
+     arcsine delta intervals. All fits converged; SE availability was again
+     99.7--100%. Across 96 registered category/grid cells per method, failures
+     were 8 (Wald), 3 (logit), 4 (probit), and 5 (arcsine). No method passed
+     the full envelope. Rich scenarios passed all cell gates, but the
+     lower-information regular designs did not. The logit transformation
+     reduced gate failures; that is not a universal coverage correction or
+     grounds for selecting a new default after seeing results.
+   - The independent interval verifier checks all 115,200 stored intervals
+     against raw fits, transform endpoint formulae, coverage numerators,
+     denominators, Wilson intervals, registered decisions and hashes.
+     Transformed intervals are pointwise local approximations, not bootstrap
+     intervals, joint-simplex regions or future-response intervals. No public
+     uncertainty API/SE calculation changed. A genuine refit-bootstrap interval
+     study remains pending. External contract, runner, audit and HTML report
+     reside in the sibling validation project under `ordinal-interval-v1`.
+3. **Nominal multinomial milestone started internally:** joint category-specific
+   predictors, reference-category constraints and observation-block
+   curvature. Independent binomial `familym()` rows are not a substitute
+   for this joint likelihood. Extend the native block derivative contract
+   before exposing a nominal family.
+   - The first concrete slice is an isolated categorical softmax kernel:
+     `K-1` predictors with the last category as zero-reference, one joint
+     observation likelihood, full category-block score/curvature and the
+     first two directional derivatives of that curvature. These are third/
+     fourth categorical cumulant contractions, avoiding category-fourth-order
+     tensor storage. Each output block uses predictor-category coordinates,
+     not independent Bernoulli rows. Category permutation requires rebasing
+     predictors to the new reference; adding an unidentifiable reference
+     intercept is not permitted by this representation.
+   - The internal evaluator is separate from scalar GLMM and Gaussian engines.
+     It accepts finite `n x (K-1)` predictor/direction matrices and categorical
+     codes `1,...,K`, uses stable log-sum-exp, and validates dimensions,
+     response codes, numerical range and dense workspace before allocations.
+     It returns `n x K` probabilities, `n x (K-1)` scores, and three
+     `(K-1) x (K-1) x n` curvature arrays; the directional sign convention
+     is for *negative* log-likelihood curvature. No fitting, Hessian inversion,
+     PEV, dispersion or public nominal-family constructor is exposed.
+   - **Conditional-mode slice implemented internally:** a tagged persistent
+     context accepts `n x (K-1)` fixed predictors, category-major stacked
+     sparse `n(K-1) x q` random design and supplied fixed SPD precision `Q`.
+     It computes the joint score `Z' vec(score) - Q u`, the full observation-
+     block Hessian `Q + Z' W Z`, Newton ascent with step halving, and the
+     normalized-prior Laplace likelihood. This is not a marginal parameter
+     optimizer. A structural Hessian envelope retains numerical zeros across
+     saturation/cancellation, preserving CHOLMOD symbolic analysis across
+     iterations and repeated predictor proposals. Workspace/index admission,
+     tagged-pointer guards, explicit numerical failure reasons and work
+     counters are included. The workspace budget covers block and structural
+     assembly estimates, not an absolute bound on sparse-factor fill-in.
+     No Hessian inverse, PEV or other uncertainty is computed during this work.
+   - **Analytic marginal parameter scores implemented internally:** the new
+     evaluator accepts a proposed SPD precision, sparse category-major
+     fixed-predictor Jacobian and a list of first precision derivatives on
+     caller-supplied optimizer coordinates. It re-solves the mode and returns
+     log-likelihood scores in fixed-Jacobian-column then precision-derivative
+     order. The score includes both normalized-prior determinant derivatives
+     and mode-dependent observation curvature in the Hessian determinant.
+     Small observation-wise third-cumulant contractions and one adjoint solve
+     avoid per-parameter mode Jacobians. Precision traces and observation
+     contractions use bounded sparse-solve panels, not full inverses, PEV or
+     fitted-parameter uncertainty. Fourth cumulants are not needed for first
+     marginal scores and remain available for later second-derivative work.
+     Both factors reuse symbolic analysis for unchanged structure and refresh
+     it for actual precision sparsity changes. Disabled gradients perform no
+     score solves; failed modes return no gradient. Derivative dimension,
+     symmetry, finiteness and workspace guards raise explicit errors.
+   - **Nominal response/design preparation implemented internally:** unordered
+     factor labels or contiguous plain numeric codes are explicitly mapped to
+     `K-1` category contrasts and a last-position zero-reference. The reference
+     defaults to the last declared level or is selected by label; original
+     level order is retained in metadata. Ordered/character/matrix responses,
+     trials and missing retained categories fail explicitly. The initial fixed
+     design gives each non-reference category its own copy of the complete
+     formula basis, retaining intercepts, transformations, contrasts and
+     training levels. Formula offsets are repeated across contrasts. Other
+     fixed-sharing and category-specific offset formulas remain outside this
+     slice. A category-major observation map and common missing-data filtering
+     prevent treating category rows as independent observed responses.
+   - Random designs reuse existing formula/descriptor preparation on an
+     internal stacked data frame exposing `.nominalCategory`. Plain `~group`
+     explicitly means a shared adjustment across non-reference contrasts;
+     `vsm(ism(.nominalCategory), ism(group))` gives independent category-specific
+     adjustments with a common scale, and `usm(.nominalCategory)` permits
+     category covariance. No random formula is silently rewritten. Existing
+     relationship precision alignment and fixed covariance flags are retained.
+     This bounded internal preparation currently requires an explicit data
+     frame. It returns preparation metadata, not an `mmes` fitted object.
+   - **Covariance-coordinate plumbing implemented internally:** a tagged
+     nominal objective reuses `LaplacePrecision` and its descriptor derivatives
+     for fixed coefficients followed by free covariance coordinates, excluding
+     the residual placeholder. First derivatives retain their term-block
+     offsets and analytic prior log-determinant derivatives rather than
+     expanding every term to a full `q x q` derivative matrix. Repeated
+     likelihood/score calls at identical parameters and mode controls reuse a
+     successful mode/score; failed evaluations are never cached as successes.
+     Caller-owned descriptors/results are not mutated. The existing modular
+     `mmes_options`/`mmes_control()` validation supplies Henderson Laplace ML,
+     mode budgets/tolerance, dense workspace and BLAS-thread controls.
+     Inverse requests, unsupported family settings and unused Gaussian
+     controls fail explicitly. Scalar GLMM/Gaussian routes and policies remain
+     untouched; no dependencies or fitting-time uncertainty are added.
+   - Next implementation gates: complete nominal fit/optimizer assembly and
+     all downstream outputs, prediction, simulation, model comparisons,
+     bootstrap and strictly post-fit uncertainty before exposing a public
+     nominal family. Statistical calibration remains a separate release gate.
+     Ordinal interval findings neither qualify nor invalidate this distinct
+     joint nominal likelihood.
+   - **Initial multinomial kernel validation:** isolated source installation and
+     focused multinomial/ordinal kernel, preparation/public API, native Laplace/
+     families, ZIP, bootstrap, PQL and Gaussian fixed-design/ML/REML regressions
+     pass 1,887 assertions with zero failures/skips and the same known structured-
+     covariance false-convergence warning. Tests cover independent probabilities,
+     joint cross-category curvature, binary equivalence through order four,
+     directional and mixed fourth-order finite differences, category-reference
+     rebasing of scores and all curvature arrays, extreme/saturated tails,
+     memory/numerical/input guards, deterministic RNG behavior, and fixed-design
+     optimization/Hessian agreement with independent base-R references.
+     No Gaussian/scalar-family fit route changed. This completes the internal
+     observation-likelihood slice, not multinomial Laplace fitting.
+   - **Conditional-mode validation:** isolated installation and the expanded
+     focused regression set pass 1,974 assertions, zero failures/skips, with
+     only the previously known structured-covariance false-convergence warning.
+     Independent dense conditional optimization, numerical Hessians and
+     determinant/likelihood calculations agree for coupled category designs
+     and non-diagonal precision. Tests also cover scalar-binomial equivalence,
+     multiple category/random-effect dimensions, category-reference rebasing,
+     saturated curvature with symbolic reuse, evaluation-order invariance,
+     iteration/overflow failure recovery, zero random designs, malformed or
+     serialized contexts, invalid precision, workspace/index admission and RNG
+     preservation. Base-only namespace loading and theory-article rendering
+     also pass. Public nominal fitting and statistical calibration remain
+     unqualified; the mode slice alone does not provide marginal block scores.
+   - **Marginal-score validation:** isolated source installation and the
+     expanded focused regression set pass 2,149 assertions, zero failures/skips,
+     with only the known structured-covariance false-convergence warning.
+     Independent dense implicit-mode/log-determinant derivatives and central
+     differences of fully re-solved Laplace likelihoods agree for fixed effects,
+     nonlinear Cholesky precision coordinates, and joint directions affecting
+     both. Tests explicitly distinguish the full score from frozen-mode and
+     omitted-determinant approximations. Binary/scalar equivalence, category
+     rebasing, fixed-coordinate transformations, zero random designs,
+     saturation, covariance proposal order/failure recovery, true sparsity
+     changes and panels beyond 32 columns are covered. One-column-budget solves
+     agree with default panels; disabled gradients perform no derivative solves.
+     Analytic and numerical-score fixed-effect optimizers reach the same
+     optimum. Input/workspace guards and RNG preservation pass, as do
+     base-only namespace loading and theory-article rendering. These establish
+     numerical derivatives, not nominal statistical coverage or a complete
+     public fitted-object contract.
+   - **Nominal preparation/coordinate validation:** isolated installation and
+     focused nominal/multinomial/ordinal/Laplace/ZIP/bootstrap/PQL/Gaussian
+     regressions plus existing modular-control/capability contracts pass
+     2,508 assertions, zero failures/skips, with only the previously known
+     structured-covariance false-convergence warning. Tests cover labelled
+     reference coding, numeric/unsupported responses, common missing-data
+     filtering and category retention, transformed/full-rank fixed bases,
+     contrasts/dot expansion, offsets, shared/independent/correlated random
+     designs and existing-control rejection. Independent Kronecker precision
+     calculations with supplied nonidentity relationship precision match
+     likelihoods, modes and Hessians. Fully re-solved finite differences agree
+     with scores on native covariance coordinates for unstructured category
+     covariance, multiple terms and fixed flags. Binary descriptor objectives
+     agree with the scalar engine; zero-free-parameter cases, proposal/mode
+     failure recovery, cache invalidation/result isolation, RNG preservation
+     and joint fixed/covariance optimization pass. Base-only namespace loading
+     and the beginner-friendly theory article render also pass. No shared
+     installed library was replaced, and this validation does not qualify
+     nominal coverage or a public fitted-object interface.
+
+   - **Public nominal fit and downstream milestone:** exposed
+     `multinomial(reference=)` for native Laplace ML and assembled a complete
+     fitted object with labelled category probabilities, fixed/random
+     estimates, likelihood, AIC/BIC and optimizer diagnostics. Conditional and
+     zero-random-effect prediction support new data; probability uncertainty
+     uses post-fit joint fixed/random curvature and a delta-method transform.
+     `summary()`, `vcov()`, `postPEV()`, response/Pearson residuals, nested
+     fixed-effect comparisons, factor-preserving conditional/population
+     simulation, and nominal-specific parametric bootstrap refits are
+     connected. Population-marginal prediction and deviance/working/quantile
+     residuals remain unsupported and are rejected explicitly rather than
+     routed through scalar-family code.
+     Installation and focused nominal/multinomial/ordinal plus scalar-Laplace,
+     bootstrap, PQL and prediction regressions pass; the established
+     structured-covariance false-convergence warning remains. No package
+     dependency or Gaussian/scalar fitting route changed. This does not
+     qualify nominal statistical coverage.
+
+The next deliverable is nominal statistical calibration and broader
+simulation-diagnostic studies, followed by full frozen-snapshot package
+qualification. Keep the current explicit boundary guards, post-fit
+uncertainty contract, and restricted population-marginal covariance support.
 
 For the bounded ZIP formula slice, the next statistical priority is low-count
 identification/boundary diagnostics and calibrated inference: five registered

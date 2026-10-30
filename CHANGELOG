@@ -586,6 +586,103 @@ version 4.4.81 (2026-09-30)
 version 4.5.13 (in development)
 ########################
 
+ + Started the ordered categorical milestone with internal fixed-cutpoint
+   cumulative-logit/probit likelihoods and analytic predictor derivatives
+   through fourth order. Added binary-limit, probability, tail, narrow-
+   interval and full marginal-gradient checks. Public ordinal fitting remains
+   unavailable pending public fit integration and category-aware outputs;
+   the staged constructor now errors on placeholder GLM calculations.
+   No Gaussian solver paths, dependencies or fit-time uncertainty changed.
+ + Added internal joint ordinal cutpoint estimation with first-location and
+   log-positive-gap coordinates, analytic full Laplace scores, once-per-context
+   fixed-design location-identification checks and absent-category guards.
+   Public ordinal fitting remains disabled until its downstream interfaces
+   and post-fit uncertainty are connected.
+ + Added internal single-family ordinal response/control preparation using
+   the shared observation map and covariance-design preparation. Preserves
+   ordered category labels, validates contiguous integer codes, initializes
+   cutpoints from retained counts and removes only the intercept design column
+   when cutpoints are estimated. Fixed cutpoints keep their intercept and can
+   retain absent ordered-factor levels. Public fitting remains gated.
+ + Fixed native GLMM mode-Hessian row scaling when a curvature weight is
+   exactly zero. Sparse diagonal multiplication replaces in-place sparse
+   iterator mutation, which could invalidate the iterator and raise an
+   out-of-bounds exception. Tested on saturated ordinal and binomial rows.
+  + Enabled complete experimental single-family ordinal logit/probit native
+   Laplace fits: labelled fitted/predicted category probabilities, explicit
+   latent/expected-code outputs, ordered-factor simulation, category-aware
+   residuals, likelihood comparisons and bootstrap refits. Added post-fit
+   natural-cutpoint SEs and full joint-parameter/mode prediction uncertainty
+   and PEV, with no numerical Hessian or PEV during fitting. Population
+   probabilities use normal convolution (probit) or existing Gaussian
+   quadrature (logit). Public-interface tests include independent likelihood,
+   integration and delta-method references. Ordinal PQL and familym remain
+   unsupported; broader statistical coverage calibration is still pending.
+  + Completed external targeted ordinal calibration: 3,000 paired datasets,
+   6,900 total fits across both links and regular/sparse/short-cluster/
+   weak-variance designs. All 1,200 regular fits converged and recovery gates
+   passed, but 18/712 registered gates failed, principally probability
+   coverage/RMSE; the full inference envelope is not qualified. Sparse
+   absent-category rejection and weak-variance uncertainty failures remain
+   explicit. Independent scalar-Laplace checks localized one comparison
+   failure to external reference precision, without relaxing its gate.
+   Package fitting, dependencies and Gaussian solver policies are unchanged.
+  + Completed a fresh 1,200-dataset ordinal probability-interval study:
+   Wald/logit/probit/arcsine delta methods failed 8/3/4/5 of 96 registered
+   pointwise cell gates respectively. No method qualified across the full
+   envelope; existing SEs and public API remain unchanged. Genuine
+   refit-bootstrap interval calibration is still pending.
+  + Started the nominal multinomial expansion with an internal zero-reference
+   softmax likelihood, joint observation-block score/curvature, and directional
+   third/fourth-order derivative contractions. It is not a set of independent
+   binomial rows; public nominal fitting remains gated pending block Laplace
+   mode/score integration and complete downstream interfaces. No dependencies
+   or Gaussian/scalar-family fitting paths changed.
+  + Integrated internal multinomial conditional modes with full category-block
+   random-effect Hessians, fixed supplied random precision and normalized-prior
+   Laplace likelihoods. Persistent CHOLMOD symbolic reuse retains structural
+   zeros through saturation; input/workspace guards and explicit numerical
+   failure diagnostics are included. Marginal parameter scores and public
+   nominal fit/output assembly remain gated. No fitting-time uncertainty,
+   additional package dependencies or Gaussian solver-policy changes.
+  + Added analytic internal multinomial marginal Laplace scores for fixed
+   predictor and random-precision parameters, including mode movement and
+   both prior/Hessian log determinants. Sparse adjoint and bounded panel
+   solves avoid full inverses, mode Jacobians and fitting-time uncertainty.
+   Proposed precision matrices reuse symbolic factors when possible; invalid
+   derivatives, insufficient workspace and numerical failures remain explicit.
+   Public nominal response/design preparation and complete fit/output
+   assembly remain gated; dependencies and existing solver routes are unchanged.
+  + Added internal nominal response/reference preparation with preserved
+   labels, category-major row maps, category-specific fixed coefficients and
+   shared/category-specific random designs via existing covariance formulas.
+   The nominal objective now consumes existing covariance descriptors and
+   optimizer-coordinate derivatives, including fixed flags and relationship
+   precision, through the current modular controls. Repeated objective/score
+   calls reuse successful modes; derivative matrices remain term-local.
+   Public fitting and downstream output assembly remain gated. The theory
+   guide explains reference categories, softmax and covariance choices in
+   beginner-friendly terms. No dependencies, fitting-time uncertainty or
+   Gaussian/scalar solver-policy changes.
+  + Completed public nominal multinomial Laplace fit assembly with reference-
+   coded category probabilities, category-specific fixed effects, shared or
+   category-specific random effects, likelihood/AIC/BIC, and nested fixed-
+   effect comparisons. Added conditional/zero-random prediction, probability-
+   scale prediction standard errors, factor-preserving conditional/population
+   simulation, response/Pearson residuals, summary/vcov, post-fit PEV and
+   nominal-specific population parametric bootstrap refits. Population-
+   marginal prediction and deviance/working/quantile residuals remain
+   explicitly unsupported. Uncertainty is post-fit only; no package
+   dependency or Gaussian/scalar solver path changed.
+
+ + New boot_mmes() performs post-fit population parametric bootstrap for
+   native Laplace fits, including nested count-fixed-effect comparisons.
+   Refits use native first derivatives without Hessians or PEV. Failed
+   replicates, boundary flags and warnings remain explicit; incomplete tests
+   return failure-sensitivity p-value bounds rather than silently dropping
+   failures. Percentile intervals are descriptive on optimizer coordinates.
+   Population simulation no longer populates the fitted relationship
+   matrices' factor caches by reference.
  + BUG FIX explicitly import stats::simulate so the Laplace simulation method
    registers when the namespace is loaded without stats attached. Exclude
    configure-generated src/Makevars from source archives on all platforms;

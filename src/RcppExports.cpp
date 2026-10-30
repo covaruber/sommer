@@ -300,6 +300,95 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// sommer_multinomial_family_eval
+Rcpp::List sommer_multinomial_family_eval(const arma::vec& response, const arma::mat& predictor, const arma::mat& direction, const double denseMemoryMB);
+RcppExport SEXP _sommer_sommer_multinomial_family_eval(SEXP responseSEXP, SEXP predictorSEXP, SEXP directionSEXP, SEXP denseMemoryMBSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type response(responseSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type predictor(predictorSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type direction(directionSEXP);
+    Rcpp::traits::input_parameter< const double >::type denseMemoryMB(denseMemoryMBSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_multinomial_family_eval(response, predictor, direction, denseMemoryMB));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_multinomial_mode_create
+SEXP sommer_multinomial_mode_create(const arma::vec& response, const arma::sp_mat& randomDesign, const arma::sp_mat& randomPrecision, const int dimension, const double denseMemoryMB);
+RcppExport SEXP _sommer_sommer_multinomial_mode_create(SEXP responseSEXP, SEXP randomDesignSEXP, SEXP randomPrecisionSEXP, SEXP dimensionSEXP, SEXP denseMemoryMBSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type response(responseSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type randomDesign(randomDesignSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type randomPrecision(randomPrecisionSEXP);
+    Rcpp::traits::input_parameter< const int >::type dimension(dimensionSEXP);
+    Rcpp::traits::input_parameter< const double >::type denseMemoryMB(denseMemoryMBSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_multinomial_mode_create(response, randomDesign, randomPrecision, dimension, denseMemoryMB));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_multinomial_mode_eval
+Rcpp::List sommer_multinomial_mode_eval(SEXP pointer, const arma::mat& fixedPredictor, const arma::vec& modeStart, const int maxModeIterations, const double tolerance);
+RcppExport SEXP _sommer_sommer_multinomial_mode_eval(SEXP pointerSEXP, SEXP fixedPredictorSEXP, SEXP modeStartSEXP, SEXP maxModeIterationsSEXP, SEXP toleranceSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< SEXP >::type pointer(pointerSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type fixedPredictor(fixedPredictorSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type modeStart(modeStartSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxModeIterations(maxModeIterationsSEXP);
+    Rcpp::traits::input_parameter< const double >::type tolerance(toleranceSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_multinomial_mode_eval(pointer, fixedPredictor, modeStart, maxModeIterations, tolerance));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_multinomial_laplace_eval
+Rcpp::List sommer_multinomial_laplace_eval(SEXP pointer, const arma::mat& fixedPredictor, const arma::sp_mat& randomPrecision, const arma::sp_mat& fixedDesign, const Rcpp::List& precisionDerivatives, const arma::vec& modeStart, const int maxModeIterations, const double tolerance, const bool gradient);
+RcppExport SEXP _sommer_sommer_multinomial_laplace_eval(SEXP pointerSEXP, SEXP fixedPredictorSEXP, SEXP randomPrecisionSEXP, SEXP fixedDesignSEXP, SEXP precisionDerivativesSEXP, SEXP modeStartSEXP, SEXP maxModeIterationsSEXP, SEXP toleranceSEXP, SEXP gradientSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< SEXP >::type pointer(pointerSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type fixedPredictor(fixedPredictorSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type randomPrecision(randomPrecisionSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type fixedDesign(fixedDesignSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type precisionDerivatives(precisionDerivativesSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type modeStart(modeStartSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxModeIterations(maxModeIterationsSEXP);
+    Rcpp::traits::input_parameter< const double >::type tolerance(toleranceSEXP);
+    Rcpp::traits::input_parameter< const bool >::type gradient(gradientSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_multinomial_laplace_eval(pointer, fixedPredictor, randomPrecision, fixedDesign, precisionDerivatives, modeStart, maxModeIterations, tolerance, gradient));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_multinomial_objective_create
+SEXP sommer_multinomial_objective_create(const arma::vec& response, const arma::sp_mat& fixedDesign, const arma::sp_mat& randomDesign, const arma::mat& offset, const Rcpp::List& descriptors, const Rcpp::List& relationships, const double denseMemoryMB);
+RcppExport SEXP _sommer_sommer_multinomial_objective_create(SEXP responseSEXP, SEXP fixedDesignSEXP, SEXP randomDesignSEXP, SEXP offsetSEXP, SEXP descriptorsSEXP, SEXP relationshipsSEXP, SEXP denseMemoryMBSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type response(responseSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type fixedDesign(fixedDesignSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type randomDesign(randomDesignSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type offset(offsetSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type descriptors(descriptorsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type relationships(relationshipsSEXP);
+    Rcpp::traits::input_parameter< const double >::type denseMemoryMB(denseMemoryMBSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_multinomial_objective_create(response, fixedDesign, randomDesign, offset, descriptors, relationships, denseMemoryMB));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_multinomial_objective_eval
+Rcpp::List sommer_multinomial_objective_eval(SEXP pointer, const arma::vec& parameters, const int maxModeIterations, const double tolerance, const bool gradient);
+RcppExport SEXP _sommer_sommer_multinomial_objective_eval(SEXP pointerSEXP, SEXP parametersSEXP, SEXP maxModeIterationsSEXP, SEXP toleranceSEXP, SEXP gradientSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< SEXP >::type pointer(pointerSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxModeIterations(maxModeIterationsSEXP);
+    Rcpp::traits::input_parameter< const double >::type tolerance(toleranceSEXP);
+    Rcpp::traits::input_parameter< const bool >::type gradient(gradientSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_multinomial_objective_eval(pointer, parameters, maxModeIterations, tolerance, gradient));
+    return rcpp_result_gen;
+END_RCPP
+}
 // mme_gpu_runtime_status
 Rcpp::List mme_gpu_runtime_status();
 RcppExport SEXP _sommer_mme_gpu_runtime_status() {
@@ -674,6 +763,12 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_sommer_laplace_objective_create", (DL_FUNC) &_sommer_sommer_laplace_objective_create, 11},
     {"_sommer_sommer_laplace_objective_eval", (DL_FUNC) &_sommer_sommer_laplace_objective_eval, 5},
     {"_sommer_sommer_glmm_family_eval", (DL_FUNC) &_sommer_sommer_glmm_family_eval, 5},
+    {"_sommer_sommer_multinomial_family_eval", (DL_FUNC) &_sommer_sommer_multinomial_family_eval, 4},
+    {"_sommer_sommer_multinomial_mode_create", (DL_FUNC) &_sommer_sommer_multinomial_mode_create, 5},
+    {"_sommer_sommer_multinomial_mode_eval", (DL_FUNC) &_sommer_sommer_multinomial_mode_eval, 5},
+    {"_sommer_sommer_multinomial_laplace_eval", (DL_FUNC) &_sommer_sommer_multinomial_laplace_eval, 9},
+    {"_sommer_sommer_multinomial_objective_create", (DL_FUNC) &_sommer_sommer_multinomial_objective_create, 7},
+    {"_sommer_sommer_multinomial_objective_eval", (DL_FUNC) &_sommer_sommer_multinomial_objective_eval, 5},
     {"_sommer_mme_gpu_runtime_status", (DL_FUNC) &_sommer_mme_gpu_runtime_status, 0},
     {"_sommer_post_mme_Cinverse_cpp", (DL_FUNC) &_sommer_post_mme_Cinverse_cpp, 2},
     {"_sommer_predict_mmes_vcov_cpp", (DL_FUNC) &_sommer_predict_mmes_vcov_cpp, 2},

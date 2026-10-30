@@ -137,6 +137,18 @@ pages and verify code/documentation consistency with `R CMD check`.
 When Rcpp exports change, regenerate bindings with `Rcpp::compileAttributes(".")`.
 Keep Unix and Windows header dependencies in sync.
 
+## Website homepage
+
+The homepage template is `pkgdown/templates/content-home.html`. English is
+the default; each `data-es` attribute supplies the Spanish text for that element.
+Keep translated elements text-only so language switching preserves links and
+formatting. The adjacent British and Spanish flag buttons translate only the
+homepage and save the choice in browser storage; technical documentation stays
+in English. The script is
+`pkgdown/assets/home-language.js` and styles are in `pkgdown/extra.css`.
+Rebuild with `Rscript -e 'pkgdown::build_home(preview = FALSE)'` after editing
+the template, and run `Rscript -e 'pkgdown::init_site()'` to copy updated assets.
+
 To validate the solver decision tree:
 
 ```sh

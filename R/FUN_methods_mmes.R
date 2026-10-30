@@ -112,6 +112,8 @@ if(!inherits(object, "mmes.glmm.laplace")){
                    object$familyParameters else laplaceUncertainty$familyParameters,
                  zeroCoefficients=if(is.null(laplaceUncertainty))
                    object$zeroCoefficients else laplaceUncertainty$zeroCoefficients,
+                 thresholds=if(is.null(laplaceUncertainty))
+                   object$thresholds else laplaceUncertainty$thresholds,
                  laplaceDiagnostics=if(is.null(laplaceUncertainty))
                    object$laplaceDiagnostics else
                      utils::modifyList(object$laplaceDiagnostics, list(
@@ -180,6 +182,10 @@ if(!inherits(object, "mmes.glmm.laplace")){
   if(!is.null(x$zeroCoefficients)){
     cat("\nZero-component coefficients (logit scale):\n")
     print(x$zeroCoefficients, digits=digits, row.names=FALSE)
+  }
+  if(!is.null(x$thresholds)){
+    cat("\nOrdinal cutpoints (link scale):\n")
+    print(x$thresholds, digits=digits, row.names=FALSE)
   }
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\nFixed effects:\n")
@@ -254,13 +260,13 @@ vcov.mmes.glmm.laplace <- function(object, ...){
   result
 }
 
-.anova_laplace_compare <- function(smaller, larger){
+.anova_laplace_compare <- function(smaller, larger, allowBoundary=FALSE){
   if(!isTRUE(smaller$convergence) || !isTRUE(larger$convergence)){
     stop("Likelihood comparisons require both native Laplace fits to converge.",
          call.=FALSE)
   }
-  if(isTRUE(smaller$laplaceDiagnostics$boundary) ||
-     isTRUE(larger$laplaceDiagnostics$boundary)){
+  if(!allowBoundary && (isTRUE(smaller$laplaceDiagnostics$boundary) ||
+     isTRUE(larger$laplaceDiagnostics$boundary))){
     stop("Likelihood comparisons are unavailable when either fit has a flagged boundary parameter; variance-component boundary tests require parametric bootstrap or other nonstandard calibration.",
          call.=FALSE)
   }
@@ -269,6 +275,11 @@ vcov.mmes.glmm.laplace <- function(object, ...){
       link=specification$link, parameter=specification$parameter,
       free=specification$free,
       zeroDesign=specification$zeroDesign, zeroOffset=specification$zeroOffset,
+      nominalReference=specification$reference,
+      nominalLevels=specification$levels,
+      ordinalLevels=fit$ordinal$levels,
+      thresholds=if(specification$family == "ordinal")
+        if(specification$free) length(specification$thresholds) else specification$thresholds,
       fixedValue=if(specification$free) NULL else specification$logParameter))
   covarianceSignature <- function(fit) lapply(fit$covStruct, function(structure){
     factorDefinitions <- lapply(structure$factors, function(factor){
@@ -334,6 +345,11 @@ vcov.mmes.glmm.laplace <- function(object, ...){
 "fitted.mmes" <- function(object, type=c("response", "link"), ...){
 
   if(inherits(object, "mmes.glmm.laplace")){
+    if(.laplace_is_ordinal(object)){
+      type <- if(missing(type)) "response" else
+        match.arg(type, c("response", "probabilities", "mean", "link"))
+      return(.laplace_ordinal_output(object, object$linear.predictors, type))
+    }
     type <- match.arg(type)
     return(if(type == "link") object$linear.predictors else object$fitted.values)
   }
@@ -367,6 +383,23 @@ vcov.mmes.glmm.laplace <- function(object, ...){
   if(inherits(object, "mmes.glmm")){
     type <- match.arg(type)
     if(inherits(object, "mmes.glmm.laplace")){
+      if(.laplace_is_ordinal(object)) return(.laplace_ordinal_residuals(object, type))
+      if(.laplace_is_nominal(object)){
+        if(!type %in% c("response", "pearson")){
+          stop("Nominal Laplace residuals support type='response' and type='pearson'; deviance, working and quantile residuals are not defined by this implementation.",
+            call.=FALSE)
+        }
+        observed <- stats::model.matrix(~object$y - 1L)
+        colnames(observed) <- levels(object$y)
+        residual <- observed - object$category.probabilities
+        if(type == "response") return(residual)
+        probability <- object$category.probabilities
+        if(any(!is.finite(probability)) || any(probability <= 0 | probability >= 1)){
+          stop("Nominal Pearson residuals are undefined for numerically zero or one category probabilities.",
+            call.=FALSE)
+        }
+        return(residual / sqrt(probability * (1 - probability)))
+      }
       if(type == "quantile") return(.laplace_quantile_residuals(object))
       response <- as.numeric(object$y)
       mean <- object$fitted.values

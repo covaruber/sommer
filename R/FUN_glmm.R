@@ -106,10 +106,19 @@ familym <- function(by, ..., trials=NULL){
     stop("pqlControl$tol must be a positive finite number.", call.=FALSE)
   }
   mixed <- inherits(family, "sommer_familym")
+  if(inherits(family, "sommer_nominal_family")){
+    stop("multinomial() is supported only by native Laplace ML; use task$glmm$method='laplace' and task$objective='ml'.",
+      call.=FALSE)
+  }
   if(mixed && !is.null(family$trials)){
     stop("familym(trials=...) currently requires native Laplace fitting; PQL trials use binm().", call.=FALSE)
   }
   families <- if(mixed) family$families else list(family)
+  if(any(vapply(families, function(fam) identical(fam$family, "ordinal"),
+      logical(1)))){
+    stop("ordinal() is not supported by PQL; use task$glmm$method='laplace' with task$objective='ml'.",
+      call.=FALSE)
+  }
   if(any(vapply(families, function(fam) identical(fam$family, "ziPoisson"),
       logical(1)))){
     stop("zipoisson() is currently supported only by native Laplace fitting.",
@@ -408,8 +417,8 @@ familym <- function(by, ..., trials=NULL){
          call.=FALSE)
   }
   fixedCount <- length(object$b)
-  betaSummary <- cbind(Estimate=object$b, `Std. Error`=NA_real_,
-    `z value`=NA_real_)
+  betaSummary <- cbind(Estimate=object$b, `Std. Error`=rep(NA_real_, fixedCount),
+    `z value`=rep(NA_real_, fixedCount))
   dimnames(betaSummary) <- list(names(object$b),
     c("Estimate", "Std. Error", "z value"))
   covarianceTable <- object$covParNative
@@ -420,6 +429,7 @@ familym <- function(by, ..., trials=NULL){
     dimnames=list(paste(covarianceTable$term, covarianceTable$parameter, sep=":"),
       paste(covarianceTable$term, covarianceTable$parameter, sep=":")))
   familyParameters <- object$familyParameters
+  thresholds <- object$thresholds
   zeroCoefficients <- object$zeroCoefficients
   if(!is.null(familyParameters)) familyParameters$StdError[] <- NA_real_
   unavailable <- function(reason){
@@ -428,6 +438,7 @@ familym <- function(by, ..., trials=NULL){
     list(valid=FALSE, reason=reason, fixedCovariance=NULL,
       betaSummary=betaSummary, covParNative=covarianceTable,
       covParCovariance=covariance, familyParameters=familyParameters,
+      thresholds=thresholds,
       zeroCoefficients=zeroCoefficients)
   }
   if(!isTRUE(object$convergence)){
@@ -449,16 +460,29 @@ familym <- function(by, ..., trials=NULL){
     settings$denseMemoryMB
   modeMaxit <- if(is.null(settings$modeMaxit)) 100L else settings$modeMaxit
   modeTol <- if(is.null(settings$modeTol)) 1e-8 else settings$modeTol
-  context <- sommer_laplace_objective_create(object$fixedDesign,
-    object$randomDesign, object$laplaceNativeResponse, object$offset, "",
-    object$covStruct, object$randomRelationships, denseMemoryMB,
-    familySpecs=object$familySpecifications,
-    familyIndex=object$laplaceFamilyIndex, trials=object$priorWeights)
-  objective <- function(parameters){
-    evaluation <- sommer_laplace_objective_eval(context, parameters,
-      maxModeIterations=modeMaxit, tolerance=modeTol)
-    if(!isTRUE(evaluation$valid)) return(Inf)
-    -evaluation$logLik
+  if(8 * as.double(length(object$optimizer$par))^2 * 6 > denseMemoryMB * 1048576){
+    stop("Post-fit Laplace parameter uncertainty exceeds execution$denseMemoryMB.",
+      call.=FALSE)
+  }
+  if(.laplace_is_nominal(object)){
+    nominalObjective <- .laplace_nominal_objective(object$nominalPreparation)
+    objective <- function(parameters){
+      evaluation <- nominalObjective$evaluate(parameters, gradient=FALSE)
+      if(!isTRUE(evaluation$valid)) return(Inf)
+      -evaluation$logLik
+    }
+  }else{
+    context <- sommer_laplace_objective_create(object$fixedDesign,
+      object$randomDesign, object$laplaceNativeResponse, object$offset, "",
+      object$covStruct, object$randomRelationships, denseMemoryMB,
+      familySpecs=object$familySpecifications,
+      familyIndex=object$laplaceFamilyIndex, trials=object$priorWeights)
+    objective <- function(parameters){
+      evaluation <- sommer_laplace_objective_eval(context, parameters,
+        maxModeIterations=modeMaxit, tolerance=modeTol)
+      if(!isTRUE(evaluation$valid)) return(Inf)
+      -evaluation$logLik
+    }
   }
   hessianFailure <- NULL
   hessian <- tryCatch(stats::optimHess(object$optimizer$par, objective),
@@ -545,10 +569,22 @@ familym <- function(by, ..., trials=NULL){
       zeroCoefficients$StdError[rows] <- sqrt(diag(curvature$covariance)[coordinates])
     }
   }
+  thresholdCovariance <- NULL
+  if(!is.null(thresholds) && object$familySpecifications[[1L]]$free){
+    specification <- object$familySpecifications[[1L]]
+    coordinates <- fixedCount + layout$covarianceCount +
+      seq_along(specification$thresholds)
+    jacobian <- .laplace_ordinal_jacobian(specification)
+    thresholdCovariance <- jacobian %*% curvature$covariance[coordinates,
+      coordinates, drop=FALSE] %*% t(jacobian)
+    dimnames(thresholdCovariance) <- list(thresholds$threshold, thresholds$threshold)
+    thresholds$StdError <- sqrt(diag(thresholdCovariance))
+  }
   list(valid=TRUE, reason="positive-definite", fixedCovariance=fixedCovariance,
     betaSummary=betaSummary, covParNative=covarianceTable,
     covParCovariance=covariance, familyParameters=familyParameters,
     zeroCoefficients=zeroCoefficients,
+    thresholds=thresholds, thresholdCovariance=thresholdCovariance,
     hessian=hessian, parameterCovariance=curvature$covariance)
 }
 
@@ -567,7 +603,21 @@ familym <- function(by, ..., trials=NULL){
 }
 
 .mmes_prepare_model <- function(fixed, random, rcov, data, family,
-                                naMethodY, mmesArgs){
+                                naMethodY, mmesArgs, familyParameters=list(),
+                                .ordinalPrepared=FALSE){
+  if(!.ordinalPrepared){
+    families <- if(inherits(family, "sommer_familym")) family$families else list(family)
+    ordinalFamilies <- vapply(families, function(component)
+      identical(component$family, "ordinal"), logical(1))
+    if(any(ordinalFamilies)){
+      if(inherits(family, "sommer_familym")){
+        stop("Public preparation of ordinal familym() models is not yet supported.",
+          call.=FALSE)
+      }
+      return(.laplace_prepare_ordinal(fixed, random, rcov, data, family,
+        naMethodY, mmesArgs, familyParameters))
+    }
+  }
   preparationArguments <- list(fixed=fixed, family=family,
     naMethodY=naMethodY, naMethodX=mmesArgs$naMethodX,
     naMethodRandom=mmesArgs$naMethodRandom, naMethodR=mmesArgs$naMethodR,
@@ -584,6 +634,11 @@ familym <- function(by, ..., trials=NULL){
                           familyParameters=list(),
                           naMethodY, henderson,
                           solveOnly, computeCi, mmesArgs){
+  if(inherits(family, "sommer_nominal_family")){
+    return(.mmes_laplace_nominal(fixed, random, rcov, data, family, W,
+      weights, vcc, REML, maxit, modeMaxit, modeTol, naMethodY,
+      henderson, solveOnly, computeCi, mmesArgs))
+  }
   if(isTRUE(REML)){
     stop("Laplace GLMMs use maximum likelihood; set task$objective='ml'.",
          call.=FALSE)
@@ -640,7 +695,9 @@ familym <- function(by, ..., trials=NULL){
   }
 
   prepared <- .mmes_prepare_model(fixed, random, rcov, data, family,
-    naMethodY, mmesArgs)
+    naMethodY, mmesArgs, familyParameters=familyParameters)
+  ordinalModel <- !is.null(prepared$ordinal)
+  if(ordinalModel) specifications[[1L]] <- prepared$ordinal$specification
   randomCount <- length(prepared$rtermss)
   if(!randomCount){
     stop("Native Laplace fitting requires at least one random-effect term.",
@@ -668,10 +725,20 @@ familym <- function(by, ..., trials=NULL){
     contrasts.arg=fittedContrasts))
   fixedAssignment <- attr(stats::model.matrix(fixedTerms, retainedFrame,
     contrasts.arg=fittedContrasts), "assign")
+  if(ordinalModel){
+    fixedTerms <- prepared$ordinal$fixedTerms
+    fixedXlevels <- prepared$ordinal$xlevels
+    fittedContrasts <- prepared$ordinal$contrasts
+    predictionColumns <- colnames(stats::model.matrix(fixedTerms,
+      prepared$retainedFrame, contrasts.arg=fittedContrasts))
+    fixedAssignment <- prepared$ordinal$assignment
+  }
   declaredTrials <- if(familyModel$mixed && !is.null(family$trials))
     data[[family$trials]][included] else NULL
-  responseData <- .laplace_response(response, included, specifications, familyIndex,
-    declaredTrials=declaredTrials)
+  responseData <- if(ordinalModel) list(response=prepared$ordinal$response,
+    nativeResponse=prepared$ordinal$response, trials=rep(1, sum(included))) else
+    .laplace_response(response, included, specifications, familyIndex,
+      declaredTrials=declaredTrials)
   response <- responseData$response
   trials <- responseData$trials
   offset <- stats::model.offset(responseFrame)
@@ -700,6 +767,7 @@ familym <- function(by, ..., trials=NULL){
     head(vapply(freePositions, length, integer(1)), -1L)))
   initialGLMs <- lapply(seq_along(families), function(familyPosition){
     rows <- familyIndex == familyPosition
+    if(ordinalModel) return(list(coefficients=rep(0, ncol(fixedDesign)), converged=TRUE))
     initialFamily <- if(specifications[[familyPosition]]$family == "ziPoisson")
       stats::poisson() else families[[familyPosition]]
     stats::glm.fit(as.matrix(fixedDesign[rows, , drop=FALSE]), response[rows],
@@ -740,7 +808,9 @@ familym <- function(by, ..., trials=NULL){
   }
   freeFamilies <- which(vapply(specifications, function(specification) specification$free, logical(1)))
   initialFamilyParameters <- unlist(lapply(specifications[freeFamilies],
-    function(specification) if(is.null(specification$zeroDesign))
+    function(specification) if(specification$family == "ordinal")
+      .laplace_ordinal_coordinates(specification$thresholds) else
+      if(is.null(specification$zeroDesign))
       specification$logParameter else specification$zeroCoefficients),
     use.names=FALSE)
   initialParameters <- c(initialParameters, initialFamilyParameters)
@@ -824,6 +894,15 @@ familym <- function(by, ..., trials=NULL){
     familyPosition <- freeFamilies[freePosition]
     positions <- parameterCount + covarianceParameterCount +
       familyStarts[familyPosition] + seq_len(familyCounts[familyPosition])
+    if(ordinalModel){
+      fittedSpecifications[[familyPosition]]$thresholds <-
+        .laplace_ordinal_thresholds(optimization$par[positions])
+      if(any(diff(fittedSpecifications[[familyPosition]]$thresholds) <
+         sqrt(.Machine$double.eps))){
+        boundaryParameters <- c(boundaryParameters, "response:threshold gap")
+      }
+      next
+    }
     if(!is.null(specifications[[familyPosition]]$zeroDesign)){
       fittedSpecifications[[familyPosition]]$zeroCoefficients[] <- optimization$par[positions]
       probabilities <- .laplace_zero_probability(fittedSpecifications[[familyPosition]],
@@ -915,7 +994,8 @@ familym <- function(by, ..., trials=NULL){
   familyParameterTable <- do.call(rbind, lapply(seq_along(fittedSpecifications),
     function(familyPosition){
       specification <- fittedSpecifications[[familyPosition]]
-      if(is.null(specification$parameter) || !is.null(specification$zeroDesign)) return(NULL)
+      if(is.null(specification$parameter) || !is.null(specification$zeroDesign) ||
+         specification$family == "ordinal") return(NULL)
       estimate <- .laplace_family_parameter_value(specification)
       data.frame(trait=names(families)[familyPosition], parameter=specification$parameter,
         estimate=estimate, StdError=NA_real_,
@@ -932,7 +1012,7 @@ familym <- function(by, ..., trials=NULL){
     AIC=-2 * logLikelihood + 2 * parameterTotal,
     BIC=-2 * logLikelihood + log(length(response)) * parameterTotal,
     llik=logLikelihood,
-    deviance=sum(.laplace_deviance(response, fittedValues, fittedFamilies,
+    deviance=if(ordinalModel) NA_real_ else sum(.laplace_deviance(response, fittedValues, fittedFamilies,
       familyIndex, trials, dispersion)),
     laplaceFamilies=fittedFamilies, laplaceFamilyIndex=familyIndex,
     familySpecifications=fittedSpecifications,
@@ -994,5 +1074,22 @@ familym <- function(by, ..., trials=NULL){
   fittedObject$laplacePostPEVSettings <- list(inverse=inverseMode,
     panelSize=panelSize, denseMemoryMB=denseMemoryMB,
     modeMaxit=modeMaxit, modeTol=modeTol)
+  if(ordinalModel){
+    fittedObject$ordinal <- prepared$ordinal
+    fittedObject$ordinal$specification <- fittedSpecifications[[1L]]
+    fittedObject$thresholds <- .laplace_ordinal_table(fittedSpecifications[[1L]],
+      prepared$ordinal$levels)
+    distribution <- .laplace_ordinal_distribution(linearPredictors,
+      fittedSpecifications[[1L]], prepared$ordinal$levels, denseMemoryMB)
+    fittedObject$category.probabilities <- distribution$probability
+    if(any(apply(fittedObject$category.probabilities, 1L, max) >
+       1 - .Machine$double.eps)){
+      fittedObject$laplaceDiagnostics$extremeProbabilities <- TRUE
+      warning("Native Laplace ordinal fitted category probabilities are numerically 1; check separation and identifiability.",
+        call.=FALSE)
+    }
+    fittedObject$deviance <- -2 * sum(distribution$logProbability[
+      cbind(seq_along(response), response)])
+  }
   fittedObject
 }

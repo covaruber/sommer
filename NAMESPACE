@@ -8,8 +8,8 @@ export(
        )
 
 ## FUN_main
-export(mmes, vsm, nbinom2, zipoisson,
-       mmes_control,
+export(mmes, vsm, nbinom2, zipoisson, ordinal, multinomial,
+       mmes_control, boot_mmes,
        generate_mme_workload, mme_workload_grid,
        run_mme_benchmark, analyze_mme_crossovers, profile_mme_workload,
        mmer, vsr,

@@ -390,6 +390,11 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   structure. Comparisons are refused when a boundary is flagged. Variance
   component likelihood-ratio tests are not provided; their null distributions
   can be nonstandard and require parametric bootstrap or other calibration.
+  \code{\link{boot_mmes}} performs post-fit population parametric bootstrap
+  for parameter-recovery summaries or nested count-fixed-effect comparisons.
+  Refit failures remain explicit; incomplete tests return failure-sensitivity
+  p-value bounds rather than silently dropping failed replicates.
+  This does not implement covariance-component or zero-inflation selection tests.
   Working residuals are \eqn{(y-\mu)/(d\mu/d\eta)}. Grouped-binomial fitted
   values and residuals are on the proportion scale, with Pearson variance
   \eqn{p(1-p)/n}. Gaussian/Gamma Pearson variances include fitted dispersion;
@@ -413,6 +418,19 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   dispersion is the conditional residual variance; Gamma dispersion is
   \eqn{\operatorname{Var}(Y)/\mu^2}, with shape its reciprocal.
   Estimated nuisance parameters count toward \code{npar}, AIC and BIC.
+  Single-family ordered categorical responses use \code{\link{ordinal}}
+  with cumulative logit or probit links. Ordered factors preserve their labels;
+  numeric codes must be contiguous integers starting at one. Free cutpoints
+  remove only the intercept design column, preserving factor contrasts.
+  \code{task$glmm$familyParameters=list(thresholds=c(-1,1), estimate=FALSE)}
+  instead fixes cutpoints and retains the formula intercept.
+  Ordinal \code{fitted()} and \code{predict()} default to labelled category
+  probability matrices; \code{type="link"} returns the latent predictor and
+  \code{type="mean"} returns the coding-dependent expected category code.
+  Cutpoint standard errors are computed only by post-fit
+  \code{summary(fit)$thresholds}. Probability prediction and ordinal PEV
+  propagate joint cutpoint/parameter uncertainty after fitting.
+  Ordinal PQL and mixed-family ordinal models are not supported.
   Shape/dispersion derivatives include conditional-mode and determinant
   dependence. Gaussian-identity integration is exact on this route, although
   it still uses the separate native likelihood module rather than changing

@@ -127,7 +127,7 @@ Tell me about the data, model, computational bottleneck, or method you
 need to develop.
 
 [Start a
-conversation](mailto:cova_ruber@live.com.mx?subject=sommer%20consulting%20inquiry)
+conversation](mailto:covaruberpaz@gmail.com?subject=sommer%20consulting%20inquiry)
 
 CITATION
 

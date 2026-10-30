@@ -535,23 +535,23 @@ out$controls <- rbind(out$controls, data.frame(
 out$controls <- rbind(out$controls, data.frame(
   path="control.task.glmm.method", module="task",
   values="pql, laplace.", default="pql",
-  requires="Laplace: binomial(logit/probit/cloglog), Poisson(log), zero-inflated Poisson with an intercept-only or fixed-effects formula logit component, NB2(log), Gaussian(identity) or Gamma(log), including grouped trials and familym; ML objective, Henderson formulation and supported CovarianceFactor v2 random structures.",
+  requires="Laplace: binomial(logit/probit/cloglog), Poisson(log), zero-inflated Poisson with an intercept-only or fixed-effects formula logit component, NB2(log), Gaussian(identity) or Gamma(log), including grouped trials and familym; single-family ordinal(logit/probit); ML objective, Henderson formulation and supported CovarianceFactor v2 random structures.",
   excludes="Laplace excludes structured residual covariance, direct formulation, supplied W, weights formulas and vcc.",
   fallback="PQL remains the default; unsupported Laplace models stop with an eligibility error.",
   effect="Select the GLMM estimator. Native Laplace fitting uses actual-family preparation-only designs, cached CovarianceFactor/relationship precisions and full native Laplace first scores including mode/determinant dependence. Numerical-Hessian uncertainty and joint fixed/random PEV are calculated only after fitting through vcov(), summary(), predict(se.fit=TRUE) or postPEV(); Laplace requires output$inverse=0. PQL continues through the existing sommer engines.",
   source="R/FUN_glmm.R, R/mmes.R", status="experimental", previous="new"))
 out$controls <- rbind(out$controls, data.frame(
   path="control.task.glmm.familyParameters", module="task",
-  values="Named list: theta, dispersion or zeroInflation and estimate; trait-named nested lists for familym.",
-  default="list()", requires="Native Laplace NB2 shape, Gaussian/Gamma dispersion or zero-inflated Poisson structural-zero probability.",
+  values="Named list: theta, dispersion, zeroInflation or ordinal thresholds and estimate; trait-named nested lists for supported familym families.",
+  default="list()", requires="Native Laplace NB2 shape, Gaussian/Gamma dispersion, zero-inflated Poisson structural-zero probability or single-family ordinal cutpoints.",
   excludes="Non-empty settings are rejected by PQL and by fixed-parameter binomial/Poisson families.",
   fallback="Estimated by default; estimate=FALSE fixes the value. Unknown/invalid settings error.",
-  effect="Jointly estimate or fix per-family shape, dispersion or zero-inflation probability with full marginal scores; estimates count in npar and AIC/BIC.",
+  effect="Jointly estimate or fix per-family shape, dispersion, zero-inflation probability or ordered cutpoints with full marginal scores; estimates count in npar and AIC/BIC. Ordinal estimation removes only the existing intercept column and initializes unsupplied cutpoints from retained cumulative frequencies; fixed cutpoints require explicit thresholds and retain the formula intercept.",
   source="R/FUN_glmm_families.R, src/mme_glmm_family.h", status="experimental", previous="new"))
 laplaceMemoryRow <- out$controls$path == "control.execution.denseMemoryMB"
 out$controls$effect[laplaceMemoryRow] <- paste0(
   out$controls$effect[laplaceMemoryRow],
-  " Native Laplace uses this budget for dense derivative solve panels only; sparse precision, derivative blocks and factor fill are not a total-memory guarantee.")
+  " Native Laplace checks dense derivative panels, ordinal category matrices and post-fit covariance/Jacobian workspaces against this budget; sparse precision, derivative blocks and factor fill are not a total-memory guarantee.")
 out$controls <- rbind(out$controls, data.frame(
   path="control.task.glmm.maxit", module="task",
   values="Positive integer.", default="1000L",

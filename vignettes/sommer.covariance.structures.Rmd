@@ -266,7 +266,109 @@ The constructors differ in their assumptions and parameters:
 
 The choice should be driven by the scientific design: use ordered structures only when the level order is meaningful, spatial structures only with defensible coordinates or adjacency, and flexible structures such as `usm()` or `corgm()` only when the data support their larger number of parameters.
 
-### 2) Combining two simple effects with `covm()`
+### 2) Matrix representation and number of parameters
+
+Every structure below is a $q \times q$ covariance shape $K$ among the $q$ levels of the factor (for example, environments). The term covariance is $\Sigma = \sigma^2 K$, so each `vsm()` term estimates **one** additional overall scale $\sigma^2$. The shape $K$ is scaled so that its reference entry is fixed ($K_{11}=1$, or the first specific variance, or the first innovation variance, depending on the structure). This removes the redundancy between $\sigma^2$ and $K$, so *the covariance factor parameters plus $\sigma^2$ equal the number of free parameters of the usual textbook covariance*. For instance, `usm()` has $q(q+1)/2 - 1$ factor parameters plus $\sigma^2$, which equals $q(q+1)/2$ in total.
+
+The matrices are written for $q=3$ with $\sigma^2$ omitted. The counts apply to a general $q$ and are the defaults; entries fixed through `fixed=` are not estimated.
+
+**Identity, `ism()`** (no factor parameters; 1 parameter in total, $\sigma^2$)
+
+$$
+K=\begin{pmatrix}1&0&0\\0&1&0\\0&0&1\end{pmatrix}
+$$
+
+**Diagonal, `dsm()`** ($q-1$ variance ratios; $q$ in total). `atm()` is the same for the $q_s$ selected levels ($q_s-1$ ratios).
+
+$$
+K=\begin{pmatrix}1&0&0\\0&r_2&0\\0&0&r_3\end{pmatrix}
+$$
+
+**Compound symmetry, `csm()`** (1 correlation $\rho$; 2 in total)
+
+$$
+K=\begin{pmatrix}1&\rho&\rho\\\rho&1&\rho\\\rho&\rho&1\end{pmatrix}
+$$
+
+**Heterogeneous compound symmetry, `csm(variance="heterogeneous")`** ($1+(q-1)=q$ parameters; $q+1$ in total). Entries are $K_{ij}=\sqrt{r_ir_j}\,\rho$ for $i\neq j$, and $K_{ii}=r_i$ with $r_1=1$:
+
+$$
+K=D\,C(\rho)\,D=\begin{pmatrix}1&\rho\sqrt{r_2}&\rho\sqrt{r_3}\\\rho\sqrt{r_2}&r_2&\rho\sqrt{r_2r_3}\\\rho\sqrt{r_3}&\rho\sqrt{r_2r_3}&r_3\end{pmatrix}
+$$
+
+**Autoregressive, `ar1m()`, `ar2m()`, `ar3m()`** (order $p$ partial autocorrelations: 1, 2 or 3 parameters; $p+1$ in total; heterogeneous variance adds $q-1$ ratios). For AR(1):
+
+$$
+K=\begin{pmatrix}1&\rho&\rho^2\\\rho&1&\rho\\\rho^2&\rho&1\end{pmatrix}
+$$
+
+For AR($p$) the correlations $\rho_h$ at lag $h$ follow the Yule-Walker recursion from the partial autocorrelations, and $K_{ij}=\rho_{|i-j|}$.
+
+**Moving average, `mam(order=m)`** ($m$ parameters; $m+1$ in total). Correlation is zero beyond lag $m$. For MA(1):
+
+$$
+K=\begin{pmatrix}1&\rho_1&0\\\rho_1&1&\rho_1\\0&\rho_1&1\end{pmatrix}
+$$
+
+**Toeplitz, `toeplitzm()`** ($q-1$ lag correlations, parameterized through partial autocorrelations; $q$ in total)
+
+$$
+K=\begin{pmatrix}1&\rho_1&\rho_2\\\rho_1&1&\rho_1\\\rho_2&\rho_1&1\end{pmatrix}
+$$
+
+**Unstructured, `usm()`** ($q(q+1)/2-1$ parameters; $q(q+1)/2$ in total, with $K_{11}=1$)
+
+$$
+K=\begin{pmatrix}1&k_{12}&k_{13}\\k_{12}&k_{22}&k_{23}\\k_{13}&k_{23}&k_{33}\end{pmatrix}
+$$
+
+**General correlation, `corgm()`** ($q(q-1)/2$ correlations; $q(q-1)/2+1$ in total; `variance="heterogeneous"` adds $q-1$ ratios)
+
+$$
+K=\begin{pmatrix}1&\rho_{12}&\rho_{13}\\\rho_{12}&1&\rho_{23}\\\rho_{13}&\rho_{23}&1\end{pmatrix}
+$$
+
+**Factor analytic, `fam(k=k)`**
+
+$$
+K=\frac{\Lambda\Lambda^\top+\Psi}{(\Lambda\Lambda^\top+\Psi)_{11}},
+\qquad \Lambda\in\mathbb{R}^{q\times k},\quad \Psi=\mathrm{diag}(\psi_1,\ldots,\psi_q)
+$$
+
+The leading $k\times k$ block of $\Lambda$ is lower triangular for rotational identification, and the first specific variance is the reference. The default heterogeneous mode estimates $kq-k(k-1)/2$ loadings plus $q-1$ specific-variance ratios; with $\sigma^2$ this is $kq-k(k-1)/2+q$ in total. With `variance="homogeneous"` only the $kq-k(k-1)/2$ loadings are estimated ($\Psi=\psi I$).
+
+**Reduced rank, `rrm(k=k)`** ($K=\Lambda\Lambda^\top$, with $\Lambda_{11}=1$, so $kq-k(k-1)/2-1$ parameters; $kq-k(k-1)/2$ in total). It is singular for $k<q$ because $\Psi=0$.
+
+**Antedependence, `antem(order=p)`** ($K=T^{-1}DT^{-\top}$ with $T$ unit lower triangular holding the regression coefficients in the first $p$ subdiagonals and $D=\mathrm{diag}(1,d_2,\ldots,d_q)$). For $q=3$, $p=1$:
+
+$$
+T=\begin{pmatrix}1&0&0\\-\beta_{21}&1&0\\0&-\beta_{32}&1\end{pmatrix}
+$$
+
+It estimates $\sum_{i=2}^{q}\min(i-1,p)$ coefficients plus $q-1$ innovation ratios (for $q=3$, $p=1$: $2+2=4$ parameters; 5 in total).
+
+**Spatial and user-defined structures.** `maternm()` has range and smoothness ($K_{ij}=\frac{2^{1-\nu}}{\Gamma(\nu)}(d_{ij}/\text{range})^\nu \mathcal{K}_\nu(d_{ij}/\text{range})$; up to 2 parameters, 3 in total); `sar()` and `car()` have one spatial parameter $\rho$ that controls the strength of dependence through the weights matrix $W$ (2 in total); `ownm(K=)` with a known matrix has no factor parameters (1 in total, $\sigma^2$), whereas a user function adds `length(par)` parameters.
+
+| Structure | Factor parameters | Total with $\sigma^2$ ($q=3$) | Total ($q=5$) |
+|---|---|---|---|
+| `ism()` | 0 | 1 | 1 |
+| `dsm()` | $q-1$ | 3 | 5 |
+| `csm()` | 1 | 2 | 2 |
+| `csm()` heterogeneous | $q$ | 4 | 6 |
+| `ar1m()` | 1 | 2 | 2 |
+| `ar1m()` heterogeneous | $q$ | 4 | 6 |
+| `ar2m()` | 2 | 3 | 3 |
+| `mam(order=1)` | 1 | 2 | 2 |
+| `toeplitzm()` | $q-1$ | 3 | 5 |
+| `corgm()` | $q(q-1)/2$ | 4 | 11 |
+| `fam(k=1)` | $2q-1$ | 6 | 10 |
+| `rrm(k=1)` | $q-1$ | 3 | 5 |
+| `antem(order=1)` | $2(q-1)$ | 5 | 9 |
+| `usm()` | $q(q+1)/2-1$ | 6 | 15 |
+
+Use the table to judge whether the data can support a structure: the number of free parameters should be small relative to the number of observations per environment pair. Because $\sigma^2$ is shared, models differing only in these structures can be compared with `logLik` and information criteria, and with likelihood-ratio tests when they are nested (for example `csm` within heterogeneous `csm`, and heterogeneous `csm` and `fam` within `usm`).
+
+### 3) Combining two simple effects with `covm()`
 
 `covm()` is not a covariance-shaping factor. It combines two simple `vsm()` random-effect structures that use the same main-effect levels and the same relationship precision matrix. The combined effect has a normalized $2 \times 2$ unstructured covariance between the two effects and one product-level scale.
 
@@ -278,7 +380,7 @@ joint_effect <- covm(effect_1, effect_2, labels=c("effect_1", "effect_2"))
 
 Use `covm()` when two effects must be correlated. For crossed covariance factors such as environments by genotypes, use multiple factors directly inside `vsm()` instead.
 
-### 3) Covariance across several terms with `strm()`
+### 4) Covariance across several terms with `strm()`
 
 `strm()` generalizes `covm()` to any number of random terms and any covariance constructor over the terms (ASReml `str()`). All terms must share the coefficient levels, the relationship matrix, and the same inner covariance factors; their variance is $\sigma^2 K_{terms}\otimes K_{inner}\otimes A$. A direct-maternal-permanent environment animal model is:
 
@@ -292,7 +394,7 @@ covparams_mmes(fit, 1)  # variances and covariances among dir, mat and pe
 
 `cov` can be any constructor applied to the term index, e.g. `cov = dsm` (independent terms), `cov = corgm`, or `cov = function(x) fam(x, k = 1)`. Inner factors are shared, e.g. `strm(vsm(dsm(env), ism(id)), vsm(dsm(env), ism(dam)), Gu = Ainv)`.
 
-### 4) Equality and scaling constraints with `vcc`
+### 5) Equality and scaling constraints with `vcc`
 
 Covariance parameters can be constrained to be equal or to keep fixed ratios (ASReml `vcc`). Parameters are identified in the `vcParams` table:
 

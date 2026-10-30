@@ -267,6 +267,86 @@ restrictions still apply.
 These families do not yet imply beta-binomial, zero-inflated NB2, hurdle,
 other links, or arbitrary user-defined native likelihood support.
 
+## Ordered categorical native Laplace models
+
+Single-family `ordinal("logit")` and `ordinal("probit")` models use
+`P(Y <= k | u) = F(cutpoint[k] - eta)`: positive coefficients favor higher
+categories. This is experimental cumulative-link support, not an unordered
+multinomial likelihood. PQL and ordinal `familym()` remain unsupported.
+Use an explicitly ordered factor or contiguous numeric category codes
+`1,...,K`; labels and declared factor levels are preserved.
+
+```{r ordinal-interface, eval=FALSE}
+ctrl <- mmes_control(task = list(objective = "ml",
+  glmm = list(method = "laplace")))
+fit_ord <- mmes(rating ~ treatment + offset(exposure),
+  random = ~ group, data = dat, family = ordinal(), control = ctrl)
+fitted(fit_ord)                       # n by K labelled probability matrix
+predict(fit_ord, newdata = newdat)
+predict(fit_ord, re.form = NA)         # zero random effects
+predict(fit_ord, re.form = "population")
+predict(fit_ord, type = "link")        # latent predictor, not category codes
+predict(fit_ord, type = "mean")        # coding-dependent expected category
+summary(fit_ord)$thresholds           # cutpoint uncertainty, post-fit only
+predict(fit_ord, se.fit = TRUE, cov.fit = TRUE)
+simulate(fit_ord, nsim = 2, seed = 12)  # ordered factors with original levels
+```
+
+By default all cutpoints are estimated, starting from retained cumulative
+frequencies. Preparation removes only the existing intercept column,
+preserving factor contrasts, and rejects any remaining location confounding.
+All categories must remain observed after filtering. Set
+`task$glmm$familyParameters=list(thresholds=c(-1,1), estimate=FALSE)` to fix
+cutpoints instead; the formula intercept is then retained, and declared
+ordered-factor levels without retained observations are allowed.
+
+`type="response"` and `"probabilities"` return the same probability matrix.
+Response, Pearson and working residuals use the numeric category coding;
+deviance residuals and randomized quantile residuals use category probabilities.
+Population probabilities use exact normal convolution for probit and
+24-node Gaussian quadrature for logit under the existing restricted
+random-covariance eligibility.
+
+No numerical Hessian or PEV is calculated during fitting. Post-fit prediction
+uncertainty propagates the joint cutpoint, fixed-effect and covariance-parameter
+covariance, mode dependence, and (for conditional prediction) local latent
+variance. Probability SEs match the probability matrix shape; full covariance
+is ordered by category, with all prediction rows for each category, and labels
+`category:row`. `postPEV()` also propagates joint parameter uncertainty through
+the modes rather than treating estimated cutpoints as known. `vcov()` continues
+to return only the fixed-effect covariance block.
+
+`boot_mmes()` supports the same category experiment and nested slope
+comparisons, retaining cutpoint-location/log-gap coordinates and explicit
+absent-category refit failures. Implementation checks include independent
+`MASS::polr()` likelihood limits and probability/uncertainty references, but
+do not establish coverage calibration for sparse categories, separation or
+weakly identified random covariance.
+
+A subsequent external targeted study ran 3,000 paired datasets and 6,900
+fits, including `ordinal::clmm()` higher-order quadrature and alternate-start
+checks. All 1,200 regular-scenario fits converged, with 99.7--100% joint SE
+availability and passing parameter-recovery gates. However, **18 of 712
+registered regular gates failed**, mainly probability coverage/RMSE; the full
+targeted inference envelope is not qualified. Regular pointwise probability
+coverage ranged from 90.3% to 98.0%, with some Wilson intervals excluding 95%.
+Sparse-category fit availability reflected intentional rejection of absent
+declared categories; weak-variance scenarios often lacked usable uncertainty
+despite complete optimizer convergence. These results prioritize post-fit
+probability-interval calibration, not expanding the model class or relaxing
+the current failure guards. Random-effect PEV coverage and fixed-cutpoint
+inference were not assessed by this study.
+
+A separate held-out interval study used 1,200 fresh datasets and paired
+Wald, logit, probit and arcsine delta intervals, without changing fitting or
+SE calculation. All fits converged and SE availability was 99.7--100%.
+Of 96 registered pointwise cells per method, 8/3/4/5 respectively failed;
+none passed the full envelope. Logit transformation reduced the number of
+failed gates but is not a general coverage correction. No new interval
+default or public option was selected after observing these results.
+Refit-bootstrap calibration remains pending; these were not bootstrap
+intervals or joint probability regions.
+
 ## Native Laplace validation and diagnostics
 
 Use `task$glmm$maxit`, `modeMaxit` and `modeTol` to control this route.
@@ -319,6 +399,20 @@ nonstandard and require parametric bootstrap or other calibration.
 `wald_mmes(fit, ssType="conditional", denDF="none", terms=...)` selects
 conditional asymptotic term tests; small-sample denominator-df approximations
 are not available for the native Laplace likelihood.
+
+For an explicitly post-fit population parametric bootstrap, use
+`boot_mmes(fit, nsim=999, seed=17)`. It draws new random effects and responses,
+refits the stored native likelihood, and reports optimizer-scale parameter
+draws and descriptive percentile intervals without computing refit Hessians
+or PEV. `boot_mmes(smaller, larger, nsim=999, seed=17)` calibrates a nested
+count-fixed-effect likelihood-ratio statistic under the smaller model.
+This is not a variance-component or zero-inflation selection test.
+Inspect `diagnostics`: every failed or nonconvergent refit is retained.
+If any fail, the ordinary bootstrap p-value is unavailable and
+`p.value.bounds` reports sensitivity to their unknown outcomes. Boundary
+replicates remain flagged, not discarded. These tools still require
+application-specific calibration; bootstrap does not fix an unidentified
+generating model.
 
 `residuals(fit, type="quantile")` computes randomized probability-integral-
 transform residuals for discrete responses and ordinary fitted-CDF residuals

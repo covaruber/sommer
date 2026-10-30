@@ -262,6 +262,7 @@
           naMethodX=naMethodX,
           naMethodRandom=naMethodRandom,
           naMethodR=naMethodR,
+          blasThreads=blasThreads,
           dateWarning=dateWarning,
           verbose=verbose,
           engine=engineControl

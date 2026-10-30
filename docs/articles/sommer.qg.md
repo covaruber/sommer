@@ -204,7 +204,7 @@ Please refer to the canonical papers listed in the Literature section to
 check how the algorithms work. We have tested widely the methods to make
 sure they provide the same solution when the likelihood behaves well,
 but for complex problems they might lead to slightly different answers.
-If you have any concern please contact me at <cova_ruber@live.com.mx>.
+If you have any concern please contact me at <covaruberpaz@gmail.com>.
 
 In the following section we will go in detail over several examples on
 how to use mixed models in univariate and multivariate case and their

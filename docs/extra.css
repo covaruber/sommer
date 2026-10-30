@@ -25,6 +25,14 @@ body:has(.sommer-home) > .container.template-home {
 .sommer-home .site-nav-links a { color: var(--ink); text-decoration: none; font-size: .9rem; white-space: nowrap; }
 .sommer-home .site-nav-links a:hover, .sommer-home .site-footer a:hover, .sommer-home .link-list a:hover { color: var(--accent); text-decoration: underline; }
 .sommer-home .site-nav-button { padding: 9px 15px; border: 1px solid var(--ink); border-radius: 999px; }
+.sommer-home .site-language { display: flex; align-items: center; justify-content: center; gap: 4px; flex-shrink: 0; align-self: center; }
+.sommer-home .site-language[hidden] { display: none; }
+.sommer-home .site-language button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 5px; border: 1px solid transparent; border-radius: 8px; background: transparent; cursor: pointer; }
+.sommer-home .site-language svg { display: block; border-radius: 2px; overflow: hidden; }
+.sommer-home .site-language button:hover,
+.sommer-home .site-language button[aria-pressed="true"] { background: var(--accent2); }
+.sommer-home .site-language button[aria-pressed="true"] { border-color: var(--accent); }
+.sommer-home .site-language :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 .sommer-home .site-hero { padding: 110px 0 95px; background: radial-gradient(circle at 85% 20%, #e3efe9 0, transparent 32%), linear-gradient(180deg, var(--paper), #eef2ec); }
 .sommer-home .hero-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 70px; align-items: center; }
 .sommer-home .eyebrow { font-size: .72rem; letter-spacing: .16em; font-weight: 800; color: var(--accent); margin: 0 0 15px; }
@@ -77,6 +85,7 @@ body:has(.sommer-home) > .container.template-home {
 @media (max-width: 800px) {
   .sommer-home .site-nav-links { flex-wrap: wrap; justify-content: flex-end; gap: 8px 12px; }
   .sommer-home .site-nav-links a:not(.site-nav-button):not([href="mmes-options.html"]) { display: none; }
+  .sommer-home h2 { font-size: clamp(2rem, 7vw, 3.4rem); overflow-wrap: anywhere; }
   .sommer-home .site-hero { padding: 75px 0; }
   .sommer-home .hero-grid, .sommer-home .split, .sommer-home .service-head { grid-template-columns: 1fr; gap: 40px; }
   .sommer-home .cards, .sommer-home .service-grid { grid-template-columns: 1fr; }
@@ -89,7 +98,7 @@ body:has(.sommer-home) > .container.template-home {
 @media (max-width: 420px) {
   .sommer-home .site-brand small { font-size: .55rem; }
   .sommer-home .site-nav-links { gap: 8px; }
-  .sommer-home h1 { font-size: 3.2rem; }
+  .sommer-home h1 { font-size: 3.2rem; overflow-wrap: anywhere; }
   .sommer-home .equation { font-size: 1.8rem; }
   .sommer-home .equation-card { padding: 22px; }
 }

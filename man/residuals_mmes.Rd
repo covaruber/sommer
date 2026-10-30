@@ -24,6 +24,17 @@
   For Gaussian fits, residuals of the form e = y - Xb - Zu. For non-Gaussian
   PQL fits, residuals on the requested scale. Native Laplace quantile residuals
   are returned on the standard-normal scale.
+  For \code{\link{ordinal}} fits, response residuals subtract the expected
+  numeric category code; Pearson residuals divide by its conditional standard
+  deviation and working residuals by its predictor derivative. These three
+  types depend on category coding. Deviance residuals have squared magnitude
+  \eqn{-2\log P(Y_i=y_i\mid\hat u)}, with positive sign when the observed
+  code is at least the expected code. Quantile residuals randomize over the
+  observed category's cumulative-probability interval. Undefined zero
+  variance or zero-derivative residuals raise an error.
+  For \code{\link{multinomial}} fits, response and Pearson residuals are
+  observation-by-category matrices; deviance, working and quantile residuals
+  are not currently defined by this implementation.
  }
 \author{Giovanny Covarrubias}
 \seealso{\code{\link{residuals}}, \code{\link{mmes}}}

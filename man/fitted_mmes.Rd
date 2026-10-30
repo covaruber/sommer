@@ -17,6 +17,16 @@
   For Gaussian fits, fitted values of the form y.hat = Xb + Zu. For non-Gaussian
   PQL fits, response-scale conditional means by default, or Xb + Zu with
   \code{type="link"}.
+   Single-family native Laplace \code{\link{ordinal}} fits default to a
+   labelled observation-by-category probability matrix.
+   \code{type="response"} and \code{"probabilities"} are equivalent;
+   \code{type="link"} returns the latent predictor, and \code{type="mean"}
+   returns the expected numeric category code, which depends on category
+   coding and is not itself a category probability.
+   Single-family native Laplace \code{\link{multinomial}} fits return
+   observation-by-category probabilities on the response scale by default;
+   \code{type="link"} returns the \eqn{K-1} logits against the selected
+   reference category.
  }
 \author{Giovanny Covarrubias}
 \examples{
@@ -45,4 +55,3 @@
 }
 \seealso{\code{\link{fitted}}, \code{\link{mmes}}}
 \keyword{models}
-

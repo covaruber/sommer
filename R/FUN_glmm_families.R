@@ -47,6 +47,42 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
   result
 }
 
+ordinal <- function(link="logit", thresholds=NULL){
+  if(!is.character(link) || length(link) != 1L || is.na(link) || !nzchar(link)){
+    stop("ordinal() requires a single character link name.", call.=FALSE)
+  }
+  if(!link %in% c("logit", "probit")){
+    stop("ordinal() currently supports link='logit' and link='probit' only.",
+      call.=FALSE)
+  }
+  if(!is.null(thresholds)){
+    if(!is.numeric(thresholds) || is.complex(thresholds) ||
+       !is.null(dim(thresholds)) || length(thresholds) < 1L || anyNA(thresholds) ||
+       any(!is.finite(thresholds)) || any(diff(thresholds) <= 0)){
+      stop("ordinal() thresholds must be finite and strictly increasing.", call.=FALSE)
+    }
+    thresholds <- as.numeric(thresholds)
+  }
+  linkFunctions <- stats::make.link(link)
+  unavailable <- function(...){
+    stop("ordinal() requires category-aware native Laplace calculations; scalar GLM variance, deviance and AIC methods are unsupported.",
+      call.=FALSE)
+  }
+  result <- list(family="ordinal", link=link, thresholds=thresholds,
+    linkfun=linkFunctions$linkfun, linkinv=linkFunctions$linkinv,
+    mu.eta=linkFunctions$mu.eta,
+    variance=unavailable, dev.resids=unavailable, aic=unavailable,
+    initialize=expression({
+      stop("ordinal() requires category-aware native Laplace calculations; scalar GLM initialization is unsupported.",
+        call.=FALSE)
+    }),
+    validmu=function(meanValue) all(is.finite(meanValue)) && all(meanValue > 0) &&
+      all(meanValue < 1),
+    valideta=linkFunctions$valideta)
+  class(result) <- "family"
+  result
+}
+
 .laplace_zip_zero_log <- function(probability, countMean){
   inflation <- log(probability)
   poisson <- log1p(-probability) - countMean
@@ -120,6 +156,11 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
     stop("task$glmm$familyParameters must be a uniquely named list.", call.=FALSE)
   }
   if(mixed){
+    if(any(vapply(families, function(component) identical(component$family, "ordinal"),
+        logical(1)))){
+      stop("Ordinal familym() models are not supported; use a single ordinal family.",
+        call.=FALSE)
+    }
     unknown <- setdiff(names(settings), names(families))
     if(length(unknown)){
       stop("Unknown familyParameters trait(s): ", paste(unknown, collapse=", "), ".", call.=FALSE)
@@ -131,6 +172,12 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
   specifications <- lapply(seq_along(families), function(familyPosition){
     familyObject <- families[[familyPosition]]
     code <- if(grepl("^Negative Binomial", familyObject$family)) "nbinom2" else familyObject$family
+    if(code == "ordinal"){
+      configuration <- .laplace_ordinal_configuration(familyObject, familySettings[[familyPosition]])
+      return(list(family=code, link=familyObject$link, logParameter=0,
+        free=configuration$estimate, parameter="thresholds",
+        thresholds=configuration$thresholds, supplied=!is.null(configuration$thresholds)))
+    }
     allowed <- switch(code, binomial=c("logit", "probit", "cloglog"),
       poisson="log", ziPoisson="log", nbinom2="log", gaussian="identity",
       Gamma="log", character())
@@ -315,6 +362,13 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
 
 .laplace_family_count <- function(specification){
   if(!specification$free) return(0L)
+  if(identical(specification$family, "ordinal")){
+    if(is.null(specification$thresholds) || !length(specification$thresholds)){
+      stop("Ordinal parameter counting requires response-prepared cutpoints.",
+        call.=FALSE)
+    }
+    return(length(specification$thresholds))
+  }
   if(is.null(specification$zeroDesign)) 1L else ncol(specification$zeroDesign)
 }
 
@@ -363,7 +417,9 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
   for(position in which(counts > 0L)){
     values <- parameters[layout$fixedCount + layout$covarianceCount +
       starts[position] + seq_len(counts[position])]
-    if(is.null(specifications[[position]]$zeroDesign)){
+    if(identical(specifications[[position]]$family, "ordinal")){
+      specifications[[position]]$thresholds <- .laplace_ordinal_thresholds(values)
+    }else if(is.null(specifications[[position]]$zeroDesign)){
       specifications[[position]]$logParameter <- values[[1L]]
     }else specifications[[position]]$zeroCoefficients[] <- values
   }
@@ -382,7 +438,9 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
 
 .laplace_update_families <- function(families, specifications, familyIndex=NULL){
   lapply(seq_along(families), function(familyPosition){
-    if(specifications[[familyPosition]]$family == "nbinom2")
+    if(specifications[[familyPosition]]$family == "ordinal")
+      ordinal(specifications[[familyPosition]]$link, specifications[[familyPosition]]$thresholds)
+    else if(specifications[[familyPosition]]$family == "nbinom2")
       nbinom2(exp(specifications[[familyPosition]]$logParameter))
     else if(specifications[[familyPosition]]$family == "ziPoisson"){
       rows <- if(is.null(familyIndex)) NULL else which(familyIndex == familyPosition)
@@ -424,6 +482,8 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
       object$covStruct[[termIndex]], object$covStruct[[termIndex]]$par)
     relationshipPrecision <- Matrix::Matrix(
       object$randomRelationships[[termIndex]], sparse=TRUE)
+    # Detach the matrix before Cholesky populates its factor cache by reference.
+    relationshipPrecision@factors <- list()
     relationshipCount <- nrow(relationshipPrecision)
     descriptorCount <- nrow(descriptorCovariance)
     expectedWidth <- descriptorCount * relationshipCount
@@ -475,20 +535,72 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
 
 .laplace_simulate_response <- function(object, nsim,
                                        includeRandomEffects=FALSE,
-                                       maxMemoryMB=256){
+                                       maxMemoryMB=256, randomFactors=NULL){
+  if(.laplace_is_nominal(object)){
+    simulations <- matrix(NA_integer_, nrow=object$nobs, ncol=nsim)
+    if(includeRandomEffects){
+      if(is.null(randomFactors)){
+        randomFactors <- .laplace_random_effect_sampling_factors(object,
+          maxMemoryMB)
+      }
+      fixedPredictor <- as.numeric(object$fixedDesign %*% object$b)
+      for(simulationIndex in seq_len(nsim)){
+        randomDraw <- .laplace_draw_random_effects(randomFactors)
+        linearPredictor <- matrix(object$offset +
+          matrix(fixedPredictor +
+            as.numeric(object$randomDesign %*% randomDraw),
+            nrow=object$nobs,
+            ncol=length(object$nominal$predictorLevels)),
+          nrow=object$nobs,
+          dimnames=list(rownames(object$category.probabilities),
+            object$nominal$predictorLevels))
+        probability <- .laplace_nominal_probabilities(linearPredictor,
+          object$nominal)
+        uniforms <- stats::runif(object$nobs)
+        cumulative <- probability
+        if(ncol(cumulative) > 1L){
+          for(category in 2:ncol(cumulative)){
+            cumulative[, category] <- cumulative[, category - 1L] +
+              probability[, category]
+          }
+        }
+        simulations[, simulationIndex] <- 1L +
+          rowSums(uniforms > cumulative[, -ncol(cumulative), drop=FALSE])
+      }
+    }else{
+      probability <- object$category.probabilities
+      cumulative <- probability
+      if(ncol(cumulative) > 1L){
+        for(category in 2:ncol(cumulative)){
+          cumulative[, category] <- cumulative[, category - 1L] +
+            probability[, category]
+        }
+      }
+      for(simulationIndex in seq_len(nsim)){
+        uniforms <- stats::runif(object$nobs)
+        simulations[, simulationIndex] <- 1L +
+          rowSums(uniforms > cumulative[, -ncol(cumulative), drop=FALSE])
+      }
+    }
+    return(simulations)
+  }
   simulations <- matrix(NA_real_, nrow=object$nobs, ncol=nsim)
+  ordinalProbability <- if(.laplace_is_ordinal(object) && !includeRandomEffects)
+    .laplace_ordinal_output(object, object$linear.predictors, "response") else NULL
   familyIndex <- object$laplaceFamilyIndex
-  randomFactors <- if(includeRandomEffects)
-    .laplace_random_effect_sampling_factors(object, maxMemoryMB) else NULL
+  if(includeRandomEffects && is.null(randomFactors)){
+    randomFactors <- .laplace_random_effect_sampling_factors(object, maxMemoryMB)
+  }
   for(simulationIndex in seq_len(nsim)){
     meanValue <- object$fitted.values
+    linearPredictor <- object$linear.predictors
     if(includeRandomEffects){
       randomDraw <- .laplace_draw_random_effects(randomFactors)
       linearPredictor <- object$offset +
         as.numeric(object$fixedDesign %*% object$b) +
         as.numeric(object$randomDesign %*% randomDraw)
-      meanValue <- .pql_apply(object$laplaceFamilies, familyIndex,
-        "linkinv", linearPredictor)
+      if(!.laplace_is_ordinal(object)) meanValue <- .pql_apply(object$laplaceFamilies,
+        familyIndex, "linkinv", linearPredictor)
     }
     for(familyPosition in seq_along(object$laplaceFamilies)){
       rows <- which(familyIndex == familyPosition)
@@ -498,6 +610,18 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
       trialCount <- object$priorWeights[rows]
       responseFamily <- specification$family
       simulations[rows, simulationIndex] <- switch(responseFamily,
+        ordinal={
+          probability <- if(is.null(ordinalProbability))
+            .laplace_ordinal_output(object, linearPredictor, "response") else ordinalProbability
+          uniform <- stats::runif(length(rows))
+          cumulative <- probability[, 1L]
+          draw <- rep(1L, length(rows))
+          for(category in 2:ncol(probability)){
+            draw <- draw + as.integer(uniform > cumulative)
+            cumulative <- cumulative + probability[, category]
+          }
+          draw
+        },
         binomial=stats::rbinom(length(rows), size=trialCount,
           prob=currentMean) / trialCount,
         poisson=stats::rpois(length(rows), lambda=currentMean),
@@ -618,12 +742,7 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
   variance
 }
 
-.laplace_population_mean <- function(object, linearPredictor,
-                                     familyIndex, randomVariance){
-  if(length(linearPredictor) != length(randomVariance)){
-    stop("Population-marginal predictor and random-effect variance have incompatible lengths.",
-         call.=FALSE)
-  }
+.laplace_normal_quadrature <- function(){
   quadratureOrder <- 24L
   jacobiMatrix <- matrix(0, nrow=quadratureOrder, ncol=quadratureOrder)
   offDiagonal <- sqrt(seq_len(quadratureOrder - 1L))
@@ -632,8 +751,18 @@ zipoisson <- function(pi=0.1, link="log", zero=~1){
   jacobiMatrix[cbind(2:quadratureOrder,
     seq_len(quadratureOrder - 1L))] <- offDiagonal
   quadrature <- eigen(jacobiMatrix, symmetric=TRUE)
-  quadratureWeights <- quadrature$vectors[1L, ]^2
-  quadratureNodes <- quadrature$values
+  list(weights=quadrature$vectors[1L, ]^2, nodes=quadrature$values)
+}
+
+.laplace_population_mean <- function(object, linearPredictor,
+                                     familyIndex, randomVariance){
+  if(length(linearPredictor) != length(randomVariance)){
+    stop("Population-marginal predictor and random-effect variance have incompatible lengths.",
+         call.=FALSE)
+  }
+  quadrature <- .laplace_normal_quadrature()
+  quadratureWeights <- quadrature$weights
+  quadratureNodes <- quadrature$nodes
   result <- numeric(length(linearPredictor))
   for(familyPosition in seq_along(object$laplaceFamilies)){
     rows <- which(familyIndex == familyPosition)
@@ -701,6 +830,13 @@ simulate.mmes.glmm.laplace <- function(object, nsim=1, seed=NULL,
   simulationMatrix <- .laplace_simulate_response(object, nsim,
     includeRandomEffects=re.form == "population", maxMemoryMB=maxMemoryMB)
   result <- as.data.frame(simulationMatrix, check.names=FALSE)
+  if(.laplace_is_ordinal(object)){
+    result[] <- lapply(result, function(codes)
+      ordered(object$ordinal$levels[codes], levels=object$ordinal$levels))
+  }else if(.laplace_is_nominal(object)){
+    result[] <- lapply(result, function(codes)
+      factor(object$nominal$levels[codes], levels=object$nominal$levels))
+  }
   names(result) <- paste0("sim_", seq_len(nsim))
   rownames(result) <- rownames(object$fixedDesign)
   result

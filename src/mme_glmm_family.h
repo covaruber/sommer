@@ -101,6 +101,80 @@ inline GLMMTaylor glmmShapeLGamma(const GLMMTaylor & argument){
   return result;
 }
 
+inline GLMMTaylor glmmOrdinalLogCDF(double value, const std::string & link,
+    double direction){
+  if(link == "probit"){
+    GLMMTaylor result = glmmLogNormalCDF(value);
+    for(int order = 1; order <= 4; order += 2)
+      result.coefficient[order][0] *= direction;
+    return result;
+  }
+  GLMMTaylor argument(value);
+  argument.coefficient[1][0] = direction;
+  return (value >= 0.0 ? GLMMTaylor() : argument) -
+    glmmLog1p(glmmExp(GLMMTaylor(value >= 0.0 ? -1.0 : 1.0) * argument));
+}
+
+inline GLMMTaylor glmmOrdinalLogDensity(double outcome, double predictor,
+    const arma::vec & thresholds, const std::string & link){
+  const arma::uword category = static_cast<arma::uword>(outcome) - 1;
+  if(category == 0)
+    return glmmOrdinalLogCDF(thresholds(0) - predictor, link, -1.0);
+  if(category == thresholds.n_elem)
+    return glmmOrdinalLogCDF(predictor - thresholds(category - 1), link, 1.0);
+  const double lower = thresholds(category - 1) - predictor;
+  const double upper = thresholds(category) - predictor;
+  const double width = thresholds(category) - thresholds(category - 1);
+  if(link == "logit")
+    return glmmOrdinalLogCDF(upper, link, -1.0) +
+      glmmOrdinalLogCDF(-lower, link, 1.0) +
+      GLMMTaylor(std::log(-std::expm1(-width)));
+  const double midpoint = lower + width / 2.0;
+  if(width * (1.0 + std::abs(midpoint)) < 0.01){
+    // Integrated normal-density series avoids cancellation of narrow-interval
+    // derivatives. The omitted eighth-order term is below double precision.
+    GLMMTaylor center(midpoint);
+    center.coefficient[1][0] = -1.0;
+    const GLMMTaylor square = center * center;
+    const double width2 = width * width;
+    const GLMMTaylor correction = GLMMTaylor(width2 / 24.0) *
+      (square - GLMMTaylor(1.0)) + GLMMTaylor(width2 * width2 / 1920.0) *
+      (square * square - GLMMTaylor(6.0) * square + GLMMTaylor(3.0)) +
+      GLMMTaylor(width2 * width2 * width2 / 322560.0) *
+      (square * square * square - GLMMTaylor(15.0) * square * square +
+        GLMMTaylor(45.0) * square - GLMMTaylor(15.0));
+    return GLMMTaylor(std::log(width) - 0.5 * std::log(2.0 * arma::datum::pi)) -
+      GLMMTaylor(0.5) * square + glmmLog1p(correction);
+  }
+  // Use survival probabilities in the upper tail, avoiding CDFs rounded to one.
+  const GLMMTaylor larger = lower >= 0.0 ?
+    glmmOrdinalLogCDF(-lower, link, 1.0) :
+    glmmOrdinalLogCDF(upper, link, -1.0);
+  const GLMMTaylor smaller = lower >= 0.0 ?
+    glmmOrdinalLogCDF(-upper, link, 1.0) :
+    glmmOrdinalLogCDF(lower, link, -1.0);
+  const GLMMTaylor logRatio = smaller - larger;
+  GLMMTaylor difference = GLMMTaylor(1.0) - glmmExp(logRatio);
+  difference.coefficient[0][0] = -std::expm1(logRatio.coefficient[0][0]);
+  return larger + glmmLog(difference);
+}
+
+inline GLMMTaylor glmmOrdinalCutpointScore(double threshold, double predictor,
+    const std::string & link, const GLMMTaylor & logDensity){
+  const double value = threshold - predictor;
+  GLMMTaylor logPDF;
+  if(link == "logit"){
+    logPDF = glmmOrdinalLogCDF(value, link, -1.0) +
+      glmmOrdinalLogCDF(-value, link, 1.0);
+  }else{
+    GLMMTaylor argument(value);
+    argument.coefficient[1][0] = -1.0;
+    logPDF = GLMMTaylor(-0.5 * std::log(2.0 * arma::datum::pi)) -
+      GLMMTaylor(0.5) * argument * argument;
+  }
+  return glmmExp(logPDF - logDensity);
+}
+
 struct GLMMFamilySpec {
   std::string family;
   std::string link;
@@ -109,10 +183,12 @@ struct GLMMFamilySpec {
   arma::mat zeroDesign;
   arma::vec zeroCoefficients;
   arma::vec zeroOffset;
+  arma::vec thresholds;
 };
 
 struct GLMMFamilyEvaluation {
   double logDensity = 0.0;
+  arma::vec logDensityRows;
   arma::vec mean;
   arma::vec score;
   arma::vec curvature;
@@ -143,6 +219,9 @@ public:
           Rcpp::as<std::string>(specification["link"]),
           Rcpp::as<double>(specification["logParameter"]),
           Rcpp::as<bool>(specification["free"])});
+        if(specification.containsElementNamed("thresholds"))
+          specifications.back().thresholds =
+            Rcpp::as<arma::vec>(specification["thresholds"]);
         if(specification.containsElementNamed("zeroDesign")){
           auto & stored = specifications.back();
           stored.zeroDesign = Rcpp::as<arma::mat>(specification["zeroDesign"]);
@@ -167,8 +246,14 @@ public:
         specification.family == "Gamma") &&
         specification.link == "log";
       const bool gaussian = specification.family == "gaussian" && specification.link == "identity";
-      if(!binomial && !logLinked && !gaussian)
+      const bool ordinal = specification.family == "ordinal" &&
+        (specification.link == "logit" || specification.link == "probit");
+      if(!binomial && !logLinked && !gaussian && !ordinal)
         Rcpp::stop("Unsupported native Laplace family/link combination.");
+      if(ordinal && (specification.thresholds.n_elem == 0 ||
+         !specification.thresholds.is_finite() ||
+         arma::any(arma::diff(specification.thresholds) <= 0.0)))
+        Rcpp::stop("Native ordinal evaluation requires finite, strictly increasing thresholds.");
       if(!std::isfinite(specification.logParameter) ||
          std::abs(specification.logParameter) >
            std::log(std::numeric_limits<double>::max()) / 4.0 ||
@@ -193,8 +278,9 @@ public:
   arma::uword parameterCount() const {
     arma::uword result = 0;
     for(const auto & specification : specifications)
-      if(specification.free) result += specification.zeroDesign.n_cols ?
-        specification.zeroDesign.n_cols : 1;
+      if(specification.free) result += specification.family == "ordinal" ?
+        specification.thresholds.n_elem : (specification.zeroDesign.n_cols ?
+          specification.zeroDesign.n_cols : 1);
     return result;
   }
 
@@ -204,7 +290,18 @@ public:
     arma::uword parameterPosition = 0;
     for(auto & specification : specifications){
       if(specification.free){
-        if(specification.zeroDesign.n_cols){
+        if(specification.family == "ordinal"){
+          arma::vec thresholds(specification.thresholds.n_elem);
+          thresholds(0) = parameters(parameterPosition++);
+          if(!std::isfinite(thresholds(0))) return false;
+          for(arma::uword cutpoint = 1; cutpoint < thresholds.n_elem; ++cutpoint){
+            const double gap = std::exp(parameters(parameterPosition++));
+            thresholds(cutpoint) = thresholds(cutpoint - 1) + gap;
+            if(!std::isfinite(gap) || !std::isfinite(thresholds(cutpoint)) ||
+               thresholds(cutpoint) <= thresholds(cutpoint - 1)) return false;
+          }
+          specification.thresholds = thresholds;
+        }else if(specification.zeroDesign.n_cols){
           const arma::uword count = specification.zeroDesign.n_cols;
           specification.zeroCoefficients = parameters.subvec(parameterPosition,
             parameterPosition + count - 1);
@@ -234,13 +331,19 @@ public:
         Rcpp::stop("Native Laplace count responses must be non-negative integers.");
       if(specification.family == "Gamma" && outcome <= 0)
         Rcpp::stop("Native Laplace Gamma responses must be strictly positive.");
+      if(specification.family == "ordinal" &&
+         (outcome < 1 || outcome > specification.thresholds.n_elem + 1 ||
+          outcome != std::floor(outcome)))
+        Rcpp::stop("Native ordinal responses must be integer category codes between 1 and the number of thresholds plus one.");
       if(specification.family != "binomial" && trials(recordPosition) != 1)
         Rcpp::stop("Trials are only supported for binomial observations.");
     }
   }
 
-  GLMMFamilyEvaluation evaluate(const arma::vec & response, const arma::vec & predictor) const {
+  GLMMFamilyEvaluation evaluate(const arma::vec & response, const arma::vec & predictor,
+                                const bool retainLogDensityRows = false) const {
     GLMMFamilyEvaluation result;
+    if (retainLogDensityRows) result.logDensityRows.set_size(response.n_elem);
     result.mean.set_size(response.n_elem);
     result.score.set_size(response.n_elem);
     result.curvature.set_size(response.n_elem);
@@ -306,6 +409,18 @@ public:
         if(outcome > 0) density = density + GLMMTaylor(outcome) * logSuccess;
         if(outcome < trials(recordPosition))
           density = density + GLMMTaylor(trials(recordPosition) - outcome) * logFailure;
+      }else if(specification.family == "ordinal"){
+        density = glmmOrdinalLogDensity(outcome, linearValue,
+          specification.thresholds, specification.link);
+        double mean = 1.0;
+        for(const double threshold : specification.thresholds){
+          const double value = linearValue - threshold;
+          mean += specification.link == "probit" ?
+            R::pnorm(value, 0.0, 1.0, true, false) :
+            (value >= 0.0 ? 1.0 / (1.0 + std::exp(-value)) :
+              std::exp(value) / (1.0 + std::exp(value)));
+        }
+        result.mean(recordPosition) = mean;
       }else if(specification.family == "gaussian"){
         const GLMMTaylor discrepancy = GLMMTaylor(outcome) - eta;
         density = GLMMTaylor(-0.5) * (GLMMTaylor(std::log(2.0 * arma::datum::pi)) +
@@ -374,6 +489,7 @@ public:
         }
       }
       result.logDensity += density.coefficient[0][0];
+      if (retainLogDensityRows) result.logDensityRows(recordPosition) = density.coefficient[0][0];
       result.score(recordPosition) = density.coefficient[1][0];
       result.curvature(recordPosition) = -2.0 * density.coefficient[2][0];
       result.curvatureD1(recordPosition) = -6.0 * density.coefficient[3][0];

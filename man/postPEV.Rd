@@ -27,14 +27,32 @@ For Gaussian fits, when \code{mode = 1}, the sparse mixed model coefficient matr
 
 When \code{mode = 2}, the complete inverse is computed. For Laplace fits this is the joint fixed/random conditional observed-information inverse, with fitted covariance and family parameters treated as fixed. Its random-effect block supplies approximate PEVs; covariance-parameter uncertainty is not included. The calculation is guarded by \code{execution$denseMemoryMB}.
 
+Single-family \code{\link{ordinal}} Laplace fits are an exception to this
+conditional-on-parameters approximation: cutpoint locations cannot be ignored.
+After fitting, the joint marginal-parameter covariance is propagated through
+the conditional random modes and added to the conditional-mode covariance.
+This includes estimated cutpoint, fixed-effect and covariance-parameter
+uncertainty without double-counting fixed effects. Mode 1 obtains only random
+diagonal variances with bounded solve panels; mode 2 returns this approximate
+joint fixed/random covariance in \code{Ci}. The fixed block matches
+\code{vcov(object)}. No fit-time numerical Hessian or PEV is introduced.
+Nonconverged, near-boundary and invalid-curvature ordinal fits refuse PEV.
+These are local approximations, not statistically calibrated intervals.
+
+Single-family \code{\link{multinomial}} fits use the complete cross-category
+observation curvature when reconstructing the joint fixed/random information.
+Their PEVs condition on the fitted covariance parameters; no full inverse is
+formed in mode 1.
+
 When \code{mode = 0}, no matrix factorization or inverse calculation is performed and previously stored inverse-derived results are cleared.
 
 \code{\link{predict.mmes}} does not require any particular \code{mode}: it computes exact standard errors for arbitrary linear combinations of fixed and random effects directly from the stored coefficient matrix \code{C}, without using \code{Ci} at all (see \code{\link{predict.mmes}} for details). \code{postPEV()} is only needed when the diagonal prediction error variances (\code{uPevList}) or the complete inverse (\code{Ci}) are wanted for their own sake.
 
 For the sampling variance of the BLUP itself, use \code{\link{postVarU}}:
 \eqn{\operatorname{Var}(\hat u)=G-\operatorname{Var}(u-\hat u)}.
-PEV and BLUP sampling variance are different quantities. Neither includes
-uncertainty from estimating covariance parameters. \code{postVarU()} leaves
+PEV and BLUP sampling variance are different quantities. For Gaussian fits
+neither includes uncertainty from estimating covariance parameters.
+\code{postVarU()} leaves
 existing PEV outputs unchanged.
 
 For Gaussian fits, the final coefficient matrix must be retained with

@@ -53,7 +53,9 @@ glmm=list(method="laplace"))}. Supported families are binomial with logit,
 probit or complementary log-log link; Poisson-log;
 \code{\link{zipoisson}} with an intercept-only or fixed-effects formula
 logit structural-zero component; \code{nbinom2()}-log; Gaussian-identity;
-and Gamma-log.
+and Gamma-log. Single-family ordered categorical models are available through
+\code{\link{ordinal}} with cumulative logit or probit links. Ordinal
+\code{familym()} models remain explicitly unsupported.
 Zero-inflated Poisson is not a hurdle model and its zero component has no
 random effects. Observations are conditionally independent
 given the shared random effects. A correlated \code{usm(trait)} random

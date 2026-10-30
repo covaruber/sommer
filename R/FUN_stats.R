@@ -83,37 +83,60 @@ postPEV <- function(object, mode = 1L){
   fixedCount <- ncol(fixedDesign)
   randomCount <- ncol(randomDesign)
   jointCount <- fixedCount + randomCount
-  if(length(curvature) != nrow(fixedDesign) ||
+  curvatureDimension <- dim(curvature)
+  curvatureValid <- if(is.null(curvatureDimension))
+    length(curvature) == nrow(fixedDesign) else
+      identical(curvatureDimension, c(nrow(fixedDesign), nrow(fixedDesign)))
+  if(!curvatureValid ||
      !identical(dim(randomHessian), c(randomCount, randomCount))){
     stop("Laplace post-fit uncertainty inputs are incomplete; refit the model before requesting PEV.",
          call.=FALSE)
   }
 
-  weightMatrix <- Matrix::Diagonal(x=curvature)
-  fixedHessian <- Matrix::crossprod(fixedDesign, weightMatrix %*% fixedDesign)
-  fixedRandomHessian <- Matrix::crossprod(fixedDesign, weightMatrix %*% randomDesign)
-  jointHessian <- rbind(
-    cbind(fixedHessian, fixedRandomHessian),
-    cbind(Matrix::t(fixedRandomHessian), randomHessian))
-  jointHessian <- Matrix::forceSymmetric(jointHessian)
-  jointFactor <- Matrix::Cholesky(jointHessian, LDL=FALSE, perm=TRUE)
-  panelSize <- min(as.integer(panelSize), jointCount)
-  panelBytes <- as.double(jointCount) * panelSize * 16
-  if(!is.finite(panelBytes) || panelBytes > denseMemoryMB * 1048576){
-    stop("Laplace PEV solve panel exceeds execution$denseMemoryMB; reduce output$panelSize or increase the memory budget.",
-         call.=FALSE)
-  }
-  randomPosteriorDiagonal <- numeric(randomCount)
-  randomPositions <- fixedCount + seq_len(randomCount)
-  for(panelStart in seq.int(1L, randomCount, by=panelSize)){
-    panelStop <- min(randomCount, panelStart + panelSize - 1L)
-    selected <- randomPositions[panelStart:panelStop]
-    rhs <- Matrix::sparseMatrix(i=selected,
-      j=seq_along(selected), x=1,
-      dims=c(jointCount, length(selected)))
-    solved <- Matrix::solve(jointFactor, rhs, system="A")
-    randomPosteriorDiagonal[panelStart:panelStop] <-
-      solved[cbind(selected, seq_along(selected))]
+  ordinalUncertainty <- if(.laplace_is_ordinal(object))
+    .laplace_ordinal_mode_uncertainty(object, covariance=mode == 2L,
+      panelSize=panelSize, denseMemoryMB=denseMemoryMB) else NULL
+  if(!is.null(ordinalUncertainty)){
+    randomPosteriorDiagonal <- ordinalUncertainty$diagonal
+  }else{
+    if(is.null(dim(curvature))){
+      if(length(curvature) != nrow(fixedDesign)){
+        stop("Laplace post-fit uncertainty inputs are incomplete; refit the model before requesting PEV.",
+          call.=FALSE)
+      }
+      weightMatrix <- Matrix::Diagonal(x=curvature)
+    }else{
+      if(!identical(dim(curvature), c(nrow(fixedDesign), nrow(fixedDesign)))){
+        stop("Laplace observation curvature has incompatible dimensions; refit the model before requesting PEV.",
+          call.=FALSE)
+      }
+      weightMatrix <- Matrix::Matrix(curvature, sparse=TRUE)
+    }
+    fixedHessian <- Matrix::crossprod(fixedDesign, weightMatrix %*% fixedDesign)
+    fixedRandomHessian <- Matrix::crossprod(fixedDesign, weightMatrix %*% randomDesign)
+    jointHessian <- rbind(
+      cbind(fixedHessian, fixedRandomHessian),
+      cbind(Matrix::t(fixedRandomHessian), randomHessian))
+    jointHessian <- Matrix::forceSymmetric(jointHessian)
+    jointFactor <- Matrix::Cholesky(jointHessian, LDL=FALSE, perm=TRUE)
+    panelSize <- min(as.integer(panelSize), jointCount)
+    panelBytes <- as.double(jointCount) * panelSize * 16
+    if(!is.finite(panelBytes) || panelBytes > denseMemoryMB * 1048576){
+      stop("Laplace PEV solve panel exceeds execution$denseMemoryMB; reduce output$panelSize or increase the memory budget.",
+           call.=FALSE)
+    }
+    randomPosteriorDiagonal <- numeric(randomCount)
+    randomPositions <- fixedCount + seq_len(randomCount)
+    for(panelStart in seq.int(1L, randomCount, by=panelSize)){
+      panelStop <- min(randomCount, panelStart + panelSize - 1L)
+      selected <- randomPositions[panelStart:panelStop]
+      rhs <- Matrix::sparseMatrix(i=selected,
+        j=seq_along(selected), x=1,
+        dims=c(jointCount, length(selected)))
+      solved <- Matrix::solve(jointFactor, rhs, system="A")
+      randomPosteriorDiagonal[panelStart:panelStop] <-
+        solved[cbind(selected, seq_along(selected))]
+    }
   }
 
   blockWidths <- object$randomBlockWidths
@@ -164,7 +187,9 @@ postPEV <- function(object, mode = 1L){
   object$Ci <- NULL
   object$VarU <- NULL
 
-  if(mode == 2L){
+  if(mode == 2L && !is.null(ordinalUncertainty)){
+    object$Ci <- ordinalUncertainty$covariance
+  }else if(mode == 2L){
     fullBytes <- as.double(jointCount) * jointCount * 8 * 3
     if(!is.finite(fullBytes) || fullBytes > denseMemoryMB * 1048576){
       stop("Full Laplace coefficient covariance and random-effect PEV exceed execution$denseMemoryMB; use postPEV(mode=1) or increase the memory budget.",
@@ -194,12 +219,17 @@ postPEV <- function(object, mode = 1L){
   fixedCount <- ncol(fixedDesign)
   randomCount <- ncol(randomDesign)
   jointCount <- fixedCount + randomCount
-  if(length(curvature) != nrow(fixedDesign) ||
+  curvatureDimension <- dim(curvature)
+  curvatureValid <- if(is.null(curvatureDimension))
+    length(curvature) == nrow(fixedDesign) else
+      identical(curvatureDimension, c(nrow(fixedDesign), nrow(fixedDesign)))
+  if(!curvatureValid ||
      !identical(dim(randomHessian), c(randomCount, randomCount))){
     stop("Laplace post-fit uncertainty inputs are incomplete; refit the model before requesting prediction uncertainty.",
       call.=FALSE)
   }
-  weightMatrix <- Matrix::Diagonal(x=curvature)
+  weightMatrix <- if(is.null(curvatureDimension))
+    Matrix::Diagonal(x=curvature) else Matrix::Matrix(curvature, sparse=TRUE)
   fixedHessian <- Matrix::crossprod(fixedDesign, weightMatrix %*% fixedDesign)
   fixedRandomHessian <- Matrix::crossprod(fixedDesign,
     weightMatrix %*% randomDesign)
@@ -324,20 +354,22 @@ postPEV <- function(object, mode = 1L){
     offset, randomDesign, familyIndex, specifications, population=FALSE,
     conditional=FALSE, covariance=FALSE,
     relationships=object$randomRelationships, blockWidths=object$randomBlockWidths,
-    response=TRUE){
+    response=TRUE, ordinalType=NULL){
   uncertainty <- .mmes_laplace_uncertainty(object)
   if(!uncertainty$valid){
-    stop("Zero-component prediction uncertainty is unavailable: ",
+    stop("Component prediction uncertainty is unavailable: ",
       uncertainty$reason, ".", call.=FALSE)
   }
   parameters <- object$optimizer$par
   layout <- object$laplaceParameterLayout
   n <- nrow(fixedDesign)
+  ordinalProbabilities <- !is.null(ordinalType) && ordinalType == "response"
+  outputRows <- if(ordinalProbabilities) n * length(object$ordinal$levels) else n
   budget <- object$laplacePostPEVSettings$denseMemoryMB * 1048576
-  bytes <- 8 * (4 * as.double(n) * length(parameters) +
-    if(covariance) 3 * as.double(n)^2 else 0)
+  bytes <- 8 * (4 * as.double(outputRows) * length(parameters) +
+    if(covariance) 3 * as.double(outputRows)^2 else 0)
   if(!is.finite(bytes) || bytes > budget){
-    stop("Zero-component prediction uncertainty exceeds execution$denseMemoryMB.",
+    stop("Component prediction uncertainty exceeds execution$denseMemoryMB.",
       call.=FALSE)
   }
   context <- if(conditional) sommer_laplace_objective_create(object$fixedDesign,
@@ -362,7 +394,7 @@ postPEV <- function(object, mode = 1L){
       }
       eta <- eta + as.numeric(randomDesign %*% evaluation$mode)
     }
-    if(!response) return(eta)
+    if(!response || identical(ordinalType, "link")) return(eta)
     if(population){
       structures <- object$covStruct
       for(term in seq_along(layout$freePositions)){
@@ -372,10 +404,13 @@ postPEV <- function(object, mode = 1L){
       }
       variance <- .laplace_population_variance(randomDesign, structures,
         relationships, blockWidths)
-      .laplace_population_mean(local, eta, familyIndex, variance)
-    }else .pql_apply(local$laplaceFamilies, familyIndex, "linkinv", eta)
+      if(!is.null(ordinalType)) as.numeric(.laplace_ordinal_output(local, eta,
+        ordinalType, randomVariance=variance)) else
+        .laplace_population_mean(local, eta, familyIndex, variance)
+    }else if(!is.null(ordinalType)) as.numeric(.laplace_ordinal_output(local, eta,
+      ordinalType)) else .pql_apply(local$laplaceFamilies, familyIndex, "linkinv", eta)
   }
-  jacobian <- matrix(0, n, length(parameters))
+  jacobian <- matrix(0, outputRows, length(parameters))
   for(position in seq_along(parameters)){
     step <- 1e-5 * max(1, abs(parameters[position]))
     upper <- lower <- parameters
@@ -387,7 +422,7 @@ postPEV <- function(object, mode = 1L){
   variance <- rowSums(weighted * jacobian)
   resultCovariance <- if(covariance) weighted %*% t(jacobian) else NULL
   if(conditional){
-    if(16 * as.double(ncol(randomDesign)) * n > budget){
+    if(16 * as.double(ncol(randomDesign)) * outputRows > budget){
       stop("Conditional zero-component uncertainty solve exceeds execution$denseMemoryMB.",
         call.=FALSE)
     }
@@ -397,7 +432,19 @@ postPEV <- function(object, mode = 1L){
     eta <- offset + as.numeric(fixedDesign %*% object$b) +
       as.numeric(randomDesign %*% object$randomMode)
     families <- .laplace_update_families(object$laplaceFamilies, specifications, familyIndex)
-    derivative <- if(response) .pql_apply(families, familyIndex, "mu.eta", eta) else rep(1, n)
+    derivative <- if(!is.null(ordinalType)){
+      if(ordinalType == "link") rep(1, n) else {
+        distribution <- .laplace_ordinal_distribution(eta, specifications[[1L]],
+          object$ordinal$levels, object$laplacePostPEVSettings$denseMemoryMB)
+        if(ordinalProbabilities) as.numeric(distribution$derivative) else
+          as.numeric(distribution$derivative %*% seq_len(ncol(distribution$derivative)))
+      }
+    }else if(response) .pql_apply(families, familyIndex, "mu.eta", eta) else rep(1, n)
+    if(ordinalProbabilities){
+      rows <- rep(seq_len(n), length(object$ordinal$levels))
+      randomDesign <- randomDesign[rows, , drop=FALSE]
+      solved <- solved[, rows, drop=FALSE]
+    }
     variance <- variance + derivative^2 *
       as.numeric(Matrix::rowSums(randomDesign * Matrix::t(solved)))
     if(covariance) resultCovariance <- resultCovariance +

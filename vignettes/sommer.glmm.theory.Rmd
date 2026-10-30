@@ -15,22 +15,56 @@ library(sommer)
 
 # A field guide to GLMMs in sommer
 
-This vignette develops the statistical model behind the generalized linear
-mixed-model (GLMM) methods in `sommer`, explains the two fitting routes,
-describes their parameterizations, and connects them to covariance structures,
-prediction, uncertainty, and diagnostics. It is intended as a theoretical
-companion to the shorter [GLMM user guide](sommer.glmm.Rmd). The guide is not
-a claim that every estimator has the same inferential properties or that every
-family and covariance structure can be combined on every route.
+A generalized linear mixed model (GLMM) is a way to study outcomes such as
+yes/no results, counts, or proportions when observations are grouped or
+related. Plants may share a field, patients may share a hospital, and repeated
+measurements may come from the same person. Such observations are not as
+independent as a pile of unrelated data points.
 
-The central modeling idea is simple: specify a probability model for each
-observation conditional on latent random effects, and give those random
-effects the structured covariance model familiar from linear mixed models.
-The numerical challenge is that integrating over the latent effects is
-generally not analytic. `sommer` therefore offers a penalized
-quasi-likelihood (PQL) route and an opt-in native Laplace-likelihood route.
-They target related models, but they are different approximations and should
-not be treated as interchangeable likelihood analyses.
+Here is the big idea, before the symbols:
+
+1. Choose a probability model that makes sense for the outcome (for example,
+   Bernoulli for yes/no or Poisson for counts).
+2. Connect the outcome's average to explanatory variables using a link
+   function.
+3. Add random effects to represent shared group-to-group differences.
+
+Random effects are a bit like group-specific adjustments. Two plants in the
+same field share the field adjustment, so their outcomes become related. The
+adjustment is called "random" because the model treats group adjustments as
+draws from a probability distribution, rather than estimating a separate,
+unrelated fixed number for every group.
+
+You do not need advanced calculus to follow the main ideas. When calculus
+does help, we translate the derivative into the practical question it
+answers. A quick algebra reminder: a superscript $\mathsf{T}$ means
+"transpose" (turn a column into a row), and variance describes how spread out
+values are. The notation $E(Y)$ means the average we would expect over many
+repetitions.
+
+This is the theoretical companion to the shorter
+[GLMM user guide](sommer.glmm.Rmd). It explains what the formulas mean, why
+the two fitting routes work, and what their limitations imply in practice.
+Not every family, covariance structure, and fitting route can be combined;
+the guide documents the combinations currently supported by `sommer`.
+
+The central challenge is that group adjustments are hidden: we do not observe
+them directly, so the model must average over all plausible values. That
+average is usually too complicated to calculate exactly. `sommer` therefore
+offers penalized quasi-likelihood (PQL) and an opt-in native Laplace
+likelihood. Both account for random effects, but they approximate the
+calculation differently. They are not interchangeable versions of the same
+likelihood analysis.
+
+| Word | Everyday meaning |
+| --- | --- |
+| Mean | The average outcome the model expects in repeated similar situations |
+| Link | A conversion that lets us model a probability or positive mean using an additive formula |
+| Fixed effect | An overall predictor effect, such as the treatment coefficient on the model's link scale |
+| Random effect | A group-specific adjustment, such as one field being better than another |
+| Variance | How much values tend to spread out around their average |
+| Covariance | Whether two quantities tend to move up and down together |
+| Likelihood | How well a proposed set of model settings explains the data we observed |
 
 # 1. The model
 
@@ -61,6 +95,26 @@ For Bernoulli and Poisson families, dispersion is fixed by the distribution.
 For other families, dispersion or shape parameters may be estimated or fixed
 where the selected family and fitting method support them.
 
+In everyday terms, $x_i^\mathsf{T}\beta$ is the part of the prediction made
+from measured explanatory variables. The term $z_i^\mathsf{T}u$ adds a
+group-specific adjustment, and $o_i$ adds a known quantity such as log
+exposure. Their sum is called the linear predictor, $\eta_i$. It is linear
+because the effects are added together there, even though the prediction on
+the outcome scale may not be a straight line.
+
+The link $g$ translates between the outcome's mean and this linear
+predictor. For a yes/no outcome, the logit link turns a probability between
+0 and 1 into log-odds, which can range over all real numbers. For counts, a
+log link turns a positive mean into its logarithm. This lets us use an
+ordinary additive predictor without accidentally predicting a probability
+below zero or a negative count mean.
+
+The variance formula says that different outcomes have different natural
+amounts of noise. A Bernoulli outcome with probability $p$ has variance
+$p(1-p)$: it is most uncertain near $p=0.5$ and less uncertain near 0 or 1.
+A Poisson count with mean $\lambda$ has variance $\lambda$, so larger
+expected counts naturally have more spread.
+
 The random effects follow a zero-mean multivariate normal distribution,
 
 $$
@@ -72,6 +126,62 @@ matrix is assembled from the random-effect terms, their covariance
 descriptors, and any supplied relationship matrices. Thus the fixed-effect
 formula describes the conditional linear predictor, while `random` and its
 covariance structures describe the latent Gaussian distribution.
+
+The normal distribution here is a convenient model for the collection of
+group adjustments: zero is the average adjustment, while $G(\theta)$ says
+how much the adjustments vary and which ones tend to move together. "Zero
+mean" does not mean every group effect is zero; it means positive and negative
+group deviations balance around zero across the population of groups.
+
+::: {.link-reminder style="border: 1px solid #999; border-radius: 4px; padding: 1em; margin: 1em 0;"}
+**Reminder: the logit link in a mixed model**
+
+Suppose $y_i=1$ means that seedling $i$ survives, and $y_i=0$ means that it
+does not. We explain survival using treatment $t_i$ (0 for control, 1 for
+treated), initial height $h_i$ in cm, and a random intercept $u_{j(i)}$ for
+the field containing seedling $i$:
+
+$$
+y_i\mid u \sim \operatorname{Bernoulli}(p_i),\qquad
+\operatorname{logit}(p_i)=\eta_i
+=\beta_0+\beta_1t_i+\beta_2h_i+u_{j(i)},\qquad
+u_j\sim N(0,\sigma_u^2).
+$$
+
+There is no offset in this example. The fixed-effect part
+$x_i^\mathsf{T}\beta$ is $\beta_0+\beta_1t_i+\beta_2h_i$, while
+$z_i^\mathsf{T}u$ selects the seedling's field effect $u_{j(i)}$.
+Suppose the fitted coefficients are $\beta_0=-2$, $\beta_1=1$, and
+$\beta_2=0.1$, and the estimated random effect for one field is $u_j=0.5$.
+For a **treated seedling of height 5 cm in that field**, insert
+$t_i=1$, $h_i=5$, and $u_j=0.5$:
+
+$$
+\eta_i = -2 + 1\times 1 + 0.1\times 5 + 0.5 = 0.
+$$
+
+The **inverse link** converts this sum into a survival probability:
+
+$$
+p_i = \frac{1}{1+\exp(-\eta_i)}
+= \frac{1}{1+\exp(0)} = 0.50.
+$$
+
+Going the other way, the **link** gives
+$\operatorname{logit}(0.50)=\log\{0.50/(1-0.50)\}=\log(1)=0$,
+recovering the same linear predictor.
+
+For a **control seedling of the same height in the same field**, only
+$t_i$ changes to 0: $\eta_i=-2+0+0.5+0.5=-1$, so
+$p_i=1/\{1+\exp(1)\}\approx 0.269$. Thus the treatment coefficient of 1
+adds 1 to the **log-odds**, not to the probability: predicted survival
+rises from about 27% to 50%.
+
+The random effect matters too. For the treated 5 cm seedling, setting
+$u_j=0$ instead gives $\eta_i=-0.5$ and $p_i\approx 0.378$, rather than
+0.50. These are **conditional predictions** at specified field effects;
+setting $u_j=0$ is not the same as averaging probabilities over all fields.
+:::
 
 ## 1.2 Conditional and marginal quantities
 
@@ -101,6 +211,27 @@ describing predictions: a conditional prediction, a zero-random-effect
 prediction, and a population-integrated prediction answer different
 questions.
 
+Why do those two numbers differ? The exponential curve bends upward, so a
+positive deviation increases the value more than an equally sized negative
+deviation decreases it. Averaging the values after applying the curve is
+therefore not the same as applying the curve to the average deviation. In
+calculus language, the inverse link is nonlinear; in plain language, "take
+the average, then transform" and "transform, then take the average" are
+different instructions.
+
+The log-link example follows a familiar normal-distribution identity. If $u$
+is normal with variance $\sigma_u^2$, then
+$E\{\exp(u)\}=\exp(\sigma_u^2/2)$. Multiplying by $\exp(\eta)$ gives
+$\exp(\eta+\sigma_u^2/2)$. The extra term comes from averaging across groups;
+it is not a change to the conditional model.
+
+To see where the identity comes from, write the expectation as an integral
+of $\exp(u)$ times the normal density. Completing the square in the
+exponent turns that product into a shifted normal density times the constant
+$\exp(\sigma_u^2/2)$. The shifted normal density still integrates to one,
+so only that constant remains. This is the same "complete the square"
+algebra used when working with quadratic expressions.
+
 ## 1.3 A concrete binary example
 
 For a Bernoulli-logit model with subject intercepts,
@@ -117,6 +248,12 @@ latent subject effect fixed. It is not, in general, the log odds ratio
 obtained after averaging predicted probabilities over subjects. The random
 intercept induces within-subject dependence even though observations are
 independent conditional on that intercept.
+
+For example, suppose two people have the same measured characteristics and
+the same subject effect. The model gives them the same success probability.
+If one subject's hidden adjustment is higher, all observations from that
+subject tend to have higher probabilities together. This shared shift is
+how the model represents repeated measurements that resemble one another.
 
 # 2. Covariance structures and random effects
 
@@ -137,6 +274,14 @@ relationship precision. An identity relationship gives independent levels;
 a pedigree or genomic relationship matrix couples their effects. The
 covariance descriptor controls covariance among coefficient dimensions, while
 the relationship matrix controls covariance among levels.
+
+For a less abstract picture, imagine three sites, each with a random
+intercept and slope. The small matrix $\Sigma$ describes whether sites with
+higher intercepts also tend to have steeper slopes. The matrix $A$ describes
+whether the sites themselves are related. Their Kronecker product combines
+these two questions into one covariance matrix for all six coefficients.
+In short: $\Sigma$ is about "which effects within a level travel together?"
+and $A$ is about "which levels are related?"
 
 This separation is one of `sommer`'s key modeling capabilities. Structures
 such as unstructured, diagonal, compound-symmetric, autoregressive, factor
@@ -161,6 +306,13 @@ After integrating over $u$, this product no longer factors across
 observations that share random effects. A random intercept therefore captures
 dependence through the shared latent variable; it is not an extra residual
 correlation term added independently to each response distribution.
+
+Conditional independence means: if we already knew each group's hidden
+adjustment, observations would be independent under the model. But we do not
+know those adjustments. When we average over them, two observations from the
+same group tend to move together because both share the same unknown value.
+That is why "independent given the random effect" does not mean "independent
+overall."
 
 PQL's working Gaussian problem can use `rcov` and other supported working
 covariance structures. Native Laplace instead uses the conditional
@@ -189,13 +341,15 @@ fit <- mmes(
 The offset is known and enters the linear predictor with coefficient fixed at
 one. In a log-rate model, `offset(log(exposure))` makes the expected count
 proportional to exposure while the fixed and random effects describe the
-log-rate.
+log-rate. For example, doubling the exposure adds $\log(2)$ to the predictor;
+after the log link is undone, that doubles the expected count while leaving
+the modeled rate unchanged.
 
 # 3. Response families and parameterizations
 
 The table gives the main conditional mean/variance parameterizations relevant
-to the native Laplace route. The PQL route delegates family operations to
-family objects and has a different support envelope.
+to the native Laplace route. PQL delegates family calculations to family
+objects, and the set of supported combinations differs.
 
 | Family | Conditional mean | Conditional variance | Native Laplace link(s) |
 | --- | --- | --- | --- |
@@ -206,12 +360,23 @@ family objects and has a different support envelope.
 | Gamma | $\mu$ | $\phi\mu^2$ | log |
 | Zero-inflated Poisson | $(1-\pi)\lambda$ | $(1-\pi)\lambda+(1-\pi)\pi\lambda^2$ | log for $\lambda$ |
 
+The mean column says what the model expects on average; the variance column
+says how much individual outcomes naturally vary around that average. In the
+binomial row, $m$ is the number of trials. In the negative-binomial row,
+$\theta$ controls extra spread beyond a Poisson model. In the Gamma row,
+$\phi$ controls spread relative to the squared mean.
+
 For grouped binomial data, $m$ is the number of trials. `binm(successes,
 trials=...)` represents a proportion with its trial count attached, and the
 native Laplace method also accepts a two-column successes/failures response.
 With a mixed-family model, trial counts can be provided through the documented
 `familym()` interface. Supplying proportions without their denominator loses
 information about their precision.
+
+Why does the denominator matter? A proportion of 1/2 could mean 1 success in
+2 tries or 500 successes in 1,000 tries. Both proportions are the same, but
+the second gives much stronger evidence about the underlying probability.
+The trial count tells the model how much information each proportion carries.
 
 ## 3.1 Negative binomial and dispersion parameters
 
@@ -227,6 +392,12 @@ Dispersion should not be used as a substitute for omitted structure.
 Overdispersion may arise from latent heterogeneity, excess zeros, dependence,
 or an incorrect mean model, and those mechanisms imply different
 interpretations and predictions.
+
+The phrase "overdispersion" just means that the data vary more than the
+basic model expects. It describes a symptom, not its cause. For example,
+mixing together high-rate and low-rate groups can create extra variation,
+but adding an NB2 dispersion parameter does not automatically explain why
+those groups differ.
 
 ## 3.2 Zero-inflated Poisson
 
@@ -259,6 +430,24 @@ $$
 =(1-\pi)\lambda_i+(1-\pi)\pi\lambda_i^2.
 $$
 
+Think of ZIP as a two-step chance experiment. First, with probability
+$\pi$, the observation is in a state that can only produce zero. Otherwise,
+with probability $1-\pi$, we draw an ordinary Poisson count with mean
+$\lambda_i$. A zero can therefore come from either step; a positive count
+can only come from the Poisson step.
+
+The formulas follow from those two possibilities. A zero occurs either in
+the structural-zero state or when the Poisson draw happens to be zero, so
+the two probabilities add. The average count is $(1-\pi)\lambda_i$ because
+the structural-zero state contributes zero and only the other state
+contributes a Poisson mean. For the variance, use the law of total variance: average the within-state
+variance, then add the variation caused by switching between the two states.
+In symbols,
+$\operatorname{Var}(Y)=E\{\operatorname{Var}(Y\mid S)\}
++\operatorname{Var}\{E(Y\mid S)\}$. The first part is
+$(1-\pi)\lambda_i$; the second is
+$\pi(1-\pi)\lambda_i^2$. Adding them gives the formula above.
+
 `zipoisson()` estimates one common intercept-only structural-zero probability
 by default. The count component's linear predictor models $\log(\lambda_i)$;
 the fitted response mean is $(1-\pi)\lambda_i$. The probability can be fixed
@@ -288,6 +477,14 @@ when $x$ enters both linear predictors without transformations or
 interactions. Count and zero coefficients must therefore not be interpreted
 as two independent regressions on observed positives and zeros.
 
+Here is the algebra behind that derivative. The mean is
+$(1-\pi_i)\lambda_i$. Taking logs turns the product into a sum:
+$\log(1-\pi_i)+\log(\lambda_i)$. A one-unit increase in $x$ changes the
+second term by $\beta_x$. For the logit model of $\pi_i$, the derivative of
+$\log(1-\pi_i)$ is $-\pi_i\gamma_x$. Adding the two changes gives
+$\beta_x-\pi_i\gamma_x$. So a count-rate increase can be partly offset if
+the same covariate also makes a structural zero more likely.
+
 To see why, let $\tau_i=\Pr(S_i=1\mid Y_i,u)$ under the fitted model.
 For a positive observation $\tau_i=0$; for a zero,
 
@@ -296,6 +493,13 @@ $$
 \frac{\partial\log p(Y_i\mid u)}{\partial\gamma}
 =w_i(\tau_i-\pi_i).
 $$
+
+The quantity $\tau_i$ is the model's estimated chance that a particular
+observed zero came from the zero-only state. It is not necessarily 0 or 1:
+the data usually cannot tell which process produced that zero. The score
+formula says that the zero-component coefficients are updated by comparing
+this observation-specific chance with the model's overall probability
+$\pi_i$, weighted by its predictors $w_i$.
 
 An observed zero does not reveal which component generated it. The native
 optimizer differentiates the complete marginal Laplace approximation,
@@ -318,6 +522,12 @@ data set. Conditional on the shared random effects, each row contributes its
 own family density. Random-effect structures may link traits, but the
 likelihood still uses each row's declared observation family and its
 appropriate trials or family parameters.
+
+In long format, each row is one measurement, and a column says which trait
+was measured. For instance, disease rows can use a binomial model while
+count rows use a negative binomial model. Shared random effects can connect
+the traits, but each row still needs the probability model that matches its
+own outcome.
 
 ```{r mixed-family-example, eval=FALSE}
 fit <- mmes(
@@ -371,6 +581,27 @@ z_i^{(t)}
 d_i^{(t)}=w_i\frac{(h_i^{(t)})^2}{V_i^{(t)}}.
 $$
 
+These symbols look intimidating, but they describe a familiar strategy:
+replace a curved problem by a straight-line approximation near the current
+guess. The derivative $h_i^{(t)}$ answers, "If the predictor changed a
+little here, how much would the mean change?" A large $h_i^{(t)}$ means the
+mean responds strongly; a small one means it barely moves.
+
+Remember from algebra that a straight line through a point can be written
+as its current value plus slope times the change in input. Applying that
+idea to the mean gives the local approximation
+$\mu_i\approx\mu_i^{(t)}+h_i^{(t)}(\eta_i-\eta_i^{(t)})$. Solving this
+approximation for the predictor that would match the observed response
+$y_i$ gives $\eta_i^{(t)}+(y_i-\mu_i^{(t)})/h_i^{(t)}$. This is the
+"working response"; the known offset is subtracted because the Gaussian
+working fit estimates the rest of the predictor, not the offset.
+
+The working precision $d_i^{(t)}$ says how strongly each working response
+should count in that fit. Responses whose means are locally sensitive to the
+predictor get more precision, while responses with naturally high variance
+get less. This is the same idea as weighted averages: more precise
+measurements should pull the answer more.
+
 The offset is removed from $z_i$ because it remains fixed and known in the
 linear predictor. `sommer` passes this working response and precision to its
 existing weighted Gaussian mixed-model machinery. That inner fit updates
@@ -385,6 +616,12 @@ likelihood. PQL estimates and standard errors can be biased for binary,
 rare-event, or sparse-count data, especially with substantial random-effect
 variance. Convergence of the outer iteration is numerical convergence of the
 chosen approximation, not proof of unbiasedness.
+
+An analogy: PQL repeatedly draws a tangent line to a curved road and solves
+the easier straight-road problem, then moves to a new point and draws another
+tangent. This can be fast and useful, but the answer is still based on those
+local straight-line approximations. It does not become an exact likelihood
+just because the iterations stop changing.
 
 ## 4.2 PQL usage and controls
 
@@ -412,11 +649,21 @@ family is Laplace-only. Consult the current GLMM guide rather than assuming
 that a family supported by `stats::glm()` can be combined with every
 `mmes()` mixed-model option.
 
+In the example, `maxit` is the maximum number of outer re-linearizations,
+and `tol` is how small the changes must become before the procedure stops.
+These settings control the stopping rule; they do not remove approximation
+bias.
+
 # 5. Fitting route two: native Laplace likelihood
 
 ## 5.1 Integrating out random effects
 
-The marginal likelihood is
+The likelihood is the model's way of scoring how plausible the observed data
+are for a proposed set of coefficients and variance settings. Because the
+random effects are hidden, we cannot just plug in one guessed value and
+pretend it is known. We must average the data score over the possible random
+effects, giving more weight to values that are plausible under their normal
+distribution. That average is the marginal likelihood:
 
 $$
 L(\beta,\theta,\psi;y)
@@ -451,6 +698,26 @@ families, accuracy depends on how well the local curvature represents the
 integral; small numbers of independent clusters, sparse data, and strongly
 skewed conditional posteriors warrant special care.
 
+The challenge is calculating that average over every possible value of the
+hidden effects. Usually there are too many values to sum exactly. Laplace's
+idea is to look near the most plausible value $\widehat u$, called the mode,
+and approximate the log density by a downward-opening parabola there.
+
+Remember the Gaussian bell curve from algebra/statistics: its total area is
+its height at the center times a width factor. Near the mode, the curvature
+matrix $H$ tells us how narrow or wide that bell is. In one dimension the
+width factor is $\sqrt{2\pi/H}$; taking its logarithm gives
+$\tfrac12\log(2\pi)-\tfrac12\log(H)$. For many random effects, the
+determinant $|H|$ is the corresponding joint width factor. That is where
+the determinant term in the Laplace formula comes from. It corrects the
+height at the best-fitting random effects to account for the range of
+nearby plausible values too.
+
+When the log density really is a quadratic, this bell-shaped approximation
+is exact. With a non-Gaussian outcome it may only be approximately
+bell-shaped, so the approximation can be less accurate, especially with
+sparse data or few independent groups.
+
 ## 5.2 Numerical optimization in sommer
 
 The native route obtains fixed/random designs and covariance descriptors
@@ -468,6 +735,14 @@ engines remain distinct. The optimizer's first derivatives include
 dependence of both the mode and the determinant correction on the
 parameters. Numerical second derivatives are calculated on demand for
 uncertainty, after fitting.
+
+There are two nested numerical jobs. The inner job finds the best-fitting
+random-effect values for the current model parameters. The outer job changes
+the fixed effects, covariance values, and any estimated family parameters
+to improve the approximate marginal likelihood. This is maximum likelihood
+(ML): it chooses parameters that make the observed data as probable as
+possible under the model. It is not REML, which adjusts likelihood
+calculations to account for estimating fixed effects.
 
 ```{r laplace-fit, eval=FALSE}
 fit_laplace <- mmes(
@@ -493,6 +768,12 @@ Inspect the optimizer result, `convergence`, `gradient`,
 `laplaceDiagnostics`, and `executionPlan`, rather than treating a returned
 object as sufficient evidence of a well-behaved fit.
 
+In other words, both jobs need to behave: the inner solver must find its
+random-effect mode, and the outer optimizer must settle on model parameters.
+The gradient is a vector of slopes of the objective; values close to zero
+suggest that small parameter changes no longer improve it. These checks are
+useful evidence, not a guarantee that the scientific model is correct.
+
 ## 5.3 Supported set and deliberate restrictions
 
 Native Laplace currently supports the documented binomial, Poisson, ZIP,
@@ -510,6 +791,24 @@ rejected rather than silently interpreted as Gaussian-engine controls.
 These limits matter when comparing models: a familiar covariance syntax
 doesn't establish that it is accepted or scientifically identical for the
 selected likelihood.
+
+These restrictions are boundaries of this particular fitting engine, not
+claims that the listed models are impossible in statistics. For example,
+the native Laplace route needs an identifiable fixed-effects design: "full
+rank" means no column in that design is an exact copy or combination of the
+others. Otherwise, different coefficient values could describe the same
+predictions, so the data could not determine a unique answer.
+
+Here is the short version of the two fitting routes:
+
+| Route | What it approximates | Main practical point |
+| --- | --- | --- |
+| PQL | Repeatedly replaces the curved mean-response problem with a weighted Gaussian one | Reuses Gaussian mixed-model tools; can be biased for sparse or binary data |
+| Laplace | The average likelihood over hidden random effects, using a local bell-shaped approximation | Provides an approximate marginal ML likelihood for its supported models |
+
+Neither route turns an approximation into certainty. The right choice
+depends on the scientific question, the available model support, and how
+much approximation error is acceptable for the data at hand.
 
 # 6. Estimation, uncertainty, and PEV
 
@@ -529,6 +828,20 @@ confidence intervals. A Wald interval for a variance near zero or a ZIP
 probability near zero is especially suspect. Boundary parameters have
 nonstandard null distributions, so ordinary chi-square or normal reference
 distributions should not be assumed without justification.
+
+Think of the fitted likelihood as a hill whose peak gives the estimate. The
+estimate tells us where the peak is; uncertainty tells us how broad or flat
+the hill is around it. A flat hill means many nearby values fit almost
+equally well, so the estimate is less precise. The Hessian summarizes this
+local curvature. If it has the wrong shape or is nearly singular, a usual
+standard error cannot be trusted.
+
+The delta method is a calculus shortcut for translating uncertainty through
+a smooth transformation. If a computer estimates uncertainty for a
+log-variance but we want the standard error of the variance itself, the
+method uses the slope of the exponential transformation near the estimate.
+This works as a local approximation; it does not magically make small-sample
+or boundary inference exact.
 
 ## 6.2 Post-fit PEV and computational separation
 
@@ -558,6 +871,12 @@ As with any approximate latent-variable model, PEV is conditional on the
 fitted model and its local curvature. It should not be presented as including
 all sources of uncertainty or as a substitute for external validation.
 
+PEV means prediction-error variance: how uncertain the model is about a
+predicted random effect, given this model and these data. It is not the same
+as the population variance of the random effects. The population variance
+describes real differences among groups; PEV describes how uncertain we are
+about a particular group's estimated adjustment.
+
 ## 6.3 Prediction targets
 
 For native Laplace fits, the prediction interface distinguishes:
@@ -569,6 +888,14 @@ For native Laplace fits, the prediction interface distinguishes:
 * **Restricted population prediction**
   (`re.form="population", type="response"`): integrates over supported
   random-intercept distributions for response-scale means.
+
+These are three different questions. A conditional prediction asks, "What
+does the model expect for this particular group, using its estimated
+adjustment?" A zero-random-effect prediction asks, "What would it predict
+for an average group before seeing that group's data?" A population
+prediction asks, "What is the average response across the distribution of
+groups?" Because links are nonlinear, the second is not generally the
+third.
 
 The population integration is currently restricted to independent
 random-intercept terms with identity relationship precision. Other covariance
@@ -611,6 +938,12 @@ They answer numerical questions. They do not prove model identifiability,
 correct likelihood specification, calibrated uncertainty, or adequate
 population-level prediction.
 
+Think of convergence as checking whether the calculator finished the
+requested steps, not whether the answer is true. A model can finish
+successfully and still be the wrong description of the data. Numerical
+diagnostics ask "did the algorithm behave?"; statistical checks ask "does
+the model describe the real process well enough for this question?"
+
 ## 7.2 Response diagnostics
 
 Randomized quantile residuals transform a discrete response through its
@@ -619,6 +952,14 @@ observed value. Under a correctly specified model they should be broadly
 compatible with a standard normal distribution, subject to dependence and
 parameter estimation. Simulation can compare observed patterns with
 replicates from the fitted response model:
+
+In plain language, a residual compares what happened with what the model
+expected. For count or yes/no data, ordinary subtraction can be hard to
+interpret because the outcomes are discrete. A randomized quantile residual
+first asks where the observed value falls in the model's predicted
+probability distribution, then converts that position to a normal-score
+scale. This makes different outcome types easier to compare, although
+grouping and parameter estimation still affect the result.
 
 ```{r diagnostics, eval=FALSE}
 rq <- residuals(fit_laplace, type = "quantile")
@@ -631,6 +972,11 @@ sampling responses. Neither includes parameter-estimation uncertainty. Check
 residual patterns against fitted values, covariates, clusters, time, exposure,
 and design strata; a marginal histogram alone can hide a conditional
 misspecification.
+
+A conditional simulation asks, "If these were the same groups, what
+responses might we see again?" A population simulation asks, "If we sampled
+new groups as well, what responses might we see?" Those are different
+scientific questions, so choose the simulation to match the question.
 
 ## 7.3 Statistical calibration, particularly for ZIP
 
@@ -652,9 +998,16 @@ Compare against scientifically plausible alternatives, including a better
 count mean, exposure offset, NB2 overdispersion, and omitted cluster or
 observation structure.
 
+Calibration means checking the method on many simulated examples where we
+know the truth. For example, if a method advertises 95% confidence
+intervals, we can generate data with a known coefficient and count how
+often the intervals contain it. "Coverage" is that fraction. Always report
+how many intervals were successfully produced as well: 95% coverage among
+the easiest 20% of datasets is not 95% performance across all datasets.
+
 The implemented fixed-effects formula was subsequently evaluated on 1,800
-paired datasets, with 300 replicates per scenario and a preregistered
-contract. Three moderate-rate scenarios passed every gate. A low-rate
+paired datasets, with 300 replicates per scenario and criteria specified
+before the analysis. Three moderate-rate scenarios passed every check. A low-rate
 scenario did not: only 81.3% of datasets supplied joint SEs, even though
 zero-slope coverage among available intervals was 93.9%. Across all planned
 replicates, only 76.3% both supplied an interval and covered the true zero
@@ -663,11 +1016,312 @@ uncertainty availability must be reported separately. It also limits the
 current formula extension's calibration envelope; it does not license
 zero-component random effects or additional mixture families.
 
+For orientation, these numbers are a stress test of this implementation,
+not universal properties of ZIP models. The practical lesson is that
+"converged" and "gave a usable, accurate uncertainty estimate" are separate
+outcomes. That distinction matters especially when data are sparse.
+
 Model comparisons require care. Native Laplace uses ML and can provide
 likelihood-based summaries, but variance-component tests at boundaries have
 nonstandard reference distributions. For these cases, parametric bootstrap
 or a dedicated calibration is preferable to an unqualified standard
 likelihood-ratio test.
+
+For the currently supported nested count-fixed-effect comparison,
+`boot_mmes(smaller, larger, nsim=B, seed=...)` draws new population random
+effects and responses under the null fit, then refits both native Laplace
+models. The statistic is $T=2(\ell_{\rm larger}-\ell_{\rm smaller})$.
+With all $B$ replicates successful, the reported Monte Carlo test is
+$(1+\sum_b I(T_b\geq T_{\rm observed}))/(B+1)$.
+Failures are not counted as non-rejections: if any fail, the ordinary p-value
+is unavailable and the output bounds its possible value by assigning each
+failure either outcome. These are sensitivity bounds, not confidence limits.
+Boundary replicates are retained and flagged.
+
+Single-model `boot_mmes(fit, ...)` also returns descriptive percentile
+intervals in native optimizer coordinates. Neither form computes refit
+Hessians or PEV, mutates the original fit, or changes the fitting path.
+Inference remains conditional on the fitted generating model and the
+Laplace approximation. This API does not yet test covariance components or
+zero-inflation mechanisms, nor guarantee coverage at weakly identified
+boundaries.
+
+## 7.4 Ordered categorical likelihood and uncertainty
+
+An ordered outcome has categories with a natural order, such as small,
+medium, and large. The model describes the chance of being at or below each
+cutpoint. For an ordered response with $K$ categories, the cumulative-link
+convention is
+
+$$
+P(Y_i\leq k\mid u)=F(c_k-\eta_i),\qquad c_1<\cdots<c_{K-1}.
+$$
+
+Here $F$ is a cumulative distribution function (for example, logistic or
+normal), and each $c_k$ is a dividing point between neighboring categories.
+The increasing cutpoints are essential: category 3 must come after category
+2. The model first calculates cumulative probabilities such as
+$P(Y_i\leq 1)$ and $P(Y_i\leq 2)$. The probability of category 2 is their
+difference, $P(Y_i\leq 2)-P(Y_i\leq 1)$. The first and last categories use
+the lower and upper tails. This is why probabilities across all categories
+add to one.
+
+The native kernel evaluates log
+probabilities stably rather than subtracting nearly equal CDFs in a tail.
+Predictor derivatives through fourth order and analytic cutpoint scores feed
+the same native Laplace objective. The residual link scale is fixed; there is
+no additional ordinal dispersion parameter.
+
+Estimated cutpoints use coordinates
+$a=(c_1,\log(c_2-c_1),\ldots,\log(c_{K-1}-c_{K-2}))$.
+The existing fixed intercept column is removed without rebuilding contrasts,
+and equivalent constant-span confounding is rejected. Fixed cutpoints retain
+the formula intercept. Estimated cutpoints require every declared category
+after filtering; no category is silently merged or dropped.
+
+Why estimate log-gaps instead of free cutpoints? Exponentials are always
+positive. If the model estimates $\log(c_2-c_1)$, then
+$c_2-c_1=\exp\{\log(c_2-c_1)\}>0$ automatically. This simple algebra trick
+prevents the cutpoints from crossing during optimization.
+
+Let $\theta$ contain fixed effects, free covariance coordinates and free
+cutpoint coordinates. Only after fitting, marginal observed information gives
+$V_\theta$, and the natural cutpoint covariance is
+$J_c V_\theta J_c'$ with the appropriate coordinate selection.
+For a conditional prediction $g(\theta,\hat u(\theta))$, the numerical
+parameter Jacobian includes dependence of the fitted modes on every
+parameter. With conditional random-mode precision $H$, its local covariance is
+
+$$
+J_\theta V_\theta J_\theta' + J_u H^{-1}J_u'.
+$$
+
+The same decomposition supplies ordinal random-effect PEV and fixed/random
+cross-covariances after fitting. It avoids conditioning away cutpoint-location
+uncertainty or counting fixed-effect uncertainty twice. Category-probability
+Jacobians include all cutpoint cross-covariances; their rows sum to zero over
+categories, as does uncertainty in a probability sum of one. Population
+probabilities integrate over new random effects rather than substituting
+their zero mean: probit uses normal convolution and logit uses 24-node
+Gaussian quadrature for the existing eligible covariance structures.
+
+The uncertainty equation has the same two-part logic as many familiar
+measurement problems: uncertainty in the estimated model parameters
+($V_\theta$) contributes one part, and uncertainty in the hidden random
+effects contributes another. The Jacobians $J_\theta$ and $J_u$ are
+derivatives: they describe how much the prediction changes when each
+parameter or random effect changes a little. Multiplying by these
+derivatives translates uncertainty on the input side into uncertainty in
+the prediction. This remains a local approximation, just like the delta
+method described above.
+
+Default fitted/predicted outputs are labelled category probability matrices.
+Expected category codes are available explicitly, but their values and
+response/Pearson/working residuals depend on the numeric coding. Quantile and
+deviance residuals use the category distribution itself. Simulations retain
+ordered-factor levels, whereas bootstrap refits retain numeric codes and
+report absent-category failures.
+
+For example, the model's prediction for one observation might be
+$(0.2, 0.5, 0.3)$: a 20% chance of "small", 50% of "medium", and 30% of
+"large". Those probabilities are more informative than a single average
+category code, because the meaning of averaging codes depends on how the
+categories were numbered.
+
+This is single-family cumulative-logit/probit support, not a nominal
+multinomial model or ordinal mixed-family extension. Independent likelihood,
+probability, derivative and delta-method checks establish implementation
+correctness only; larger recovery/coverage calibration and cross-platform
+qualification remain necessary before broad inferential claims.
+
+For the detailed checks below, RMSE (root mean squared error) summarizes the
+typical size of an estimate's error, while coverage checks whether intervals
+include the known value often enough. A Wilson interval is one way to show
+sampling uncertainty around an estimated coverage rate. These terms describe
+the test of the method, not extra model parameters.
+
+The subsequent frozen-source targeted calibration used 3,000 paired
+datasets, 300 per link/design combination, with four ordered categories and
+random intercepts. Four regular scenarios contributed 1,200 primary fits;
+all converged, with 99.7--100% joint parameter SE availability. Registered
+fixed-effect/cutpoint and natural random-variance bias gates passed.
+Nevertheless 18 of 712 registered regular gates failed: 14 probability
+coverage/RMSE gates, three conservative parameter-coverage checks, and one
+external AGQ1 agreement gate. Every raw regular coverage-range gate passed,
+but several pointwise Wilson intervals excluded 95%. The large number of
+correlated pointwise gates is not a simultaneous-coverage test; the full
+requested envelope still cannot be claimed as qualified.
+
+A separate scalar-Laplace calculation at each implementation's own fitted
+parameters checked 120 regular sensitivity datasets. Maximum absolute
+likelihood discrepancies were below $7.4\times10^{-9}$ for sommer and
+$1.76\times10^{-4}$ for the AGQ1 reference, localizing the comparison failure
+to reference precision without revising its original gate. Higher-order
+quadrature remains an approximation diagnostic, not generated-parameter truth.
+
+In sparse designs, 66/300 logit and 258/300 probit datasets lacked a declared
+category and were intentionally rejected. Every primary dataset with all
+categories observed converged, but additional sparse uncertainty failures
+remained. Near-zero-variance scenarios supplied joint SEs in only
+52.3%/54.3% of all datasets despite complete optimizer convergence.
+Coverage and uncertainty availability must therefore be reported jointly,
+with all planned replicates retained. The next statistical task is bounded
+post-fit probability-interval calibration (Wald versus transformed or
+bootstrap intervals), not assuming nominal coverage from a converged fit.
+Random-effect PEV coverage, fixed-cutpoint inference, arbitrary covariance
+and cross-platform release qualification remain outside this study.
+
+## 7.5 Unordered categories: nominal multinomial models
+
+The public `multinomial()` family fits unordered categories with the native
+Laplace likelihood. It requires ML, at least one random-effect term, and the
+Henderson formulation. It does not use PQL. `W`, weights formulas, `vcc`,
+structured residual covariance, and non-default Gaussian solver controls are
+not supported. All uncertainty work is deferred until after fitting.
+
+An unordered, or *nominal*, outcome has names without a natural ranking.
+For example, "red", "green" and "blue" are categories, not low, medium and
+high. Giving them numeric codes does not make the distance from red to green
+meaningful. That is why an ordered model is not a substitute.
+
+### Choose one category as the comparison point
+
+Suppose green is the **reference category**. The model describes red versus
+green and blue versus green. It does not estimate a third, redundant set of
+coefficients for green versus itself. For the two comparisons,
+
+$$
+\eta_{\mathrm{red}}=\log(p_{\mathrm{red}}/p_{\mathrm{green}}),\qquad
+\eta_{\mathrm{blue}}=\log(p_{\mathrm{blue}}/p_{\mathrm{green}}).
+$$
+
+A positive red coefficient increases the red-to-green odds, holding the
+other predictors fixed. It does not mean "a higher category", because
+colors have no order. The **softmax** calculation converts all comparison
+scores into probabilities together:
+
+$$
+p_{\mathrm{red}}=\frac{\exp(\eta_{\mathrm{red}})}
+ {1+\exp(\eta_{\mathrm{red}})+\exp(\eta_{\mathrm{blue}})}.
+$$
+
+Blue has the same denominator with its own numerator; green has numerator
+one. The three probabilities sum to one. The comparisons are therefore
+coupled: fitting separate yes/no models would not give this joint model.
+The numerical implementation uses stable log probabilities even when a
+category is extremely unlikely.
+
+Factor levels retain their declared order and names. The
+reference defaults to the last declared level, or can be specified by its
+label. The reference is moved to the final *internal* position without
+changing the recorded original level order. Plain numeric category codes
+must be contiguous integers starting at one. Character responses are not
+silently sorted into categories, and ordered factors must be deliberately
+converted if their order is to be ignored. Every declared category must
+remain represented after missing-data filtering; none is silently merged
+or dropped.
+
+For example:
+
+```r
+ctrl <- mmes_control(task=list(objective="ml",
+  glmm=list(method="laplace")))
+fit <- mmes(color ~ temperature,
+  random=~vsm(ism(.nominalCategory), ism(group)),
+  data=dat, family=multinomial(reference="green"), control=ctrl)
+```
+
+The fitter creates `.nominalCategory` internally; it is not a column the user
+adds to `dat`. `fitted(fit)` returns one probability column per original
+category level. The category labels remain in the factor's original order,
+even though the reference is stored last internally.
+
+### Give each comparison its own coefficients
+
+For a fixed formula such as `color ~ temperature`, the model creates a
+separate intercept and temperature slope for red versus green and for blue
+versus green. An intercept is kept here: unlike an ordinal
+model with estimated cutpoints, there are no cutpoint locations competing
+with it. The original transformations, factor contrasts and training
+levels are recorded for later prediction work.
+
+The computer stores all red-comparison rows first, then all blue-comparison
+rows. This is only bookkeeping: there is still one observed color and one
+joint likelihood contribution per original observation, not two independent
+responses. A row map records the original observation and comparison label.
+Missing data must remove or retain all comparison rows of an observation
+together. A formula offset is repeated across comparisons in this initial
+preparation; category-specific offset formulas and alternative fixed-effect
+sharing patterns are not part of this slice.
+
+Random effects also need a clear meaning. The stacked design exposes
+`.nominalCategory`, containing only non-reference categories. It can be
+used in the public random formula:
+
+| Random formula | Meaning |
+|---|---|
+| `~group` | One group adjustment shared by every non-reference comparison. It is not a separate adjustment per category. |
+| `~vsm(ism(.nominalCategory), ism(group))` | Separate category-by-group adjustments, independent across categories, with a common variance scale. |
+| `~vsm(usm(.nominalCategory), ism(group))` | Category-by-group adjustments whose variances and correlations can differ. |
+
+For example, a group that favors red may also favor blue relative to green.
+The last model can represent that association rather than forcing it to
+zero. Relationship precision supplied through `Gu` retains its existing
+meaning and level alignment. Changing reference recodes the comparisons;
+to represent exactly the same random-effect model, its design and covariance
+must be transformed consistently too.
+
+### Reuse the covariance machinery, not a second set of rules
+
+The optimizer does not work directly with unrestricted variance values.
+For example, a log-variance coordinate keeps a variance positive after it is
+transformed back. Existing sommer covariance descriptors already define
+these transformations, the starting values, and which coordinates are fixed.
+The nominal objective now reuses that same native machinery rather than
+inventing a separate covariance parameterization.
+
+It takes the fixed coefficients followed by the free covariance coordinates
+in descriptor order. Fixed coordinates remain unchanged. At each proposal
+it builds the random-effect precision (the inverse-covariance representation),
+finds the conditional random-effect modes, and calculates the Laplace
+likelihood and its analytic score. The score is a slope telling the optimizer
+which parameter direction improves the likelihood; it is **not** a standard
+error. It includes the effect of moving the modes and changing the
+log-determinant adjustment. Small-block contractions and bounded sparse-solve
+panels supply these derivatives without building a full inverse or PEV.
+Invalid proposals and unsuccessful modes remain explicit.
+
+Controls stay in the existing `mmes_options`/`mmes_control()` system:
+`task$glmm` supplies mode iteration limits and tolerance,
+`execution$denseMemoryMB` limits admitted workspace, and
+`execution$blasThreads` controls evaluation threads. The fit
+requires Henderson Laplace ML in fit mode and `output$inverse=0`; it rejects
+unused Gaussian controls and unsupported family-parameter settings.
+Uncertainty remains strictly post-fit. The original Gaussian/LMM and scalar
+GLMM fitting routes are unchanged, and no package dependency is added.
+
+`fitted()` and `predict()` return category-probability matrices; `type="link"`
+returns the category logits. Conditional prediction uses fitted modes for
+known random-effect levels, and `re.form=NA` sets those effects to zero.
+Population-marginal prediction is not yet implemented. `simulate()` preserves
+the original factor labels and can draw new random effects from the fitted
+population covariance. Response and Pearson residuals are returned by
+category; deviance, working and quantile residuals are not yet defined.
+
+`summary()` and `vcov()` compute fixed-effect uncertainty after fitting from
+the marginal Laplace objective. `postPEV()` reconstructs the full
+cross-category curvature after fitting, and `predict(se.fit=TRUE)` uses the
+joint fixed/random conditional curvature and a delta-method probability
+transformation. Prediction standard errors condition on the fitted covariance
+parameters. `boot_mmes()` does not yet support nominal refits. The likelihood,
+AIC/BIC, and nested fixed-effect likelihood comparisons are available.
+
+Independent dense calculations and numerical derivatives test the likelihood,
+mode, marginal score, optimizer and these public outputs. Numerical agreement
+does not establish confidence-interval coverage or good behavior with rare
+categories; nominal statistical calibration remains a separate release gate.
+The existing Gaussian/LMM and scalar-GLMM fitting routes are unchanged, and no
+package dependency is added.
 
 # 8. A practical modeling workflow
 

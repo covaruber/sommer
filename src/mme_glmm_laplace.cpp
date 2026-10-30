@@ -115,10 +115,9 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
   for(int iteration = 0; iteration < maxModeIterations; ++iteration){
     Rcpp::checkUserInterrupt();
     iterations = iteration + 1;
-    arma::sp_mat weightedDesign = randomDesign;
-    for(auto cell = weightedDesign.begin(); cell != weightedDesign.end(); ++cell){
-      *cell *= weight(cell.row());
-    }
+    // Sparse diagonal multiplication safely removes entries with zero weight.
+    const arma::sp_mat weightedDesign =
+      arma::sp_mat(arma::diagmat(weight)) * randomDesign;
     const arma::sp_mat hessian =
       randomPrecision + randomDesign.t() * weightedDesign;
     const arma::vec modeScore = randomDesign.t() * score - randomPrecision * mode;
@@ -221,11 +220,8 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
     return invalidEvaluation("non-finite Laplace likelihood");
   }
   const auto finalFamily = family.evaluate(response, eta);
-  arma::sp_mat weightedRandomDesign = randomDesign;
-  for(auto cell = weightedRandomDesign.begin();
-      cell != weightedRandomDesign.end(); ++cell){
-    *cell *= finalFamily.curvature(cell.row());
-  }
+  const arma::sp_mat weightedRandomDesign =
+    arma::sp_mat(arma::diagmat(finalFamily.curvature)) * randomDesign;
   const arma::sp_mat finalModeHessian =
     randomPrecision + randomDesign.t() * weightedRandomDesign;
   return Rcpp::List::create(
@@ -291,6 +287,38 @@ public:
       Rcpp::stop("Native Laplace memory budget must be positive and finite.");
     }
     family.validateResponse(response);
+    std::vector<arma::uword> estimatedOrdinal;
+    for(arma::uword position = 0; position < family.specifications.size(); ++position){
+      const auto & specification = family.specifications[position];
+      if(specification.family != "ordinal" || !specification.free) continue;
+      estimatedOrdinal.push_back(position);
+      const arma::uvec records = arma::find(family.index == position);
+      for(arma::uword category = 1; category <= specification.thresholds.n_elem + 1;
+          ++category){
+        if(!arma::any(response.elem(records) == category))
+          Rcpp::stop("Estimated ordinal cutpoints require observations in every declared category.");
+      }
+    }
+    if(!estimatedOrdinal.empty()){
+      if(fixedDesign.n_rows != response.n_elem || !fixedDesign.is_finite())
+        Rcpp::stop("Estimated ordinal cutpoints require a finite fixed design with one row per response.");
+      const double bytes = 8.0 * fixedDesign.n_rows *
+        (4.0 * fixedDesign.n_cols + 3.0 * estimatedOrdinal.size());
+      if(bytes > memoryMB * 1e6)
+        Rcpp::stop("Ordinal location-identification check exceeds the dense memory budget.");
+      arma::mat augmented(fixedDesign.n_rows,
+        fixedDesign.n_cols + estimatedOrdinal.size(), arma::fill::zeros);
+      if(fixedDesign.n_cols) augmented.head_cols(fixedDesign.n_cols) = arma::mat(fixedDesign);
+      for(arma::uword position = 0; position < estimatedOrdinal.size(); ++position){
+        const arma::uvec records = arma::find(family.index == estimatedOrdinal[position]);
+        for(const arma::uword record : records)
+          augmented(record, fixedDesign.n_cols + position) = 1.0;
+      }
+      const arma::uword fixedRank = fixedDesign.n_cols ?
+        arma::rank(arma::mat(fixedDesign)) : 0;
+      if(arma::rank(augmented) != fixedRank + estimatedOrdinal.size())
+        Rcpp::stop("Estimated ordinal cutpoint locations are confounded with the fixed design; remove intercepts and equivalent constant columns.");
+    }
   }
 
   arma::mat solve(const arma::mat & rightHandSide){
@@ -359,10 +387,45 @@ public:
         ++familyPosition){
       if(!family.specifications[familyPosition].free) continue;
       const arma::uvec records = arma::find(family.index == familyPosition);
+      const auto & specification = family.specifications[familyPosition];
+      if(specification.family == "ordinal"){
+        arma::vec cutpointScore(specification.thresholds.n_elem, arma::fill::zeros);
+        double locationScore = 0.0;
+        for(const arma::uword record : records){
+          // A common cutpoint shift is the negative of a predictor shift;
+          // use that identity rather than subtracting narrow-interval scores.
+          locationScore += -familyResult.score(record) +
+            0.5 * leverage(record) * familyResult.curvatureD1(record) -
+            modeCorrection(record) * familyResult.curvature(record);
+          const arma::uword category = static_cast<arma::uword>(response(record)) - 1;
+          const auto density = sommer::glmmOrdinalLogDensity(response(record),
+            predictor(record), specification.thresholds, specification.link);
+          for(int endpoint = 0; endpoint < 2; ++endpoint){
+            if((endpoint == 0 && category == 0) ||
+               (endpoint == 1 && category == specification.thresholds.n_elem)) continue;
+            const arma::uword cutpoint = endpoint == 0 ? category - 1 : category;
+            const auto derivative = sommer::glmmOrdinalCutpointScore(
+              specification.thresholds(cutpoint), predictor(record),
+              specification.link, density);
+            cutpointScore(cutpoint) += (endpoint == 0 ? -1.0 : 1.0) *
+              (derivative.coefficient[0][0] +
+               leverage(record) * derivative.coefficient[2][0] -
+               modeCorrection(record) * derivative.coefficient[1][0]);
+          }
+        }
+        double tailScore = 0.0;
+        for(arma::uword cutpoint = cutpointScore.n_elem; cutpoint-- > 0;){
+          tailScore += cutpointScore(cutpoint);
+          result(outputPosition + cutpoint) = cutpoint == 0 ? locationScore :
+            (specification.thresholds(cutpoint) -
+             specification.thresholds(cutpoint - 1)) * tailScore;
+        }
+        outputPosition += cutpointScore.n_elem;
+        continue;
+      }
       const arma::vec rowScore = familyResult.parameterScore.elem(records) -
         0.5 * leverage.elem(records) % familyResult.curvatureParameter.elem(records) -
         modeCorrection.elem(records) % familyResult.scoreParameter.elem(records);
-      const auto & specification = family.specifications[familyPosition];
       if(specification.zeroDesign.n_cols){
         const arma::vec zeroScore = specification.zeroDesign.rows(records).t() * rowScore;
         result.subvec(outputPosition, outputPosition + zeroScore.n_elem - 1) = zeroScore;
@@ -432,7 +495,7 @@ Rcpp::List sommer_laplace_objective_eval(SEXP context,
   if(!objective->family.update(parameters.tail(nuisanceCount))){
     objective->cachedMode = false;
     return Rcpp::List::create(Rcpp::_["valid"]=false,
-      Rcpp::_["reason"]="family shape/dispersion outside numerical range");
+      Rcpp::_["reason"]="family parameters outside numerical range");
   }
   const arma::vec covarianceParameters = covarianceCount ?
     parameters.subvec(fixedCount, fixedCount + covarianceCount - 1) : arma::vec();
@@ -486,8 +549,9 @@ Rcpp::List sommer_glmm_family_eval(const arma::vec & response,
   }
   sommer::GLMMFamilyModel family("", response.n_elem, familySpecs, nativeIndex, trials);
   family.validateResponse(response);
-  const auto evaluation = family.evaluate(response, predictor);
+  const auto evaluation = family.evaluate(response, predictor, true);
   return Rcpp::List::create(Rcpp::_["logDensity"]=evaluation.logDensity,
+    Rcpp::_["logDensityRows"]=evaluation.logDensityRows,
     Rcpp::_["mean"]=evaluation.mean, Rcpp::_["score"]=evaluation.score,
     Rcpp::_["curvature"]=evaluation.curvature,
     Rcpp::_["curvatureD1"]=evaluation.curvatureD1,
