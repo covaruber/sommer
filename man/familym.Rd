@@ -53,9 +53,12 @@ glmm=list(method="laplace"))}. Supported families are binomial with logit,
 probit or complementary log-log link; Poisson-log;
 \code{\link{zipoisson}} with an intercept-only or fixed-effects formula
 logit structural-zero component; \code{nbinom2()}-log; Gaussian-identity;
-and Gamma-log. Single-family ordered categorical models are available through
-\code{\link{ordinal}} with cumulative logit or probit links. Ordinal
-\code{familym()} models remain explicitly unsupported.
+and Gamma-log, alongside \code{\link{ordinal}} with cumulative logit/probit
+links and \code{\link{multinomial}} with a joint softmax likelihood.
+Categorical \code{familym()} requires a data frame and one plain numeric
+long-format response column: each categorical trait uses contiguous codes
+\code{1,...,K}; probability columns are labelled with these codes.
+Categorical responses do not support PQL or non-ML objectives.
 Zero-inflated Poisson is not a hurdle model and its zero component has no
 random effects. Observations are conditionally independent
 given the shared random effects. A correlated \code{usm(trait)} random
@@ -86,6 +89,41 @@ predictions require the declared trait column. Use \code{re.form=NA} for
 zero-random-effect means, \code{re.form=NULL} for conditional predictions at
 known random-effect levels, or \code{re.form="population"} for supported
 population means; see \code{\link{predict.mmes}} for restrictions.
+
+When categorical traits are present, \code{fitted()} and response-scale
+\code{predict()} return a trait-named list: scalar traits have numeric vectors,
+and ordinal/nominal traits have labelled probability matrices. Link-scale
+output is also trait-named, with one vector per scalar/ordinal trait and
+\eqn{K-1} logits per nominal trait. Scalar-only output is unchanged.
+Residuals are trait-named; nominal traits support response, Pearson and
+unsigned deviance residuals, not working or quantile residuals.
+
+Nominal fixed coefficients are expanded by non-reference category.
+Estimated ordinal cutpoint locations take precedence over aliased fixed
+location columns; fixed cutpoints retain identified formula intercepts.
+Cutpoint settings are nested by trait under \code{familyParameters}, for
+example \code{list(rating=list(thresholds=c(-1,1),estimate=FALSE))}.
+The \code{thresholds} table identifies each ordinal trait.
+
+Random-effect formulas retain their explicit semantics: repeating nominal
+predictor rows shares existing random coefficients and never automatically
+creates independent effects. To request distinct coordinates, use
+\code{.familyCoordinate} in the random formula, for example
+\code{~vsm(ism(.familyCoordinate),ism(group))}; its levels are
+\code{"trait:location"} for scalar/ordinal traits and
+\code{"trait:category"} for nominal non-reference categories.
+Correlated coordinates can use explicit covariance descriptors instead.
+\code{.nominalCategory} is reserved for the single-family nominal route and
+errors in categorical \code{familym()} rather than guessing an expansion.
+
+The native mode solver retains full nominal off-diagonal curvature and one
+likelihood contribution per observation. Mixed nominal outer gradients use
+central differences of the native block Laplace likelihood; scalar/ordinal
+outer gradients remain analytic. Standard errors, parameter covariance,
+prediction uncertainty and PEV remain post-fit through \code{summary()},
+\code{vcov()}, \code{predict(se.fit=TRUE)} and \code{postPEV()}.
+Simulation and \code{boot_mmes()} support the same categorical composition;
+simulations use the original numeric category codes and original row order.
 }
 \value{An object of class \code{"sommer_familym"}.}
 \seealso{\code{\link{mmes}}, \code{\link{corgm}}, \code{\link{stackTraits}},

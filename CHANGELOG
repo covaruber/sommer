@@ -586,6 +586,29 @@ version 4.4.81 (2026-09-30)
 version 4.5.13 (in development)
 ########################
 
+ + Added post-fit nominal unsigned deviance residuals for model checking,
+   using stable conditional log probabilities without clipping tail losses.
+   Existing category-wise response/Pearson residuals are unchanged; working
+   and quantile residuals remain explicitly unsupported. These descriptive
+   diagnostics do not provide calibrated tests or require additional fits.
+ + Added bounded nominal predict(re.form="population") category means using
+   deterministic Gaussian quadrature for shared/correlated category-specific
+   unit random intercepts with identity relationships, including new groups.
+   Up to four categories are supported; memory and 24/32-rule agreement are
+   checked explicitly. Population SEs and averaged logits remain unsupported.
+   Independent integration checks do not establish statistical calibration.
+ + Added opt-in nominal predict(se.fit=TRUE, uncertainty="full") using
+   marginal parameter covariance, covariance-coordinate mode movement and
+   conditional random-mode posterior covariance. Existing default prediction
+   SEs are unchanged. Computations are post-fit with curvature/memory guards;
+   deterministic delta-method checks do not establish statistical coverage.
+ + Stabilized nominal unstructured covariance precision scores using
+   triangular-factor derivatives and exact factor log-determinant derivatives,
+   avoiding cancellation near singularity. The seed-840001 regression now
+   converges and its covariance score matches independent finite differences.
+   Added nominal optimizer/score, covariance-conditioning, saturation and
+   uncertainty-status diagnostics with actionable summary messages. No new
+   dependencies, fitting-time Hessians/PEV or Gaussian/scalar-route changes.
  + Fixed nominal preparation tests to leave optional runtime BLAS thread
    control disabled, so they also run without a supported BLAS controller.
  + Started the ordered categorical milestone with internal fixed-cutpoint
@@ -1132,6 +1155,17 @@ version 4.4.90 (2026-10-13)
    from accepting numerically unreliable likelihood improvements.
    Conditional AI admits dense derivative/curvature workspace through the
    existing memory policy; ordinary AI and conditional EM defaults are unchanged.
+
+ + Native Laplace ML familym() now combines ordinal, nominal and scalar
+   response traits using observation-level categorical likelihood blocks.
+   Mixed fitted/prediction outputs are trait-named vectors and labelled
+   probability matrices. Random formulas remain explicit: .familyCoordinate
+   requests category-specific effects; shared effects are not silently
+   expanded into independent coefficients. Mixed prediction uncertainty,
+   residuals, simulation, summary/vcov, postPEV, nested comparisons and
+   boot_mmes are supported, with all uncertainty deferred until post-fit.
+   Mixed nominal outer scores centrally difference the native block Laplace
+   objective; scalar/ordinal-only scores and Gaussian/PQL routes are unchanged.
 
 ######################
 ## PENDINGS AND PRIORITIES

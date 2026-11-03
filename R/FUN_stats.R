@@ -93,7 +93,7 @@ postPEV <- function(object, mode = 1L){
          call.=FALSE)
   }
 
-  ordinalUncertainty <- if(.laplace_is_ordinal(object))
+  ordinalUncertainty <- if(.laplace_is_ordinal(object) || .laplace_is_categorical_mixed(object))
     .laplace_ordinal_mode_uncertainty(object, covariance=mode == 2L,
       panelSize=panelSize, denseMemoryMB=denseMemoryMB) else NULL
   if(!is.null(ordinalUncertainty)){
@@ -284,6 +284,68 @@ postPEV <- function(object, mode = 1L){
       call.=FALSE)
   }
   list(se.fit=sqrt(variance), cov.fit=NULL)
+}
+
+.laplace_nominal_full_prediction_uncertainty <- function(object, prediction){
+  uncertainty <- .mmes_laplace_uncertainty(object)
+  if(!uncertainty$valid){
+    stop("Full-parameter nominal prediction uncertainty is unavailable: ",
+      uncertainty$reason, ".", call.=FALSE)
+  }
+  parameters <- object$optimizer$par
+  rows <- nrow(prediction$fixed)
+  randomCount <- ncol(prediction$random)
+  budget <- object$laplacePostPEVSettings$denseMemoryMB * 1048576
+  bytes <- 8 * (4 * as.double(rows)^2 +
+    4 * as.double(rows) * length(parameters) +
+    2 * as.double(rows) * randomCount)
+  if(!is.finite(bytes) || bytes > budget){
+    stop("Full-parameter nominal prediction uncertainty exceeds execution$denseMemoryMB; use fewer prediction rows or increase the memory budget.",
+      call.=FALSE)
+  }
+  conditional <- Matrix::nnzero(prediction$random) > 0L
+  objective <- if(conditional)
+    .laplace_nominal_objective(object$nominalPreparation) else NULL
+  evaluate <- function(proposal){
+    eta <- as.numeric(prediction$fixed %*%
+      proposal[seq_len(object$laplaceParameterLayout$fixedCount)])
+    if(conditional){
+      value <- objective$evaluate(proposal, gradient=FALSE)
+      if(!isTRUE(value$valid)){
+        stop("Full-parameter nominal prediction encountered an invalid mode: ",
+          value$reason, ".", call.=FALSE)
+      }
+      eta <- eta + as.numeric(prediction$random %*% value$mode)
+    }
+    eta
+  }
+  jacobian <- matrix(0, rows, length(parameters))
+  if(conditional){
+    for(position in seq_along(parameters)){
+      step <- 1e-5 * max(1, abs(parameters[position]))
+      upper <- lower <- parameters
+      upper[position] <- upper[position] + step
+      lower[position] <- lower[position] - step
+      jacobian[, position] <- (evaluate(upper)-evaluate(lower))/(2*step)
+    }
+  }else{
+    jacobian[, seq_len(object$laplaceParameterLayout$fixedCount)] <-
+      as.matrix(prediction$fixed)
+  }
+  covariance <- jacobian %*% uncertainty$parameterCovariance %*% t(jacobian)
+  if(conditional){
+    factor <- Matrix::Cholesky(Matrix::forceSymmetric(object$laplaceModeHessian),
+      LDL=FALSE)
+    solved <- Matrix::solve(factor, Matrix::t(prediction$random), system="A")
+    covariance <- covariance + as.matrix(prediction$random %*% solved)
+  }
+  covariance <- (covariance + t(covariance))/2
+  variance <- diag(covariance)
+  if(any(!is.finite(covariance)) || any(variance < 0)){
+    stop("Full-parameter nominal prediction covariance is invalid; no standard error was returned.",
+      call.=FALSE)
+  }
+  list(se.fit=sqrt(variance), cov.fit=covariance)
 }
 
 .mmes_laplace_population_uncertainty <- function(object, fixedDesign, offset,

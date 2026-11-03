@@ -326,7 +326,7 @@
 }
 
 .laplace_nominal_prediction_design <- function(object, newdata,
-                                               includeRandom=TRUE){
+                                               includeRandom=TRUE, population=FALSE){
   if(is.null(newdata)){
     return(list(fixed=object$fixedDesign, random=if(includeRandom)
       object$randomDesign else Matrix::Matrix(0,
@@ -377,10 +377,16 @@
       unseenLevels <- setdiff(observedLevels,
         object$randomFactorLevels[[variable]])
       if(length(unseenLevels)){
-        stop("Conditional nominal prediction encountered unseen random-effect level(s) for '",
-          variable, "': ", paste(unseenLevels, collapse=", "),
-          ". Use re.form=NA for a zero-random-effect prediction.",
-          call.=FALSE)
+        if(population){
+          values <- as.character(predictionData[[variable]])
+          values[values %in% unseenLevels] <- object$randomFactorLevels[[variable]][1L]
+          predictionData[[variable]] <- values
+        }else{
+          stop("Conditional nominal prediction encountered unseen random-effect level(s) for '",
+            variable, "': ", paste(unseenLevels, collapse=", "),
+            ". Use re.form=NA for a zero-random-effect prediction.",
+            call.=FALSE)
+        }
       }
       predictionData[[variable]] <- factor(predictionData[[variable]],
         levels=object$randomFactorLevels[[variable]])
@@ -439,13 +445,24 @@
                            PEV=TRUE, VarU=TRUE, observed=FALSE,
                            maxMemoryMB=NULL, ...){
   if(inherits(object, "mmes.glmm.laplace")){
+    if(.laplace_is_categorical_mixed(object)){
+      if(!missing(Dtable) || !missing(D) || !missing(levels) ||
+         !missing(sed) || !missing(pairwise) || !missing(adjust) ||
+         !missing(df) || !missing(observed) || !missing(maxMemoryMB) ||
+         (!missing(PEV) && !identical(PEV, FALSE)) ||
+         (!missing(VarU) && !identical(VarU, FALSE))){
+        stop("Categorical familym() prediction does not support classify aggregation or Gaussian PEV/VarU flags; use post-fit se.fit/cov.fit or postPEV().",
+          call.=FALSE)
+      }
+      return(.laplace_mixed_predict(object, list(...)))
+    }
     if(.laplace_is_nominal(object)){
       if(!missing(Dtable) || !missing(D) || !missing(levels) ||
          !missing(sed) || !missing(pairwise) || !missing(adjust) ||
          !missing(df) || !missing(observed) || !missing(maxMemoryMB) ||
          (!missing(PEV) && !identical(PEV, FALSE)) ||
          (!missing(VarU) && !identical(VarU, FALSE))){
-        stop("Native multinomial predict() supports newdata, type, re.form, se.fit, cov.fit, PEV=FALSE and VarU=FALSE; classify-table aggregation is not supported.",
+        stop("Native multinomial predict() supports newdata, type, re.form, se.fit, cov.fit, uncertainty, PEV=FALSE and VarU=FALSE; classify-table aggregation is not supported.",
           call.=FALSE)
       }
       predictionArgs <- list(...)
@@ -453,8 +470,8 @@
          anyNA(names(predictionArgs)) || any(!nzchar(names(predictionArgs))) ||
          anyDuplicated(names(predictionArgs)) ||
          any(!names(predictionArgs) %in%
-           c("newdata", "type", "re.form", "se.fit", "cov.fit")))){
-        stop("Unsupported multinomial prediction argument; use newdata, type, re.form, se.fit or cov.fit.",
+           c("newdata", "type", "re.form", "se.fit", "cov.fit", "uncertainty")))){
+        stop("Unsupported multinomial prediction argument; use newdata, type, re.form, se.fit, cov.fit or uncertainty.",
           call.=FALSE)
       }
       seFit <- if(is.null(predictionArgs$se.fit)) FALSE else
@@ -469,6 +486,11 @@
       if(covFit && !seFit){
         stop("cov.fit=TRUE requires se.fit=TRUE.", call.=FALSE)
       }
+      uncertaintyMode <- if(is.null(predictionArgs$uncertainty)) "conditional" else
+        match.arg(predictionArgs$uncertainty, c("conditional", "full"))
+      if(uncertaintyMode == "full" && !seFit){
+        stop("uncertainty='full' requires se.fit=TRUE.", call.=FALSE)
+      }
       responseScale <- if(is.null(predictionArgs$type)) "response" else
         match.arg(predictionArgs$type, c("response", "probabilities", "link"))
       if(responseScale == "probabilities") responseScale <- "response"
@@ -480,8 +502,17 @@
           call.=FALSE)
       }
       if(populationMarginal){
-        stop("Native multinomial population-marginal prediction is not yet supported; use re.form=NA for zero random effects or the default conditional prediction.",
-          call.=FALSE)
+        if(seFit || covFit){
+          stop("Native multinomial population-marginal standard errors are not yet supported.",
+            call.=FALSE)
+        }
+        if(responseScale == "link"){
+          stop("Native multinomial population prediction returns category probabilities, not averaged logits.",
+            call.=FALSE)
+        }
+        prediction <- .laplace_nominal_prediction_design(object,
+          predictionArgs$newdata, population=TRUE)
+        return(.laplace_nominal_population_prediction(object, prediction))
       }
       prediction <- .laplace_nominal_prediction_design(object,
         predictionArgs$newdata, includeRandom=is.null(randomForm))
@@ -495,8 +526,10 @@
         .laplace_nominal_probabilities(linearPredictors, object$nominal)
       if(!seFit) return(predicted)
       jointDesign <- Matrix::cbind2(prediction$fixed, prediction$random)
-      uncertainty <- .mmes_laplace_prediction_uncertainty(object,
-        jointDesign, covariance=TRUE)
+      uncertainty <- if(uncertaintyMode == "full")
+        .laplace_nominal_full_prediction_uncertainty(object, prediction) else
+        .mmes_laplace_prediction_uncertainty(object,
+          jointDesign, covariance=TRUE)
       etaCovariance <- uncertainty$cov.fit
       if(responseScale == "link"){
         standardErrors <- matrix(uncertainty$se.fit,

@@ -183,6 +183,14 @@ declared ZIP trait's rows in a mixed-family model. Prediction preserves
 training factor coding and transformed terms and rejects missing covariates
 or unseen factor levels.
 
+Fitted ZIP models include a low-count screening report in
+`fit_zip_formula$laplaceDiagnostics$zip`. It summarizes retained zeros and
+positive counts, zero-design rank, fitted structural-zero probabilities, and
+the estimated split of observed zeros between the structural and Poisson
+components. Low-information and near-boundary flags are heuristic diagnostics,
+not identification tests or inferential guarantees. They use accepted-fit
+values only; standard errors and PEV remain post-fit.
+
 The formula extension has a bounded calibration envelope, not a universal
 identifiability guarantee. In development calibration with 300 datasets per
 scenario, the three moderate-rate settings (rate 2, 60 groups, six records
@@ -272,7 +280,8 @@ other links, or arbitrary user-defined native likelihood support.
 Single-family `ordinal("logit")` and `ordinal("probit")` models use
 `P(Y <= k | u) = F(cutpoint[k] - eta)`: positive coefficients favor higher
 categories. This is experimental cumulative-link support, not an unordered
-multinomial likelihood. PQL and ordinal `familym()` remain unsupported.
+multinomial likelihood. PQL remains unsupported; categorical `familym()`
+support is described below.
 Use an explicitly ordered factor or contiguous numeric category codes
 `1,...,K`; labels and declared factor levels are preserved.
 
@@ -306,6 +315,60 @@ deviance residuals and randomized quantile residuals use category probabilities.
 Population probabilities use exact normal convolution for probit and
 24-node Gaussian quadrature for logit under the existing restricted
 random-covariance eligibility.
+
+## Categorical traits in `familym()`
+
+Native Laplace ML can combine ordinal, nominal and scalar traits in one
+long-format numeric response column. For each categorical trait use codes
+`1,...,K`; returned probability columns carry those labels. Nominal responses
+contribute one joint softmax likelihood per observation, including all
+cross-logit curvature, **not** independent binary likelihoods.
+
+```{r categorical-familym-interface, eval=FALSE}
+fit_mix <- mmes(response ~ trait + trait:x - 1,
+  random = ~ vsm(ism(group), sigma2 = 0.2),
+  data = longdata,
+  family = familym("trait", rating = ordinal(),
+    choice = multinomial(reference = "3"), count = poisson()),
+  control = ctrl)
+fitted(fit_mix)                         # named list: probability matrices/vectors
+predict(fit_mix, newdata = newlongdata, type = "response")
+predict(fit_mix, re.form = NA)           # same list, zero random effects
+predict(fit_mix, se.fit = TRUE, cov.fit = TRUE, uncertainty = "full")
+summary(fit_mix)$thresholds             # trait-labelled cutpoint SE, post-fit only
+postPEV(fit_mix, mode = 1)
+simulate(fit_mix, nsim = 2, seed = 12)   # original numeric codes and row order
+boot_mmes(fit_mix, nsim = 199, seed = 12)
+```
+
+Nominal fixed coefficients are category-specific. Estimated ordinal locations
+are represented by cutpoints rather than aliased fixed intercept columns;
+settings such as `familyParameters=list(rating=list(thresholds=c(-1,1),
+estimate=FALSE))` retain fixed cutpoints and identified formula intercepts.
+
+The random formula is not automatically expanded: `~group` shares its
+existing random coefficient across each nominal comparison. Request separate
+coordinates explicitly with
+`~vsm(ism(.familyCoordinate), ism(group))`, or specify their covariance using
+the existing descriptors. Levels are `trait:location` for scalar/ordinal
+traits and `trait:category` for nominal non-reference categories.
+`.nominalCategory` belongs to single-family nominal models and errors here
+rather than guessing an independent expansion.
+
+Mixed residuals are trait-named, using each family's existing definitions.
+Nominal working/quantile residuals remain undefined. Conditional and full
+post-fit prediction uncertainty return matching `fit`/`se.fit` lists;
+`cov.fit` is the joint covariance in trait/category/within-trait-row order.
+Population probabilities/means use the existing restricted integration
+routes; nominal random slopes/nonidentity relationships, population SE and
+classify aggregation remain explicitly unsupported.
+
+Mixed nominal outer gradients use central differences of the native block
+Laplace likelihood, including mode and determinant dependence.
+Scalar/ordinal-only gradients remain native analytic. Gaussian and PQL routes
+are unchanged. All SE, parameter covariance, prediction uncertainty and PEV
+remain post-fit, subject to `execution$denseMemoryMB`; fitting still requires
+`output$inverse=0`.
 
 No numerical Hessian or PEV is calculated during fitting. Post-fit prediction
 uncertainty propagates the joint cutpoint, fixed-effect and covariance-parameter

@@ -77,6 +77,10 @@ sommer_multinomial_objective_eval <- function(pointer, parameters, maxModeIterat
     .Call(`_sommer_sommer_multinomial_objective_eval`, pointer, parameters, maxModeIterations, tolerance, gradient)
 }
 
+sommer_glmm_path_plan <- function(estimator, maximumLikelihood, ordinal, nominal, mixture, independentResiduals) {
+    .Call(`_sommer_sommer_glmm_path_plan`, estimator, maximumLikelihood, ordinal, nominal, mixture, independentResiduals)
+}
+
 mme_gpu_runtime_status <- function() {
     .Call(`_sommer_mme_gpu_runtime_status`)
 }

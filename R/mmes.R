@@ -238,8 +238,16 @@
   }
   if(!.prepareOnly && !.pqlInner &&
      (!isGaussianIdentity || identical(glmmControl$method, "laplace"))){
-    if(identical(glmmControl$method, "laplace")){
-      return(finishThreads(get(".mmes_laplace", mode="function")(
+    glmmPathPlan <- .mmes_glmm_path_plan(family, glmmControl$method, REML,
+      if(missing(rcov)) NULL else rcov)
+    .mmes_require_glmm_path(glmmPathPlan)
+    finishGLMM <- function(result){
+      result$glmmPathPlan <- glmmPathPlan
+      finishThreads(result, threadScope, verbose)
+    }
+    if(glmmPathPlan$selected %in%
+       c("native-laplace-scalar", "native-laplace-category-block")){
+      return(finishGLMM(get(".mmes_laplace", mode="function")(
         fixed=fixed,
         random=if(missing(random)) NULL else random,
         rcov=if(missing(rcov)) NULL else rcov,
@@ -267,9 +275,9 @@
           verbose=verbose,
           engine=engineControl
         )
-      ), threadScope, verbose))
+      )))
     }
-    return(finishThreads(get(".mmes_pql", mode="function")(
+    return(finishGLMM(get(".mmes_pql", mode="function")(
       fixed=fixed,
       random=if(missing(random)) NULL else random,
       rcov=if(missing(rcov)) NULL else rcov,
@@ -288,7 +296,7 @@
         REML=REML, vcc=vcc, weights=weights,
         engine=engineControl
       )
-    ), threadScope, verbose))
+    )))
   }
   
   desc <- utils::packageDescription("sommer")

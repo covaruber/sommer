@@ -18,6 +18,76 @@ prepareNominalFixture <- function(data=nominalPreparationData(),fixed=y~x,
   sommer:::.laplace_prepare_nominal(fixed,random,data,reference,control,...)
 }
 
+test_that("nominal covariance scores remain stable near a singular US factor", {
+  set.seed(840001L)
+  group <- factor(rep(seq_len(18L), each=4L))
+  x <- rnorm(72)
+  sd <- c(.5,.4)
+  covariance <- diag(sd) %*% matrix(c(1,.25,.25,1),2) %*% diag(sd)
+  effects <- matrix(rnorm(36),18,2) %*% chol(covariance)
+  eta <- cbind(-.45+.65*x+effects[group,1], .25-.4*x+effects[group,2])
+  probability <- cbind(exp(eta),1)
+  probability <- probability/rowSums(probability)
+  codes <- vapply(seq_len(72), function(row)
+    sample.int(3L,1L,prob=probability[row,]), integer(1))
+  data <- data.frame(y=factor(c("low","mid","high")[codes],
+    levels=c("low","mid","high")), x=x, group=group)
+  control <- nominalPreparationControl()
+  control$task$glmm$modeTol <- 1e-8
+  prepared <- prepareNominalFixture(data, reference="high", control=control)
+  objective <- sommer:::.laplace_nominal_objective(prepared)
+  parameters <- c(-.20821,1.4507,.74366,-.3584,-.303240816781058,
+    .91392444092106,-8.18359678323438)
+  value <- objective$evaluate(parameters)
+  expect_true(value$valid, info=value$reason)
+  for(step in c(.003, .001)){
+    plus <- minus <- parameters
+    plus[6] <- plus[6] + step
+    minus[6] <- minus[6] - step
+    a <- objective$evaluate(plus, FALSE)
+    b <- objective$evaluate(minus, FALSE)
+    expect_true(a$valid, info=a$reason)
+    expect_true(b$valid, info=b$reason)
+    expect_lt(abs(value$gradient[6] - (a$logLik-b$logLik)/(2*step)), 1e-5)
+    for(coordinate in c(5L,7L)){
+      plus <- minus <- parameters
+      plus[coordinate] <- plus[coordinate] + step
+      minus[coordinate] <- minus[coordinate] - step
+      a <- objective$evaluate(plus,FALSE)
+      b <- objective$evaluate(minus,FALSE)
+      expect_true(a$valid, info=a$reason)
+      expect_true(b$valid, info=b$reason)
+      expect_lt(abs(value$gradient[coordinate] -
+        (a$logLik-b$logLik)/(2*step)), 1e-4)
+    }
+  }
+  fit <- mmes(y~x, random=~vsm(usm(.nominalCategory),ism(group)),
+    data=data, family=multinomial(reference="high"), control=control)
+  expect_true(fit$convergence)
+  expect_lt(fit$laplaceDiagnostics$scoreMax, 1e-3)
+  expect_false(fit$laplaceDiagnostics$uncertaintyComputed)
+  expect_gt(fit$laplaceDiagnostics$covarianceCondition, 1e5)
+  expect_true(any(grepl("Ill-conditioned", fit$laplaceDiagnostics$issues)))
+})
+
+test_that("nominal diagnostics distinguish convergence, boundaries and saturation", {
+  diagnostics <- sommer:::.laplace_nominal_diagnostics(
+    list(convergence=1L, message="false convergence (8)"), c(.1,-.3),
+    "1:near-singular covariance", rbind(c(.5,.5),c(1,0)))
+  expect_equal(diagnostics$scoreMax, .3)
+  expect_equal(diagnostics$saturatedRows, 1L)
+  expect_match(diagnostics$issues[1], "Optimizer did not converge")
+  expect_match(diagnostics$issues[2], "simpler random covariance")
+  expect_match(diagnostics$issues[3], "not a proof")
+  expect_match(diagnostics$uncertaintyStatus, "optimizer")
+  regular <- sommer:::.laplace_nominal_diagnostics(
+    list(convergence=0L, message="relative convergence"), numeric(),
+    character(), matrix(c(.4,.6),1))
+  expect_length(regular$issues, 0L)
+  expect_equal(regular$scoreMax, 0)
+  expect_match(regular$uncertaintyStatus, "not calculated")
+})
+
 test_that("nominal preparation labels categories and gives each contrast its own fixed coefficients", {
   data <- nominalPreparationData()
   original <- data

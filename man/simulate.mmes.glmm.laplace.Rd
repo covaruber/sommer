@@ -33,6 +33,9 @@ For single-family \code{\link{ordinal}} fits each column is an ordered factor
 preserving all declared category labels and levels.
 For single-family \code{\link{multinomial}} fits each column is an unordered
 factor preserving the original category labels and level order.
+Categorical \code{\link{familym}} returns a numeric data frame in original
+retained long-format row order: categorical entries use their original
+\code{1,...,K} codes, not the internal nominal reference order.
 }
 \details{
 Binomial, Poisson, NB2, Gaussian and Gamma draws use the fitted family

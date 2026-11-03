@@ -76,6 +76,160 @@ multinomial <- function(reference=NULL){
   probability
 }
 
+.laplace_nominal_deviance <- function(linearPredictors, nominal, response){
+  if(!is.matrix(linearPredictors) ||
+     ncol(linearPredictors) != length(nominal$predictorLevels) ||
+     any(!is.finite(linearPredictors)) ||
+     length(response) != nrow(linearPredictors) || anyNA(response) ||
+     any(!response %in% seq_along(nominal$nativeLevels))){
+    stop("Nominal deviance requires finite logits and one valid category per observation.",
+      call.=FALSE)
+  }
+  logits <- cbind(linearPredictors, 0)
+  shift <- apply(logits, 1L, max)
+  centered <- logits - shift
+  contribution <- 2 * (log(rowSums(exp(centered))) -
+    centered[cbind(seq_along(response), response)])
+  if(any(!is.finite(contribution)) || any(contribution < 0)){
+    stop("Nominal deviance contributions exceed the finite non-negative numerical range.",
+      call.=FALSE)
+  }
+  names(contribution) <- rownames(linearPredictors)
+  contribution
+}
+
+.laplace_nominal_residuals <- function(object, type){
+  if(!type %in% c("response", "pearson", "deviance")){
+    stop("Nominal Laplace residuals support response, pearson and unsigned deviance; working and quantile residuals are unsupported for unordered categories.",
+      call.=FALSE)
+  }
+  if(type == "deviance"){
+    response <- match(as.character(object$y), object$nominal$nativeLevels)
+    return(sqrt(.laplace_nominal_deviance(object$linear.predictors,
+      object$nominal, response)))
+  }
+  observed <- stats::model.matrix(~object$y - 1L)
+  colnames(observed) <- levels(object$y)
+  residual <- observed - object$category.probabilities
+  if(type == "response") return(residual)
+  probability <- object$category.probabilities
+  if(any(!is.finite(probability)) || any(probability <= 0 | probability >= 1)){
+    stop("Nominal Pearson residuals are undefined for numerically zero or one category probabilities.",
+      call.=FALSE)
+  }
+  residual / sqrt(probability * (1 - probability))
+}
+
+.laplace_nominal_population_prediction <- function(object, prediction){
+  d <- length(object$nominal$predictorLevels)
+  n <- prediction$n
+  if(d > 3L){
+    stop("Nominal population prediction supports at most three non-reference logits.",
+      call.=FALSE)
+  }
+  variables <- setdiff(all.vars(object$randomFormula), ".nominalCategory")
+  if(any(!variables %in% names(object$randomFactorLevels))){
+    stop("Nominal population prediction requires factor-valued random intercepts; random slopes are unsupported.",
+      call.=FALSE)
+  }
+  covariance <- matrix(0, d, d)
+  start <- 0L
+  for(term in seq_along(object$covStruct)){
+    relationship <- object$randomRelationships[[term]]
+    if(!Matrix::isDiagonal(relationship) ||
+       any(abs(Matrix::diag(relationship)-1) > 1e-10)){
+      stop("Nominal population prediction requires identity relationship precision.",
+        call.=FALSE)
+    }
+    structure <- object$covStruct[[term]]
+    width <- object$randomBlockWidths[term]
+    groupCount <- nrow(relationship)
+    coordinates <- structure$dim
+    if(width != coordinates*groupCount){
+      stop("Nominal population prediction supports shared or category-specific random intercepts only.",
+        call.=FALSE)
+    }
+    block <- prediction$random[, start+seq_len(width), drop=FALSE]
+    if(8 * (3 * as.double(coordinates)^2 + d * as.double(coordinates)) >
+       object$laplacePostPEVSettings$denseMemoryMB * 1048576){
+      stop("Nominal population coordinate covariance exceeds execution$denseMemoryMB.",
+        call.=FALSE)
+    }
+    loadings <- matrix(0,d,coordinates)
+    groupAssignments <- NULL
+    for(category in seq_len(d)){
+      rows <- (category-1L)*n+seq_len(n)
+      for(coordinate in seq_len(coordinates)){
+        columns <- (coordinate-1L)*groupCount+seq_len(groupCount)
+        component <- block[rows,columns,drop=FALSE]
+        entries <- Matrix::summary(component)
+        totals <- as.numeric(Matrix::rowSums(component))
+        if(any(entries$x != 1) || any(!totals %in% c(0,1)) ||
+           any(totals != totals[1L])){
+          stop("Nominal population prediction requires constant unit random-intercept loadings across prediction rows.",
+            call.=FALSE)
+        }
+        loadings[category,coordinate] <- totals[1L]
+        if(totals[1L] == 1){
+          assignments <- entries$j[order(entries$i)]
+          if(!is.null(groupAssignments) &&
+             !identical(assignments,groupAssignments)){
+            stop("Nominal population prediction requires the same independent group across category coordinates.",
+              call.=FALSE)
+          }
+          groupAssignments <- assignments
+        }
+      }
+    }
+    sigma <- evaluate_covstruct_cpp(structure,structure$par)
+    covariance <- covariance + loadings %*% sigma %*% t(loadings)
+    start <- start+width
+  }
+  decomposition <- eigen(covariance,symmetric=TRUE)
+  if(any(!is.finite(decomposition$values)) || any(decomposition$values < -1e-12)){
+    stop("Nominal population logit covariance is invalid.",call.=FALSE)
+  }
+  active <- which(decomposition$values > .Machine$double.eps *
+    max(1,max(decomposition$values)))
+  rank <- length(active)
+  bytes <- 8*(12*32^rank*max(1,rank) + 12*as.double(n)*(d+1))
+  if(!is.finite(bytes) ||
+     bytes > object$laplacePostPEVSettings$denseMemoryMB*1048576){
+    stop("Nominal population integration exceeds execution$denseMemoryMB.",
+      call.=FALSE)
+  }
+  eta <- matrix(as.numeric(prediction$fixed %*% object$b)+prediction$offset,
+    nrow=n,ncol=d)
+  if(!length(active)){
+    result <- .laplace_nominal_probabilities(eta,object$nominal)
+  }else{
+    root <- decomposition$vectors[,active,drop=FALSE] %*%
+      diag(sqrt(decomposition$values[active]),nrow=rank)
+    integrate <- function(order){
+      rule <- .laplace_normal_quadrature(order)
+      grid <- as.matrix(expand.grid(rep(list(seq_len(order)),rank)))
+      weights <- apply(grid,1L,function(index) prod(rule$weights[index]))
+      shifts <- matrix(rule$nodes[grid],nrow=nrow(grid)) %*% t(root)
+      result <- matrix(0,n,d+1L)
+      for(row in seq_len(nrow(grid))){
+        probability <- .laplace_nominal_probabilities(
+          sweep(eta,2L,shifts[row,],"+"),object$nominal)
+        result <- result+weights[row]*probability
+      }
+      result
+    }
+    coarse <- integrate(24L)
+    result <- integrate(32L)
+    error <- max(abs(result-coarse))
+    if(!is.finite(error) || error > 1e-6){
+      stop("Nominal population quadrature did not meet the 1e-6 absolute probability accuracy check; use a different integration method.",
+        call.=FALSE)
+    }
+  }
+  dimnames(result) <- list(prediction$rowNames,object$nominal$levels)
+  result
+}
+
 .laplace_nominal_control <- function(control){
   if(!inherits(control, "sommer_mmes_control")){
     stop("Nominal preparation requires a control created by mmes_control().",
@@ -293,6 +447,39 @@ multinomial <- function(reference=NULL){
     })
 }
 
+.laplace_nominal_diagnostics <- function(optimizer, gradient, boundaries, probability,
+    structures=list()){
+  scoreMax <- if(length(gradient)) max(abs(gradient)) else 0
+  saturated <- sum(apply(probability, 1L, max) >= 1-sqrt(.Machine$double.eps))
+  issues <- character()
+  if(optimizer$convergence != 0L){
+    issues <- c(issues, paste0("Optimizer did not converge (", optimizer$message,
+      "); inspect scoreMax and covariance boundaries before using inference."))
+  }
+  if(length(boundaries)){
+    issues <- c(issues, paste0("Covariance boundary: ", paste(boundaries, collapse=", "),
+      ". Standard errors and PEV are unavailable; consider a simpler random covariance model."))
+  }
+  if(saturated){
+    issues <- c(issues, paste0(saturated,
+      " near-deterministic fitted rows; possible separation or weak identification, not a proof of separation."))
+  }
+  covarianceCondition <- vapply(structures, function(structure){
+    values <- eigen(evaluate_covstruct_cpp(structure, structure$par),
+      symmetric=TRUE, only.values=TRUE)$values
+    max(values)/min(values)
+  }, numeric(1))
+  if(any(covarianceCondition > 1/.Machine$double.eps^(1/3))){
+    issues <- c(issues, "Ill-conditioned random covariance; inference may be sensitive even if the optimizer converged. Consider a simpler covariance model.")
+  }
+  list(optimizerCode=optimizer$convergence, optimizerMessage=optimizer$message,
+    scoreMax=scoreMax, saturatedRows=saturated, issues=issues,
+    covarianceCondition=covarianceCondition,
+    uncertaintyStatus=if(optimizer$convergence != 0L) "unavailable: optimizer did not converge"
+      else if(length(boundaries)) "unavailable: covariance boundary"
+      else "not calculated; use vcov(), summary() or postPEV()")
+}
+
 .mmes_laplace_nominal <- function(fixed, random, rcov, data, family, W, weights, vcc,
       REML, maxit, modeMaxit, modeTol, naMethodY, henderson, solveOnly,
       computeCi, mmesArgs){
@@ -464,9 +651,8 @@ multinomial <- function(reference=NULL){
       offset=prepared$offset,
       AIC=-2*final$logLik+2*length(optimization$par),
       BIC=-2*final$logLik+log(length(prepared$nominal$response))*length(optimization$par),
-      llik=as.numeric(final$logLik), deviance=-2*sum(log(
-        pmax(nativeProbability[cbind(seq_along(prepared$nominal$response),
-          prepared$nominal$response)],.Machine$double.xmin))),
+      llik=as.numeric(final$logLik), deviance=sum(.laplace_nominal_deviance(
+        linearPredictors, prepared$nominal, prepared$nominal$response)),
       laplaceFamilies=list(fittedFamily), laplaceFamilyIndex=rep(1L,
         length(prepared$nominal$response)), familySpecifications=list(descriptor),
       familyParameters=NULL, zeroCoefficients=NULL, priorWeights=rep(1,
@@ -513,6 +699,9 @@ multinomial <- function(reference=NULL){
         denseMemoryMB=mmesArgs$engine$denseMemoryMB, modeMaxit=modeMaxit,
         modeTol=modeTol))
     result$laplaceDiagnostics$boundaryParameters <- unique(boundaries)
+    result$laplaceDiagnostics <- c(result$laplaceDiagnostics,
+      .laplace_nominal_diagnostics(optimization, final$gradient, unique(boundaries),
+        originalProbability, fittedStructures))
     result$nominal$specification <- descriptor
     result$nominal$counts <- stats::setNames(prepared$nominal$counts,
       prepared$nominal$nativeLevels)

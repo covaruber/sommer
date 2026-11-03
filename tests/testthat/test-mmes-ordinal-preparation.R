@@ -141,7 +141,7 @@ test_that("ordinal categories cannot be silently reordered or collapsed", {
   data$y <- as.integer(data$y)
   expect_error(prepareOrdinalFixture(data), "retained observations in every declared category")
   expect_error(prepareOrdinalFixture(family=familym("trait", score=ordinal())),
-    "ordinal familym")
+    "plain numeric category codes")
 })
 
 test_that("ordinal preparation respects environments, transformations and contrasts", {

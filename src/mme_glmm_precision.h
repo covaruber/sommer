@@ -73,6 +73,55 @@ class LaplacePrecision {
   std::vector<bool> ready;
   std::vector<bool> derivativesReady;
   bool matrixReady = false;
+  bool stableUnstructured;
+
+  void stabilizeUnstructured(FactorPrecisionState & state, bool derivatives){
+    if(!stableUnstructured) return;
+    for(std::size_t axis = 0; axis < state.factorDescriptor.size(); ++axis){
+      const Rcpp::List factor = state.factorDescriptor[axis];
+      const Rcpp::List evaluator = factor["evaluator"];
+      if(Rcpp::as<std::string>(evaluator["backend"]) != "native" ||
+         !evaluator.containsElementNamed("op") ||
+         Rcpp::as<std::string>(evaluator["op"]) != "us") continue;
+      const arma::vec & parameters = state.factorPar[axis];
+      const Rcpp::IntegerVector rows = factor["us_row"], columns = factor["us_col"];
+      const Rcpp::LogicalVector diagonal = factor["us_diag"];
+      const arma::uword dimension = Rcpp::as<int>(factor["dim"]);
+      arma::mat lower(dimension, dimension, arma::fill::zeros);
+      lower(0, 0) = 1.0;
+      double logDet = 0.0;
+      for(arma::uword k = 0; k < parameters.n_elem; ++k){
+        lower(rows[k] - 1, columns[k] - 1) =
+          diagonal[k] ? std::exp(parameters(k)) : parameters(k);
+        if(diagonal[k]) logDet += 2.0 * parameters(k);
+      }
+      arma::mat inverse;
+      if(!arma::solve(inverse, arma::trimatl(lower),
+          arma::eye<arma::mat>(dimension, dimension), arma::solve_opts::no_approx)){
+        Rcpp::stop("Multinomial unstructured covariance triangular solve failed.");
+      }
+      // Differentiate the triangular inverse, not -P dSigma P near singularity.
+      const double multiplicity = static_cast<double>(state.totalDim) / dimension;
+      if(!derivatives){
+        state.factorPrecision[axis] = inverse.t() * inverse;
+        state.sparseFactorPrecision[axis].reset();
+        state.logDet += multiplicity * (logDet - state.factorLogDet[axis]);
+        state.factorLogDet[axis] = logDet;
+      }else{
+        for(arma::uword k = 0; k < parameters.n_elem; ++k){
+          arma::mat change(dimension, dimension, arma::fill::zeros);
+          change(rows[k] - 1, columns[k] - 1) =
+            diagonal[k] ? lower(rows[k] - 1, columns[k] - 1) : 1.0;
+          const arma::mat inverseChange = -inverse * change * inverse;
+          const std::size_t global = state.factorStart1[axis] - 1 + k;
+          state.localPrecisionD1[global] =
+            inverseChange.t() * inverse + inverse.t() * inverseChange;
+          state.sparseLocalPrecisionD1[global].reset();
+          state.logDetD1[global] = diagonal[k] ? 2.0 * multiplicity : 0.0;
+        }
+      }
+    }
+  }
 
   arma::sp_mat descriptorMatrix(const FactorPrecisionState & state,
       const int derivativeIndex = -1){
@@ -118,8 +167,8 @@ public:
   }
 
   LaplacePrecision(const Rcpp::List & suppliedDescriptors,
-      const Rcpp::List & suppliedRelationships)
-      : descriptors(Rcpp::clone(suppliedDescriptors)){
+      const Rcpp::List & suppliedRelationships, bool stableUS = false)
+      : descriptors(Rcpp::clone(suppliedDescriptors)), stableUnstructured(stableUS){
     if(descriptors.size() == 0 || descriptors.size() != suppliedRelationships.size()){
       Rcpp::stop("Native Laplace descriptors and relationships must have matching terms.");
     }
@@ -205,6 +254,7 @@ public:
           reason = "non-positive-definite covariance";
           return false;
         }
+        stabilizeUnstructured(states[termIndex], false);
         cachedBlocks[termIndex] = arma::kron(
           descriptorMatrix(states[termIndex]), relationships[termIndex]);
         if(!cachedBlocks[termIndex].is_finite()){
@@ -255,6 +305,7 @@ public:
       if(Rcpp::is_true(Rcpp::any(freeFlags)) && !derivativesReady[termIndex]){
         engine.buildDescriptorPrecisionDerivatives(descriptor,
           cachedParameters[termIndex], states[termIndex]);
+        stabilizeUnstructured(states[termIndex], true);
         derivativesReady[termIndex] = true;
       }
       for(int parameterIndex = 0; parameterIndex < freeFlags.size(); ++parameterIndex){

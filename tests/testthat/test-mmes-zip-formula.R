@@ -39,8 +39,11 @@ test_that("ZIP zero formula validation is bounded and backward compatible", {
 
 test_that("native zero-design scores differentiate the full Laplace objective", {
   data <- zipFormulaData(groups=4L, perGroup=5L)
-  fit <- mmes(y~x, random=~group, data=data, family=zipoisson(zero=~z),
-    control=zipFormulaControl())
+  expect_warning(
+    fit <- mmes(y~x, random=~group, data=data, family=zipoisson(zero=~z),
+      control=zipFormulaControl()),
+    "low-information screening heuristic"
+  )
   context <- sommer:::sommer_laplace_objective_create(
     fit$fixedDesign, fit$randomDesign, fit$laplaceNativeResponse,
     fit$offset, "", fit$covStruct, fit$randomRelationships,
@@ -111,6 +114,13 @@ test_that("formula ZIP wires fitted means, inference, prediction and diagnostics
   fit <- mmes(y~x, random=~group, data=data, family=zipoisson(zero=~z),
     control=zipFormulaControl())
   expect_true(fit$convergence)
+  zipDiagnostics <- fit$laplaceDiagnostics$zip
+  expect_length(zipDiagnostics$families, 1L)
+  expect_equal(zipDiagnostics$families$response$observations, nrow(data))
+  expect_equal(zipDiagnostics$families$response$positiveCounts, sum(data$y > 0))
+  expect_equal(zipDiagnostics$families$response$zeroDesignRank, 2L)
+  expect_false(zipDiagnostics$families$response$weakInformation)
+  expect_match(zipDiagnostics$uncertainty, "post-fit")
   expect_false(fit$laplaceDiagnostics$uncertaintyComputed)
   expect_null(fit$fixedCovariance)
   expect_null(fit$Ci)
@@ -171,6 +181,31 @@ test_that("formula ZIP wires fitted means, inference, prediction and diagnostics
     re.form="population", se.fit=TRUE)$se.fit)))
   pev <- postPEV(fit, mode=1)
   expect_true(all(is.finite(unlist(pev$uPevList))))
+  expect_equal(summary$laplaceDiagnostics$zip$status,
+    fit$laplaceDiagnostics$zip$status)
+})
+
+test_that("ZIP screening distinguishes low information and mixture boundaries", {
+  data <- zipFormulaData(groups=12L, perGroup=4L)
+  fit <- mmes(y~x, random=~group, data=data, family=zipoisson(zero=~z),
+    control=zipFormulaControl())
+  unchanged <- fit$familySpecifications
+  lowInformation <- fit
+  lowInformation$y[] <- 0
+  lowInformation$linear.predictors[] <- log(0.5)
+  lowInformation$familySpecifications[[1L]]$zeroCoefficients[] <- c(25, 0)
+  diagnostics <- sommer:::.mmes_laplace_zip_diagnostics(lowInformation)
+  familyDiagnostics <- diagnostics$families$response
+  expect_equal(familyDiagnostics$positiveCounts, 0L)
+  expect_true(familyDiagnostics$weakInformation)
+  expect_true(familyDiagnostics$nearBoundary)
+  expect_equal(diagnostics$status, "mixture-boundary-or-near-boundary")
+  expect_true(any(grepl("low-information screening heuristic",
+    diagnostics$issues, fixed=TRUE)))
+  expect_true(any(grepl("numerically near a boundary",
+    diagnostics$issues, fixed=TRUE)))
+  expect_identical(fit$familySpecifications, unchanged)
+  expect_match(diagnostics$uncertainty, "not computed")
 })
 
 test_that("zero-only missing covariates use the fixed missing-data policy", {
@@ -218,6 +253,9 @@ test_that("mixed traits restrict zero-only covariates to their ZIP rows", {
     control=zipFormulaControl())
   expect_equal(fit$nobs, nrow(long))
   expect_equal(fit$zeroCoefficients$trait, rep("count", 2))
+  expect_equal(length(fit$laplaceDiagnostics$zip$families), 1L)
+  expect_equal(fit$laplaceDiagnostics$zip$families$count$observations,
+    nrow(data))
   expect_equal(predict(fit, newdata=long[c(2, nrow(data)+2), ],
     type="response"), fit$fitted.values[c(2, nrow(data)+2)], tolerance=1e-8)
   expect_true(all(is.finite(residuals(fit, type="pearson"))))

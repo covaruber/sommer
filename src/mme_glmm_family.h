@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include "mme_glmm_multinomial.h"
 
 namespace sommer {
 
@@ -184,6 +185,7 @@ struct GLMMFamilySpec {
   arma::vec zeroCoefficients;
   arma::vec zeroOffset;
   arma::vec thresholds;
+  arma::umat nominalGroups;
 };
 
 struct GLMMFamilyEvaluation {
@@ -197,6 +199,7 @@ struct GLMMFamilyEvaluation {
   arma::vec parameterScore;
   arma::vec scoreParameter;
   arma::vec curvatureParameter;
+  arma::sp_mat blockCurvature;
 };
 
 class GLMMFamilyModel {
@@ -222,6 +225,12 @@ public:
         if(specification.containsElementNamed("thresholds"))
           specifications.back().thresholds =
             Rcpp::as<arma::vec>(specification["thresholds"]);
+        if(specification.containsElementNamed("nominalGroups")){
+          specifications.back().nominalGroups =
+            Rcpp::as<arma::umat>(specification["nominalGroups"]);
+          if(specifications.back().nominalGroups.n_elem)
+            specifications.back().nominalGroups -= 1;
+        }
         if(specification.containsElementNamed("zeroDesign")){
           auto & stored = specifications.back();
           stored.zeroDesign = Rcpp::as<arma::mat>(specification["zeroDesign"]);
@@ -248,7 +257,11 @@ public:
       const bool gaussian = specification.family == "gaussian" && specification.link == "identity";
       const bool ordinal = specification.family == "ordinal" &&
         (specification.link == "logit" || specification.link == "probit");
-      if(!binomial && !logLinked && !gaussian && !ordinal)
+      const bool nominal = specification.family == "multinomial" &&
+        specification.link == "softmax" && !specification.free &&
+        specification.nominalGroups.n_rows > 0 &&
+        specification.nominalGroups.n_cols > 0;
+      if(!binomial && !logLinked && !gaussian && !ordinal && !nominal)
         Rcpp::stop("Unsupported native Laplace family/link combination.");
       if(ordinal && (specification.thresholds.n_elem == 0 ||
          !specification.thresholds.is_finite() ||
@@ -269,6 +282,16 @@ public:
        (observations && index.max() >= specifications.size()))
       Rcpp::stop("Native family indices and trials have incompatible or invalid values.");
     for(std::size_t familyPosition = 0; familyPosition < specifications.size(); ++familyPosition){
+      const auto & groups = specifications[familyPosition].nominalGroups;
+      if(groups.n_elem){
+        arma::uvec covered(observations, arma::fill::zeros);
+        for(const auto row : groups){
+          if(row >= observations || index(row) != familyPosition || covered(row)++)
+            Rcpp::stop("Native nominal groups must partition their declared predictor rows.");
+        }
+        if(arma::any(covered.elem(arma::find(index == familyPosition)) != 1))
+          Rcpp::stop("Native nominal groups must cover every nominal predictor row.");
+      }
       if(specifications[familyPosition].free &&
          !arma::any(index == familyPosition))
         Rcpp::stop("Estimated family parameters require observations of that family.");
@@ -335,9 +358,20 @@ public:
          (outcome < 1 || outcome > specification.thresholds.n_elem + 1 ||
           outcome != std::floor(outcome)))
         Rcpp::stop("Native ordinal responses must be integer category codes between 1 and the number of thresholds plus one.");
+      if(specification.family == "multinomial" &&
+         (outcome < 1 || outcome > specification.nominalGroups.n_cols + 1 ||
+          outcome != std::floor(outcome)))
+        Rcpp::stop("Native nominal responses must be integer category codes.");
       if(specification.family != "binomial" && trials(recordPosition) != 1)
         Rcpp::stop("Trials are only supported for binomial observations.");
     }
+    for(const auto & specification : specifications)
+      for(arma::uword observation = 0; observation < specification.nominalGroups.n_rows; ++observation){
+        const auto rows = specification.nominalGroups.row(observation);
+        for(const auto row : rows)
+          if(response(row) != response(rows(0)))
+            Rcpp::stop("Native nominal category rows must describe the same response.");
+      }
   }
 
   GLMMFamilyEvaluation evaluate(const arma::vec & response, const arma::vec & predictor,
@@ -356,6 +390,13 @@ public:
       const double linearValue = predictor(recordPosition);
       const double outcome = response(recordPosition);
       const auto & specification = specifications[index(recordPosition)];
+      if(specification.family == "multinomial"){
+        result.mean(recordPosition) = result.score(recordPosition) = 0.0;
+        result.curvature(recordPosition) = result.curvatureD1(recordPosition) =
+          result.curvatureD2(recordPosition) = 0.0;
+        if(retainLogDensityRows) result.logDensityRows(recordPosition) = 0.0;
+        continue;
+      }
       if(!std::isfinite(linearValue)){
         result.logDensity = -INFINITY;
         return result;
@@ -498,7 +539,44 @@ public:
       result.scoreParameter(recordPosition) = density.coefficient[1][1];
       result.curvatureParameter(recordPosition) = -2.0 * density.coefficient[2][1];
     }
+    bool nominal = false;
+    for(const auto & specification : specifications)
+      nominal = nominal || specification.nominalGroups.n_elem > 0;
+    if(nominal){
+      result.blockCurvature = arma::sp_mat(arma::diagmat(result.curvature));
+      for(const auto & specification : specifications){
+        const auto & groups = specification.nominalGroups;
+        for(arma::uword observation = 0; observation < groups.n_rows; ++observation){
+          const arma::uvec rows = groups.row(observation).t();
+          const arma::vec logits = predictor.elem(rows);
+          if(!logits.is_finite()){ result.logDensity = -INFINITY; return result; }
+          const arma::uword outcome = static_cast<arma::uword>(response(rows(0))) - 1;
+          const auto block = multinomialEvaluation(logits, outcome,
+            arma::vec(rows.n_elem, arma::fill::zeros), 0);
+          result.logDensity += block.logDensity;
+          if(retainLogDensityRows) result.logDensityRows(rows(0)) = block.logDensity;
+          for(arma::uword j = 0; j < rows.n_elem; ++j){
+            result.mean(rows(j)) = block.probability(j);
+            result.score(rows(j)) = block.score(j);
+            result.curvature(rows(j)) = block.curvature(j, j);
+            for(arma::uword k = 0; k < rows.n_elem; ++k)
+              result.blockCurvature(rows(j), rows(k)) = block.curvature(j, k);
+          }
+        }
+      }
+    }
     return result;
+  }
+
+  arma::sp_mat observationCurvature(const GLMMFamilyEvaluation & evaluation) const {
+    return evaluation.blockCurvature.n_rows ? evaluation.blockCurvature :
+      arma::sp_mat(arma::diagmat(evaluation.curvature));
+  }
+
+  bool hasNominal() const {
+    for(const auto & specification : specifications)
+      if(specification.family == "multinomial") return true;
+    return false;
   }
 };
 

@@ -3,9 +3,11 @@
 \title{Ordered categorical family specification}
 \description{
 Creates a cumulative-logit or cumulative-probit ordered-response family for
-single-family native Laplace models fitted with \code{\link{mmes}}.
+native Laplace models fitted with \code{\link{mmes}}, including categorical
+\code{\link{familym}} compositions.
 This experimental implementation requires maximum likelihood and the
-Henderson formulation; it is not supported by PQL or \code{familym()}.
+Henderson formulation; it is not supported by PQL. Mixed-family responses
+use numeric category codes; see \code{\link{familym}}.
 }
 \usage{
 ordinal(link = "logit", thresholds = NULL)

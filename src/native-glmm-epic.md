@@ -1251,18 +1251,80 @@ for one scalar family extension.
      `summary()`, `vcov()`, `postPEV()`, response/Pearson residuals, nested
      fixed-effect comparisons, factor-preserving conditional/population
      simulation, and nominal-specific parametric bootstrap refits are
-     connected. Population-marginal prediction and deviance/working/quantile
-     residuals remain unsupported and are rejected explicitly rather than
-     routed through scalar-family code.
+     connected. Bounded population-marginal prediction is added below;
+     unsigned deviance residuals are added below. Working/quantile residuals
+     remain unsupported and are rejected rather than routed through scalar code.
      Installation and focused nominal/multinomial/ordinal plus scalar-Laplace,
      bootstrap, PQL and prediction regressions pass; the established
      structured-covariance false-convergence warning remains. No package
      dependency or Gaussian/scalar fitting route changed. This does not
      qualify nominal statistical coverage.
 
+Nominal numerical-hardening update:
+- Post-fit nominal `residuals(type="deviance")` returns unsigned magnitudes
+  `sqrt(-2 log p_observed)` from stable conditional logits. Categories have
+  no natural sign or cumulative ordering. Squared residuals sum to conditional
+  response deviance, not marginal Laplace likelihood deviance. Existing
+  labelled response/Pearson matrices are unchanged; working/quantile residuals
+  remain unsupported. Tail, label, reference/order-invariance and immutability
+  regressions validate implementation, not calibrated diagnostic thresholds.
+- Bounded `predict(re.form="population")` averages category probabilities over
+  fitted shared/correlated category-specific unit random intercepts. It allows
+  at most four categories, independent terms with identity relationship
+  precision, and new group levels when the fixed design remains valid.
+  Active coordinates must use the same independent group and constant unit
+  loadings across prediction rows. Slopes and nonidentity relationships are
+  rejected. Tensor normal quadrature uses the nonzero covariance eigenspace;
+  24/32-point rules must agree within `1e-6` absolute probability, and estimated
+  workspace respects `execution$denseMemoryMB`. This is a consistency check,
+  not a guaranteed error bound or statistical calibration. Population SEs,
+  covariance output and averaged logits remain explicitly unsupported.
+  Independent one-/two-dimensional integration references validate means;
+  no simulation campaign, dependencies or fitting-time uncertainty is added.
+- Opt-in nominal `predict(se.fit=TRUE, uncertainty="full")` propagates the
+  full marginal parameter covariance through conditional mode movement and
+  adds random-mode posterior covariance. Zero-random predictions use marginal
+  fixed-effect covariance; probabilities use the softmax delta method.
+  The default `uncertainty="conditional"` is unchanged. All calculations
+  remain post-fit and guarded; deterministic derivative/covariance checks
+  establish implementation consistency, not interval coverage.
+- A deterministic seed-840001 regression exposed cancellation in the
+  unstructured covariance precision and log-determinant derivatives near
+  singularity. Nominal-only triangular-factor precision/derivative evaluation
+  replaces covariance-inverse sandwich differentiation; the covariance score
+  agrees with finite differences and this dataset now converges.
+- Nominal diagnostics distinguish optimizer code/message and maximum score,
+  covariance boundaries and conditioning, near-deterministic rows (possible,
+  not proven, separation), and deferred/unavailable uncertainty. Summary
+  messages suggest inspection or a simpler covariance model. The conditioning
+  advisory is not a new convergence or uncertainty gate.
+- These deterministic checks do not establish interval coverage. No large
+  calibration rerun, dependencies, fitting-time Hessian/PEV, or Gaussian/scalar
+  fitting changes are included.
+
+Frozen-source qualification update (2026-10-31):
+- Built the complete sommer 4.5.14 source package, including vignettes, and
+  ran `R CMD check --no-manual --as-cran` on Linux / R 4.2.2.
+  Result: zero errors, zero warnings, four notes. Notes concern CRAN incoming
+  metadata/external URL checks, installed size, external time verification,
+  and the local toolchain's `-march=x86-64` flag.
+- The complete package suite passed 10,933 assertions with zero failures,
+  one established scalar-Laplace convergence warning, and 17 expected skips.
+  Required source-tree native selectors and additional dense-spline,
+  README and CRAN-skipped Wald regressions passed separately. CUDA remained
+  untested because no GPU was available.
+- Nominal preparation/residual tests also passed with optional BLAS-controller
+  discovery disabled. No R dependencies were added. Missing `qpdf` and
+  `checkbashisms` check tools were supplied in an isolated local directory.
+- Frozen archive SHA-256:
+  `d0fa785898eac23fe64507952c2b6720728e9f37fe948e6c024b83329171f3f4`.
+  This qualifies the tested local snapshot, not the remote GitHub matrix.
+  Windows/macOS, current release/oldrel/devel R, and scientific calibration
+  remain release gates.
+
 The next deliverable is nominal statistical calibration and broader
-simulation-diagnostic studies, followed by full frozen-snapshot package
-qualification. Keep the current explicit boundary guards, post-fit
+simulation-diagnostic studies, plus remote CI qualification of the final
+release commit. Keep the current explicit boundary guards, post-fit
 uncertainty contract, and restricted population-marginal covariance support.
 
 For the bounded ZIP formula slice, the next statistical priority is low-count
@@ -1271,3 +1333,23 @@ low-rate gates failed. Do not extend the zero component's model class first.
 
 The release gate remains a stable, scientifically checked native likelihood
 with explicit limitations, not just a successful optimizer return code.
+
+### Categorical familym integration (2026-11-03)
+
+Implemented native Laplace ML compositions with scalar, ordinal and nominal
+traits. Mixed preparation retains original observations and explicit
+shared/trait/category random semantics, admitting `.familyCoordinate`
+covariance terms without silently expanding independent effects. Nominal
+observations use the existing softmax kernel and full off-diagonal curvature
+inside the shared sparse mode solve. Scalar/ordinal scores remain analytic;
+mixed nominal outer scores centrally difference the complete native Laplace
+objective, including conditional-mode and determinant dependence.
+
+Trait-named fitted/predicted probability/vector outputs, conditional/full
+post-fit prediction covariance, simulation, family-aware residuals,
+summary/vcov, postPEV, nested comparisons and bootstrap refits are connected.
+Existing ML-only, residual-independence, memory and deferred-uncertainty
+contracts remain in force; unsupported nominal quantile/working residuals,
+population SE and classify aggregation fail explicitly. Focused implementation
+tests are not broad recovery/coverage or release qualification. Candidate
+family extension workstream 3 remains unimplemented.

@@ -123,6 +123,11 @@ if(!inherits(object, "mmes.glmm.laplace")){
                        uncertaintyComputed=TRUE)),
                  pqlConverged=object$pqlConverged,
                  fitMethod=if(inherits(object, "mmes.glmm.laplace")) "Laplace" else NULL)
+  if(.laplace_is_nominal(object) && !is.null(laplaceUncertainty)){
+    output$laplaceDiagnostics$uncertaintyStatus <- if(laplaceUncertainty$valid)
+      "fixed-effect curvature available; default prediction SEs condition on covariance parameters; use uncertainty='full' for parameter propagation"
+      else paste0("unavailable: ", laplaceUncertainty$reason)
+  }
   if(identical(object$covarianceInformation, "none")){
     output$covarianceInformation <- "none"
   }
@@ -159,6 +164,13 @@ if(!inherits(object, "mmes.glmm.laplace")){
   cat(paste(rlh," sommer 4.4 ",rlh, "\n", collapse = ""))
   cat(paste(rep("=",nmaxchar), collapse = ""))
   cat("\n")
+  if(length(x$laplaceDiagnostics$issues)){
+    cat("Fit diagnostics:\n", paste0(" - ", x$laplaceDiagnostics$issues,
+      collapse="\n"), "\n", sep="")
+  }
+  if(!is.null(x$laplaceDiagnostics$uncertaintyStatus)){
+    cat("Uncertainty: ", x$laplaceDiagnostics$uncertaintyStatus, "\n", sep="")
+  }
   cat("")
   print(x$logo)#, digits = digits)
   cat(paste(rep("=",nmaxchar), collapse = ""))
@@ -345,6 +357,10 @@ vcov.mmes.glmm.laplace <- function(object, ...){
 "fitted.mmes" <- function(object, type=c("response", "link"), ...){
 
   if(inherits(object, "mmes.glmm.laplace")){
+    if(.laplace_is_categorical_mixed(object)){
+      type <- match.arg(type)
+      return(.laplace_mixed_output(object, object$linear.predictors, type))
+    }
     if(.laplace_is_ordinal(object)){
       type <- if(missing(type)) "response" else
         match.arg(type, c("response", "probabilities", "mean", "link"))
@@ -383,22 +399,12 @@ vcov.mmes.glmm.laplace <- function(object, ...){
   if(inherits(object, "mmes.glmm")){
     type <- match.arg(type)
     if(inherits(object, "mmes.glmm.laplace")){
+      if(.laplace_is_categorical_mixed(object)){
+        return(.laplace_mixed_residuals(object, type))
+      }
       if(.laplace_is_ordinal(object)) return(.laplace_ordinal_residuals(object, type))
       if(.laplace_is_nominal(object)){
-        if(!type %in% c("response", "pearson")){
-          stop("Nominal Laplace residuals support type='response' and type='pearson'; deviance, working and quantile residuals are not defined by this implementation.",
-            call.=FALSE)
-        }
-        observed <- stats::model.matrix(~object$y - 1L)
-        colnames(observed) <- levels(object$y)
-        residual <- observed - object$category.probabilities
-        if(type == "response") return(residual)
-        probability <- object$category.probabilities
-        if(any(!is.finite(probability)) || any(probability <= 0 | probability >= 1)){
-          stop("Nominal Pearson residuals are undefined for numerically zero or one category probabilities.",
-            call.=FALSE)
-        }
-        return(residual / sqrt(probability * (1 - probability)))
+        return(.laplace_nominal_residuals(object, type))
       }
       if(type == "quantile") return(.laplace_quantile_residuals(object))
       response <- as.numeric(object$y)

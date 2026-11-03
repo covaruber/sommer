@@ -29,7 +29,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">sommer</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.14</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.15</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -90,7 +90,7 @@
                         <h4 data-toc-skip class="author">sommer
 development team</h4>
 
-            <h4 data-toc-skip class="date">2026-10-28</h4>
+            <h4 data-toc-skip class="date">2026-11-03</h4>
 
       <small class="dont-index">Source: <a href="https://github.com/covaruber/sommer/blob/HEAD/vignettes/sommer.glmm.theory.Rmd" class="external-link"><code>vignettes/sommer.glmm.theory.Rmd</code></a></small>
       <div class="d-none name"><code>sommer.glmm.theory.Rmd</code></div>
@@ -251,43 +251,115 @@ every group effect is zero; it means positive and negative group
 deviations balance around zero across the population of groups.</p>
 <div class="link-reminder" style="border: 1px solid #999; border-radius: 4px; padding: 1em; margin: 1em 0;">
 <p><strong>Reminder: the logit link in a mixed model</strong></p>
-<p>Suppose <span class="math inline">\(y_i=1\)</span> means that seedling <span class="math inline">\(i\)</span> survives, and <span class="math inline">\(y_i=0\)</span> means that it
-does not. We explain survival using treatment <span class="math inline">\(t_i\)</span> (0 for control, 1 for
-treated), initial height <span class="math inline">\(h_i\)</span> in cm, and a random intercept <span class="math inline">\(u_{j(i)}\)</span> for
-the field containing seedling <span class="math inline">\(i\)</span>:</p>
+<p><strong>1. Separate the observed outcome from its
+probability.</strong></p>
+<p>Suppose <span class="math inline">\(y_i=1\)</span> means that
+seedling <span class="math inline">\(i\)</span> survives, and <span class="math inline">\(y_i=0\)</span> means that it does not. The
+observed outcome <span class="math inline">\(y_i\)</span> is either 0 or
+1, but its conditional mean <span class="math inline">\(p_i\)</span> is
+a probability: for example, <span class="math inline">\(p_i=0.20\)</span> means a 20% chance of survival
+for seedlings with those explanatory variables and field effect. It does
+<strong>not</strong> mean that an individual seedling survives
+“20%.”</p>
+<p>We explain survival using treatment <span class="math inline">\(t_i\)</span> (0 for control, 1 for treated),
+initial height <span class="math inline">\(h_i\)</span> in cm, and a
+random intercept <span class="math inline">\(u_{j(i)}\)</span> for the
+field containing seedling <span class="math inline">\(i\)</span>. Here
+<span class="math inline">\(j(i)\)</span> simply tells us which field
+seedling <span class="math inline">\(i\)</span> belongs to; seedlings in
+the same field share its adjustment.</p>
+<p><strong>2. Use the link to say what the additive model
+describes.</strong></p>
+<p>An additive formula can produce any real number, including negative
+numbers or numbers above 1. It therefore cannot, without restrictions,
+describe a probability directly. Instead, we model the <strong>log-odds
+of survival</strong>. The logit link first converts a probability into
+odds, then takes their natural logarithm:</p>
+<p><span class="math display">\[
+g(p)=\operatorname{logit}(p)=\log\!\left(\frac{p}{1-p}\right).
+\]</span></p>
+<p>For example, a probability of 0.20 becomes odds of <span class="math inline">\(0.20/0.80=0.25\)</span> (one survival for every
+four failures, on average), then log-odds of <span class="math inline">\(\log(0.25)\approx -1.3863\)</span>. A negative
+log-odds value is perfectly valid; it means the probability is below
+0.50, not that the probability is negative. Probabilities strictly
+between 0 and 1 map to log-odds anywhere on the real line.</p>
+<p><strong>This is where the link enters the model:</strong> we set the
+transformed conditional mean equal to the additive predictor:</p>
 <p><span class="math display">\[
 y_i\mid u \sim \operatorname{Bernoulli}(p_i),\qquad
 \operatorname{logit}(p_i)=\eta_i
 =\beta_0+\beta_1t_i+\beta_2h_i+u_{j(i)},\qquad
 u_j\sim N(0,\sigma_u^2).
 \]</span></p>
-<p>There is no offset in this example. The fixed-effect part
-<span class="math inline">\(x_i^\mathsf{T}\beta\)</span> is <span class="math inline">\(\beta_0+\beta_1t_i+\beta_2h_i\)</span>, while
-<span class="math inline">\(z_i^\mathsf{T}u\)</span> selects the seedling's field effect <span class="math inline">\(u_{j(i)}\)</span>.
-Suppose the fitted coefficients are <span class="math inline">\(\beta_0=-2\)</span>, <span class="math inline">\(\beta_1=1\)</span>, and
-<span class="math inline">\(\beta_2=0.1\)</span>, and the estimated random effect for one field is <span class="math inline">\(u_j=0.5\)</span>.
-For a <strong>treated seedling of height 5 cm in that field</strong>, insert
-<span class="math inline">\(t_i=1\)</span>, <span class="math inline">\(h_i=5\)</span>, and <span class="math inline">\(u_j=0.5\)</span>:</p>
+<p>Read this as: “the log-odds of survival equal an intercept, plus
+treatment and height contributions, plus the field adjustment.” The link
+is not another term added to the predictor; it defines the <strong>scale
+on which all those contributions add together</strong>.</p>
+<p>There is no offset in this example. The fixed-effect part <span class="math inline">\(x_i^\mathsf{T}\beta\)</span> is <span class="math inline">\(\beta_0+\beta_1t_i+\beta_2h_i\)</span>, while
+<span class="math inline">\(z_i^\mathsf{T}u\)</span> selects the
+seedling’s field effect <span class="math inline">\(u_{j(i)}\)</span>.</p>
+<p><strong>3. Fit the model using the observed zeros and
+ones.</strong></p>
+<p>Before fitting, the coefficients and field effects are unknown. For
+proposed values, the model computes each seedling’s predictor and uses
+the inverse link to obtain its survival probability. A surviving
+seedling contributes <span class="math inline">\(p_i\)</span> to the
+conditional likelihood; a seedling that dies contributes <span class="math inline">\(1-p_i\)</span>. For instance, if <span class="math inline">\(p_i=0.80\)</span>, survival contributes 0.80 and
+death contributes 0.20: the model regards survival as more likely.</p>
+<p>Fitting seeks settings that explain the observed pattern, while
+accounting for the Gaussian distribution of field effects. In a GLMM,
+the likelihood also averages over the unobserved random effects; Laplace
+approximates that calculation, while PQL uses a working-response
+approximation instead of maximizing that same likelihood. These are
+fitting details, but both routes use the chosen link to connect means to
+the predictor.</p>
+<p>Crucially, we <strong>do not take the logit of the observed zeros and
+ones</strong>: <span class="math inline">\(\operatorname{logit}(0)\)</span> and <span class="math inline">\(\operatorname{logit}(1)\)</span> are not finite.
+The link applies to the unknown conditional mean <span class="math inline">\(p_i\)</span>, not directly to the observed outcome
+<span class="math inline">\(y_i\)</span>. Choosing the link specifies
+this relationship; it need not appear as a separate
+forward-transformation step during prediction.</p>
+<p><strong>4. After fitting, predict by using the inverse
+link.</strong></p>
+<p>Suppose the fitted coefficients are <span class="math inline">\(\beta_0=-2\)</span>, <span class="math inline">\(\beta_1=1\)</span>, and <span class="math inline">\(\beta_2=0.1\)</span>, and the estimated random
+effect for one field is <span class="math inline">\(u_j=0.5\)</span>.
+For a <strong>treated seedling of height 5 cm in that field</strong>,
+insert <span class="math inline">\(t_i=1\)</span>, <span class="math inline">\(h_i=5\)</span>, and <span class="math inline">\(u_j=0.5\)</span>:</p>
 <p><span class="math display">\[
 \eta_i = -2 + 1\times 1 + 0.1\times 5 + 0.5 = 0.
 \]</span></p>
-<p>The <strong>inverse link</strong> converts this sum into a survival probability:</p>
+<p>The <strong>inverse link</strong> converts this sum into a survival
+probability:</p>
 <p><span class="math display">\[
 p_i = \frac{1}{1+\exp(-\eta_i)}
 = \frac{1}{1+\exp(0)} = 0.50.
 \]</span></p>
-<p>Going the other way, the <strong>link</strong> gives
-<span class="math inline">\(\operatorname{logit}(0.50)=\log\{0.50/(1-0.50)\}=\log(1)=0\)</span>,
+<p>Going the other way, the <strong>link</strong> gives <span class="math inline">\(\operatorname{logit}(0.50)=\log\{0.50/(1-0.50)\}=\log(1)=0\)</span>,
 recovering the same linear predictor.</p>
-<p>For a <strong>control seedling of the same height in the same field</strong>, only
-<span class="math inline">\(t_i\)</span> changes to 0: <span class="math inline">\(\eta_i=-2+0+0.5+0.5=-1\)</span>, so
-<span class="math inline">\(p_i=1/\{1+\exp(1)\}\approx 0.269\)</span>. Thus the treatment coefficient of 1
-adds 1 to the <strong>log-odds</strong>, not to the probability: predicted survival
-rises from about 27% to 50%.</p>
+<p>Thus the two directions are <strong>probability <span class="math inline">\(\longrightarrow\)</span> log-odds</strong> (link)
+and <strong>log-odds <span class="math inline">\(\longrightarrow\)</span> probability</strong>
+(inverse link). The equation defining the model uses the first
+direction; calculating a probability from fitted coefficients uses the
+second.</p>
+<p><strong>5. Change an explanatory variable or the field
+effect.</strong></p>
+<p>For a <strong>control seedling of the same height in the same
+field</strong>, only <span class="math inline">\(t_i\)</span> changes to
+0: <span class="math inline">\(\eta_i=-2+0+0.5+0.5=-1\)</span>, so <span class="math inline">\(p_i=1/\{1+\exp(1)\}\approx 0.269\)</span>. Thus
+the treatment coefficient of 1 adds 1 to the <strong>log-odds</strong>,
+not to the probability: predicted survival rises from about 27% to
+50%.</p>
+<p>Likewise, one additional cm of height adds 0.1 to the log-odds,
+holding treatment and field fixed. For a treated 6 cm seedling in this
+field, <span class="math inline">\(\eta_i=-2+1+0.1\times6+0.5=0.1\)</span>, giving
+<span class="math inline">\(p_i\approx 0.525\)</span>. The height
+coefficient is not a fixed 10-percentage-point increase in survival
+probability.</p>
 <p>The random effect matters too. For the treated 5 cm seedling, setting
-<span class="math inline">\(u_j=0\)</span> instead gives <span class="math inline">\(\eta_i=-0.5\)</span> and <span class="math inline">\(p_i\approx 0.378\)</span>, rather than
-0.50. These are <strong>conditional predictions</strong> at specified field effects;
-setting <span class="math inline">\(u_j=0\)</span> is not the same as averaging probabilities over all fields.</p>
+<span class="math inline">\(u_j=0\)</span> instead gives <span class="math inline">\(\eta_i=-0.5\)</span> and <span class="math inline">\(p_i\approx 0.378\)</span>, rather than 0.50. These
+are <strong>conditional predictions</strong> at specified field effects;
+setting <span class="math inline">\(u_j=0\)</span> is not the same as
+averaging probabilities over all fields.</p>
 </div>
 </div>
 <div class="section level3">
@@ -1286,8 +1358,15 @@ refits retain numeric codes and report absent-category failures.</p>
 more informative than a single average category code, because the
 meaning of averaging codes depends on how the categories were
 numbered.</p>
-<p>This is single-family cumulative-logit/probit support, not a nominal
-multinomial model or ordinal mixed-family extension. Independent
+<p>The checks in this section concern single-family
+cumulative-logit/probit support, not the nominal likelihood. Categorical
+<code><a href="../reference/familym.html">familym()</a></code> now combines ordinal, nominal and scalar
+observation likelihoods under native Laplace ML. Its nominal blocks
+retain full cross-logit curvature, and existing random effects are
+shared unless distinct <code>.familyCoordinate</code> effects are
+explicitly requested. Mixed nominal outer derivatives are central
+differences of the native joint Laplace likelihood; scalar/ordinal
+derivatives remain analytic. Uncertainty remains post-fit. Independent
 likelihood, probability, derivative and delta-method checks establish
 implementation correctness only; larger recovery/coverage calibration
 and cross-platform qualification remain necessary before broad
@@ -1330,13 +1409,14 @@ fixed-cutpoint inference, arbitrary covariance and cross-platform
 release qualification remain outside this study.</p>
 </div>
 <div class="section level3">
-<h3 id="unordered-categories-the-internal-nominal-model-work">7.5 Unordered categories: the internal nominal-model work<a class="anchor" aria-label="anchor" href="#unordered-categories-the-internal-nominal-model-work"></a>
+<h3 id="unordered-categories-nominal-multinomial-models">7.5 Unordered categories: nominal multinomial models<a class="anchor" aria-label="anchor" href="#unordered-categories-nominal-multinomial-models"></a>
 </h3>
-<p><strong>Development status:</strong> this section explains internal
-building blocks, not a new public fitting option. There is no public
-nominal family yet. Complete fitted objects, prediction, simulation,
-model comparisons, bootstrap support and post-fit uncertainty still need
-to be connected before public release.</p>
+<p>The public <code><a href="../reference/multinomial.html">multinomial()</a></code> family fits unordered
+categories with the native Laplace likelihood. It requires ML, at least
+one random-effect term, and the Henderson formulation. It does not use
+PQL. <code>W</code>, weights formulas, <code>vcc</code>, structured
+residual covariance, and non-default Gaussian solver controls are not
+supported. All uncertainty work is deferred until after fitting.</p>
 <p>An unordered, or <em>nominal</em>, outcome has names without a
 natural ranking. For example, “red”, “green” and “blue” are categories,
 not low, medium and high. Giving them numeric codes does not make the
@@ -1366,26 +1446,37 @@ numerator one. The three probabilities sum to one. The comparisons are
 therefore coupled: fitting separate yes/no models would not give this
 joint model. The numerical implementation uses stable log probabilities
 even when a category is extremely unlikely.</p>
-<p>Internally, factor levels retain their declared order and names. The
-reference defaults to the last declared level, or can be specified by
-its label. The reference is moved to the final <em>internal</em>
-position without changing the recorded original level order. Plain
-numeric category codes must be contiguous integers starting at one.
-Character responses are not silently sorted into categories, and ordered
-factors must be deliberately converted if their order is to be ignored.
-Every declared category must remain represented after missing-data
-filtering; none is silently merged or dropped.</p>
+<p>Factor levels retain their declared order and names. The reference
+defaults to the last declared level, or can be specified by its label.
+The reference is moved to the final <em>internal</em> position without
+changing the recorded original level order. Plain numeric category codes
+must be contiguous integers starting at one. Character responses are not
+silently sorted into categories, and ordered factors must be
+deliberately converted if their order is to be ignored. Every declared
+category must remain represented after missing-data filtering; none is
+silently merged or dropped.</p>
+<p>For example:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ctrl</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>task<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>objective<span class="op">=</span><span class="st">"ml"</span>,</span>
+<span>  glmm<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>method<span class="op">=</span><span class="st">"laplace"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">color</span> <span class="op">~</span> <span class="va">temperature</span>,</span>
+<span>  random<span class="op">=</span><span class="op">~</span><span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">.nominalCategory</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">group</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  data<span class="op">=</span><span class="va">dat</span>, family<span class="op">=</span><span class="fu"><a href="../reference/multinomial.html">multinomial</a></span><span class="op">(</span>reference<span class="op">=</span><span class="st">"green"</span><span class="op">)</span>, control<span class="op">=</span><span class="va">ctrl</span><span class="op">)</span></span></code></pre></div>
+<p>The fitter creates <code>.nominalCategory</code> internally; it is
+not a column the user adds to <code>dat</code>. <code>fitted(fit)</code>
+returns one probability column per original category level. The category
+labels remain in the factor’s original order, even though the reference
+is stored last internally.</p>
 </div>
 <div class="section level4">
 <h4 id="give-each-comparison-its-own-coefficients">Give each comparison its own coefficients<a class="anchor" aria-label="anchor" href="#give-each-comparison-its-own-coefficients"></a>
 </h4>
 <p>For a fixed formula such as <code>color ~ temperature</code>, the
-current preparation creates a separate intercept and temperature slope
-for red versus green and for blue versus green. An intercept is kept
-here: unlike an ordinal model with estimated cutpoints, there are no
-cutpoint locations competing with it. The original transformations,
-factor contrasts and training levels are recorded for later prediction
-work.</p>
+model creates a separate intercept and temperature slope for red versus
+green and for blue versus green. An intercept is kept here: unlike an
+ordinal model with estimated cutpoints, there are no cutpoint locations
+competing with it. The original transformations, factor contrasts and
+training levels are recorded for later prediction work.</p>
 <p>The computer stores all red-comparison rows first, then all
 blue-comparison rows. This is only bookkeeping: there is still one
 observed color and one joint likelihood contribution per original
@@ -1395,10 +1486,9 @@ retain all comparison rows of an observation together. A formula offset
 is repeated across comparisons in this initial preparation;
 category-specific offset formulas and alternative fixed-effect sharing
 patterns are not part of this slice.</p>
-<p>Random effects also need a clear meaning. The internal stacked data
-expose the factor <code>.nominalCategory</code>, containing only
-non-reference categories. These are <strong>internal design examples,
-not public nominal fitting calls</strong>:</p>
+<p>Random effects also need a clear meaning. The stacked design exposes
+<code>.nominalCategory</code>, containing only non-reference categories.
+It can be used in the public random formula:</p>
 <table class="table">
 <colgroup>
 <col width="50%">
@@ -1459,18 +1549,37 @@ proposals and unsuccessful modes remain explicit.</p>
 <code>mmes_options</code>/<code><a href="../reference/mmes_control.html">mmes_control()</a></code> system:
 <code>task$glmm</code> supplies mode iteration limits and tolerance,
 <code>execution$denseMemoryMB</code> limits admitted workspace, and
-<code>execution$blasThreads</code> controls evaluation threads. This
-internal slice requires Henderson Laplace ML in fit mode and
+<code>execution$blasThreads</code> controls evaluation threads. The fit
+requires Henderson Laplace ML in fit mode and
 <code>output$inverse=0</code>; it rejects unused Gaussian controls and
 unsupported family-parameter settings. Uncertainty remains strictly
 post-fit. The original Gaussian/LMM and scalar GLMM fitting routes are
 unchanged, and no package dependency is added.</p>
-<p>The internal checks compare these calculations with independently
-constructed covariance matrices and numerical likelihood derivatives.
-Such agreement checks the implementation, not whether a future nominal
-model has accurate confidence intervals or behaves well with rare
-categories. Those statistical studies and the complete public interface
-remain separate release gates.</p>
+<p><code><a href="https://rdrr.io/r/stats/fitted.values.html" class="external-link">fitted()</a></code> and <code><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict()</a></code> return
+category-probability matrices; <code>type="link"</code> returns the
+category logits. Conditional prediction uses fitted modes for known
+random-effect levels, and <code>re.form=NA</code> sets those effects to
+zero. Population-marginal prediction is not yet implemented.
+<code><a href="https://rdrr.io/r/stats/simulate.html" class="external-link">simulate()</a></code> preserves the original factor labels and can
+draw new random effects from the fitted population covariance. Response
+and Pearson residuals are returned by category; deviance, working and
+quantile residuals are not yet defined.</p>
+<p><code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code> and <code><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov()</a></code> compute fixed-effect
+uncertainty after fitting from the marginal Laplace objective.
+<code><a href="../reference/postPEV.html">postPEV()</a></code> reconstructs the full cross-category curvature
+after fitting, and <code>predict(se.fit=TRUE)</code> uses the joint
+fixed/random conditional curvature and a delta-method probability
+transformation. Prediction standard errors condition on the fitted
+covariance parameters. <code><a href="../reference/boot_mmes.html">boot_mmes()</a></code> does not yet support
+nominal refits. The likelihood, AIC/BIC, and nested fixed-effect
+likelihood comparisons are available.</p>
+<p>Independent dense calculations and numerical derivatives test the
+likelihood, mode, marginal score, optimizer and these public outputs.
+Numerical agreement does not establish confidence-interval coverage or
+good behavior with rare categories; nominal statistical calibration
+remains a separate release gate. The existing Gaussian/LMM and
+scalar-GLMM fitting routes are unchanged, and no package dependency is
+added.</p>
 </div>
 </div>
 </div>

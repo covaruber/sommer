@@ -114,6 +114,9 @@ familym <- function(by, ..., trials=NULL){
     stop("familym(trials=...) currently requires native Laplace fitting; PQL trials use binm().", call.=FALSE)
   }
   families <- if(mixed) family$families else list(family)
+  if(any(vapply(families, inherits, logical(1), what="sommer_nominal_family"))){
+    stop("multinomial() is supported only by native Laplace ML.", call.=FALSE)
+  }
   if(any(vapply(families, function(fam) identical(fam$family, "ordinal"),
       logical(1)))){
     stop("ordinal() is not supported by PQL; use task$glmm$method='laplace' with task$objective='ml'.",
@@ -411,6 +414,82 @@ familym <- function(by, ..., trials=NULL){
   boundaryParameters
 }
 
+.mmes_laplace_zip_diagnostics <- function(object){
+  specifications <- object$familySpecifications
+  zipFamilies <- which(vapply(specifications, function(specification)
+    identical(specification$family, "ziPoisson"), logical(1)))
+  if(!length(zipFamilies)) return(NULL)
+
+  threshold <- sqrt(.Machine$double.eps)
+  familyDiagnostics <- lapply(zipFamilies, function(position){
+    specification <- specifications[[position]]
+    rows <- which(object$laplaceFamilyIndex == position)
+    response <- as.numeric(object$y[rows])
+    eta <- as.numeric(object$linear.predictors[rows])
+    countMean <- exp(eta)
+    zeroProbability <- rep(.laplace_zero_probability(specification, rows),
+      length.out=length(rows))
+    zeroRows <- which(response == 0)
+    posteriorStructural <- numeric(length(zeroRows))
+    if(length(zeroRows)){
+      boundedProbability <- pmin(pmax(zeroProbability[zeroRows],
+        .Machine$double.xmin), 1 - .Machine$double.eps)
+      posteriorStructural <- stats::plogis(stats::qlogis(boundedProbability) +
+        countMean[zeroRows])
+    }
+
+    design <- specification$zeroDesign
+    designRows <- if(is.null(design)) NULL else
+      as.matrix(design[rows, , drop=FALSE])
+    designColumns <- if(is.null(design)) 1L else ncol(designRows)
+    designRank <- if(is.null(design)) 1L else
+      as.integer(qr(designRows)$rank)
+    positiveCount <- sum(response > 0)
+    expectedStructuralZeros <- sum(posteriorStructural)
+    expectedCountZeros <- sum(1 - posteriorStructural)
+    weakInformation <- positiveCount < max(10L, 5L * designColumns) ||
+      expectedStructuralZeros < 5
+    nearBoundary <- any(zeroProbability < threshold |
+      zeroProbability > 1 - threshold)
+    trait <- names(specifications)[position]
+    if(is.null(trait) || !nzchar(trait)) trait <- paste0("family", position)
+
+    issues <- character()
+    if(weakInformation){
+      issues <- c(issues, paste0(trait,
+        ": low-information screening heuristic (", positiveCount,
+        " positive counts and ", signif(expectedStructuralZeros, 3),
+        " expected structural zeros); estimates may be weakly identified."))
+    }
+    if(nearBoundary){
+      issues <- c(issues, paste0(trait,
+        ": fitted structural-zero probabilities are numerically near a boundary; ",
+        "standard errors and PEV remain subject to the post-fit boundary gates."))
+    }
+    list(trait=trait, observations=length(rows),
+      observedZeros=length(zeroRows),
+      observedZeroFraction=if(length(rows)) mean(response == 0) else NA_real_,
+      positiveCounts=positiveCount, zeroDesignColumns=designColumns,
+      zeroDesignRank=designRank,
+      structuralProbabilityRange=if(length(zeroProbability))
+        range(zeroProbability) else c(NA_real_, NA_real_),
+      expectedStructuralZeros=expectedStructuralZeros,
+      expectedCountGeneratedZeros=expectedCountZeros,
+      weakInformation=weakInformation, nearBoundary=nearBoundary,
+      issues=issues)
+  })
+  names(familyDiagnostics) <- vapply(familyDiagnostics, `[[`, character(1),
+    "trait")
+  issues <- unlist(lapply(familyDiagnostics, `[[`, "issues"), use.names=FALSE)
+  list(families=familyDiagnostics, issues=issues,
+    status=if(!isTRUE(object$convergence)) "optimizer-not-converged" else
+      if(any(vapply(familyDiagnostics, `[[`, logical(1), "nearBoundary")))
+        "mixture-boundary-or-near-boundary" else
+      if(any(vapply(familyDiagnostics, `[[`, logical(1), "weakInformation")))
+        "low-information-screen" else "no-screening-warning",
+    uncertainty="not computed; standard errors and PEV are post-fit")
+}
+
 .mmes_laplace_uncertainty <- function(object){
   if(!inherits(object, "mmes.glmm.laplace")){
     stop("Post-fit Laplace uncertainty requires a native Laplace fit.",
@@ -479,7 +558,7 @@ familym <- function(by, ..., trials=NULL){
       familyIndex=object$laplaceFamilyIndex, trials=object$priorWeights)
     objective <- function(parameters){
       evaluation <- sommer_laplace_objective_eval(context, parameters,
-        maxModeIterations=modeMaxit, tolerance=modeTol)
+        maxModeIterations=modeMaxit, tolerance=modeTol, gradient=FALSE)
       if(!isTRUE(evaluation$valid)) return(Inf)
       -evaluation$logLik
     }
@@ -570,15 +649,24 @@ familym <- function(by, ..., trials=NULL){
     }
   }
   thresholdCovariance <- NULL
-  if(!is.null(thresholds) && object$familySpecifications[[1L]]$free){
-    specification <- object$familySpecifications[[1L]]
-    coordinates <- fixedCount + layout$covarianceCount +
-      seq_along(specification$thresholds)
-    jacobian <- .laplace_ordinal_jacobian(specification)
-    thresholdCovariance <- jacobian %*% curvature$covariance[coordinates,
-      coordinates, drop=FALSE] %*% t(jacobian)
-    dimnames(thresholdCovariance) <- list(thresholds$threshold, thresholds$threshold)
-    thresholds$StdError <- sqrt(diag(thresholdCovariance))
+  if(!is.null(thresholds)){
+    counts <- vapply(object$familySpecifications, .laplace_family_count, integer(1))
+    thresholdMap <- matrix(0, nrow(thresholds), nrow(curvature$covariance))
+    for(position in seq_along(object$familySpecifications)){
+      specification <- object$familySpecifications[[position]]
+      if(specification$family != "ordinal" || !specification$free) next
+      rows <- if(is.null(thresholds$trait)) seq_len(nrow(thresholds)) else
+        which(thresholds$trait == names(object$familySpecifications)[position])
+      coordinates <- fixedCount + layout$covarianceCount +
+        sum(head(counts, position - 1L)) + seq_along(specification$thresholds)
+      thresholdMap[rows, coordinates] <- .laplace_ordinal_jacobian(specification)
+    }
+    thresholdCovariance <- thresholdMap %*% curvature$covariance %*% t(thresholdMap)
+    labels <- if(is.null(thresholds$trait)) thresholds$threshold else
+      paste(thresholds$trait, thresholds$threshold, sep=":")
+    dimnames(thresholdCovariance) <- list(labels, labels)
+    thresholds$StdError[thresholds$estimated] <-
+      sqrt(diag(thresholdCovariance))[thresholds$estimated]
   }
   list(valid=TRUE, reason="positive-definite", fixedCovariance=fixedCovariance,
     betaSummary=betaSummary, covParNative=covarianceTable,
@@ -606,14 +694,14 @@ familym <- function(by, ..., trials=NULL){
                                 naMethodY, mmesArgs, familyParameters=list(),
                                 .ordinalPrepared=FALSE){
   if(!.ordinalPrepared){
+    if(.laplace_has_categorical(family)){
+      return(.laplace_prepare_mixed(fixed, random, rcov, data, family,
+        naMethodY, mmesArgs, familyParameters))
+    }
     families <- if(inherits(family, "sommer_familym")) family$families else list(family)
     ordinalFamilies <- vapply(families, function(component)
       identical(component$family, "ordinal"), logical(1))
     if(any(ordinalFamilies)){
-      if(inherits(family, "sommer_familym")){
-        stop("Public preparation of ordinal familym() models is not yet supported.",
-          call.=FALSE)
-      }
       return(.laplace_prepare_ordinal(fixed, random, rcov, data, family,
         naMethodY, mmesArgs, familyParameters))
     }
@@ -696,6 +784,14 @@ familym <- function(by, ..., trials=NULL){
 
   prepared <- .mmes_prepare_model(fixed, random, rcov, data, family,
     naMethodY, mmesArgs, familyParameters=familyParameters)
+  categoricalModel <- !is.null(prepared$categorical)
+  nominalMixed <- FALSE
+  if(categoricalModel){
+    specifications <- prepared$categorical$components
+    data <- prepared$categorical$expandedData
+    nominalMixed <- any(vapply(specifications, function(specification)
+      specification$family == "multinomial", logical(1)))
+  }
   ordinalModel <- !is.null(prepared$ordinal)
   if(ordinalModel) specifications[[1L]] <- prepared$ordinal$specification
   randomCount <- length(prepared$rtermss)
@@ -721,10 +817,12 @@ familym <- function(by, ..., trials=NULL){
   fixedTerms <- stats::delete.response(attr(responseFrame, "terms"))
   fixedXlevels <- stats::.getXlevels(fixedTerms, retainedFrame)
   fittedContrasts <- attr(fixedDesign, "contrasts")
+  if(categoricalModel) fittedContrasts <- prepared$categorical$contrasts
   predictionColumns <- colnames(stats::model.matrix(fixedTerms, retainedFrame,
     contrasts.arg=fittedContrasts))
   fixedAssignment <- attr(stats::model.matrix(fixedTerms, retainedFrame,
     contrasts.arg=fittedContrasts), "assign")
+  if(categoricalModel) fixedAssignment <- prepared$categorical$assignment
   if(ordinalModel){
     fixedTerms <- prepared$ordinal$fixedTerms
     fixedXlevels <- prepared$ordinal$xlevels
@@ -767,7 +865,10 @@ familym <- function(by, ..., trials=NULL){
     head(vapply(freePositions, length, integer(1)), -1L)))
   initialGLMs <- lapply(seq_along(families), function(familyPosition){
     rows <- familyIndex == familyPosition
-    if(ordinalModel) return(list(coefficients=rep(0, ncol(fixedDesign)), converged=TRUE))
+    if(ordinalModel || specifications[[familyPosition]]$family %in% c("ordinal", "multinomial")){
+      return(list(coefficients=rep(0, ncol(fixedDesign)), converged=TRUE,
+        linear.predictors=rep(0, sum(rows))))
+    }
     initialFamily <- if(specifications[[familyPosition]]$family == "ziPoisson")
       stats::poisson() else families[[familyPosition]]
     stats::glm.fit(as.matrix(fixedDesign[rows, , drop=FALSE]), response[rows],
@@ -833,7 +934,11 @@ familym <- function(by, ..., trials=NULL){
       }
     }
     evaluation <- sommer_laplace_objective_eval(nativeContext, parameters,
-      maxModeIterations=modeMaxit, tolerance=modeTol, gradient=gradient)
+      maxModeIterations=modeMaxit, tolerance=modeTol, gradient=gradient && !nominalMixed)
+    if(gradient && nominalMixed && isTRUE(evaluation$valid)){
+      evaluation$gradient <- .laplace_numeric_gradient(parameters, function(proposal)
+        evaluateParameters(proposal)$logLik)
+    }
     evaluation$covStruct <- structures
     evaluation
   }
@@ -894,7 +999,7 @@ familym <- function(by, ..., trials=NULL){
     familyPosition <- freeFamilies[freePosition]
     positions <- parameterCount + covarianceParameterCount +
       familyStarts[familyPosition] + seq_len(familyCounts[familyPosition])
-    if(ordinalModel){
+    if(specifications[[familyPosition]]$family == "ordinal"){
       fittedSpecifications[[familyPosition]]$thresholds <-
         .laplace_ordinal_thresholds(optimization$par[positions])
       if(any(diff(fittedSpecifications[[familyPosition]]$thresholds) <
@@ -1012,7 +1117,7 @@ familym <- function(by, ..., trials=NULL){
     AIC=-2 * logLikelihood + 2 * parameterTotal,
     BIC=-2 * logLikelihood + log(length(response)) * parameterTotal,
     llik=logLikelihood,
-    deviance=if(ordinalModel) NA_real_ else sum(.laplace_deviance(response, fittedValues, fittedFamilies,
+    deviance=if(ordinalModel || categoricalModel) NA_real_ else sum(.laplace_deviance(response, fittedValues, fittedFamilies,
       familyIndex, trials, dispersion)),
     laplaceFamilies=fittedFamilies, laplaceFamilyIndex=familyIndex,
     familySpecifications=fittedSpecifications,
@@ -1042,7 +1147,8 @@ familym <- function(by, ..., trials=NULL){
     randomMode=as.numeric(finalEvaluation$mode),
     laplaceNativeResponse=responseData$nativeResponse,
     laplaceModeHessian=finalEvaluation$modeHessian,
-    laplaceObservationCurvature=as.numeric(finalEvaluation$observationCurvature),
+    laplaceObservationCurvature=if(nominalMixed)
+      finalEvaluation$observationBlockCurvature else as.numeric(finalEvaluation$observationCurvature),
     randomMetadata=prepared$rtermss, covStruct=fittedStructures,
     randomRelationships=prepared$Ai,
     covPar=covarianceParameters, u=matrix(as.numeric(finalEvaluation$mode), ncol=1L),
@@ -1074,6 +1180,25 @@ familym <- function(by, ..., trials=NULL){
   fittedObject$laplacePostPEVSettings <- list(inverse=inverseMode,
     panelSize=panelSize, denseMemoryMB=denseMemoryMB,
     modeMaxit=modeMaxit, modeTol=modeTol)
+  if(categoricalModel){
+    fittedObject$categorical <- prepared$categorical
+    fittedObject$categorical$components <- fittedSpecifications
+    fittedObject$nobs <- length(prepared$categorical$originalRows)
+    fittedObject$BIC <- -2 * logLikelihood + log(fittedObject$nobs) * parameterTotal
+    fittedObject$thresholds <- do.call(rbind, lapply(seq_along(fittedSpecifications), function(position){
+      specification <- fittedSpecifications[[position]]
+      if(specification$family != "ordinal") return(NULL)
+      table <- .laplace_ordinal_table(specification, specification$levels)
+      table$trait <- names(fittedSpecifications)[position]
+      table
+    }))
+    fittedObject$deviance <- -2 * sommer_glmm_family_eval(responseData$nativeResponse,
+      linearPredictors, fittedSpecifications, familyIndex, trials)$logDensity
+    fittedObject$categorical$probabilities <- .laplace_mixed_output(fittedObject, linearPredictors)
+    fittedObject$executionPlan$glmm$likelihood <- "mixed scalar/category blocks"
+    fittedObject$executionPlan$glmm$gradient <- if(nominalMixed)
+      "central differences of native block Laplace likelihood" else "native analytic"
+  }
   if(ordinalModel){
     fittedObject$ordinal <- prepared$ordinal
     fittedObject$ordinal$specification <- fittedSpecifications[[1L]]
@@ -1090,6 +1215,15 @@ familym <- function(by, ..., trials=NULL){
     }
     fittedObject$deviance <- -2 * sum(distribution$logProbability[
       cbind(seq_along(response), response)])
+  }
+  zipDiagnostics <- .mmes_laplace_zip_diagnostics(fittedObject)
+  if(!is.null(zipDiagnostics)){
+    fittedObject$laplaceDiagnostics$zip <- zipDiagnostics
+    fittedObject$laplaceDiagnostics$issues <- unique(c(
+      fittedObject$laplaceDiagnostics$issues, zipDiagnostics$issues))
+    if(length(zipDiagnostics$issues)){
+      warning(paste(zipDiagnostics$issues, collapse="\n"), call.=FALSE)
+    }
   }
   fittedObject
 }

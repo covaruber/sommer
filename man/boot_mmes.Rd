@@ -26,8 +26,10 @@ This is an opt-in post-fit calculation, not part of fitting. It uses the
 stored retained designs, offsets, trials and native likelihood specifications,
 so no evaluation of the original data expression or response formula is needed.
 Grouped binomial simulations are converted from proportions back to counts.
-Each refit starts at that model's fitted parameters and uses native first
-derivatives and the stored mode controls. Fits are sequential; no dependencies
+Each refit starts at that model's fitted parameters and uses the stored mode
+controls and native likelihood. Scalar/ordinal outer derivatives are native;
+mixed nominal outer derivatives are central differences of the block Laplace
+likelihood. Fits are sequential; no dependencies
 or parallel workers are added. Output storage is subject to the generating
 fit's \code{execution$denseMemoryMB} budget.
 
@@ -50,6 +52,13 @@ Single-family \code{\link{multinomial}} fits use their joint softmax
 likelihood in bootstrap refits. Simulated factor labels are mapped back to
 the fitted internal reference coding; all declared categories remain in the
 response schema even when a bootstrap sample omits one.
+
+Categorical \code{\link{familym}} supports ordinal, nominal and scalar
+responses jointly. Simulated original category codes are mapped to the fitted
+nominal reference order and expanded predictor rows without changing the
+random-effect structure. Comparisons retain identical trait/category schemas,
+cutpoint policies, offsets, trials and random covariance structures; only
+nested fixed terms may differ.
 
 With two models, simulations come from the smaller model, drawing new random
 effects rather than holding conditional modes fixed. The statistic is twice

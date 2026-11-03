@@ -136,10 +136,40 @@ group deviations balance around zero across the population of groups.
 ::: {.link-reminder style="border: 1px solid #999; border-radius: 4px; padding: 1em; margin: 1em 0;"}
 **Reminder: the logit link in a mixed model**
 
+**1. Separate the observed outcome from its probability.**
+
 Suppose $y_i=1$ means that seedling $i$ survives, and $y_i=0$ means that it
-does not. We explain survival using treatment $t_i$ (0 for control, 1 for
+does not. The observed outcome $y_i$ is either 0 or 1, but its conditional
+mean $p_i$ is a probability: for example, $p_i=0.20$ means a 20% chance
+of survival for seedlings with those explanatory variables and field effect.
+It does **not** mean that an individual seedling survives "20%."
+
+We explain survival using treatment $t_i$ (0 for control, 1 for
 treated), initial height $h_i$ in cm, and a random intercept $u_{j(i)}$ for
-the field containing seedling $i$:
+the field containing seedling $i$. Here $j(i)$ simply tells us which field
+seedling $i$ belongs to; seedlings in the same field share its adjustment.
+
+**2. Use the link to say what the additive model describes.**
+
+An additive formula can produce any real number, including negative numbers
+or numbers above 1. It therefore cannot, without restrictions, describe a
+probability directly. Instead, we model the **log-odds of survival**.
+The logit link first converts a probability into odds, then takes their
+natural logarithm:
+
+$$
+g(p)=\operatorname{logit}(p)=\log\!\left(\frac{p}{1-p}\right).
+$$
+
+For example, a probability of 0.20 becomes odds of $0.20/0.80=0.25$
+(one survival for every four failures, on average), then log-odds of
+$\log(0.25)\approx -1.3863$. A negative log-odds value is perfectly valid;
+it means the probability is below 0.50, not that the probability is negative.
+Probabilities strictly between 0 and 1 map to log-odds anywhere on the
+real line.
+
+**This is where the link enters the model:** we set the transformed
+conditional mean equal to the additive predictor:
 
 $$
 y_i\mid u \sim \operatorname{Bernoulli}(p_i),\qquad
@@ -148,9 +178,40 @@ y_i\mid u \sim \operatorname{Bernoulli}(p_i),\qquad
 u_j\sim N(0,\sigma_u^2).
 $$
 
+Read this as: "the log-odds of survival equal an intercept, plus treatment
+and height contributions, plus the field adjustment." The link is not
+another term added to the predictor; it defines the **scale on which all
+those contributions add together**.
+
 There is no offset in this example. The fixed-effect part
 $x_i^\mathsf{T}\beta$ is $\beta_0+\beta_1t_i+\beta_2h_i$, while
 $z_i^\mathsf{T}u$ selects the seedling's field effect $u_{j(i)}$.
+
+**3. Fit the model using the observed zeros and ones.**
+
+Before fitting, the coefficients and field effects are unknown. For proposed
+values, the model computes each seedling's predictor and uses the inverse
+link to obtain its survival probability. A surviving seedling contributes
+$p_i$ to the conditional likelihood; a seedling that dies contributes
+$1-p_i$. For instance, if $p_i=0.80$, survival contributes 0.80 and death
+contributes 0.20: the model regards survival as more likely.
+
+Fitting seeks settings that explain the observed pattern, while accounting
+for the Gaussian distribution of field effects. In a GLMM, the likelihood
+also averages over the unobserved random effects; Laplace approximates
+that calculation, while PQL uses a working-response approximation instead
+of maximizing that same likelihood. These are fitting details, but both
+routes use the chosen link to connect means to the predictor.
+
+Crucially, we **do not take the logit of the observed zeros and ones**:
+$\operatorname{logit}(0)$ and $\operatorname{logit}(1)$ are not finite.
+The link applies to the unknown conditional mean $p_i$, not directly to
+the observed outcome $y_i$. Choosing the link specifies this relationship;
+it need not appear as a separate forward-transformation step during
+prediction.
+
+**4. After fitting, predict by using the inverse link.**
+
 Suppose the fitted coefficients are $\beta_0=-2$, $\beta_1=1$, and
 $\beta_2=0.1$, and the estimated random effect for one field is $u_j=0.5$.
 For a **treated seedling of height 5 cm in that field**, insert
@@ -171,11 +232,24 @@ Going the other way, the **link** gives
 $\operatorname{logit}(0.50)=\log\{0.50/(1-0.50)\}=\log(1)=0$,
 recovering the same linear predictor.
 
+Thus the two directions are **probability $\longrightarrow$ log-odds**
+(link) and **log-odds $\longrightarrow$ probability** (inverse link).
+The equation defining the model uses the first direction; calculating
+a probability from fitted coefficients uses the second.
+
+**5. Change an explanatory variable or the field effect.**
+
 For a **control seedling of the same height in the same field**, only
 $t_i$ changes to 0: $\eta_i=-2+0+0.5+0.5=-1$, so
 $p_i=1/\{1+\exp(1)\}\approx 0.269$. Thus the treatment coefficient of 1
 adds 1 to the **log-odds**, not to the probability: predicted survival
 rises from about 27% to 50%.
+
+Likewise, one additional cm of height adds 0.1 to the log-odds, holding
+treatment and field fixed. For a treated 6 cm seedling in this field,
+$\eta_i=-2+1+0.1\times6+0.5=0.1$, giving $p_i\approx 0.525$.
+The height coefficient is not a fixed 10-percentage-point increase in
+survival probability.
 
 The random effect matters too. For the treated 5 cm seedling, setting
 $u_j=0$ instead gives $\eta_i=-0.5$ and $p_i\approx 0.378$, rather than
@@ -1128,8 +1202,14 @@ $(0.2, 0.5, 0.3)$: a 20% chance of "small", 50% of "medium", and 30% of
 category code, because the meaning of averaging codes depends on how the
 categories were numbered.
 
-This is single-family cumulative-logit/probit support, not a nominal
-multinomial model or ordinal mixed-family extension. Independent likelihood,
+The checks in this section concern single-family cumulative-logit/probit
+support, not the nominal likelihood. Categorical `familym()` now combines
+ordinal, nominal and scalar observation likelihoods under native Laplace ML.
+Its nominal blocks retain full cross-logit curvature, and existing random
+effects are shared unless distinct `.familyCoordinate` effects are explicitly
+requested. Mixed nominal outer derivatives are central differences of the
+native joint Laplace likelihood; scalar/ordinal derivatives remain analytic.
+Uncertainty remains post-fit. Independent likelihood,
 probability, derivative and delta-method checks establish implementation
 correctness only; larger recovery/coverage calibration and cross-platform
 qualification remain necessary before broad inferential claims.

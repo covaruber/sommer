@@ -116,8 +116,10 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
     Rcpp::checkUserInterrupt();
     iterations = iteration + 1;
     // Sparse diagonal multiplication safely removes entries with zero weight.
-    const arma::sp_mat weightedDesign =
-      arma::sp_mat(arma::diagmat(weight)) * randomDesign;
+    const arma::sp_mat observationCurvature = family.hasNominal() ?
+      family.observationCurvature(family.evaluate(response, eta)) :
+      arma::sp_mat(arma::diagmat(weight));
+    const arma::sp_mat weightedDesign = observationCurvature * randomDesign;
     const arma::sp_mat hessian =
       randomPrecision + randomDesign.t() * weightedDesign;
     const arma::vec modeScore = randomDesign.t() * score - randomPrecision * mode;
@@ -221,10 +223,10 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
   }
   const auto finalFamily = family.evaluate(response, eta);
   const arma::sp_mat weightedRandomDesign =
-    arma::sp_mat(arma::diagmat(finalFamily.curvature)) * randomDesign;
+    family.observationCurvature(finalFamily) * randomDesign;
   const arma::sp_mat finalModeHessian =
     randomPrecision + randomDesign.t() * weightedRandomDesign;
-  return Rcpp::List::create(
+  Rcpp::List result = Rcpp::List::create(
     Rcpp::_["valid"]=true,
     Rcpp::_["reason"]="converged",
     Rcpp::_["logLik"]=logLikelihood,
@@ -236,6 +238,8 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
     Rcpp::_["iterations"]=iterations,
     Rcpp::_["modeScore"]=finalModeScore,
     Rcpp::_["logDetHessian"]=hessianLogDeterminant);
+  if(family.hasNominal()) result["observationBlockCurvature"] = finalFamily.blockCurvature;
+  return result;
 }
 
 // [[Rcpp::export]]
@@ -287,6 +291,14 @@ public:
       Rcpp::stop("Native Laplace memory budget must be positive and finite.");
     }
     family.validateResponse(response);
+    double blockPairs = 0.0;
+    for(const auto & specification : family.specifications){
+      const auto & groups = specification.nominalGroups;
+      blockPairs += static_cast<double>(groups.n_rows) * groups.n_cols * groups.n_cols;
+    }
+    if(!std::isfinite(blockPairs) || blockPairs > std::numeric_limits<int>::max() ||
+       64.0 * blockPairs > memoryMB * 1048576.0)
+      Rcpp::stop("Mixed nominal block curvature exceeds denseMemoryMB or sparse index limits.");
     std::vector<arma::uword> estimatedOrdinal;
     for(arma::uword position = 0; position < family.specifications.size(); ++position){
       const auto & specification = family.specifications[position];
@@ -330,6 +342,9 @@ public:
   }
 
   arma::vec gradient(const Rcpp::List & modeResult){
+    for(const auto & specification : family.specifications)
+      if(specification.family == "multinomial")
+        Rcpp::stop("Mixed nominal objectives require numerical outer gradients of the block Laplace likelihood.");
     const arma::uword randomCount = randomDesign.n_cols;
     const arma::uword observationCount = response.n_elem;
     // Bound dense solve panels rather than constructing H^-1 or Z H^-1 Z'.
@@ -550,7 +565,7 @@ Rcpp::List sommer_glmm_family_eval(const arma::vec & response,
   sommer::GLMMFamilyModel family("", response.n_elem, familySpecs, nativeIndex, trials);
   family.validateResponse(response);
   const auto evaluation = family.evaluate(response, predictor, true);
-  return Rcpp::List::create(Rcpp::_["logDensity"]=evaluation.logDensity,
+  Rcpp::List result = Rcpp::List::create(Rcpp::_["logDensity"]=evaluation.logDensity,
     Rcpp::_["logDensityRows"]=evaluation.logDensityRows,
     Rcpp::_["mean"]=evaluation.mean, Rcpp::_["score"]=evaluation.score,
     Rcpp::_["curvature"]=evaluation.curvature,
@@ -559,4 +574,6 @@ Rcpp::List sommer_glmm_family_eval(const arma::vec & response,
     Rcpp::_["parameterScore"]=evaluation.parameterScore,
     Rcpp::_["scoreParameter"]=evaluation.scoreParameter,
     Rcpp::_["curvatureParameter"]=evaluation.curvatureParameter);
+  if(family.hasNominal()) result["blockCurvature"] = evaluation.blockCurvature;
+  return result;
 }

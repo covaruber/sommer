@@ -196,6 +196,22 @@
   enabling VarU does not change those calculations. Direct and matrix-free
   \code{solveOnly} fits lack the stored coefficient system required here.
 
+  Categorical \code{\link{familym}} predictions return a trait-named list
+  of scalar vectors and labelled categorical probability matrices; link
+  predictions return ordinal/scalar vectors and nominal logit matrices.
+  Row order is preserved within each trait, and traits absent from new data
+  have empty outputs. Conditional prediction retains explicit shared or
+  \code{.familyCoordinate}-specific random effects.
+  \code{se.fit=TRUE} returns matching \code{fit} and \code{se.fit} lists.
+  \code{cov.fit=TRUE} adds their joint flattened covariance, labelled by
+  trait, category and within-trait row. Conditional uncertainty includes
+  estimated ordinal cutpoints while holding covariance/shape coordinates
+  fixed; \code{uncertainty="full"} includes all estimated parameters and
+  mode dependence. All uncertainty is post-fit and memory-budgeted.
+  Population prediction supports existing scalar/ordinal integration and
+  nominal unit random-intercept quadrature restrictions; mixed population
+  standard errors and classify aggregation are explicitly unsupported.
+
   Native Laplace fits accept \code{newdata}, \code{type}, \code{re.form},
   \code{se.fit}, and \code{cov.fit} through \code{\dots}. For conditional
   predictions at known random-effect levels or zero-random-effect predictions,
@@ -241,11 +257,39 @@
   probabilities by default; \code{type="link"} returns the \eqn{K-1}
   reference-category logits. Conditional prediction requires known random
   levels, while \code{re.form=NA} sets random effects to zero.
-  Population-marginal nominal prediction and classify-table aggregation are
-  not currently supported. \code{se.fit=TRUE} returns probability standard
+  \code{re.form="population"} averages category probabilities over the fitted
+  Gaussian random-intercept distribution, rather than setting random effects
+  to zero or averaging logits. It supports up to four response categories,
+  shared or correlated category-specific unit random intercepts, and sums
+  covariance contributions from independent terms. Every term must have an
+  identity relationship precision and the same group assignment across its
+  active category coordinates, with constant unit loadings across prediction
+  rows. Random slopes and other relationships are rejected. New independent
+  group levels are allowed provided the fixed-effect design is supported.
+  Integration uses deterministic tensor normal quadrature on the nonzero
+  logit-covariance eigenspace: 24- and 32-point rules must agree to within
+  \eqn{10^{-6}} absolute probability in every cell. The returned 32-point
+  result is a numerical approximation; rule agreement is not a guaranteed
+  error bound. Estimated workspace is guarded by
+  \code{execution$denseMemoryMB}. Population \code{type="link"},
+  \code{se.fit} and \code{cov.fit} are unsupported and rejected explicitly.
+  Classify-table aggregation remains unsupported.
+  \code{se.fit=TRUE} returns probability standard
   errors by the delta method and uses the joint fixed/random conditional
   curvature with fitted covariance parameters held fixed. These calculations
   happen after fitting; they are not calibrated prediction intervals.
+  Nominal models additionally accept \code{uncertainty="conditional"}
+  (the unchanged default) or \code{uncertainty="full"} through \code{\dots}.
+  The latter requires \code{se.fit=TRUE} and uses the full marginal Laplace
+  parameter covariance, including free random-covariance coordinates.
+  Conditional prediction differentiates the fitted random modes as parameters
+  change and adds random-mode posterior covariance; \code{re.form=NA} instead
+  uses the marginal fixed-coefficient covariance with zero random effects.
+  Response-scale covariance uses the softmax delta method.
+  This is a first-order post-fit approximation, not a bootstrap, simultaneous
+  confidence region, or future-response prediction interval. It requires
+  valid parameter curvature and respects the dense-memory budget; all
+  calculations are opt-in and neither change fitting nor its stored object.
   
  }
 \value{

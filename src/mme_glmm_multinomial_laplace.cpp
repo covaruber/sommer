@@ -438,7 +438,7 @@ public:
       const arma::sp_mat & random, const arma::mat & suppliedOffset,
       const Rcpp::List & descriptors, const Rcpp::List & relationships,
       const double memory)
-    : fixedDesign(fixed), offset(suppliedOffset), precision(descriptors, relationships),
+    : fixedDesign(fixed), offset(suppliedOffset), precision(descriptors, relationships, true),
       fixedCount(fixed.n_cols), covarianceCount(precision.parameterCount()){
     if(offset.n_rows != response.n_elem || offset.n_cols == 0 ||
        fixed.n_rows != offset.n_elem || !fixed.is_finite() || !offset.is_finite()){

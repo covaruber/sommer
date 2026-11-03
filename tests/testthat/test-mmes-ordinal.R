@@ -250,8 +250,10 @@ test_that("ordinal covariance-parameter uncertainty and eligibility guards are e
   expect_error(predict(fit, type="class"), "arg")
   expect_error(predict(fit, cov.fit=TRUE), "requires se.fit")
   expect_error(predict(fit, type="link", re.form="population"), "response")
-  expect_error(sommer:::.laplace_family_specs(familym("trait", first=ordinal(),
-    second=poisson()), list()), "Ordinal familym")
+  specifications <- sommer:::.laplace_family_specs(familym("trait", first=ordinal(),
+    second=poisson()), list())$specifications
+  expect_identical(specifications$first$family, "ordinal")
+  expect_identical(specifications$second$family, "poisson")
 })
 
 test_that("ordinal probability uncertainty matches an independent joint delta method", {

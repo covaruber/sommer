@@ -35,6 +35,18 @@
 }
 
 .boot_mmes_refit <- function(object, response, maxit){
+  nominalMixed <- FALSE
+  if(.laplace_is_categorical_mixed(object)){
+    for(position in seq_along(object$familySpecifications)){
+      specification <- object$familySpecifications[[position]]
+      if(specification$family != "multinomial") next
+      nominalMixed <- TRUE
+      rows <- which(object$categorical$originalIndex == position)
+      response[rows] <- match(specification$levels[response[rows]],
+        specification$nativeLevels)
+    }
+    response <- response[object$categorical$rowMap]
+  }
   if(.laplace_is_nominal(object)){
     prepared <- object$nominalPreparation
     prepared$nominal$response <- response
@@ -95,9 +107,14 @@
     settings$denseMemoryMB, familySpecs=object$familySpecifications,
     familyIndex=object$laplaceFamilyIndex, trials=object$priorWeights)
   evaluate <- function(parameters, gradient=FALSE){
-    sommer_laplace_objective_eval(context, parameters,
+    value <- sommer_laplace_objective_eval(context, parameters,
       maxModeIterations=settings$modeMaxit, tolerance=settings$modeTol,
-      gradient=gradient)
+      gradient=gradient && !nominalMixed)
+    if(gradient && nominalMixed && isTRUE(value$valid)){
+      value$gradient <- .laplace_numeric_gradient(parameters, function(proposal)
+        evaluate(proposal)$logLik)
+    }
+    value
   }
   rejected <- 0L
   objective <- function(parameters){

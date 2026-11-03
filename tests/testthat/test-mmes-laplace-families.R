@@ -172,11 +172,14 @@ test_that("zero-inflated Poisson approaches the Poisson special case", {
   random <- ~vsm(ism(group), sigma2=0.09, fixedSigma2=TRUE)
   poissonFit <- mmes(count~x, random=random, data=data, family=poisson(),
     control=nativeFamilyControl())
-  zeroInflatedFit <- mmes(count~x, random=random, data=data,
-    family=zipoisson(pi=1e-8),
-    control=mmes_control(task=list(objective="ml", glmm=list(method="laplace",
-      familyParameters=list(zeroInflation=1e-8, estimate=FALSE))),
-      diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  expect_warning(
+    zeroInflatedFit <- mmes(count~x, random=random, data=data,
+      family=zipoisson(pi=1e-8),
+      control=mmes_control(task=list(objective="ml", glmm=list(method="laplace",
+        familyParameters=list(zeroInflation=1e-8, estimate=FALSE))),
+        diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
+    "numerically near a boundary"
+  )
 
   expect_true(poissonFit$convergence)
   expect_true(zeroInflatedFit$convergence)
@@ -409,11 +412,14 @@ test_that("mixed native likelihoods index all agreed families and share latent e
   control <- mmes_control(task=list(objective="ml",
     glmm=list(method="laplace", familyParameters=settings)),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
-  fit <- mmes(response~trait-1+x,
-    random=~vsm(usm(trait,
-      fixed=rep(TRUE, length(cases) * (length(cases) + 1L) / 2L - 1L)), ism(group),
-      sigma2=0.1, fixedSigma2=TRUE),
-    data=dataset, family=familyObject, control=control)
+  expect_warning(
+    fit <- mmes(response~trait-1+x,
+      random=~vsm(usm(trait,
+        fixed=rep(TRUE, length(cases) * (length(cases) + 1L) / 2L - 1L)), ism(group),
+        sigma2=0.1, fixedSigma2=TRUE),
+      data=dataset, family=familyObject, control=control),
+    "low-information screening heuristic"
+  )
   expect_true(fit$convergence)
   expect_equal(length(fitted(fit)), nrow(dataset)-2L)
   expect_equal(fit$laplaceFamilyIndex, match(as.character(dataset$trait[fit$obsInfo$included]), names(cases)))

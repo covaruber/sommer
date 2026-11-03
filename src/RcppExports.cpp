@@ -389,6 +389,21 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// sommer_glmm_path_plan
+Rcpp::List sommer_glmm_path_plan(const std::string& estimator, const bool maximumLikelihood, const bool ordinal, const bool nominal, const bool mixture, const bool independentResiduals);
+RcppExport SEXP _sommer_sommer_glmm_path_plan(SEXP estimatorSEXP, SEXP maximumLikelihoodSEXP, SEXP ordinalSEXP, SEXP nominalSEXP, SEXP mixtureSEXP, SEXP independentResidualsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::traits::input_parameter< const std::string& >::type estimator(estimatorSEXP);
+    Rcpp::traits::input_parameter< const bool >::type maximumLikelihood(maximumLikelihoodSEXP);
+    Rcpp::traits::input_parameter< const bool >::type ordinal(ordinalSEXP);
+    Rcpp::traits::input_parameter< const bool >::type nominal(nominalSEXP);
+    Rcpp::traits::input_parameter< const bool >::type mixture(mixtureSEXP);
+    Rcpp::traits::input_parameter< const bool >::type independentResiduals(independentResidualsSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_glmm_path_plan(estimator, maximumLikelihood, ordinal, nominal, mixture, independentResiduals));
+    return rcpp_result_gen;
+END_RCPP
+}
 // mme_gpu_runtime_status
 Rcpp::List mme_gpu_runtime_status();
 RcppExport SEXP _sommer_mme_gpu_runtime_status() {
@@ -769,6 +784,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_sommer_multinomial_laplace_eval", (DL_FUNC) &_sommer_sommer_multinomial_laplace_eval, 9},
     {"_sommer_sommer_multinomial_objective_create", (DL_FUNC) &_sommer_sommer_multinomial_objective_create, 7},
     {"_sommer_sommer_multinomial_objective_eval", (DL_FUNC) &_sommer_sommer_multinomial_objective_eval, 5},
+    {"_sommer_sommer_glmm_path_plan", (DL_FUNC) &_sommer_sommer_glmm_path_plan, 6},
     {"_sommer_mme_gpu_runtime_status", (DL_FUNC) &_sommer_mme_gpu_runtime_status, 0},
     {"_sommer_post_mme_Cinverse_cpp", (DL_FUNC) &_sommer_post_mme_Cinverse_cpp, 2},
     {"_sommer_predict_mmes_vcov_cpp", (DL_FUNC) &_sommer_predict_mmes_vcov_cpp, 2},

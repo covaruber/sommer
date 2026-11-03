@@ -17,7 +17,9 @@
  \code{\link{binm}}). Native Laplace fits also support randomized quantile
  residuals. Discrete responses use randomized probability integral
  transforms; Gaussian and Gamma responses use their fitted continuous CDFs.
- These residuals are conditional on fitted model parameters and latent modes.}
+ These residuals are conditional on fitted model parameters and latent modes.
+ Nominal multinomial fits support response, Pearson and unsigned deviance
+ residuals, but not working or quantile residuals.}
  \item{\dots}{Further arguments to be passed}
 }
 \value{
@@ -33,9 +35,37 @@
   observed category's cumulative-probability interval. Undefined zero
   variance or zero-derivative residuals raise an error.
   For \code{\link{multinomial}} fits, response and Pearson residuals are
-  observation-by-category matrices; deviance, working and quantile residuals
-  are not currently defined by this implementation.
+  observation-by-category matrices with the original category labels.
+  Response residuals are \eqn{1(Y_i=k)-p_{ik}} and Pearson residuals divide
+  each cell by \eqn{\sqrt{p_{ik}(1-p_{ik})}}. Category residuals within a row
+  are dependent; do not treat them as independent normal observations.
+  Deviance residuals are a non-negative vector with magnitude
+  \eqn{\sqrt{-2\log p_{i,y_i}}}. No sign is assigned because nominal
+  categories have no natural order. Squared magnitudes sum to the fitted
+  conditional response deviance, not minus twice the marginal Laplace
+  likelihood. Log probabilities are evaluated from logits without clipping,
+  so large finite tail contributions remain visible even when probabilities
+  underflow. Pearson residuals at probabilities zero or one raise an error.
+  Working and quantile residuals remain unsupported.
+  With categorical \code{\link{familym}}, residuals are a trait-named list
+  applying these definitions independently to each trait's retained rows.
+  Scalar and ordinal components are vectors; nominal response/Pearson
+  components are labelled matrices. A requested residual type unsupported
+  by any declared trait raises an error rather than assigning an arbitrary
+  nominal ordering.
+  These are descriptive, in-sample model-checking quantities conditional on
+  fitted parameters and random modes, not calibrated outlier tests or
+  goodness-of-fit p-values. Large deviance magnitudes identify outcomes the
+  fitted model considers unlikely; compare category-wise residuals against
+  covariates or groups to investigate patterns. No uncertainty calculation
+  or refitting is performed by \code{residuals()}.
  }
+\examples{
+\dontrun{
+residuals(fit, type="deviance")  # unsigned nominal lack-of-fit magnitudes
+residuals(fit, type="pearson")   # labelled category-wise residual matrix
+}
+}
 \author{Giovanny Covarrubias}
 \seealso{\code{\link{residuals}}, \code{\link{mmes}}}
 \keyword{models}

@@ -535,15 +535,15 @@ out$controls <- rbind(out$controls, data.frame(
 out$controls <- rbind(out$controls, data.frame(
   path="control.task.glmm.method", module="task",
   values="pql, laplace.", default="pql",
-  requires="Laplace: binomial(logit/probit/cloglog), Poisson(log), zero-inflated Poisson with an intercept-only or fixed-effects formula logit component, NB2(log), Gaussian(identity) or Gamma(log), including grouped trials and familym; single-family ordinal(logit/probit); ML objective, Henderson formulation and supported CovarianceFactor v2 random structures.",
+  requires="Laplace: binomial(logit/probit/cloglog), Poisson(log), zero-inflated Poisson with an intercept-only or fixed-effects formula logit component, NB2(log), Gaussian(identity), Gamma(log), ordinal(logit/probit) or nominal multinomial(softmax), including categorical familym and grouped binomial trials; ML objective, Henderson formulation and supported CovarianceFactor v2 random structures.",
   excludes="Laplace excludes structured residual covariance, direct formulation, supplied W, weights formulas and vcc.",
   fallback="PQL remains the default; unsupported Laplace models stop with an eligibility error.",
-  effect="Select the GLMM estimator. Native Laplace fitting uses actual-family preparation-only designs, cached CovarianceFactor/relationship precisions and full native Laplace first scores including mode/determinant dependence. Numerical-Hessian uncertainty and joint fixed/random PEV are calculated only after fitting through vcov(), summary(), predict(se.fit=TRUE) or postPEV(); Laplace requires output$inverse=0. PQL continues through the existing sommer engines.",
+  effect="Select the GLMM estimator. Native Laplace fitting uses preparation-only designs, cached CovarianceFactor/relationship precisions and observation-level scalar/category-block likelihoods. Scalar/ordinal outer scores are analytic; mixed nominal outer scores use central differences of the native block Laplace likelihood, including mode/determinant dependence. Random-effect semantics remain explicit, without automatic independent category expansion. Numerical-Hessian uncertainty and joint fixed/random PEV are calculated only after fitting through vcov(), summary(), predict(se.fit=TRUE) or postPEV(); Laplace requires output$inverse=0. PQL continues through the existing sommer engines.",
   source="R/FUN_glmm.R, R/mmes.R", status="experimental", previous="new"))
 out$controls <- rbind(out$controls, data.frame(
   path="control.task.glmm.familyParameters", module="task",
   values="Named list: theta, dispersion, zeroInflation or ordinal thresholds and estimate; trait-named nested lists for supported familym families.",
-  default="list()", requires="Native Laplace NB2 shape, Gaussian/Gamma dispersion, zero-inflated Poisson structural-zero probability or single-family ordinal cutpoints.",
+  default="list()", requires="Native Laplace NB2 shape, Gaussian/Gamma dispersion, zero-inflated Poisson structural-zero probability or ordinal cutpoints (trait-nested in familym).",
   excludes="Non-empty settings are rejected by PQL and by fixed-parameter binomial/Poisson families.",
   fallback="Estimated by default; estimate=FALSE fixes the value. Unknown/invalid settings error.",
   effect="Jointly estimate or fix per-family shape, dispersion, zero-inflation probability or ordered cutpoints with full marginal scores; estimates count in npar and AIC/BIC. Ordinal estimation removes only the existing intercept column and initializes unsupplied cutpoints from retained cumulative frequencies; fixed cutpoints require explicit thresholds and retain the formula intercept.",

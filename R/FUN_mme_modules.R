@@ -540,10 +540,6 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
 
 .mmes_check_family_controls <- function(control, supplied, family, internal){
   if(identical(control$task$glmm$method, "laplace")){
-    if(control$task$objective != "ml"){
-      stop("Laplace GLMMs use maximum likelihood; set task$objective='ml'.",
-           call.=FALSE)
-    }
     if(!is.null(internal)){
       stop("task$glmm$method='laplace' is not supported for internal working-model fits.",
            call.=FALSE)
@@ -598,7 +594,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     list(active=if(is.null(diagnostic$active)) NA else diagnostic$active,
       reason=if(is.null(diagnostic$fallbackReason)) "" else diagnostic$fallbackReason)
   }
-  list(version=1L, task=control$task$mode,
+  plan <- list(version=1L, task=control$task$mode,
     objective=if(laplace) "ml (Laplace)" else control$task$objective,
     formulation=if(laplace) "Native Laplace likelihood module" else control$formulation,
     solver=list(requested=control$solve$method,
@@ -618,4 +614,20 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     update=control$update,
     output=control$output,
     status=if(control$output$setup && control$task$mode == "fit") "assembled" else "evaluated")
+  if(laplace && .laplace_is_categorical_mixed(result)){
+    plan$glmm$likelihood <- "mixed scalar/category blocks"
+    nominal <- any(vapply(result$familySpecifications, function(specification)
+      specification$family == "multinomial", logical(1)))
+    plan$glmm$gradient <- if(nominal)
+      "central differences of native block Laplace likelihood" else "native analytic"
+    plan$glmm$randomExpansion <- "explicit formula; existing coefficients shared"
+  }
+  if(!is.null(result$glmmPathPlan)){
+    plan$glmm$path <- result$glmmPathPlan
+    plan$glmm$requestedPath <- result$glmmPathPlan$requested
+    plan$glmm$eligible <- result$glmmPathPlan$eligible
+    plan$glmm$selectedPath <- result$glmmPathPlan$selected
+    plan$glmm$reason <- result$glmmPathPlan$reason
+  }
+  plan
 }

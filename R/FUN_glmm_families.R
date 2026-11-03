@@ -156,11 +156,6 @@ ordinal <- function(link="logit", thresholds=NULL){
     stop("task$glmm$familyParameters must be a uniquely named list.", call.=FALSE)
   }
   if(mixed){
-    if(any(vapply(families, function(component) identical(component$family, "ordinal"),
-        logical(1)))){
-      stop("Ordinal familym() models are not supported; use a single ordinal family.",
-        call.=FALSE)
-    }
     unknown <- setdiff(names(settings), names(families))
     if(length(unknown)){
       stop("Unknown familyParameters trait(s): ", paste(unknown, collapse=", "), ".", call.=FALSE)
@@ -172,6 +167,13 @@ ordinal <- function(link="logit", thresholds=NULL){
   specifications <- lapply(seq_along(families), function(familyPosition){
     familyObject <- families[[familyPosition]]
     code <- if(grepl("^Negative Binomial", familyObject$family)) "nbinom2" else familyObject$family
+    if(code == "multinomial"){
+      supplied <- familySettings[[familyPosition]]
+      if(is.null(supplied)) supplied <- list()
+      .mme_module(supplied, list(), "familyParameters")
+      return(list(family=code, link="softmax", logParameter=0, free=FALSE,
+        parameter=NULL, supplied=FALSE, reference=familyObject$reference))
+    }
     if(code == "ordinal"){
       configuration <- .laplace_ordinal_configuration(familyObject, familySettings[[familyPosition]])
       return(list(family=code, link=familyObject$link, logParameter=0,
@@ -536,6 +538,10 @@ ordinal <- function(link="logit", thresholds=NULL){
 .laplace_simulate_response <- function(object, nsim,
                                        includeRandomEffects=FALSE,
                                        maxMemoryMB=256, randomFactors=NULL){
+  if(.laplace_is_categorical_mixed(object)){
+    return(.laplace_mixed_simulate(object, nsim, includeRandomEffects,
+      maxMemoryMB, randomFactors))
+  }
   if(.laplace_is_nominal(object)){
     simulations <- matrix(NA_integer_, nrow=object$nobs, ncol=nsim)
     if(includeRandomEffects){
@@ -742,8 +748,7 @@ ordinal <- function(link="logit", thresholds=NULL){
   variance
 }
 
-.laplace_normal_quadrature <- function(){
-  quadratureOrder <- 24L
+.laplace_normal_quadrature <- function(quadratureOrder=24L){
   jacobiMatrix <- matrix(0, nrow=quadratureOrder, ncol=quadratureOrder)
   offDiagonal <- sqrt(seq_len(quadratureOrder - 1L))
   jacobiMatrix[cbind(seq_len(quadratureOrder - 1L),
@@ -838,6 +843,7 @@ simulate.mmes.glmm.laplace <- function(object, nsim=1, seed=NULL,
       factor(object$nominal$levels[codes], levels=object$nominal$levels))
   }
   names(result) <- paste0("sim_", seq_len(nsim))
-  rownames(result) <- rownames(object$fixedDesign)
+  rownames(result) <- if(.laplace_is_categorical_mixed(object))
+    rownames(object$categorical$originalData) else rownames(object$fixedDesign)
   result
 }
