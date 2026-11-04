@@ -54,6 +54,49 @@ interface described below.
 
 # Estimation methods
 
+PQL uses Henderson working fits by default. To fit the same PQL working
+problems in observation space instead, select `formulation="direct"`:
+
+```{r direct-pql-call, eval=FALSE}
+fit_direct <- mmes(outcome ~ treatment,
+  random = ~ subject, data = dat, family = poisson(),
+  control = mmes_control(formulation = "direct",
+    task = list(pql = list(maxit = 30, tol = 1e-6))))
+summary(fit_direct)
+fitted(fit_direct, type = "link")
+```
+
+Direct PQL supports ML or REML **working-model** estimation, structured random
+and residual covariance, grouped-binomial trials, scalar `familym()` models,
+supplied `W`, `weights=~block` metadata, `vcc`, and covariance warm starts.
+Observation filtering and offsets follow the same contract as Henderson PQL.
+The sparse predictor design is retained without fitting Henderson equations.
+`summary()` and Wald tests use the direct working-model fixed-effect covariance.
+As with Gaussian direct fits, `output$inverse=2` requests random-effect PEV.
+Prefer the default `output$inverse=0` and compute uncertainty after fitting:
+
+```{r, eval=FALSE}
+predict(fit_direct, D="subject", VarU=FALSE, sed=TRUE, pairwise=TRUE)
+fit_direct <- postPEV(fit_direct, mode=1) # diagonal coefficient error covariance
+# postPEV(fit_direct, mode=2) returns full joint coefficient error covariance
+```
+
+`predict()` supports classify terms, explicit coefficient contrasts, `Dtable`
+rules and level selections without a prior `postPEV()` call. Direct post-fit
+covariance uses the retained sparse designs, relationship precisions, residual
+mappings and final IRLS weights in observation space, not Henderson
+`C`/`Cscale`. Keep `output$coefficientMatrix=TRUE` (default) to retain these inputs.
+`output$panelSize` bounds diagonal covariance panels;
+`execution$denseMemoryMB` guards post-fit workspace (or prediction's
+`maxMemoryMB` override). Full coefficient covariance requires quadratic storage,
+but diagonal PEV does not. No native factor pointers are stored in the fit.
+PQL prediction covariance is a link-scale working-model approximation conditional
+on fitted covariance parameters; coefficient contrasts do not automatically add
+formula offsets. Gaussian direct predictions also support `VarU` and
+`postVarU()`; these remain unavailable for PQL. `fitted()` and
+`residuals()` remain available. Direct formulation does not turn PQL into
+a marginal-likelihood method.
+
 PQL remains the default, and its structured covariance and relationship-matrix
 support are unchanged. An opt-in native Laplace method is available for
 binomial (logit, probit or complementary log-log), Poisson-log,
@@ -103,21 +146,267 @@ The fitting-local context is not stored in the fitted object.
 The native likelihood supports binary and grouped-binomial responses,
 formula offsets, and random covariance structures accepted by the
 Henderson setup. It requires `task$objective = "ml"`. Structured residual
-covariance, `W`, weights formulas, `vcc`,
-direct formulation, and known-covariance solve mode are not yet supported.
+covariance, `W` and `weights` metadata are supported for Gaussian observation
+blocks (see below), not for discrete observation errors.
+Direct formulation and known-covariance solve mode are not yet supported.
 Native Laplace fitting requires `output$inverse=0`; PEV is calculated only
 after fitting with `postPEV(fit, mode = 1L or 2L)`. New-data predictions
-support conditional effects for known levels, zero-random-effect means, and a
-restricted response-scale population mean for independent random intercepts.
+support conditional effects for known levels, zero-random-effect means, and
+response-scale population means for supported structured Gaussian random effects.
 Use `predict(fit, newdata, se.fit=TRUE)` for conditional or
 zero-random-effect standard errors. `cov.fit=TRUE` additionally returns the
 full prediction covariance when it fits within `execution$denseMemoryMB`.
 These are local observed-information approximations conditional on fitted
-covariance/family parameters. Uncertainty for population-marginal means and
-general population integration are not implemented. No other mixed-model
+covariance/family parameters. Population-mean SEs propagate estimated outer
+parameters after fitting; nominal integration has the bounds described below.
+No other mixed-model
 package is used as a fitting backend.
 
 ## Expanded response families and mixed traits
+
+### Choosing Laplace linear algebra
+
+The same Laplace likelihood can be evaluated from two sides:
+
+- `backend="random"` factors equations indexed by hidden random coefficients.
+  This is often best for sparse designs and relatively few random effects.
+- `backend="observation"` factors a dense system indexed by predictor rows,
+  using sparse prior-precision solves. It can help when many random
+  coefficients induce dense coupling but there are relatively few records.
+  For nominal responses, each non-reference logit contributes a predictor row.
+
+```{r laplace-backend, eval=FALSE}
+control <- mmes_control(
+  task = list(objective = "ml",
+    glmm = list(method = "laplace", backend = "auto")),
+  execution = list(denseMemoryMB = 1000))
+fit <- mmes(count ~ treatment, random = ~ plant,
+  data = dat, family = poisson(), control = control)
+fit$executionPlan$glmm$backend
+```
+
+`"auto"` is the default. It selects observation space only when the number
+of random coefficients is at least twice the number of predictor rows,
+the random design suggests dense coefficient coupling, and the estimated
+workspace fits the memory budget. Otherwise it retains random-space
+factorization. The coupling estimate is prior-precision nonzeros plus the
+sum of squared row support sizes, compared with one quarter of the squared
+random dimension. This conservative heuristic is not a measured cost model
+or a promise of faster fitting. Either backend can be requested explicitly;
+memory or numerical failures are reported, not silently switched away.
+The decision is fixed when an objective context is constructed.
+
+Both routes use the same family likelihoods, covariance descriptors, mode
+criterion, outer optimizer, determinant correction and constraints, including
+signed ZIP curvature and nominal/Gaussian blocks. This is **not** direct PQL
+and does not improve the statistical accuracy of the Laplace approximation.
+Keep `formulation="henderson"` at the public Laplace preparation interface;
+select its algebra with `task$glmm$backend`, not Gaussian `solve$backend`.
+
+The observation route forms the dense covariance among predictor rows,
+but never a full random covariance or random-effect Hessian. Its covariance
+is cached while the random covariance parameters are unchanged; changing
+those parameters rebuilds it. Dense covariance, eigen/root and factor
+workspace and solve panels are checked against `execution$denseMemoryMB`.
+Sparse precision storage/factor fill is not a strict total-memory guarantee.
+Large numbers of predictor rows can make this route inappropriate.
+
+SE and PEV remain strictly post-fit. Saved observation fits contain ordinary
+designs/metadata rather than native pointers or a random-effect Hessian.
+Inference reconstructs operation-local mode solves; joint coefficient solves
+use a fixed-effect Schur complement. Full requested covariance output can
+still be large and is memory-guarded. Prediction, serialization, bootstrap
+and covariance constraints preserve the chosen algebra.
+
+For reproducible timing comparisons, load the working-tree package with
+`pkgload::load_all()` and source `inst/benchmarks/laplace-backends.R`.
+It checks numerical parity before measuring warm objective-plus-gradient
+calls with one BLAS thread, covariance-changing calls, and the cold context
+construction/first evaluation. The warm timings exclude preparation and the
+cold covariance build, and are not whole-fit speed guarantees.
+
+A source-tree CPU/OpenBLAS run of that script gave the following median
+seconds per **covariance-changing objective plus analytic gradient**:
+
+| Random design | Predictor rows | Random coefficients | Random backend | Observation backend | Auto |
+|---|---:|---:|---:|---:|---|
+| Dense | 32 | 256 | 0.283 | 0.026 | observation |
+| Dense | 64 | 512 | 1.615 | 0.160 | observation |
+| Sparse | 64 | 512 | 0.013 | 0.031 | random |
+| Dense, relatively few coefficients | 128 | 32 | 0.019 | 0.018 | random |
+
+The two dense many-coefficient cases improved roughly 10--11-fold, whereas
+observation space was slower for the sparse case. Backend likelihood and
+gradient differences were below `2e-12` in these fixtures. These small
+synthetic benchmarks justify the targeted route and conservative selection,
+not a universal timing claim; rerun them on the intended data and hardware.
+
+### Exact fitting accelerations
+
+The outer optimizer remains `nlminb`, supplied with first derivatives;
+the conditional mode still uses Newton steps and the existing line search.
+No outer AI algorithm, relaxed inner accuracy, whitening or approximate
+integration is introduced. The controls are nested under `task$glmm`:
+
+| Control | Default | Alternative and meaning |
+|---|---|---|
+| `warmStart` | `"auto"` | `"off"` restores zero starts; `"on"` explicitly requests successful-mode reuse. |
+| `gradient` | `"analytic"` | `"numeric"` uses central differences of the same marginal likelihood. |
+| `trace` | `"panels"` | `"selected"` contracts an exact Cholesky inverse subset. |
+| `blocks` | `"off"` | `"on"` factors exact independent mode-Hessian components. |
+
+Warm starts reuse the last **successful** mode for nearby changed outer
+proposals, separately from the exact-parameter likelihood/score cache.
+Failed warm solves retry zero; convergence tolerances and line searches do
+not change. All current families except ZIP have concave conditional
+likelihoods. ZIP can have several stationary points: automatic reuse is
+disabled, and explicit `"on"` always cold-verifies subsequent proposals and
+returns the historical zero-start result. It offers no guaranteed ZIP
+speedup, but does not change which local root defines the likelihood.
+
+Mixed nominal analytic scores contract each observation's full logit
+covariance with the categorical third cumulant, then use the shared adjoint
+mode correction. This includes fixed, covariance, ordinal-cutpoint and
+other nuisance derivatives, Gaussian residual blocks and reduced `vcc`
+coordinates. No finite-difference fitting gradient is needed by default.
+
+Selected traces reuse an LL' Takahashi inverse subset. A required entry
+outside the filled Cholesky pattern triggers an **exact bounded solve**;
+it is never assumed zero. Block solves use the full numeric Hessian graph,
+including signed and zero curvature; graph membership is rebuilt when it
+changes. Both choices require `backend="random"`; explicit incompatible
+requests or insufficient workspace error. They preserve the same
+likelihood, but overhead and fill can make them slower.
+
+```{r laplace-acceleration, eval=FALSE}
+control <- mmes_control(
+  task = list(objective = "ml",
+    glmm = list(method = "laplace", backend = "random",
+      warmStart = "auto", gradient = "analytic",
+      trace = "selected", blocks = "on")))
+fit$laplaceDiagnostics$nativeWork
+```
+
+Native work records warm attempts, cold retries/checks, mode iterations,
+selected-subset builds, exact contraction panels and block count.
+The choices persist through prediction, uncertainty, bootstrap and saved
+fits. SE and PEV remain strictly post-fit: inverse-subset use during
+gradient evaluation is not public uncertainty estimation.
+
+Source `inst/benchmarks/laplace-acceleration.R` after loading the working-tree
+package. It uses one BLAS thread, median timings over three batches and
+checks every proposal/fit against the reference. Whole-fit comparisons
+include preparation and outer optimization. Warm mode reuse and analytic
+mixed scores improved the tested workloads; selected and block paths were
+not uniformly better and remain opt-in. Timing results below are
+fixture-specific rather than guarantees for arbitrary models.
+
+The final source-tree CPU/OpenBLAS run measured:
+
+| Workload | Reference seconds | Accelerated seconds | Result |
+|---|---:|---:|---|
+| Complete Poisson fit, warm reuse | 0.520 | 0.397 | 1.31x faster; mode iterations 114 to 66 |
+| Complete three-trait mixed fit, analytic versus numeric scores | 18.345 | 1.768 | 10.38x faster |
+| Mixed objective and score, analytic versus numeric | 0.645 | 0.043 | 14.96x faster |
+| Independent sparse predictor system, selected versus panels (1536 rows, 256 coefficients) | 0.0559 | 0.0405 | 1.38x faster |
+| Chain precision, selected versus panels (1536 rows, 256 coefficients) | 0.0542 | 0.0456 | 1.19x faster |
+| Dense design, selected versus panels (96 rows, 48 coefficients) | 0.0257 | 0.0743 | 2.89x slower |
+| Independent sparse system, explicit blocks versus global factorization | 0.0559 | 0.0962 | 1.72x slower |
+
+Native-system rows measure covariance-changing objective-plus-score calls,
+not complete fits. Timed proposals retained likelihood differences below
+`1e-8` and score differences below `1e-7`. Sparse native warm runs used
+273 mode iterations versus 540 cold iterations across the same 90 timed
+proposals. Selected contractions removed all 5040 reference contraction
+panels in those sparse runs, but that reduction alone did not predict
+wall time on dense models. Consequently warm reuse and analytic scores
+are defaults; selected and block paths remain explicit workload-dependent
+choices, with global sparse Cholesky already exploiting independence well.
+The benchmark fixes warm starts off when comparing trace/block/gradient
+techniques, so each comparison measures that individual technique.
+
+### Equality and ratio constraints in native Laplace models
+
+Native Laplace supports `vcc` for random covariance parameters in scalar,
+ordinal, nominal and mixed `familym()` models. Constraints are exact in the
+shared working-coordinate map, rather than a penalty or a post-fit repair.
+Inspect the parameter table using the same Laplace control as
+the fit:
+
+```{r laplace-vcc, eval=FALSE}
+laplace_control <- mmes_control(
+  task = list(objective = "ml", glmm = list(method = "laplace")),
+  diagnostics = list(verbose = FALSE, dateWarning = FALSE))
+setup_control <- laplace_control
+setup_control$output$setup <- TRUE
+setup <- mmes(y ~ x, random = ~ group + block, data = dat,
+  family = poisson(), control = setup_control)
+setup$vcParams
+fit <- mmes(y ~ x, random = ~ group + block, data = dat,
+  family = poisson(), control = laplace_control,
+  vcc = data.frame(parameter = c(1, 2), group = 1, scale = c(2, 1)))
+```
+
+Here the group variance is twice the block variance. Fully qualified parameter
+names from `setup$vcParams` can replace indices. Each constraint group needs
+at least two members with compatible transforms. A fixed member fixes its
+whole group; conflicting fixed members are rejected.
+
+This table excludes the synthetic residual scale used in Gaussian preparation.
+If actual structured Gaussian residual blocks are requested, their parameters
+are also reported under `"residual"`, but are not accepted as `vcc` members.
+Family dispersion, NB2 shape, ordinal cutpoints and zero-inflation coefficients
+are **not** `vcc` parameters. AIC/BIC count independent coordinates, not tied
+members. Covariance SEs, prediction uncertainty and PEV propagate the constraint
+map after fitting; fitting itself still computes no Hessian or PEV.
+`anova()` comparisons retain the nested-fixed-effects contract and require the
+same covariance constraints in both fits.
+
+### Structured Gaussian observation-residual blocks
+
+Native Laplace can combine correlated Gaussian observations with the existing
+scalar, ordinal and nominal likelihoods. For Gaussian rows,
+$y_G\mid u\sim N(X_G\beta+Z_Gu,R)$; discrete observations retain their existing
+conditional likelihoods. With only Gaussian responses, this integration is
+the exact Gaussian ML likelihood, not an approximation.
+
+```{r gaussian-residual-blocks, eval=FALSE}
+fit <- mmes(y ~ time + x, random = ~ group,
+  rcov = ~ vsm(ar1m(time), ism(record)),
+  data = dat, family = gaussian(), control = laplace_control)
+
+# Covariance between Gaussian traits paired within a record:
+mixed <- mmes(y ~ trait + trait:x - 1, random = ~ group,
+  rcov = ~ vsm(usm(trait), ism(record)),
+  data = dat_long,
+  family = familym("trait", height = gaussian(), weight = gaussian(),
+    count = poisson()), control = laplace_control)
+```
+
+`rcov` is evaluated on the Gaussian subset only. Use explicit pairing keys,
+especially for incomplete or unbalanced repeated measurements.
+The residual descriptor owns Gaussian variances; do not additionally configure
+Gaussian `task$glmm$familyParameters`. Omitting structured `rcov`, `W` and
+`weights` preserves the previous independent family-dispersion model.
+
+`W` uses the existing sommer residual transformation. It may cover the original
+or retained data, or the original or retained Gaussian subset. A
+full-data matrix must be identity on non-Gaussian observations and have zero
+cross-family entries. `weights = ~trial` declares independent blocks of `W`;
+it does not generate numerical weights. Missing residual coordinates are
+filtered with `naMethodR`, and matrices/mappings follow the retained-row order.
+If matrix dimensions ambiguously match different subsets, supply `W` for all
+original observations rather than relying on an implicit row alignment.
+
+Analytic scores include the residual determinant, mode response and Laplace
+determinant dependence. Numerical-Hessian SEs, prediction uncertainty and PEV
+remain post-fit; simulations and bootstrap refits preserve the joint Gaussian
+residual law. Gaussian Pearson/quantile residuals use marginal variances;
+deviance residuals are Cholesky-whitened and depend on observation order.
+The implementation reuses the residual covariance assembler with dense
+Gaussian-subset matrices and guards workspace through `execution$denseMemoryMB`.
+It does not provide Gaussian-discrete residual correlations or an arbitrary
+correlated discrete likelihood.
 
 Use `binm(successes, trials=trials)` or `cbind(successes, failures)` for
 grouped binomial responses. Positive integer trial totals and integer counts
@@ -359,13 +648,17 @@ Mixed residuals are trait-named, using each family's existing definitions.
 Nominal working/quantile residuals remain undefined. Conditional and full
 post-fit prediction uncertainty return matching `fit`/`se.fit` lists;
 `cov.fit` is the joint covariance in trait/category/within-trait-row order.
-Population probabilities/means use the existing restricted integration
-routes; nominal random slopes/nonidentity relationships, population SE and
-classify aggregation remain explicitly unsupported.
+Population probabilities/means use the same structured latent covariance as
+fitting, including nonidentity relationship precision and non-unit loadings.
+Population `se.fit=TRUE` propagates all estimated outer parameters and returns
+`uncertainty="full"`; it describes uncertainty in the integrated mean, not a
+future response. Nominal integration supports up to four categories with the
+deterministic accuracy check below. Classify aggregation remains unsupported.
 
-Mixed nominal outer gradients use central differences of the native block
-Laplace likelihood, including mode and determinant dependence.
-Scalar/ordinal-only gradients remain native analytic. Gaussian and PQL routes
+Mixed nominal outer gradients are native analytic, including mode and
+determinant dependence. `task$glmm$gradient="numeric"` retains the
+central-difference reference alternative. Scalar/ordinal gradients remain
+native analytic. Gaussian and PQL routes
 are unchanged. All SE, parameter covariance, prediction uncertainty and PEV
 remain post-fit, subject to `execution$denseMemoryMB`; fitting still requires
 `output$inverse=0`.
@@ -497,20 +790,116 @@ predictions for unseen levels fail with the variable and level named; use
 `re.form=NA` to set their random effects to zero. On a nonlinear link this
 zero-random-effect response mean is **not** the population mean integrated
 over random effects. `re.form="population", type="response"` integrates over
-the latent normal effects using Gauss-Hermite quadrature for independent
-random-intercept terms with identity relationship precision. Other covariance
-structures fail explicitly rather than silently treating zero effects as a
-marginal mean. For conditional known-level or zero-random-effect predictions,
+the fitted Gaussian latent distribution, reusing covariance descriptors and
+supplied relationship precision. Structured effects and random slopes contribute
+through their actual prediction loadings, not an intercept-only shortcut.
+For conditional known-level or zero-random-effect predictions,
 `se.fit=TRUE` returns standard errors and `cov.fit=TRUE` additionally returns
 the full covariance, subject to the configured dense-workspace budget.
 Response-scale standard errors use the delta method. They condition on fitted
 covariance and family parameters; population-marginal prediction uncertainty
-is propagated through fixed-effect and covariance-parameter curvature for the
-restricted independent-random-intercept case. General population integration
-remains unsupported. Aggregation and PEV-based prediction uncertainty flags
+is propagated through fixed-effect, covariance and family-parameter curvature.
+Nominal means use each observation's joint logit covariance, including
+cross-category correlations, with at most three non-reference logits. The
+24- and 32-node tensor rules must agree within `1e-6` absolute probability;
+this is an accuracy diagnostic, not a guaranteed integration error bound.
+Aggregation and PEV-based prediction uncertainty flags
 are rejected; explicit `PEV=FALSE` and `VarU=FALSE` are accepted.
 Working residuals are `(y - mu) / family$mu.eta(eta)`, not the working
 response.
+
+## Correlated hidden processes: time, space and shared responses
+
+Repeated counts or disease observations can remain connected because an
+underlying condition changes gradually over time or space. Model that
+condition as a structured **random effect**, not as a discrete residual
+covariance. No new family or solver option is needed:
+
+```{r latent-process-recipes, eval=FALSE}
+laplace_control <- mmes_control(
+  task = list(objective = "ml", glmm = list(method = "laplace")),
+  diagnostics = list(verbose = FALSE, dateWarning = FALSE))
+
+# Each plant has its own temporally correlated hidden process.
+# Use a factor with explicitly ordered, equally spaced time levels.
+dat$week <- factor(dat$week, levels = sort(unique(dat$week)))
+temporal <- mmes(count ~ treatment,
+  random = ~ vsm(ar1m(week), ism(plant)),
+  data = dat, family = poisson(), control = laplace_control)
+
+# Independent fields, with a separable hidden spatial process in each field.
+spatial <- mmes(diseased ~ treatment,
+  random = ~ vsm(ar1m(row), ar1m(column), ism(field)),
+  data = plots, family = binomial(), control = laplace_control)
+
+# In long data, this one process is shared across response types.
+shared <- mmes(y ~ trait + trait:treatment - 1,
+  random = ~ vsm(ar1m(week), ism(plant)),
+  data = long,
+  family = familym("trait", count = poisson(), diseased = binomial()),
+  control = laplace_control)
+
+# These are different scientific targets:
+predict(temporal, newdata = visits, type = "response") # fitted plant process
+predict(temporal, newdata = visits, re.form = NA, type = "response") # process set to zero
+predict(temporal, newdata = visits, re.form = "population",
+  type = "response", se.fit = TRUE, cov.fit = TRUE) # average over fitted process law
+postPEV(temporal) # uncertainty about fitted latent coefficients, post-fit only
+```
+
+In the temporal recipe, nearby weeks are linked *within* a plant; different
+plants are independent unless a relationship matrix is supplied. In the
+spatial recipe, row and column covariance shapes are multiplied. In the
+shared-response recipe, one latent coefficient affects each trait's link
+predictor. It is not automatically a separate process for each trait. Use
+explicit trait or `.familyCoordinate` covariance terms when distinct,
+correlated processes are intended.
+
+### Ordering, missing observations and new visits
+
+`ar1m()` uses the **order of factor levels**, not elapsed numeric distances.
+Use it for equally spaced time/grid positions; do not code weeks 1, 2 and 8
+as three consecutive positions if the intended model uses elapsed weeks.
+Declare the intended ordered coordinate basis when fitting and inspect the
+prepared random design. Unused factor levels alone do not add coordinates:
+the constructors drop levels with no records. A supplied relationship matrix
+can explicitly add unobserved individuals to the latent basis; include those
+individuals in the grouping factor's declared levels as well to make them
+available to conditional prediction. Repeated observations identify a process separately
+from the family variance more reliably than one binary observation per
+latent coefficient.
+
+Missing responses do not turn a latent process into independent effects:
+its covariance still connects retained observations and represented latent
+coordinates. Conditional prediction can use a represented plant/time
+combination with no response, borrowing information through the fitted
+process. It cannot invent a new covariance coordinate absent from the fitted
+basis. New independent groups can be integrated for population means when
+their random terms have identity relationship precision; unrelated terms may
+still use nonidentity relationship matrices. New time/site coordinates or unknown
+relationship levels are rejected rather than silently replaced by an old
+location. This interface is not an automatic continuous-space interpolator or
+an arbitrary out-of-basis forecasting API.
+
+### Interpretation and practical checks
+
+- Dependence belongs to the hidden **link-scale process**. Discrete responses
+  remain conditionally independent given it. This is not a discrete `rcov`.
+- Population prediction averages over the *prior* fitted process law, even at
+  observed plants; it does not condition that process on their responses.
+- Use `vcc` and the existing descriptor controls for random covariance
+  parameters. The Gaussian residual-block implementation is separate.
+- Avoid redundant intercepts, processes whose correlation approaches one, and
+  overdispersion terms that compete with the same latent variance. Check
+  `convergence`, boundary diagnostics and post-fit SE availability.
+- Population simulation draws the whole correlated process jointly.
+  Pointwise population means need only marginal predictor variances (or a
+  nominal observation's logit covariance), but uncertainty across predictions
+  also reflects their shared estimated parameters.
+- Latent covariance prediction uses bounded dense solve panels and sparse
+  relationship-precision factors, under `execution$denseMemoryMB`. It does
+  not construct a dense covariance for all observations. Sparse factor fill
+  is not covered by a strict total-memory guarantee.
 
 # How the fit works
 
@@ -536,13 +925,14 @@ z_i^{(t)} = \eta_i^{(t)} +
 D_{ii}^{(t)} = \frac{\left(h_i^{(t)}\right)^2}{V_i^{(t)}}.
 $$
 
-Sommer then calls its existing weighted Gaussian Henderson/AI-REML solver on
+Sommer then calls its existing weighted Gaussian Henderson or direct solver on
 $z^{(t)}$. This updates fixed effects, BLUPs, and covariance parameters; the
 new predictor is $\eta^{(t+1)} = o + X\hat\beta + Z\hat u$. The outer loop
-stops when the deviance change is sufficiently small.
+stops when the deviance change is sufficiently small. Direct PQL additionally
+requires the final inner covariance fit to have certified convergence.
 
-This approach deliberately reuses `ai_mme_sp2()` as the weighted Gaussian
-inner optimizer. It does not maximize an exact marginal GLMM likelihood.
+This approach deliberately reuses `ai_mme_sp2()` or `ai_reml_direct_sp2()` as
+the weighted Gaussian inner optimizer. It does not maximize an exact marginal GLMM likelihood.
 PQL is practical for structured and large random-effect models, but can be
 biased for binary or sparse count responses, particularly with large
 random-effect variances. Treat standard errors and variance components as
@@ -731,8 +1121,9 @@ fit_poisson$family
 Use `task$pql` to set outer PQL iterations and relative deviance tolerance.
 Set `update$blendWeight = 0` to retain pure-AI covariance updates in PQL;
 positive EM-direction blending is not supported. `convergence$maxIters`,
-`convergence$likelihoodTol`, `proposal$stepWeight`, and `solve$method` control
-the Gaussian variance-component fit inside each outer iteration.
+`convergence$likelihoodTol`, and `proposal$stepWeight` control
+the Gaussian variance-component fit inside each outer iteration. `solve$method`
+selects the Henderson backend only; leave it at its default for direct PQL.
 
 ```{r pql-control, eval=FALSE}
 fit <- mmes(y_poisson ~ x + offset(log(exposure)),
@@ -754,7 +1145,9 @@ fit <- mmes(y_poisson ~ x + offset(log(exposure)),
   adding complex covariance structures.
 - Check `pqlConverged`; `FALSE` means the outer PQL criterion was not met within
   `task$pql$maxit` iterations. Convergence on the last allowed iteration is
-  still reported as converged.
+  still reported as converged. For direct PQL, a failed final inner fit also
+  prevents convergence; inspect `pqlMonitor[,"innerConverged"]` and
+  `engineDiagnostics$direct` for the working-model stop reason.
 - Keep binomial responses away from complete separation where possible; very
   small derivatives can create unstable IRLS weights.
 - For binary outcomes with few observations per random-effect level or large

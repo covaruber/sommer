@@ -52,9 +52,16 @@
     stop("vcc must be a data frame with columns 'parameter' and 'group' (and optionally 'scale').",
          call.=FALSE)
   }
+  if(!nrow(vcc) || anyNA(vcc$group) || any(!nzchar(as.character(vcc$group)))){
+    stop("vcc must contain nonmissing, nonempty constraint groups.", call.=FALSE)
+  }
+  if(is.numeric(vcc$parameter) &&
+     (any(!is.finite(vcc$parameter)) || any(vcc$parameter != floor(vcc$parameter)))){
+    stop("Numeric vcc parameter indices must be finite whole numbers.", call.=FALSE)
+  }
   if(is.null(vcc$scale)) vcc$scale <- 1
   fullNames <- paste(vcParams$term, vcParams$parameter, sep=":")
-  idx <- if(is.numeric(vcc$parameter)) as.integer(vcc$parameter) else {
+  idx <- if(is.numeric(vcc$parameter)) vcc$parameter else {
     p <- as.character(vcc$parameter)
     m <- match(p, fullNames)
     alone <- is.na(m) & p %in% vcParams$parameter &
@@ -67,7 +74,7 @@
          ". See the vcParams table from mmes(..., control=mmes_control(output=list(setup=TRUE))).", call.=FALSE)
   }
   if(anyDuplicated(idx)) stop("A parameter appears more than once in vcc.", call.=FALSE)
-  if(any(!is.finite(vcc$scale)) || any(vcc$scale == 0)){
+  if(!is.numeric(vcc$scale) || any(!is.finite(vcc$scale)) || any(vcc$scale == 0)){
     stop("vcc scale values must be finite and non-zero.", call.=FALSE)
   }
 
@@ -89,6 +96,16 @@
            call.=FALSE)
     }
     kind <- kinds[1L]
+    if(kind == "bounded_logit"){
+      bounds <- lapply(members, function(member)
+        .vc_kind(covStruct[[vcParams$structure[member]]], vcParams$position[member]))
+      if(any(vapply(bounds, function(bound)
+        !identical(bound$lower, bounds[[1L]]$lower) ||
+        !identical(bound$upper, bounds[[1L]]$upper), logical(1)))){
+        stop("Bounded correlation parameters in a vcc group must have identical bounds.",
+          call.=FALSE)
+      }
+    }
     s <- vcc$scale[rowsG] / vcc$scale[rowsG[1L]]
     if(kind %in% c("scale", "exp") && any(s <= 0)){
       stop("Scaling coefficients of variance parameters must be positive.", call.=FALSE)
@@ -102,6 +119,12 @@
     anchor <- members[1L]
     if(any(!free[members])){
       anchor <- members[!free[members]][1L]
+      fixedValues <- natural[members[!free[members]]] / s[!free[members]]
+      if(any(abs(fixedValues-fixedValues[1L]) >
+             1e-10 * pmax(1, abs(fixedValues), abs(fixedValues[1L])))){
+        stop("Fixed parameters in vcc group ", g, " imply inconsistent values.",
+          call.=FALSE)
+      }
       free[members] <- FALSE
     }
     natural[members] <- natural[anchor] / scale[anchor] * s

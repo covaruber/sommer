@@ -17,6 +17,7 @@ struct GLMMPathRequest {
   bool nominal;
   bool mixture;
   bool independentResiduals;
+  bool gaussianResiduals = false;
 };
 
 struct GLMMPathPlan {
@@ -36,7 +37,7 @@ inline GLMMPathPlan planGLMMPath(const GLMMPathRequest & request){
     else if(request.mixture) reason = GLMMPathReason::MixturePQL;
   }else if(!request.maximumLikelihood){
     reason = GLMMPathReason::LaplaceRequiresML;
-  }else if(!request.independentResiduals){
+  }else if(!request.independentResiduals && !request.gaussianResiduals){
     reason = GLMMPathReason::ResidualDependence;
   }
   const bool eligible = reason == GLMMPathReason::Eligible;
@@ -71,7 +72,7 @@ inline const char * glmmPathReasonMessage(GLMMPathReason reason){
     case GLMMPathReason::LaplaceRequiresML:
       return "Laplace GLMMs use maximum likelihood; set task$objective='ml'.";
     case GLMMPathReason::ResidualDependence:
-      return "Native Laplace requires independent observation likelihoods; structured rcov terms are not yet supported.";
+      return "Native Laplace structured rcov requires Gaussian observation blocks; non-Gaussian residual dependence is unsupported.";
     default: return "Requested GLMM likelihood path is eligible; no estimator fallback.";
   }
 }

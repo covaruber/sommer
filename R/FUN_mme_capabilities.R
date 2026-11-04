@@ -177,9 +177,9 @@ out <- list(modules = structure(list(id = c("model", "task", "formulation",
     "Henderson REML with solver='pcg'.", "Henderson REML with solver='pcg'.", 
     "Mode 1: deterministic Henderson. Mode 2: small systems recommended.", 
     "output$inverse>0 for fitted PEV extraction.", "none: Gaussian Henderson, including compatible PCG, ML/REML and recovery paths.", 
-    "FALSE: Gaussian Henderson saddlePoint='force', output$inverse=0.", 
+    "FALSE: Gaussian Henderson saddlePoint='force', output$inverse=0; or direct fitting, omitting prepared post-fit covariance inputs.",
     "Model-dependent validation.", "CHOLMOD, output$inverse=1, current eligible factor; no saddle-point.", 
-    "Full inverse output (output$inverse=2).", "Henderson path unless stated otherwise.", 
+    "Full inverse output (output$inverse=2), or direct postPEV diagonal panels.", "Henderson path unless stated otherwise.",
     "Henderson path unless stated otherwise.", "Henderson fitting, CUDA-enabled build, usable NVIDIA/CUDA libraries.", 
     "Henderson fitting, CUDA-enabled build, usable NVIDIA/CUDA libraries.", 
     "Model-dependent validation.", "Model-dependent validation.", 
@@ -480,7 +480,7 @@ out <- list(modules = structure(list(id = c("model", "task", "formulation",
     ), result = c("Choose known solving or covariance estimation.", 
     "Known-covariance matrix-free PCG; no estimation or inverse output.", 
     "Inspect family.", "control.task.pql owns outer convergence; control.convergence owns inner convergence.", 
-    "Select equation domain.", "ai_reml_direct_sp2: ML/REML, output$inverse=0/2, no Henderson backend choice.", 
+    "Select equation domain.", "ai_reml_direct_sp2: ML/REML, output$inverse=0/2, no Henderson backend choice; observation-space predict/postPEV from retained covariance inputs.",
     "Select deterministic factorization or REML PCG.", "Iterative solves + SLQ logdet + stochastic score traces; REML, output$inverse=0/2.", 
     "Exact factorization-based evaluation; ML/REML, output$inverse=0/1/2.", 
     "Ordinary, compression, rotation, latent RR, factor augmentation or saddle-point, subject to cross-gates.", 
@@ -532,14 +532,50 @@ out$controls <- rbind(out$controls, data.frame(
   effect="Fit a full-rank subset while preserving original coefficient names; aliased coefficients are zero constraints, not independently estimated effects.",
   source="R/FUN_fixed_rank.R, src/mme_fixed_rank.cpp",
   status="supported", previous="new"))
+laplaceConstraintRow <- out$controls$path == "mmes.vcc"
+out$controls$effect[laplaceConstraintRow] <- paste0(
+  out$controls$effect[laplaceConstraintRow],
+  " Native Laplace expands independent random-covariance coordinates and pulls back scores; family parameters are excluded, and uncertainty remains post-fit.")
+laplaceSetupRow <- out$controls$path == "control.output.setup"
+out$controls$effect[laplaceSetupRow] <- paste0(
+  out$controls$effect[laplaceSetupRow],
+  " Native Laplace returns prepared inputs and vcParams without fitting, including actual Gaussian residual parameters when requested.")
 out$controls <- rbind(out$controls, data.frame(
   path="control.task.glmm.method", module="task",
   values="pql, laplace.", default="pql",
   requires="Laplace: binomial(logit/probit/cloglog), Poisson(log), zero-inflated Poisson with an intercept-only or fixed-effects formula logit component, NB2(log), Gaussian(identity), Gamma(log), ordinal(logit/probit) or nominal multinomial(softmax), including categorical familym and grouped binomial trials; ML objective, Henderson formulation and supported CovarianceFactor v2 random structures.",
-  excludes="Laplace excludes structured residual covariance, direct formulation, supplied W, weights formulas and vcc.",
+  excludes="Laplace excludes direct formulation and non-Gaussian observation-residual dependence. Structured rcov, W and weights metadata apply only to Gaussian observation blocks, whose residual descriptor replaces Gaussian family dispersion. vcc supports random covariance parameters only, not residual or family parameters.",
   fallback="PQL remains the default; unsupported Laplace models stop with an eligibility error.",
-  effect="Select the GLMM estimator. Native Laplace fitting uses preparation-only designs, cached CovarianceFactor/relationship precisions and observation-level scalar/category-block likelihoods. Scalar/ordinal outer scores are analytic; mixed nominal outer scores use central differences of the native block Laplace likelihood, including mode/determinant dependence. Random-effect semantics remain explicit, without automatic independent category expansion. Numerical-Hessian uncertainty and joint fixed/random PEV are calculated only after fitting through vcov(), summary(), predict(se.fit=TRUE) or postPEV(); Laplace requires output$inverse=0. PQL continues through the existing sommer engines.",
-  source="R/FUN_glmm.R, R/mmes.R", status="experimental", previous="new"))
+  effect="Select the GLMM estimator. Native Laplace fitting uses preparation-only designs, cached CovarianceFactor/relationship precisions and observation-level scalar/category-block likelihoods. Scalar, ordinal and mixed nominal outer scores are analytic, including mode/determinant dependence; numeric scores remain optional. Random-effect semantics remain explicit, without automatic independent category expansion. Correlated link-scale processes reuse random covariance descriptors. Population means and post-fit SE use structured covariance, relationship precision and actual design loadings; unseen covariance/relationship coordinates require a represented fitted basis. Nominal integration supports up to four categories with deterministic rule-agreement checks. Numerical-Hessian uncertainty and joint fixed/random PEV are calculated only after fitting through vcov(), summary(), predict(se.fit=TRUE) or postPEV(); Laplace requires output$inverse=0. PQL continues through the existing sommer engines.",
+  source="R/FUN_glmm.R, R/FUN_glmm_latent.R, R/mmes.R", status="experimental", previous="new"))
+out$controls <- rbind(out$controls, data.frame(
+  path="control.task.glmm.backend", module="task",
+  values="auto, random, observation.", default="auto",
+  requires="Native Laplace ML; formulation='henderson' remains the public preparation interface.",
+  excludes="Non-default backend is rejected for PQL; unrelated Gaussian solve$backend controls do not select Laplace algebra.",
+  fallback="Auto uses observation space for substantially smaller predictor systems with dense random coupling and sufficient workspace; otherwise random. Explicit requests never fall back.",
+  effect="Interchangeable C++ mode/gradient factor/solve operations for the same Laplace approximation, including signed/block curvature. Observation covariance/root and solve panels are memory-budgeted; no random-effect Hessian is formed. Post-fit PEV and prediction use operation-local mode/Schur solves. Selection/work appear under executionPlan$glmm$backend.",
+  source="src/mme_glmm_system.h, R/FUN_glmm_system.R", status="experimental", previous="new"))
+out$controls <- rbind(out$controls,data.frame(
+  path=paste0("control.task.glmm.",c("warmStart","gradient","trace","blocks")),
+  module="task",values=c("auto, off, on.","analytic, numeric.",
+    "panels, selected.","off, on."),
+  default=c("auto","analytic","panels","off"),
+  requires="Native Laplace ML.",
+  excludes=c("PQL; auto excludes nonconcave ZIP conditional likelihood.",
+    "Non-default choices are rejected for PQL.",
+    "Explicit selected requires the random-space backend.",
+    "Explicit on requires the random-space backend."),
+  fallback=c("Failed warm modes retry the zero start; explicit on cold-verifies ZIP.",
+    "Numeric is an explicit central-difference reference option.",
+    "Unavailable selected entries are contracted with exact bounded solve panels.",
+    "Global factorization remains the default; no approximate coupling removal."),
+  effect=c("Reuse a successful conditional mode for changed outer proposals without relaxing convergence.",
+    "Native analytic outer scores include mixed nominal third-cumulant contractions, nuisance and covariance derivatives.",
+    "Exact Takahashi inverse-subset contractions reuse the accepted mode factor; not public SE or PEV.",
+    "Factor exact connected components of the mode Hessian independently; rebuild membership when coupling changes."),
+  source="src/mme_glmm_acceleration.h, src/mme_glmm_system.h, R/FUN_glmm.R",
+  status="experimental",previous="new"))
 out$controls <- rbind(out$controls, data.frame(
   path="control.task.glmm.familyParameters", module="task",
   values="Named list: theta, dispersion, zeroInflation or ordinal thresholds and estimate; trait-named nested lists for supported familym families.",

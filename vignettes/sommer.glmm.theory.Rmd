@@ -390,9 +390,19 @@ overall."
 
 PQL's working Gaussian problem can use `rcov` and other supported working
 covariance structures. Native Laplace instead uses the conditional
-observation likelihood and the random-effect covariance. It currently does
-not accept structured residual covariance or the supplied observation
-precision matrix `W`.
+observation likelihood and the random-effect covariance. It also accepts
+structured Gaussian observation-residual blocks and compatible supplied `W`
+and block metadata. Non-Gaussian observation errors remain conditionally
+independent (apart from each nominal response's category block).
+For a structured Gaussian subset, its scalar factors are replaced by the
+joint density
+$$
+\ell_G=-\frac12\left[n_G\log(2\pi)+\log|R|
+ +(y_G-\eta_G)^\top R^{-1}(y_G-\eta_G)\right].
+$$
+The predictor score is $R^{-1}(y_G-\eta_G)$ and its negative Hessian is the
+full $R^{-1}$, not just its diagonal. The remaining observation factors and
+the random-effect prior are unchanged.
 
 ## 2.3 Formulae and covariance specification
 
@@ -795,8 +805,8 @@ sparse data or few independent groups.
 ## 5.2 Numerical optimization in sommer
 
 The native route obtains fixed/random designs and covariance descriptors
-through sommer's model-preparation machinery. It then uses a sparse
-Newton-type solve to find the conditional random-effect mode and evaluate its
+through sommer's model-preparation machinery. It then uses interchangeable
+Newton linear algebra to find the conditional random-effect mode and evaluate its
 Hessian determinant. The outer `nlminb` optimization jointly updates fixed
 effects, free covariance parameters, and any free family parameters using
 native first scores of the marginal Laplace objective. It is an ML method,
@@ -809,6 +819,108 @@ engines remain distinct. The optimizer's first derivatives include
 dependence of both the mode and the determinant correction on the
 parameters. Numerical second derivatives are calculated on demand for
 uncertainty, after fitting.
+
+### Equivalent random-effect and observation-space algebra
+
+Write the prior precision as $P=G^{-1}$, the random design as $Z$, and the
+negative observation log-likelihood Hessian as $C$. Here $C$ may have nominal
+or Gaussian blocks, zero eigenvalues, or negative curvature (for example
+ZIP). The mode Newton system is
+
+$$H=P+Z^\top C Z.$$
+
+The random backend factors $H$ using sparse Cholesky. The observation backend
+applies $P^{-1}$ in bounded panels to construct $K=ZP^{-1}Z^\top$, then obtains
+a square root $K=LL^\top$ by symmetric eigendecomposition. Only roundoff-sized
+negative eigenvalues of this positive-semidefinite covariance are clipped;
+observation curvature itself is not clipped. It factors
+
+$$B=I+L^\top C L.$$
+
+Positive definiteness of $B$ is equivalent to that of $H$, including when
+$K$ is singular or $C$ is signed. There is no inversion of $C$ or $K$ and no
+ridge used to manufacture curvature. The determinant identity is
+
+$$\log|H|-\log|P|=\log|B|.$$
+
+For a right-hand side $r$, let $v=P^{-1}r$ and $w=CZv$. The equivalent solve is
+
+$$H^{-1}r=v-P^{-1}Z^\top\{w-CLB^{-1}L^\top w\}.$$
+
+These are algebraic reformulations of the **same** Laplace objective, not
+another approximation to the integration. Floating-point conditioning can
+nevertheless differ. Existing mode line searches, analytic score contractions,
+constraints and outer optimization use the shared solve interface. Standalone
+nominal and mixed nominal analytic scores also use it.
+
+`task$glmm$backend` is `"auto"`, `"random"` or `"observation"`. Automatic
+selection uses predictor/random dimensions, a structural coupling estimate
+and memory admission, not elapsed-time measurements or estimator fallback.
+Observation covariance/root construction is reused until prior precision
+changes. Its dense cost is quadratic in predictor rows for storage and cubic
+for eigendecomposition/factorization; prior-precision solves and derivative
+panels add work. It avoids assembling/factoring $H$, but does not eliminate
+the existing sparse prior precision or guarantee bounded sparse factor fill.
+
+Post-fit observation-space joint solves eliminate the random block with
+$H^{-1}$ and factor the fixed-effect Schur complement
+$X^\top C X-X^\top C ZH^{-1}Z^\top C X$. This preserves the existing
+conditional coefficient uncertainty target. Ordinal/full-parameter nominal
+and mixed uncertainty retain their existing outer-parameter propagation.
+No SE/PEV or outer-parameter Hessian is computed during fitting.
+
+### Exact score contractions and safeguarded reuse
+
+For a nominal observation with non-reference category probabilities $p$,
+let $T_{abc}$ be the third categorical cumulant and
+$V_i=Z_iH^{-1}Z_i^\top$ its conditional predictor covariance.
+The determinant's predictor correction is
+
+$$c_{ia}=\tfrac12\sum_{b,c}T_{abc}V_{i,bc}.$$
+
+For scalar observations this reduces to
+$c_i=\tfrac12 C_{\eta,i}z_i^\top H^{-1}z_i$. With
+$a=H^{-1}Z^\top c$, the fixed score is
+$X^\top(s-c+CZ a)$. For a covariance coordinate with precision derivative
+$P_j$, its score is
+
+$$-\tfrac12 u^\top P_j u+
+  \tfrac12\partial_j\log|P|-\tfrac12\operatorname{tr}(H^{-1}P_j)
+  +a^\top P_j u.$$
+
+These are derivatives of the full marginal Laplace objective, not
+frozen-mode or Gaussian AI scores. Mixed nominal rows use their actual
+expanded observation/logit indices; ordinal, nuisance and Gaussian
+residual derivatives retain their existing analytic formulas. Reduced
+`vcc` coordinates apply the same parameter-map chain rule. Analytic first
+scores are the default; explicit numeric scores remain a diagnostic
+central-difference reference. Outer second derivatives remain post-fit.
+
+For $H=LL^\top$ after permutation, the LL' Takahashi recurrence gives
+inverse entries within the filled Cholesky pattern:
+
+$$S_{ij}=-\sum_{k>i}\frac{L_{ki}}{L_{ii}}S_{kj}\quad(j>i),\qquad
+S_{ii}=L_{ii}^{-2}-\sum_{k>i}\frac{L_{ki}}{L_{ii}}S_{ki}.$$
+
+Only the selected subset is stored. Sparse predictor and precision
+contractions use it when every needed entry is present; otherwise they
+use the exact bounded-panel solve reference. Missing entries are not
+zeros. Extraction is operation-local, workspace-guarded and invalidated
+when the numeric mode factor changes. Independent numeric Hessian graph
+components may instead be factored separately, with summed log
+determinants and exact gather/scatter solves. Graph connectivity is
+recomputed when curvature changes; no small couplings are dropped.
+These are opt-in random-backend choices because workload-dependent
+overheads can exceed savings.
+
+Successful-mode warm reuse is separate from exact-proposal caching.
+Concavity of the conditional likelihood plus positive-definite prior
+precision ensures a unique mode; the same score certificate and line
+search are required at every proposal. Failed warm solves retry zero.
+ZIP is nonconcave: automatic reuse is disabled and explicit reuse returns
+the authoritative cold-verified result, avoiding a path-dependent local
+root. No estimator, tolerance, stochastic trace, whitening or adaptive
+accuracy change is introduced.
 
 There are two nested numerical jobs. The inner job finds the best-fitting
 random-effect values for the current model parameters. The outer job changes
@@ -857,7 +969,28 @@ descriptors where supported by the native setup. It requires ML, Henderson
 formulation, a full-rank fixed-effects design, at least one random term, and
 `output$inverse=0` during fitting.
 
-Structured residual covariance, `W`, weights formulas, `vcc`, direct
+Random covariance equality/ratio constraints (`vcc`) are supported. Native
+proposals expand from independent coordinates as $w=o+T\phi$, and scores are
+pulled back by $T^\top$. Post-fit information is computed in the reduced space;
+natural covariance uncertainty uses the constraint and report-transform
+Jacobians. AIC/BIC count independent coordinates. The Laplace
+`output$setup=TRUE` parameter table contains random covariance parameters and,
+when requested, actual Gaussian observation-residual parameters:
+family dispersion, NB2 shape, thresholds and zero-inflation coefficients cannot
+be constrained with `vcc`. Nested-fixed-effects likelihood comparisons require
+identical covariance constraints.
+
+Structured Gaussian residual blocks follow
+$y_G\mid u\sim N(X_G\beta+Z_Gu,R)$, with the full $R^{-1}$ entering observation
+scores and mode curvature. The residual descriptor owns Gaussian variance,
+replacing (not multiplying) Gaussian family dispersion. Exact residual
+derivatives include both the Gaussian and mode-Hessian determinant terms.
+The same shared covariance assembler applies `W` on the Gaussian subset and
+validates independent `weights` groups. Gaussian-only integration equals
+exact marginal Gaussian ML. Gaussian residual workspace is dense and bounded
+by `execution$denseMemoryMB`; SE and PEV remain post-fit.
+
+Non-Gaussian residual dependence, direct
 formulation, known-covariance solve mode, arbitrary user-defined likelihoods,
 hurdle models, zero-inflated NB2, and random effects in the ZIP
 zero component are not supported on this route. Unsupported settings are
@@ -959,9 +1092,9 @@ For native Laplace fits, the prediction interface distinguishes:
   modes for known random-effect levels.
 * **Zero-random-effect prediction** (`re.form=NA`): sets the random effects
   to zero. On a nonlinear link, this is generally not a population mean.
-* **Restricted population prediction**
+* **Population prediction**
   (`re.form="population", type="response"`): integrates over supported
-  random-intercept distributions for response-scale means.
+  fitted Gaussian latent distributions for response-scale means.
 
 These are three different questions. A conditional prediction asks, "What
 does the model expect for this particular group, using its estimated
@@ -971,13 +1104,37 @@ prediction asks, "What is the average response across the distribution of
 groups?" Because links are nonlinear, the second is not generally the
 third.
 
-The population integration is currently restricted to independent
-random-intercept terms with identity relationship precision. Other covariance
-structures fail explicitly for this prediction target. Conditional and
+For any supported positive-definite random covariance descriptor, predictor
+variance is obtained from the actual loadings as
+$v_i=z_i^\top Gz_i$, with $G$ incorporating the inverse of supplied relationship
+precision. For nominal observations, the corresponding small joint logit
+covariance $Z_iGZ_i^\top$ is required instead. Correlation between observations
+does not enter an individual marginal mean directly, but affects estimation,
+joint simulation and conditional prediction. Bounded solve panels avoid a
+dense covariance for all observations. Sparse factor fill is not a strict
+total-memory guarantee.
+
+Conditional and
 zero-random-effect `se.fit=TRUE` predictions use post-fit local uncertainty;
 `cov.fit=TRUE` additionally requests a full prediction covariance subject to
 the dense-memory limit. Response-scale uncertainty uses a delta method.
-Uncertainty for general population integration is not implemented.
+Population mean uncertainty differentiates these integrated means with respect
+to all estimated outer parameters and propagates their post-fit covariance.
+For log-linked counts/Gamma, the mean is $\exp(x_i^\top\beta+v_i/2)$
+(multiplied by the nonzero-component probability for ZIP). Probit ordinal
+probabilities use exact normal convolution; scalar logit integration uses the
+existing 24-node rule. Nominal integration supports up to three non-reference
+logits and requires agreement of 24- and 32-node tensor rules within $10^{-6}$
+absolute probability. Rule agreement is not a rigorous error bound.
+
+Temporal/spatial coordinates must be represented in the fitted covariance
+basis. Missing responses at represented coordinates can borrow information
+through the conditional process. Unknown covariance/relationship coordinates
+are not replaced by an arbitrary old location; new independent groups are
+allowed only under identity relationship precision. Population means integrate
+the prior fitted process law, not its posterior conditional on observed
+responses. See the practical GLMM guide for temporal/spatial recipes,
+factor-level ordering and identifiability cautions.
 
 For ZIP fits with a nontrivial fixed-effects zero formula, link- and
 response-scale uncertainty propagate the full outer-parameter covariance, including
@@ -988,7 +1145,7 @@ posterior or a future-response prediction interval. The legacy scalar-ZIP
 coefficient-based prediction approximation remains unchanged.
 
 Other native-family prediction approximations condition on fitted family
-and covariance parameters except where the documented restricted population
+and covariance parameters except where the documented population
 prediction propagates its available curvature information. New levels cannot be assigned fitted
 conditional modes; use zero-random-effect or a supported population target
 when that matches the question.
@@ -1207,8 +1364,9 @@ support, not the nominal likelihood. Categorical `familym()` now combines
 ordinal, nominal and scalar observation likelihoods under native Laplace ML.
 Its nominal blocks retain full cross-logit curvature, and existing random
 effects are shared unless distinct `.familyCoordinate` effects are explicitly
-requested. Mixed nominal outer derivatives are central differences of the
-native joint Laplace likelihood; scalar/ordinal derivatives remain analytic.
+requested. Mixed nominal outer derivatives are analytic derivatives of the
+native joint Laplace likelihood; central differences remain an explicit
+reference option, and scalar/ordinal derivatives remain analytic.
 Uncertainty remains post-fit. Independent likelihood,
 probability, derivative and delta-method checks establish implementation
 correctness only; larger recovery/coverage calibration and cross-platform
@@ -1255,9 +1413,13 @@ and cross-platform release qualification remain outside this study.
 
 The public `multinomial()` family fits unordered categories with the native
 Laplace likelihood. It requires ML, at least one random-effect term, and the
-Henderson formulation. It does not use PQL. `W`, weights formulas, `vcc`,
-structured residual covariance, and non-default Gaussian solver controls are
-not supported. All uncertainty work is deferred until after fitting.
+Henderson formulation. It does not use PQL. Random covariance `vcc` constraints
+use the same reduced-coordinate implementation as scalar and ordinal fits.
+Standalone nominal models do not support `W`, weights formulas or structured
+observation-residual covariance because they have no Gaussian observations.
+Mixed `familym()` models can use these features on their Gaussian subset.
+Non-default Gaussian solver controls remain unsupported. All uncertainty
+work is deferred until after fitting.
 
 An unordered, or *nominal*, outcome has names without a natural ranking.
 For example, "red", "green" and "blue" are categories, not low, medium and

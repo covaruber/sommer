@@ -54,12 +54,15 @@ are shared, not silently expanded into independent effects.
 with the original response levels as columns; \code{type="link"} returns the
 \eqn{K-1} logits. Conditional prediction uses fitted modes for known random
 levels, and \code{re.form=NA} sets random effects to zero.
-\code{re.form="population"} integrates category probabilities over shared or
-correlated category-specific unit random intercepts with identity relationship
-precision. Up to four categories and multiple independent terms are supported;
+\code{re.form="population"} integrates category probabilities over the fitted
+Gaussian latent process, including temporal/spatial covariance, random slopes
+and supplied relationship precision. Each observation uses its actual joint
+logit covariance. Up to four categories and multiple independent terms are supported;
 new independent group levels are allowed if the fixed design remains valid.
-Random slopes, varying/nonunit loadings, nonidentity relationships, averaged
-logits, and population standard errors/covariances are explicitly rejected.
+New independent groups require identity relationship precision; new covariance
+coordinates or relationship levels outside the represented basis are rejected.
+Averaged logits are not returned. Population standard errors/covariances
+propagate all estimated outer parameters and report \code{uncertainty="full"}.
 Deterministic 24- and 32-point tensor normal quadrature on the active covariance
 eigenspace must agree within \eqn{10^{-6}} absolute probability; this
 consistency check is not a guaranteed integration error bound. Estimated

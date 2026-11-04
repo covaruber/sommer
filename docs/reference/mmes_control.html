@@ -12,15 +12,15 @@ requested methods are eligible for a particular model."><!-- mathjax --><script 
 <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
 <![endif]--><meta name="theme-color" content="#f7f8f3"></head><body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
-    
+
 
     <nav class="navbar fixed-top navbar-light navbar-expand-lg bg-light"><div class="container">
-    
+
     <a class="navbar-brand me-2" href="../index.html">sommer</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.4.99</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.16</small>
 
-    
+
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
@@ -40,6 +40,7 @@ requested methods are eligible for a particular model."><!-- mathjax --><script 
     <a class="dropdown-item" href="../articles/sommer.fa.and.rr.models.html">Factor analytic and reduced rank models in sommer</a>
     <a class="dropdown-item" href="../articles/sommer.genetic.evaluation.html">Genetic evaluation with known variance components in sommer</a>
     <a class="dropdown-item" href="../articles/sommer.glmm.html">Generalized linear mixed models with sommer</a>
+    <a class="dropdown-item" href="../articles/sommer.glmm.theory.html">Theory and practice of generalized linear mixed models in sommer</a>
     <a class="dropdown-item" href="../articles/sommer.gxe.html">Fitting genotype by environment models in sommer</a>
     <a class="dropdown-item" href="../articles/sommer.machinery.html">Inside sommer: the ai_mme_sp2 engine</a>
     <a class="dropdown-item" href="../articles/sommer.mmes.options.html">Modular numerical controls for sommer::mmes</a>
@@ -55,18 +56,18 @@ requested methods are eligible for a particular model."><!-- mathjax --><script 
       <ul class="navbar-nav"><li class="nav-item">
   <a class="external-link nav-link" href="https://github.com/covaruber/sommer/" aria-label="github">
     <span class="fab fa fab fa-github fa-lg"></span>
-     
+
   </a>
 </li>
       </ul></div>
 
-    
+
   </div>
 </nav><div class="container template-reference-topic">
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
       <img src="" class="logo" alt=""><h1>Modular Numerical Controls for Mixed Models</h1>
-      
+
       <div class="d-none name"><code>mmes_control.Rd</code></div>
     </div>
 
@@ -92,29 +93,134 @@ requested methods are eligible for a particular model.</p>
     <dl><dt>formulation</dt>
 <dd><p>Equation domain: <code>"henderson"</code> (default) or
 <code>"direct"</code>. Henderson forms coefficient-space mixed-model equations;
-direct uses observation-space inversion.</p></dd>
+direct uses observation-space inversion. PQL supports either formulation for
+its weighted Gaussian working fits; native Laplace requires Henderson.</p></dd>
 
 <dt>task</dt>
-<dd><p>Named list with <code>mode</code>, <code>objective</code>, and <code>pql</code>.
+<dd><p>Named list with <code>mode</code>, <code>objective</code>, <code>glmm</code>, and
+<code>pql</code>.
 Defaults: <code>mode="fit"</code>, <code>objective="reml"</code>, and
 <code>pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)</code>.
 <code>mode</code> is <code>"fit"</code> or <code>"solve"</code>; <code>objective</code> is
-<code>"reml"</code> or <code>"ml"</code>. The nested <code>pql</code> list accepts only
+<code>"reml"</code> or <code>"ml"</code>. The nested <code>glmm</code> list defaults to
+<code>list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8,
+familyParameters=list(), backend="auto", warmStart="auto",
+gradient="analytic", trace="panels", blocks="off")</code>.
+Select <code>method="laplace"</code> for the native Laplace backend, which requires
+<code>objective="ml"</code>. <code>maxit</code> controls outer likelihood optimization;
+<code>modeMaxit</code> and <code>modeTol</code> control the native random-effect mode
+solver. The native module uses sommer-prepared covariance precision matrices
+and does not call another mixed-model package.
+<code>backend</code> selects interchangeable Laplace linear algebra:
+<code>"random"</code> factors the sparse random-effect Hessian;
+<code>"observation"</code> uses a dense predictor-space system and sparse prior
+precision solves, without constructing that Hessian. <code>"auto"</code> selects
+observation space only when there are at least twice as many random
+coefficients as predictor rows, estimated random coupling is dense, and
+workspace fits <code>execution$denseMemoryMB</code>; otherwise it selects random
+space. This is a conservative structural heuristic, not a timing guarantee.
+Nominal rows count non-reference logits, not just records.
+Both backends evaluate the same Laplace approximation and support signed
+or block observation curvature. Selection and work are reported under
+<code>executionPlan$glmm$backend</code>. Explicit requests never silently fall back.
+This Laplace-only choice is independent of the Gaussian/PQL
+<code>formulation</code> and <code>solve$backend</code> controls.
+<code>warmStart="auto"</code> reuses successful modes for concave conditional
+likelihoods, retaining the same mode tolerances and line search. Failed warm
+solves retry the zero start. ZIP is nonconcave: auto disables mode reuse;
+explicit <code>"on"</code> also solves from zero and returns that authoritative
+cold result. <code>"off"</code> restores zero starts for every changed proposal.
+<code>gradient="analytic"</code> supplies native marginal first derivatives,
+including mixed nominal mode and determinant dependence; <code>"numeric"</code>
+selects central differences as a reference alternative.
+<code>trace="panels"</code> remains the default. <code>"selected"</code> uses exact
+Takahashi inverse-subset contractions from the mode factor; unavailable
+entries use exact bounded solves, never zero substitution. It requires
+the random backend. <code>blocks="on"</code> factors exact connected components
+of the random mode Hessian, rebuilding membership when coupling changes;
+<code>"off"</code> remains the default. Both optional paths honor workspace
+admission, and measured overhead can outweigh savings.
+Acceleration controls do not select the Gaussian AI optimizer or compute
+public uncertainty. Work counters appear under
+<code>laplaceDiagnostics$nativeWork</code>; settings survive prediction,
+post-fit inference, bootstrap and serialization. Non-default acceleration
+settings are rejected for PQL.
+<code>familyParameters</code> is Laplace-only. For a single NB2 family it accepts
+<code>list(theta=2, estimate=TRUE)</code>; for Gaussian/Gamma it accepts
+<code>list(dispersion=1, estimate=TRUE)</code>. Estimation is the default, and
+<code>estimate=FALSE</code> fixes the supplied value. NB2 starts from its family
+constructor shape; estimated Gaussian/Gamma dispersion starts from the
+initial family-specific GLM unless explicitly supplied. In a <code><a href="familym.html">familym()</a></code>
+fit, provide these lists under trait names. Binomial/Poisson have no nuisance
+dispersion parameter, so family settings for them must be empty.
+Non-default Gaussian solver, convergence, update, proposal, representation,
+output and resource controls are rejected on this route rather than silently
+ignored. The fit-task/objective, formulation, GLMM controls, derivative-panel
+memory budget <code>execution$denseMemoryMB</code>, BLAS thread
+selection, and verbose/date-warning settings retain their documented roles;
+native Laplace still requires fit mode, ML and
+<code>formulation="henderson"</code> at the public preparation interface, including
+when <code>task$glmm$backend="observation"</code>. All SE/PEV remain post-fit;
+observation-space fits retain inputs instead of a random-effect Hessian,
+and rebuild operation-local factors when uncertainty is requested.
+The nested <code>pql</code> list accepts only
 <code>maxit</code>, <code>tol</code>, <code>estimateTheta</code>, and <code>warmStart</code>, with
 the defaults shown. These fields own task selection and outer PQL iteration,
 not inner covariance iterations.</p></dd>
 
 <dt>representation</dt>
 <dd><p>Named list with <code>compression="off"</code>,
-<code>factorScores="none"</code>, <code>equations="normal"</code>,
-<code>sparseFactors="off"</code>, and <code>matrixFree="auto"</code> by default,
+<code>factorScores="none"</code>, <code>fixedRank="error"</code>, <code>equations="normal"</code>,
+<code>sparseFactors="auto"</code>, and <code>matrixFree="auto"</code> by default,
 unless corresponding <code>sommer.mme.*</code> options override experimental modes.
+<code>sparseFactors="auto"</code> enables exact sparse innovation kernels for
+modified-Cholesky factors of dimension at least 64 and maximum innovation
+lag three. It also enables sparse SAR/CAR kernels when the factor dimension
+is at least 500 and at most one percent of adjacency weights are nonzero.
+Other factors retain their existing path. Use <code>"off"</code> to disable or
+<code>"force"</code> to enable eligible sparse factor kernels regardless of size.
 If <code>sommer.mme.saddlePoint</code> resolves to <code>"force"</code>, the default
 <code>equations</code> becomes <code>"saddle-point"</code>.
 <code>compression</code> is <code>"off"</code>, <code>"groups"</code>, or <code>"classes"</code>;
 <code>factorScores</code> is <code>"none"</code>, <code>"fixed-shape"</code>, or
-<code>"profile"</code>; <code>equations</code> is <code>"normal"</code> or
-<code>"saddle-point"</code>. The remaining fields use experimental mode values
+<code>"profile"</code>; <code>equations</code> is <code>"normal"</code>,
+<code>"saddle-point"</code>, or <code>"conditional"</code> (experimental latent FA
+equations with independently selected AI/EM updates).
+<code>fixedRank="error"</code> retains the default error for rank-deficient fixed
+designs. These errors show the opt-in syntax before potentially long term
+and column labels so it remains visible when error output is truncated.
+Opt in with <code>fixedRank="drop"</code> to select a full-column-rank
+subset after observation filtering, before either the Henderson or direct
+engine runs. A shared C++ sparse QR removes zero columns and detects linear
+dependencies on unit-norm columns, using pivot threshold
+<code>max(nrow(X), ncol(X)) * .Machine$double.eps</code>. COLAMD ordering and
+numerical pivoting choose the basis; retained columns are then restored to
+their original order. This need not select the same constraints as ASReml.
+No ridge penalty or generalized inverse is substituted for the fitted model.
+Omitted coefficients are returned as zero identification constraints, with
+unavailable standard errors and tests in summaries. <code>fit$fixedRank</code>
+records retained/omitted indices, original column names, rank, tolerance,
+and a sparse relation satisfying <code>X_original = X_retained %*% relation</code>
+to numerical precision. Direct-engine <code>VarBeta</code> remains in retained-column
+coordinates to avoid allocating a dense covariance over all original columns.
+Supported workflows are Gaussian identity-link fits, with normal or
+saddle-point Henderson equations or direct inversion, without PQL, solve mode,
+conditional FA, factor scores, observation rotation, or compression.
+Henderson and direct predictions accept only contrasts estimable under the original
+fixed model; non-estimable rows produce an explicit error. Wald term tests,
+likelihood-ratio comparisons,
+Satterthwaite/Kenward-Roger inference, and <code>emmeans</code> currently require
+an explicitly full-rank refit. Direct post-fit covariance is mapped back to
+the public zero-constrained coefficient layout. REML likelihoods from different choices of
+fixed-effect basis can differ by an additive constant; compare covariance
+estimates and fitted values, not raw REML likelihoods across different bases.
+For rank-reduced fits, character classify predictions stop before allocating
+a Cartesian grid. Use <code>predict(fit, D="locale:cultivar", observed=TRUE)</code>
+for observation-weighted fixed predictions at combinations present in the
+retained data, or supply explicit estimable contrasts. The prediction
+<code>maxMemoryMB</code> safeguard checks dense solve/covariance workspace before
+allocation; see <code><a href="predict_mmes.html">predict.mmes</a></code> for weighting and limitations.
+The remaining fields use experimental mode values
 <code>"auto"</code>, <code>"off"</code>, or <code>"force"</code> (logical TRUE/FALSE are
 accepted). This module owns equation, compression, covariance-factor, and
 factor-score representations.</p></dd>
@@ -144,10 +250,22 @@ correction, not linear-solve accuracy.</p></dd>
 <dt>score</dt>
 <dd><p>Named list with <code>traceProbes=8L</code>,
 <code>estimator="hutchinson"</code>, <code>rank=16L</code>,
-<code>covarianceChecks="auto"</code>, and <code>traceBatch="off"</code> by default.
+<code>covarianceChecks="auto"</code>, <code>traceBatch="off"</code>, and
+<code>denseCrossproduct="auto"</code> by default.
 The estimator is <code>"hutchinson"</code> or <code>"control-variate"</code>.
-<code>covarianceChecks</code> and <code>traceBatch</code> accept experimental mode
-values. This module owns covariance derivatives, trace estimation, and
+<code>covarianceChecks</code>, <code>traceBatch</code> and <code>denseCrossproduct</code>
+accept experimental mode values. The last selects exact weighted Gram
+assembly for dense-design diagonal residual scores in Gaussian normal
+Henderson LDLT/CHOLMOD fits. Auto requires a row width of at least 64,
+at least one million row-product contributions and at least eight times
+the squared coefficient dimension, within the workspace budget.
+Off preserves the legacy row-product route. Force bypasses cost gates,
+not diagonal-precision/derivative eligibility or memory checks;
+ineligible forced requests error. Direct, PCG, PQL, compressed, saddle-point,
+conditional and latent reduced-rank equations do not use this path. Diagnostics record
+<code>denseScoreCrossproducts</code>, <code>legacyScoreCrossproducts</code>,
+<code>denseScoreRowProductsAvoided</code>, and <code>denseScoreMemoryFallbacks</code>.
+This module owns covariance derivatives, trace estimation, and
 covariance checks.</p></dd>
 
 <dt>curvature</dt>
@@ -157,11 +275,41 @@ covariance checks.</p></dd>
 This module owns the AI metric and reduced-direction assembly.</p></dd>
 
 <dt>update</dt>
-<dd><p>Named list with <code>recovery="em"</code>,
+<dd><p>Named list with <code>method="ai"</code>, <code>recovery="em"</code>,
 <code>blendWeight=NULL</code>, and <code>commonScale="off"</code> by default.
 <code>recovery</code> is <code>"em"</code> or <code>"pxem"</code>; <code>commonScale</code>
 accepts experimental mode values. This module owns covariance-coordinate
-updates, EM/PXEM recovery, blending, and common-scale profiling.</p></dd>
+updates, EM/PXEM recovery, blending, and common-scale profiling.
+<code>method="ai"</code> remains the default optimizer. With
+<code>representation$equations="conditional"</code>, it uses exact REML scores,
+average-information curvature, safeguarded steps and EM recovery in latent
+FA coordinates. <code>method="em"</code> selects conditional-moment EM and requires
+that representation. The earlier <code>method="conditional-fa"</code> selector
+continues to select conditional EM, not AI.
+Conditional equations support one FA relationship term with diagonal or FA
+residuals, including missing and unbalanced observations, using sparse LDLT
+posterior solves and selected inverse panels. They require Gaussian
+identity Henderson REML, <code>solve$method="auto"</code> or <code>"ldlt"</code>,
+<code>output=list(inverse=0, covariance="none", coefficientMatrix=FALSE)</code>,
+and no weights, rotation, <code>vcc</code>, other representation requests, or
+acceleration. Each source must be entirely free or entirely fixed.
+Conditional AI bounds its dense derivative-RHS and curvature workspace by
+<code>execution$denseMemoryMB</code>; <code>output$panelSize</code> also bounds projection
+solve panels. A rank-revealing eigensolve removes numerically null curvature
+directions. Accepted AI steps satisfy an observed-REML ascent check; failed
+proposals use an audited EM recovery step, never a silent estimator change.
+AI convergence requires a small diagonally scaled score using
+<code>convergence$parameterTol</code>; at numerical bounds it uses the projected
+(KKT) score. Conditional AI bounds free physical specific variances below by
+<code>max(1e-8, execution$inverseTol) * var(y)</code>, and shared genetic allocations
+to <code>[max(1e-8, execution$inverseTol), 1-max(1e-8, execution$inverseTol)]</code>.
+This prevents nearly deterministic latent equations from producing unreliable
+likelihoods. Starting values must respect these bounds;
+<code>execution$inverseTol</code> must be less than 0.5 on this path.
+The floors and active coordinate indices are reported in <code>conditionalFA$ai</code>.
+EM retains its existing machine-precision floor and likelihood/parameter
+stabilization; it is not silently changed to this constrained AI optimizer.
+See the conditional FA section of <code><a href="../articles/sommer.mmes.options.html">vignette("sommer.mmes.options")</a></code>.</p></dd>
 
 <dt>proposal</dt>
 <dd><p>Named list with <code>stepWeight=NULL</code> and
@@ -186,15 +334,38 @@ stochastic accuracy requests.</p></dd>
 <code>setup=FALSE</code>, <code>selectedInverse="auto"</code>, and
 <code>panelSize=64L</code> by default. <code>inverse</code> is 0 (no final coefficient
 inverse or fit-time PEV computation),
-1 (selected inverse and random-effect PEVs), or 2 (full inverse and
-random-effect PEVs). Modes 1 and 2 compute PEVs during fitting; mode 1
-does not form the complete coefficient-matrix inverse. With mode 0, use
+1 (random-effect PEVs without a full inverse), or 2 (full inverse and
+random-effect PEVs). Gaussian modes 1 and 2 compute PEVs during fitting; mode 1
+does not form the complete coefficient-matrix inverse. For direct fits,
+fit-time modes 0 and 2 are supported; post-fit <code>postPEV(mode=1)</code> computes
+diagonal error covariance in panels controlled by <code>panelSize</code>, and
+<code>postPEV(mode=2)</code> computes complete joint coefficient error covariance.
+<code>coefficientMatrix=TRUE</code> retains sparse prepared covariance inputs rather
+than Henderson equations; <code>FALSE</code> omits these inputs and disables direct
+post-fit uncertainty. All direct post-fit covariance workspace is checked
+against <code>execution$denseMemoryMB</code>. Native Laplace fits
+require <code>inverse=0</code>; PEV work is post-fit only. Gaussian fits use the
+selected sparse inverse. With mode 0, use
 <code><a href="postPEV.html">postPEV</a></code> after fitting to compute PEVs or the full inverse,
-provided <code>coefficientMatrix=TRUE</code>;
+provided <code>coefficientMatrix=TRUE</code> for Gaussian fits. Native Laplace fits
+use a joint fixed/random conditional observed-information approximation and
+do not require the Gaussian coefficient matrix; mode 2 is guarded by
+<code>execution$denseMemoryMB</code>. Laplace <code><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov()</a></code> and <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>
+compute numerical-Hessian uncertainty after fitting. Prediction standard
+errors use <code>output$panelSize</code> solve panels and full <code>cov.fit</code>
+requests use the same dense-memory budget;
 <code>covariance</code> is <code>"full"</code> or <code>"none"</code>; <code>selectedInverse</code>
 accepts experimental mode values. This module owns coefficient uncertainty,
 covariance-parameter uncertainty, retained coefficient-matrix output, and
-setup output.</p></dd>
+setup output. Native Laplace also accepts <code>setup=TRUE</code>, returning prepared
+inputs and a <code>vcParams</code> table without likelihood optimization. It includes
+actual Gaussian observation-residual parameters when requested, not the
+synthetic preparation residual scale.
+Its random covariance <code>vcc</code> constraints use independent working coordinates;
+SE and PEV propagation remains post-fit. Structured Gaussian observation blocks,
+including compatible <code>W</code> and <code>weights</code> metadata, use the same
+<code>task$glmm</code> controls and dense-memory budget; Gaussian dispersion belongs
+to <code>rcov</code>, not <code>familyParameters</code>, on this route.</p></dd>
 
 <dt>execution</dt>
 <dd><p>Named list with <code>denseMemoryMB=1000</code>,
@@ -204,7 +375,9 @@ default. A non-NULL <code>sommer.mme.denseMemoryMB</code>,
 <code>sommer.mme.memoryPolicy</code>, <code>sommer.mme.gpu</code>, or
 <code>sommer.mme.gpuMinSize</code> option supplies its corresponding default.
 This module owns resource policy, hardware, threading, numerical inverse
-tolerance, and stochastic seed.</p></dd>
+tolerance, and stochastic seed. Native Laplace accepts <code>denseMemoryMB</code>
+to bound dense derivative solve panels, not sparse precision/derivative
+blocks or sparse factor fill; it is not a total-memory guarantee.</p></dd>
 
 <dt>diagnostics</dt>
 <dd><p>Named list with <code>verbose=TRUE</code>,
@@ -242,7 +415,8 @@ positive <code>solve$recycleRank</code>. <code>logdet$scaling</code> and Lanczos
 apply to stochastic determinant evaluation. <code>score$rank</code> is used by the
 control-variate estimator. Adaptive trace and Lanczos budgets apply to
 stochastic PCG accuracy. <code>output$panelSize</code> applies to full inverse
-panels, not selected-inverse mode.</p>
+panels, direct post-fit diagonal covariance panels and conditional FA posterior-moment/projection panels, not ordinary selected-inverse
+mode.</p>
 <p>Experimental mode fields accept <code>"auto"</code>, <code>"off"</code>, or
 <code>"force"</code>; logical TRUE and FALSE mean force and off. Package options
 may supply defaults for these requests. <code>"force"</code> requests a path but
@@ -323,7 +497,13 @@ no direct replacement. Use <code>diagnostics$verbose</code> for fit messages and
 <code>diagnostics$profile</code> for implemented phase profiling.</p></dd>
 
 
-</dl></div>
+</dl><p>With <code>diagnostics$verbose=TRUE</code>, the existing Henderson <code>MME path</code>
+line includes the coefficient solver, active/inactive latent reduced-rank and
+Schur variants, and the selected residual engine (including inactive grid and
+repeated-Kronecker paths). An inactive automatic Schur path is reported as
+``not selected'', not as proof that the model lacks exploitable structure;
+disabled controls and unsupported coefficient backends are distinguished.</p>
+    </div>
     <div class="section level2">
     <h2 id="compatibility">Compatibility<a class="anchor" aria-label="anchor" href="#compatibility"></a></h2>
     <p>Settings are checked against one compatibility table when the control is
@@ -356,7 +536,7 @@ they cannot combine with.</p></li>
     </div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
-    
+
 
 <p>An object of class <code>"sommer_mmes_control"</code>.</p>
     </div>
@@ -389,9 +569,9 @@ they cannot combine with.</p></li>
 
     </footer></div>
 
-  
 
-  
+
+
 
   </body></html>
 

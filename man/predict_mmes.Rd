@@ -86,10 +86,10 @@
  the random contribution as \code{VarU}, its diagonal as \code{pvals$var.u},
  and the sampling covariance of the entire predictor as \code{sampling.vcov}.
  Set \code{FALSE} to skip the additional relationship solves and outputs.
- These calculations require a Gaussian Henderson fit. For PQL predictions
+ These calculations require a Gaussian Henderson or direct fit. For PQL predictions
  use \code{VarU=FALSE}; their existing working-model uncertainty remains an
  approximation.}
- \item{observed}{Logical, default \code{FALSE}. For rank-reduced Henderson fits,
+ \item{observed}{Logical, default \code{FALSE}. For rank-reduced Henderson or direct fits,
  character classify predictions stop before expanding a Cartesian grid by
  default. Opt in with \code{observed=TRUE} to predict the observation-weighted
  fixed predictor within each observed categorical combination of \code{D}
@@ -107,7 +107,7 @@
  Explicit matrix contrasts must use \code{observed=FALSE} and are still
  checked for estimability. This option is not used for full-rank fits.}
  \item{maxMemoryMB}{Positive finite workspace budget in decimal MB for
- rank-reduced predictions. Defaults to the fitted
+ rank-reduced and direct-engine predictions. Defaults to the fitted
  \code{control$execution$denseMemoryMB}, or 1000 MB for older objects.
  Before grouped design construction or covariance solves, an estimate includes
  dense engine-coordinate right-hand sides, solve copies, covariance outputs,
@@ -116,10 +116,24 @@
  Exceeding the budget raises an error suggesting fewer levels or smaller
  explicit contrast batches. \code{PEV=FALSE} does not eliminate the mandatory
  full \code{vcov}. Increase the budget only when memory is available.
- Existing full-rank prediction behavior is unchanged.}
+ Direct predictions additionally check observation-space factorization,
+ relationship covariance and contrast workspace against this budget.}
  \item{\dots}{Further arguments to be passed.}
 }
 \details{
+  Direct Gaussian and direct PQL fits support the same classify, explicit
+  contrast, \code{Dtable}, level-selection, SED and pairwise workflows as
+  Henderson fits. They retain sparse prepared designs and final covariance
+  inputs when \code{output$coefficientMatrix=TRUE} (default), and compute
+  contrast error covariance in observation space without forming Henderson
+  equations or requiring \code{postPEV()} first. Gaussian uncertainty is
+  conditional on fitted covariance parameters; PQL uncertainty is additionally
+  a working-model approximation on the link scale. For PQL set
+  \code{VarU=FALSE}. Coefficient predictions are \eqn{L_b\hat\beta+L_u\hat u};
+  formula offsets are not added automatically. These are not future-response
+  prediction intervals. Older direct fits lacking retained covariance inputs
+  must be refitted.
+
   This function allows to produce predictions specifying those variables that define the margins of the hypertable to be predicted (argument D). Predictions are obtained for each combination of values of the specified variables that is present in the data set used to fit the model. See vignettes for more details. 
 
   For a rank-reduced fit, \code{predict(fit, D="locale:cultivar",
@@ -133,7 +147,7 @@
   comparison. Estimability is checked before covariance computation.
   Manual random contributions are added in the same public coefficient
   coordinates as explicit contrasts, so their prediction-error, sampling
-  covariance and pairwise calculations follow the usual Henderson path.
+  covariance and pairwise calculations follow the fitted engine's usual path.
   When \code{include=TRUE} alone has random-level restrictions, omitted
   coefficient contributions are zeroed without renormalizing the empirical
   group weights. Use \code{include=TRUE, average=TRUE} for equally weighted
@@ -165,9 +179,12 @@
   \eqn{\operatorname{Var}(\hat t)}. They are computed from
   \deqn{\operatorname{Var}(t-\hat t)=D C_0^{-1}D',}
   where \eqn{C_0} is the original-scale Henderson coefficient matrix defined
-  in \code{\link{postVarU}}. The stored system \code{C} is solved against
+  in \code{\link{postVarU}}. For Henderson fits, the stored system \code{C} is solved against
   contrast transposes and the result multiplied by \code{Cscale}. Arbitrary
   contrasts work regardless of \code{computeCi}; no stored \code{Ci} is used.
+  Direct fits obtain the equivalent joint error covariance blocks in
+  observation space, as described in \code{\link{postPEV}}; they also support
+  singular random-effect covariance, for which \eqn{G^{-1}} need not exist.
 
   With \eqn{Q=(C_0^{-1})_{uu}} and \eqn{B=(C_0^{-1})_{bb}}, the new outputs are
   \deqn{\mathrm{VarU}=L_u(G-Q)L_u',}
@@ -180,10 +197,11 @@
   \code{sampling.vcov} and PEV. Random-only predictions satisfy
   \eqn{L_uGL_u'=\mathrm{PEV}+\mathrm{VarU}}.
 
-  The implementation batches full, random-only and fixed-only contrasts into
-  one Henderson factorization. Prior products use the term structure
+  The implementation evaluates full, random-only and fixed-only contrasts using
+  one operation-local factorization in the selected formulation. Prior products use the term structure
   \eqn{G_k=\Sigma_k\otimes A_k} and sparse relationship-precision solves.
-  Neither the observation covariance \eqn{V} nor its inverse is constructed.
+  Henderson does not construct the observation covariance \eqn{V} or its inverse;
+  direct fits factor \eqn{V} and use termwise relationship products.
   Additional matrices require quadratic storage in the number of predictions.
   Rotation and factor-score mappings operate in public effect coordinates.
   New fits retain relationship precisions; older ordinary fits attempt model
@@ -208,12 +226,17 @@
   estimated ordinal cutpoints while holding covariance/shape coordinates
   fixed; \code{uncertainty="full"} includes all estimated parameters and
   mode dependence. All uncertainty is post-fit and memory-budgeted.
-  Population prediction supports existing scalar/ordinal integration and
-  nominal unit random-intercept quadrature restrictions; mixed population
-  standard errors and classify aggregation are explicitly unsupported.
+  Population prediction integrates the fitted structured latent covariance,
+  including supplied relationship precision and arbitrary design loadings.
+  Population standard errors propagate all estimated outer parameters and
+  report \code{uncertainty="full"}. Classify aggregation remains unsupported.
 
   Native Laplace fits accept \code{newdata}, \code{type}, \code{re.form},
-  \code{se.fit}, and \code{cov.fit} through \code{\dots}. For conditional
+  \code{se.fit}, and \code{cov.fit} through \code{\dots}. Random-effect and
+  observation-space Laplace backends retain the same prediction and
+  uncertainty targets. Observation fits reconstruct operation-local mode
+  and fixed-effect Schur solves rather than a random-effect Hessian.
+  For conditional
   predictions at known random-effect levels or zero-random-effect predictions,
   \code{se.fit=TRUE} returns a list with \code{fit}, \code{se.fit}, and
   \code{cov.fit=NULL}. The standard errors use the joint fixed/random
@@ -224,8 +247,9 @@
   Solve panels are controlled by \code{output$panelSize}, and full covariance
   workspace is checked against \code{execution$denseMemoryMB}. Population-mean
   uncertainty is propagated through fixed-effect and covariance-parameter
-  curvature for the supported independent-random-intercept case. General
-  population integration and aggregation are not implemented.
+  and family-parameter curvature for supported structured random effects.
+  This is uncertainty in an integrated mean, not a future-response interval.
+  Aggregation is not implemented.
   With a nontrivial \code{zipoisson(zero=~covariates)} formula, prediction
   uncertainty instead propagates the joint outer-parameter covariance,
   including zero coefficients and cross-covariances. Conditional predictions
@@ -243,7 +267,7 @@
   \code{re.form=NA} sets random effects to zero.
   \code{re.form="population"} integrates category probabilities with exact
   normal convolution for probit and 24-node Gaussian quadrature for logit,
-  under the same restricted covariance eligibility as other Laplace
+  under the same structured latent covariance as other Laplace
   population predictions.
   Ordinal uncertainty propagates the full outer-parameter covariance,
   including cutpoint cross-covariances and conditional-mode dependence;
@@ -258,24 +282,29 @@
   reference-category logits. Conditional prediction requires known random
   levels, while \code{re.form=NA} sets random effects to zero.
   \code{re.form="population"} averages category probabilities over the fitted
-  Gaussian random-intercept distribution, rather than setting random effects
+  Gaussian latent distribution, rather than setting random effects
   to zero or averaging logits. It supports up to four response categories,
-  shared or correlated category-specific unit random intercepts, and sums
-  covariance contributions from independent terms. Every term must have an
-  identity relationship precision and the same group assignment across its
-  active category coordinates, with constant unit loadings across prediction
-  rows. Random slopes and other relationships are rejected. New independent
-  group levels are allowed provided the fixed-effect design is supported.
+  structured temporal/spatial effects, random slopes and supplied relationship
+  precision, and sums covariance contributions from independent terms.
+  Each observation uses its actual joint logit covariance.
+  New independent group levels are allowed provided the fixed-effect design
+  is supported and the relationship precision is identity. New time/site
+  coordinates or unknown relationship levels are rejected: the coordinate
+  basis must be represented when fitting. Conditional prediction can borrow
+  information for represented latent coordinates without an observed response;
+  it does not extrapolate to an undefined covariance basis.
   Integration uses deterministic tensor normal quadrature on the nonzero
   logit-covariance eigenspace: 24- and 32-point rules must agree to within
   \eqn{10^{-6}} absolute probability in every cell. The returned 32-point
   result is a numerical approximation; rule agreement is not a guaranteed
   error bound. Estimated workspace is guarded by
-  \code{execution$denseMemoryMB}. Population \code{type="link"},
-  \code{se.fit} and \code{cov.fit} are unsupported and rejected explicitly.
+  \code{execution$denseMemoryMB}. Population \code{type="link"} is rejected.
+  Population \code{se.fit} and \code{cov.fit} propagate all estimated
+  outer parameters after fitting and report \code{uncertainty="full"};
+  covariance uses category-major order and labels \code{category:row}.
   Classify-table aggregation remains unsupported.
   \code{se.fit=TRUE} returns probability standard
-  errors by the delta method and uses the joint fixed/random conditional
+  errors by the delta method; conditional uncertainty uses the joint fixed/random conditional
   curvature with fitted covariance parameters held fixed. These calculations
   happen after fitting; they are not calibrated prediction intervals.
   Nominal models additionally accept \code{uncertainty="conditional"}

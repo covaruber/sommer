@@ -590,7 +590,13 @@ modeling situation.</p>
 <dd><p>Optional data frame of equality/scaling constraints between
   covariance parameters (columns <code>parameter</code>, <code>group</code> and optionally
   <code>scale</code>), identified through the <code>vcParams</code> table returned by
-  <code>returnParam=TRUE</code> and stored in the fit. See <code><a href="vcc.html">vcc</a></code>.</p></dd>
+  <code>control$output$setup=TRUE</code> and stored in the fit. Native Laplace ML
+  supports random covariance equalities and ratios for scalar, ordinal, nominal
+  and mixed <code>familym()</code> responses. Its setup table contains random
+  covariance parameters and actual Gaussian observation-residual parameters
+  when requested. Only the random parameters can be constrained by <code>vcc</code>. Independent
+  coordinates determine parameter counts; SE and PEV propagation remains
+  post-fit. See <code><a href="vcc.html">vcc</a></code>.</p></dd>
 
 
   <dt>family</dt>
@@ -620,7 +626,48 @@ modeling situation.</p>
   supplying <code>family = <a href="familym.html">familym</a>("trait", Disease = binomial(),
   Yield = gaussian())</code>. See <code><a href="familym.html">familym</a></code> for the required residual
   structure; in that case <code>dispersion</code> is a named vector with one value
-  per trait.</p></dd>
+  per trait.</p>
+<p>Native Laplace ML, selected through
+  <code>control=mmes_control(task=list(objective="ml",glmm=list(method="laplace")))</code>,
+  supports structured Gaussian observation-residual blocks, including Gaussian
+  traits alongside scalar, ordinal and nominal <code>familym()</code> responses.
+  The residual descriptor owns Gaussian variance and replaces Gaussian family
+  dispersion. Residual parameters are reported under <code>residual</code>;
+  SE, prediction uncertainty and PEV remain post-fit. All-Gaussian integration
+  recovers exact Gaussian ML.</p>
+<p>Correlated hidden processes for non-Gaussian observations use structured
+  <code>random</code> terms on the link scale, not a discrete residual covariance.
+  Native Laplace population means and post-fit SE reuse temporal/spatial
+  covariance descriptors, relationship precision and actual design loadings.
+  New independent groups require identity precision; new covariance coordinates
+  outside the represented fitted basis are rejected. Nominal integration supports
+  up to four categories with deterministic quadrature-accuracy checks.</p>
+<p>Residual covariance is prepared on the Gaussian subset. Supplied
+  <code>W</code> can match original or retained observations or their Gaussian
+  subset; full-data matrices must be identity on non-Gaussian rows and zero
+  across families. Ambiguous subset dimensions require a matrix for all original
+  observations. <code>weights=~trial</code> declares independent blocks of
+  supplied <code>W</code>, not numeric weights. Gaussian-subset workspace is dense
+  and bounded by <code>execution$denseMemoryMB</code>. Non-Gaussian residual
+  dependence remains unsupported. The Gaussian/PQL
+  <code>formulation="direct"</code> option is separate from Laplace algebra.
+  See the <a href="../articles/sommer.glmm.html">GLMM guide</a>.</p>
+<p><code>control$task$glmm$backend</code> selects <code>"auto"</code>,
+  <code>"random"</code> or <code>"observation"</code> linear algebra for the same
+  Laplace likelihood. Automatic selection considers dimensions, structural
+  coupling and memory; inspect <code>executionPlan$glmm$backend</code>.
+  Safeguarded <code>warmStart="auto"</code> and analytic marginal gradients,
+  including mixed nominal responses, are defaults. ZIP auto remains
+  cold-started; explicit warm reuse retains an authoritative cold check.
+  Optional <code>gradient="numeric"</code>, <code>trace="selected"</code>
+  and <code>blocks="on"</code> provide central-difference reference scores,
+  exact inverse-subset contractions and independent random-Hessian solves.
+  Panel traces and global factorization remain defaults; see the
+  <a href="../articles/sommer.glmm.html#exact-fitting-accelerations">acceleration guide</a>.
+  Observation space uses sparse prior solves and a bounded dense predictor
+  system instead of constructing the random Hessian. Its SE/PEV remain
+  post-fit through operation-local mode/Schur solves. Keep
+  <code>formulation="henderson"</code> at the public Laplace preparation interface.</p></dd>
 
 
   <dt>pqlControl</dt>
@@ -1188,4 +1235,3 @@ Camacho, Johan Aparicio-Arce, and Claudio Flavio 5.1 jaja (laughing in Spanish).
   
 
   </body></html>
-

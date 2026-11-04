@@ -29,7 +29,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">sommer</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.12</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.16</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -188,9 +188,11 @@ estimator and controls</td>
 <td align="left">
 <code>mode="fit"</code>, <code>objective="reml"</code>,
 <code>pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)</code>,
-<code>glmm=list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8)</code>.
+<code>glmm=list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8, backend="auto")</code>.
 Laplace requires <code>objective="ml"</code> and the supported native
-model scope in the GLMM vignette.</td>
+model scope in the GLMM vignette. Its <code>backend</code> selects
+interchangeable random/observation linear algebra, independently of
+Gaussian/PQL formulation and solver choices.</td>
 </tr>
 <tr class="odd">
 <td align="left"><code>representation</code></td>
@@ -465,7 +467,7 @@ average-information curvature on these equations;
 even without an explicit representation request.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">long</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/stackTraits.html">stackTraits</a></span><span class="op">(</span><span class="va">wide</span>, traits <span class="op">=</span> <span class="va">trait_names</span>, keep <span class="op">=</span> <span class="st">"id"</span><span class="op">)</span></span>
-<span><span class="va">Ainv</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/solve.html" class="external-link">solve</a></span><span class="op">(</span><span class="va">A</span><span class="op">)</span></span>
+<span><span class="va">Ainv</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/Matrix/man/solve-methods.html" class="external-link">solve</a></span><span class="op">(</span><span class="va">A</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">Ainv</span>, <span class="st">"inverse"</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
 <span></span>
 <span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
@@ -800,6 +802,19 @@ structures. It does not introduce new covariance models.
 <code>representation$matrixFree</code> avoids eligible tensor-prior
 assembly for PCG; it does not make every model operation
 matrix-free.</li>
+<li>Native Laplace <code>task$glmm</code> acceleration controls are
+distinct from Gaussian solver controls: <code>warmStart="auto"</code>
+and <code>gradient="analytic"</code> are defaults;
+<code>warmStart="off"</code> restores zero starts and
+<code>gradient="numeric"</code> selects central differences.
+<code>trace="panels"</code> and <code>blocks="off"</code> remain
+defaults; exact <code>trace="selected"</code> and
+<code>blocks="on"</code> are opt-in random-backend paths. Failed warm
+modes retry zero. ZIP auto does not reuse modes; explicit on
+cold-verifies the historical root. Missing inverse-subset entries use
+exact solve panels. Work/choices persist through refits and saved
+models, and all public SE/PEV remain post-fit. Non-default settings are
+rejected for PQL.</li>
 <li>
 <code>solve$blockSchur</code>, <code>blockBanded</code>,
 <code>factorSchurMultiFactor</code>, and <code>dFirstML</code> request
@@ -820,13 +835,18 @@ special-representation paths.</li>
 <li>
 <code>output$covariance="none"</code> is restricted to supported
 Gaussian Henderson fits; it does not disable curvature needed by
-optimization. Setting <code>output$coefficientMatrix=FALSE</code>
-requires the eligible saddle-point path and
-<code>output$inverse=0</code>. These output requests do not substitute
-for one another. <code>output$selectedInverse</code> matters only for
-eligible Henderson selected-inverse output
-(<code>output$inverse=1</code>); <code>output$panelSize</code> controls
-full-inverse panels (<code>output$inverse=2</code>).</li>
+optimization. Setting For Henderson,
+<code>output$coefficientMatrix=FALSE</code> requires the eligible
+saddle-point path and <code>output$inverse=0</code>. For direct fits,
+<code>coefficientMatrix=TRUE</code> retains sparse prepared inputs for
+post-fit covariance, not Henderson equations; <code>FALSE</code> omits
+those inputs and disables post-fit uncertainty methods. These output
+requests do not substitute for one another.
+<code>output$selectedInverse</code> matters only for eligible Henderson
+selected-inverse output (<code>output$inverse=1</code>);
+<code>output$panelSize</code> controls full-inverse panels
+(<code>output$inverse=2</code>), and diagonal <code><a href="../reference/postPEV.html">postPEV()</a></code>
+panels for direct fits.</li>
 <li>GPU requests require a CUDA-enabled Henderson build and usable CUDA
 runtime and device. Direct inversion and the known-covariance solve path
 remain CPU paths.</li>

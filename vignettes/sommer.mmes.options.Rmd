@@ -75,7 +75,7 @@ the prior numerical bundle; they do not authorize new combinations.
 | Module | Mathematical ownership | Fields and defaults |
 |:--|:--|:--|
 | `formulation` | Equation domain | `"henderson"`; `"henderson"` or `"direct"`. |
-| `task` | Fit versus known-covariance solve; objective; GLMM estimator and controls | `mode="fit"`, `objective="reml"`, `pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)`, `glmm=list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8)`. Laplace requires `objective="ml"` and the supported native model scope in the GLMM vignette. |
+| `task` | Fit versus known-covariance solve; objective; GLMM estimator and controls | `mode="fit"`, `objective="reml"`, `pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)`, `glmm=list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8, backend="auto")`. Laplace requires `objective="ml"` and the supported native model scope in the GLMM vignette. Its `backend` selects interchangeable random/observation linear algebra, independently of Gaussian/PQL formulation and solver choices. |
 | `representation` | Equation/covariance representation | `compression="off"`, `factorScores="none"`, `fixedRank="error"`, `equations="normal"`, `sparseFactors="off"`, `matrixFree="auto"`; modes can inherit global options, and `equations` defaults to `"saddle-point"` if that mode is globally forced. |
 | `solve` | Linear solves, preconditioning, reuse, elimination | `method="auto"`; PCG fields below; `blockSchur`, `blockBanded`, `factorSchurMultiFactor`, and `dFirstML` default to `"auto"`. |
 | `logdet` | Determinant approximation | `scaling="none"`, `lanczosSteps=20L`. |
@@ -552,6 +552,15 @@ Examples of coupled prerequisites:
   introduce new covariance models. `representation$matrixFree` avoids eligible
   tensor-prior assembly for PCG; it does not make every model operation
   matrix-free.
+* Native Laplace `task$glmm` acceleration controls are distinct from Gaussian
+  solver controls: `warmStart="auto"` and `gradient="analytic"` are defaults;
+  `warmStart="off"` restores zero starts and `gradient="numeric"` selects
+  central differences. `trace="panels"` and `blocks="off"` remain defaults;
+  exact `trace="selected"` and `blocks="on"` are opt-in random-backend paths.
+  Failed warm modes retry zero. ZIP auto does not reuse modes; explicit on
+  cold-verifies the historical root. Missing inverse-subset entries use exact
+  solve panels. Work/choices persist through refits and saved models, and all
+  public SE/PEV remain post-fit. Non-default settings are rejected for PQL.
 * `solve$blockSchur`, `blockBanded`, `factorSchurMultiFactor`, and `dFirstML`
   request specialized elimination only for eligible coefficient graphs,
   likelihoods, backends, and workspaces. Forcing a request does not bypass
@@ -565,11 +574,14 @@ Examples of coupled prerequisites:
   PCG, PQL, and special-representation paths.
 * `output$covariance="none"` is restricted to supported Gaussian Henderson
   fits; it does not disable curvature needed by optimization. Setting
-  `output$coefficientMatrix=FALSE` requires the eligible saddle-point path and
-  `output$inverse=0`. These output requests do not substitute for one another.
+  For Henderson, `output$coefficientMatrix=FALSE` requires the eligible saddle-point
+  path and `output$inverse=0`. For direct fits, `coefficientMatrix=TRUE`
+  retains sparse prepared inputs for post-fit covariance, not Henderson equations;
+  `FALSE` omits those inputs and disables post-fit uncertainty methods.
+  These output requests do not substitute for one another.
   `output$selectedInverse` matters only for eligible Henderson selected-inverse
   output (`output$inverse=1`); `output$panelSize` controls full-inverse panels
-  (`output$inverse=2`).
+  (`output$inverse=2`), and diagonal `postPEV()` panels for direct fits.
 * GPU requests require a CUDA-enabled Henderson build and usable CUDA runtime
   and device. Direct inversion and the known-covariance solve path remain CPU
   paths.

@@ -42,9 +42,10 @@ test_that("public multinomial fits expose probabilities and post-fit methods", {
   zeroRandom <- predict(fit, newdata=fixture$data[1:4, , drop=FALSE],
     re.form=NA)
   expect_equal(unname(rowSums(zeroRandom)), rep(1, 4L), tolerance=1e-12)
-  expect_error(predict(fit, re.form="population", se.fit=TRUE), "standard errors")
-  expect_error(predict(fit, re.form="population", se.fit=TRUE, cov.fit=TRUE),
-    "standard errors")
+  populationSE <- predict(fit,newdata=fixture$data[1:3,],
+    re.form="population",se.fit=TRUE,cov.fit=TRUE)
+  expect_true(all(is.finite(populationSE$se.fit)))
+  expect_equal(as.numeric(diag(populationSE$cov.fit)),as.numeric(populationSE$se.fit^2))
   expect_error(predict(fit, re.form="population", type="link"), "not averaged logits")
   rngBefore <- .Random.seed
   fittedBefore <- fit[c("b","covStruct","randomMode","laplaceDiagnostics")]
@@ -253,11 +254,10 @@ test_that("nominal population quadrature includes cross-category covariance and 
   invalid <- object
   invalid$randomRelationships[[1]][1,2] <- .1
   expect_error(sommer:::.laplace_nominal_population_prediction(invalid,prediction),
-    "identity relationship")
+    "relationship precision")
   invalid <- object
   invalid$randomFormula <- ~group+x
-  expect_error(sommer:::.laplace_nominal_population_prediction(invalid,prediction),
-    "random slopes")
+  expect_equal(sommer:::.laplace_nominal_population_prediction(invalid,prediction),result)
   invalid <- object
   invalid$nominal$predictorLevels <- letters[1:4]
   expect_error(sommer:::.laplace_nominal_population_prediction(invalid,prediction),
@@ -268,21 +268,23 @@ test_that("nominal population quadrature includes cross-category covariance and 
     "exceeds")
   badPrediction <- prediction
   badPrediction$random <- badPrediction$random*2
-  expect_error(sommer:::.laplace_nominal_population_prediction(object,badPrediction),
-    "unit random-intercept")
+  scaled <- sommer:::.laplace_nominal_population_prediction(object,badPrediction)
+  expect_equal(as.numeric(rowSums(scaled)),1,tolerance=1e-12)
+  expect_gt(max(abs(scaled-result)),1e-4)
   badPrediction <- prediction
   groups <- nrow(object$randomRelationships[[1]])
   badPrediction$random[2L,groups+1L] <- 0
   badPrediction$random[2L,groups+2L] <- 1
-  expect_error(sommer:::.laplace_nominal_population_prediction(object,badPrediction),
-    "same independent group")
+  independent <- sommer:::.laplace_nominal_population_prediction(object,badPrediction)
+  expect_equal(as.numeric(rowSums(independent)),1,tolerance=1e-12)
+  expect_gt(max(abs(independent-result)),1e-4)
   rows <- c(1L,2L,301L,302L)
   varying <- list(fixed=prepared$fixedDesign[rows,,drop=FALSE],
     random=prepared$randomDesign[rows,,drop=FALSE],offset=rep(0,4),
     n=2L,rowNames=c("1","2"))
   varying$random[2L,] <- 0
-  expect_error(sommer:::.laplace_nominal_population_prediction(object,varying),
-    "constant unit")
+  varied <- sommer:::.laplace_nominal_population_prediction(object,varying)
+  expect_equal(as.numeric(rowSums(varied)),rep(1,2),tolerance=1e-12)
   nearZero <- object
   nearZero$covStruct[[1]]$par[1L] <- -100
   expect_equal(sommer:::.laplace_nominal_population_prediction(nearZero,prediction),

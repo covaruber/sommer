@@ -27,8 +27,9 @@ factor-analytic loadings), \code{"tanh"} or \code{"bounded_logit"}
   \code{"term:parameter"} (e.g. \code{"vsm(ism(B)):sigma2"}); the
   \code{parameter} name alone is accepted when unique.}
   \item{group}{parameters with the same group value are constrained together.}
-  \item{scale}{optional, default 1: each member equals \code{scale} times the
-  first member of its group (natural scale). Scaling is allowed for
+  \item{scale}{optional, default 1: members divided by their respective
+  \code{scale} values are equal on the natural scale. Relative to the first
+  member, the ratio is \code{scale / scale[1]}. Scaling is allowed for
   \code{"scale"}, \code{"exp"} and \code{"identity"} parameters; correlation-type
   parameters can only be equated.}
 }
@@ -37,6 +38,8 @@ constrained with other variance scales, and other parameters with parameters
 estimated through the same transform. If any member of a group is fixed, the
 whole group is fixed at the value implied by that member. Starting values of
 the members are made consistent with the first (or fixed) member.
+Multiple fixed members must imply the same value. Correlations with bounded
+logit transforms must have identical bounds to be equated.
 }
 \details{
 Parameters are estimated on transformed scales that guarantee valid
@@ -52,6 +55,31 @@ metric, which equals the constrained Newton step, and then repaired exactly;
 both the Henderson and the direct engines support constraints. The covariance
 of the estimates is \eqn{T(T^\top\mathcal{I}T)^{-1}T^\top}, so constrained
 parameters share their standard errors.
+}
+\section{Native Laplace GLMMs}{
+Native Laplace ML supports these constraints for random covariance parameters,
+including ordinal, nominal and mixed \code{familym()} responses. Use the same
+family and \code{task$glmm$method="laplace"} when requesting
+\code{output$setup=TRUE}: the returned \code{vcParams} table contains random
+covariance parameters, plus actual Gaussian observation-residual parameters
+when structured Gaussian blocks are requested. The latter are reported for
+inspection and uncertainty but are not accepted as \code{vcc} members.
+The synthetic Gaussian preparation residual scale is always excluded.
+Parameter indices from a Gaussian setup are not interchangeable with this table.
+Family dispersion, NB2 shape, thresholds and zero-inflation coefficients are not
+part of \code{vcc}.
+
+The likelihood is optimized in the independent coordinates \eqn{\phi}; native
+scores are pulled back with \eqn{T^\top}. Parameter counts for \code{logLik()},
+AIC and BIC count only independent estimated coordinates. Numerical observed
+information, covariance standard errors, prediction uncertainty and PEV remain
+post-fit calculations. Their Jacobians propagate uncertainty through the same
+constraint map and the natural-scale transformations; no Hessian is computed
+during fitting.
+
+Likelihood comparisons through \code{anova()} still require nested fixed
+effects with the same covariance constraints. Comparing different variance
+constraint spaces is not supported by this fixed-effects comparison.
 }
 \seealso{\code{\link{mmes}}, \code{\link{vsm}}, \code{\link{covparams_mmes}}}
 \examples{

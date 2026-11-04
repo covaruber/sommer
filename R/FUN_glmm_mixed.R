@@ -101,6 +101,8 @@
       call.=FALSE)
   }
   expanded <- .laplace_mixed_expand(data, family, components)
+  if(!is.null(mmesArgs$observationMask))
+    mmesArgs$observationMask <- mmesArgs$observationMask[expanded$rowMap]
   expanded$data$.familyResponse <- response[expanded$rowMap]
   numericFixed <- stats::formula(stats::terms(fixed, data=data))
   numericFixed[[2L]] <- as.name(".familyResponse")
@@ -247,10 +249,23 @@
 }
 
 .laplace_mixed_residuals <- function(object, type){
+  gaussianCovariance <- if(!is.null(object$laplaceResidual))
+    .laplace_residual_matrix(object) else NULL
+  gaussianStandardized <- if(!is.null(gaussianCovariance))
+    as.numeric(forwardsolve(t(chol(gaussianCovariance)),
+      object$y[object$laplaceResidual$rows]-
+        object$linear.predictors[object$laplaceResidual$rows])) else NULL
   result <- lapply(seq_along(object$familySpecifications), function(position){
     specification <- object$familySpecifications[[position]]
     rows <- which(object$laplaceFamilyIndex == position)
     local <- object
+    local$laplaceResidual <- NULL
+    if(specification$family=="gaussian" && !is.null(gaussianCovariance)){
+      selected <- match(rows,object$laplaceResidual$rows)
+      if(type=="deviance") return(gaussianStandardized[selected])
+      local$laplaceResidual <- list(rows=seq_along(rows))
+      local$laplaceResidualCovariance <- gaussianCovariance[selected,selected,drop=FALSE]
+    }
     local$categorical <- NULL
     local$family <- object$laplaceFamilies[[position]]
     local$laplaceFamilies <- list(local$family)
@@ -329,6 +344,7 @@
           stop("Conditional categorical prediction encountered unseen random-effect levels; use re.form=NA or supported population prediction.",
             call.=FALSE)
         }
+        .laplace_population_new_levels(object,variable)
         values[values %in% unseen] <- known[1L]
       }
       stacked[[variable]] <- factor(values, levels=known)
@@ -395,7 +411,7 @@
     if(specification$family == "multinomial"){
       d <- length(specification$predictorLevels)
       n <- length(rows)/d
-      ordering <- as.vector(t(matrix(rows, ncol=d, byrow=TRUE)))
+      ordering <- as.vector(matrix(rows, ncol=d, byrow=TRUE))
       local$nominal <- specification
       result[[position]] <- .laplace_nominal_population_prediction(local,
         list(n=n, fixed=prediction$fixed[ordering, , drop=FALSE],
@@ -414,50 +430,8 @@
 }
 
 .laplace_mixed_population_variance <- function(object, design){
-  variables <- setdiff(all.vars(object$randomFormula), ".familyCoordinate")
-  if(any(!variables %in% names(object$randomFactorLevels)))
-    stop("Mixed population prediction requires factor-valued random intercepts; random slopes are unsupported.",
-      call.=FALSE)
-  variance <- numeric(nrow(design))
-  start <- 0L
-  for(term in seq_along(object$covStruct)){
-    relationship <- object$randomRelationships[[term]]
-    if(!Matrix::isDiagonal(relationship) ||
-       any(abs(Matrix::diag(relationship)-1)>1e-10))
-      stop("Mixed population prediction requires identity relationship precision.",
-        call.=FALSE)
-    groups <- nrow(relationship)
-    coordinates <- object$covStruct[[term]]$dim
-    width <- object$randomBlockWidths[term]
-    if(width != groups*coordinates)
-      stop("Mixed population random-intercept coordinates are inconsistent.", call.=FALSE)
-    if(24 * as.double(coordinates)^2 >
-       object$laplacePostPEVSettings$denseMemoryMB * 1048576)
-      stop("Mixed population covariance exceeds execution$denseMemoryMB.", call.=FALSE)
-    block <- design[,start+seq_len(width),drop=FALSE]
-    entries <- Matrix::summary(block)
-    if(any(entries$x != 1))
-      stop("Mixed population prediction requires unit random-intercept loadings.",
-        call.=FALSE)
-    assignments <- split((entries$j-1L)%%groups,entries$i)
-    if(any(vapply(assignments,function(value)length(unique(value))>1L,logical(1))))
-      stop("Mixed population coordinates must reference the same independent group per row.",
-        call.=FALSE)
-    sigma <- evaluate_covstruct_cpp(object$covStruct[[term]],object$covStruct[[term]]$par)
-    for(left in seq_len(coordinates)) for(right in seq_len(coordinates)){
-      if(sigma[left,right] == 0) next
-      a <- block[,(left-1L)*groups+seq_len(groups),drop=FALSE]
-      b <- block[,(right-1L)*groups+seq_len(groups),drop=FALSE]
-      if(any(Matrix::rowSums(a)>1) || any(Matrix::rowSums(b)>1))
-        stop("Mixed population prediction requires one unit intercept per coordinate and row.",
-          call.=FALSE)
-      variance <- variance + sigma[left,right]*as.numeric(Matrix::rowSums(a*b))
-    }
-    start <- start+width
-  }
-  if(any(!is.finite(variance)) || any(variance < 0))
-    stop("Mixed population random variance is invalid.",call.=FALSE)
-  variance
+  .laplace_population_variance(design,object$covStruct,object$randomRelationships,
+    object$randomBlockWidths,object$laplacePostPEVSettings$denseMemoryMB)
 }
 
 .laplace_mixed_predict <- function(object, arguments){
@@ -480,8 +454,8 @@
   population <- identical(randomForm, "population")
   if(!is.null(randomForm) && !identical(randomForm, NA) && !population)
     stop("re.form must be NULL, NA or 'population'.", call.=FALSE)
-  if(population && (se || type != "response")){
-    stop("Mixed categorical population prediction supports response probabilities/means without standard errors.",
+  if(population && type != "response"){
+    stop("Mixed categorical population prediction supports response probabilities/means only.",
       call.=FALSE)
   }
   prediction <- .laplace_mixed_prediction_design(object, arguments$newdata,
@@ -496,7 +470,13 @@
   }
   eta <- prediction$offset + as.numeric(prediction$fixed %*% object$b)
   if(is.null(randomForm)) eta <- eta + as.numeric(prediction$random %*% object$randomMode)
-  if(population) return(.laplace_mixed_population_output(object, prediction, eta))
+  if(population){
+    value <- .laplace_mixed_population_output(object,prediction,eta)
+    if(!se) return(value)
+    return(.laplace_population_delta(object,value,function(local)
+      .laplace_mixed_population_output(local,prediction,
+        prediction$offset+as.numeric(prediction$fixed %*% local$b)),covariance))
+  }
   result <- .laplace_mixed_output(object, eta, type, prediction$index,
     prediction$rowMap, prediction$coordinate)
   if(!se) return(result)
@@ -547,6 +527,8 @@
 
 .laplace_mixed_prediction_uncertainty <- function(object, prediction, fitted,
                                                    type, mode, covariance){
+  scope <- .mmes_blas_scope(object$control$execution$blasThreads)
+  on.exit(scope$restore(),add=TRUE)
   training <- object
   training$familySpecifications <- object$categorical$components
   uncertainty <- .mmes_laplace_uncertainty(training)
@@ -562,21 +544,18 @@
   if(!is.finite(bytes) || bytes > memory)
     stop("Mixed categorical prediction uncertainty exceeds execution$denseMemoryMB.",
       call.=FALSE)
-  context <- sommer_laplace_objective_create(training$fixedDesign,
-    training$randomDesign, training$laplaceNativeResponse, training$offset, "",
-    training$covStruct, training$randomRelationships,
-    object$laplacePostPEVSettings$denseMemoryMB,
-    familySpecs=training$familySpecifications,
-    familyIndex=training$laplaceFamilyIndex, trials=training$priorWeights)
+  context <- .laplace_objective_context(training,
+    memoryMB=object$laplacePostPEVSettings$denseMemoryMB)
   evaluate <- function(proposal){
     local <- object
     local$familySpecifications <- .laplace_proposal_specs(object$familySpecifications,
       proposal, object$laplaceParameterLayout)
     local$laplaceFamilies <- .laplace_update_families(object$laplaceFamilies,
       local$familySpecifications, prediction$index)
-    value <- sommer_laplace_objective_eval(context, proposal, gradient=FALSE,
-      maxModeIterations=object$laplacePostPEVSettings$modeMaxit,
-      tolerance=object$laplacePostPEVSettings$modeTol)
+    value <- .laplace_constrained_evaluate(proposal, object$laplaceParameterLayout,
+      function(expanded) sommer_laplace_objective_eval(context, expanded, gradient=FALSE,
+        maxModeIterations=object$laplacePostPEVSettings$modeMaxit,
+        tolerance=object$laplacePostPEVSettings$modeTol))
     if(!isTRUE(value$valid))
       stop("Mixed prediction uncertainty encountered invalid parameters: ", value$reason,
         call.=FALSE)
@@ -613,8 +592,8 @@
     as.numeric(prediction$random %*% object$randomMode)
   derivative <- .laplace_mixed_output_derivative(object, prediction, eta, type)
   randomDerivative <- derivative %*% prediction$random
-  factor <- Matrix::Cholesky(Matrix::forceSymmetric(object$laplaceModeHessian), LDL=FALSE)
-  solved <- Matrix::solve(factor, Matrix::t(randomDerivative), system="A")
+  solveMode <- .laplace_mode_solver(training)
+  solved <- solveMode(Matrix::t(randomDerivative))
   resultCovariance <- resultCovariance + as.matrix(randomDerivative %*% solved)
   resultCovariance <- (resultCovariance + t(resultCovariance))/2
   variances <- diag(resultCovariance)
@@ -629,13 +608,7 @@
     }else standardErrors[[position]] <- values
     start <- start + length(values)
   }
-  labels <- unlist(lapply(seq_along(fitted), function(position){
-    value <- fitted[[position]]
-    prefix <- names(fitted)[position]
-    if(is.matrix(value)) paste(prefix, rep(colnames(value), each=nrow(value)),
-      rep(seq_len(nrow(value)), ncol(value)), sep=":") else
-      paste(prefix, seq_along(value), sep=":")
-  }), use.names=FALSE)
+  labels <- .laplace_prediction_labels(fitted)
   dimnames(resultCovariance) <- list(labels, labels)
   result <- list(fit=fitted, se.fit=standardErrors, uncertainty=mode)
   if(covariance) result$cov.fit <- resultCovariance
@@ -647,6 +620,8 @@
   if(includeRandomEffects && is.null(randomFactors))
     randomFactors <- .laplace_random_effect_sampling_factors(object, maxMemoryMB)
   simulations <- matrix(NA_real_, object$nobs, nsim)
+  residualFactor <- if(!is.null(object$laplaceResidual))
+    chol(.laplace_residual_matrix(object,maxMemoryMB)) else NULL
   for(simulation in seq_len(nsim)){
     eta <- object$linear.predictors
     if(includeRandomEffects){
@@ -658,6 +633,7 @@
       rows <- which(object$laplaceFamilyIndex == position)
       originals <- unique(object$categorical$rowMap[rows])
       specification <- object$familySpecifications[[position]]
+      if(!is.null(residualFactor) && specification$family=="gaussian") next
       if(specification$family %in% c("ordinal", "multinomial")){
         p <- output[[position]]
         uniform <- stats::runif(nrow(p))
@@ -669,6 +645,7 @@
         }
       }else{
         local <- object
+        local$laplaceResidual <- NULL
         local$categorical <- NULL
         local$family <- object$laplaceFamilies[[position]]
         local$laplaceFamilies <- list(local$family)
@@ -685,6 +662,11 @@
         draw <- as.numeric(.laplace_simulate_response(local, 1L, maxMemoryMB=maxMemoryMB))
       }
       simulations[originals, simulation] <- draw
+    }
+    if(!is.null(residualFactor)){
+      rows <- object$laplaceResidual$rows
+      simulations[object$categorical$rowMap[rows],simulation] <- eta[rows]+
+        as.numeric(t(residualFactor) %*% stats::rnorm(length(rows)))
     }
   }
   simulations

@@ -1,5 +1,6 @@
 #include "mme_glmm_multinomial.h"
 #include "mme_glmm_precision.h"
+#include "mme_glmm_system.h"
 #include <limits>
 
 namespace {
@@ -15,6 +16,8 @@ public:
   double logDetPrecision = 0.0;
   sommer::CholmodState factor;
   sommer::CholmodState precisionFactor;
+  std::unique_ptr<sommer::LaplaceSystem> observationSystem;
+  sommer::LaplaceSystemPlan systemPlan;
   Eigen::SparseMatrix<double> hessian;
   std::vector<std::vector<int>> supports;
   double structuralPairs = 0.0;
@@ -27,13 +30,22 @@ public:
   int evaluations = 0;
   int scoreEvaluations = 0;
   int derivativeSolves = 0;
+  int contractionSolves = 0;
+  int selectedBuilds = 0;
+  sommer::LaplaceSelectedInverse selected;
+  bool selectedReady = false;
+  std::string traceChoice;
+  sommer::LaplaceWarmStart warm;
 
   MultinomialModeContext(const arma::vec & suppliedResponse,
       const arma::sp_mat & suppliedDesign, const arma::sp_mat & suppliedPrecision,
-      const int dimension, const double memory)
+      const int dimension, const double memory, const std::string & backend,
+      const std::string & warmStart="off",const std::string & trace="panels",
+      const std::string & blocks="off")
       : response(suppliedResponse), design(suppliedDesign),
         precision(suppliedPrecision), n(response.n_elem),
-        d(dimension > 0 ? dimension : 0), q(design.n_cols), memoryMB(memory){
+        d(dimension > 0 ? dimension : 0), q(design.n_cols), memoryMB(memory),
+        traceChoice(trace),warm(warmStart,true){
     if(n == 0 || d == 0 || q == 0 ||
        static_cast<double>(n) * d * d > std::numeric_limits<int>::max() ||
        q > static_cast<arma::uword>(std::numeric_limits<int>::max()) ||
@@ -53,6 +65,13 @@ public:
         Rcpp::stop("Multinomial response codes must be integers from 1 through the declared category count.");
       }
     }
+    systemPlan = sommer::planLaplaceSystem(backend,design,precision,memoryMB);
+    sommer::laplaceChoice(trace,{"panels","selected"},"trace");
+    sommer::laplaceChoice(blocks,{"off","on"},"blocks");
+    if(systemPlan.selected == "observation" || blocks=="on"){
+      observationSystem = sommer::makeLaplaceSystem(systemPlan,memoryMB,blocks);
+      observationSystem->configureTrace(trace,memoryMB);
+    }
     checkWorkspace(precision);
     supports.resize(n);
     for(auto cell = design.begin(); cell != design.end(); ++cell){
@@ -67,6 +86,11 @@ public:
   }
 
   void checkWorkspace(const arma::sp_mat & suppliedPrecision){
+    if(observationSpace()){
+      workspaceBytes = sommer::planLaplaceSystem("observation",design,suppliedPrecision,
+        memoryMB).workspace;
+      return;
+    }
     const double budget = memoryMB * 1048576.0;
     const double baseBytes = 8.0 * (16.0 * n * d * d + 24.0 * n * d +
       16.0 * q + 8.0 * design.n_nonzero + 8.0 * suppliedPrecision.n_nonzero);
@@ -101,6 +125,13 @@ public:
        !sommer::laplaceFactorLogDeterminant(precisionFactor, logDet)){
       Rcpp::stop("Multinomial random precision must be positive definite.");
     }
+    if(observationSystem){
+      precision = suppliedPrecision;
+      logDetPrecision = logDet;
+      observationSystem->prepare(precision,design,logDetPrecision);
+      precisionReady = true;
+      return;
+    }
     std::vector<Eigen::Triplet<double>> entries;
     entries.reserve(static_cast<std::size_t>(suppliedPrecision.n_nonzero + structuralPairs));
     for(auto cell = suppliedPrecision.begin(); cell != suppliedPrecision.end(); ++cell){
@@ -120,13 +151,41 @@ public:
   }
 
   Rcpp::List work() const {
+    const int subsets=selectedBuilds+(observationSystem ? observationSystem->selectedBuilds : 0);
+    Rcpp::List backend=observationSystem ?
+      sommer::laplaceSystemDiagnostics(systemPlan,*observationSystem) :
+      Rcpp::List::create(Rcpp::_["requested"]=systemPlan.requested,
+        Rcpp::_["selected"]="random",Rcpp::_["reason"]=systemPlan.reason,
+        Rcpp::_["blocks"]=1,Rcpp::_["trace"]=traceChoice,
+        Rcpp::_["factorizations"]=factorizations);
+    backend["selectedBuilds"]=subsets;
+    backend["contractionSolves"]=contractionSolves;
     return Rcpp::List::create(Rcpp::_["evaluations"]=evaluations,
-      Rcpp::_["symbolicAnalyses"]=symbolicAnalyses,
+      Rcpp::_["symbolicAnalyses"]=symbolicAnalyses+
+        (observationSystem ? observationSystem->symbolicAnalyses : 0),
       Rcpp::_["precisionSymbolicAnalyses"]=precisionSymbolicAnalyses,
-      Rcpp::_["factorizations"]=factorizations,
+      Rcpp::_["factorizations"]=observationSystem ? observationSystem->factorizations :
+        factorizations,
       Rcpp::_["scoreEvaluations"]=scoreEvaluations,
-      Rcpp::_["derivativeSolves"]=derivativeSolves);
+      Rcpp::_["derivativeSolves"]=derivativeSolves,
+      Rcpp::_["selectedBuilds"]=subsets,
+      Rcpp::_["contractionSolves"]=contractionSolves,
+      Rcpp::_["warmStart"]=warm.diagnostics(),
+      Rcpp::_["backend"]=backend);
   }
+  bool observationSpace() const {
+    return observationSystem && observationSystem->observationSpace();
+  }
+  bool selectedEntry(int a,int b,double & value){
+    if(observationSystem) return observationSystem->selectedEntry(a,b,value);
+    if(traceChoice=="panels") return false;
+    if(!selectedReady){
+      selected.build(factor,memoryMB);
+      selectedReady=true; ++selectedBuilds;
+    }
+    return selected.get(a,b,value);
+  }
+  arma::mat solve(const arma::mat & rhs){ return modeSolve(rhs); }
 
   arma::mat solve(sommer::CholmodState & state, const arma::mat & rhs){
     ++derivativeSolves;
@@ -134,6 +193,24 @@ public:
     const Eigen::MatrixXd value = state.solve(mapped, "Multinomial marginal score solve failed.");
     if(!value.allFinite()) Rcpp::stop("Multinomial marginal score solve is non-finite.");
     return arma::mat(value.data(), value.rows(), value.cols());
+  }
+
+  arma::mat modeSolve(const arma::mat & rhs, bool derivative=true){
+    if(observationSystem){
+      if(derivative) ++derivativeSolves;
+      return observationSystem->solve(rhs);
+    }
+    if(derivative) return solve(factor,rhs);
+    Eigen::Map<const Eigen::MatrixXd> mapped(rhs.memptr(),rhs.n_rows,rhs.n_cols);
+    const Eigen::MatrixXd value = factor.solve(mapped,"Multinomial mode solve failed.");
+    return arma::mat(value.data(),value.rows(),value.cols());
+  }
+
+  bool determinant(double & value){
+    if(!observationSystem) return sommer::laplaceFactorLogDeterminant(factor,value);
+    if(!observationSystem->determinant()) return false;
+    value = observationSystem->logDet;
+    return true;
   }
 
   arma::vec gradient(const Rcpp::List & modeResult, const arma::sp_mat & fixedDesign,
@@ -168,17 +245,12 @@ public:
       arma::uvec indices(d);
       for(arma::uword a = 0; a < d; ++a) indices(a) = row + n * a;
       const arma::sp_mat block = transposed.cols(indices);
-      arma::mat leverage(d, d);
-      for(arma::uword first = 0; first < d; first += panelSize){
-        const arma::uword last = std::min(d - 1, first + panelSize - 1);
-        const arma::mat solved = solve(factor, arma::mat(block.cols(first, last)));
-        leverage.cols(first, last) = block.t() * solved;
-      }
+      const arma::mat leverage=sommer::laplacePredictorCovariance(*this,block,panelSize);
       const arma::vec contracted = sommer::multinomialCurvatureContraction(
         probability.row(row).t(), leverage);
       for(arma::uword a = 0; a < d; ++a) correction(indices(a)) = contracted(a);
     }
-    const arma::vec adjoint = solve(factor, arma::mat(design.t() * correction));
+    const arma::vec adjoint = modeSolve(arma::mat(design.t() * correction));
     const arma::vec predictorScore = score - correction + curvature * (design * adjoint);
     arma::vec result(fixedDesign.n_cols + precisionDerivatives.size());
     if(fixedDesign.n_cols) result.head(fixedDesign.n_cols) = fixedDesign.t() * predictorScore;
@@ -187,8 +259,12 @@ public:
       const auto & derivative = precisionDerivatives[parameter];
       double tracePrecision = std::isfinite(derivative.logDet) ? derivative.logDet : 0.0;
       double traceHessian = 0.0;
+      const bool selectedTrace=sommer::laplaceSelectedTrace(*this,derivative,traceHessian);
+      if(!selectedTrace) traceHessian=0.0;
       const arma::uword blockEnd = derivative.start + derivative.block.n_rows - 1;
-      for(arma::uword first = 0; first < derivative.block.n_cols; first += panelSize){
+      for(arma::uword first = 0;
+          (!selectedTrace || !std::isfinite(derivative.logDet)) &&
+          first < derivative.block.n_cols; first += panelSize){
         const arma::uword last = std::min(derivative.block.n_cols - 1, first + panelSize - 1);
         arma::mat rhs(q, last - first + 1, arma::fill::zeros);
         rhs.rows(derivative.start, blockEnd) = arma::mat(derivative.block.cols(first, last));
@@ -199,9 +275,12 @@ public:
             tracePrecision += solvedPrecision(derivative.start + column, column - first);
           }
         }
-        const arma::mat solvedHessian = solve(factor, rhs);
-        for(arma::uword column = first; column <= last; ++column){
-          traceHessian += solvedHessian(derivative.start + column, column - first);
+        if(!selectedTrace){
+          ++contractionSolves;
+          const arma::mat solvedHessian = modeSolve(rhs);
+          for(arma::uword column = first; column <= last; ++column){
+            traceHessian += solvedHessian(derivative.start + column, column - first);
+          }
         }
       }
       const arma::vec blockMode = mode.subvec(derivative.start, blockEnd);
@@ -252,6 +331,11 @@ public:
   }
 
   bool factorize(const arma::sp_mat & curvature){
+    selectedReady=false;
+    if(observationSystem){
+      ++factorizations;
+      return observationSystem->factorize(curvature);
+    }
     const arma::sp_mat numeric = precision + design.t() * curvature * design;
     if(!numeric.is_finite()) return false;
     // Keep structural zeros so saturation cannot invalidate symbolic reuse.
@@ -279,9 +363,12 @@ MultinomialModeContext & contextFrom(SEXP pointer){
 // [[Rcpp::export(rng = false)]]
 SEXP sommer_multinomial_mode_create(const arma::vec & response,
     const arma::sp_mat & randomDesign, const arma::sp_mat & randomPrecision,
-    const int dimension, const double denseMemoryMB = 1000.0){
+    const int dimension, const double denseMemoryMB = 1000.0,
+    const std::string & backend = "random",
+    const std::string & warmStart = "off",const std::string & trace = "panels",
+    const std::string & blocks = "off"){
   Rcpp::XPtr<MultinomialModeContext> pointer(new MultinomialModeContext(response,
-    randomDesign, randomPrecision, dimension, denseMemoryMB), true);
+    randomDesign, randomPrecision, dimension, denseMemoryMB,backend,warmStart,trace,blocks), true);
   R_SetExternalPtrTag(pointer, Rf_install("sommer_multinomial_mode_context"));
   return pointer;
 }
@@ -325,30 +412,28 @@ Rcpp::List sommer_multinomial_mode_eval(SEXP pointer, const arma::mat & fixedPre
     scoreNorm = arma::norm(modeScore, "inf");
     if(scoreNorm <= tolerance * (1.0 + arma::norm(mode, "inf"))){
       if(!context.factorize(curvature) ||
-         !sommer::laplaceFactorLogDeterminant(context.factor, logDetHessian)){
+         !context.determinant(logDetHessian)){
         return invalid("non-positive-definite mode Hessian");
       }
-      const double logLik = penalized + 0.5 * context.logDetPrecision -
-        0.5 * logDetHessian;
+      const double logLik = penalized-0.5*(context.observationSystem ?
+        context.observationSystem->logDetRatio : logDetHessian-context.logDetPrecision);
       if(!std::isfinite(logLik)) return invalid("non-finite Laplace likelihood");
-      const arma::sp_mat hessian =
-        context.precision + context.design.t() * curvature * context.design;
-      return Rcpp::List::create(Rcpp::_["valid"]=true, Rcpp::_["reason"]="converged",
+      Rcpp::List result = Rcpp::List::create(Rcpp::_["valid"]=true, Rcpp::_["reason"]="converged",
         Rcpp::_["logLik"]=logLik, Rcpp::_["conditionalLogLik"]=likelihood,
         Rcpp::_["mode"]=mode, Rcpp::_["linearPredictors"]=eta,
-        Rcpp::_["probability"]=probability, Rcpp::_["modeHessian"]=hessian,
+        Rcpp::_["probability"]=probability,
         Rcpp::_["observationCurvature"]=curvature,
         Rcpp::_["modeScore"]=scoreNorm, Rcpp::_["iterations"]=iterations,
         Rcpp::_["logDetHessian"]=logDetHessian,
         Rcpp::_["work"]=context.work());
+      if(context.observationSpace()) result["modeHessian"] = R_NilValue;
+      else result["modeHessian"] = arma::sp_mat(context.precision+
+        context.design.t()*curvature*context.design);
+      return result;
     }
     if(iteration == maxModeIterations) break;
     if(!context.factorize(curvature)) return invalid("non-positive-definite mode Hessian");
-    Eigen::MatrixXd rhs(context.q, 1);
-    for(arma::uword row = 0; row < context.q; ++row) rhs(row, 0) = modeScore(row);
-    const Eigen::MatrixXd solution = context.factor.solve(rhs, "Multinomial mode solve failed.");
-    arma::vec step(context.q);
-    for(arma::uword row = 0; row < context.q; ++row) step(row) = solution(row, 0);
+    const arma::vec step = context.modeSolve(arma::mat(modeScore),false);
     if(!step.is_finite()) return invalid("non-finite Newton step");
     bool accepted = false;
     for(double scale = 1.0; scale >= 1.0 / 1024.0; scale *= 0.5){
@@ -437,7 +522,8 @@ public:
   MultinomialObjective(const arma::vec & response, const arma::sp_mat & fixed,
       const arma::sp_mat & random, const arma::mat & suppliedOffset,
       const Rcpp::List & descriptors, const Rcpp::List & relationships,
-      const double memory)
+      const double memory, const std::string & backend,const std::string & warmStart,
+      const std::string & trace,const std::string & blocks)
     : fixedDesign(fixed), offset(suppliedOffset), precision(descriptors, relationships, true),
       fixedCount(fixed.n_cols), covarianceCount(precision.parameterCount()){
     if(offset.n_rows != response.n_elem || offset.n_cols == 0 ||
@@ -462,7 +548,7 @@ public:
       Rcpp::stop("Invalid multinomial initial covariance: " + reason + ".");
     }
     modePointer = sommer_multinomial_mode_create(response, random, precision.matrix,
-      static_cast<int>(offset.n_cols), memory);
+      static_cast<int>(offset.n_cols), memory,backend,warmStart,trace,blocks);
   }
 };
 
@@ -481,9 +567,13 @@ MultinomialObjective & objectiveFrom(SEXP pointer){
 SEXP sommer_multinomial_objective_create(const arma::vec & response,
     const arma::sp_mat & fixedDesign, const arma::sp_mat & randomDesign,
     const arma::mat & offset, const Rcpp::List & descriptors,
-    const Rcpp::List & relationships, const double denseMemoryMB = 1000.0){
+    const Rcpp::List & relationships, const double denseMemoryMB = 1000.0,
+    const std::string & backend = "random",
+    const std::string & warmStart = "off",const std::string & trace = "panels",
+    const std::string & blocks = "off"){
   Rcpp::XPtr<MultinomialObjective> pointer(new MultinomialObjective(response,
-    fixedDesign, randomDesign, offset, descriptors, relationships, denseMemoryMB),
+    fixedDesign, randomDesign, offset, descriptors, relationships, denseMemoryMB,backend,
+    warmStart,trace,blocks),
     true, Rf_install("sommer_multinomial_objective"));
   return pointer;
 }
@@ -532,7 +622,16 @@ Rcpp::List sommer_multinomial_objective_eval(SEXP pointer,
     const arma::mat predictor = objective.offset + arma::reshape(
       objective.fixedDesign * parameters.head(objective.fixedCount), context.n, context.d);
     result = sommer_multinomial_mode_eval(objective.modePointer, predictor,
-      arma::vec(context.q, arma::fill::zeros), maxModeIterations, tolerance);
+      context.warm.start(context.q), maxModeIterations, tolerance);
+    context.warm.count(result);
+    if(!Rcpp::as<bool>(result["valid"]) && context.warm.enabled &&
+       context.warm.mode.n_elem){
+      ++context.warm.coldRetries;
+      result=sommer_multinomial_mode_eval(objective.modePointer,predictor,
+        arma::vec(context.q,arma::fill::zeros),maxModeIterations,tolerance);
+      context.warm.count(result);
+    }
+    context.warm.remember(result);
     if(Rcpp::as<bool>(result["valid"])){
       objective.cachedResult = Rcpp::clone(result);
       objective.cachedParameters = parameters;
@@ -551,4 +650,13 @@ Rcpp::List sommer_multinomial_objective_eval(SEXP pointer,
   }
   result["work"] = work();
   return result;
+}
+
+// [[Rcpp::export(rng = false)]]
+arma::mat sommer_multinomial_objective_solve(SEXP pointer, const arma::mat & rhs){
+  auto & objective = objectiveFrom(pointer);
+  auto & context = contextFrom(objective.modePointer);
+  if(!objective.cachedMode || rhs.n_rows != context.q || !rhs.is_finite())
+    Rcpp::stop("Multinomial solve requires an accepted mode and finite conformable right-hand sides.");
+  return context.modeSolve(rhs);
 }

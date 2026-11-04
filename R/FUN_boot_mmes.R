@@ -2,14 +2,16 @@
   layout <- object$laplaceParameterLayout
   result <- stats::setNames(parameters[seq_len(layout$fixedCount)],
     if(layout$fixedCount) paste0("count:", names(object$b)) else character())
+  expanded <- .laplace_expand_parameters(parameters, layout)
+  structures <- .laplace_covariance_structures(object)
   for(term in seq_along(layout$freePositions)){
     positions <- layout$freePositions[[term]]
     coordinates <- layout$fixedCount + layout$parameterStarts[term] +
       seq_along(positions)
     if(length(positions)){
-      values <- parameters[coordinates]
+      values <- expanded[coordinates]
       names(values) <- paste0("covariance:", term, ":",
-        object$covStruct[[term]]$par_names[positions])
+        structures[[term]]$par_names[positions])
       result <- c(result, values)
     }
   }
@@ -35,12 +37,12 @@
 }
 
 .boot_mmes_refit <- function(object, response, maxit){
-  nominalMixed <- FALSE
+  scope <- .mmes_blas_scope(object$control$execution$blasThreads)
+  on.exit(scope$restore(),add=TRUE)
   if(.laplace_is_categorical_mixed(object)){
     for(position in seq_along(object$familySpecifications)){
       specification <- object$familySpecifications[[position]]
       if(specification$family != "multinomial") next
-      nominalMixed <- TRUE
       rows <- which(object$categorical$originalIndex == position)
       response[rows] <- match(specification$levels[response[rows]],
         specification$nativeLevels)
@@ -78,16 +80,8 @@
       stop("Nominal bootstrap final evaluation failed: ",
         evaluation$reason, call.=FALSE)
     }
-    structures <- object$covStruct
     layout <- object$laplaceParameterLayout
-    for(term in seq_along(layout$freePositions)){
-      positions <- layout$freePositions[[term]]
-      if(length(positions)){
-        structures[[term]]$par[positions] <- fit$par[
-          layout$fixedCount + layout$parameterStarts[term] +
-            seq_along(positions)]
-      }
-    }
+    structures <- .laplace_proposal_structures(object$covStruct, fit$par, layout)
     boundary <- .mmes_laplace_boundary(structures, object$covStruct)
     return(list(parameters=.boot_mmes_parameters(object, fit$par),
       logLik=as.numeric(evaluation$logLik),
@@ -101,18 +95,21 @@
     rows <- object$laplaceFamilyIndex == position
     nativeResponse[rows] <- round(response[rows] * object$priorWeights[rows])
   }
-  settings <- object$laplacePostPEVSettings
-  context <- sommer_laplace_objective_create(object$fixedDesign, object$randomDesign,
-    nativeResponse, object$offset, "", object$covStruct, object$randomRelationships,
-    settings$denseMemoryMB, familySpecs=object$familySpecifications,
-    familyIndex=object$laplaceFamilyIndex, trials=object$priorWeights)
+  settings <- utils::modifyList(.mme_glmm_defaults,object$laplacePostPEVSettings)
+  context <- .laplace_objective_context(object,response=nativeResponse)
   evaluate <- function(parameters, gradient=FALSE){
-    value <- sommer_laplace_objective_eval(context, parameters,
-      maxModeIterations=settings$modeMaxit, tolerance=settings$modeTol,
-      gradient=gradient && !nominalMixed)
-    if(gradient && nominalMixed && isTRUE(value$valid)){
-      value$gradient <- .laplace_numeric_gradient(parameters, function(proposal)
+    value <- .laplace_constrained_evaluate(parameters, object$laplaceParameterLayout,
+      function(expanded) sommer_laplace_objective_eval(context, expanded,
+        maxModeIterations=settings$modeMaxit, tolerance=settings$modeTol,
+        gradient=gradient && settings$gradient=="analytic"))
+    if(gradient && settings$gradient=="numeric" && isTRUE(value$valid)){
+      score <- .laplace_numeric_gradient(parameters, function(proposal)
         evaluate(proposal)$logLik)
+      value <- evaluate(parameters,FALSE)
+      if(!isTRUE(value$valid))
+        stop("Numerical bootstrap score could not restore its accepted mode: ",
+          value$reason,".",call.=FALSE)
+      value$gradient <- score
     }
     value
   }
@@ -139,13 +136,10 @@
     stop("Bootstrap final evaluation failed: ", evaluation$reason, call.=FALSE)
   }
   layout <- object$laplaceParameterLayout
-  structures <- object$covStruct
-  for(term in seq_along(layout$freePositions)){
-    positions <- layout$freePositions[[term]]
-    structures[[term]]$par[positions] <- fit$par[layout$fixedCount +
-      layout$parameterStarts[term] + seq_along(positions)]
-  }
-  boundary <- .mmes_laplace_boundary(structures, object$covStruct)
+  structures <- .laplace_proposal_structures(.laplace_covariance_structures(object),
+    fit$par, layout)
+  boundary <- .mmes_laplace_boundary(structures,.laplace_covariance_structures(object),
+    object$laplaceResidual,settings$denseMemoryMB)
   specifications <- .laplace_proposal_specs(object$familySpecifications,
     fit$par, layout)
   for(position in seq_along(specifications)){

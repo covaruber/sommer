@@ -27,9 +27,10 @@ stored retained designs, offsets, trials and native likelihood specifications,
 so no evaluation of the original data expression or response formula is needed.
 Grouped binomial simulations are converted from proportions back to counts.
 Each refit starts at that model's fitted parameters and uses the stored mode
-controls and native likelihood. Scalar/ordinal outer derivatives are native;
-mixed nominal outer derivatives are central differences of the block Laplace
-likelihood. Fits are sequential; no dependencies
+controls, acceleration choices and native likelihood. Scalar, ordinal and
+mixed nominal outer derivatives are native analytic by default; stored
+\code{gradient="numeric"} retains the central-difference reference.
+Fits are sequential; no dependencies
 or parallel workers are added. Output storage is subject to the generating
 fit's \code{execution$denseMemoryMB} budget.
 

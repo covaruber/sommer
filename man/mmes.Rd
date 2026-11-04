@@ -284,7 +284,8 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   family uses the ordinary linear mixed-model implementation. Non-Gaussian
   families use penalized quasi-likelihood (PQL) by default: each outer iteration forms an IRLS
   working response and weights, then fits the resulting weighted Gaussian mixed
-  model with the Henderson solver. The initial implementation supports one numeric
+  model with the Henderson solver or the observation-space direct engine selected
+  by \code{control$formulation="direct"}. PQL supports one numeric
   response. Any family with a valid link can be used, e.g. \code{binomial()}
   (logit, probit, cloglog), \code{poisson()}, \code{Gamma()},
   \code{inverse.gaussian()}, \code{gaussian(link="log")}, \code{quasipoisson()}
@@ -304,6 +305,22 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   Formula offsets are included on the link scale. A supplied symmetric positive
   definite \code{W} is combined with the IRLS precision after observation filtering,
   and may be sparse and non-diagonal.
+  Direct PQL supports ML/REML working fits, structured random/residual covariance,
+  \code{weights} block formulas, \code{vcc}, grouped trials and covariance warm starts.
+  Its sparse predictor design is retained without constructing Henderson equations.
+  For direct PQL, both the final inner fit and outer PQL criterion must converge;
+  otherwise \code{convergence} and \code{pqlConverged} are false and a warning is
+  issued. \code{pqlMonitor[,"innerConverged"]} records inner convergence.
+  Fixed-effect uncertainty and Wald tests use the direct working-model
+  \code{VarBeta}; \code{output$inverse=2} requests direct random-effect PEV.
+  \code{predict(..., VarU=FALSE)} and \code{postPEV()} compute joint fixed/random
+  working-model error covariance directly in observation space; no Henderson
+  \code{C}/\code{Cscale} is needed. Retain
+  \code{output$coefficientMatrix=TRUE} (the default) to save the required sparse
+  designs, relationship precisions and final working residual weights.
+  These working-model uncertainty products are PQL approximations on the link
+  scale, conditional on fitted covariance parameters, not marginal-likelihood
+  inference. Coefficient contrasts do not automatically add formula offsets.
 
   The opt-in \code{control$task$glmm$method="laplace"} uses sommer's native
   likelihood and random-effect mode module and requires
@@ -315,18 +332,64 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   Grouped-binomial trials use \code{binm()}, a two-column successes/failures
   response, or the trials-column interface of \code{familym()}. Native
   \code{familym()} combines all supported families through shared latent
-  random effects with conditionally independent observations.
-  It does not support structured residual covariance, \code{W}, weights formulas, \code{vcc}, direct
-  formulation. Native Laplace fits require
+  random effects, with independent non-Gaussian observation likelihoods and
+  optional joint Gaussian observation-residual blocks.
+  Random covariance equality/ratio constraints through \code{vcc} are supported,
+  including ordinal, nominal and mixed-family fits. Use Laplace
+  \code{output$setup=TRUE} to inspect its \code{vcParams} table.
+  Family parameters and residual scales cannot be constrained with \code{vcc}.
+  Structured \code{rcov}, \code{W} and \code{weights} metadata are supported on
+  Gaussian-identity observations only, including Gaussian traits alongside
+  discrete/categorical \code{familym()} responses. The residual descriptor owns
+  all Gaussian observation variance; do not also specify Gaussian
+  \code{familyParameters}. Its parameters appear under \code{"residual"} in
+  \code{vcParams}, \code{covPar} and covariance SE reporting, but cannot be
+  constrained through the random-only \code{vcc} interface.
+  Residual covariance is prepared on the Gaussian subset; use an explicit
+  pairing key, e.g. \code{rcov=~vsm(usm(trait),ism(record))}. A supplied
+  \code{W} may match original or retained observations, or the original or
+  retained Gaussian subset. A full-data \code{W} must be identity on
+  non-Gaussian rows and zero between Gaussian and non-Gaussian rows.
+  If dimensions ambiguously match different retained/original subsets, supply
+  \code{W} for all original observations to make row alignment explicit.
+  \code{weights=~trial} declares independent Gaussian blocks of supplied
+  \code{W}, not frequency weights or generated numeric weights.
+  Correlation between discrete observation errors, or between Gaussian and
+  discrete errors, is not defined by this interface and remains unsupported.
+  \code{control$task$glmm$backend} selects \code{"auto"} (default),
+  \code{"random"} or \code{"observation"} linear algebra for the same Laplace
+  likelihood. The observation route uses sparse prior precision solves and
+  a memory-budgeted dense predictor-space system instead of constructing the
+  random-effect Hessian. Automatic selection considers dimensions, random
+  design coupling and memory; inspect \code{executionPlan$glmm$backend}.
+  \code{task$glmm$warmStart="auto"} reuses successful conditional modes when
+  the likelihood is concave; ZIP remains cold-started unless explicitly
+  requested with authoritative cold verification. \code{gradient="analytic"}
+  includes mixed nominal marginal scores; \code{"numeric"} is optional.
+  \code{trace="selected"} and \code{blocks="on"} enable exact inverse-subset
+  contractions and independent mode-Hessian components on the random backend;
+  bounded solve panels and global factorization remain their defaults.
+  These choices preserve the likelihood and all SE/PEV remain post-fit.
+  This is separate from the Gaussian/PQL \code{formulation="direct"} engine:
+  the Laplace public preparation interface still uses
+  \code{formulation="henderson"}. Native Laplace fits require
   \code{control$output$inverse=0}; all PEV work is post-fit through
   \code{\link{postPEV}}. The Gaussian objectives in
   \code{ai_mme_sp2()} and \code{ai_reml_direct_sp2()} are unchanged; the native
   Laplace module consumes their shared prepared design/covariance inputs
   without delegating fitting to another mixed-model package. Conditional,
-  zero-random-effect, and restricted response-scale population predictions
+  zero-random-effect, and response-scale population predictions
   are available. Conditional predictions require known random-effect levels;
-  population integration is limited to independent random intercepts.
+  population integration uses supported structured random covariance descriptors
+  and relationship precision, including temporal/spatial processes and slopes.
   The PQL path and its defaults are unchanged.
+  Gaussian residual matrices and their analytic derivatives use the shared
+  residual assembler with dense Gaussian-subset workspace guarded by
+  \code{execution$denseMemoryMB}; this is not a matrix-free residual likelihood.
+  All-Gaussian Laplace integration is exact ML for the specified model.
+  Conditional simulation draws Gaussian residuals jointly. Gaussian Pearson
+  and quantile residuals use marginal residual variances; Gaussian deviance
+  residuals are Cholesky-whitened (row-order dependent).
   Model preparation retains the actual family and returns before Gaussian
   fitting. Native precision and family modules provide first derivatives of
   the full Laplace objective, including mode and determinant dependence, to
@@ -350,17 +413,18 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
   require \code{re.form=NA}, which sets random effects to zero. On a nonlinear
   link, zero-random-effect means are not population-marginal means. Population
   marginal means are available on the response scale with
-  \code{re.form="population"} for independent random-intercept terms with
-  identity relationship precision; unsupported covariance structures error
-  explicitly. Prediction standard errors are available for conditional
+  \code{re.form="population"} using the fitted structured latent covariance.
+  New independent groups require identity relationship precision; new latent
+  coordinate or relationship levels outside the represented basis are rejected.
+  Prediction standard errors are available for conditional
   known-level and zero-random-effect predictions; response-scale standard
   errors use the delta method. They are conditional on fitted covariance and
   family parameters. Full prediction covariance is optional and guarded by
   \code{execution$denseMemoryMB}; prediction solve panels use
   \code{output$panelSize}. Population-mean uncertainty is propagated through
-  fixed-effect and covariance-parameter curvature for the supported
-  independent-random-intercept case; general population integration and
-  aggregation are not implemented.
+  fixed-effect, covariance and family-parameter curvature after fitting.
+  Nominal population integration supports up to four categories with a
+  deterministic quadrature accuracy check. Aggregation is not implemented.
   Explicit \code{PEV=FALSE} and \code{VarU=FALSE} are accepted; requests for
   these uncertainty products are rejected.
 
@@ -505,7 +569,7 @@ create a dense fixed-effect block during estimation. Variance components,
 BLUEs and BLUPs are identical to those of an explicit absorption of the
 fixed effects.
 
-\code{control$output$inverse} only controls work done after convergence:
+For Henderson fits, \code{control$output$inverse} only controls work done after convergence:
 \describe{
   \item{\code{0} (default)}{No inverse of \code{C} is formed. Fixed-effect
   standard errors in \code{summary()} are \code{NA}.}
@@ -524,6 +588,19 @@ errors of particular fixed-effect combinations are needed, use
 \code{\link{predict.mmes}}, which computes exact standard errors from the
 sparse \code{C} without forming \code{Ci}. \code{\link{postPEV}} can add
 PEVs or the full inverse after fitting.
+
+Direct fits always report the fixed-effect working-model covariance in
+\code{VarBeta}. Their fit-time \code{inverse=2} supplies random-effect PEVs;
+\code{inverse=1} is not supported at fit time. Prefer \code{inverse=0} and
+call \code{postPEV(mode=1)} for panelled diagonal covariance or
+\code{postPEV(mode=2)} for the complete joint fixed/random error covariance.
+\code{predict()} supports both formulations without a stored inverse.
+Direct post-fit operations factor the observation covariance and do not
+construct Henderson equations or invert the full random-effect prior.
+They use \code{execution$denseMemoryMB}; prediction can override this with
+\code{maxMemoryMB}. Full coefficient covariance still needs quadratic storage
+in the number of coefficients. Older direct objects without retained post-fit
+inputs must be refitted.
 
 When even the sparse REML fit is too slow, a practical alternative is to
 estimate the variance components with the large factor fitted as random,

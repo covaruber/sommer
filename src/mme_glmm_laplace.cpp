@@ -6,6 +6,7 @@
 #include <vector>
 #include "mme_glmm_family.h"
 #include "mme_glmm_precision.h"
+#include "mme_glmm_system.h"
 
 namespace {
 
@@ -27,6 +28,23 @@ bool factorLogDeterminant(sommer::CholmodState & factor,
   return sommer::laplaceFactorLogDeterminant(factor, logDeterminant);
 }
 
+void attachGaussianResidual(sommer::GLMMFamilyModel & family,
+    const Rcpp::List & model, const double memoryMB){
+  family.residual = std::make_shared<sommer::GaussianObservationResidual>(model,memoryMB);
+  if(!family.residual->active()) return;
+  const arma::uvec & rows = family.residual->rows;
+  if(rows.max() >= family.index.n_elem || arma::unique(rows).eval().n_elem != rows.n_elem)
+    Rcpp::stop("Gaussian residual rows are invalid.");
+  arma::uvec covered(family.index.n_elem,arma::fill::zeros);
+  covered.elem(rows).ones();
+  for(arma::uword row = 0; row < family.index.n_elem; ++row){
+    const auto & specification = family.specifications[family.index(row)];
+    if((specification.family == "gaussian") != (covered(row) != 0) ||
+       (covered(row) && specification.free))
+      Rcpp::stop("Gaussian residual rows must cover exactly Gaussian observations, with no duplicate family dispersion.");
+  }
+}
+
 } // namespace
 
 // Evaluate the conditional random-effect mode and the Laplace log likelihood
@@ -42,8 +60,7 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
                                     const double logDetPrecision,
                                     const int maxModeIterations,
                                     const double tolerance,
-                                    sommer::CholmodState & factor,
-                                    int * symbolicAnalyses,
+                                    sommer::LaplaceSystem & system,
                                     const bool verifyPrecision){
   const arma::uword observationCount = response.n_elem;
   const arma::uword randomCount = randomDesign.n_cols;
@@ -111,17 +128,16 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
   bool converged = false;
   double hessianLogDeterminant = NA_REAL;
   double finalModeScore = NA_REAL;
+  system.prepare(randomPrecision,randomDesign,logDetPrecision);
 
   for(int iteration = 0; iteration < maxModeIterations; ++iteration){
     Rcpp::checkUserInterrupt();
     iterations = iteration + 1;
     // Sparse diagonal multiplication safely removes entries with zero weight.
-    const arma::sp_mat observationCurvature = family.hasNominal() ?
+    const arma::sp_mat observationCurvature = (family.hasNominal() ||
+      (family.residual && family.residual->active())) ?
       family.observationCurvature(family.evaluate(response, eta)) :
       arma::sp_mat(arma::diagmat(weight));
-    const arma::sp_mat weightedDesign = observationCurvature * randomDesign;
-    const arma::sp_mat hessian =
-      randomPrecision + randomDesign.t() * weightedDesign;
     const arma::vec modeScore = randomDesign.t() * score - randomPrecision * mode;
     if(!modeScore.is_finite()){
       return invalidEvaluation("non-finite mode score");
@@ -129,29 +145,16 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
     finalModeScore = arma::norm(modeScore, "inf");
     if(finalModeScore <= tolerance * (1.0 + arma::norm(mode, "inf"))){
       converged = true;
-      const Eigen::SparseMatrix<double> eigenHessian =
-        sommer::laplaceEigenSparse(hessian);
-      if(!factor.analyzePattern(eigenHessian, symbolicAnalyses) ||
-         !factor.factorize(eigenHessian) ||
-         !factorLogDeterminant(factor, hessianLogDeterminant)){
+      if(!system.factorize(observationCurvature) || !system.determinant()){
         return invalidEvaluation("non-positive-definite mode Hessian");
       }
+      hessianLogDeterminant = system.logDet;
       break;
     }
-    const Eigen::SparseMatrix<double> eigenHessian = sommer::laplaceEigenSparse(hessian);
-    if(!factor.analyzePattern(eigenHessian, symbolicAnalyses) || !factor.factorize(eigenHessian)){
+    if(!system.factorize(observationCurvature)){
       return invalidEvaluation("non-positive-definite mode Hessian");
     }
-    Eigen::MatrixXd rightHandSide(static_cast<int>(randomCount), 1);
-    for(arma::uword index = 0; index < randomCount; ++index){
-      rightHandSide(static_cast<int>(index), 0) = modeScore(index);
-    }
-    const Eigen::MatrixXd solved = factor.solve(rightHandSide,
-      "Native Laplace mode solve failed.");
-    arma::vec step(randomCount);
-    for(arma::uword index = 0; index < randomCount; ++index){
-      step(index) = solved(static_cast<int>(index), 0);
-    }
+    const arma::vec step = system.solve(arma::mat(modeScore));
     if(!step.is_finite()){
       return invalidEvaluation("non-finite Newton step");
     }
@@ -204,9 +207,9 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
       if(arma::norm(modeScore, "inf") <= 10.0 * tolerance *
          (1.0 + arma::norm(mode, "inf"))){
         converged = true;
-        if(!factorLogDeterminant(factor, hessianLogDeterminant)){
+        if(!system.determinant())
           return invalidEvaluation("invalid mode Hessian determinant");
-        }
+        hessianLogDeterminant = system.logDet;
         break;
       }
       return invalidEvaluation("mode line search failed");
@@ -216,16 +219,12 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
     return invalidEvaluation("mode iteration limit reached");
   }
   const double logLikelihood = conditionalLogLikelihood -
-    0.5 * arma::as_scalar(mode.t() * randomPrecision * mode) +
-    0.5 * logDetPrecision - 0.5 * hessianLogDeterminant;
+    0.5 * arma::as_scalar(mode.t() * randomPrecision * mode) -
+    0.5 * system.logDetRatio;
   if(!std::isfinite(logLikelihood)){
     return invalidEvaluation("non-finite Laplace likelihood");
   }
   const auto finalFamily = family.evaluate(response, eta);
-  const arma::sp_mat weightedRandomDesign =
-    family.observationCurvature(finalFamily) * randomDesign;
-  const arma::sp_mat finalModeHessian =
-    randomPrecision + randomDesign.t() * weightedRandomDesign;
   Rcpp::List result = Rcpp::List::create(
     Rcpp::_["valid"]=true,
     Rcpp::_["reason"]="converged",
@@ -233,12 +232,16 @@ Rcpp::List laplaceModeEvaluation(const arma::sp_mat & fixedDesign,
     Rcpp::_["mode"]=mode,
     Rcpp::_["fitted"]=mean,
     Rcpp::_["linearPredictors"]=eta,
-    Rcpp::_["modeHessian"]=finalModeHessian,
     Rcpp::_["observationCurvature"]=finalFamily.curvature,
     Rcpp::_["iterations"]=iterations,
     Rcpp::_["modeScore"]=finalModeScore,
     Rcpp::_["logDetHessian"]=hessianLogDeterminant);
-  if(family.hasNominal()) result["observationBlockCurvature"] = finalFamily.blockCurvature;
+  if(!system.observationSpace())
+    result["modeHessian"] = arma::sp_mat(randomPrecision+
+      randomDesign.t()*family.observationCurvature(finalFamily)*randomDesign);
+  else result["modeHessian"] = R_NilValue;
+  if(finalFamily.blockCurvature.n_rows)
+    result["observationBlockCurvature"] = finalFamily.blockCurvature;
   return result;
 }
 
@@ -248,12 +251,16 @@ Rcpp::List sommer_laplace_glmm_eval(const arma::sp_mat & fixedDesign,
     const arma::vec & response, const arma::vec & offset,
     const arma::vec & fixedEffects, const arma::vec & modeStart,
     const std::string & family, const double logDetPrecision,
-    const int maxModeIterations = 100, const double tolerance = 1e-8){
-  sommer::CholmodState modeFactor;
+    const int maxModeIterations = 100, const double tolerance = 1e-8,
+    const std::string & backend = "random", const double memoryMB = 1000){
+  const auto plan = sommer::planLaplaceSystem(backend,randomDesign,randomPrecision,memoryMB);
+  auto system = sommer::makeLaplaceSystem(plan,memoryMB);
   const sommer::GLMMFamilyModel familyModel(family, response.n_elem);
-  return laplaceModeEvaluation(fixedDesign, randomDesign, randomPrecision,
+  Rcpp::List result = laplaceModeEvaluation(fixedDesign, randomDesign, randomPrecision,
     response, offset, fixedEffects, modeStart, familyModel, logDetPrecision,
-    maxModeIterations, tolerance, modeFactor, nullptr, true);
+    maxModeIterations, tolerance, *system, true);
+  result["backend"] = sommer::laplaceSystemDiagnostics(plan,*system);
+  return result;
 }
 
 namespace {
@@ -266,8 +273,8 @@ public:
   arma::vec offset;
   sommer::GLMMFamilyModel family;
   sommer::LaplacePrecision precision;
-  sommer::CholmodState modeFactor;
-  int symbolicAnalyses = 0;
+  std::unique_ptr<sommer::LaplaceSystem> system;
+  sommer::LaplaceSystemPlan systemPlan;
   int evaluations = 0;
   arma::vec cachedParameters;
   Rcpp::List cachedResult;
@@ -276,21 +283,45 @@ public:
   double cachedTolerance = 0.0;
   int modeEvaluations = 0;
   double memoryMB;
+  sommer::LaplaceWarmStart warm;
 
   LaplaceObjective(const arma::sp_mat & suppliedFixed,
       const arma::sp_mat & suppliedRandom, const arma::vec & suppliedResponse,
       const arma::vec & suppliedOffset, const std::string & suppliedFamily,
       const Rcpp::List & descriptors, const Rcpp::List & relationships,
       const double suppliedMemory, const Rcpp::List & familySpecs,
-      const arma::uvec & familyIndex, const arma::vec & trials)
+      const arma::uvec & familyIndex, const arma::vec & trials,
+      const Rcpp::List & residualModel, const std::string & backend,
+      const std::string & warmStart,const std::string & trace,const std::string & blocks)
     : fixedDesign(suppliedFixed), randomDesign(suppliedRandom),
       response(suppliedResponse), offset(suppliedOffset),
       family(suppliedFamily, suppliedResponse.n_elem, familySpecs, familyIndex, trials),
-      precision(descriptors, relationships), memoryMB(suppliedMemory) {
+      precision(descriptors, relationships), memoryMB(suppliedMemory),
+      warm(warmStart,true) {
     if(!std::isfinite(memoryMB) || memoryMB <= 0){
       Rcpp::stop("Native Laplace memory budget must be positive and finite.");
     }
     family.validateResponse(response);
+    attachGaussianResidual(family,residualModel,memoryMB);
+    bool concave=true;
+    for(const auto & specification:family.specifications)
+      if(specification.family=="ziPoisson") concave=false;
+    warm=sommer::LaplaceWarmStart(warmStart,concave);
+    arma::vec initial(precision.parameterCount());
+    arma::uword position = 0;
+    for(int term=0; term<descriptors.size(); ++term){
+      const Rcpp::List descriptor = descriptors[term];
+      const arma::vec parameters = descriptor["par"];
+      const Rcpp::LogicalVector free = descriptor["free"];
+      for(arma::uword k=0; k<parameters.n_elem; ++k)
+        if(free[k]) initial(position++) = parameters(k);
+    }
+    std::string reason;
+    if(!precision.update(initial,reason))
+      Rcpp::stop("Native Laplace initial covariance is invalid: "+reason);
+    systemPlan = sommer::planLaplaceSystem(backend,randomDesign,precision.matrix,memoryMB);
+    system = sommer::makeLaplaceSystem(systemPlan,memoryMB,blocks);
+    system->configureTrace(trace,memoryMB);
     double blockPairs = 0.0;
     for(const auto & specification : family.specifications){
       const auto & groups = specification.nominalGroups;
@@ -334,43 +365,72 @@ public:
   }
 
   arma::mat solve(const arma::mat & rightHandSide){
-    Eigen::Map<const Eigen::MatrixXd> mapped(rightHandSide.memptr(),
-      rightHandSide.n_rows, rightHandSide.n_cols);
-    const Eigen::MatrixXd result = modeFactor.solve(mapped,
-      "Native Laplace derivative solve failed.");
-    return arma::mat(result.data(), result.rows(), result.cols());
+    return system->solve(rightHandSide);
   }
 
   arma::vec gradient(const Rcpp::List & modeResult){
-    for(const auto & specification : family.specifications)
-      if(specification.family == "multinomial")
-        Rcpp::stop("Mixed nominal objectives require numerical outer gradients of the block Laplace likelihood.");
     const arma::uword randomCount = randomDesign.n_cols;
     const arma::uword observationCount = response.n_elem;
     // Bound dense solve panels rather than constructing H^-1 or Z H^-1 Z'.
-    const double columnBytes = 8.0 * (3.0 * randomCount + observationCount);
+    const double columnBytes = 8.0 * (system->observationSpace() ?
+      6.0*randomCount+8.0*observationCount : 3.0*randomCount+observationCount);
+    const double available = memoryMB*1048576.0-
+      (system->observationSpace() ? systemPlan.workspace : 0.0);
     const arma::uword panelSize = static_cast<arma::uword>(std::min(32.0,
-      std::floor(memoryMB * 1e6 / columnBytes)));
+      std::max(0.0,std::floor(available / columnBytes))));
     if(panelSize == 0){
       Rcpp::stop("Native Laplace derivative solve exceeds the dense memory budget.");
     }
     const arma::vec mode = Rcpp::as<arma::vec>(modeResult["mode"]);
     const arma::vec predictor = Rcpp::as<arma::vec>(modeResult["linearPredictors"]);
     const auto familyResult = family.evaluate(response, predictor);
+    const arma::sp_mat transposed=randomDesign.t();
     arma::vec leverage(observationCount, arma::fill::zeros);
-    for(arma::uword first = 0; first < observationCount; first += panelSize){
-      Rcpp::checkUserInterrupt();
-      const arma::uword last = std::min(observationCount - 1, first + panelSize - 1);
-      const arma::mat designPanel(randomDesign.rows(first, last).t());
-      const arma::mat solved = solve(designPanel);
-      leverage.subvec(first, last) = arma::sum(designPanel % solved, 0).t();
+    if(system->traceChoice=="panels" || system->observationSpace()){
+      for(arma::uword first = 0; first < observationCount; first += panelSize){
+        Rcpp::checkUserInterrupt();
+        const arma::uword last = std::min(observationCount - 1, first + panelSize - 1);
+        const arma::mat designPanel(randomDesign.rows(first, last).t());
+        ++system->contractionSolves;
+        const arma::mat solved = solve(designPanel);
+        leverage.subvec(first, last) = arma::sum(designPanel % solved, 0).t();
+      }
+    }else{
+      std::vector<arma::uword> pending;
+      for(arma::uword row=0;row<observationCount;++row){
+        if(row%128==0) Rcpp::checkUserInterrupt();
+        if(!sommer::laplacePredictorVariance(*system,transposed,row,leverage(row)))
+          pending.push_back(row);
+      }
+      for(arma::uword first=0;first<pending.size();first+=panelSize){
+        const arma::uword last=std::min<arma::uword>(pending.size(),first+panelSize);
+        arma::uvec rows(last-first);
+        for(arma::uword k=first;k<last;++k) rows(k-first)=pending[k];
+        const arma::mat panel(transposed.cols(rows));
+        ++system->contractionSolves;
+        leverage.elem(rows)=arma::sum(panel%solve(panel),0).t();
+      }
     }
-    const arma::vec correction = 0.5 * familyResult.curvatureD1 % leverage;
+    arma::vec correction = 0.5 * familyResult.curvatureD1 % leverage;
+    for(const auto & specification:family.specifications){
+      const auto & groups=specification.nominalGroups;
+      for(arma::uword observation=0;observation<groups.n_rows;++observation){
+        const arma::uvec rows=groups.row(observation).t();
+        const arma::mat covariance=sommer::laplacePredictorCovariance(*system,
+          transposed.cols(rows),panelSize);
+        const auto block=sommer::multinomialEvaluation(predictor.elem(rows),
+          static_cast<arma::uword>(response(rows(0)))-1,
+          arma::vec(rows.n_elem,arma::fill::zeros),0);
+        correction.elem(rows)=sommer::multinomialCurvatureContraction(block.probability,covariance);
+      }
+    }
     const arma::vec correctionSolve = solve(arma::mat(randomDesign.t() * correction));
     const arma::vec fixedScore = fixedDesign.t() * (familyResult.score -
-      correction + familyResult.curvature % (randomDesign * correctionSolve));
+      correction + family.observationCurvature(familyResult) * (randomDesign * correctionSolve));
     const auto derivatives = precision.derivatives();
-    arma::vec result(fixedScore.n_elem + derivatives.size() + family.parameterCount());
+    const arma::uword residualCount = family.residual->parameterCount();
+    arma::vec result(fixedScore.n_elem + derivatives.size() + residualCount +
+      family.parameterCount());
     if(fixedScore.n_elem) result.head(fixedScore.n_elem) = fixedScore;
     for(std::size_t parameterIndex = 0; parameterIndex < derivatives.size();
         ++parameterIndex){
@@ -380,12 +440,15 @@ public:
       const arma::vec blockMode = mode.subvec(derivative.start, blockEnd);
       const arma::vec precisionMode = derivative.block * blockMode;
       double traceValue = 0.0;
-      for(arma::uword first = 0; first < derivative.block.n_cols; first += panelSize){
+      const bool selected=sommer::laplaceSelectedTrace(*system,derivative,traceValue);
+      if(!selected) traceValue=0.0;
+      for(arma::uword first = 0; !selected && first < derivative.block.n_cols; first += panelSize){
         const arma::uword last = std::min(derivative.block.n_cols - 1,
           first + panelSize - 1);
         arma::mat rightHandSide(randomCount, last - first + 1, arma::fill::zeros);
         rightHandSide.rows(derivative.start, blockEnd) =
           arma::mat(derivative.block.cols(first, last));
+        ++system->contractionSolves;
         const arma::mat solved = solve(rightHandSide);
         for(arma::uword columnIndex = first; columnIndex <= last; ++columnIndex){
           traceValue += solved(derivative.start + columnIndex, columnIndex - first);
@@ -398,6 +461,29 @@ public:
     }
     arma::uword outputPosition = fixedScore.n_elem + derivatives.size();
     const arma::vec modeCorrection = randomDesign * correctionSolve;
+    if(family.residual->active() && residualCount){
+      const auto & residual = *family.residual;
+      const double bytes = 8.0 * residual.rows.n_elem *
+        (4.0 * randomCount + 16.0 * residual.rows.n_elem);
+      if(bytes > memoryMB * 1048576.0)
+        Rcpp::stop("Gaussian residual derivative workspace exceeds denseMemoryMB.");
+      arma::mat design(residual.rows.n_elem,randomDesign.n_cols,arma::fill::zeros);
+      for(arma::uword row = 0; row < residual.rows.n_elem; ++row)
+        design.row(row) = arma::mat(randomDesign.row(residual.rows(row)));
+      const arma::mat solved = solve(design.t());
+      const arma::mat modeCovariance = design * solved;
+      const arma::vec alpha = familyResult.score.elem(residual.rows);
+      for(arma::uword coordinate = 0; coordinate < residualCount; ++coordinate){
+        const arma::mat derivative = residual.derivative(coordinate);
+        const arma::mat precisionDerivative = residual.precision * derivative *
+          residual.precision;
+        result(outputPosition++) = 0.5 * (arma::dot(alpha, derivative * alpha) -
+          arma::accu(residual.precision % derivative.t()) +
+          arma::accu(modeCovariance % precisionDerivative.t())) +
+          arma::dot(modeCorrection.elem(residual.rows),
+            residual.precision * derivative * alpha);
+      }
+    }
     for(std::size_t familyPosition = 0; familyPosition < family.specifications.size();
         ++familyPosition){
       if(!family.specifications[familyPosition].free) continue;
@@ -462,7 +548,11 @@ SEXP sommer_laplace_objective_create(const arma::sp_mat & fixedDesign,
     const double memoryMB = 1000,
     Rcpp::Nullable<Rcpp::List> familySpecs = R_NilValue,
     Rcpp::Nullable<Rcpp::IntegerVector> familyIndex = R_NilValue,
-    Rcpp::Nullable<Rcpp::NumericVector> trials = R_NilValue){
+    Rcpp::Nullable<Rcpp::NumericVector> trials = R_NilValue,
+    Rcpp::Nullable<Rcpp::List> residualModel = R_NilValue,
+    const std::string & backend = "random",
+    const std::string & warmStart = "off",const std::string & trace = "panels",
+    const std::string & blocks = "off"){
   arma::uvec nativeIndex;
   if(familyIndex.isNotNull()){
     const Rcpp::IntegerVector suppliedIndex(familyIndex);
@@ -479,7 +569,9 @@ SEXP sommer_laplace_objective_create(const arma::sp_mat & fixedDesign,
     Rcpp::as<arma::vec>(Rcpp::NumericVector(trials)) : arma::vec();
   return Rcpp::XPtr<LaplaceObjective>(new LaplaceObjective(fixedDesign,
     randomDesign, response, offset, family, descriptors, relationships, memoryMB,
-    specifications, nativeIndex, nativeTrials), true);
+    specifications, nativeIndex, nativeTrials,
+    residualModel.isNotNull() ? Rcpp::List(residualModel) : Rcpp::List(),backend,
+    warmStart,trace,blocks), true);
 }
 
 // [[Rcpp::export]]
@@ -488,8 +580,10 @@ Rcpp::List sommer_laplace_objective_eval(SEXP context,
     const double tolerance = 1e-8, const bool gradient = true){
   Rcpp::XPtr<LaplaceObjective> objective(context);
   const arma::uword covarianceCount = objective->precision.parameterCount();
+  const arma::uword residualCount = objective->family.residual->parameterCount();
   const arma::uword nuisanceCount = objective->family.parameterCount();
-  if(parameters.n_elem != objective->fixedDesign.n_cols + covarianceCount + nuisanceCount){
+  if(parameters.n_elem != objective->fixedDesign.n_cols + covarianceCount + residualCount +
+     nuisanceCount){
     Rcpp::stop("Native Laplace parameter vector has incompatible length.");
   }
   if(maxModeIterations < 1 || !std::isfinite(tolerance) || tolerance <= 0.0){
@@ -518,18 +612,39 @@ Rcpp::List sommer_laplace_objective_eval(SEXP context,
     objective->cachedMode = false;
     return Rcpp::List::create(Rcpp::_["valid"]=false, Rcpp::_["reason"]=reason);
   }
+  const arma::vec residualParameters = residualCount ?
+    parameters.subvec(fixedCount + covarianceCount,
+      fixedCount + covarianceCount + residualCount - 1) : arma::vec();
+  if(!objective->family.residual->update(residualParameters)){
+    objective->cachedMode = false;
+    return Rcpp::List::create(Rcpp::_["valid"]=false,
+      Rcpp::_["reason"]="non-positive-definite Gaussian observation residual covariance");
+  }
   Rcpp::List result;
   if(reuseMode){
     result = Rcpp::clone(objective->cachedResult);
   }else{
     objective->cachedMode = false;
     ++objective->modeEvaluations;
-    result = laplaceModeEvaluation(objective->fixedDesign,
+    const arma::vec start=objective->warm.start(objective->randomDesign.n_cols);
+    auto evaluate=[&](const arma::vec & start){
+      Rcpp::List value=laplaceModeEvaluation(objective->fixedDesign,
       objective->randomDesign, objective->precision.matrix, objective->response,
       objective->offset, parameters.head(fixedCount),
-      arma::vec(objective->randomDesign.n_cols, arma::fill::zeros), objective->family,
+      start, objective->family,
       objective->precision.logDet, maxModeIterations, tolerance,
-      objective->modeFactor, &objective->symbolicAnalyses, false);
+      *objective->system, false);
+      objective->warm.count(value);
+      return value;
+    };
+    result=evaluate(start);
+    if(objective->warm.mode.n_elem && objective->warm.enabled &&
+       (!Rcpp::as<bool>(result["valid"]) || objective->warm.verifyCold)){
+      if(objective->warm.verifyCold) ++objective->warm.coldChecks;
+      else ++objective->warm.coldRetries;
+      result=evaluate(arma::vec(objective->randomDesign.n_cols,arma::fill::zeros));
+    }
+    objective->warm.remember(result);
   }
   if(Rcpp::as<bool>(result["valid"]) && gradient &&
      !result.containsElementNamed("gradient")){
@@ -543,17 +658,30 @@ Rcpp::List sommer_laplace_objective_eval(SEXP context,
   result["work"] = Rcpp::List::create(
     Rcpp::_["evaluations"]=objective->evaluations,
     Rcpp::_["modeEvaluations"]=objective->modeEvaluations,
-    Rcpp::_["symbolicAnalyses"]=objective->symbolicAnalyses,
+    Rcpp::_["symbolicAnalyses"]=objective->system->symbolicAnalyses,
     Rcpp::_["relationshipFactorizations"]=objective->precision.relationshipFactorizations,
     Rcpp::_["descriptorUpdates"]=objective->precision.descriptorUpdates,
-    Rcpp::_["descriptorReuses"]=objective->precision.descriptorReuses);
+    Rcpp::_["descriptorReuses"]=objective->precision.descriptorReuses,
+    Rcpp::_["backend"]=sommer::laplaceSystemDiagnostics(objective->systemPlan,*objective->system),
+    Rcpp::_["warmStart"]=objective->warm.diagnostics());
   return result;
+}
+
+// [[Rcpp::export]]
+arma::mat sommer_laplace_objective_solve(SEXP context, const arma::mat & rhs){
+  Rcpp::XPtr<LaplaceObjective> objective(context);
+  if(!objective->cachedMode || rhs.n_rows != objective->randomDesign.n_cols ||
+     !rhs.is_finite())
+    Rcpp::stop("Laplace system solve requires an accepted mode and finite conformable right-hand sides.");
+  return objective->solve(rhs);
 }
 
 // [[Rcpp::export]]
 Rcpp::List sommer_glmm_family_eval(const arma::vec & response,
     const arma::vec & predictor, const Rcpp::List & familySpecs,
-    const Rcpp::IntegerVector & familyIndex, const arma::vec & trials){
+    const Rcpp::IntegerVector & familyIndex, const arma::vec & trials,
+    Rcpp::Nullable<Rcpp::List> residualModel = R_NilValue,
+    const double memoryMB = 1000){
   if(response.n_elem != predictor.n_elem || familyIndex.size() != static_cast<int>(response.n_elem))
     Rcpp::stop("Native family evaluation dimensions must match.");
   arma::uvec nativeIndex(response.n_elem);
@@ -563,6 +691,11 @@ Rcpp::List sommer_glmm_family_eval(const arma::vec & response,
     nativeIndex(recordPosition) = familyIndex[recordPosition] - 1;
   }
   sommer::GLMMFamilyModel family("", response.n_elem, familySpecs, nativeIndex, trials);
+  if(residualModel.isNotNull()){
+    attachGaussianResidual(family,Rcpp::List(residualModel),memoryMB);
+    if(!family.residual->initialize())
+      Rcpp::stop("Gaussian observation residual covariance is not positive definite.");
+  }
   family.validateResponse(response);
   const auto evaluation = family.evaluate(response, predictor, true);
   Rcpp::List result = Rcpp::List::create(Rcpp::_["logDensity"]=evaluation.logDensity,
@@ -574,6 +707,15 @@ Rcpp::List sommer_glmm_family_eval(const arma::vec & response,
     Rcpp::_["parameterScore"]=evaluation.parameterScore,
     Rcpp::_["scoreParameter"]=evaluation.scoreParameter,
     Rcpp::_["curvatureParameter"]=evaluation.curvatureParameter);
-  if(family.hasNominal()) result["blockCurvature"] = evaluation.blockCurvature;
+  if(evaluation.blockCurvature.n_rows) result["blockCurvature"] = evaluation.blockCurvature;
   return result;
+}
+
+// [[Rcpp::export]]
+arma::mat sommer_glmm_residual_covariance(const Rcpp::List & residualModel,
+                                         const double memoryMB = 1000){
+  sommer::GaussianObservationResidual residual(residualModel,memoryMB);
+  if(!residual.active() || !residual.initialize())
+    Rcpp::stop("Gaussian observation residual covariance is not positive definite.");
+  return residual.matrix();
 }

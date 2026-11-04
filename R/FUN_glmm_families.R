@@ -594,6 +594,8 @@ ordinal <- function(link="logit", thresholds=NULL){
   ordinalProbability <- if(.laplace_is_ordinal(object) && !includeRandomEffects)
     .laplace_ordinal_output(object, object$linear.predictors, "response") else NULL
   familyIndex <- object$laplaceFamilyIndex
+  residualFactor <- if(!is.null(object$laplaceResidual))
+    chol(.laplace_residual_matrix(object,maxMemoryMB)) else NULL
   if(includeRandomEffects && is.null(randomFactors)){
     randomFactors <- .laplace_random_effect_sampling_factors(object, maxMemoryMB)
   }
@@ -615,6 +617,7 @@ ordinal <- function(link="logit", thresholds=NULL){
       currentMean <- meanValue[rows]
       trialCount <- object$priorWeights[rows]
       responseFamily <- specification$family
+      if(responseFamily=="gaussian" && !is.null(residualFactor)) next
       simulations[rows, simulationIndex] <- switch(responseFamily,
         ordinal={
           probability <- if(is.null(ordinalProbability))
@@ -650,6 +653,11 @@ ordinal <- function(link="logit", thresholds=NULL){
         stop("Unsupported family in native simulation: ", responseFamily, ".",
           call.=FALSE))
     }
+    if(!is.null(residualFactor)){
+      rows <- object$laplaceResidual$rows
+      simulations[rows,simulationIndex] <- linearPredictor[rows]+
+        as.numeric(t(residualFactor) %*% stats::rnorm(length(rows)))
+    }
   }
   simulations
 }
@@ -661,6 +669,8 @@ ordinal <- function(link="logit", thresholds=NULL){
   trials <- object$priorWeights
   randomizedValues <- stats::runif(length(response))
   probability <- numeric(length(response))
+  gaussianVariance <- if(!is.null(object$laplaceResidual))
+    diag(.laplace_residual_matrix(object)) else NULL
   for(familyPosition in seq_along(object$laplaceFamilies)){
     rows <- which(familyIndex == familyPosition)
     if(!length(rows)) next
@@ -699,7 +709,8 @@ ordinal <- function(link="logit", thresholds=NULL){
         lower + randomizedValues[rows] * (upper - lower)
       },
       gaussian=stats::pnorm(currentResponse, mean=currentMean,
-        sd=sqrt(exp(specification$logParameter))),
+        sd=if(is.null(gaussianVariance)) sqrt(exp(specification$logParameter)) else
+          sqrt(gaussianVariance[match(rows,object$laplaceResidual$rows)])),
       Gamma=stats::pgamma(currentResponse,
         shape=exp(-specification$logParameter),
         scale=currentMean * exp(specification$logParameter)),
@@ -712,40 +723,13 @@ ordinal <- function(link="logit", thresholds=NULL){
 }
 
 .laplace_population_variance <- function(randomDesign, structures,
-                                         relationships, blockWidths){
-  if(length(structures) != length(relationships) ||
-     length(structures) != length(blockWidths) ||
-     sum(blockWidths) != ncol(randomDesign)){
-    stop("Population-marginal prediction could not align random-effect covariance blocks.",
-         call.=FALSE)
-  }
-  variance <- numeric(nrow(randomDesign))
-  columnStart <- 1L
-  for(termIndex in seq_along(structures)){
-    structure <- structures[[termIndex]]
-    blockWidth <- blockWidths[termIndex]
-    blockColumns <- columnStart + seq_len(blockWidth) - 1L
-    block <- randomDesign[, blockColumns, drop=FALSE]
-    relationshipPrecision <- relationships[[termIndex]]
-    if(structure$dim != 1L ||
-       nrow(relationshipPrecision) != blockWidth ||
-       ncol(relationshipPrecision) != blockWidth ||
-       !Matrix::isDiagonal(relationshipPrecision) ||
-       any(abs(Matrix::diag(relationshipPrecision) - 1) > 1e-10)){
-      stop("Population-marginal response means currently require independent random-intercept terms with identity relationship precision; use re.form=NA for other covariance structures.",
-           call.=FALSE)
-    }
-    covariance <- evaluate_covstruct_cpp(structure, structure$par)
-    if(!all(dim(covariance) == c(1L, 1L)) ||
-       !is.finite(covariance[1L, 1L]) || covariance[1L, 1L] < 0){
-      stop("Population-marginal prediction requires a finite non-negative random-intercept variance.",
-           call.=FALSE)
-    }
-    variance <- variance + as.numeric(Matrix::rowSums(block^2)) *
-      covariance[1L, 1L]
-    columnStart <- columnStart + blockWidth
-  }
-  variance
+                                         relationships, blockWidths, memoryMB=1000){
+  covariance <- .laplace_latent_covariance(randomDesign,structures,
+    relationships,blockWidths,memoryMB=memoryMB)
+  variance <- as.numeric(covariance)
+  if(any(variance < -1e-12))
+    stop("Population prediction latent variance is negative.",call.=FALSE)
+  pmax(variance,0)
 }
 
 .laplace_normal_quadrature <- function(quadratureOrder=24L){
@@ -797,6 +781,8 @@ ordinal <- function(link="logit", thresholds=NULL){
 simulate.mmes.glmm.laplace <- function(object, nsim=1, seed=NULL,
                                        re.form=c("conditional", "population"),
                                        maxMemoryMB=NULL, ...){
+  scope <- .mmes_blas_scope(object$control$execution$blasThreads)
+  on.exit(scope$restore(),add=TRUE)
   if(length(list(...))){
     stop("Native Laplace simulate() does not accept additional arguments.",
          call.=FALSE)

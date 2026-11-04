@@ -67,7 +67,8 @@
 
 .mme_pql_defaults <- list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)
 .mme_glmm_defaults <- list(method="pql", maxit=1000L,
-  modeMaxit=100L, modeTol=1e-8, familyParameters=list())
+  modeMaxit=100L, modeTol=1e-8, familyParameters=list(), backend="auto",
+  warmStart="auto",gradient="analytic",trace="panels",blocks="off")
 
 .mme_control_paths <- function(control){
   unlist(lapply(setdiff(names(control), "formulation"), function(module)
@@ -105,6 +106,7 @@
         "task$objective", "task$pql", "update$recovery", "update$blendWeight",
         "proposal$stepWeight", "convergence$maxIters", "convergence$likelihoodTol",
         "convergence$parameterTol", "output$setup",
+        "output$coefficientMatrix", "output$panelSize",
         "representation$fixedRank",
         "execution$denseMemoryMB", "execution$memoryPolicy",
         "execution$blasThreads", "execution$inverseTol",
@@ -176,7 +178,7 @@
       settings=function(x) "update$commonScale",
       hint="Remove update$commonScale or use update$blendWeight=0."),
     list(id="coefficient-matrix",
-      when=function(x) x$update$method != "conditional-fa" &&
+      when=function(x) x$formulation != "direct" && x$update$method != "conditional-fa" &&
         x$representation$equations != "conditional" &&
         (x$representation$equations != "saddle-point" || x$output$inverse != 0L),
       message="output$coefficientMatrix=FALSE requires representation$equations='saddle-point' and output$inverse=0.",
@@ -230,6 +232,8 @@
 #' Assigns numerical requests to mathematical modules. Model-dependent eligibility
 #' is checked during fitting. No new combinations of numerical methods are implied.
 #' @param formulation Equation domain: \code{"henderson"} or \code{"direct"}.
+#'   PQL supports either domain for its weighted Gaussian working fits;
+#'   native Laplace requires Henderson.
 #' @param task Named list selecting \code{mode}, \code{objective} and outer \code{pql} controls.
 #' @param representation Named list of equation, compression and covariance representation requests.
 #' @param solve Named list of linear solver, preconditioning, reuse and elimination requests.
@@ -244,6 +248,10 @@
 #'   work; \code{inverse=1} computes random-effect PEVs without the full inverse;
 #'   \code{inverse=2} computes PEVs and the full inverse. With mode 0, use
 #'   \code{\link{postPEV}} after fitting when \code{coefficientMatrix=TRUE}.
+#'   For direct fits, \code{coefficientMatrix} retains prepared covariance inputs
+#'   rather than Henderson equations; \code{panelSize} controls post-fit diagonal
+#'   covariance panels. Both \code{predict()} and \code{postPEV()} work in
+#'   observation space without a stored coefficient inverse.
 #' @param execution Named list of memory, hardware, threading and numerical precision policies.
 #' @param diagnostics Named list of ordinary verbosity, package-age messages and phase profiling.
 #' @return A \code{sommer_mmes_control} object with strictly validated module names.
@@ -291,6 +299,15 @@ mmes_control <- function(formulation="henderson", task=list(),
   task$glmm <- .mme_module(task$glmm, .mme_glmm_defaults, "task$glmm")
   task$glmm$method <- .mme_choice(task$glmm$method, c("pql", "laplace"),
     "task$glmm$method")
+  task$glmm$backend <- .mme_choice(task$glmm$backend,
+    c("auto", "random", "observation"), "task$glmm$backend")
+  task$glmm$warmStart <- .mme_choice(task$glmm$warmStart,c("auto","off","on"),
+    "task$glmm$warmStart")
+  task$glmm$blocks <- .mme_choice(task$glmm$blocks,c("off","on"),"task$glmm$blocks")
+  task$glmm$trace <- .mme_choice(task$glmm$trace,c("panels","selected"),
+    "task$glmm$trace")
+  task$glmm$gradient <- .mme_choice(task$glmm$gradient,c("analytic","numeric"),
+    "task$glmm$gradient")
   task$glmm$maxit <- .mme_positive(task$glmm$maxit,
     "task$glmm$maxit", TRUE)
   task$glmm$modeMaxit <- .mme_positive(task$glmm$modeMaxit,
@@ -551,7 +568,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     }
     laplaceDefaults <- mmes_control()
     laplaceAllowed <- c("formulation", "task$mode", "task$objective",
-      "task$glmm", "task$pql", "output$inverse", "output$panelSize",
+      "task$glmm", "task$pql", "output$inverse", "output$panelSize", "output$setup",
       "execution$blasThreads", "execution$denseMemoryMB",
       "diagnostics$verbose", "diagnostics$dateWarning")
     laplaceUnused <- setdiff(.mme_control_paths(control), laplaceAllowed)
@@ -567,6 +584,12 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
      length(control$task$glmm$familyParameters)){
     stop("task$glmm$familyParameters controls native Laplace only.", call.=FALSE)
   }
+  if(control$task$glmm$method != "laplace" && control$task$glmm$backend != "auto")
+    stop("task$glmm$backend controls native Laplace only.",call.=FALSE)
+  if(control$task$glmm$method!="laplace" &&
+     any(vapply(c("warmStart","gradient","trace","blocks"),function(name)
+       !identical(control$task$glmm[[name]],.mme_glmm_defaults[[name]]),logical(1))))
+    stop("task$glmm acceleration controls native Laplace only.",call.=FALSE)
   if(!is.null(internal) || !"task$pql" %in% supplied ||
      identical(control$task$pql, .mme_pql_defaults)) return(invisible(TRUE))
   if(inherits(family, "family") && identical(family$family, "gaussian") &&
@@ -616,10 +639,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     status=if(control$output$setup && control$task$mode == "fit") "assembled" else "evaluated")
   if(laplace && .laplace_is_categorical_mixed(result)){
     plan$glmm$likelihood <- "mixed scalar/category blocks"
-    nominal <- any(vapply(result$familySpecifications, function(specification)
-      specification$family == "multinomial", logical(1)))
-    plan$glmm$gradient <- if(nominal)
-      "central differences of native block Laplace likelihood" else "native analytic"
+    plan$glmm$gradient <- result$laplacePostPEVSettings$gradient
     plan$glmm$randomExpansion <- "explicit formula; existing coefficients shared"
   }
   if(!is.null(result$glmmPathPlan)){
@@ -628,6 +648,25 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     plan$glmm$eligible <- result$glmmPathPlan$eligible
     plan$glmm$selectedPath <- result$glmmPathPlan$selected
     plan$glmm$reason <- result$glmmPathPlan$reason
+  }
+  if(laplace && !is.null(result$laplaceResidual)){
+    model <- result$laplaceResidual
+    plan$glmm$residual <- list(likelihood="joint Gaussian observation block",
+      observations=length(model$rows),blocks=length(unique(model$block)),
+      weighted=model$weighted,weightBlocks=if(is.null(model$weightBlocks)) NULL else
+        length(unique(model$weightBlocks)),
+      covarianceParameters=sum(model$descriptor$free))
+  }
+  if(laplace){
+    plan$glmm$backend <- result$laplaceDiagnostics$nativeWork$backend
+    plan$glmm$warmStart <- result$laplaceDiagnostics$nativeWork$warmStart
+    plan$glmm$gradient <- result$laplacePostPEVSettings$gradient
+    plan$glmm$trace <- result$laplacePostPEVSettings$trace
+    plan$glmm$blocks <- result$laplacePostPEVSettings$blocks
+    plan$glmm$latent <- list(scale="link",terms=length(result$covStruct),
+      covariance="existing random covariance descriptors and relationship precision",
+      population="prior-marginal response means; descriptor/relationship basis required",
+      uncertainty="post-fit")
   }
   plan
 }

@@ -6,6 +6,7 @@
 #include <cmath>
 #include <limits>
 #include "mme_glmm_multinomial.h"
+#include "mme_glmm_residual.h"
 
 namespace sommer {
 
@@ -207,6 +208,7 @@ public:
   std::vector<GLMMFamilySpec> specifications;
   arma::uvec index;
   arma::vec trials;
+  std::shared_ptr<GaussianObservationResidual> residual;
 
   GLMMFamilyModel(const std::string & family, arma::uword observations,
       const Rcpp::List & suppliedSpecs = Rcpp::List(),
@@ -397,6 +399,13 @@ public:
         if(retainLogDensityRows) result.logDensityRows(recordPosition) = 0.0;
         continue;
       }
+      if(residual && residual->active() && specification.family == "gaussian"){
+        result.mean(recordPosition) = linearValue;
+        result.score(recordPosition) = result.curvature(recordPosition) =
+          result.curvatureD1(recordPosition) = result.curvatureD2(recordPosition) = 0.0;
+        if(retainLogDensityRows) result.logDensityRows(recordPosition) = 0.0;
+        continue;
+      }
       if(!std::isfinite(linearValue)){
         result.logDensity = -INFINITY;
         return result;
@@ -542,8 +551,24 @@ public:
     bool nominal = false;
     for(const auto & specification : specifications)
       nominal = nominal || specification.nominalGroups.n_elem > 0;
-    if(nominal){
+    if(nominal || (residual && residual->active())){
       result.blockCurvature = arma::sp_mat(arma::diagmat(result.curvature));
+      if(residual && residual->active()){
+        const arma::uvec & rows = residual->rows;
+        const arma::vec discrepancy = response.elem(rows) - predictor.elem(rows);
+        const arma::vec score = residual->precision * discrepancy;
+        const double density = -0.5 * (rows.n_elem * std::log(2.0 * arma::datum::pi) +
+          residual->logDet + arma::dot(discrepancy, score));
+        if(!std::isfinite(density)){ result.logDensity = -INFINITY; return result; }
+        result.logDensity += density;
+        if(retainLogDensityRows) result.logDensityRows(rows(0)) = density;
+        result.score.elem(rows) = score;
+        result.curvature.elem(rows) = residual->precision.diag();
+        for(arma::uword j = 0; j < rows.n_elem; ++j)
+          for(arma::uword k = 0; k < rows.n_elem; ++k)
+            if(residual->precision(j,k) != 0.0)
+              result.blockCurvature(rows(j), rows(k)) = residual->precision(j,k);
+      }
       for(const auto & specification : specifications){
         const auto & groups = specification.nominalGroups;
         for(arma::uword observation = 0; observation < groups.n_rows; ++observation){

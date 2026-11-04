@@ -3,9 +3,10 @@
   codes <- vapply(families, function(component) component$family, character(1))
   independent <- is.null(rcov) ||
     identical(attr(stats::terms(rcov), "term.labels"), "units")
+  gaussianBlocks <- any(codes == "gaussian")
   plan <- sommer_glmm_path_plan(method, !isTRUE(REML),
     any(codes == "ordinal"), any(codes == "multinomial"),
-    any(codes == "ziPoisson"), independent)
+    any(codes == "ziPoisson"), independent,gaussianBlocks)
   plan$mixed <- inherits(family, "sommer_familym")
   plan
 }

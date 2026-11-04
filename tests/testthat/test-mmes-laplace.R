@@ -279,8 +279,7 @@ test_that("native Laplace uses sommer structured random covariance descriptors",
   expect_length(predict(fit, newdata=data.frame(
     x=factor("a"), group=factor("1", levels=levels(data$group))),
     re.form=NA), 1L)
-  expect_error(predict(fit, re.form="population", type="response"),
-    "independent random-intercept")
+  expect_true(all(is.finite(predict(fit,re.form="population",type="response"))))
 })
 
 test_that("native Laplace converges with supplied relationship precision", {
@@ -328,7 +327,7 @@ test_that("Laplace backend rejects unsupported model and engine combinations", {
   expect_error(
     mmes(y~x, random=~group, rcov=~vsm(ism(group)), data=data,
       family=binomial(), control=laplaceControl()),
-    "structured rcov terms are not yet supported"
+    "structured rcov requires Gaussian observation blocks"
   )
   data$trials <- 4L
   data$successes <- rbinom(nrow(data), data$trials, 0.4)
@@ -517,7 +516,6 @@ test_that("Laplace rejects unused Gaussian controls rather than ignoring them", 
   for(extraControl in list(
     list(convergence=list(maxIters=2L)),
     list(proposal=list(stepWeight=0.5)),
-    list(output=list(setup=TRUE)),
     list(execution=list(memoryPolicy="limit")))){
     control <- do.call(laplaceControl, extraControl)
     expect_error(mmes(y~x, random=~group, data=data, family=binomial(),

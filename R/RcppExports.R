@@ -33,32 +33,48 @@ ai_reml_direct_sp2 <- function(X, ZI, Zind, AiI, y0, H, useH, residualBlockI, re
     .Call(`_sommer_ai_reml_direct_sp2`, X, ZI, Zind, AiI, y0, H, useH, residualBlockI, residualIndexI, nIters, tolParConvLL, tolParConvNorm, tolParInv, covStructI, weightEmInf, weightInf, verbose, computePev, reml, responsePrepared, preparedMean, preparedSd, preparedIntercept)
 }
 
+direct_mmes_vcov_factor_cpp <- function(inputs, denseMemoryMB) {
+    .Call(`_sommer_direct_mmes_vcov_factor_cpp`, inputs, denseMemoryMB)
+}
+
+direct_mmes_vcov_solve_cpp <- function(factor, D, priorOnly = FALSE) {
+    .Call(`_sommer_direct_mmes_vcov_solve_cpp`, factor, D, priorOnly)
+}
+
 fixed_design_basis_cpp <- function(fixedDesign) {
     .Call(`_sommer_fixed_design_basis_cpp`, fixedDesign)
 }
 
-sommer_laplace_glmm_eval <- function(fixedDesign, randomDesign, randomPrecision, response, offset, fixedEffects, modeStart, family, logDetPrecision, maxModeIterations = 100L, tolerance = 1e-8) {
-    .Call(`_sommer_sommer_laplace_glmm_eval`, fixedDesign, randomDesign, randomPrecision, response, offset, fixedEffects, modeStart, family, logDetPrecision, maxModeIterations, tolerance)
+sommer_laplace_glmm_eval <- function(fixedDesign, randomDesign, randomPrecision, response, offset, fixedEffects, modeStart, family, logDetPrecision, maxModeIterations = 100L, tolerance = 1e-8, backend = "random", memoryMB = 1000) {
+    .Call(`_sommer_sommer_laplace_glmm_eval`, fixedDesign, randomDesign, randomPrecision, response, offset, fixedEffects, modeStart, family, logDetPrecision, maxModeIterations, tolerance, backend, memoryMB)
 }
 
-sommer_laplace_objective_create <- function(fixedDesign, randomDesign, response, offset, family, descriptors, relationships, memoryMB = 1000, familySpecs = NULL, familyIndex = NULL, trials = NULL) {
-    .Call(`_sommer_sommer_laplace_objective_create`, fixedDesign, randomDesign, response, offset, family, descriptors, relationships, memoryMB, familySpecs, familyIndex, trials)
+sommer_laplace_objective_create <- function(fixedDesign, randomDesign, response, offset, family, descriptors, relationships, memoryMB = 1000, familySpecs = NULL, familyIndex = NULL, trials = NULL, residualModel = NULL, backend = "random", warmStart = "off", trace = "panels", blocks = "off") {
+    .Call(`_sommer_sommer_laplace_objective_create`, fixedDesign, randomDesign, response, offset, family, descriptors, relationships, memoryMB, familySpecs, familyIndex, trials, residualModel, backend, warmStart, trace, blocks)
 }
 
 sommer_laplace_objective_eval <- function(context, parameters, maxModeIterations = 100L, tolerance = 1e-8, gradient = TRUE) {
     .Call(`_sommer_sommer_laplace_objective_eval`, context, parameters, maxModeIterations, tolerance, gradient)
 }
 
-sommer_glmm_family_eval <- function(response, predictor, familySpecs, familyIndex, trials) {
-    .Call(`_sommer_sommer_glmm_family_eval`, response, predictor, familySpecs, familyIndex, trials)
+sommer_laplace_objective_solve <- function(context, rhs) {
+    .Call(`_sommer_sommer_laplace_objective_solve`, context, rhs)
+}
+
+sommer_glmm_family_eval <- function(response, predictor, familySpecs, familyIndex, trials, residualModel = NULL, memoryMB = 1000) {
+    .Call(`_sommer_sommer_glmm_family_eval`, response, predictor, familySpecs, familyIndex, trials, residualModel, memoryMB)
+}
+
+sommer_glmm_residual_covariance <- function(residualModel, memoryMB = 1000) {
+    .Call(`_sommer_sommer_glmm_residual_covariance`, residualModel, memoryMB)
 }
 
 sommer_multinomial_family_eval <- function(response, predictor, direction, denseMemoryMB = 1000.0) {
     .Call(`_sommer_sommer_multinomial_family_eval`, response, predictor, direction, denseMemoryMB)
 }
 
-sommer_multinomial_mode_create <- function(response, randomDesign, randomPrecision, dimension, denseMemoryMB = 1000.0) {
-    .Call(`_sommer_sommer_multinomial_mode_create`, response, randomDesign, randomPrecision, dimension, denseMemoryMB)
+sommer_multinomial_mode_create <- function(response, randomDesign, randomPrecision, dimension, denseMemoryMB = 1000.0, backend = "random", warmStart = "off", trace = "panels", blocks = "off") {
+    .Call(`_sommer_sommer_multinomial_mode_create`, response, randomDesign, randomPrecision, dimension, denseMemoryMB, backend, warmStart, trace, blocks)
 }
 
 sommer_multinomial_mode_eval <- function(pointer, fixedPredictor, modeStart, maxModeIterations = 100L, tolerance = 1e-8) {
@@ -69,16 +85,20 @@ sommer_multinomial_laplace_eval <- function(pointer, fixedPredictor, randomPreci
     .Call(`_sommer_sommer_multinomial_laplace_eval`, pointer, fixedPredictor, randomPrecision, fixedDesign, precisionDerivatives, modeStart, maxModeIterations, tolerance, gradient)
 }
 
-sommer_multinomial_objective_create <- function(response, fixedDesign, randomDesign, offset, descriptors, relationships, denseMemoryMB = 1000.0) {
-    .Call(`_sommer_sommer_multinomial_objective_create`, response, fixedDesign, randomDesign, offset, descriptors, relationships, denseMemoryMB)
+sommer_multinomial_objective_create <- function(response, fixedDesign, randomDesign, offset, descriptors, relationships, denseMemoryMB = 1000.0, backend = "random", warmStart = "off", trace = "panels", blocks = "off") {
+    .Call(`_sommer_sommer_multinomial_objective_create`, response, fixedDesign, randomDesign, offset, descriptors, relationships, denseMemoryMB, backend, warmStart, trace, blocks)
 }
 
 sommer_multinomial_objective_eval <- function(pointer, parameters, maxModeIterations = 100L, tolerance = 1e-8, gradient = TRUE) {
     .Call(`_sommer_sommer_multinomial_objective_eval`, pointer, parameters, maxModeIterations, tolerance, gradient)
 }
 
-sommer_glmm_path_plan <- function(estimator, maximumLikelihood, ordinal, nominal, mixture, independentResiduals) {
-    .Call(`_sommer_sommer_glmm_path_plan`, estimator, maximumLikelihood, ordinal, nominal, mixture, independentResiduals)
+sommer_multinomial_objective_solve <- function(pointer, rhs) {
+    .Call(`_sommer_sommer_multinomial_objective_solve`, pointer, rhs)
+}
+
+sommer_glmm_path_plan <- function(estimator, maximumLikelihood, ordinal, nominal, mixture, independentResiduals, gaussianResiduals = FALSE) {
+    .Call(`_sommer_sommer_glmm_path_plan`, estimator, maximumLikelihood, ordinal, nominal, mixture, independentResiduals, gaussianResiduals)
 }
 
 mme_gpu_runtime_status <- function() {

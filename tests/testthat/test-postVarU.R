@@ -135,7 +135,8 @@ test_that("VarU validates flags and unsupported model types", {
   expect_error(predict(model,D="id",VarU=NA),"TRUE or FALSE")
   expect_error(predict(model,D="id",PEV=1),"TRUE or FALSE")
   direct <- mmes(y~env, random=~id, data=fixture$data, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", diagnostics=list(verbose=FALSE)))
-  expect_error(postVarU(direct),"Henderson")
+  expect_equal(as.numeric(postVarU(direct)$uVarList[[1L]]),
+    diag(varu_dense_reference(direct)$S), tolerance=1e-7)
   class(model) <- c("mmes.glmm",class(model))
   expect_error(postVarU(model),"Gaussian")
   expect_error(predict(model,D="id"),"Gaussian")

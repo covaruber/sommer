@@ -312,9 +312,12 @@ vcov.mmes.glmm.laplace <- function(object, ...){
     identical(deparse(smaller$randomFormula), deparse(larger$randomFormula)) &&
     identical(smaller$randomDesign, larger$randomDesign) &&
     identical(smaller$randomRelationships, larger$randomRelationships) &&
+    identical(.laplace_residual_signature(smaller),.laplace_residual_signature(larger)) &&
+    identical(.laplace_covariance_signature(smaller),
+      .laplace_covariance_signature(larger)) &&
     identical(covarianceSignature(smaller), covarianceSignature(larger))
   if(!sameLikelihood){
-    stop("Native Laplace likelihood comparisons require identical response rows, offsets, family/trial settings, random formula, and covariance structure; only nested fixed effects may differ.",
+    stop("Native Laplace likelihood comparisons require identical response rows, offsets, family/trial settings, random formula, covariance structure and vcc constraints; only nested fixed effects may differ.",
          call.=FALSE)
   }
   smallerTerms <- attr(smaller$fixedTerms, "term.labels")
@@ -418,6 +421,8 @@ vcov.mmes.glmm.laplace <- function(object, ...){
       if(type == "pearson"){
         variance <- .pql_apply(families, familyIndex, "variance", mean) *
           dispersion[familyIndex] / trials
+        if(!is.null(object$laplaceResidual))
+          variance[object$laplaceResidual$rows] <- diag(.laplace_residual_matrix(object))
         if(any(!is.finite(variance)) || any(variance <= 0)){
           stop("Pearson residuals are undefined at zero conditional variances.",
             call.=FALSE)
@@ -437,6 +442,14 @@ vcov.mmes.glmm.laplace <- function(object, ...){
              call.=FALSE)
       }
       contribution <- .laplace_deviance(response, mean, families, familyIndex, trials, dispersion)
+      if(!is.null(object$laplaceResidual)){
+        rows <- object$laplaceResidual$rows
+        standardized <- forwardsolve(t(chol(.laplace_residual_matrix(object))),
+          response[rows]-mean[rows])
+        result <- sign(response-mean)*sqrt(pmax(contribution,0))
+        result[rows] <- standardized
+        return(result)
+      }
       return(sign(response - mean) * sqrt(pmax(contribution, 0)))
     }
     y <- as.numeric(object$y)

@@ -39,6 +39,24 @@ above makes coefficient uncertainty available; retaining a full inverse is
 appropriate for this small example, not a default recommendation for large
 models.
 
+For repeated counts, disease records or ordered scores, structured random
+effects can represent a hidden condition that changes over time or space.
+Native Laplace reuses sommer covariance descriptors for these processes;
+prediction distinguishes a fitted individual's process from a population
+average. See the [GLMM guide](https://covaruber.github.io/sommer/articles/sommer.glmm.html)
+for temporal/spatial recipes, prediction targets and supported limits.
+Laplace also offers interchangeable random-effect and observation-space
+linear algebra through `task$glmm$backend`. The default `"auto"` considers
+dimensions, sparsity-related coupling and memory; inspect
+`fit$executionPlan$glmm$backend` for its decision. This changes computation,
+not the fitted likelihood, and is separate from the Gaussian/PQL direct engine.
+Laplace defaults to safeguarded mode reuse (`warmStart="auto"`) and native
+analytic marginal scores, including mixed nominal responses. Exact selected
+inverse contractions (`trace="selected"`) and independent Hessian blocks
+(`blocks="on"`) are opt-in random-backend choices. See the GLMM guide for
+numerical safeguards, benchmark results and the unchanged post-fit SE/PEV
+contract.
+
 ## Choose the next step
 
 - [Quantitative-genetics tutorial](https://covaruber.github.io/sommer/articles/sommer.qg.html)
@@ -109,6 +127,17 @@ Inspect `engineDiagnostics$blend` for Q gains and M-step work, and
 `engineDiagnostics$recovery` for automatic recovery triggers and acceptance.
 Exact EM workspace obeys `denseMemoryMB`; structured/PX updates can cost more
 than AI despite needing fewer iterations. Henderson algorithms are unchanged.
+
+Direct fits support `predict()`, `postPEV()` and Gaussian `postVarU()` without
+constructing Henderson equations. Keep the default
+`output=list(inverse=0, coefficientMatrix=TRUE)` to defer covariance work:
+`postPEV(fit)` computes diagonal error covariance in panels, while
+`postPEV(fit, mode=2)` requests the full joint coefficient covariance.
+Prediction supports classify terms, explicit contrasts, level selection,
+SEDs and pairwise comparisons without first calling `postPEV()`.
+Direct PQL uses the final working covariance; set `VarU=FALSE` for its
+link-scale approximate predictions. Post-fit workspace obeys
+`execution$denseMemoryMB` (or prediction's `maxMemoryMB` override).
 
 ## Home website
 

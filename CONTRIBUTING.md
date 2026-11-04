@@ -16,6 +16,8 @@ not a replacement for runtime checks.
 | Covariance descriptor contract | [R/FUN_covfactor.R](R/FUN_covfactor.R) |
 | Covariance families | `R/FUN_covariance_{basic,serial,factor,spatial}.R` |
 | Public inference and prediction | [R/FUN_methods_mmes.R](R/FUN_methods_mmes.R), [R/predict_mmes.R](R/predict_mmes.R) |
+| GLMM likelihood planning and latent-process prediction | [src/mme_glmm_paths.h](src/mme_glmm_paths.h), [R/FUN_glmm_latent.R](R/FUN_glmm_latent.R) |
+| Interchangeable Laplace factor/solve algebra and post-fit operators | [src/mme_glmm_system.h](src/mme_glmm_system.h), [R/FUN_glmm_system.R](R/FUN_glmm_system.R) |
 | Gaussian Henderson optimizer and dispatch | [src/ai_mme_sp2.cpp](src/ai_mme_sp2.cpp) and specialized `mme_*.h` kernels |
 | Direct observation-space fitting | [src/mme_direct.cpp](src/mme_direct.cpp) |
 | Shared direct/solve covariance evaluation | [src/mme_direct_covariance.h](src/mme_direct_covariance.h) |
@@ -30,6 +32,36 @@ do not make the optimizer depend on constructor names. Preserve parameter order,
 coordinates, level names, formula environments, and accepted-point convergence
 semantics. Native prediction factors are operation-local: never save external
 pointers in fitted objects.
+
+Non-Gaussian temporal/spatial dependence belongs to structured random effects
+on the link scale, not to an arbitrary discrete residual covariance. Population
+prediction must reuse the fitted descriptor/relationship basis and actual
+design loadings, including within-observation nominal logit covariance.
+Keep its parameter-uncertainty propagation strictly post-fit. The focused
+`glmm-latent-process` tests cover independent likelihood/covariance references,
+temporal/spatial recipes, missing cells and prediction targets.
+
+Laplace likelihood/family kernels must consume the factor/solve interface,
+not assume a random-effect Cholesky factor exists. The observation backend
+uses the same precision descriptors and full signed/block curvature; never
+replace negative curvature by working weights or silently switch estimators.
+Keep backend selection separate from likelihood eligibility and outer
+optimization. Observation fits deliberately omit `laplaceModeHessian`;
+post-fit code must use the shared mode/joint solve adapters. Native factors
+remain operation-local and all SE/PEV remain post-fit. Run
+`test_local(filter="laplace-observation|mmes-multinomial-scores")` for algebra,
+gradient, categorical and inference parity; the reproducible
+`inst/benchmarks/laplace-backends.R` measures warm objective/gradient work.
+Mode reuse and Takahashi contractions live in `mme_glmm_acceleration.h`;
+independent component solves remain interchangeable `LaplaceSystem` methods.
+Keep the exact-parameter result cache separate from successful-mode reuse.
+Nonconcave ZIP modes must retain authoritative cold-start semantics.
+Selected entries missing from the filled factor pattern require exact solve
+contractions, not zeros. Mixed nominal scores use the existing categorical
+third-cumulant contraction with actual predictor-row indices.
+Run `test-laplace-acceleration.R` and the one-thread
+`inst/benchmarks/laplace-acceleration.R` before changing strategy defaults;
+wall time and whole-fit parity matter, not only reduced solve counts.
 
 The largest Henderson routine still needs incremental decomposition. Extract
 cohesive layout, assembly, evaluation, and optimization operations separately;

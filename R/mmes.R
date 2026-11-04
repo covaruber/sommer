@@ -13,7 +13,8 @@
                  family=stats::gaussian(), pqlControl=list(),
                  glmmControl=.mme_glmm_defaults,
                  solveOnly=FALSE, covPar=NULL, blasThreads=NULL,
-                 engine=NULL, .internal=NULL, .prepareOnly=FALSE){
+                 engine=NULL, .internal=NULL, .prepareOnly=FALSE,
+                 .observationMask=NULL){
   WWasMissing <- missing(W)
   WInput <- if(WWasMissing) NULL else W
   mmesCall <- match.call()
@@ -111,7 +112,7 @@
     stop("representation$fixedRank='drop' currently requires a Gaussian identity-link fit with normal or saddle-point equations, without PQL, task$mode='solve', conditional FA, factor scores or compression.",
          call.=FALSE)
   }
-  if(!conditionalFA && !engineControl$retainCoefficientMatrix &&
+  if(henderson && !conditionalFA && !engineControl$retainCoefficientMatrix &&
      (!isGaussianIdentity || .pqlInner || !henderson || solveOnly ||
       factorScoreAugmentation != "none" ||
       !identical(engineControl$experimental$saddlePoint, "force") ||
@@ -260,11 +261,15 @@
         maxit=glmmControl$maxit,
         modeMaxit=glmmControl$modeMaxit,
         modeTol=glmmControl$modeTol,
+        backend=glmmControl$backend,
+        warmStart=glmmControl$warmStart,gradientMethod=glmmControl$gradient,
+        trace=glmmControl$trace,blocks=glmmControl$blocks,
         familyParameters=glmmControl$familyParameters,
         naMethodY=naMethodY,
         henderson=henderson,
         solveOnly=solveOnly,
         computeCi=computeCi,
+        setup=returnParam,
         mmesArgs=list(
           contrasts=contrasts,
           naMethodX=naMethodX,
@@ -478,6 +483,12 @@
   keepX <- .mmes_method_keep(fixedOK, naMethodX, "fixed-effect variables")
   keepRandom <- .mmes_method_keep(randomOK, naMethodRandom, "random-effect variables")
   keepResidual <- .mmes_method_keep(residualOK, naMethodR, "residual covariance variables")
+  if(!is.null(.observationMask)){
+    if(length(.observationMask) != nObs || anyNA(.observationMask))
+      stop("Internal observation mask has incompatible dimensions.", call.=FALSE)
+    keepResidual <- keepResidual & .observationMask
+    residualOK <- residualOK & .observationMask
+  }
   keep <- keepY & keepX & keepRandom & keepResidual
   if(!is.null(weightBlocksFull) && any(keep & is.na(weightBlocksFull))){
     stop("The weights block formula has missing values on retained observations.", call.=FALSE)
@@ -683,9 +694,13 @@
       stop("Preparation-only models do not support Gaussian observation rotation.",
         call.=FALSE)
     }
+    preparedWeights <- .mmes_prepare_weights(WInput, WWasMissing,
+      nObs, keep, nrow(yvar), weightBlocks)
     return(list(X=X, Z=Z, Zind=Zind, Ai=Ai, yvar=yvar,
       covStruct=covStruct, rtermss=rtermss, obsInfo=obsInfo,
-      modelFrame=mf_full, retainedFrame=mf, partitionsX=partitionsX))
+      modelFrame=mf_full, retainedFrame=mf, partitionsX=partitionsX,
+      residualBlock=residualBlock, residualIndex=localIndex,
+      W=preparedWeights$W, useH=preparedWeights$useH, weightBlocks=weightBlocks))
   }
 
   # ---- Optional Lee-van der Werf observation rotation -----------------
@@ -1371,6 +1386,16 @@
                  verbose, computeCi, REML,
                  responsePrepared, preparedMean, preparedSd,
                  preparedIntercept)
+    # The result's W is the predictor design, not the residual-weight input.
+    res$W <- do.call(cbind, c(list(X), Z))
+    if(isTRUE(engineControl$retainCoefficientMatrix)){
+      res$directInference <- list(X=X, Z=Z, Zind=Zind, Ai=Ai,
+        H=W, useH=useH, residualBlock=residualBlock, residualIndex=localIndex,
+        covStruct=covStruct, parameters=res$covParWorking,
+        partitions=res$partitions,
+        observationJitter=res$engineDiagnostics$direct$observationJitter,
+        fixedInformationJitter=res$engineDiagnostics$direct$fixedInformationJitter)
+    }
   }
   if(nzchar(reducedAIReason)){
     res$engineDiagnostics$reducedAI <- list(active=FALSE,

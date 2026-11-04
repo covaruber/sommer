@@ -223,6 +223,7 @@ familym <- function(by, ..., trials=NULL){
   fixedDispersion <- if(all(fixedByFamily)) TRUE else if(any(fixedByFamily) && mixed)
     list(by=family$by, levels=names(families)[fixedByFamily]) else FALSE
   monitor <- vector("list", control$maxit)
+  directPQL <- !isTRUE(mmesArgs$henderson)
   fit <- NULL
   covarianceStart <- NULL
   baseFactor <- NULL
@@ -293,10 +294,12 @@ familym <- function(by, ..., trials=NULL){
     monitor[[iteration]] <- c(iteration=iteration, deviance=deviance,
                               theta=if(isNegBin) theta else NA_real_,
                               warmStarted=as.integer(fit$pqlWarmStarted),
+                              innerConverged=as.integer(isTRUE(fit$convergence)),
                               innerIterations=ncol(fit$monitor),
                               symbolicAnalyses=if(is.null(fit$engineDiagnostics$CsymbolicAnalyses))
                                 NA_real_ else fit$engineDiagnostics$CsymbolicAnalyses)
-    if(is.finite(previousDeviance) && thetaChange <= control$tol &&
+    if((!directPQL || isTRUE(fit$convergence)) &&
+       is.finite(previousDeviance) && thetaChange <= control$tol &&
        abs(deviance - previousDeviance) <= control$tol * (1 + abs(previousDeviance))){
       monitor <- monitor[seq_len(iteration)]
       pqlConverged <- TRUE
@@ -354,6 +357,13 @@ familym <- function(by, ..., trials=NULL){
   fit$pqlMonitor <- monitor
   fit$pqlConverged <- pqlConverged
   fit$pqlControl <- control
+  if(directPQL){
+    fit$convergence <- pqlConverged && isTRUE(fit$convergence)
+    if(!fit$convergence){
+      warning("Direct PQL convergence was not certified; inspect pqlMonitor (including innerConverged) and engineDiagnostics$direct.",
+        call.=FALSE)
+    }
+  }
   fit$.ldltCache <- NULL
   fit$.cholmodCache <- NULL
   attr(fit$covStruct, "ldltCache") <- NULL
@@ -381,12 +391,18 @@ familym <- function(by, ..., trials=NULL){
     covariance=chol2inv(chol(hessian)))
 }
 
-.mmes_laplace_boundary <- function(structures, reference){
+.mmes_laplace_boundary <- function(structures, reference, residualModel=NULL,
+                                   memoryMB=1000){
   boundaryParameters <- character()
   threshold <- sqrt(.Machine$double.eps)
   for(termIndex in seq_along(structures)){
     descriptor <- structures[[termIndex]]
-    covariance <- evaluate_covstruct_cpp(descriptor, descriptor$par)
+    if(!is.null(residualModel) && termIndex == length(structures)){
+      residualModel$descriptor <- descriptor
+      covariance <- sommer_glmm_residual_covariance(residualModel,memoryMB)
+    } else {
+      covariance <- evaluate_covstruct_cpp(descriptor, descriptor$par)
+    }
     covarianceEigenvalues <- eigen(covariance, symmetric=TRUE,
       only.values=TRUE)$values
     if(min(covarianceEigenvalues) <= threshold * max(covarianceEigenvalues)){
@@ -491,6 +507,8 @@ familym <- function(by, ..., trials=NULL){
 }
 
 .mmes_laplace_uncertainty <- function(object){
+  scope <- .mmes_blas_scope(object$control$execution$blasThreads)
+  on.exit(scope$restore(),add=TRUE)
   if(!inherits(object, "mmes.glmm.laplace")){
     stop("Post-fit Laplace uncertainty requires a native Laplace fit.",
          call.=FALSE)
@@ -551,14 +569,11 @@ familym <- function(by, ..., trials=NULL){
       -evaluation$logLik
     }
   }else{
-    context <- sommer_laplace_objective_create(object$fixedDesign,
-      object$randomDesign, object$laplaceNativeResponse, object$offset, "",
-      object$covStruct, object$randomRelationships, denseMemoryMB,
-      familySpecs=object$familySpecifications,
-      familyIndex=object$laplaceFamilyIndex, trials=object$priorWeights)
+    context <- .laplace_objective_context(object,memoryMB=denseMemoryMB)
     objective <- function(parameters){
-      evaluation <- sommer_laplace_objective_eval(context, parameters,
-        maxModeIterations=modeMaxit, tolerance=modeTol, gradient=FALSE)
+      evaluation <- .laplace_constrained_evaluate(parameters, layout,
+        function(expanded) sommer_laplace_objective_eval(context, expanded,
+          maxModeIterations=modeMaxit, tolerance=modeTol, gradient=FALSE))
       if(!isTRUE(evaluation$valid)) return(Inf)
       -evaluation$logLik
     }
@@ -584,29 +599,26 @@ familym <- function(by, ..., trials=NULL){
   betaSummary[, "Std. Error"] <- fixedSE
   betaSummary[, "z value"] <- object$b / fixedSE
 
-  varianceTable <- .vc_param_table(object$covStruct, object$randomMetadata)
-  freeCoordinatePositions <- integer(nrow(covarianceTable))
-  for(termIndex in seq_along(layout$freePositions)){
-    termRows <- which(varianceTable$structure == termIndex &
-      varianceTable$free)
-    if(length(termRows)){
-      freeCoordinatePositions[termRows] <- fixedCount +
-        layout$parameterStarts[termIndex] + seq_along(termRows)
-    }
+  covarianceStructures <- .laplace_covariance_structures(object)
+  varianceTable <- .vc_param_table(covarianceStructures,.laplace_covariance_terms(object))
+  tangent <- layout$covarianceMap$T
+  if(is.null(tangent)){
+    tangent <- diag(nrow(covarianceTable))[, which(varianceTable$free), drop=FALSE]
   }
-  estimatedRows <- which(freeCoordinatePositions > 0L)
+  estimatedRows <- which(rowSums(abs(tangent)) > 0)
   if(length(estimatedRows)){
     coordinateJacobian <- vapply(estimatedRows, function(tableRow){
       structureIndex <- varianceTable$structure[tableRow]
       parameterIndex <- varianceTable$position[tableRow]
-      descriptor <- object$covStruct[[structureIndex]]
+      descriptor <- covarianceStructures[[structureIndex]]
       kind <- .vc_kind(descriptor, parameterIndex)
       .mmes_laplace_vc_derivative(covarianceTable$estimate[tableRow],
         kind$kind, kind$lower, kind$upper)
     }, numeric(1))
-    coordinateCovariance <- curvature$covariance[
-      freeCoordinatePositions[estimatedRows],
-      freeCoordinatePositions[estimatedRows], drop=FALSE]
+    reducedPositions <- fixedCount + seq_len(layout$covarianceCount)
+    estimatedTangent <- tangent[estimatedRows, , drop=FALSE]
+    coordinateCovariance <- estimatedTangent %*% curvature$covariance[
+      reducedPositions, reducedPositions, drop=FALSE] %*% t(estimatedTangent)
     naturalCovariance <- outer(coordinateJacobian, coordinateJacobian) *
       coordinateCovariance
     naturalVariance <- diag(naturalCovariance)
@@ -710,7 +722,8 @@ familym <- function(by, ..., trials=NULL){
     naMethodY=naMethodY, naMethodX=mmesArgs$naMethodX,
     naMethodRandom=mmesArgs$naMethodRandom, naMethodR=mmesArgs$naMethodR,
     contrasts=mmesArgs$contrasts, engine=mmesArgs$engine,
-    dateWarning=FALSE, verbose=FALSE, returnParam=TRUE, .prepareOnly=TRUE)
+    dateWarning=FALSE, verbose=FALSE, returnParam=TRUE, .prepareOnly=TRUE,
+    .observationMask=mmesArgs$observationMask)
   if(!is.null(random)) preparationArguments$random <- random
   if(!is.null(rcov)) preparationArguments$rcov <- rcov
   if(!is.null(data)) preparationArguments$data <- data
@@ -719,13 +732,15 @@ familym <- function(by, ..., trials=NULL){
 
 .mmes_laplace <- function(fixed, random, rcov, data, W, weights, family,
                           vcc, REML, maxit, modeMaxit, modeTol,
-                          familyParameters=list(),
+                          familyParameters=list(), backend="auto",
+                          warmStart="off",gradientMethod="analytic",trace="panels",blocks="off",
                           naMethodY, henderson,
-                          solveOnly, computeCi, mmesArgs){
+                          solveOnly, computeCi, mmesArgs, setup=FALSE){
   if(inherits(family, "sommer_nominal_family")){
     return(.mmes_laplace_nominal(fixed, random, rcov, data, family, W,
       weights, vcc, REML, maxit, modeMaxit, modeTol, naMethodY,
-      henderson, solveOnly, computeCi, mmesArgs))
+      henderson, solveOnly, computeCi, mmesArgs, setup=setup,backend=backend,
+      warmStart=warmStart,gradientMethod=gradientMethod,trace=trace,blocks=blocks))
   }
   if(isTRUE(REML)){
     stop("Laplace GLMMs use maximum likelihood; set task$objective='ml'.",
@@ -748,15 +763,10 @@ familym <- function(by, ..., trials=NULL){
   familyModel <- .laplace_family_specs(family, familyParameters)
   families <- familyModel$families
   specifications <- familyModel$specifications
-  if(!is.null(W) || !is.null(weights) || !is.null(vcc)){
-    stop("Native Laplace fitting does not yet support W, weights formulas, or vcc.",
-         call.=FALSE)
-  }
-  if(!is.null(rcov) &&
-     !identical(attr(stats::terms(rcov), "term.labels"), "units")){
-    stop("Native Laplace fitting uses the family likelihood for independent observation errors; structured rcov terms are not yet supported.",
-         call.=FALSE)
-  }
+  residualPreparation <- .laplace_prepare_gaussian_residual(fixed, data, family,
+    rcov, W, weights, naMethodY, mmesArgs)
+  if(!is.null(residualPreparation))
+    mmesArgs$observationMask <- residualPreparation$keep
   if(is.null(random)){
     stop("Native Laplace fitting requires at least one random-effect term.",
          call.=FALSE)
@@ -782,7 +792,7 @@ familym <- function(by, ..., trials=NULL){
          call.=FALSE)
   }
 
-  prepared <- .mmes_prepare_model(fixed, random, rcov, data, family,
+  prepared <- .mmes_prepare_model(fixed, random, NULL, data, family,
     naMethodY, mmesArgs, familyParameters=familyParameters)
   categoricalModel <- !is.null(prepared$categorical)
   nominalMixed <- FALSE
@@ -813,6 +823,19 @@ familym <- function(by, ..., trials=NULL){
   }
   specifications <- .laplace_zero_designs(families, specifications, data,
     included, familyIndex)
+  residualModel <- .laplace_finish_gaussian_residual(residualPreparation, prepared,
+    familyIndex, specifications, W, weights)
+  if(!is.null(residualModel)){
+    for(position in which(vapply(specifications, function(x) x$family == "gaussian", logical(1)))){
+      supplied <- if(familyModel$mixed) familyParameters[[names(specifications)[position]]] else
+        familyParameters
+      if(length(supplied))
+        stop("Structured Gaussian residuals own their dispersion; configure residual variances through rcov, not Gaussian familyParameters.", call.=FALSE)
+      specifications[[position]]$free <- FALSE
+      specifications[[position]]$logParameter <- 0
+      specifications[[position]]$parameter <- NULL
+    }
+  }
   retainedFrame <- droplevels(responseFrame[included, , drop=FALSE])
   fixedTerms <- stats::delete.response(attr(responseFrame, "terms"))
   fixedXlevels <- stats::.getXlevels(fixedTerms, retainedFrame)
@@ -856,10 +879,24 @@ familym <- function(by, ..., trials=NULL){
          call.=FALSE)
   }
 
-  randomStructures <- prepared$covStruct[seq_len(randomCount)]
-  freePositions <- lapply(randomStructures, function(structure)
+  covarianceMapping <- .laplace_covariance_map(
+    prepared$covStruct[seq_len(randomCount)], prepared$rtermss, vcc)
+  covarianceMapping <- .laplace_add_residual_map(covarianceMapping,residualModel)
+  randomStructures <- covarianceMapping$structures
+  if(!is.null(residualModel)){
+    randomStructures <- head(randomStructures,-1L)
+    residualModel$descriptor <- tail(covarianceMapping$structures,1L)[[1L]]
+  }
+  if(setup){
+    prepared$covStruct <- randomStructures
+    prepared$vcParams <- covarianceMapping$table
+    prepared$covarianceMap <- covarianceMapping$map
+    prepared$laplaceResidual <- residualModel
+    return(prepared)
+  }
+  freePositions <- lapply(covarianceMapping$structures, function(structure)
     which(structure$free))
-  covarianceParameterCount <- sum(vapply(freePositions, length, integer(1)))
+  covarianceParameterCount <- ncol(covarianceMapping$map$T)
   parameterCount <- ncol(fixedDesign)
   parameterStarts <- cumsum(c(0L,
     head(vapply(freePositions, length, integer(1)), -1L)))
@@ -888,9 +925,7 @@ familym <- function(by, ..., trials=NULL){
     stop("Native Laplace initialization produced non-finite fixed effects; check the design and separation.",
       call.=FALSE)
   }
-  initialCovariance <- unlist(lapply(seq_len(randomCount), function(termIndex)
-    randomStructures[[termIndex]]$par[freePositions[[termIndex]]]),
-    use.names=FALSE)
+  initialCovariance <- unname(covarianceMapping$map$initial)
   initialParameters <- c(initialFixed, initialCovariance)
   for(familyPosition in seq_along(specifications)){
     specification <- specifications[[familyPosition]]
@@ -915,29 +950,34 @@ familym <- function(by, ..., trials=NULL){
       specification$logParameter else specification$zeroCoefficients),
     use.names=FALSE)
   initialParameters <- c(initialParameters, initialFamilyParameters)
+  parameterLayout <- list(fixedCount=parameterCount,
+    covarianceCount=covarianceParameterCount, freePositions=freePositions,
+    parameterStarts=parameterStarts, freeFamilies=freeFamilies,
+    covarianceMap=covarianceMapping$map)
   nativeContext <- sommer_laplace_objective_create(fixedDesign, randomDesign,
     responseData$nativeResponse, offset, "", randomStructures, prepared$Ai,
     mmesArgs$engine$denseMemoryMB, familySpecs=specifications,
-    familyIndex=familyIndex, trials=trials)
+    familyIndex=familyIndex,trials=trials,residualModel=residualModel,backend=backend,
+    warmStart=warmStart,trace=trace,blocks=blocks)
 
   evaluateParameters <- function(parameters, gradient=FALSE){
     if(any(!is.finite(parameters))){
       return(list(valid=FALSE, reason="non-finite parameter proposal"))
     }
-    structures <- randomStructures
-    for(termIndex in seq_len(randomCount)){
-      freeIndex <- freePositions[[termIndex]]
-      if(length(freeIndex)){
-        valueIndex <- parameterCount + parameterStarts[termIndex] +
-          seq_along(freeIndex)
-        structures[[termIndex]]$par[freeIndex] <- parameters[valueIndex]
-      }
-    }
-    evaluation <- sommer_laplace_objective_eval(nativeContext, parameters,
-      maxModeIterations=modeMaxit, tolerance=modeTol, gradient=gradient && !nominalMixed)
-    if(gradient && nominalMixed && isTRUE(evaluation$valid)){
-      evaluation$gradient <- .laplace_numeric_gradient(parameters, function(proposal)
+    structures <- .laplace_proposal_structures(randomStructures, parameters,
+      parameterLayout)
+    evaluation <- .laplace_constrained_evaluate(parameters, parameterLayout,
+      function(expanded) sommer_laplace_objective_eval(nativeContext, expanded,
+        maxModeIterations=modeMaxit, tolerance=modeTol,
+        gradient=gradient && gradientMethod=="analytic"))
+    if(gradient && gradientMethod=="numeric" && isTRUE(evaluation$valid)){
+      score <- .laplace_numeric_gradient(parameters, function(proposal)
         evaluateParameters(proposal)$logLik)
+      evaluation <- evaluateParameters(parameters,FALSE)
+      if(!isTRUE(evaluation$valid))
+        stop("Numerical Laplace score could not restore its accepted mode: ",
+          evaluation$reason,".",call.=FALSE)
+      evaluation$gradient <- score
     }
     evaluation$covStruct <- structures
     evaluation
@@ -1072,7 +1112,16 @@ familym <- function(by, ..., trials=NULL){
     randomFactorLevels <- Filter(Negate(is.null), randomFactorLevels)
   }
   fittedStructures <- finalEvaluation$covStruct
-  varianceTable <- .vc_param_table(fittedStructures, prepared$rtermss)
+  allFittedStructures <- .laplace_proposal_structures(covarianceMapping$structures,
+    optimization$par,parameterLayout)
+  covarianceTerms <- c(prepared$rtermss,if(!is.null(residualModel)) "residual")
+  if(!is.null(residualModel)){
+    residualModel$descriptor <- tail(allFittedStructures,1L)[[1L]]
+    boundaryParameters <- c(boundaryParameters,.mmes_laplace_boundary(
+      list(residualModel$descriptor),list(tail(covarianceMapping$structures,1L)[[1L]]),
+      residualModel,denseMemoryMB))
+  }
+  varianceTable <- .vc_param_table(allFittedStructures,covarianceTerms)
   covarianceTable <- data.frame(
     term=varianceTable$term, parameter=varianceTable$parameter,
     estimate=varianceTable$start, free=varianceTable$free,
@@ -1084,14 +1133,14 @@ familym <- function(by, ..., trials=NULL){
     nrow=nrow(covarianceTable), ncol=nrow(covarianceTable),
     dimnames=list(paste(covarianceTable$term, covarianceTable$parameter, sep=":"),
       paste(covarianceTable$term, covarianceTable$parameter, sep=":")))
-  covarianceParameters <- lapply(fittedStructures, function(structure){
+  covarianceParameters <- lapply(allFittedStructures, function(structure){
     kinds <- lapply(seq_along(structure$par), function(position)
       .vc_kind(structure, position))
     vapply(seq_along(structure$par), function(position)
       .vc_to_natural(structure$par[position], kinds[[position]]$kind,
         kinds[[position]]$lower, kinds[[position]]$upper), numeric(1))
   })
-  names(covarianceParameters) <- prepared$rtermss
+  names(covarianceParameters) <- covarianceTerms
   fittedValues <- as.numeric(finalEvaluation$fitted)
   linearPredictors <- as.numeric(finalEvaluation$linearPredictors)
   logLikelihood <- as.numeric(finalEvaluation$logLik)
@@ -1106,6 +1155,8 @@ familym <- function(by, ..., trials=NULL){
         estimate=estimate, StdError=NA_real_,
         estimated=specification$free)
     }))
+  predictionArguments <- mmesArgs
+  predictionArguments$observationMask <- NULL
   fittedObject <- list(
     call=match.call(),
     family=if(familyModel$mixed) structure(list(by=family$by,
@@ -1141,21 +1192,20 @@ familym <- function(by, ..., trials=NULL){
       integer(1)),
     randomDesignBlockWidths=vapply(prepared$Z, ncol, integer(1)),
     randomFactorLevels=randomFactorLevels,
-    predictionSettings=list(rcov=rcov, family=family,
-      naMethodY=naMethodY, mmesArgs=mmesArgs),
+    predictionSettings=list(rcov=if(is.null(residualModel)) rcov else NULL, family=family,
+      naMethodY=naMethodY, mmesArgs=predictionArguments),
     fixedDesign=fixedDesign, randomDesign=randomDesign,
     randomMode=as.numeric(finalEvaluation$mode),
     laplaceNativeResponse=responseData$nativeResponse,
     laplaceModeHessian=finalEvaluation$modeHessian,
-    laplaceObservationCurvature=if(nominalMixed)
+    laplaceObservationCurvature=if(nominalMixed || !is.null(residualModel))
       finalEvaluation$observationBlockCurvature else as.numeric(finalEvaluation$observationCurvature),
     randomMetadata=prepared$rtermss, covStruct=fittedStructures,
     randomRelationships=prepared$Ai,
     covPar=covarianceParameters, u=matrix(as.numeric(finalEvaluation$mode), ncol=1L),
     contrasts=fittedContrasts, optimizer=optimization,
-    laplaceParameterLayout=list(fixedCount=parameterCount,
-      covarianceCount=covarianceParameterCount, freePositions=freePositions,
-      parameterStarts=parameterStarts, freeFamilies=freeFamilies),
+    laplaceParameterLayout=parameterLayout, vcParams=covarianceMapping$table,
+    vcc=vcc, laplaceResidual=residualModel,residualFormula=rcov,
     obsInfo=prepared$obsInfo,
     laplaceDiagnostics=list(outerConverged=converged, modeConverged=TRUE,
       modeScore=finalEvaluation$modeScore,
@@ -1179,7 +1229,8 @@ familym <- function(by, ..., trials=NULL){
   fittedObject$uPevMode <- 0L
   fittedObject$laplacePostPEVSettings <- list(inverse=inverseMode,
     panelSize=panelSize, denseMemoryMB=denseMemoryMB,
-    modeMaxit=modeMaxit, modeTol=modeTol)
+    modeMaxit=modeMaxit, modeTol=modeTol,warmStart=warmStart,gradient=gradientMethod,
+    trace=trace,blocks=blocks)
   if(categoricalModel){
     fittedObject$categorical <- prepared$categorical
     fittedObject$categorical$components <- fittedSpecifications
@@ -1193,11 +1244,11 @@ familym <- function(by, ..., trials=NULL){
       table
     }))
     fittedObject$deviance <- -2 * sommer_glmm_family_eval(responseData$nativeResponse,
-      linearPredictors, fittedSpecifications, familyIndex, trials)$logDensity
+      linearPredictors,fittedSpecifications,familyIndex,trials,
+      residualModel=residualModel,memoryMB=denseMemoryMB)$logDensity
     fittedObject$categorical$probabilities <- .laplace_mixed_output(fittedObject, linearPredictors)
     fittedObject$executionPlan$glmm$likelihood <- "mixed scalar/category blocks"
-    fittedObject$executionPlan$glmm$gradient <- if(nominalMixed)
-      "central differences of native block Laplace likelihood" else "native analytic"
+    fittedObject$executionPlan$glmm$gradient <- gradientMethod
   }
   if(ordinalModel){
     fittedObject$ordinal <- prepared$ordinal
@@ -1216,6 +1267,8 @@ familym <- function(by, ..., trials=NULL){
     fittedObject$deviance <- -2 * sum(distribution$logProbability[
       cbind(seq_along(response), response)])
   }
+  if(!is.null(residualModel) && !categoricalModel)
+    fittedObject$deviance <- sum(residuals(fittedObject,type="deviance")^2)
   zipDiagnostics <- .mmes_laplace_zip_diagnostics(fittedObject)
   if(!is.null(zipDiagnostics)){
     fittedObject$laplaceDiagnostics$zip <- zipDiagnostics

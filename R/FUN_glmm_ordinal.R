@@ -234,6 +234,8 @@
 .laplace_ordinal_mode_uncertainty <- function(object, covariance=FALSE,
     panelSize=object$laplacePostPEVSettings$panelSize,
     denseMemoryMB=object$laplacePostPEVSettings$denseMemoryMB){
+  scope <- .mmes_blas_scope(object$control$execution$blasThreads)
+  on.exit(scope$restore(),add=TRUE)
   object$laplacePostPEVSettings$panelSize <- panelSize
   object$laplacePostPEVSettings$denseMemoryMB <- denseMemoryMB
   uncertainty <- .mmes_laplace_uncertainty(object)
@@ -247,15 +249,12 @@
   if(bytes > denseMemoryMB * 1048576){
     stop("Ordinal PEV exceeds execution$denseMemoryMB.", call.=FALSE)
   }
-  context <- sommer_laplace_objective_create(object$fixedDesign,
-    object$randomDesign, object$laplaceNativeResponse, object$offset, "",
-    object$covStruct, object$randomRelationships, denseMemoryMB,
-    familySpecs=object$familySpecifications, familyIndex=object$laplaceFamilyIndex,
-    trials=object$priorWeights)
+  context <- .laplace_objective_context(object,memoryMB=denseMemoryMB)
   evaluate <- function(parameters){
-    value <- sommer_laplace_objective_eval(context, parameters, gradient=FALSE,
-      maxModeIterations=object$laplacePostPEVSettings$modeMaxit,
-      tolerance=object$laplacePostPEVSettings$modeTol)
+    value <- .laplace_constrained_evaluate(parameters, object$laplaceParameterLayout,
+      function(expanded) sommer_laplace_objective_eval(context, expanded, gradient=FALSE,
+        maxModeIterations=object$laplacePostPEVSettings$modeMaxit,
+        tolerance=object$laplacePostPEVSettings$modeTol))
     if(!value$valid) stop("Ordinal PEV encountered an invalid mode: ", value$reason,
       call.=FALSE)
     as.numeric(value$mode)
@@ -269,7 +268,7 @@
     jacobian[, position] <- (evaluate(upper) - evaluate(lower)) / (2 * step)
   }
   weighted <- jacobian %*% uncertainty$parameterCovariance
-  factor <- Matrix::Cholesky(Matrix::forceSymmetric(object$laplaceModeHessian), LDL=FALSE)
+  solveMode <- .laplace_mode_solver(object,denseMemoryMB)
   panelSize <- min(panelSize, q)
   if(16 * as.double(q) * panelSize > denseMemoryMB * 1048576){
     stop("Ordinal PEV solve panel exceeds execution$denseMemoryMB.", call.=FALSE)
@@ -279,7 +278,7 @@
     columns <- seq.int(first, min(q, first + panelSize - 1L))
     rhs <- Matrix::sparseMatrix(i=columns, j=seq_along(columns), x=1,
       dims=c(q, length(columns)))
-    solved <- Matrix::solve(factor, rhs, system="A")
+    solved <- solveMode(rhs)
     diagonal[columns] <- diagonal[columns] + solved[cbind(columns, seq_along(columns))]
   }
   joint <- NULL
@@ -289,7 +288,7 @@
     joint <- map %*% uncertainty$parameterCovariance %*% t(map)
     random <- p + seq_len(q)
     joint[random, random] <- joint[random, random] +
-      as.matrix(Matrix::solve(factor, Matrix::Diagonal(q), system="A"))
+      solveMode(Matrix::Diagonal(q))
     dimnames(joint) <- list(c(names(object$b), paste0("u", seq_len(q))),
       c(names(object$b), paste0("u", seq_len(q))))
   }

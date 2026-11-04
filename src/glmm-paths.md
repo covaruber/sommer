@@ -39,9 +39,9 @@ unsupported; population integration retains existing nominal intercept/
 identity-relationship/category-count restrictions.
 
 The scalar backend now admits full nominal observation-block curvature using
-the existing softmax kernel. Scalar/ordinal outer scores remain analytic;
-mixed nominal outer scores use central differences of the native joint
-Laplace objective, including mode/determinant dependence. SE and covariance
+the existing softmax kernel. Scalar, ordinal and mixed nominal outer scores
+are analytic, including mode/determinant dependence; central differences
+remain an explicit reference option. SE and covariance
 work is post-fit only, with existing controls and memory policy. Gaussian
 and PQL routes are unchanged. No candidate extension from workstream 3 was
 implemented. The small R-independent `src/mme_glmm_paths.h` decision policy
@@ -112,7 +112,10 @@ scalar latent predictors) and `native-laplace-category-block` (any nominal
 trait). Nominal likelihoods are never converted to independent scalar rows.
 PQL preserves its existing scalar/structured-residual objective semantics;
 categorical and ZIP PQL requests are rejected. Native Laplace requires ML
-and independent observation likelihoods (`rcov` omitted or `~units`).
+and independent non-Gaussian observation likelihoods. Gaussian-identity rows
+may instead use joint residual blocks from `rcov`, with compatible `W` and
+`weights` metadata. The planner records Gaussian residual eligibility;
+model preparation validates subset mappings and weighting.
 
 `executionPlan$glmm$path` stores the actual dispatch decision:
 `requested`, logical `eligible`, `selected`, stable `reason`, explanatory
@@ -137,6 +140,88 @@ prove that rejected PQL/REML/structured-residual requests cannot invoke either
 fitting backend.
 
 ### Responsibilities
+
+Conditional-mode algebra is separate from likelihood eligibility.
+`src/mme_glmm_system.h` owns `LaplaceSystem` (`prepare`, `factorize`,
+`determinant`, `solve`) and its random/observation implementations. Scalar,
+ordinal and mixed kernels consume this interface. The standalone nominal
+kernel preserves its structural-zero-aware random Cholesky implementation
+and dispatches observation work through the same shared system; analytic
+score contractions use the selected solve, never an assumed factor layout.
+Neither route invokes `ai_mme_sp2` or changes the Laplace approximation.
+
+The observation system builds `K=Z P^-1 Z'` using sparse prior solves and
+bounded panels, obtains `K=L L'`, and factors `I+L' C L`. This determinant/
+Woodbury formulation works for singular `K` and full signed or block `C`;
+no inverse/positive-weight surrogate for `C` is used. It never forms `G`
+or the random-effect Hessian. Covariance/root state is operation-local and
+reused only while prior precision and design are unchanged.
+
+`task$glmm$backend` selects `auto`, `random` or `observation`; this is not
+Gaussian `formulation` or `solve$backend`. The public Laplace preparation
+interface still uses `formulation="henderson"`. The auto heuristic requires
+`q >= 2*n`, precision nonzeros plus squared row supports exceeding `q*q/4`,
+and dense-workspace admission before selecting observation space. Here `n`
+counts expanded predictor rows. Selection is fixed per objective context;
+explicit memory or numerical failures do not silently select another route.
+`executionPlan$glmm$backend` reports the request, choice, reason and work.
+Dense workspace and solve panels honor the existing memory budget, not a
+strict global bound on sparse precision/factor fill.
+
+Observation fits store `laplaceModeHessian=NULL`, not a persistent native
+factor. `R/FUN_glmm_system.R` reconstructs accepted-mode solve closures and
+fixed-effect Schur solves for post-fit prediction and PEV. Covariance SE,
+ordinal/nominal/mixed full parameter propagation, constraints, bootstrap
+and serialized fits retain the selected algebra. No uncertainty work moves
+into the optimizer. `test-laplace-observation.R` verifies these contracts,
+dense/finite-difference references and signed/zero curvature; reproducible
+timings live in `inst/benchmarks/laplace-backends.R`.
+
+`mme_glmm_acceleration.h` owns successful-mode reuse and the LL' Takahashi
+inverse subset. The exact proposal cache remains separate. Public
+`task$glmm$warmStart="auto"` enables reuse for concave conditional families;
+failed warm solves retry zero. ZIP auto stays off, while explicit on also
+solves cold and returns that historical root. No inner tolerance is relaxed.
+`gradient="analytic"` includes nominal block third-cumulant contractions
+and the same adjoint correction used by standalone nominal scores.
+`gradient="numeric"` preserves an independent central-difference option.
+`trace="selected"` contracts the filled factor inverse subset, falling back
+to bounded exact solve panels for unavailable entries. `blocks="on"` uses
+`BlockLaplaceSystem`: exact numeric Hessian graph components, cached local
+symbolics, summed determinants and gather/scatter solves. Membership is
+rebuilt when signed/zero curvature changes coupling. Both are random-space
+opt-ins; panel traces and global factorization remain defaults. No
+stochastic traces, approximate coupling removal, whitening or adaptive
+accuracy are introduced. Work/strategy metadata survive refits and saved
+models; block/observation post-fit joint solves use the shared Schur adapter.
+The one-thread `inst/benchmarks/laplace-acceleration.R` checks likelihood,
+mode/score and whole-fit parity before reporting timings. Public SE/PEV
+remain strictly post-fit, regardless of internal gradient contractions.
+
+Gaussian observation-residual preparation lives in `R/FUN_glmm_residual.R`.
+It reuses the ordinary residual descriptor/layout on Gaussian rows and the
+existing weighting validator. The native `mme_glmm_residual.h` adapter reuses
+`mme_direct_residual.h` for covariance and derivative assembly. Gaussian block
+scores and full observation curvature feed the existing Laplace mode solver;
+the outer score includes residual, mode and determinant dependence.
+Residual parameters follow random covariance coordinates and precede family
+parameters. The descriptor replaces Gaussian family dispersion, avoiding
+duplicate scales. Dense Gaussian-subset workspace is memory-budgeted.
+Random-only vcc maps expand over a separate unconstrained residual tangent.
+All SE/PEV remain post-fit; covariance reporting, conditional/population
+simulation, bootstrap, comparisons and saved objects carry the same model.
+
+Correlated link-scale processes use the existing random-effect descriptors,
+not the Gaussian observation-residual adapter. `R/FUN_glmm_latent.R` applies
+their covariance and supplied relationship precision to bounded design panels.
+Scalar/ordinal population prediction uses marginal predictor variances;
+nominal prediction uses each observation's joint logit covariance. This
+supports structured processes and non-unit loadings without a dense
+observation covariance or a new estimator. Population SEs differentiate the
+integrated means in reduced outer coordinates, strictly post-fit. New
+independent groups require identity relationship precision; out-of-basis
+covariance/relationship coordinates fail explicitly. Nominal quadrature
+retains its four-category and rule-agreement bounds.
 
 - Represent the requested estimator, response-likelihood composition,
   conditional-mode backend, and requested output products separately.
@@ -369,7 +454,7 @@ Current central-difference scores include the complete marginal objective.
 
 ### Explicitly out of scope for this workstream
 
-PQL with ordinal/nominal outcomes; structured residual dependence; automatic
+PQL with ordinal/nominal outcomes; non-Gaussian residual dependence; automatic
 category collapsing; arbitrary shared-coefficient or category-specific offset
 syntax beyond the explicit design contract; new quadrature approximations;
 and any inference guarantee not supported by separate qualification.

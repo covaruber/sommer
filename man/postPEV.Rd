@@ -5,7 +5,7 @@
 Post-fit prediction error variances and inverse coefficient matrix
 }
 \description{
-Computes prediction error variances (PEVs) or the complete inverse of the mixed model coefficient matrix after a model has been fitted with \code{mmes}. For PEV-only calculations, the function uses the Takahashi sparse inverse subset approach, avoiding computation of the complete inverse of the coefficient matrix.
+Computes prediction error variances (PEVs) or joint fixed/random error covariance after a model has been fitted with \code{mmes}. PEV-only calculations avoid forming the complete coefficient covariance, using selected inversion for Henderson fits or bounded contrast panels for direct and native Laplace fits.
 }
 \usage{
 postPEV(object, mode = 1L)
@@ -13,17 +13,37 @@ postPEV(object, mode = 1L)
 
 \arguments{
   \item{object}{
-A fitted model object of class \code{"mmes"}. Gaussian fits must contain the final sparse mixed model coefficient matrix and its associated scaling factor. Native Laplace fits use the retained fixed/random designs and native conditional mode Hessian instead.
+A fitted model object of class \code{"mmes"}. Henderson fits require the final sparse coefficient matrix and its scaling factor. Direct fits require retained post-fit designs and covariance inputs. Native Laplace fits use retained fixed/random designs and either a conditional mode Hessian or observation-backend covariance metadata.
 }
   \item{mode}{
-Integer specifying the post-fit inverse calculation to perform. Use \code{0} to perform no inverse calculation and clear previously computed inverse-derived outputs, \code{1} to compute the prediction error variances without forming the complete inverse, or \code{2} to compute the complete inverse and prediction error variances. The default is \code{1}. Gaussian mode 1 uses a Takahashi sparse inverse subset; native Laplace mode 1 uses bounded sparse solve panels.
+Integer specifying the post-fit inverse calculation to perform. Use \code{0} to perform no inverse calculation and clear previously computed inverse-derived outputs, \code{1} to compute the prediction error variances without forming the complete inverse, or \code{2} to compute the complete inverse and prediction error variances. The default is \code{1}. Henderson mode 1 uses a Takahashi sparse inverse subset; direct and native Laplace mode 1 use bounded solve panels.
 }
 }
 
 \details{
 The function is intended for post-processing models fitted with \code{mmes}, allowing prediction error variances or the complete inverse to be calculated only when they are needed.
 
-For Gaussian fits, when \code{mode = 1}, the sparse mixed model coefficient matrix stored in the fitted object is factorized and the Takahashi equations obtain the selected elements of its inverse required for diagonal prediction error variances. For native Laplace fits, the joint fixed/random observed-information matrix is reconstructed from the fitted design and conditional mode Hessian, then its needed inverse diagonal is obtained with bounded sparse solve panels. The complete inverse is not formed.
+For Henderson fits, when \code{mode = 1}, the sparse mixed model coefficient matrix stored in the fitted object is factorized and the Takahashi equations obtain the selected elements of its inverse required for diagonal prediction error variances. Native Laplace fits obtain the needed joint-information inverse diagonal using bounded solve panels. Their global random backend factors the joint matrix; their observation or explicitly enabled random block backend reconstructs operation-local mode solves and a fixed-effect Schur complement. Observation space does not construct the random-effect Hessian. The complete inverse is not formed.
+
+For direct Gaussian and direct PQL fits, post-fit covariance is computed in
+observation space from \eqn{V=ZGZ'+R}. The joint error covariance has blocks
+\deqn{E_{\beta\beta}=(X'V^{-1}X)^{-1},\quad
+E_{\beta u}=-E_{\beta\beta}X'V^{-1}ZG,\quad
+E_{uu}=G-GZ'PZG,}
+where \eqn{P=V^{-1}-V^{-1}XE_{\beta\beta}X'V^{-1}}.
+Termwise prior products avoid constructing the full \eqn{G} or requiring its
+inverse, including singular reduced-rank random covariance.
+Mode 1 evaluates identity contrasts in panels controlled by
+\code{control$output$panelSize}, storing only the diagonal in \code{Ci}.
+Mode 2 returns the complete joint error covariance in \code{Ci}, including
+fixed/random and cross-term entries, with the public coefficient ordering.
+Neither mode constructs a Henderson coefficient matrix. Factors are local
+to the call, never serialized pointers in the fit. Workspace is checked
+against \code{control$execution$denseMemoryMB}; mode 2 requires quadratic
+coefficient storage and can be refused even when mode 1 fits the budget.
+PQL uses the final accepted working response covariance and weights; its PEVs
+are link-scale working-model approximations. Gaussian and PQL results
+condition on fitted covariance parameters.
 
 When \code{mode = 2}, the complete inverse is computed. For Laplace fits this is the joint fixed/random conditional observed-information inverse, with fitted covariance and family parameters treated as fixed. Its random-effect block supplies approximate PEVs; covariance-parameter uncertainty is not included. The calculation is guarded by \code{execution$denseMemoryMB}.
 
@@ -46,7 +66,7 @@ formed in mode 1.
 
 When \code{mode = 0}, no matrix factorization or inverse calculation is performed and previously stored inverse-derived results are cleared.
 
-\code{\link{predict.mmes}} does not require any particular \code{mode}: it computes exact standard errors for arbitrary linear combinations of fixed and random effects directly from the stored coefficient matrix \code{C}, without using \code{Ci} at all (see \code{\link{predict.mmes}} for details). \code{postPEV()} is only needed when the diagonal prediction error variances (\code{uPevList}) or the complete inverse (\code{Ci}) are wanted for their own sake.
+\code{\link{predict.mmes}} does not require any particular \code{mode}: it computes standard errors for arbitrary linear combinations of fixed and random effects without using \code{Ci}, from stored Henderson \code{C} or the direct observation-space covariance operator. \code{postPEV()} is only needed when diagonal PEVs (\code{uPevList}) or the complete coefficient covariance (\code{Ci}) are wanted for their own sake.
 
 For the sampling variance of the BLUP itself, use \code{\link{postVarU}}:
 \eqn{\operatorname{Var}(\hat u)=G-\operatorname{Var}(u-\hat u)}.
@@ -55,9 +75,14 @@ neither includes uncertainty from estimating covariance parameters.
 \code{postVarU()} leaves
 existing PEV outputs unchanged.
 
-For Gaussian fits, the final coefficient matrix must be retained with
-\code{control = mmes_control(output = list(coefficientMatrix = TRUE))}. Native
-Laplace fits retain their required designs and conditional Hessian; no
+For Henderson fits, the final coefficient matrix must be retained with
+\code{control = mmes_control(output = list(coefficientMatrix = TRUE))}.
+For direct fits, the same option retains sparse prepared designs,
+relationship precisions, residual mappings and final residual weights instead;
+no \code{C} is created. Older direct fits missing these inputs must be refitted.
+Native
+Laplace fits retain their required designs and conditional Hessian or
+observation-backend inputs; no
 coefficient matrix option is required. For either engine,
 \code{control$output$inverse = 0} defers PEV work until this function is called.
 }

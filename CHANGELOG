@@ -1172,6 +1172,91 @@ version 4.4.90 (2026-10-13)
    Mixed nominal outer scores centrally difference the native block Laplace
    objective; scalar/ordinal-only scores and Gaussian/PQL routes are unchanged.
 
+ + Fixed observation-space direct PQL fitting by retaining its sparse [X Z]
+   predictor design without invoking Henderson fitting. Added direct/Henderson
+   and independent GLM/working-model regression checks for families and links,
+   grouped trials, offsets, filtering, structured covariance, W/weights, vcc,
+   ML/REML, warm starts, NB shape estimation, summaries, Wald tests and PEV.
+   Direct PQL now requires both inner and outer convergence; failed certification
+   warns and remains visible in convergence, pqlConverged and pqlMonitor.
+   Direct-engine post-fit support is completed in the following entry.
+
+ + Enabled predict() and postPEV() for direct Gaussian and direct PQL fits.
+   Post-fit observation-space covariance includes fixed/random and cross-term
+   error covariance, structured and reduced-rank priors, working residual
+   weights and public rank-reduced coefficient maps, without Henderson fitting
+   or coefficient assembly. Diagonal PEV uses bounded panels; full covariance
+   and prediction workspace honor the existing memory budget. Gaussian VarU
+   and postVarU() use the same operator. Prepared sparse inputs are serializable;
+   native factors stay operation-local. PQL inference remains a conditional
+   link-scale working-model approximation, with VarU restricted to Gaussian fits.
+
+ + Enabled random covariance vcc equalities and ratios for all native Laplace
+   scalar, ordinal, nominal and mixed familym likelihood routes. A shared
+   reduced-coordinate adapter expands proposals and pulls back native scores;
+   likelihood kernels and Gaussian/PQL solver dispatch remain separate.
+   Laplace setup now exposes its random-only vcParams without fitting.
+   Parameter counts use independent coordinates. Post-fit covariance SE,
+   prediction uncertainty, PEV, serialization and bootstrap refits preserve
+   the same map; no fit-time Hessian or PEV is introduced. Family parameters
+   and residual scales are excluded. Nested fixed-effect comparisons require
+   identical covariance constraints. Malformed constraints, incompatible
+   bounded correlations and inconsistent fixed anchors fail explicitly.
+
+ + Enabled structured Gaussian observation-residual blocks for native Laplace
+   ML, including Gaussian traits alongside scalar, ordinal and nominal familym
+   responses. Gaussian subsets reuse the direct residual covariance assembler,
+   including sectioned structures, compatible W and independent-block metadata.
+   Residual descriptors own Gaussian scales and appear in setup and covariance
+   reporting; vcc remains random-only. Full observation curvature and analytic
+   residual scores feed the existing modular mode solver. All-Gaussian fits
+   recover exact Gaussian ML. SE, prediction uncertainty and PEV remain post-fit;
+   simulation, bootstrap, nested comparisons and residual diagnostics preserve
+   the fitted covariance. Dense Gaussian-subset and derivative workspaces obey
+   execution$denseMemoryMB. Discrete/Gaussian-discrete residual correlations and
+   direct Laplace fitting remain unsupported.
+
+ + Formalized correlated Gaussian latent processes for non-Gaussian families
+   using existing random covariance descriptors and relationship precision,
+   with temporal/spatial/shared-response recipes and explicit basis semantics.
+   Population prediction now uses actual predictor variances or joint nominal
+   logit covariance, supporting structured processes, slopes and nonidentity
+   relationships instead of independent-intercept restrictions. Bounded solve
+   panels avoid dense observation covariance. Nominal/mixed population SE and
+   covariance propagate all estimated outer parameters strictly post-fit.
+   Fixed a mixed nominal row/category ordering error in population integration
+   and preserved expanded prediction relationship metadata for scalar SEs.
+   New independent groups require identity precision; out-of-basis covariance
+   coordinates fail explicitly. Nominal integration retains the four-category,
+   memory and deterministic quadrature-accuracy gates.
+
+ + Added interchangeable C++ random-effect and observation-space Laplace
+   algebra, selected through task$glmm$backend (auto/random/observation).
+   The shared mode/gradient interface preserves the same likelihood,
+   determinant correction, covariance descriptors and full signed/block
+   curvature; it does not call the Gaussian AI optimizer. The observation
+   route uses sparse prior solves, bounded covariance panels and a dense
+   predictor-space root/factor instead of assembling the random Hessian.
+   Auto selection considers dimensions, structural coupling and memory,
+   with explicit diagnostics and no silent numerical fallback. All scalar,
+   ordinal, nominal and mixed paths, constraints, Gaussian residual blocks,
+   prediction, bootstrap and saved fits preserve their statistical targets.
+   SE/PEV remain strictly post-fit through operation-local mode/Schur solves.
+   Added dense-reference, finite-difference and public workflow regression
+   checks plus a reproducible one-thread benchmark script. Gaussian/PQL
+   formulation and solver controls remain distinct from Laplace backend choice.
+
+ + Added safeguarded native Laplace mode warm starts and analytic mixed
+   nominal marginal gradients, with explicit numerical reference scores.
+   Exact Takahashi gradient contractions and independent mode-Hessian block
+   solves are modular opt-in random-backend paths; missing inverse entries
+   use exact panels. ZIP mode reuse is disabled automatically; explicit
+   reuse cold-verifies and retains the historical root. Public controls,
+   diagnostics, post-fit inference, prediction, bootstrap and serialization
+   preserve the choices. Warm reuse and analytic scores are defaults;
+   panel traces/global factorization remain defaults pending workload-specific
+   benefit. Added independent-reference tests and whole-fit CPU benchmarks.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes

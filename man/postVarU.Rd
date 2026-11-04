@@ -3,7 +3,8 @@
 \title{Post-fit Sampling Covariance of BLUPs}
 \description{
 Computes the plug-in sampling variance or covariance of fitted random-effect
-predictors, \eqn{\hat u}, using Henderson's mixed-model coefficient system.
+predictors, \eqn{\hat u}, using Henderson's mixed-model coefficient system or
+the direct observation-space covariance operator.
 This is distinct from the prior variance of the random effects and their
 prediction error variance (PEV).
 }
@@ -12,8 +13,8 @@ postVarU(object, mode=1L)
 }
 \arguments{
 \item{object}{A Gaussian \code{mmes} Henderson fit with stored \code{C} and
-\code{Cscale}. Direct-engine, PQL and matrix-free \code{solveOnly} fits are
-not supported.}
+\code{Cscale}, or a direct fit with retained post-fit covariance inputs.
+PQL and matrix-free \code{solveOnly} fits are not supported.}
 \item{mode}{\code{1} (default) returns diagonal BLUP sampling variances in
 \code{uVarList}; \code{2} additionally returns the joint sampling covariance
 matrix \code{VarU}; \code{0} clears only VarU-derived outputs.}
@@ -32,7 +33,7 @@ For known covariance parameters this identity is exact. At estimated
 parameters the result is a plug-in covariance, omitting covariance-parameter
 estimation uncertainty. The same identity is used for ML and REML fits.
 
-The implementation does not construct or invert the observation covariance
+The Henderson implementation does not construct or invert the observation covariance
 \eqn{V=ZGZ'+R}. Error covariance is computed by solving the stored Henderson
 system and multiplying by \code{Cscale} to recover the original response
 scale. For each independent random term,
@@ -40,6 +41,12 @@ scale. For each independent random term,
 covariance-coordinate matrix and \eqn{A_k} the relationship covariance.
 Products with \eqn{A_k} are evaluated by solving its retained sparse
 precision, not by explicitly forming its inverse or the full joint \eqn{G}.
+Direct fits instead factor \eqn{V}, using the same fitted relationship
+covariance convention as the direct fitting engine, and evaluate prior and
+error covariance termwise without constructing full \eqn{G}. No Henderson
+matrix is assembled. Direct workspace is guarded by
+\code{execution$denseMemoryMB}; full mode requires quadratic random-effect
+storage.
 
 \code{mode=1} processes identity contrasts in batches of at most 128 rows,
 so neither a full coefficient inverse nor a full random-effect covariance

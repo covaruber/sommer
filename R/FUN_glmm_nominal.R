@@ -127,64 +127,30 @@ multinomial <- function(reference=NULL){
     stop("Nominal population prediction supports at most three non-reference logits.",
       call.=FALSE)
   }
-  variables <- setdiff(all.vars(object$randomFormula), ".nominalCategory")
-  if(any(!variables %in% names(object$randomFactorLevels))){
-    stop("Nominal population prediction requires factor-valued random intercepts; random slopes are unsupported.",
-      call.=FALSE)
+  covariance <- .laplace_latent_covariance(prediction$random,object$covStruct,
+    object$randomRelationships,object$randomBlockWidths,
+    matrix(seq_len(n*d),nrow=n),
+    object$laplacePostPEVSettings$denseMemoryMB)
+  eta <- matrix(as.numeric(prediction$fixed %*% object$b)+prediction$offset,
+    nrow=n,ncol=d)
+  result <- matrix(0,n,d+1L)
+  remaining <- seq_len(n)
+  while(length(remaining)){
+    observation <- remaining[1L]
+    same <- vapply(remaining,function(index)
+      identical(covariance[,,index],covariance[,,observation]),logical(1))
+    selected <- remaining[same]
+    result[selected,] <- .laplace_nominal_integrate(eta[selected,,drop=FALSE],
+      matrix(covariance[,,observation],d,d),object$nominal,
+      object$laplacePostPEVSettings$denseMemoryMB)
+    remaining <- remaining[!same]
   }
-  covariance <- matrix(0, d, d)
-  start <- 0L
-  for(term in seq_along(object$covStruct)){
-    relationship <- object$randomRelationships[[term]]
-    if(!Matrix::isDiagonal(relationship) ||
-       any(abs(Matrix::diag(relationship)-1) > 1e-10)){
-      stop("Nominal population prediction requires identity relationship precision.",
-        call.=FALSE)
-    }
-    structure <- object$covStruct[[term]]
-    width <- object$randomBlockWidths[term]
-    groupCount <- nrow(relationship)
-    coordinates <- structure$dim
-    if(width != coordinates*groupCount){
-      stop("Nominal population prediction supports shared or category-specific random intercepts only.",
-        call.=FALSE)
-    }
-    block <- prediction$random[, start+seq_len(width), drop=FALSE]
-    if(8 * (3 * as.double(coordinates)^2 + d * as.double(coordinates)) >
-       object$laplacePostPEVSettings$denseMemoryMB * 1048576){
-      stop("Nominal population coordinate covariance exceeds execution$denseMemoryMB.",
-        call.=FALSE)
-    }
-    loadings <- matrix(0,d,coordinates)
-    groupAssignments <- NULL
-    for(category in seq_len(d)){
-      rows <- (category-1L)*n+seq_len(n)
-      for(coordinate in seq_len(coordinates)){
-        columns <- (coordinate-1L)*groupCount+seq_len(groupCount)
-        component <- block[rows,columns,drop=FALSE]
-        entries <- Matrix::summary(component)
-        totals <- as.numeric(Matrix::rowSums(component))
-        if(any(entries$x != 1) || any(!totals %in% c(0,1)) ||
-           any(totals != totals[1L])){
-          stop("Nominal population prediction requires constant unit random-intercept loadings across prediction rows.",
-            call.=FALSE)
-        }
-        loadings[category,coordinate] <- totals[1L]
-        if(totals[1L] == 1){
-          assignments <- entries$j[order(entries$i)]
-          if(!is.null(groupAssignments) &&
-             !identical(assignments,groupAssignments)){
-            stop("Nominal population prediction requires the same independent group across category coordinates.",
-              call.=FALSE)
-          }
-          groupAssignments <- assignments
-        }
-      }
-    }
-    sigma <- evaluate_covstruct_cpp(structure,structure$par)
-    covariance <- covariance + loadings %*% sigma %*% t(loadings)
-    start <- start+width
-  }
+  dimnames(result) <- list(prediction$rowNames,object$nominal$levels)
+  result
+}
+
+.laplace_nominal_integrate <- function(eta, covariance, specification, memoryMB){
+  d <- ncol(eta)
   decomposition <- eigen(covariance,symmetric=TRUE)
   if(any(!is.finite(decomposition$values)) || any(decomposition$values < -1e-12)){
     stop("Nominal population logit covariance is invalid.",call.=FALSE)
@@ -192,16 +158,14 @@ multinomial <- function(reference=NULL){
   active <- which(decomposition$values > .Machine$double.eps *
     max(1,max(decomposition$values)))
   rank <- length(active)
-  bytes <- 8*(12*32^rank*max(1,rank) + 12*as.double(n)*(d+1))
+  bytes <- 8*(12*32^rank*max(1,rank) + 12*as.double(nrow(eta))*(d+1))
   if(!is.finite(bytes) ||
-     bytes > object$laplacePostPEVSettings$denseMemoryMB*1048576){
+     bytes > memoryMB*1048576){
     stop("Nominal population integration exceeds execution$denseMemoryMB.",
       call.=FALSE)
   }
-  eta <- matrix(as.numeric(prediction$fixed %*% object$b)+prediction$offset,
-    nrow=n,ncol=d)
   if(!length(active)){
-    result <- .laplace_nominal_probabilities(eta,object$nominal)
+    result <- .laplace_nominal_probabilities(eta,specification)
   }else{
     root <- decomposition$vectors[,active,drop=FALSE] %*%
       diag(sqrt(decomposition$values[active]),nrow=rank)
@@ -210,10 +174,10 @@ multinomial <- function(reference=NULL){
       grid <- as.matrix(expand.grid(rep(list(seq_len(order)),rank)))
       weights <- apply(grid,1L,function(index) prod(rule$weights[index]))
       shifts <- matrix(rule$nodes[grid],nrow=nrow(grid)) %*% t(root)
-      result <- matrix(0,n,d+1L)
+      result <- matrix(0,nrow(eta),d+1L)
       for(row in seq_len(nrow(grid))){
         probability <- .laplace_nominal_probabilities(
-          sweep(eta,2L,shifts[row,],"+"),object$nominal)
+          sweep(eta,2L,shifts[row,],"+"),specification)
         result <- result+weights[row]*probability
       }
       result
@@ -226,7 +190,6 @@ multinomial <- function(reference=NULL){
         call.=FALSE)
     }
   }
-  dimnames(result) <- list(prediction$rowNames,object$nominal$levels)
   result
 }
 
@@ -426,7 +389,9 @@ multinomial <- function(reference=NULL){
   on.exit(scope$restore(), add=TRUE)
   context <- sommer_multinomial_objective_create(prepared$nominal$response,
     prepared$fixedDesign, prepared$randomDesign, prepared$offset,
-    prepared$covStruct, prepared$relationships, control$execution$denseMemoryMB)
+    prepared$covStruct, prepared$relationships, control$execution$denseMemoryMB,
+    backend=control$task$glmm$backend,warmStart=control$task$glmm$warmStart,
+    trace=control$task$glmm$trace,blocks=control$task$glmm$blocks)
   list(context=context, initialParameters=prepared$initialParameters,
     evaluate=function(parameters, gradient=TRUE){
       gradient <- .mme_flag(gradient, "gradient")
@@ -437,8 +402,24 @@ multinomial <- function(reference=NULL){
       }
       scope <- .mmes_blas_scope(control$execution$blasThreads)
       on.exit(scope$restore(), add=TRUE)
-      result <- sommer_multinomial_objective_eval(context, parameters,
-        control$task$glmm$modeMaxit, control$task$glmm$modeTol, gradient)
+      result <- .laplace_constrained_evaluate(parameters,
+        prepared$parameterLayout, function(expanded)
+          sommer_multinomial_objective_eval(context, expanded,
+            control$task$glmm$modeMaxit, control$task$glmm$modeTol,
+            gradient && control$task$glmm$gradient=="analytic"))
+      if(gradient && control$task$glmm$gradient=="numeric" && isTRUE(result$valid)){
+        score <- .laplace_numeric_gradient(parameters,function(proposal)
+          .laplace_constrained_evaluate(proposal,prepared$parameterLayout,
+            function(expanded) sommer_multinomial_objective_eval(context,expanded,
+              control$task$glmm$modeMaxit,control$task$glmm$modeTol,FALSE))$logLik)
+        result <- .laplace_constrained_evaluate(parameters,prepared$parameterLayout,
+          function(expanded) sommer_multinomial_objective_eval(context,expanded,
+            control$task$glmm$modeMaxit,control$task$glmm$modeTol,FALSE))
+        if(!isTRUE(result$valid))
+          stop("Numerical nominal score could not restore its accepted mode: ",
+            result$reason,".",call.=FALSE)
+        result$gradient <- score
+      }
       if(!is.null(result$gradient)){
         result$gradient <- stats::setNames(as.numeric(result$gradient),
           names(prepared$initialParameters))
@@ -482,7 +463,8 @@ multinomial <- function(reference=NULL){
 
 .mmes_laplace_nominal <- function(fixed, random, rcov, data, family, W, weights, vcc,
       REML, maxit, modeMaxit, modeTol, naMethodY, henderson, solveOnly,
-      computeCi, mmesArgs){
+      computeCi, mmesArgs, setup=FALSE,backend="auto",warmStart="off",
+      gradientMethod="analytic",trace="panels",blocks="off"){
     if(isTRUE(REML)){
       stop("Native multinomial Laplace fits use maximum likelihood; set task$objective='ml'.",
         call.=FALSE)
@@ -491,8 +473,8 @@ multinomial <- function(reference=NULL){
       stop("Native multinomial fitting requires Henderson fit mode and defers uncertainty; set output$inverse=0.",
         call.=FALSE)
     }
-    if(!is.null(W) || !is.null(weights) || !is.null(vcc)){
-      stop("Native multinomial fitting does not support W, weights formulas or vcc.",
+    if(!is.null(W) || !is.null(weights)){
+      stop("Native multinomial fitting does not support W or weights formulas.",
         call.=FALSE)
     }
     if(!is.null(mmesArgs$naMethodR) &&
@@ -534,7 +516,8 @@ multinomial <- function(reference=NULL){
     }
     control <- mmes_control(task=list(objective="ml",
         glmm=list(method="laplace", maxit=maxit,
-          modeMaxit=modeMaxit, modeTol=modeTol)),
+          modeMaxit=modeMaxit, modeTol=modeTol,backend=backend,warmStart=warmStart,
+          gradient=gradientMethod,trace=trace,blocks=blocks)),
       execution=list(denseMemoryMB=mmesArgs$engine$denseMemoryMB,
         blasThreads=mmesArgs$blasThreads),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))
@@ -543,6 +526,23 @@ multinomial <- function(reference=NULL){
       control=control, naMethodY=naMethodY,
       naMethodX=mmesArgs$naMethodX, naMethodRandom=mmesArgs$naMethodRandom,
       contrasts=mmesArgs$contrasts)
+    mapping <- .laplace_covariance_map(prepared$covStruct,
+      prepared$nominal$random$terms, vcc)
+    prepared$covStruct <- mapping$structures
+    freePositions <- lapply(prepared$covStruct, function(structure) which(structure$free))
+    parameterStarts <- c(0L, head(cumsum(lengths(freePositions)), -1L))
+    fixedCount <- ncol(prepared$fixedDesign)
+    covarianceCount <- ncol(mapping$map$T)
+    prepared$parameterLayout <- list(fixedCount=fixedCount,
+      covarianceCount=covarianceCount, freePositions=freePositions,
+      parameterStarts=parameterStarts, freeFamilies=integer(),
+      covarianceMap=mapping$map)
+    prepared$initialParameters <- c(prepared$initialParameters[seq_len(fixedCount)],
+      mapping$map$initial)
+    if(setup){
+      prepared$vcParams <- mapping$table
+      return(prepared)
+    }
     objective <- .laplace_nominal_objective(prepared)
     initial <- objective$initialParameters
     initialEvaluation <- objective$evaluate(initial, gradient=FALSE)
@@ -587,18 +587,8 @@ multinomial <- function(reference=NULL){
     }
     fixedCount <- ncol(prepared$fixedDesign)
     covarianceCount <- length(initial) - fixedCount
-    fittedStructures <- prepared$covStruct
-    freePositions <- lapply(fittedStructures, function(structure)
-      which(structure$free))
-    parameterStarts <- c(0L, head(cumsum(vapply(freePositions, length,
-      integer(1))), -1L))
-    for(term in seq_along(fittedStructures)){
-      positions <- freePositions[[term]]
-      if(length(positions)){
-        fittedStructures[[term]]$par[positions] <-
-          optimization$par[fixedCount + parameterStarts[term] + seq_along(positions)]
-      }
-    }
+    fittedStructures <- .laplace_proposal_structures(prepared$covStruct,
+      optimization$par, prepared$parameterLayout)
     fixedEffects <- stats::setNames(optimization$par[seq_len(fixedCount)],
       colnames(prepared$fixedDesign))
     names(fixedEffects) <- colnames(prepared$fixedDesign)
@@ -678,9 +668,8 @@ multinomial <- function(reference=NULL){
       covStruct=fittedStructures, randomRelationships=prepared$relationships,
       covPar=covarianceParameters, u=matrix(as.numeric(final$mode),ncol=1L),
       contrasts=prepared$nominal$fixed$contrasts, optimizer=optimization,
-      laplaceParameterLayout=list(fixedCount=fixedCount,
-        covarianceCount=covarianceCount, freePositions=freePositions,
-        parameterStarts=parameterStarts, freeFamilies=integer()),
+      laplaceParameterLayout=prepared$parameterLayout,
+      vcParams=mapping$table, vcc=vcc,
       obsInfo=prepared$obsInfo, nominal=prepared$nominal,
       nominalPreparation=prepared,
       laplaceDiagnostics=list(outerConverged=converged, modeConverged=TRUE,
@@ -697,7 +686,7 @@ multinomial <- function(reference=NULL){
       laplacePostPEVSettings=list(inverse=0L, panelSize=as.integer(
         mmesArgs$engine$experimental$panelCi2),
         denseMemoryMB=mmesArgs$engine$denseMemoryMB, modeMaxit=modeMaxit,
-        modeTol=modeTol))
+        modeTol=modeTol,warmStart=warmStart,gradient=gradientMethod,trace=trace,blocks=blocks))
     result$laplaceDiagnostics$boundaryParameters <- unique(boundaries)
     result$laplaceDiagnostics <- c(result$laplaceDiagnostics,
       .laplace_nominal_diagnostics(optimization, final$gradient, unique(boundaries),
@@ -710,6 +699,7 @@ multinomial <- function(reference=NULL){
     class(result) <- c("mmes.glmm.laplace", "mmes.glmm", "mmes")
     result$Ci <- result$VarU <- result$uPevList <- NULL
     result$uPevMode <- 0L
+    result$nominalPreparation$control$task$glmm$backend <- final$work$backend$selected
     if(result$laplaceDiagnostics$extremeProbabilities){
       warning("Native multinomial fitted probabilities are numerically 0 or 1; check separation and identifiability.",
         call.=FALSE)

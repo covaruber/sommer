@@ -18,7 +18,8 @@ mmes_control(formulation = "henderson", task = list(),
 \arguments{
 \item{formulation}{Equation domain: \code{"henderson"} (default) or
 \code{"direct"}. Henderson forms coefficient-space mixed-model equations;
-direct uses observation-space inversion.}
+direct uses observation-space inversion. PQL supports either formulation for
+its weighted Gaussian working fits; native Laplace requires Henderson.}
 \item{task}{Named list with \code{mode}, \code{objective}, \code{glmm}, and
 \code{pql}.
 Defaults: \code{mode="fit"}, \code{objective="reml"}, and
@@ -26,12 +27,47 @@ Defaults: \code{mode="fit"}, \code{objective="reml"}, and
 \code{mode} is \code{"fit"} or \code{"solve"}; \code{objective} is
 \code{"reml"} or \code{"ml"}. The nested \code{glmm} list defaults to
 \code{list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8,
-familyParameters=list())}.
+familyParameters=list(), backend="auto", warmStart="auto",
+gradient="analytic", trace="panels", blocks="off")}.
 Select \code{method="laplace"} for the native Laplace backend, which requires
 \code{objective="ml"}. \code{maxit} controls outer likelihood optimization;
 \code{modeMaxit} and \code{modeTol} control the native random-effect mode
 solver. The native module uses sommer-prepared covariance precision matrices
 and does not call another mixed-model package.
+\code{backend} selects interchangeable Laplace linear algebra:
+\code{"random"} factors the sparse random-effect Hessian;
+\code{"observation"} uses a dense predictor-space system and sparse prior
+precision solves, without constructing that Hessian. \code{"auto"} selects
+observation space only when there are at least twice as many random
+coefficients as predictor rows, estimated random coupling is dense, and
+workspace fits \code{execution$denseMemoryMB}; otherwise it selects random
+space. This is a conservative structural heuristic, not a timing guarantee.
+Nominal rows count non-reference logits, not just records.
+Both backends evaluate the same Laplace approximation and support signed
+or block observation curvature. Selection and work are reported under
+\code{executionPlan$glmm$backend}. Explicit requests never silently fall back.
+This Laplace-only choice is independent of the Gaussian/PQL
+\code{formulation} and \code{solve$backend} controls.
+\code{warmStart="auto"} reuses successful modes for concave conditional
+likelihoods, retaining the same mode tolerances and line search. Failed warm
+solves retry the zero start. ZIP is nonconcave: auto disables mode reuse;
+explicit \code{"on"} also solves from zero and returns that authoritative
+cold result. \code{"off"} restores zero starts for every changed proposal.
+\code{gradient="analytic"} supplies native marginal first derivatives,
+including mixed nominal mode and determinant dependence; \code{"numeric"}
+selects central differences as a reference alternative.
+\code{trace="panels"} remains the default. \code{"selected"} uses exact
+Takahashi inverse-subset contractions from the mode factor; unavailable
+entries use exact bounded solves, never zero substitution. It requires
+the random backend. \code{blocks="on"} factors exact connected components
+of the random mode Hessian, rebuilding membership when coupling changes;
+\code{"off"} remains the default. Both optional paths honor workspace
+admission, and measured overhead can outweigh savings.
+Acceleration controls do not select the Gaussian AI optimizer or compute
+public uncertainty. Work counters appear under
+\code{laplaceDiagnostics$nativeWork}; settings survive prediction,
+post-fit inference, bootstrap and serialization. Non-default acceleration
+settings are rejected for PQL.
 \code{familyParameters} is Laplace-only. For a single NB2 family it accepts
 \code{list(theta=2, estimate=TRUE)}; for Gaussian/Gamma it accepts
 \code{list(dispersion=1, estimate=TRUE)}. Estimation is the default, and
@@ -45,7 +81,11 @@ output and resource controls are rejected on this route rather than silently
 ignored. The fit-task/objective, formulation, GLMM controls, derivative-panel
 memory budget \code{execution$denseMemoryMB}, BLAS thread
 selection, and verbose/date-warning settings retain their documented roles;
-native Laplace still requires fit mode, ML and Henderson formulation.
+native Laplace still requires fit mode, ML and
+\code{formulation="henderson"} at the public preparation interface, including
+when \code{task$glmm$backend="observation"}. All SE/PEV remain post-fit;
+observation-space fits retain inputs instead of a random-effect Hessian,
+and rebuild operation-local factors when uncertainty is requested.
 The nested \code{pql} list accepts only
 \code{maxit}, \code{tol}, \code{estimateTheta}, and \code{warmStart}, with
 the defaults shown. These fields own task selection and outer PQL iteration,
@@ -87,12 +127,12 @@ coordinates to avoid allocating a dense covariance over all original columns.
 Supported workflows are Gaussian identity-link fits, with normal or
 saddle-point Henderson equations or direct inversion, without PQL, solve mode,
 conditional FA, factor scores, observation rotation, or compression.
-Henderson predictions accept only contrasts estimable under the original
+Henderson and direct predictions accept only contrasts estimable under the original
 fixed model; non-estimable rows produce an explicit error. Wald term tests,
 likelihood-ratio comparisons,
 Satterthwaite/Kenward-Roger inference, and \code{emmeans} currently require
-an explicitly full-rank refit. Existing direct-engine prediction/VarU
-limitations remain unchanged. REML likelihoods from different choices of
+an explicitly full-rank refit. Direct post-fit covariance is mapped back to
+the public zero-constrained coefficient layout. REML likelihoods from different choices of
 fixed-effect basis can differ by an additive constant; compare covariance
 estimates and fitted values, not raw REML likelihoods across different bases.
 For rank-reduced fits, character classify predictions stop before allocating
@@ -201,7 +241,14 @@ stochastic accuracy requests.}
 inverse or fit-time PEV computation),
 1 (random-effect PEVs without a full inverse), or 2 (full inverse and
 random-effect PEVs). Gaussian modes 1 and 2 compute PEVs during fitting; mode 1
-does not form the complete coefficient-matrix inverse. Native Laplace fits
+does not form the complete coefficient-matrix inverse. For direct fits,
+fit-time modes 0 and 2 are supported; post-fit \code{postPEV(mode=1)} computes
+diagonal error covariance in panels controlled by \code{panelSize}, and
+\code{postPEV(mode=2)} computes complete joint coefficient error covariance.
+\code{coefficientMatrix=TRUE} retains sparse prepared covariance inputs rather
+than Henderson equations; \code{FALSE} omits these inputs and disables direct
+post-fit uncertainty. All direct post-fit covariance workspace is checked
+against \code{execution$denseMemoryMB}. Native Laplace fits
 require \code{inverse=0}; PEV work is post-fit only. Gaussian fits use the
 selected sparse inverse. With mode 0, use
 \code{\link{postPEV}} after fitting to compute PEVs or the full inverse,
@@ -215,7 +262,15 @@ requests use the same dense-memory budget;
 \code{covariance} is \code{"full"} or \code{"none"}; \code{selectedInverse}
 accepts experimental mode values. This module owns coefficient uncertainty,
 covariance-parameter uncertainty, retained coefficient-matrix output, and
-setup output.}
+setup output. Native Laplace also accepts \code{setup=TRUE}, returning prepared
+inputs and a \code{vcParams} table without likelihood optimization. It includes
+actual Gaussian observation-residual parameters when requested, not the
+synthetic preparation residual scale.
+Its random covariance \code{vcc} constraints use independent working coordinates;
+SE and PEV propagation remains post-fit. Structured Gaussian observation blocks,
+including compatible \code{W} and \code{weights} metadata, use the same
+\code{task$glmm} controls and dense-memory budget; Gaussian dispersion belongs
+to \code{rcov}, not \code{familyParameters}, on this route.}
 \item{execution}{Named list with \code{denseMemoryMB=1000},
 \code{memoryPolicy="speed"}, \code{gpu=FALSE}, \code{gpuMinSize=256L},
 \code{blasThreads=NULL}, \code{inverseTol=1e-6}, and \code{seed=0L} by
@@ -261,7 +316,7 @@ positive \code{solve$recycleRank}. \code{logdet$scaling} and Lanczos depth
 apply to stochastic determinant evaluation. \code{score$rank} is used by the
 control-variate estimator. Adaptive trace and Lanczos budgets apply to
 stochastic PCG accuracy. \code{output$panelSize} applies to full inverse
-panels and conditional FA posterior-moment/projection panels, not ordinary selected-inverse
+panels, direct post-fit diagonal covariance panels and conditional FA posterior-moment/projection panels, not ordinary selected-inverse
 mode.
 
 Experimental mode fields accept \code{"auto"}, \code{"off"}, or

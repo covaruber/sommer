@@ -141,7 +141,8 @@
 
 .mmes_prediction_memory <- function(object, predictionRows, fixedOnly, VarU,
                                     sed, pairwise, maxMemoryMB){
-  engineColumns <- nrow(object$C)
+  engineColumns <- if(identical(object$engine, "direct"))
+    nrow(object$directInference$X) + ncol(object$directInference$X) else nrow(object$C)
   covarianceCopies <- if(fixedOnly || !VarU) 3 else 10
   workspaceMB <- 8e-6 * (3 * engineColumns * predictionRows +
     (covarianceCopies + if(sed || !isFALSE(pairwise)) 4 else 0) * predictionRows^2)
@@ -378,6 +379,7 @@
         object$randomFactorLevels[[variable]])
       if(length(unseenLevels)){
         if(population){
+          .laplace_population_new_levels(object,variable)
           values <- as.character(predictionData[[variable]])
           values[values %in% unseenLevels] <- object$randomFactorLevels[[variable]][1L]
           predictionData[[variable]] <- values
@@ -445,6 +447,8 @@
                            PEV=TRUE, VarU=TRUE, observed=FALSE,
                            maxMemoryMB=NULL, ...){
   if(inherits(object, "mmes.glmm.laplace")){
+    scope <- .mmes_blas_scope(object$control$execution$blasThreads)
+    on.exit(scope$restore(),add=TRUE)
     if(.laplace_is_categorical_mixed(object)){
       if(!missing(Dtable) || !missing(D) || !missing(levels) ||
          !missing(sed) || !missing(pairwise) || !missing(adjust) ||
@@ -502,17 +506,16 @@
           call.=FALSE)
       }
       if(populationMarginal){
-        if(seFit || covFit){
-          stop("Native multinomial population-marginal standard errors are not yet supported.",
-            call.=FALSE)
-        }
         if(responseScale == "link"){
           stop("Native multinomial population prediction returns category probabilities, not averaged logits.",
             call.=FALSE)
         }
         prediction <- .laplace_nominal_prediction_design(object,
           predictionArgs$newdata, population=TRUE)
-        return(.laplace_nominal_population_prediction(object, prediction))
+        value <- .laplace_nominal_population_prediction(object,prediction)
+        if(!seFit) return(value)
+        return(.laplace_population_delta(object,value,function(local)
+          .laplace_nominal_population_prediction(local,prediction),covFit))
       }
       prediction <- .laplace_nominal_prediction_design(object,
         predictionArgs$newdata, includeRandom=is.null(randomForm))
@@ -675,7 +678,7 @@
         populationPredictionDesign <- object$randomDesign
         populationVariance <- .laplace_population_variance(
           object$randomDesign, object$covStruct, object$randomRelationships,
-          object$randomBlockWidths)
+          object$randomBlockWidths,object$laplacePostPEVSettings$denseMemoryMB)
       }
     }else{
       fixedTerms <- object$fixedTerms
@@ -709,6 +712,8 @@
               ". Use re.form=NA for a zero-random-effect mean or re.form='population' where the covariance structure supports integration.",
               call.=FALSE)
           }
+          if(populationMarginal && length(unseenLevels))
+            .laplace_population_new_levels(object,variable)
           predictionLevels <- if(populationMarginal)
             union(knownLevels, observedLevels) else knownLevels
           predictionData[[variable]] <- factor(predictionData[[variable]],
@@ -834,7 +839,7 @@
           populationWidths <- predictionWidths
           populationVariance <- .laplace_population_variance(populationDesign,
             object$covStruct, preparedPrediction$Ai[seq_along(predictionWidths)],
-            predictionWidths)
+            predictionWidths,object$laplacePostPEVSettings$denseMemoryMB)
         }
       }
       if(!includeRandom && !populationMarginal){
@@ -907,7 +912,8 @@
     if(populationMarginal){
       uncertainty <- .mmes_laplace_population_uncertainty(object,
         fixedPredictionDesign, predictionOffset, populationPredictionDesign,
-        familyIndex, covariance=covFit)
+        familyIndex, covariance=covFit,relationships=populationRelationships,
+        blockWidths=populationWidths)
     }else{
       jointDesign <- Matrix::cbind2(fixedPredictionDesign,
         randomPredictionDesign)
@@ -926,6 +932,7 @@
     return(c(list(fit=predicted), uncertainty))
   }
   .mmes_require_coefficient_matrix(object)
+  if(identical(object$engine, "direct")) .mmes_require_direct_inference(object)
   if(length(PEV) != 1L || is.na(PEV) || !is.logical(PEV)){
     stop("PEV must be TRUE or FALSE.", call.=FALSE)
   }
@@ -955,10 +962,8 @@
     stop("VarU is currently available only for Gaussian mmes fits.", call.=FALSE)
   }
   if(is.character(D)){classify <- D}else{classify="id"} # save a copy before D is overwriten
-  # Prediction variances are obtained by solving C %*% X = t(D) for the
-  # handful of rows in D (see predict_mmes_vcov_cpp), so the complete or
-  # selected-inverse Ci is not required; only the stored C/Cscale are used.
-  if(is.null(object$C) || nrow(object$C) == 0){
+  # Both engines compute contrast covariance without requiring a stored Ci.
+  if(!identical(object$engine, "direct") && (is.null(object$C) || nrow(object$C) == 0)){
     stop("The predict function requires the mixed-model coefficient matrix C to be available in the object.", call.=FALSE)
   }
   if(length(levels) && !is.character(D)){
@@ -1380,17 +1385,26 @@
     resolvedLevels <- Filter(Negate(is.null), termLevels)
   }else{ }# user has provided D as a matrix to do direct multiplication
   ## calculate predictions and standard errors
+  if(identical(object$engine, "direct")){
+    if(length(dim(D)) != 2L || ncol(D) != nrow(object$bu)){
+      stop("Prediction contrasts must have one column per fitted coefficient.", call.=FALSE)
+    }
+    sparseD <- to_sparse(as(D, "dMatrix"))
+    if(any(!is.finite(sparseD@x))){
+      stop("Prediction contrasts must be finite.", call.=FALSE)
+    }
+  }
   .mmes_check_estimable_fixed(object, D)
   nFixed <- nrow(object$b)
   fixedOnly <- nFixed == ncol(D) ||
     !any(D[, seq.int(nFixed + 1L, ncol(D)), drop=FALSE] != 0)
-  if(!is.null(object$fixedRank)){
+  if(!is.null(object$fixedRank) || identical(object$engine, "direct")){
     .mmes_prediction_memory(object, nrow(D), fixedOnly, VarU, sed, pairwise,
                             maxMemoryMB)
   }
   bu <- object$bu
   predicted.value <- D %*% bu
-  solveVcov <- .mmes_vcov_solver(object)
+  solveVcov <- .mmes_vcov_solver(object, maxMemoryMB)
   vcov <- solveVcov(D)
   pev <- if(PEV) vcov else NULL
   varU <- NULL
@@ -1403,7 +1417,8 @@
     }else{
       randomD <- D
       if(nFixed) randomD[, seq_len(nFixed)] <- 0
-      prior <- .mmes_prior_vcov(object, randomD)
+      prior <- if(identical(object$engine, "direct")) solveVcov(randomD, prior=TRUE) else
+        .mmes_prior_vcov(object, randomD)
       randomError <- solveVcov(randomD)
       varU <- prior - randomError
       varU <- (varU + t(varU))/2

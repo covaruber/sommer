@@ -24,6 +24,7 @@
 // ====================================================================
 
 #include "mme_direct_covariance.h"
+#include "mme_direct_residual.h"
 
 // [[Rcpp::export]]
 arma::mat evaluate_covstruct_cpp(const Rcpp::List & covStruct, const arma::vec & par){
@@ -244,159 +245,10 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   // ai_mme_sp2, but here it directly assembles record-space R).
   // ------------------------------------------------------------
   const bool residualCompact = directResidualCompact(covDescriptor[residualStruct]);
-  const int residualDim = Rcpp::as<int>(covDescriptor[residualStruct]["dim"]);
-  if(residualDim < 1){
-    Rcpp::stop("Residual covariance dimension must be positive.");
-  }
-  int nBlocksR = 0;
-  for(int rr = 0; rr < nR; ++rr){
-    if(residualBlockI(rr) < 1 || residualIndexI(rr) < 1 || static_cast<int>(residualIndexI(rr)) > residualDim){
-      Rcpp::stop("Residual block/local indices are out of range.");
-    }
-    nBlocksR = std::max(nBlocksR, static_cast<int>(residualBlockI(rr)));
-  }
-  std::vector<std::vector<std::pair<int,int>>> blockRows(nBlocksR);
-  for(int rr = 0; rr < nR; ++rr){
-    blockRows[residualBlockI(rr)-1].push_back({rr, static_cast<int>(residualIndexI(rr))-1});
-  }
-
-  arma::mat HsInv;
-  if(useH){
-    arma::mat Hd = arma::mat(H);
-    arma::mat Hs = arma::chol(Hd, "upper");
-    HsInv = arma::inv(arma::trimatu(Hs));
-  }
-
-  auto buildR = [&](const arma::mat & thetaR) -> arma::mat {
-    arma::mat R0(nR, nR, arma::fill::zeros);
-    for(int b = 0; b < nBlocksR; ++b){
-      const std::vector<std::pair<int,int>> & rows = blockRows[b];
-      for(std::size_t p1 = 0; p1 < rows.size(); ++p1){
-        for(std::size_t p2 = 0; p2 < rows.size(); ++p2){
-          R0(rows[p1].first, rows[p2].first) = thetaR(rows[p1].second, rows[p2].second);
-        }
-      }
-    }
-    if(useH){ return HsInv.t() * R0 * HsInv; }
-    return R0;
-  };
-
-  Rcpp::List residualFactors = covDescriptor[residualStruct]["factors"];
-  const int nResidualFactors = residualFactors.size();
-  std::vector<std::vector<arma::uword>> residualDigit(
-    static_cast<std::size_t>(nResidualFactors),
-    std::vector<arma::uword>(static_cast<std::size_t>(residualDim)));
-  std::vector<int> residualOwner(static_cast<std::size_t>(nResidualFactors), -1);
-  {
-    arma::uword trailing = static_cast<arma::uword>(residualDim);
-    for(int f = 0; f < nResidualFactors; ++f){
-      Rcpp::List fl = Rcpp::as<Rcpp::List>(residualFactors[f]);
-      const arma::uword dim = static_cast<arma::uword>(Rcpp::as<int>(fl["dim"]));
-      trailing /= dim;
-      for(int local = 0; local < residualDim; ++local){
-        residualDigit[static_cast<std::size_t>(f)][static_cast<std::size_t>(local)] =
-          (static_cast<arma::uword>(local) / trailing) % dim;
-      }
-      if(fl.containsElementNamed("section_factor")){
-        residualOwner[static_cast<std::size_t>(f)] = Rcpp::as<int>(fl["section_factor"]) - 1;
-      }
-    }
-  }
-
-  // Record-space R (derivativeK < 0) or dR/dpar_k from the small factor matrices.
-  auto buildRCompact = [&](const arma::vec & par, const int derivativeK) -> arma::mat {
-    std::vector<std::vector<arma::mat>> pieces(static_cast<std::size_t>(nResidualFactors));
-    int derivativeFactor = -1;
-    int derivativeSection = -1;
-    const int k1 = derivativeK + 1;
-    for(int f = 0; f < nResidualFactors; ++f){
-      Rcpp::List fl = Rcpp::as<Rcpp::List>(residualFactors[f]);
-      const int start1 = fl.containsElementNamed("par_start") ? Rcpp::as<int>(fl["par_start"]) : 1;
-      const int end1 = fl.containsElementNamed("par_end") ? Rcpp::as<int>(fl["par_end"]) : 0;
-      arma::vec localPar;
-      if(end1 >= start1){
-        localPar = par.subvec(static_cast<arma::uword>(start1-1), static_cast<arma::uword>(end1-1));
-      }
-      const bool mine = derivativeK > 0 && end1 >= start1 && k1 >= start1 && k1 <= end1;
-      const int nSections = fl.containsElementNamed("section_levels") ? Rf_length(fl["section_levels"]) : 0;
-      std::vector<arma::mat> & slot = pieces[static_cast<std::size_t>(f)];
-      if(nSections == 0){
-        slot.assign(1, mine
-          ? directFactorD1(fl, localPar, static_cast<arma::uword>(k1-start1))
-          : directEvalFactor(fl, localPar));
-        if(mine){ derivativeFactor = f; }
-        continue;
-      }
-      const int npar = Rcpp::as<int>(fl["section_npar"]);
-      const int q = Rcpp::as<int>(fl["dim"]);
-      slot.resize(static_cast<std::size_t>(nSections));
-      for(int t = 0; t < nSections; ++t){
-        const int listed = directSectionListed(fl, t);
-        if(listed < 0){
-          slot[static_cast<std::size_t>(t)] = arma::eye<arma::mat>(q, q);
-          continue;
-        }
-        const arma::vec slice = directSectionSlice(fl, localPar, listed);
-        if(mine && (k1 - start1) / npar == listed){
-          slot[static_cast<std::size_t>(t)] =
-            directFactorD1(fl, slice, static_cast<arma::uword>((k1 - start1) % npar));
-          derivativeFactor = f;
-          derivativeSection = t;
-        }else{
-          slot[static_cast<std::size_t>(t)] = directEvalFactor(fl, slice);
-        }
-      }
-    }
-    if(derivativeK > 0 && derivativeFactor < 0){
-      Rcpp::stop("Residual covariance derivative parameter does not belong to any factor.");
-    }
-
-    const double scale = std::exp(par(0));
-    arma::mat R0(nR, nR, arma::fill::zeros);
-    for(int b = 0; b < nBlocksR; ++b){
-      const std::vector<std::pair<int,int>> & rows = blockRows[b];
-      if(rows.empty()){ continue; }
-      const std::size_t first = static_cast<std::size_t>(rows[0].second);
-      std::vector<const arma::mat *> blockPiece(static_cast<std::size_t>(nResidualFactors));
-      bool zeroBlock = false;
-      for(int f = 0; f < nResidualFactors; ++f){
-        const std::size_t ff = static_cast<std::size_t>(f);
-        std::size_t section = 0;
-        if(pieces[ff].size() > 1 || residualOwner[ff] >= 0){
-          section = residualDigit[static_cast<std::size_t>(residualOwner[ff])][first];
-          if(f == derivativeFactor && derivativeSection >= 0 &&
-             static_cast<int>(section) != derivativeSection){
-            zeroBlock = true;
-          }
-        }
-        blockPiece[ff] = &pieces[ff][section];
-      }
-      if(zeroBlock){ continue; }
-      for(std::size_t p1 = 0; p1 < rows.size(); ++p1){
-        const std::size_t l1 = static_cast<std::size_t>(rows[p1].second);
-        for(std::size_t p2 = 0; p2 < rows.size(); ++p2){
-          const std::size_t l2 = static_cast<std::size_t>(rows[p2].second);
-          double value = scale;
-          for(int f = 0; f < nResidualFactors && value != 0.0; ++f){
-            const std::size_t ff = static_cast<std::size_t>(f);
-            value *= (*blockPiece[ff])(residualDigit[ff][l1], residualDigit[ff][l2]);
-          }
-          R0(rows[p1].first, rows[p2].first) = value;
-        }
-      }
-    }
-    if(useH){ return arma::mat(HsInv.t() * R0 * HsInv); }
-    return R0;
-  };
-
+  const DirectResidualCovariance residualCovariance(covDescriptor[residualStruct],
+    residualBlockI, residualIndexI, H, useH);
   auto buildResidual = [&](const arma::vec & par, const int derivativeK) -> arma::mat {
-    if(residualCompact){
-      return buildRCompact(par, derivativeK);
-    }
-    return derivativeK < 0
-      ? buildR(directEvaluateDescriptor(covDescriptor[residualStruct], par))
-      : buildR(directDescriptorD1(covDescriptor[residualStruct], par,
-                                  static_cast<arma::uword>(derivativeK)));
+    return residualCovariance.evaluate(par, derivativeK);
   };
 
   // ------------------------------------------------------------
@@ -870,8 +722,11 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   arma::mat Vi;
   bool okV = arma::inv_sympd(Vi, V);
   arma::mat Djit = arma::eye<arma::mat>(nR, nR);
+  double observationJitter = 0.0;
   for(int jit = 0; !okV && jit < 4; ++jit){
-    V = V + Djit * (tolParInv * std::pow(10.0, jit));
+    const double added = tolParInv * std::pow(10.0, jit);
+    observationJitter += added;
+    V = V + Djit * added;
     okV = arma::inv_sympd(Vi, V);
   }
   if(!okV){ Rcpp::stop("Final V is numerically singular."); }
@@ -881,8 +736,11 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   arma::mat Qinv;
   bool okQ = arma::inv_sympd(Qinv, Q);
   arma::mat Dxj = arma::eye<arma::mat>(nX, nX);
+  double fixedInformationJitter = 0.0;
   for(int jit = 0; !okQ && jit < 4; ++jit){
-    Q = Q + Dxj * (tolParInv * std::pow(10.0, jit));
+    const double added = tolParInv * std::pow(10.0, jit);
+    fixedInformationJitter += added;
+    Q = Q + Dxj * added;
     okQ = arma::inv_sympd(Qinv, Q);
   }
   if(!okQ){ Rcpp::stop("Final X'V^{-1}X is numerically singular."); }
@@ -1076,6 +934,8 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
           arma::all(weightEmInf == 0.0) ? "ai" :
           arma::all(weightEmInf == 1.0) ? blendMethod : "blend",
         Rcpp::Named("stopReason") = stopReason,
+        Rcpp::Named("observationJitter") = observationJitter * vary,
+        Rcpp::Named("fixedInformationJitter") = fixedInformationJitter / vary,
         Rcpp::Named("finalProjectedScoreNorm") = projectedScoreNorm,
         Rcpp::Named("scoreTolerance") = scoreTolerance,
         Rcpp::Named("lineSearchHalvings") = lineSearchHalvings,
