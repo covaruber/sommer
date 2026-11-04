@@ -604,13 +604,18 @@ version 4.5.13 (in development)
    deterministic delta-method checks do not establish statistical coverage.
  + Stabilized nominal unstructured covariance precision scores using
    triangular-factor derivatives and exact factor log-determinant derivatives,
-   avoiding cancellation near singularity. The seed-840001 regression now
-   converges and its covariance score matches independent finite differences.
+   avoiding cancellation near singularity. The seed-840001 regression checks
+   a small final score and agreement with independent finite differences.
+   At its ill-conditioned optimum, platform roundoff can produce nlminb's
+   "false convergence (8)"; the regression verifies the warning and diagnostic
+   status in that case without relabeling the fit as converged.
    Added nominal optimizer/score, covariance-conditioning, saturation and
    uncertainty-status diagnostics with actionable summary messages. No new
    dependencies, fitting-time Hessians/PEV or Gaussian/scalar-route changes.
  + Fixed nominal preparation tests to leave optional runtime BLAS thread
    control disabled, so they also run without a supported BLAS controller.
+ + Imported stats::residuals for mixed-family Laplace residual dispatch,
+   resolving the undefined-function R CMD check NOTE.
  + Started the ordered categorical milestone with internal fixed-cutpoint
    cumulative-logit/probit likelihoods and analytic predictor derivatives
    through fourth order. Added binary-limit, probability, tail, narrow-

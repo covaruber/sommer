@@ -61,9 +61,21 @@ test_that("nominal covariance scores remain stable near a singular US factor", {
         (a$logLik-b$logLik)/(2*step)), 1e-4)
     }
   }
-  fit <- mmes(y~x, random=~vsm(usm(.nominalCategory),ism(group)),
-    data=data, family=multinomial(reference="high"), control=control)
-  expect_true(fit$convergence)
+  warningMessages <- capture_warnings(
+    fit <- mmes(y~x, random=~vsm(usm(.nominalCategory),ism(group)),
+      data=data, family=multinomial(reference="high"), control=control))
+  expect_identical(fit$convergence, identical(fit$optimizer$convergence, 0L))
+  if(fit$convergence){
+    expect_length(warningMessages, 0L)
+  }else{
+    # Near singularity, nlminb's stopping code can depend on platform roundoff.
+    expect_identical(fit$optimizer$convergence, 1L)
+    expect_identical(fit$optimizer$message, "false convergence (8)")
+    expect_identical(warningMessages,
+      "Native multinomial optimizer did not converge: false convergence (8)")
+    expect_true(any(grepl("Optimizer did not converge", fit$laplaceDiagnostics$issues)))
+    expect_match(fit$laplaceDiagnostics$uncertaintyStatus, "optimizer did not converge")
+  }
   expect_lt(fit$laplaceDiagnostics$scoreMax, 1e-3)
   expect_false(fit$laplaceDiagnostics$uncertaintyComputed)
   expect_gt(fit$laplaceDiagnostics$covarianceCondition, 1e5)

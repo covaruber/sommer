@@ -116,4 +116,4 @@ S3method("[", binm)
              "nobs", "ppoints", "sd", "model.frame", "model.response", "na.pass",
              "cor", "optim", "rchisq","quantile","deriv","terms.formula",
              "aggregate","pf","terms", "reshape","ave", "plogis", "qlogis",
-             "simulate")
+             "simulate", "residuals")
