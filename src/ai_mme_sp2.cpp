@@ -1578,12 +1578,17 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   std::vector<arma::mat> residualKronBlockWCache(
     static_cast<std::size_t>(residualNBlocks)
   );
+  const sommer::ResidualPlan residualPlan = sommer::ResidualPlan::select(
+    residualStructurallyDiagonal, residualKronBlocks, residualGridBlocks,
+    useH, Hdiag);
+  int residualBlockDesignCacheBlocks = 0;
+  double residualBlockDesignCacheVisits = 0.0;
 
   // Only complete/repeated blocks (residualKronBlocks) guarantee
   // rows.n_elem == residualDim, which the local-coordinate indexing below
   // requires. When blocks are irregular the Rkron path is never taken at
   // runtime, so the cache is simply left empty.
-  if(residualKronBlocks || residualGridBlocks){
+  if(residualPlan.blockAssembly() && !saddleActive){
   for(int block = 0; block < residualNBlocks; ++block){
     const arma::uvec & rows =
       residualKronRows[static_cast<std::size_t>(block)];
@@ -1592,42 +1597,32 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
 
     if(columns.n_elem == 0){ continue; }
 
-    arma::mat blockW(
+    residualKronBlockWCache[static_cast<std::size_t>(block)] = arma::mat(
       rows.n_elem,
       columns.n_elem,
       arma::fill::zeros
     );
-
-    for(arma::uword localCol = 0;
-        localCol < columns.n_elem;
-        ++localCol){
-      for(Eigen::SparseMatrix<double>::InnerIterator designEntry(
-            W, static_cast<int>(columns(localCol)));
-          designEntry; ++designEntry){
-        const arma::uword globalRow =
-          static_cast<arma::uword>(designEntry.row());
-        if(residualBlockOfRow[static_cast<std::size_t>(globalRow)] == block){
-          // For complete blocks the block position equals the local coordinate.
-          const int localPosition = residualPosInBlock[
-            static_cast<std::size_t>(globalRow)
-          ];
-          blockW(static_cast<arma::uword>(localPosition), localCol) =
-            designEntry.value();
-        }
-      }
-    }
-
-    if(useH && Hdiag){
-      arma::vec hDiagonal(rows.n_elem);
-      for(arma::uword localRow = 0; localRow < rows.n_elem; ++localRow){
-        hDiagonal(localRow) = Hs(rows(localRow), rows(localRow));
-      }
-      blockW.each_col() %= hDiagonal;
-    }
-
-    residualKronBlockWCache[static_cast<std::size_t>(block)] =
-      std::move(blockW);
+    ++residualBlockDesignCacheBlocks;
   }
+
+  for(int column = 0; column < W.outerSize(); ++column){
+    for(Eigen::SparseMatrix<double>::InnerIterator entry(W, column); entry; ++entry){
+      const std::size_t globalRow = static_cast<std::size_t>(entry.row());
+      const std::size_t block = static_cast<std::size_t>(residualBlockOfRow[globalRow]);
+      const arma::uvec & columns = residualActiveColumns[block];
+      const auto localColumn = std::lower_bound(columns.begin(), columns.end(),
+        static_cast<arma::uword>(entry.col()));
+      const int localPosition = residualPosInBlock[globalRow];
+      if(localColumn == columns.end() || *localColumn != static_cast<arma::uword>(entry.col()) ||
+         localPosition < 0){
+        Rcpp::stop("Residual block design cache indexes are inconsistent with the sparse design.");
+      }
+      residualKronBlockWCache[block](static_cast<arma::uword>(localPosition),
+        static_cast<arma::uword>(localColumn - columns.begin())) =
+          useH ? entry.value() * Hs(globalRow, globalRow) : entry.value();
+    }
+  }
+  residualBlockDesignCacheVisits = static_cast<double>(W.nonZeros());
   }
 
   // ------------------------------------------------------------
@@ -4749,9 +4744,6 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     static_cast<std::size_t>(nRe)
   );
 
-  const sommer::ResidualPlan residualPlan = sommer::ResidualPlan::select(
-    residualStructurallyDiagonal, residualKronBlocks, residualGridBlocks,
-    useH, Hdiag);
   factorSchurResidualEligible = residualPlan.elementwisePrecision();
   if(saddleActive && residualPlan.grid()){
     Rcpp::stop("Saddle-point fitting does not yet support compact grid/ragged residual layouts.");
@@ -11207,6 +11199,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         Rcpp::Named("iterations") = static_cast<int>(profileRows.size()),
         Rcpp::Named("nEffects") = static_cast<int>(nEffects),
         Rcpp::Named("nnzC") = static_cast<double>(C.nonZeros()),
+        Rcpp::Named("residualBlockDesignCacheBlocks") = residualBlockDesignCacheBlocks,
+        Rcpp::Named("residualBlockDesignCacheVisits") = residualBlockDesignCacheVisits,
         Rcpp::Named("freeCovarianceParameters") = static_cast<int>(modelFreeCount),
         Rcpp::Named("exactAIRefreshes") = exactAIRefreshes,
         Rcpp::Named("hybridAIUpdates") = hybridAIUpdates,

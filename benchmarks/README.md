@@ -35,3 +35,12 @@ Archive the source tarball or full dirty-tree snapshot alongside important runs.
 Compare performance only on the same machine, BLAS, thread allocation, and
 dependency versions. Investigate repeatable regressions rather than comparing
 single timings across unrelated CI workers.
+
+With `diagnostics=list(profile="force")`, the native profile also reports
+`residualBlockDesignCacheBlocks` and `residualBlockDesignCacheVisits`. Residual
+block design caches are built only for repeated or grid residual block assembly,
+not for diagonal residuals, non-diagonal weights, or saddle-point equations.
+Eligible caches are populated in one sparse-design traversal, preserving local
+row coordinates and diagonal weights without rescanning shared design columns
+for every residual block. The visit count is the number of sparse design
+entries traversed; cache allocation and column lookup work are not included.
