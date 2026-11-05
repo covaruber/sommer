@@ -48,6 +48,12 @@ jobs:
         with:
           extra-packages: any::rcmdcheck
           needs: check
+      - name: Preserve Unix script permissions in Windows source archives
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          chmod +x configure cleanup
+          echo "R_BUILD_TAR=tar" >> "$GITHUB_ENV"
       - uses: r-lib/actions/check-r-package@v2
         with:
           args: 'c("--no-manual", "--as-cran")'

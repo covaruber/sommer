@@ -3,7 +3,7 @@ accelerationControl <- function(warmStart="off",gradient="analytic",trace="panel
   mmes_control(task=list(objective="ml",
     glmm=list(method="laplace",backend=backend,warmStart=warmStart,gradient=gradient,
       trace=trace,blocks=blocks,maxit=1000L,modeTol=1e-11,
-      familyParameters=parameters)),execution=list(blasThreads=1L),
+      familyParameters=parameters)),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
 }
 
@@ -221,6 +221,8 @@ test_that("public scalar controls persist across uncertainty, bootstrap and seri
     data=data,family=poisson(),control=control)
   reference <- fit(accelerationControl())
   accelerated <- fit(accelerationControl(warmStart="auto",trace="selected",blocks="on"))
+  expect_null(accelerated$control$execution$blasThreads)
+  expect_null(accelerated$threadingDiagnostics$blasThreadsRequested)
   expect_true(accelerated$convergence)
   expect_equal(accelerated$llik,reference$llik,tolerance=1e-9)
   expect_equal(vcov(accelerated),vcov(reference),tolerance=1e-5)

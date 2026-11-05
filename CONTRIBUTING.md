@@ -153,6 +153,9 @@ Do not suppress vignette building for the release gate. A quick check with
 CI checks Linux, Windows, macOS, previous-release R, and R-devel. That matrix
 does not by itself establish that every dependency combination allowed by the
 historical minimum R version in DESCRIPTION works.
+The Windows job marks `configure` and `cleanup` executable and uses external
+`tar` through `R_BUILD_TAR`. R's internal Windows archiver does not recognize
+their Unix execute permissions and otherwise emits permission-correction warnings.
 
 Release validation also needs GCC and Clang undefined-behavior sanitizer builds:
 ordinary test success does not detect null-pointer arithmetic in empty matrix
