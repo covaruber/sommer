@@ -3714,7 +3714,8 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     return true;
   };
 
-  auto buildCholmodInverseBlockCache = [&](bool patternLocal = false) -> void {
+  auto buildCholmodInverseBlockCache = [&](bool patternLocal = false,
+                                          bool forceGeneral = false) -> void {
     cholmodInvCache.ready = false;
     cholmodInvCache.patternOnly = false;
     cholmodInvCache.selReady = false;
@@ -3872,8 +3873,12 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
     const double patternSelectedDoubles = static_cast<double>(L->xsize) +
       4.0 * largestFront * largestFront;
+    // Augmented grid traces use C's pattern; dense random inverse blocks are
+    // unnecessary even for FA models. Missing entries can still request the
+    // general cache explicitly before exact solve fallback.
     if(sommer::InverseCachePolicy::preferSelected(
-        patternLocal, patternSelectedDoubles, cholmodInvCacheMaxDoubles)){
+        !forceGeneral && (patternLocal || gridAugmented),
+        patternSelectedDoubles, cholmodInvCacheMaxDoubles)){
       if(buildCholmodSelectedInverse(L, iperm, cholmodInvCache)){
         cholmodInvCache.patternOnly = true;
         cholmodInvCache.ready = true;
@@ -7258,7 +7263,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
               // Zero loading coordinates can request entries outside C's
               // pattern. Restore the general cache before exact solve fallback.
               ++patternInverseCacheFallbacks;
-              buildCholmodInverseBlockCache();
+              buildCholmodInverseBlockCache(false, true);
               return cholmodInverseLookup(i, j, value);
             }
             return false;

@@ -437,6 +437,18 @@ c(augmented = tail(as.numeric(mDsum$llik), 1), original = tail(as.numeric(mDsumO
 
 The savings grow with the size of the trials and the number of missing plots. Use `gridAugment = "force"` to get an error that explains why augmentation is not possible, instead of a silent fallback. The residual must include `ism(units)`, as in all examples above. `vsm(ar1m(range), ar1m(row))` without `ism(units)` is a different, row-blocked structure, and it is not treated as a field grid.
 
+These improvements also apply with `fam(locale, k)` or `rrm(locale, k)`
+random effects, not only rank one. For augmented grids, the `cholmod` solver
+prepares sparse selected-inverse entries before considering dense random
+inverse-block caches. This is particularly beneficial for FA models with a
+dense genomic relationship matrix. Memory limits and exact fallback solves
+still apply; this changes computation, not the likelihood or covariance
+model. The profiling counter
+`engineDiagnostics$profile$counters$patternInverseCacheBuilds` records this
+path when `diagnostics = list(profile = "force")`. Increasing RR rank still
+adds latent coefficients and random-effect trace work, so higher ranks need
+not have the same runtime or speedup.
+
 #### An alternative: a random spatial field plus an independent residual
 
 Another way to fit field trends is to move the AR1 x AR1 process from the residual to a **random plot-level effect**, and keep an independent residual (the "nugget") for each trial:

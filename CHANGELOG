@@ -1299,6 +1299,13 @@ version 4.4.90 (2026-10-13)
    rrm() GxE term from 16.3 s to 7.5 s, with identical estimates.
  + Spatial vignette: new section on computational efficiency of spatial
    residuals and on the alternative AR1xAR1 random field plus nugget model.
+ + CHOLMOD trace preparation now prefers the sparse selected inverse on
+   augmented residual grids, avoiding redundant dense random inverse-block
+   caches for fam() models at any supported rank. Memory admission and exact
+   general-cache/solve fallbacks are preserved. On a 9-environment AR1xAR1
+   trial model, four iterations of FA2/FA3 fell from about 26 seconds to
+   3-4 seconds with identical likelihoods, estimates, scores and AI matrices.
+   Added rank-1/2/3 dense-Gu FA/grid parity and inference regression tests.
 
 ######################
 ## PENDINGS AND PRIORITIES

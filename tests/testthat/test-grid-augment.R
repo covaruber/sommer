@@ -136,3 +136,88 @@ test_that("reduced-rank AI uses direct residual traces on augmented grids", {
   expect_equal(unlist(auto$theta), unlist(off$theta), tolerance=1e-5)
   expect_equal(as.numeric(fitted(auto)), as.numeric(fitted(off)), tolerance=1e-5)
 })
+
+test_that("FA grid traces prefer the selected inverse at ranks one to three", {
+  set.seed(18)
+  dat <- expand.grid(trial=factor(letters[1:4]), range=factor(1:4), row=factor(1:5))
+  dat$geno <- factor(sample(sprintf("g%02d", 1:8), nrow(dat), replace=TRUE))
+  dat$y <- as.numeric(dat$trial) + rnorm(8)[as.integer(dat$geno)] + rnorm(nrow(dat))
+  dat <- dat[-c(6L, 17L, 34L, 49L, 62L), ]
+  precision <- diag(8) + matrix(0.1, 8, 8)
+  dimnames(precision) <- rep(list(levels(dat$geno)), 2)
+  attr(precision, "inverse") <- TRUE
+
+  for(rank in 1:3){
+    shape <- fam(dat$trial, rank)
+    fit <- function(mode, solver="cholmod", inverse=0L, budget=1000){
+      mmes(y ~ trial, random=~vsm(shape, ism(geno), Gu=precision),
+        rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial), data=dat,
+        control=mmes_control(representation=list(gridAugment=mode),
+          solve=list(method=solver, blockSchur="off"), output=list(inverse=inverse),
+          execution=list(denseMemoryMB=budget,
+                         memoryPolicy=if(budget < 1000) "limit" else "speed"),
+          convergence=list(maxIters=4),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE, profile="force")))
+    }
+    reference <- fit("off", inverse=2L)
+    selected <- fit("auto", inverse=2L)
+    ldlt <- fit("auto", solver="ldlt")
+    d <- selected$engineDiagnostics
+    expect_true(d$gridAugmentation$active)
+    expect_equal(d$CsymbolicAnalyses, 1)
+    expect_gt(d$profile$counters$patternInverseCacheBuilds, 0)
+    expect_equal(d$profile$counters$patternInverseCacheFallbacks, 0)
+    expect_equal(d$profile$counters$traceFallbackSolves, 0)
+    expectSameFit(reference, selected)
+    expectSameFit(selected, ldlt)
+    for(component in c("llik", "covPar", "InfMat", "dLu")){
+      expect_equal(selected[[component]], reference[[component]], tolerance=1e-6)
+      expect_equal(ldlt[[component]], selected[[component]], tolerance=1e-6)
+    }
+    expect_equal(as.matrix(selected$Ci), as.matrix(reference$Ci), tolerance=1e-6)
+    expect_equal(selected$uPevList, reference$uPevList, tolerance=1e-6)
+    expect_equal(predict(selected, D="trial")$pvals,
+                 predict(reference, D="trial")$pvals, tolerance=1e-6)
+    if(rank == 1L){
+      limited <- fit("auto", budget=0.001)
+      expect_equal(limited$engineDiagnostics$profile$counters$patternInverseCacheBuilds, 0)
+      expect_gt(limited$engineDiagnostics$profile$counters$traceFallbackSolves, 0)
+      expectSameFit(selected, limited)
+      expect_equal(limited$InfMat, selected$InfMat, tolerance=1e-6)
+      expect_equal(limited$dLu, selected$dLu, tolerance=1e-6)
+    }
+  }
+})
+
+test_that("augmented RR grids retain exact lookup fallbacks at higher ranks", {
+  set.seed(19)
+  dat <- expand.grid(trial=factor(letters[1:4]), range=factor(1:4), row=factor(1:5))
+  dat$geno <- factor(sample(sprintf("g%02d", 1:8), nrow(dat), replace=TRUE))
+  dat$y <- as.numeric(dat$trial) + rnorm(nrow(dat))
+  dat <- dat[-c(6L, 17L, 34L, 49L, 62L), ]
+  precision <- diag(8) + matrix(0.1, 8, 8)
+  dimnames(precision) <- rep(list(levels(dat$geno)), 2)
+  attr(precision, "inverse") <- TRUE
+
+  for(rank in 2:3){
+    shape <- rrm(dat$trial, rank)
+    fit <- function(mode){
+      mmes(y ~ trial, random=~vsm(shape, ism(geno), Gu=precision) +
+          vsm(dsm(trial), ism(geno), Gu=precision),
+        rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial), data=dat,
+        control=mmes_control(representation=list(gridAugment=mode),
+          solve=list(method="cholmod", blockSchur="off"),
+          convergence=list(maxIters=4),
+          diagnostics=list(verbose=FALSE, dateWarning=FALSE, profile="force")))
+    }
+    reference <- suppressWarnings(fit("off"))
+    selected <- suppressWarnings(fit("auto"))
+    expect_true(selected$engineDiagnostics$gridAugmentation$active)
+    expect_gt(selected$engineDiagnostics$directResidualTraces, 0)
+    expect_equal(selected$engineDiagnostics$CsymbolicAnalyses, 1)
+    expect_gt(selected$engineDiagnostics$profile$counters$patternInverseCacheFallbacks, 0)
+    expectSameFit(reference, selected, tolerance=1e-5)
+    expect_equal(selected$InfMat, reference$InfMat, tolerance=1e-6)
+    expect_equal(selected$dLu, reference$dLu, tolerance=1e-6)
+  }
+})
