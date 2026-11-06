@@ -240,12 +240,12 @@ public:
     evaluate(eta, probability, score, &curvature);
     const arma::sp_mat transposed = design.t();
     arma::vec correction(n * d, arma::fill::zeros);
+    arma::uvec indices(d);
     for(arma::uword row = 0; row < n; ++row){
       Rcpp::checkUserInterrupt();
-      arma::uvec indices(d);
       for(arma::uword a = 0; a < d; ++a) indices(a) = row + n * a;
-      const arma::sp_mat block = transposed.cols(indices);
-      const arma::mat leverage=sommer::laplacePredictorCovariance(*this,block,panelSize);
+      const arma::mat leverage=sommer::laplacePredictorCovariance(
+        *this, transposed, indices, panelSize);
       const arma::vec contracted = sommer::multinomialCurvatureContraction(
         probability.row(row).t(), leverage);
       for(arma::uword a = 0; a < d; ++a) correction(indices(a)) = contracted(a);

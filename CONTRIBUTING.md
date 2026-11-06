@@ -99,6 +99,7 @@ SOMMER_REQUIRE_NATIVE=true Rscript --vanilla -e \
 | `test-mme-saddle.cpp` | `test-mme-saddle.R` |
 | `test-mme-pcg.cpp`, `test-mme-pcg-estimators.cpp`, `test-mme-sufficient.cpp` | `test-pcg-numerics.R` |
 | `test-mme-ai-recovery.cpp` | `test-ai-recovery.R`, `test-ai-variance-floor.R`, `test-reduced-ai.R` |
+| `test-mme-ai-augmented.cpp` | `test-augmented-working-ai.R` |
 
 CUDA tests require suitable hardware, a CUDA-enabled build, and
 `SOMMER_TEST_CUDA=true`. A CPU-only check does not certify CUDA behavior.

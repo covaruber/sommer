@@ -183,17 +183,16 @@ bool isIdentity_mat(const arma::mat x){
 }
 
 // [[Rcpp::export]]
-bool isIdentity_spmat(const arma::sp_mat x){
-  int N = x.n_rows;
-  for (int row = 0; row < N; row++){
-    for (int col = 0; col < N; col++){
-      if (row == col && x(row,col) != 1)
-        return false;
-      else if (row != col && x(row,col) != 0)
-        return false;
-    }
+bool isIdentity_spmat(const arma::sp_mat & x){
+  if(x.n_rows != x.n_cols) return false;
+  const arma::uword dimension = x.n_rows;
+  arma::uword diagonalEntries = 0;
+  for(auto entry = x.begin(); entry != x.end(); ++entry){
+    if(*entry == 0.0) continue;
+    if(entry.row() != entry.col() || *entry != 1.0) return false;
+    ++diagonalEntries;
   }
-  return true;
+  return diagonalEntries == dimension;
 }
 
 // [[Rcpp::export]]

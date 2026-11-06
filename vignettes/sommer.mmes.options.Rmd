@@ -76,11 +76,11 @@ the prior numerical bundle; they do not authorize new combinations.
 |:--|:--|:--|
 | `formulation` | Equation domain | `"henderson"`; `"henderson"` or `"direct"`. |
 | `task` | Fit versus known-covariance solve; objective; GLMM estimator and controls | `mode="fit"`, `objective="reml"`, `pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)`, `glmm=list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8, backend="auto")`. Laplace requires `objective="ml"` and the supported native model scope in the GLMM vignette. Its `backend` selects interchangeable random/observation linear algebra, independently of Gaussian/PQL formulation and solver choices. |
-| `representation` | Equation/covariance representation | `compression="off"`, `factorScores="none"`, `fixedRank="error"`, `equations="normal"`, `sparseFactors="off"`, `matrixFree="auto"`; modes can inherit global options, and `equations` defaults to `"saddle-point"` if that mode is globally forced. |
+| `representation` | Equation/covariance representation | `compression="off"`, `factorScores="none"`, `fixedRank="error"`, `equations="normal"`, `sparseFactors="auto"`, `gridAugment="auto"`, `matrixFree="auto"`; modes can inherit global options, and `equations` defaults to `"saddle-point"` if that mode is globally forced. |
 | `solve` | Linear solves, preconditioning, reuse, elimination | `method="auto"`; PCG fields below; `blockSchur`, `blockBanded`, `factorSchurMultiFactor`, and `dFirstML` default to `"auto"`. |
 | `logdet` | Determinant approximation | `scaling="none"`, `lanczosSteps=20L`. |
 | `score` | Covariance derivatives and trace estimation | `traceProbes=8L`, `estimator="hutchinson"`, `rank=16L`, `covarianceChecks="auto"`, `traceBatch="off"`. |
-| `curvature` | AI metric and reduced-direction assembly | `method="exact-ai"`, `reduced="off"`. |
+| `curvature` | AI metric and reduced-direction assembly | `method="exact-ai"`, `assembly="sensitivity"`, `reduced="off"`. |
 | `update` | Covariance-coordinate update and recovery | `method="ai"`, `recovery="em"`, `blendWeight=NULL`, `commonScale="off"`. |
 | `proposal` | Proposal scaling and extrapolation | `stepWeight=NULL`, `extrapolation="none"`. |
 | `convergence` | Inner iterations and stochastic accuracy | `maxIters=30L`, `likelihoodTol=1e-4`, `parameterTol=1e-4`, `accuracy="fixed"`, `maxTraceProbes=NULL`, `maxLanczosSteps=NULL`, `logDetTol=1e-3`, `scoreTol=1e-3`. |
@@ -126,6 +126,7 @@ Constructors and valid values:
 * `logdet$scaling`: `"none"` or `"diagonal"`.
 * `score$estimator`: `"hutchinson"` or `"control-variate"`.
 * `curvature$method`: `"exact-ai"` or `"hybrid-ai"`.
+* `curvature$assembly`: `"sensitivity"` (default) or `"augmented-working"`.
 * `update$method`: `"ai"`, conditional `"em"`, or the earlier `"conditional-fa"` EM selector.
 * `update$recovery`: `"em"` or `"pxem"`.
 * `proposal$extrapolation`: `"none"` or `"aitken"`.
@@ -140,6 +141,48 @@ The complete field reference and mapping from old names are in
 `?mmes_control`.
 
 # Decision graph and constraints
+
+## Coefficient-space augmented working-variate AI
+
+```{r, eval=FALSE}
+control <- mmes_control(
+  solve = list(method = "cholmod"),
+  curvature = list(assembly = "augmented-working"),
+  diagnostics = list(profile = "force")
+)
+fit <- mmes(y ~ environment, random = ~ id, data = dat, control = control)
+fit$engineDiagnostics$aiAssembly
+fit$executionPlan$admission$aiAssembly
+```
+
+Both AI assemblies process directions together through the existing joint
+coefficient solver. The augmented route uses a prior-shifted border and its
+Schur complement, not a second factorization of enlarged equations. Random
+working directions remain in coefficient space: no observation-by-random-
+parameter matrix or observation covariance is formed. Structured residual
+derivatives retain their existing diagonal, block, grid or sparse operators.
+Compression retains within-group residual variation.
+
+The option changes assembly, not the likelihood, score, optimizer or
+coefficient/inverse output coordinates. It supports deterministic Gaussian
+Henderson REML/ML, including admitted specialized coefficient solve paths,
+weights, positive-specific FA, tied/reduced directions, EM/PXEM recovery,
+hybrid exact refreshes and common-scale profiling. Existing restrictions on
+combinations of those methods continue to apply. PCG, PQL/Laplace, conditional
+FA, factor-score augmentation and zero-specific latent reduced rank are
+explicitly rejected. The option is preserved in stored controls and refits.
+Existing residual-engine limitations remain: weighted incomplete serial blocks
+can fail selected-inverse demand closure with either AI assembly. Choosing
+augmented assembly does not bypass that trace preparation.
+
+Workspace admission uses `execution$denseMemoryMB`. Multi-column tiles, where
+required, preserve every off-diagonal AI block. No approximate diagonal AI or
+silent sensitivity substitution is used. Numerical products are rebuilt for
+each coefficient/covariance evaluation; structural maps and scratch allocations
+are reused where valid. Neither formulation is universally faster or more
+stable. Use matched backends, starts, tolerances and output settings when
+comparing them; the benchmark runner reports separate frozen-parameter AI
+parity as well as complete-fit timings.
 
 ## Rank-deficient fixed effects
 
@@ -549,7 +592,15 @@ Examples of coupled prerequisites:
   EM blending, and latent reduced rank.
 * `representation$sparseFactors` applies only to eligible supported structured
   factors, including selected AR, ANTE, SAR, and CAR structures. It does not
-  introduce new covariance models. `representation$matrixFree` avoids eligible
+  introduce new covariance models. On complete grid residual blocks it also
+  keeps banded AR/ANTE precisions sparse in the coefficient matrix.
+* `representation$gridAugment` completes grid residual blocks such as
+  `dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial)` by adding missing
+  cells as pseudo-observations with dummy fixed effects (exact for REML). It
+  requires a Gaussian identity REML Henderson fit with the `ldlt` or `cholmod`
+  solver and no weights, rotation, factor scores, saddle-point equations or
+  known-covariance solving; `"force"` reports why a model is ineligible.
+  `representation$matrixFree` avoids eligible
   tensor-prior assembly for PCG; it does not make every model operation
   matrix-free.
 * Native Laplace `task$glmm` acceleration controls are distinct from Gaussian

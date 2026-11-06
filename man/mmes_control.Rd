@@ -92,7 +92,8 @@ the defaults shown. These fields own task selection and outer PQL iteration,
 not inner covariance iterations.}
 \item{representation}{Named list with \code{compression="off"},
 \code{factorScores="none"}, \code{fixedRank="error"}, \code{equations="normal"},
-\code{sparseFactors="auto"}, and \code{matrixFree="auto"} by default,
+\code{sparseFactors="auto"}, \code{gridAugment="auto"}, and
+\code{matrixFree="auto"} by default,
 unless corresponding \code{sommer.mme.*} options override experimental modes.
 \code{sparseFactors="auto"} enables exact sparse innovation kernels for
 modified-Cholesky factors of dimension at least 64 and maximum innovation
@@ -100,6 +101,23 @@ lag three. It also enables sparse SAR/CAR kernels when the factor dimension
 is at least 500 and at most one percent of adjacency weights are nonzero.
 Other factors retain their existing path. Use \code{"off"} to disable or
 \code{"force"} to enable eligible sparse factor kernels regardless of size.
+For grid residuals such as \code{vsm(ar1m(range), ar1m(row), ism(units))},
+\code{sparseFactors} also lets complete grid blocks with banded factor
+precisions (AR1 and modified-Cholesky factors of low lag) enter the
+coefficient matrix with a sparse, iteration-stable pattern, so the symbolic
+factorization is analysed once and residual score traces use only
+selected-inverse entries.
+\code{gridAugment} (option \code{sommer.mme.gridAugment}) completes such
+grid residual blocks before fitting: missing range-by-row cells within the
+observed levels of each block are added as pseudo-observations with one
+dummy fixed effect each, as in ASReml. This is exact for REML; dummies are
+removed from \code{b}, \code{Ci}, \code{W}, fitted values, AIC/BIC and
+predictions, and \code{engineDiagnostics$gridAugmentation} reports the
+added cells. \code{"auto"} applies it to eligible REML Gaussian identity
+fits with the \code{ldlt} or \code{cholmod} solver when \code{sparseFactors}
+is not \code{"off"} and the number of added cells does not exceed the
+number of observations; \code{"off"} disables it,
+and \code{"force"} errors with the reason when the model is not eligible.
 If \code{sommer.mme.saddlePoint} resolves to \code{"force"}, the default
 \code{equations} becomes \code{"saddle-point"}.
 \code{compression} is \code{"off"}, \code{"groups"}, or \code{"classes"};
@@ -182,9 +200,30 @@ conditional and latent reduced-rank equations do not use this path. Diagnostics 
 \code{denseScoreRowProductsAvoided}, and \code{denseScoreMemoryFallbacks}.
 This module owns covariance derivatives, trace estimation, and
 covariance checks.}
-\item{curvature}{Named list with \code{method="exact-ai"} and
+\item{curvature}{Named list with \code{method="exact-ai"},
+\code{assembly="sensitivity"}, and
 \code{reduced="off"} by default. The method is \code{"exact-ai"} or
 \code{"hybrid-ai"}; \code{reduced} accepts experimental mode values.
+\code{assembly="augmented-working"} selects exact prior-shifted
+working-variate absorption in Henderson coefficient space, reusing the
+existing coefficient factorization. It does not construct an observation-space
+working-variate matrix for random covariance parameters or a coefficient
+inverse. Random, residual and mixed information are assembled together.
+Residual parameters reuse the structured residual operators; their work can
+still depend on observation count. The current sensitivity assembly remains
+the default. Both calculate the same derivative-product AI, including in
+nonlinear working coordinates; neither is inherently more numerically robust.
+The augmented option requires a Gaussian identity-link deterministic Henderson
+fit (LDLT or CHOLMOD), without PQL, native Laplace, conditional equations,
+factor-score augmentation or zero-specific latent reduced rank. Supported
+recovery, hybrid refreshes, profiling, compression and reduced-direction
+evaluations retain the selection. Explicit unsupported requests error.
+Existing residual trace limitations remain: weighted incomplete serial blocks
+can fail selected-inverse demand closure with either assembly.
+Workspace is checked against \code{execution$denseMemoryMB}; budgeted
+multi-column absorption preserves all cross-direction information.
+\code{engineDiagnostics$aiAssembly} records the selected assembly and work;
+the public coefficient matrix and inverse retain their original meaning.
 This module owns the AI metric and reduced-direction assembly.}
 \item{update}{Named list with \code{method="ai"}, \code{recovery="em"},
 \code{blendWeight=NULL}, and \code{commonScale="off"} by default.

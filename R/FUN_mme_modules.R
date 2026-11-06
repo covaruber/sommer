@@ -52,7 +52,8 @@
   value
 }
 
-.mme_mode_paths <- c("representation$sparseFactors", "representation$matrixFree",
+.mme_mode_paths <- c("representation$sparseFactors", "representation$gridAugment",
+  "representation$matrixFree",
   "solve$blockSchur", "solve$blockBanded", "solve$factorSchurMultiFactor",
   "solve$dFirstML", "score$covarianceChecks", "score$traceBatch", "score$denseCrossproduct",
   "curvature$reduced", "update$commonScale", "output$selectedInverse",
@@ -143,8 +144,14 @@
         x$solve$method == "pcg",
       message="solve$method='pcg' uses stochastic AI-REML; EM/PXEM recovery, blending, common-scale profiling, reduced AI, Aitken, hybrid AI, saddle-point equations, factor scores and ML need a deterministic factorization.",
       settings=function(x) c(emLinked, "proposal$extrapolation", "curvature$method",
+        "curvature$assembly",
         "representation$equations", "representation$factorScores", "task$objective"),
       hint="Remove them or use solve$method 'auto', 'ldlt' or 'cholmod'."),
+    list(id="augmented-factor-scores",
+      when=function(x) x$representation$factorScores != "none",
+      message="Augmented working-variate AI requires the marginal coefficient representation, not factor-score augmentation.",
+      settings=function(x) "curvature$assembly",
+      hint="Use representation$factorScores='none'."),
     list(id="dense-score",
       when=function(x) x$solve$method == "pcg" ||
         x$representation$equations != "normal" ||
@@ -239,7 +246,12 @@
 #' @param solve Named list of linear solver, preconditioning, reuse and elimination requests.
 #' @param logdet Named list controlling stochastic determinant scaling and Lanczos depth.
 #' @param score Named list controlling trace estimation and covariance checks.
-#' @param curvature Named list selecting exact/hybrid AI and reduced-direction assembly.
+#' @param curvature Named list selecting exact/hybrid AI, reduced directions and
+#'   \code{assembly="sensitivity"} (default) or \code{"augmented-working"}.
+#'   The latter absorbs all working directions in coefficient space using the
+#'   existing Henderson factorization, without observation-space random working
+#'   variates. It requires a Gaussian deterministic Henderson fit without
+#'   zero-specific latent reduced rank, conditional equations or factor scores.
 #' @param update Named list controlling EM/PXEM recovery, blending and common-scale profiling.
 #' @param proposal Named list controlling step scaling and Aitken extrapolation.
 #' @param convergence Named list of inner iteration, convergence and stochastic accuracy controls.
@@ -326,6 +338,7 @@ mmes_control <- function(formulation="henderson", task=list(),
     compression="off", factorScores="none", fixedRank="error",
     equations=if(base$experimental$saddlePoint == "force") "saddle-point" else "normal",
     sparseFactors=base$experimental$sparseFactors,
+    gridAugment=base$experimental$gridAugment,
     matrixFree=base$experimental$matrixFreePcg), "representation")
   representation$compression <- .mme_compression_control(representation$compression)
   representation$fixedRank <- .mme_choice(representation$fixedRank,
@@ -345,10 +358,12 @@ mmes_control <- function(formulation="henderson", task=list(),
     covarianceChecks=base$experimental$pdCertificates,
     traceBatch=base$experimental$traceBatch,
     denseCrossproduct=base$experimental$denseCrossproduct), "score")
-  curvature <- .mme_module(curvature, list(method="exact-ai",
+  curvature <- .mme_module(curvature, list(method="exact-ai", assembly="sensitivity",
     reduced=base$experimental$reducedAI), "curvature")
   curvature$method <- .mme_choice(curvature$method,
     c("exact-ai", "hybrid-ai"), "curvature$method")
+  curvature$assembly <- .mme_choice(curvature$assembly,
+    c("sensitivity", "augmented-working"), "curvature$assembly")
   update <- .mme_module(update, list(method="ai", recovery="em", blendWeight=NULL,
     commonScale=base$experimental$commonScale), "update")
   update$method <- .mme_choice(update$method, c("ai", "em", "conditional-fa"), "update$method")
@@ -397,7 +412,7 @@ mmes_control <- function(formulation="henderson", task=list(),
   for(name in c("verbose", "dateWarning")){
     diagnostics[[name]] <- .mme_flag(diagnostics[[name]], paste0("diagnostics$", name))
   }
-  modes <- list(representation=c("sparseFactors", "matrixFree"),
+  modes <- list(representation=c("sparseFactors", "gridAugment", "matrixFree"),
     solve=c("blockSchur", "blockBanded", "factorSchurMultiFactor", "dFirstML"),
     score=c("covarianceChecks", "traceBatch", "denseCrossproduct"), curvature="reduced",
     update="commonScale", output="selectedInverse", diagnostics="profile")
@@ -432,6 +447,7 @@ mmes_control <- function(formulation="henderson", task=list(),
   pcg <- lapply(mapping, function(path) .mme_path_value(control, path))
   experimental <- c(control$solve[c("blockSchur", "blockBanded", "factorSchurMultiFactor", "dFirstML")],
     list(sparseFactors=control$representation$sparseFactors,
+      gridAugment=control$representation$gridAugment,
       matrixFreePcg=control$representation$matrixFree,
       pdCertificates=control$score$covarianceChecks, traceBatch=control$score$traceBatch,
       denseCrossproduct=control$score$denseCrossproduct,
@@ -445,6 +461,7 @@ mmes_control <- function(formulation="henderson", task=list(),
     experimental=experimental, pcg=pcg, acceleration=acceleration,
     factorScoreAugmentation=control$representation$factorScores,
     compression=control$representation$compression,
+    aiAssembly=control$curvature$assembly,
     covarianceInformation=control$output$covariance,
     retainCoefficientMatrix=control$output$coefficientMatrix,
     denseMemoryMB=control$execution$denseMemoryMB,
@@ -556,6 +573,12 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
 }
 
 .mmes_check_family_controls <- function(control, supplied, family, internal){
+  if(control$curvature$assembly == "augmented-working" &&
+     (!inherits(family, "family") || !identical(family$family, "gaussian") ||
+      !identical(family$link, "identity") || !is.null(internal))){
+    stop("curvature$assembly='augmented-working' requires a Gaussian identity-link fit without PQL or internal working models.",
+      call.=FALSE)
+  }
   if(identical(control$task$glmm$method, "laplace")){
     if(!is.null(internal)){
       stop("task$glmm$method='laplace' is not supported for internal working-model fits.",
@@ -633,7 +656,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
     admission=list(compression=selected("compression"),
       reducedAI=selected("reducedAI"), commonScale=selected("commonScale"),
       hybridAI=selected("hybridAI"), saddlePoint=selected("saddlePoint"),
-      conditionalFA=selected("conditionalFA")),
+      conditionalFA=selected("conditionalFA"), aiAssembly=selected("aiAssembly")),
     update=control$update,
     output=control$output,
     status=if(control$output$setup && control$task$mode == "fit") "assembled" else "evaluated")

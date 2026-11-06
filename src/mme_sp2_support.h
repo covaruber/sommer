@@ -86,7 +86,7 @@ arma::vec varCols(const arma::mat & x);
 arma::mat scaleCpp(const arma::mat & x);
 arma::mat makeFull(const arma::mat & X);
 bool isIdentity_mat(const arma::mat x);
-bool isIdentity_spmat(const arma::sp_mat x);
+bool isIdentity_spmat(const arma::sp_mat & x);
 bool isDiagonal_mat(const arma::mat x);
 bool isDiagonal_spmat(const arma::sp_mat x);
 arma::mat amat(const arma::mat & Xo, const bool & vanraden, double minMAF);

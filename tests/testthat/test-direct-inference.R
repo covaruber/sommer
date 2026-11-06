@@ -21,6 +21,15 @@
   rbind(cbind(Phi, cross), cbind(t(cross), G - G %*% t(Z) %*% P %*% Z %*% G))
 }
 
+test_that("sparse identity detection checks stored entries and dimensions", {
+  expect_true(sommer:::isIdentity_spmat(Matrix::Diagonal(10000L)))
+  expect_true(sommer:::isIdentity_spmat(Matrix::Matrix(diag(1, 4L), sparse=TRUE)))
+  expect_false(sommer:::isIdentity_spmat(Matrix::Diagonal(4L, x=c(1, 1, 1, 0))))
+  expect_false(sommer:::isIdentity_spmat(
+    Matrix::sparseMatrix(i=1L, j=2L, x=1, dims=c(4L, 4L))))
+  expect_false(sommer:::isIdentity_spmat(Matrix::Matrix(0, 3L, 4L, sparse=TRUE)))
+})
+
 test_that("direct post-fit covariance matches independent joint error algebra", {
   data <- .direct_inference_data()
   K <- 0.25^abs(outer(1:6, 1:6, "-"))

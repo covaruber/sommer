@@ -1257,6 +1257,49 @@ version 4.4.90 (2026-10-13)
    panel traces/global factorization remain defaults pending workload-specific
    benefit. Added independent-reference tests and whole-fit CPU benchmarks.
 
+ + Added opt-in curvature$assembly="augmented-working" for Gaussian
+   deterministic Henderson AI. Prior-shifted coefficient-space working
+   directions reuse the joint coefficient factorization, without random
+   observation-space working variates or an explicit coefficient inverse.
+   The existing sensitivity assembly remains the default. Structured
+   residuals, weights, compression, reduced/tied directions, recovery,
+   profiling and final uncertainty retain existing contracts; unsupported
+   latent/conditional, non-Gaussian and iterative requests fail explicitly.
+   Added independent border identities, same-point and end-to-end parity,
+   workspace diagnostics and four-engine comparative benchmarks.
+
+ + Faster reduced-rank (rrm) AI with grid residuals such as
+   dsumm(vsm(ar1m(), ar1m(), ism(units))): residual block contractions use
+   only the block's active coefficient columns and the selected inverse
+   (exact solves on those columns otherwise), residual derivative traces
+   reuse the grid derivative action, and the design transpose is formed
+   once. Results are unchanged; a 9-environment AR1xAR1 trial fit ran
+   about 2.6x faster.
+
+ + Sparse grid residuals. Complete grid residual blocks whose factors have
+   banded precisions (AR1, low-lag modified Cholesky) now enter C with a
+   sparse banded pattern built from structural triplets, so the symbolic
+   factorization is analysed once per fit (CsymbolicAnalyses = 1) and
+   residual score traces use only selected-inverse entries inside C's
+   pattern. Controlled by representation$sparseFactors; diagnostics
+   gridSparseBlocks, gridSparseBlockUses and gridBandFallbacks.
+ + New representation$gridAugment = "auto"/"off"/"force" (option
+   sommer.mme.gridAugment). Like ASReml, missing cells of grid residual
+   blocks (e.g. dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial))
+   are added as pseudo-observations with one dummy fixed effect each so the
+   residual blocks are complete and sparse. Exact for REML: llik, variance
+   components, b, u, Ci, fitted values, AIC/BIC and predictions match the
+   unaugmented fit; dummies are removed from the returned object and
+   engineDiagnostics$gridAugmentation reports them. EM moments exclude the
+   pseudo-observations, the cholmod inverse cache keeps only real fixed
+   effects in its dense border, and reduced-rank AI takes residual traces
+   directly from selected-inverse entries (directResidualTraces) instead of
+   dense per-block contractions. A 9-environment AR1xAR1 dsumm() trial fit
+   went from 6.5 s to 2.1 s (cholmod) and 17.7 s to 8.2 s (ldlt); with an
+   rrm() GxE term from 16.3 s to 7.5 s, with identical estimates.
+ + Spatial vignette: new section on computational efficiency of spatial
+   residuals and on the alternative AR1xAR1 random field plus nugget model.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes

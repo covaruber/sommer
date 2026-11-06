@@ -24,9 +24,13 @@ workloads <- list(
     n_levels=4L, seed=817L)
 )
 names(workloads) <- vapply(workloads, function(workload) workload$name, character(1))
-engines <- lapply(c("ldlt", "cholmod"), function(method)
-  mmes_control(solve=list(method=method), diagnostics=list(profile="force")))
-names(engines) <- c("ldlt", "cholmod")
+engineGrid <- expand.grid(assembly=c("sensitivity", "augmented-working"),
+  method=c("ldlt", "cholmod"), stringsAsFactors=FALSE)
+engines <- lapply(seq_len(nrow(engineGrid)), function(index)
+  mmes_control(solve=list(method=engineGrid$method[index]),
+    curvature=list(assembly=engineGrid$assembly[index]),
+    diagnostics=list(profile="force")))
+names(engines) <- paste(engineGrid$method, engineGrid$assembly, sep="-")
 
 metadata <- list(
   session=sessionInfo(), package=packageDescription("sommer"),
@@ -40,6 +44,19 @@ metadata <- list(
     system2("git", c("status", "--porcelain"), stdout=TRUE) else NA_character_
 )
 saveRDS(metadata, file.path(output, "environment.rds"))
+samePoint <- do.call(rbind, lapply(workloads, function(workload)
+  do.call(rbind, lapply(c("ldlt", "cholmod"), function(method)
+    sommer:::.mme_benchmark_ai_assembly(workload,
+      mmes_control(solve=list(method=method),
+        diagnostics=list(profile="force")), replications=3L)))))
+utils::write.csv(samePoint, file.path(output, "ai-parity.csv"), row.names=FALSE)
+if(any(!is.finite(as.matrix(samePoint[, c("ai_max_rel_diff",
+    "score_max_rel_diff", "coefficient_max_rel_diff")]))) ||
+   any(samePoint$ai_max_rel_diff > 1e-8) ||
+   any(samePoint$score_max_rel_diff > 1e-8) ||
+   any(samePoint$coefficient_max_rel_diff > 1e-8)){
+  stop("Same-point AI parity failed; inspect ai-parity.csv.", call.=FALSE)
+}
 result <- run_mme_benchmark(workloads, engines=engines, replications=3L,
   nIters=8L, tolerance=1e-5, verbose=TRUE)
 saveRDS(result, file.path(output, "benchmark.rds"))

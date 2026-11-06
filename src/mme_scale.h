@@ -67,10 +67,36 @@ inline Rcpp::List fitCommonScale(
   const double scoreTolerance = std::sqrt(std::max(likelihoodTolerance, parameterTolerance));
   arma::vec history, scaleHistory, phaseSeconds;
   arma::mat monitor, norms;
+  double aiAssemblyRefreshes = 0.0, aiAssemblyDirections = 0.0;
+  double aiAssemblySolveCalls = 0.0, aiAssemblyPanelColumns = 0.0;
+  double aiAssemblyWorkspaceBytes = 0.0;
+  bool aiAssemblyActive = false, aiAssemblyTiled = false;
   Rcpp::List fit;
   Rcpp::RObject ldltCache = R_NilValue, cholmodCache = R_NilValue;
   const auto observe = [&](Rcpp::List value){
     const Rcpp::List diagnostics = value["engineDiagnostics"];
+    if(diagnostics.containsElementNamed("aiAssembly")) {
+      Rcpp::List assembly = diagnostics["aiAssembly"];
+      aiAssemblyRefreshes += Rcpp::as<double>(assembly["refreshes"]);
+      aiAssemblyDirections += Rcpp::as<double>(assembly["directions"]);
+      aiAssemblySolveCalls += Rcpp::as<double>(assembly["solveCalls"]);
+      aiAssemblyPanelColumns = std::max(aiAssemblyPanelColumns,
+        Rcpp::as<double>(assembly["panelColumns"]));
+      aiAssemblyWorkspaceBytes = std::max(aiAssemblyWorkspaceBytes,
+        Rcpp::as<double>(assembly["workspaceBytes"]));
+      aiAssemblyActive = aiAssemblyActive || Rcpp::as<bool>(assembly["active"]);
+      aiAssemblyTiled = aiAssemblyTiled || Rcpp::as<bool>(assembly["tiled"]);
+      assembly["refreshes"] = aiAssemblyRefreshes;
+      assembly["directions"] = aiAssemblyDirections;
+      assembly["solveCalls"] = aiAssemblySolveCalls;
+      assembly["panelColumns"] = aiAssemblyPanelColumns;
+      assembly["workspaceBytes"] = aiAssemblyWorkspaceBytes;
+      assembly["active"] = aiAssemblyActive;
+      assembly["tiled"] = aiAssemblyTiled;
+      Rcpp::List updatedDiagnostics = diagnostics;
+      updatedDiagnostics["aiAssembly"] = assembly;
+      value["engineDiagnostics"] = updatedDiagnostics;
+    }
     coefficientEvaluations += Rcpp::as<double>(diagnostics["coefficientEvaluations"]);
     columns += Rcpp::as<double>(diagnostics["nativeAISensitivityColumns"]);
     if(diagnostics.containsElementNamed("profile") && !Rf_isNull(diagnostics["profile"])){

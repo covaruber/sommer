@@ -504,6 +504,15 @@ out <- list(modules = structure(list(id = c("model", "task", "formulation",
 )))
 out$controls <- out$controls[out$controls$path != "control.output.pev", , drop=FALSE]
 out$controls <- rbind(out$controls, data.frame(
+  path="control.curvature.assembly", module="curvature",
+  values="sensitivity, augmented-working.", default="sensitivity",
+  requires="Gaussian identity-link deterministic Henderson fit with full-precision random terms.",
+  excludes="Direct, PCG, PQL/Laplace, conditional equations, factor scores and zero-specific latent reduced rank.",
+  fallback="Explicit eligibility or workspace error; no silent change of assembly.",
+  effect="Select the existing sensitivity assembly or exact prior-shifted coefficient-space working-variate absorption using the same joint factorization. No random observation working-variate matrix is formed.",
+  source="src/mme_ai_augmented.h, src/ai_mme_sp2.cpp",
+  status="supported", previous="new"))
+out$controls <- rbind(out$controls, data.frame(
   path="control.score.denseCrossproduct", module="score",
   values="auto, off, force; TRUE/FALSE aliases.", default="auto",
   requires="Gaussian normal Henderson equations with deterministic LDLT/CHOLMOD, diagonal effective residual precision and a diagonal residual derivative.",
@@ -532,6 +541,18 @@ out$controls <- rbind(out$controls, data.frame(
   effect="Fit a full-rank subset while preserving original coefficient names; aliased coefficients are zero constraints, not independently estimated effects.",
   source="R/FUN_fixed_rank.R, src/mme_fixed_rank.cpp",
   status="supported", previous="new"))
+out$controls$effect[out$controls$path == "control.representation.sparseFactors"] <- paste(
+  out$controls$effect[out$controls$path == "control.representation.sparseFactors"],
+  "Auto also keeps complete-grid AR(1)/AR(p)/ANTE separable residual precisions banded, so grid residual blocks are assembled and differentiated as sparse Kronecker bands; off restores dense grid blocks.")
+out$controls <- rbind(out$controls, data.frame(
+  path="control.representation.gridAugment", module="representation",
+  values="auto, off, force; TRUE/FALSE aliases.", default="auto",
+  requires="Gaussian identity-link Henderson REML with LDLT/CHOLMOD and a separable gridded residual (vsm/dsumm of AR(p)/ANTE/diagonal factors over contiguous levels) whose blocks have missing cells.",
+  excludes="ML, PCG, PQL/Laplace, weights, W/H residual transforms, rotation, factor scores, conditional FA and saddle-point equations.",
+  fallback="Auto skips ineligible models and very sparse grids (fewer than half of the cells observed); force stops with the eligibility reason.",
+  effect="Append one zero-response row and one dummy fixed effect per missing grid cell so every residual block is a complete banded Kronecker precision. The REML likelihood, variance components, BLUEs/BLUPs and their covariances are unchanged; public outputs are mapped back to the observed design.",
+  source="R/FUN_grid_augment.R, src/ai_mme_sp2.cpp, src/mme_em.h",
+  status="experimental", previous="new"))
 laplaceConstraintRow <- out$controls$path == "mmes.vcc"
 out$controls$effect[laplaceConstraintRow] <- paste0(
   out$controls$effect[laplaceConstraintRow],

@@ -415,6 +415,62 @@ random = ~ geno + vsm(dsm(trial), ar1m(range), ar1m(row), ism(site))
 
 and trial-specific spline surfaces are obtained with `` vsm(dsm(trial), ism(spl2Dc(row, range)$Z$`A:all`)) ``. Residual structures and random spatial effects can be combined freely, for example `dsumm()` residuals plus random row and column effects within trials (`vsm(dsm(trial), ism(rowf))`).
 
+### 4.7 Computational efficiency of large spatial residuals
+
+An AR1 x AR1 residual has a dense covariance matrix, but its **inverse** is sparse when the field is a complete grid: every plot is linked only to its eight neighbours. `mmes()` uses this in two ways.
+
+* **Missing plots are filled in automatically.** When a trial has missing plots (empty grid cells or `NA` responses), the residual precision of the observed plots is dense again. Like ASReml, `mmes()` then adds the missing cells as pseudo-observations, with one dummy fixed effect each. This completes the grid without changing the REML likelihood, the variance components, the BLUEs or the BLUPs. The dummy effects are removed from the returned object, so `b`, `u`, `fitted()`, `predict()`, AIC and BIC refer to the original data. A cell is only added if both its range and its row levels are observed in that trial.
+* **The mixed model equations stay sparse.** On complete grids the residual enters the coefficient matrix with the banded AR1 pattern, and that sparsity pattern does not change between iterations. The sparse Cholesky symbolic analysis is therefore done only once.
+
+Both are on by default (`representation = list(gridAugment = "auto")`). They apply to REML fits of Gaussian models with the `ldlt` or `cholmod` solvers. The engine diagnostics show whether augmentation was used:
+
+```{r}
+str(mDsum$engineDiagnostics$gridAugmentation)
+mDsumOff <- mmes(yield ~ trial,
+  random=~geno,
+  rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
+  data=MET,
+  control = mmes_control(diagnostics = list(verbose = FALSE),
+                         representation = list(gridAugment = "off")))
+c(augmented = tail(as.numeric(mDsum$llik), 1), original = tail(as.numeric(mDsumOff$llik), 1))
+```
+
+The savings grow with the size of the trials and the number of missing plots. Use `gridAugment = "force"` to get an error that explains why augmentation is not possible, instead of a silent fallback. The residual must include `ism(units)`, as in all examples above. `vsm(ar1m(range), ar1m(row))` without `ism(units)` is a different, row-blocked structure, and it is not treated as a field grid.
+
+#### An alternative: a random spatial field plus an independent residual
+
+Another way to fit field trends is to move the AR1 x AR1 process from the residual to a **random plot-level effect**, and keep an independent residual (the "nugget") for each trial:
+
+$$
+y = X\beta + Z_g g + \sum_t Z_t s_t + e,\qquad
+s_t \sim N\big(0,\ \sigma^2_{s,t}\,K(\rho_{\text{range},t}) \otimes K(\rho_{\text{row},t})\big),\qquad
+e \sim N(0, \textstyle\bigoplus_t \sigma^2_{e,t} I).
+$$
+
+With `atm()`, each trial gets its own spatial field, variance and correlations. A single-level factor `site` gives one field per trial.
+
+```{r}
+MET$site <- factor("field")
+mField <- mmes(yield ~ trial,
+  random=~geno +
+    vsm(atm(trial, "T1"), ar1m(range), ar1m(row), ism(site)) +
+    vsm(atm(trial, "T2"), ar1m(range), ar1m(row), ism(site)) +
+    vsm(atm(trial, "T3"), ar1m(range), ar1m(row), ism(site)),
+  rcov=~vsm(dsm(trial), ism(units)),
+  data=MET,
+  control = mmes_control(diagnostics = list(verbose = FALSE)))
+knitr::kable(covparams_mmes(mField)[, c("factor", "parameter", "estimate")], digits=3)
+cor(mDsum$u[grep("^G", rownames(mDsum$u))], mField$u[grep("^G", rownames(mField$u))])
+```
+
+The spatial variances and correlations are close to those of the `dsumm()` residual model. The residual variances are near zero because these data were simulated without a nugget, and the genotype BLUPs of the two models are almost identical.
+
+When to use which formulation:
+
+* The random-field model is a **different model**: it separates a smooth spatial field from independent plot noise. This is often a better description of real trials, which usually have some plot-to-plot noise (the residual plus spatial-effect model of Gilmour et al. 1997). Compare the two models by REML log-likelihood or AIC, since they have the same fixed effects.
+* It adds one coefficient for **every grid position** (observed or not) of every trial, so the mixed model equations grow by the size of the field. The AR1 precisions are sparse, so this stays tractable. However, with large trials the `dsumm()` residual with automatic augmentation is usually considerably faster, because it adds only the missing cells.
+* Missing plots need no special treatment in the random-field model: unobserved positions are simply predicted.
+
 ## 5. Practical advice
 
 * **Start simple and add structure.** Fit the model without spatial terms, add row and column effects, then AR1 structures, and compare log-likelihoods or AIC for models with the same fixed effects.
@@ -422,7 +478,7 @@ and trial-specific spline surfaces are obtained with `` vsm(dsm(trial), ism(spl2
 * **Watch for boundary estimates.** A correlation estimated very close to 1 (e.g. 0.99) often means a smooth trend across the whole field. Adding a linear trend in that direction as a fixed effect, random row/column effects, or a spline usually gives a better-behaved model.
 * **Use the design.** Replicates and incomplete blocks are part of the design and are usually kept as fixed or random effects alongside the spatial terms.
 * **Sort factor levels in field order** before using `ar1m()`.
-* **Computation.** The spatial residual models above never form the dense plot-by-plot covariance matrix, so trials with thousands of plots run in seconds. The default Henderson formulation is recommended; `control$formulation = "direct"` uses observation-space inversion, but needs memory proportional to the square of the number of plots.
+* **Computation.** The spatial residual models above never form the dense plot-by-plot covariance matrix, so trials with thousands of plots run in seconds; missing plots are filled in automatically to keep the equations sparse (section 4.7). The default Henderson formulation is recommended; `control$formulation = "direct"` uses observation-space inversion, but needs memory proportional to the square of the number of plots.
 
 ### Translating from ASReml-R
 

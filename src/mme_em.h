@@ -70,6 +70,13 @@ inline Rcpp::List fitEMBlend(
   std::string stopReason = "iteration-limit";
   double currentScoreNorm = std::numeric_limits<double>::infinity();
   const bool lowRank = hasZeroSpecific(descriptors);
+  arma::uword observedRows = residualBlock.n_elem;
+  if(descriptors.hasAttribute("gridAugmentation")) {
+    const Rcpp::IntegerVector dims = descriptors.attr("gridAugmentation");
+    if(dims.size() == 2 && dims[0] >= 1) {
+      observedRows = std::min<arma::uword>(observedRows, static_cast<arma::uword>(dims[0]));
+    }
+  }
   const std::string reducedMode = descriptors.hasAttribute("reducedAI")
     ? Rcpp::as<std::string>(descriptors.attr("reducedAI")) : "off";
   const bool retainInformation = !descriptors.hasAttribute("covarianceInformation") ||
@@ -166,9 +173,35 @@ inline Rcpp::List fitEMBlend(
   Rcpp::List pendingAI;
   bool havePendingAI = false, finalInformationReady = false;
   int nativeAIEvaluations = 0, latentAIEvaluations = 0, acceptedAIFitReuses = 0;
+  double aiAssemblyRefreshes = 0.0, aiAssemblyDirections = 0.0;
+  double aiAssemblySolveCalls = 0.0, aiAssemblyPanelColumns = 0.0;
+  double aiAssemblyWorkspaceBytes = 0.0;
+  bool aiAssemblyActive = false, aiAssemblyTiled = false;
   double previousLikelihood = -std::numeric_limits<double>::infinity();
   auto observe = [&](Rcpp::List fit) {
     const Rcpp::List diagnostics = fit["engineDiagnostics"];
+    if(diagnostics.containsElementNamed("aiAssembly")) {
+      Rcpp::List assembly = diagnostics["aiAssembly"];
+      aiAssemblyRefreshes += Rcpp::as<double>(assembly["refreshes"]);
+      aiAssemblyDirections += Rcpp::as<double>(assembly["directions"]);
+      aiAssemblySolveCalls += Rcpp::as<double>(assembly["solveCalls"]);
+      aiAssemblyPanelColumns = std::max(aiAssemblyPanelColumns,
+        Rcpp::as<double>(assembly["panelColumns"]));
+      aiAssemblyWorkspaceBytes = std::max(aiAssemblyWorkspaceBytes,
+        Rcpp::as<double>(assembly["workspaceBytes"]));
+      aiAssemblyActive = aiAssemblyActive || Rcpp::as<bool>(assembly["active"]);
+      aiAssemblyTiled = aiAssemblyTiled || Rcpp::as<bool>(assembly["tiled"]);
+      assembly["refreshes"] = aiAssemblyRefreshes;
+      assembly["directions"] = aiAssemblyDirections;
+      assembly["solveCalls"] = aiAssemblySolveCalls;
+      assembly["panelColumns"] = aiAssemblyPanelColumns;
+      assembly["workspaceBytes"] = aiAssemblyWorkspaceBytes;
+      assembly["active"] = aiAssemblyActive;
+      assembly["tiled"] = aiAssemblyTiled;
+      Rcpp::List updatedDiagnostics = diagnostics;
+      updatedDiagnostics["aiAssembly"] = assembly;
+      fit["engineDiagnostics"] = updatedDiagnostics;
+    }
     if(fit.containsElementNamed(".aiTangent")) {
       ++reducedEvaluations;
       const arma::mat basis = Rcpp::as<arma::mat>(fit[".aiTangent"]);
@@ -186,6 +219,7 @@ inline Rcpp::List fitEMBlend(
                             "DselectedTopologyBuilds", "DselectedTopologyReuses",
                             "cholmodDSelectedBuilds",
                             "gridFactorizations", "gridFactorReuses",
+                            "gridSparseBlockUses", "gridBandFallbacks",
                             "factorEvaluationReuses", "sparseSpatialFactorizationReuses",
                             "emInverseTraceCalls", "emInverseTraceFallbackPanels",
                             "diagonalResidualTraceCalls", "diagonalResidualTraceSolveColumns",
@@ -506,7 +540,10 @@ inline Rcpp::List fitEMBlend(
       double storedEntries = 0.0;
       const bool residualNeeded = variableTerm.back() || lowRank || parameterExpanded;
       for(arma::uword block = 1; residualNeeded && block <= residualBlock.max(); ++block) {
-        const arma::uvec rows = arma::find(residualBlock == block);
+        arma::uvec rows = arma::find(residualBlock == block);
+        // Appended grid-augmentation rows are not observations; their moments
+        // would change the EM map although the likelihood is unchanged.
+        if(observedRows < residualBlock.n_elem) { rows = rows.elem(arma::find(rows < observedRows)); }
         if(rows.is_empty()) { continue; }
         const arma::uvec index = residualIndex.elem(rows) - 1;
         const std::vector<arma::uword> key(index.begin(), index.end());

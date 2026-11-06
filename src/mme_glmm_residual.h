@@ -49,7 +49,15 @@ public:
     arma::mat upper;
     if(!matrix.is_finite() || !arma::chol(upper, matrix)) return false;
     logDet = 2 * arma::accu(arma::log(upper.diag()));
-    precision = arma::inv_sympd(matrix);
+    arma::mat identity(matrix.n_rows, matrix.n_rows, arma::fill::eye);
+    arma::mat intermediate;
+    if(!arma::solve(intermediate, arma::trimatl(upper.t()), identity,
+         arma::solve_opts::fast) ||
+       !arma::solve(precision, arma::trimatu(upper), intermediate,
+         arma::solve_opts::fast)){
+      return false;
+    }
+    precision = arma::symmatu(precision);
     ready = precision.is_finite();
     cached = values;
     return ready;

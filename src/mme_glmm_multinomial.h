@@ -21,9 +21,10 @@ inline arma::vec multinomialCurvatureContraction(const arma::vec & probability,
   const arma::uword dimension = probability.n_elem - 1;
   arma::vec result(dimension, arma::fill::zeros);
   const arma::vec nonreference = probability.head(dimension);
+  arma::vec centered(dimension);
   // Contract the symmetric third cumulant without a category-cubed tensor.
   for(arma::uword category = 0; category <= dimension; ++category){
-    arma::vec centered = -nonreference;
+    centered = -nonreference;
     if(category < dimension){
       double complement = 0.0;
       for(arma::uword other = 0; other <= dimension; ++other){
@@ -75,12 +76,15 @@ inline MultinomialEvaluation multinomialEvaluation(const arma::vec & predictor,
   const double meanDirection = arma::dot(probability, direction);
   arma::vec covarianceDirection(dimension, arma::fill::zeros);
   double varianceDirection = 0.0;
+  arma::vec centeredIndicator(dimension);
+  arma::mat contribution(dimension, dimension);
   for(arma::uword position = 0; position < categories; ++position){
-    arma::vec centeredIndicator = -probability;
+    centeredIndicator = -probability;
     if(position < dimension) centeredIndicator(position) += 1.0;
     const double centeredDirection =
       (position < dimension ? direction(position) : 0.0) - meanDirection;
-    const arma::mat contribution = result.probability(position) *
+    const double probabilityWeight = result.probability(position);
+    contribution = probabilityWeight *
       (centeredIndicator * centeredIndicator.t());
     result.curvature += contribution;
     if(derivativeOrder == 0) continue;
@@ -88,9 +92,9 @@ inline MultinomialEvaluation multinomialEvaluation(const arma::vec & predictor,
     if(derivativeOrder > 1){
       result.curvatureD2 += centeredDirection * centeredDirection * contribution;
     }
-    covarianceDirection += result.probability(position) * centeredDirection *
+    covarianceDirection += probabilityWeight * centeredDirection *
       centeredIndicator;
-    varianceDirection += result.probability(position) *
+    varianceDirection += probabilityWeight *
       centeredDirection * centeredDirection;
   }
   // Third/fourth categorical cumulants contract Hessian derivatives with a

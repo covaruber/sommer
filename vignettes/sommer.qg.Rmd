@@ -773,52 +773,182 @@ Now we fit an unstructured model for a legendre polynomial with two traits and a
 
 ### 1) Partitioned model
 
-Marker-effect BLUPs can be recovered from an equivalent GBLUP parameterization by exploiting the relationship between the marker matrix \(M\), the genomic covariance \(MM^\prime\), and the corresponding genotype BLUPs. The example below fits the marker model directly and then fits a partitioned GBLUP model based on \(MM^\prime\). Marker effects are recovered from genotype effects with the linear transformation \(M^\prime(MM^\prime)^{-1}\), using the regularized inverse constructed in the example. This illustrates the algebraic equivalence of the two parameterizations under the covariance scaling used here.
+The marker model and the partitioned GBLUP model are two ways to represent the genetic signal. With marker effects \(a \sim N(0,\sigma_a^2 I)\), individual genetic values are \(u=Ma\), with covariance \(\sigma_a^2MM^\prime\). The example fits both models using `mmes()`, recovers the marker BLUPs, and compares marker and new-individual prediction-error standard errors (SEs).
 
-```{r}
+To stabilize the inverse, the partitioned model uses \(K=MM^\prime+\epsilon I\), where \(\epsilon=10^{-4}\). This ridge can be interpreted as \(u=Ma+\eta\), with independent \(\eta\sim N(0,\epsilon\sigma_a^2 I)\). For \(A=M^\prime K^{-1}\), the recovered marker BLUP and its full prediction-error covariance are
+
+\[
+\widehat a=A\widehat u,\qquad
+C_{aa}=A C_{uu} A^\prime+\sigma_a^2(I-AM),
+\]
+
+where \(C_{uu}\) is the individual-effect block of the full coefficient error covariance. The second term accounts for uncertainty in marker directions not determined by the individual effects. Thus, transforming \(C_{uu}\) alone does not give the marker PEV.
+
+For new marker profiles \(M_*\), the genetic-value PEV is \(M_*C_{aa}M_*^\prime\). The full covariance \(C_{aa}\), including off-diagonal marker covariances, must be used in this calculation; only after propagating it to the new individuals do we take the diagonal to obtain marginal SEs. Retaining the full new-individual PEV also permits SEs for contrasts between predictions. The script additionally shows a smaller-matrix equivalent for the prediction PEV, useful when forming the full marker-by-marker covariance would be too costly.
+
+For genuinely new individuals, replace `Mnew <- M` below with their marker matrix, using the same marker encoding, centering, scaling and column order as `M`. The reported `mean` is the fixed intercept plus genetic value; it excludes a new `Rowf` effect and residual error.
+
+The `Ci` matrix returned by `postPEV(..., mode = 2L)` is the full joint coefficient error covariance. Mode 2 can require substantial memory, so this full-covariance example is intended for data sizes where that matrix is manageable.
+
+```{r partitioned-marker-pev, fig.width=6, fig.height=6}
 library(sommer)
-data("DT_cpdata", package="enhancer")
+data("DT_cpdata", package = "enhancer")
 DT <- DT_cpdata
 M <- GT_cpdata
 
 ################
 # MARKER MODEL
 ################
-mix.marker <- mmer(Yield~1,
-                   random=~Rowf+vsr(list(M)),
-                   rcov=~units,data=DT, 
-                   nIters = 1, verbose = FALSE)
+mix.marker <- mmes(
+  Yield ~ 1,
+  random = ~ Rowf + vsm(ism(M)),
+  rcov = ~ units,
+  data = DT,
+  control = mmes_control(
+    formulation = "direct",
+    convergence = list(maxIters = 30L),
+    diagnostics = list(verbose = TRUE)
+  )
+)
+mix.marker <- postPEV(mix.marker, mode = 2L)
+stopifnot(isTRUE(mix.marker$convergence))
 
+km <- match("vsm(ism(M))", names(mix.marker$uList))
+stopifnot(!is.na(km))
+rr <- mix.marker$partitions[[km]][1, ]
+im <- seq.int(rr[1], rr[2])
+ord <- match(colnames(M), rownames(mix.marker$uList[[km]]))
+stopifnot(!anyNA(ord), !anyDuplicated(ord), length(im) == ncol(M))
+im <- im[ord]
 
-me.marker <- mix.marker$U$`u:M`$Yield
+me.marker <- drop(mix.marker$bu[im, , drop = FALSE])
+PEV.marker <- as.matrix(mix.marker$Ci[im, im, drop = FALSE])
+pev.marker <- diag(PEV.marker)
+se.marker <- sqrt(pev.marker)
 
 ################
 # PARTITIONED GBLUP MODEL
 ################
+epsilon <- 1e-4
+MMT <- tcrossprod(M)
+K <- MMT + diag(epsilon, nrow(M))
+Kinv <- chol2inv(chol(K))
+dimnames(Kinv) <- dimnames(MMT)
+MTMMTinv <- t(M) %*% Kinv
 
-MMT <-tcrossprod(M) ## MM' = additive relationship matrix 
-MMTinv<-solve(MMT + diag(1e-4, nrow(MMT), nrow(MMT))) ## inverse
-MTMMTinv<-t(M)%*%MMTinv # M' %*% (M'M)-
-MMTinv <- as(as(as( MMTinv,  "dMatrix"), "generalMatrix"), "CsparseMatrix")
-attr(MMTinv, 'inverse')=TRUE
+MMTinv <- as(as(as(Kinv, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(MMTinv, "inverse") <- TRUE
 
-mix.part <- mmes(Yield~1,
-  random=~Rowf+vsm(ism(id), Gu=MMTinv),
-  rcov=~units,
-  data=DT,
-  control = mmes_control(convergence = list(maxIters = 1L),
-  diagnostics = list(verbose = FALSE)))
+mix.part <- mmes(
+  Yield ~ 1,
+  random = ~ Rowf + vsm(ism(id), Gu = MMTinv),
+  rcov = ~ units,
+  data = DT,
+  control = mmes_control(
+    convergence = list(maxIters = 30L),
+    diagnostics = list(verbose = TRUE)
+  )
+)
+mix.part <- postPEV(mix.part, mode = 2L)
+stopifnot(isTRUE(mix.part$convergence))
 
-#convert BLUPs to marker effects me=M'(M'M)- u
-me.part<-MTMMTinv%*%matrix(mix.part$uList$`vsm(ism(id), Gu = MMTinv`,ncol=1)
+kp <- grep("ism(id)", names(mix.part$uList), fixed = TRUE)
+stopifnot(length(kp) == 1L)
+rr <- mix.part$partitions[[kp]][1, ]
+iu <- seq.int(rr[1], rr[2])
+ord <- match(rownames(M), rownames(mix.part$uList[[kp]]))
+stopifnot(!anyNA(ord), !anyDuplicated(ord), length(iu) == nrow(M))
+iu <- iu[ord]
 
-# compare marker effects between both models
-plot(me.marker,me.part)
+uhat <- mix.part$bu[iu, , drop = FALSE]
+PEV.u <- as.matrix(mix.part$Ci[iu, iu, drop = FALSE])
+sigma2.a <- as.numeric(mix.part$theta[[kp]])
+stopifnot(length(sigma2.a) == 1L, sigma2.a >= 0)
 
+A <- MTMMTinv
+me.part <- drop(A %*% uhat)
 
+# Includes uncertainty in marker directions not identified by training data.
+Q <- sigma2.a * (diag(ncol(M)) - A %*% M)
+PEV.marker.part <- Q + A %*% PEV.u %*% t(A)
+PEV.marker.part <- (PEV.marker.part + t(PEV.marker.part)) / 2
+pev.marker.part <- diag(PEV.marker.part)
+se.marker.part <- sqrt(pev.marker.part)
+
+################
+# NEW INDIVIDUALS
+################
+# Replace M with new marker profiles for genuinely new individuals.
+# Keep the training marker order, coding, centering and scaling.
+Mnew <- M
+stopifnot(identical(colnames(Mnew), colnames(M)))
+
+g.marker <- drop(Mnew %*% me.marker)
+g.part <- drop(Mnew %*% me.part)
+
+# Use FULL marker error covariance before extracting individual variances.
+PEV.g.marker <- Mnew %*% PEV.marker %*% t(Mnew)
+PEV.g.part <- Mnew %*% PEV.marker.part %*% t(Mnew)
+
+predictions <- data.frame(
+  id = rownames(Mnew),
+  genetic.marker = g.marker,
+  genetic.SE.marker = sqrt(diag(PEV.g.marker)),
+  genetic.part = g.part,
+  genetic.SE.part = sqrt(diag(PEV.g.part))
+)
+
+################
+# INTERCEPT + GENETIC VALUE
+################
+ib.marker <- match("Intercept", rownames(mix.marker$bu))
+ib.part <- match("Intercept", rownames(mix.part$bu))
+stopifnot(!is.na(ib.marker), !is.na(ib.part))
+
+Cba.marker <- as.matrix(mix.marker$Ci[ib.marker, im, drop = FALSE])
+Cba.part <- as.matrix(mix.part$Ci[ib.part, iu, drop = FALSE]) %*% t(A)
+cross.marker <- drop(Mnew %*% t(Cba.marker))
+cross.part <- drop(Mnew %*% t(Cba.part))
+one <- rep(1, nrow(Mnew))
+
+PEV.mean.marker <- PEV.g.marker +
+  as.numeric(mix.marker$Ci[ib.marker, ib.marker]) +
+  outer(one, cross.marker) + outer(cross.marker, one)
+PEV.mean.part <- PEV.g.part +
+  as.numeric(mix.part$Ci[ib.part, ib.part]) +
+  outer(one, cross.part) + outer(cross.part, one)
+
+predictions$mean.marker <- as.numeric(mix.marker$bu[ib.marker]) + g.marker
+predictions$mean.SE.marker <- sqrt(diag(PEV.mean.marker))
+predictions$mean.part <- as.numeric(mix.part$bu[ib.part]) + g.part
+predictions$mean.SE.part <- sqrt(diag(PEV.mean.part))
+
+################
+# SMALLER-MATRIX EQUIVALENT
+################
+# Avoids forming a p-by-p marker PEV matrix when only predictions are needed.
+S <- Mnew %*% t(M)
+B <- S %*% Kinv
+PEV.g.part.small <- sigma2.a * (tcrossprod(Mnew) - B %*% t(S)) +
+  B %*% PEV.u %*% t(B)
+
+stopifnot(
+  max(abs(PEV.g.part - PEV.g.part.small)) < 1e-7,
+  all(is.finite(se.marker)),
+  all(is.finite(se.marker.part)),
+  all(is.finite(as.matrix(predictions[, -1])))
+)
+
+print(head(predictions))
+print(c(
+  max.marker.effect.difference = max(abs(me.marker - me.part)),
+  max.marker.SE.difference = max(abs(se.marker - se.marker.part))
+))
+plot(me.marker, me.part, xlab = "Direct marker BLUP", ylab = "Recovered marker BLUP")
+abline(0, 1, col = "red")
 ```
 
-Under the covariance construction and regularization used in this example, the two parameterizations produce the corresponding marker-effect predictions through the stated linear transformation. Their relative computational cost depends on the numbers of records, genotypes and markers and on the solver formulation; therefore the partitioned form should not be assumed to be universally faster.
+In this example, the direct marker and partitioned fits should give nearly identical results; any small discrepancy reflects the ridge in the partitioned relationship matrix. The memory-saving expression computes prediction covariance directly from the \(n\times n\) individual-effect covariance block and avoids storing the \(p\times p\) marker PEV. The relative computational cost of the two model parameterizations depends on the numbers of records, genotypes and markers and on solver formulation, so the partitioned form should not be assumed to be universally faster.
 
 
 ### 2) UDU' decomposition

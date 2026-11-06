@@ -16,6 +16,7 @@ struct RRAIResult {
   arma::uword largestResidualBlock = 0;
   arma::uword sparseTracePanels = 0;
   arma::uword denseTracePanels = 0;
+  arma::uword directResidualTraces = 0;
   std::string residualEngine;
   arma::vec phaseSeconds = arma::vec(4, arma::fill::zeros);
 };
@@ -43,6 +44,8 @@ struct RRConditionalOperators {
   arma::mat informationTangent;
   std::function<arma::mat(arma::uword, const arma::mat &)> derivative;
   std::function<arma::mat(arma::uword)> residualContraction;
+  // Optional exact tr(P dR_k) for residual shape parameter k; false means unavailable.
+  std::function<bool(arma::uword, double &)> residualTrace;
   std::function<arma::vec()> residualDiagonalContraction;
   std::function<arma::vec(arma::uword)> residualDiagonalDerivative;
 };
@@ -162,6 +165,7 @@ inline RRAIResult reducedRankInformation(
       return std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
     };
   const arma::sp_mat & W = operators.W;
+  const arma::sp_mat Wt = W.t();
   const arma::sp_mat & C = operators.C;
   const arma::vec & y = operators.y;
   const arma::uword n = y.n_elem;
@@ -397,7 +401,7 @@ inline RRAIResult reducedRankInformation(
 
   auto applyP = [&](const arma::mat & value) -> arma::mat {
     const arma::mat riValue = applyRi(value);
-    const arma::mat rhs = W.t() * riValue;
+    const arma::mat rhs = Wt * riValue;
     const arma::mat solved = operators.solve(rhs);
     return riValue - applyRi(W * solved);
   };
@@ -488,7 +492,7 @@ inline RRAIResult reducedRankInformation(
             ++out.denseTracePanels;
             weightedPanel = arma::sp_mat(applyRi(arma::mat(designPanel)));
           }
-          const arma::sp_mat coupling = W.t() * weightedPanel;
+          const arma::sp_mat coupling = Wt * weightedPanel;
           for(arma::sp_mat::const_iterator entry = coupling.begin();
               entry != coupling.end(); ++entry) {
             const arma::uword column = first + entry.col();
@@ -561,7 +565,24 @@ inline RRAIResult reducedRankInformation(
   if(residualHasShape && diagonalResidual) {
     diagonalContraction = operators.residualDiagonalContraction();
   }
-  if(residualHasShape && operators.residualContraction) {
+  // Engines with sparse residual precisions return tr(P dR_k) directly, so the
+  // dense per-block contractions P_bb are never formed.
+  arma::vec directTraces;
+  bool directResidual = residualHasShape && !diagonalResidual && !useH &&
+    static_cast<bool>(operators.residualTrace);
+  if(directResidual) {
+    directTraces.zeros(nParameters);
+    for(arma::uword parameter = residualFirst + 1; parameter < nParameters; ++parameter) {
+      double value = 0.0;
+      if(!operators.residualTrace(parameter - residualFirst, value)) {
+        directResidual = false;
+        break;
+      }
+      directTraces(parameter) = value;
+    }
+    if(directResidual) { out.directResidualTraces = nParameters - residualFirst - 1; }
+  }
+  if(residualHasShape && !directResidual && operators.residualContraction) {
     for(std::size_t block = 0; block < residualStates.size(); ++block) {
       const ResidualBlockState & state = residualStates[block];
       const arma::mat contraction =
@@ -571,8 +592,8 @@ inline RRAIResult reducedRankInformation(
       residualContractions[block] = contraction.submat(observationOrder, observationOrder);
     }
   }
-  for(arma::uword first = 0; residualHasShape && !diagonalResidual && !operators.residualContraction &&
-      first < n; first += panelWidth) {
+  for(arma::uword first = 0; residualHasShape && !diagonalResidual && !directResidual &&
+      !operators.residualContraction && first < n; first += panelWidth) {
     Rcpp::checkUserInterrupt();
     const arma::uword count = std::min(panelWidth, n - first);
     arma::mat basis(n, count, arma::fill::zeros);
@@ -593,10 +614,38 @@ inline RRAIResult reducedRankInformation(
       }
     }
   }
+  // With engine contractions and derivative actions, tr(dR_k P) is taken from one
+  // block-stacked dR_k action; the engine skips blocks where dR_k vanishes.
+  const bool stackedResidualTraces = residualHasShape && !diagonalResidual && !useH &&
+    !directResidual && operators.residualContraction && operators.derivative;
+  arma::mat stackedContractions;
+  if(stackedResidualTraces) {
+    arma::uword width = 0;
+    for(const ResidualBlockState & state : residualStates) { width = std::max(width, state.rows.n_elem); }
+    stackedContractions.zeros(n, width);
+    for(std::size_t block = 0; block < residualStates.size(); ++block) {
+      const ResidualBlockState & state = residualStates[block];
+      stackedContractions.submat(state.rows, arma::regspace<arma::uvec>(0, state.rows.n_elem - 1)) =
+        residualContractions[block];
+    }
+  }
   for(arma::uword parameter = residualFirst + 1; parameter < nParameters; ++parameter) {
+    if(directResidual) {
+      traces(parameter) = directTraces(parameter);
+      continue;
+    }
     if(diagonalResidual) {
       traces(parameter) = arma::dot(
         operators.residualDiagonalDerivative(parameter - residualFirst), diagonalContraction);
+      continue;
+    }
+    if(stackedResidualTraces) {
+      const arma::mat applied = operators.derivative(parameter - residualFirst, stackedContractions);
+      for(const ResidualBlockState & state : residualStates) {
+        for(arma::uword local = 0; local < state.rows.n_elem; ++local) {
+          traces(parameter) += applied(state.rows(local), local);
+        }
+      }
       continue;
     }
     for(std::size_t block = 0; block < residualStates.size(); ++block) {
@@ -706,7 +755,14 @@ inline Rcpp::List fitReducedRank(
     parameterCount += par.n_elem;
     offsets[term + 1] = parameterCount;
   }
-  const arma::vec response = arma::vec(arma::mat(y0).col(0));
+  arma::vec response = arma::vec(arma::mat(y0).col(0));
+  if(descriptors.hasAttribute("gridAugmentation")) {
+    // Appended missing-cell rows are not observations.
+    const Rcpp::IntegerVector dims = descriptors.attr("gridAugmentation");
+    if(dims.size() == 2 && dims[0] >= 1 && dims[0] <= static_cast<int>(response.n_elem)) {
+      response = response.head(static_cast<arma::uword>(dims[0]));
+    }
+  }
   const double responseVariance = responsePrepared
     ? preparedSd * preparedSd : arma::var(response);
   if(!std::isfinite(responseVariance) || responseVariance <= 0.0) {
@@ -1071,6 +1127,7 @@ inline Rcpp::List fitReducedRank(
   diagnostics["randomTraceDirections"] = static_cast<double>(rrInformation.randomTraceDirections);
   diagnostics["sparseRandomTracePanels"] = static_cast<double>(rrInformation.sparseTracePanels);
   diagnostics["denseRandomTracePanels"] = static_cast<double>(rrInformation.denseTracePanels);
+  diagnostics["directResidualTraces"] = static_cast<double>(rrInformation.directResidualTraces);
   diagnostics["largestResidualBlock"] = static_cast<double>(rrInformation.largestResidualBlock);
   diagnostics["residualEvaluation"] = "observed-blocks";
   diagnostics["residualEngine"] = rrInformation.residualEngine;

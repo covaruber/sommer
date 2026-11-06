@@ -67,17 +67,22 @@ Rcpp::List direct_mmes_vcov_factor_cpp(const Rcpp::List & inputs,
       relationships[term] = K;
     }
     Rcpp::List termBlocks(indices.n_elem);
+    std::vector<arma::sp_mat> sparseDesigns(indices.n_elem);
     for(arma::uword a = 0; a < indices.n_elem; ++a){
       termBlocks[a] = Z[indices(a)];
-      const arma::sp_mat Za = Rcpp::as<arma::sp_mat>(Z[indices(a)]);
+      sparseDesigns[a] = Rcpp::as<arma::sp_mat>(Z[indices(a)]);
+      const arma::sp_mat & Za = sparseDesigns[a];
       if(Za.n_rows != n || Za.n_cols != A.n_rows){
         Rcpp::stop("Direct post-fit relationship and design dimensions differ.");
       }
       effects += Za.n_cols;
+    }
+    for(arma::uword a = 0; a < indices.n_elem; ++a){
+      const arma::sp_mat & Za = sparseDesigns[a];
       const arma::mat ZK = identity ? arma::mat(Za) : arma::mat(Za * K);
       for(arma::uword b = 0; b < indices.n_elem; ++b){
         if(Sigma(a,b) != 0.0){
-          const arma::sp_mat Zb = Rcpp::as<arma::sp_mat>(Z[indices(b)]);
+          const arma::sp_mat & Zb = sparseDesigns[b];
           V += Sigma(a,b) * (ZK * Zb.t());
         }
       }

@@ -21,39 +21,69 @@ inline Eigen::SparseMatrix<double> laplaceEigenSparse(const arma::sp_mat & sourc
 }
 
 inline bool laplaceFactorLogDeterminant(CholmodState & factor, double & value){
-  // factor_to_sparse consumes numeric storage; preserve the reusable factor.
-  cholmod_factor * factorCopy = M_cholmod_copy_factor(factor.factor, &factor.common);
-  if(factorCopy == nullptr) return false;
-  cholmod_sparse * sparseFactor =
-    M_cholmod_factor_to_sparse(factorCopy, &factor.common);
-  M_cholmod_free_factor(&factorCopy, &factor.common);
-  if(sparseFactor == nullptr || factor.common.status != CHOLMOD_OK){
-    if(sparseFactor != nullptr) M_cholmod_free_sparse(&sparseFactor, &factor.common);
-    return false;
-  }
-  const int * columnStart = static_cast<const int *>(sparseFactor->p);
-  const int * rowIndex = static_cast<const int *>(sparseFactor->i);
-  const double * entries = static_cast<const double *>(sparseFactor->x);
-  value = 0.0;
-  bool valid = true;
-  for(int columnIndex = 0; columnIndex < static_cast<int>(sparseFactor->ncol);
-      ++columnIndex){
-    double diagonalValue = 0.0;
-    for(int entryIndex = columnStart[columnIndex];
-        entryIndex < columnStart[columnIndex + 1]; ++entryIndex){
-      if(rowIndex[entryIndex] == columnIndex){
-        diagonalValue = entries[entryIndex];
-        break;
+  value = NA_REAL;
+  const cholmod_factor * numeric = factor.factor;
+  if(numeric == nullptr || !numeric->is_ll ||
+     numeric->itype != CHOLMOD_INT || numeric->xtype != CHOLMOD_REAL ||
+     numeric->dtype != CHOLMOD_DOUBLE || numeric->minor != numeric->n ||
+     factor.common.status != CHOLMOD_OK) return false;
+  const int dimension = static_cast<int>(numeric->n);
+  const double * entries = static_cast<const double *>(numeric->x);
+  double logDeterminant = 0.0;
+  if(numeric->is_super){
+    const int * super = static_cast<const int *>(numeric->super);
+    const int * rowStarts = static_cast<const int *>(numeric->pi);
+    const int * valueStarts = static_cast<const int *>(numeric->px);
+    if((dimension && (!super || !rowStarts || !valueStarts ||
+        !entries)) ||
+       (numeric->nsuper && (super[0] != 0 || super[numeric->nsuper] != dimension))){
+      return false;
+    }
+    std::size_t nextColumn = 0;
+    for(std::size_t node = 0; node < numeric->nsuper; ++node){
+      const int firstColumn = super[node];
+      const int columnCount = super[node + 1] - firstColumn;
+      const int rowCount = rowStarts[node + 1] - rowStarts[node];
+      const int valueStart = valueStarts[node];
+      if(firstColumn < 0 || static_cast<std::size_t>(firstColumn) != nextColumn ||
+         columnCount <= 0 || rowCount < columnCount || valueStart < 0 ||
+         static_cast<std::size_t>(valueStart) +
+           static_cast<std::size_t>(rowCount) * columnCount > numeric->xsize){
+        return false;
       }
+      for(int localColumn = 0; localColumn < columnCount; ++localColumn){
+        const double diagonal = entries[valueStart +
+          static_cast<std::size_t>(localColumn) * rowCount + localColumn];
+        if(!std::isfinite(diagonal) || diagonal <= 0.0) return false;
+        logDeterminant += 2.0 * std::log(diagonal);
+      }
+      nextColumn += static_cast<std::size_t>(columnCount);
     }
-    if(!std::isfinite(diagonalValue) || diagonalValue <= 0.0){
-      valid = false;
-      break;
+    if(nextColumn != static_cast<std::size_t>(dimension)) return false;
+  }else{
+    const int * columnStarts = static_cast<const int *>(numeric->p);
+    const int * rowIndices = static_cast<const int *>(numeric->i);
+    if((dimension && (!columnStarts || !rowIndices || !entries)) ||
+       (columnStarts && static_cast<std::size_t>(columnStarts[dimension]) >
+         numeric->nzmax)) return false;
+    for(int column = 0; column < dimension; ++column){
+      const int first = columnStarts[column];
+      const int last = columnStarts[column + 1];
+      if(first < 0 || last < first ||
+         static_cast<std::size_t>(last) > numeric->nzmax) return false;
+      double diagonal = 0.0;
+      for(int position = first; position < last; ++position){
+        if(rowIndices[position] == column){
+          diagonal = entries[position];
+          break;
+        }
+      }
+      if(!std::isfinite(diagonal) || diagonal <= 0.0) return false;
+      logDeterminant += 2.0 * std::log(diagonal);
     }
-    value += 2.0 * std::log(diagonalValue);
   }
-  M_cholmod_free_sparse(&sparseFactor, &factor.common);
-  return valid && std::isfinite(value);
+  value = logDeterminant;
+  return std::isfinite(value);
 }
 
 struct LaplacePrecisionDerivative {

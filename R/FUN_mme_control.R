@@ -190,6 +190,7 @@
                          gpu = NULL,
                          gpuMinSize = NULL,
                          compression = "off",
+                         aiAssembly = "sensitivity",
                          covarianceInformation = "full",
                          retainCoefficientMatrix = TRUE){
   if(!is.logical(retainCoefficientMatrix) || length(retainCoefficientMatrix) != 1L ||
@@ -269,6 +270,7 @@
     traceBatch = .mme_experimental_mode(experimental$traceBatch, "off", "sommer.mme.traceBatch"),
     denseCrossproduct = .mme_experimental_mode(experimental$denseCrossproduct, "auto"),
     sparseFactors = .mme_experimental_mode(experimental$sparseFactors, "auto", "sommer.mme.sparseFactors"),
+    gridAugment = .mme_experimental_mode(experimental$gridAugment, "auto", "sommer.mme.gridAugment"),
     saddlePoint = .mme_experimental_mode(experimental$saddlePoint, "off", "sommer.mme.saddlePoint"),
     reducedAI = .mme_experimental_mode(experimental$reducedAI, "off", "sommer.mme.reducedAI"),
     commonScale = .mme_experimental_mode(experimental$commonScale, "off", "sommer.mme.commonScale"),
@@ -281,6 +283,8 @@
   pcgResolved <- .mme_pcg_control(pcg)
   compression <- .mme_compression_control(compression)
   covarianceInformation <- .mme_covariance_information(covarianceInformation)
+  aiAssembly <- .mme_choice(aiAssembly, c("sensitivity", "augmented-working"),
+    "curvature$assembly")
 
   control <- list(
     solver = solver,
@@ -291,6 +295,7 @@
     experimental = expResolved,
     pcg = pcgResolved,
     compression = compression,
+    aiAssembly = aiAssembly,
     covarianceInformation = covarianceInformation,
     retainCoefficientMatrix = retainCoefficientMatrix,
     acceleration = acceleration,

@@ -13,6 +13,7 @@
 #include "mme_sufficient.h"
 #include "mme_layout.h"
 #include "mme_dense_score.h"
+#include "mme_ai_augmented.h"
 #include "mme_progress.h"
 #include <mutex>
 #include <numeric>
@@ -305,6 +306,15 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
       : solverName == "cholmod" ? sommer::SolverBackend::Cholmod
       : sommer::SolverBackend::PCG,
     reml, computeCi, pcgPreconditioner == "diagonal"};
+  const sommer::control::AIAssembly aiAssembly = controls.aiAssembly();
+  const bool augmentedWorkingAI =
+    aiAssembly == sommer::control::AIAssembly::AugmentedWorking;
+  const bool momentOnlyAIpass = controls.logical("emMomentsOnly");
+  if(augmentedWorkingAI &&
+     (solverPlan.pcg() || (rrConditional && !momentOnlyAIpass) ||
+      sommer::hasZeroSpecific(covStructI))){
+    Rcpp::stop("curvature$assembly='augmented-working' requires deterministic Gaussian Henderson equations without PCG or latent reduced-rank modes.");
+  }
 
   const Rcpp::Function getDenseOption = Rcpp::Environment::base_env()["getOption"];
 
@@ -353,6 +363,14 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   double aiRandomFirstTermSeconds = 0.0;
   double aiRandomCurvatureSeconds = 0.0;
   double aiResidualBlockSeconds = 0.0;
+  std::size_t augmentedAIRefreshes = 0;
+  std::size_t augmentedAIDirections = 0;
+  std::size_t augmentedAISolveCalls = 0;
+  std::size_t augmentedAIPanelColumns = 0;
+  std::size_t augmentedAIWorkspaceBytes = 0;
+  bool augmentedAITiled = false;
+  std::size_t sensitivityAISolveCalls = 0;
+  std::size_t sensitivityAIPanelColumns = 0;
   execution.memory = controls.memory(getDenseOption);
   const std::string memoryPolicyMode = sommer::control::memoryName(execution.memory);
   const bool memoryStrict = execution.memory == sommer::control::Memory::Speed;
@@ -443,8 +461,26 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     Rcpp::stop("Residual block/index vectors must have one entry per observation.");
   }
 
-  double vary = responsePrepared ? preparedSd * preparedSd : arma::mean(arma::var(y0));
-  double stdy = responsePrepared ? preparedSd : arma::mean(arma::stddev(y0));
+  // Grid augmentation appends m missing residual-grid cells (zero response,
+  // one dummy fixed effect each) after the n observed rows and p fixed
+  // columns. Response scaling and the intercept use the observed model only.
+  arma::uword augmentedObservations = static_cast<arma::uword>(nR);
+  arma::uword augmentedFixed = static_cast<arma::uword>(nX);
+  if(covStructI.hasAttribute("gridAugmentation")){
+    const Rcpp::IntegerVector dims = covStructI.attr("gridAugmentation");
+    if(dims.size() != 2 || dims[0] < 1 || dims[0] > nR || dims[1] < 0 || dims[1] > nX){
+      Rcpp::stop("Malformed grid augmentation dimensions.");
+    }
+    augmentedObservations = static_cast<arma::uword>(dims[0]);
+    augmentedFixed = static_cast<arma::uword>(dims[1]);
+  }
+  const bool gridAugmented = augmentedObservations < static_cast<arma::uword>(nR);
+  const arma::mat responseObserved = gridAugmented
+    ? arma::mat(arma::mat(y0).rows(0, augmentedObservations - 1)) : arma::mat();
+  const arma::mat & responseMoments = gridAugmented ? responseObserved : arma::mat(y0);
+
+  double vary = responsePrepared ? preparedSd * preparedSd : arma::mean(arma::var(responseMoments));
+  double stdy = responsePrepared ? preparedSd : arma::mean(arma::stddev(responseMoments));
   if(!std::isfinite(vary) || vary <= 0.0){
     Rcpp::stop("Response variance must be positive and finite.");
   }
@@ -456,6 +492,14 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     if(hasIntercept && X.n_cols > 0){
       cShift(0) = 1.0;
     }
+  } else if(gridAugmented){
+    arma::vec observedShift;
+    hasIntercept = augmentedFixed > 0 && find_intercept_vector(
+      arma::sp_mat(X.submat(0, 0, augmentedObservations - 1, augmentedFixed - 1)),
+      observedShift);
+    if(hasIntercept){
+      cShift.subvec(0, augmentedFixed - 1) = observedShift;
+    }
   } else {
     hasIntercept = find_intercept_vector(X, cShift);
   }
@@ -464,17 +508,29 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   if(responsePrepared){
     muy = preparedMean;
   } else if(hasIntercept){
-    muy = arma::mean(arma::mean(y0));
+    muy = arma::mean(arma::mean(responseMoments));
   }
 
   arma::mat responseScaled = arma::mat(y0);
   if(!responsePrepared){
-    if(hasIntercept){
-      const arma::rowvec responseMeans = arma::mean(responseScaled, 0);
-      responseScaled.each_row() -= responseMeans;
+    if(gridAugmented){
+      arma::mat observed = responseObserved;
+      if(hasIntercept){
+        observed.each_row() -= arma::mean(observed, 0);
+      }
+      observed.each_row() /= arma::stddev(observed, 0, 0);
+      responseScaled.zeros();
+      responseScaled.rows(0, augmentedObservations - 1) = observed;
+    }else{
+      if(hasIntercept){
+        const arma::rowvec responseMeans = arma::mean(responseScaled, 0);
+        responseScaled.each_row() -= responseMeans;
+      }
+      const arma::rowvec responseSds = arma::stddev(responseScaled, 0, 0);
+      responseScaled.each_row() /= responseSds;
     }
-    const arma::rowvec responseSds = arma::stddev(responseScaled, 0, 0);
-    responseScaled.each_row() /= responseSds;
+  }else if(gridAugmented){
+    responseScaled.rows(augmentedObservations, static_cast<arma::uword>(nR) - 1).zeros();
   }
   arma::sp_mat y = arma::sp_mat(responseScaled);
   bool intercept = hasIntercept;
@@ -1456,9 +1512,68 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   std::vector<arma::umat> gridMissDigits;
   std::vector<arma::uword> gridSize;
   std::vector< std::vector<int> > gridSectionOf;
+  // Structural precision bandwidth per block and factor (-1 = dense). Markov
+  // factors keep their band on contiguous level subsets (order <= 1: on any
+  // subset), so Q = kron(P_f) is sparse with a value-independent pattern.
+  std::vector< std::vector<int> > gridBand;
+  std::vector<arma::uvec> gridRowOfPos;
+  std::vector<char> gridBlockBanded;
+  const bool gridBandingEnabled = parseExpMode("sparseFactors", "sommer.mme.sparseFactors",
+    sommer::control::Mode::Auto) != sommer::control::Mode::Off;
+  std::vector<int> gridFactorBand;
+  bool residualBandedFactors = false;
+  {
+    Rcpp::List rfactors =
+      covDescriptor[static_cast<std::size_t>(residualStructIndex)]["factors"];
+    bool allBandable = rfactors.size() > 0;
+    bool anyBanded = false;
+    for(int f = 0; f < rfactors.size(); ++f){
+      const Rcpp::List fl = Rcpp::as<Rcpp::List>(rfactors[f]);
+      int band = -1;
+      const sommer::PrecisionFamily family = sommer::precisionFamily(fl);
+      if((fl.containsElementNamed("structurally_diagonal") &&
+          Rcpp::as<bool>(fl["structurally_diagonal"])) ||
+         family == sommer::PrecisionFamily::Diagonal){
+        band = 0;
+      }else if(family == sommer::PrecisionFamily::AR1){
+        band = 1;
+      }else if(family == sommer::PrecisionFamily::StationaryAR){
+        const Rcpp::List representation = fl["representation"];
+        if(representation.containsElementNamed("order")){
+          band = Rcpp::as<int>(representation["order"]);
+        }else if(fl.containsElementNamed("order")){
+          band = Rcpp::as<int>(fl["order"]);
+        }
+      }else if(family == sommer::PrecisionFamily::ModifiedCholesky){
+        const Rcpp::List representation = fl["representation"];
+        if(representation.containsElementNamed("innovation") &&
+           !Rf_isNull(representation["innovation"])){
+          const Rcpp::List capability = representation["innovation"];
+          if(capability.containsElementNamed("rows") && capability.containsElementNamed("columns")){
+            Rcpp::IntegerVector rr = capability["rows"];
+            Rcpp::IntegerVector cc = capability["columns"];
+            band = 0;
+            for(int a = 0; a < rr.size() && a < cc.size(); ++a){
+              band = std::max(band, rr[a] - cc[a]);
+            }
+          }
+        }
+      }
+      gridFactorBand.push_back(band);
+      if(band < 0){ allBandable = false; }
+      if(band >= 1){ anyBanded = true; }
+    }
+    residualBandedFactors = gridBandingEnabled && allBandable && anyBanded;
+  }
+  // Complete banded residual blocks also use the grid engine so that their
+  // precision stays sparse in C assembly and score traces.
+  const bool gridCompleteBanded = residualBandedFactors && compactResidualCovariance &&
+    residualKronBlocks && !residualSectioned && !useH && !saddleActive &&
+    solverName != "pcg";
 
   if(sommer::ResidualPolicy::gridCandidate(compactResidualCovariance,
-      residualKronBlocks, residualSectioned, residualStructurallyDiagonal, useH)){
+      residualKronBlocks, residualSectioned, residualStructurallyDiagonal, useH) ||
+     gridCompleteBanded){
     Rcpp::List rfactors =
       covDescriptor[static_cast<std::size_t>(residualStructIndex)]["factors"];
     gridNFactors = rfactors.size();
@@ -1480,6 +1595,10 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     gridSize.resize(static_cast<std::size_t>(residualNBlocks));
     gridSectionOf.assign(static_cast<std::size_t>(residualNBlocks),
                          std::vector<int>(static_cast<std::size_t>(gridNFactors), -1));
+    gridBand.assign(static_cast<std::size_t>(residualNBlocks),
+                    std::vector<int>(static_cast<std::size_t>(gridNFactors), -1));
+    gridRowOfPos.resize(static_cast<std::size_t>(residualNBlocks));
+    gridBlockBanded.assign(static_cast<std::size_t>(residualNBlocks), 0);
 
     for(int b = 0; b < residualNBlocks && residualGridBlocks; ++b){
       const std::size_t bb = static_cast<std::size_t>(b);
@@ -1558,6 +1677,30 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
         gridSectionOf[bb][static_cast<std::size_t>(f)] =
           static_cast<int>(gridLevels[bb][owner](0));
       }
+
+      bool banded = gridBandingEnabled &&
+        static_cast<int>(gridFactorBand.size()) == gridNFactors;
+      for(int f = 0; f < gridNFactors && banded; ++f){
+        const std::size_t ff = static_cast<std::size_t>(f);
+        const arma::uvec & lev = gridLevels[bb][ff];
+        int band = gridFactorBand[ff];
+        if(lev.n_elem <= 1){
+          band = 0;
+        }else if(band > 1){
+          for(arma::uword i = 1; i < lev.n_elem; ++i){
+            if(lev(i) != lev(i - 1) + 1){ band = -1; break; }
+          }
+        }
+        gridBand[bb][ff] = band;
+        if(band < 0){ banded = false; }
+      }
+      gridBlockBanded[bb] = banded ? 1 : 0;
+      if(gridMissPos[bb].n_elem == 0){
+        gridRowOfPos[bb].set_size(nb);
+        for(arma::uword j = 0; j < nb; ++j){
+          gridRowOfPos[bb](gridObsPos[bb](j)) = j;
+        }
+      }
     }
   }
 
@@ -1623,6 +1766,32 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     }
   }
   residualBlockDesignCacheVisits = static_cast<double>(W.nonZeros());
+  }
+
+  std::vector<Eigen::SparseMatrix<double, Eigen::ColMajor, int>> gridBlockWsp;
+  int gridSparseBlockCandidates = 0;
+  if(residualGridBlocks && residualPlan.blockAssembly() && !saddleActive){
+    gridBlockWsp.resize(static_cast<std::size_t>(residualNBlocks));
+    for(int block = 0; block < residualNBlocks; ++block){
+      const std::size_t bb = static_cast<std::size_t>(block);
+      const arma::mat & dense = residualKronBlockWCache[bb];
+      if(!gridBlockBanded[bb] || gridMissPos[bb].n_elem > 0 || dense.is_empty()){
+        continue;
+      }
+      std::vector<Eigen::Triplet<double, int>> entries;
+      for(arma::uword c = 0; c < dense.n_cols; ++c){
+        for(arma::uword r = 0; r < dense.n_rows; ++r){
+          if(dense(r, c) != 0.0){
+            entries.emplace_back(static_cast<int>(r), static_cast<int>(c), dense(r, c));
+          }
+        }
+      }
+      gridBlockWsp[bb].resize(static_cast<Eigen::Index>(dense.n_rows),
+                              static_cast<Eigen::Index>(dense.n_cols));
+      gridBlockWsp[bb].setFromTriplets(entries.begin(), entries.end());
+      gridBlockWsp[bb].makeCompressed();
+      ++gridSparseBlockCandidates;
+    }
   }
 
   // ------------------------------------------------------------
@@ -2351,6 +2520,8 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
   double traceBatchWorkspaceBytes = 0.0;
   int gridFactorizations = 0;
   int gridFactorReuses = 0;
+  int gridBandFallbacks = 0;
+  int gridSparseBlockUses = 0;
   int pcgResidualTraceContractions = 0;
   auto crossGroupSignature = [](const std::vector< std::vector<int> > & groups) -> std::uint64_t {
     std::uint64_t hash = 1469598103934665603ULL;
@@ -3717,17 +3888,21 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     cholmodInvCache.localOf.assign(static_cast<std::size_t>(nEffects), -1);
     arma::mat YX;
     double retainedDoubles = 0.0;
-    const double fixedPeakDoubles = 2.0 * static_cast<double>(n) * nX +
-      static_cast<double>(nX) * nX;
-    if(nX > 0 && fixedPeakDoubles <= cholmodInvCacheMaxDoubles){
-      std::vector<int> xcols(static_cast<std::size_t>(nX));
-      for(int j = 0; j < nX; ++j){ xcols[static_cast<std::size_t>(j)] = j; }
+    // Grid-augmentation dummies only couple to residual-banded entries inside
+    // C's pattern; the selected inverse supplies those, so the dense border
+    // keeps just the model's own fixed effects.
+    const int borderFixed = gridAugmented ? static_cast<int>(augmentedFixed) : nX;
+    const double fixedPeakDoubles = 2.0 * static_cast<double>(n) * borderFixed +
+      static_cast<double>(borderFixed) * borderFixed;
+    if(borderFixed > 0 && fixedPeakDoubles <= cholmodInvCacheMaxDoubles){
+      std::vector<int> xcols(static_cast<std::size_t>(borderFixed));
+      for(int j = 0; j < borderFixed; ++j){ xcols[static_cast<std::size_t>(j)] = j; }
       arma::uvec rowsX;
       cholmodForwardSolveUnit(L, iperm, xcols, YX, rowsX);
       const arma::mat YXT = YX.rows(rowsX);
       cholmodInvCache.Cxx = YXT.t() * YXT;
-      retainedDoubles = static_cast<double>(nX) * nX;
-      for(int j = 0; j < nX; ++j){ cholmodInvCache.borderPos[static_cast<std::size_t>(j)] = j; }
+      retainedDoubles = static_cast<double>(borderFixed) * borderFixed;
+      for(int j = 0; j < borderFixed; ++j){ cholmodInvCache.borderPos[static_cast<std::size_t>(j)] = j; }
     }
 
     bool skippedGroup = false;
@@ -3781,9 +3956,10 @@ static Rcpp::List ai_mme_sp2_impl(const arma::sp_mat & X, const Rcpp::List & ZI,
     YX.reset();
     const double selectedPeakDoubles = retainedDoubles + static_cast<double>(L->xsize) +
       4.0 * largestFront * largestFront;
-    if(skippedGroup && selectedPeakDoubles <= cholmodInvCacheMaxDoubles){
+    const bool needSelected = skippedGroup || borderFixed < nX;
+    if(needSelected && selectedPeakDoubles <= cholmodInvCacheMaxDoubles){
       buildCholmodSelectedInverse(L, iperm, cholmodInvCache);
-    }else if(skippedGroup && memoryStrict){
+    }else if(needSelected && memoryStrict){
       requireMemory("The CHOLMOD inverse-block cache", selectedPeakDoubles);
     }
     cholmodInvCache.ready = true;
@@ -4829,6 +5005,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     const bool Rgrid = residualPlan.grid();
     std::vector< std::vector<arma::mat> > gridF;
     std::vector< std::vector<arma::mat> > gridP;
+    std::vector< std::vector<arma::sp_mat> > gridPsp;
+    std::vector<EigenSpMat> gridQsp;
+    std::vector<char> gridBlockSparse;
     std::vector<arma::mat> gridQcolM;
     std::vector<arma::mat> gridQmmChol;
     std::vector<arma::mat> gridQmmInv;
@@ -4839,8 +5018,65 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     auto gridKron =
       [&](const arma::mat & X, const std::vector<arma::mat> & factors,
-          const double scale) -> arma::mat {
-        return factorEngine.applyKroneckerRight(X.t(), factors, scale).t();
+          const double scale,
+          const std::vector<arma::sp_mat> * sparseFactors = nullptr) -> arma::mat {
+        return factorEngine.applyKroneckerRight(X.t(), factors, scale, sparseFactors).t();
+      };
+
+    // scale * kron(factors) restricted to each factor's structural band and
+    // permuted to block-row coordinates; explicit zeros keep the pattern.
+    auto gridSparseRowKron =
+      [&](const int b, const std::vector<arma::mat> & factors,
+          const double scale) -> EigenSpMat {
+        const std::size_t bb = static_cast<std::size_t>(b);
+        std::vector<arma::uword> rr(1, 0), cc(1, 0);
+        std::vector<double> vv(1, scale);
+        for(std::size_t f = 0; f < factors.size(); ++f){
+          const arma::mat & F = factors[f];
+          const arma::uword n = F.n_rows;
+          const arma::uword band = static_cast<arma::uword>(std::max(0, gridBand[bb][f]));
+          std::vector<arma::uword> r2, c2;
+          std::vector<double> v2;
+          const std::size_t width = static_cast<std::size_t>(std::min(n, 2 * band + 1));
+          r2.reserve(rr.size() * n * width);
+          c2.reserve(rr.size() * n * width);
+          v2.reserve(rr.size() * n * width);
+          for(std::size_t t = 0; t < rr.size(); ++t){
+            for(arma::uword i = 0; i < n; ++i){
+              const arma::uword j0 = i > band ? i - band : 0;
+              const arma::uword j1 = std::min(n - 1, i + band);
+              for(arma::uword j = j0; j <= j1; ++j){
+                r2.push_back(rr[t] * n + i);
+                c2.push_back(cc[t] * n + j);
+                v2.push_back(vv[t] * F(i, j));
+              }
+            }
+          }
+          rr.swap(r2); cc.swap(c2); vv.swap(v2);
+        }
+        const arma::uvec & rowOf = gridRowOfPos[bb];
+        std::vector<EigenTriplet> entries;
+        entries.reserve(vv.size());
+        for(std::size_t t = 0; t < vv.size(); ++t){
+          entries.emplace_back(static_cast<int>(rowOf(rr[t])),
+                               static_cast<int>(rowOf(cc[t])), vv[t]);
+        }
+        const Eigen::Index n = static_cast<Eigen::Index>(rowOf.n_elem);
+        EigenSpMat out(n, n);
+        out.setFromTriplets(entries.begin(), entries.end());
+        out.makeCompressed();
+        return out;
+      };
+
+    auto eigenTimesDense =
+      [](const EigenSpMat & A, const arma::mat & V) -> arma::mat {
+        const Eigen::Map<const Eigen::MatrixXd> Vm(V.memptr(),
+          static_cast<Eigen::Index>(V.n_rows), static_cast<Eigen::Index>(V.n_cols));
+        arma::mat out(static_cast<arma::uword>(A.rows()), V.n_cols);
+        Eigen::Map<Eigen::MatrixXd> Om(out.memptr(), A.rows(),
+          static_cast<Eigen::Index>(V.n_cols));
+        Om.noalias() = A * Vm;
+        return out;
       };
 
     auto gridEmbed =
@@ -4865,9 +5101,14 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
         const bool allActive = active.size() == V.n_cols;
         const arma::uvec activeCols(active);
+        if(gridBlockSparse[bb]){
+          if(allActive){ return eigenTimesDense(gridQsp[bb], V); }
+          out.cols(activeCols) = eigenTimesDense(gridQsp[bb], arma::mat(V.cols(activeCols)));
+          return out;
+        }
         arma::mat Y = gridKron(
           gridEmbed(b, allActive ? V : arma::mat(V.cols(activeCols))),
-          gridP[bb], 1.0 / gridScale);
+          gridP[bb], 1.0 / gridScale, &gridPsp[bb]);
         if(gridMissPos[bb].n_elem > 0){
           const arma::mat Ym = Y.rows(gridMissPos[bb]);
           const arma::mat & U = gridQmmChol[bb];
@@ -4902,6 +5143,49 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         factors = gridF[bb];
         factors[static_cast<std::size_t>(f)] = std::move(d);
         return true;
+      };
+
+    // Q dR_k Q on a complete banded block: 0 = structurally zero, 1 = sparse M
+    // returned, 2 = band check failed (use the dense contraction instead).
+    auto gridSparseDerivative =
+      [&](const int b, const arma::uword k, EigenSpMat & M) -> int {
+        const std::size_t bb = static_cast<std::size_t>(b);
+        const int f = gridDFactor[static_cast<std::size_t>(k)];
+        if(f < 0){
+          M = gridQsp[bb];
+          return 1;
+        }
+        const std::size_t ff = static_cast<std::size_t>(f);
+        const int section = gridDSection[static_cast<std::size_t>(k)];
+        if(section >= 0 && gridSectionOf[bb][ff] != section){
+          return 0;
+        }
+        const arma::uvec & lev = gridLevels[bb][ff];
+        const arma::mat d = gridDFull[static_cast<std::size_t>(k)].submat(lev, lev);
+        if(!arma::any(arma::vectorise(d) != 0.0)){
+          return 0;
+        }
+        const arma::mat PdP = gridP[bb][ff] * d * gridP[bb][ff];
+        const int band = gridBand[bb][ff];
+        double inside = 0.0;
+        double outside = 0.0;
+        for(arma::uword j = 0; j < PdP.n_cols; ++j){
+          for(arma::uword i = 0; i < PdP.n_rows; ++i){
+            const double value = std::abs(PdP(i, j));
+            if(std::abs(static_cast<long long>(i) - static_cast<long long>(j)) > band){
+              outside = std::max(outside, value);
+            }else{
+              inside = std::max(inside, value);
+            }
+          }
+        }
+        if(outside > 1.0e-8 * std::max(inside, 1.0e-300)){
+          return 2;
+        }
+        std::vector<arma::mat> factors = gridP[bb];
+        factors[ff] = PdP;
+        M = gridSparseRowKron(b, factors, 1.0 / gridScale);
+        return 1;
       };
 
     auto gridApplyDR =
@@ -5043,6 +5327,10 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       gridScale = std::exp(par(0));
       gridF.assign(static_cast<std::size_t>(residualNBlocks), std::vector<arma::mat>());
       gridP.assign(static_cast<std::size_t>(residualNBlocks), std::vector<arma::mat>());
+      gridPsp.assign(static_cast<std::size_t>(residualNBlocks),
+                     std::vector<arma::sp_mat>(static_cast<std::size_t>(gridNFactors)));
+      gridQsp.assign(static_cast<std::size_t>(residualNBlocks), EigenSpMat());
+      gridBlockSparse.assign(static_cast<std::size_t>(residualNBlocks), 0);
       gridQcolM.assign(static_cast<std::size_t>(residualNBlocks), arma::mat());
       gridQmmChol.assign(static_cast<std::size_t>(residualNBlocks), arma::mat());
       gridQmmInv.assign(static_cast<std::size_t>(residualNBlocks), arma::mat());
@@ -5069,6 +5357,8 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             const std::size_t source = static_cast<std::size_t>(cached->second.first);
             gridF[bb][ff] = gridF[source][ff];
             gridP[bb][ff] = gridP[source][ff];
+            gridPsp[bb][ff] = gridPsp[source][ff];
+            gridBand[bb][ff] = gridBand[source][ff];
             blockLogDet += (S / static_cast<double>(lev.n_elem)) * cached->second.second;
             ++gridFactorReuses;
             continue;
@@ -5083,8 +5373,49 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             factorLogDet;
           const arma::mat Uinv = arma::inv(arma::trimatu(U));
           gridP[bb][ff] = Uinv * Uinv.t();
+          const int band = gridBand[bb][ff];
+          if(band >= 0 && gridP[bb][ff].n_rows > 1){
+            arma::mat & P = gridP[bb][ff];
+            double inside = 0.0;
+            double outside = 0.0;
+            for(arma::uword j = 0; j < P.n_cols; ++j){
+              for(arma::uword i = 0; i < P.n_rows; ++i){
+                const double value = std::abs(P(i, j));
+                if(std::abs(static_cast<long long>(i) - static_cast<long long>(j)) > band){
+                  outside = std::max(outside, value);
+                }else{
+                  inside = std::max(inside, value);
+                }
+              }
+            }
+            if(outside <= 1.0e-8 * inside){
+              for(arma::uword j = 0; j < P.n_cols; ++j){
+                for(arma::uword i = 0; i < P.n_rows; ++i){
+                  if(std::abs(static_cast<long long>(i) - static_cast<long long>(j)) > band){
+                    P(i, j) = 0.0;
+                  }
+                }
+              }
+              gridPsp[bb][ff] = arma::sp_mat(P);
+            }else{
+              // The precision is not banded at these parameters; keep it dense.
+              gridBand[bb][ff] = -1;
+              gridBlockBanded[bb] = 0;
+              ++gridBandFallbacks;
+            }
+          }
           gridFactorCache[ff].emplace(std::move(key), std::make_pair(b, factorLogDet));
           ++gridFactorizations;
+        }
+
+        for(int f = 0; f < gridNFactors; ++f){
+          if(gridBand[bb][static_cast<std::size_t>(f)] < 0){ gridBlockBanded[bb] = 0; }
+        }
+        if(gridBlockBanded[bb] && gridMissPos[bb].n_elem == 0 &&
+           bb < gridBlockWsp.size() && gridBlockWsp[bb].rows() > 0){
+          gridQsp[bb] = gridSparseRowKron(b, gridP[bb], 1.0 / gridScale);
+          gridBlockSparse[bb] = 1;
+          ++gridSparseBlockUses;
         }
 
         const arma::uvec & miss = gridMissPos[bb];
@@ -5703,6 +6034,31 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         const arma::mat & blockW =
           residualKronBlockWCache[static_cast<std::size_t>(block)];
 
+        if(Rgrid && gridBlockSparse[static_cast<std::size_t>(block)]){
+          // Banded precision: C_b = W_b' Q_b W_b with a structural pattern.
+          const EigenSpMat & Wb = gridBlockWsp[static_cast<std::size_t>(block)];
+          const EigenSpMat QW = gridQsp[static_cast<std::size_t>(block)] * Wb;
+          const EigenSpMat cross = EigenSpMat(Wb.transpose()) * QW;
+          for(int outer = 0; outer < cross.outerSize(); ++outer){
+            for(EigenSpMat::InnerIterator it(cross, outer); it; ++it){
+              Ctriplets.emplace_back(static_cast<int>(columns(static_cast<arma::uword>(it.row()))),
+                static_cast<int>(columns(static_cast<arma::uword>(it.col()))), it.value());
+            }
+          }
+          arma::mat & blockRiW = residualKronBlockRiW[static_cast<std::size_t>(block)];
+          blockRiW.zeros(rows.n_elem, columns.n_elem);
+          for(int outer = 0; outer < QW.outerSize(); ++outer){
+            for(EigenSpMat::InnerIterator it(QW, outer); it; ++it){
+              blockRiW(static_cast<arma::uword>(it.row()), static_cast<arma::uword>(it.col())) = it.value();
+              if(it.value() != 0.0){
+                RiWspTriplets.emplace_back(static_cast<int>(rows(static_cast<arma::uword>(it.row()))),
+                  static_cast<int>(columns(static_cast<arma::uword>(it.col()))), it.value());
+              }
+            }
+          }
+          continue;
+        }
+
         arma::mat blockRiW;
         if(Rgrid){
           blockRiW = gridApplyRi(block, blockW);
@@ -5732,8 +6088,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         for(arma::uword localCol = 0; localCol < columns.n_elem; ++localCol){
           const arma::uword globalCol = columns(localCol);
           for(arma::uword localRow = 0; localRow < columns.n_elem; ++localRow){
+            // R_oo^{-1} of a grid block couples every observed cell, so every
+            // active pair is structural; keeping zeros fixes C's pattern and
+            // its symbolic analysis is reused across iterations.
             const double crossValue = blockCross(localRow, localCol);
-            if(crossValue != 0.0){
+            if(Rgrid || crossValue != 0.0){
               Ctriplets.emplace_back(
                 static_cast<int>(columns(localRow)),
                 static_cast<int>(globalCol),
@@ -6867,25 +7226,29 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           return arma::mat(solved.data(), solved.rows(), solved.cols());
         };
         bool rrInversePrepared = false, rrInverseAvailable = false;
-        if(reml && !saddleActive && !dFirstMLActive && CnumericReady &&
-           (solverName == "cholmod" || solverName == "ldlt")){
-          operators.inverseEntry = [&](arma::uword row, arma::uword column, double & value) -> bool {
-            if(!rrInversePrepared){
-              rrInversePrepared = true;
-              try {
-                if(solverName == "ldlt"){
-                  buildSelectedInverseSubset(Cfactor, "C", CselectedTopology, reuseCselectedTopology);
-                  CselectedTopologyReady = true;
-                  rrInverseAvailable = true;
-                } else {
-                  if(!cholmodInvCache.ready){ buildCholmodInverseBlockCache(true); }
-                  rrInverseAvailable = cholmodInvCache.ready;
-                }
-              } catch(const std::exception &) {
-                rrInverseAvailable = false;
+        const bool rrInverseEligible = reml && !saddleActive && !dFirstMLActive && CnumericReady &&
+          (solverName == "cholmod" || solverName == "ldlt");
+        auto prepareRRInverse = [&]() -> bool {
+          if(!rrInversePrepared){
+            rrInversePrepared = true;
+            try {
+              if(solverName == "ldlt"){
+                buildSelectedInverseSubset(Cfactor, "C", CselectedTopology, reuseCselectedTopology);
+                CselectedTopologyReady = true;
+                rrInverseAvailable = true;
+              } else {
+                if(!cholmodInvCache.ready){ buildCholmodInverseBlockCache(true); }
+                rrInverseAvailable = cholmodInvCache.ready;
               }
+            } catch(const std::exception &) {
+              rrInverseAvailable = false;
             }
-            if(!rrInverseAvailable){ return false; }
+          }
+          return rrInverseAvailable;
+        };
+        if(rrInverseEligible){
+          operators.inverseEntry = [&](arma::uword row, arma::uword column, double & value) -> bool {
+            if(!prepareRRInverse()){ return false; }
             const int i = static_cast<int>(row), j = static_cast<int>(column);
             if(solverName == "ldlt"){
               return getSelectedInverseOriginal(CselectedTopology, i, j, value);
@@ -7046,31 +7409,106 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
             }
             return output;
           };
+          // P_bb = R_b^{-1} - (R_b^{-1} W_a) C^{-1}[a,a] (R_b^{-1} W_a)', where a
+          // are the coefficient columns active in block b. C^{-1}[a,a] comes from
+          // the selected inverse when available, otherwise from |a| exact solves.
           operators.residualContraction = [&](arma::uword block) -> arma::mat {
             const arma::uvec & rows = residualKronRows[block];
-            arma::mat design(rows.n_elem, reml ? nEffects : Nu, arma::fill::zeros);
+            const Eigen::Index offset = reml ? 0 : nX;
+            std::vector<arma::uword> activeList;
             for(arma::uword local = 0; local < rows.n_elem; ++local){
               for(Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator entry(rrRowDesign, rows(local)); entry; ++entry){
-                if(reml || entry.col() >= nX){
-                  design(local, entry.col() - (reml ? 0 : nX)) = entry.value();
+                if(entry.col() >= offset){
+                  activeList.push_back(static_cast<arma::uword>(entry.col() - offset));
+                }
+              }
+            }
+            std::sort(activeList.begin(), activeList.end());
+            activeList.erase(std::unique(activeList.begin(), activeList.end()), activeList.end());
+            const arma::uvec active(activeList);
+            const arma::uword nActive = active.n_elem;
+            std::unordered_map<arma::uword, arma::uword> activePosition;
+            activePosition.reserve(nActive);
+            for(arma::uword position = 0; position < nActive; ++position){
+              activePosition.emplace(active(position), position);
+            }
+            arma::mat design(rows.n_elem, nActive, arma::fill::zeros);
+            for(arma::uword local = 0; local < rows.n_elem; ++local){
+              for(Eigen::SparseMatrix<double, Eigen::RowMajor>::InnerIterator entry(rrRowDesign, rows(local)); entry; ++entry){
+                if(entry.col() >= offset){
+                  design(local, activePosition.at(static_cast<arma::uword>(entry.col() - offset))) = entry.value();
                 }
               }
             }
             const arma::mat precisionDesign = gridApplyRi(block, design);
-            arma::mat contraction(rows.n_elem, rows.n_elem);
-            const arma::uword panel = sommer::WorkspacePolicy::panelColumns();
-            for(arma::uword first = 0; first < rows.n_elem; first += panel){
-              Rcpp::checkUserInterrupt();
-              const arma::uword count = std::min(panel, rows.n_elem - first);
-              arma::mat basis(rows.n_elem, count, arma::fill::zeros);
-              for(arma::uword column = 0; column < count; ++column){ basis(first + column, column) = 1.0; }
-              const arma::mat rhs = precisionDesign.rows(first, first + count - 1).t();
-              const arma::mat solved = reml ? operators.solve(rhs) : operators.solveRandom(rhs);
-              contraction.cols(first, first + count - 1) =
-                gridApplyRi(block, basis) - precisionDesign * solved;
+            arma::mat inverse(nActive, nActive);
+            bool lookedUp = reml && static_cast<bool>(operators.inverseEntry);
+            for(arma::uword j = 0; lookedUp && j < nActive; ++j){
+              for(arma::uword i = 0; i <= j; ++i){
+                double value = 0.0;
+                if(!operators.inverseEntry(active(i), active(j), value)){
+                  lookedUp = false;
+                  break;
+                }
+                inverse(i, j) = value;
+                inverse(j, i) = value;
+              }
             }
+            const arma::uword panel = sommer::WorkspacePolicy::panelColumns();
+            for(arma::uword first = 0; !lookedUp && first < nActive; first += panel){
+              Rcpp::checkUserInterrupt();
+              const arma::uword count = std::min(panel, nActive - first);
+              arma::mat rhs(reml ? nEffects : Nu, count, arma::fill::zeros);
+              for(arma::uword column = 0; column < count; ++column){ rhs(active(first + column), column) = 1.0; }
+              const arma::mat solved = reml ? operators.solve(rhs) : operators.solveRandom(rhs);
+              inverse.cols(first, first + count - 1) = solved.rows(active);
+            }
+            if(!lookedUp){ inverse = 0.5 * (inverse + inverse.t()); }
+            arma::mat contraction = gridApplyRi(block, arma::eye<arma::mat>(rows.n_elem, rows.n_elem));
+            contraction -= precisionDesign * inverse * precisionDesign.t();
             return contraction;
           };
+          // tr(P dR_k) = tr(R^{-1} dR_k) - <C^{-1}, W'(Q dR_k Q)W>. On sparse grid
+          // blocks W'(Q dR_k Q)W lies inside C's pattern, so only selected-inverse
+          // entries are needed instead of the dense C^{-1}[a,a] of each block.
+          if(rrInverseEligible && !useH){
+            operators.residualTrace = [&](arma::uword parameter, double & value) -> bool {
+              std::vector<EigenTriplet> trips;
+              for(int block = 0; block < residualKronNBlocks; ++block){
+                const std::size_t bb = static_cast<std::size_t>(block);
+                const arma::uvec & columns = residualActiveColumns[bb];
+                if(columns.n_elem == 0){ continue; }
+                if(!gridBlockSparse[bb]){ return false; }
+                EigenSpMat M;
+                const int status = gridSparseDerivative(block, parameter, M);
+                if(status == 0){ continue; }
+                if(status != 1){ return false; }
+                const EigenSpMat & Wb = gridBlockWsp[bb];
+                const EigenSpMat basis = EigenSpMat(Wb.transpose()) * EigenSpMat(M * Wb);
+                for(int outer = 0; outer < basis.outerSize(); ++outer){
+                  for(EigenSpMat::InnerIterator it(basis, outer); it; ++it){
+                    if(it.value() != 0.0){
+                      trips.emplace_back(static_cast<int>(columns(static_cast<arma::uword>(it.row()))),
+                                         static_cast<int>(columns(static_cast<arma::uword>(it.col()))),
+                                         it.value());
+                    }
+                  }
+                }
+              }
+              if(!prepareRRInverse()){ return false; }
+              EigenSpMat basis(nEffects, nEffects);
+              basis.setFromTriplets(trips.begin(), trips.end());
+              basis.makeCompressed();
+              bool usedFallback = false;
+              const double correction = sparseTraceInverseTimes(
+                eigenSparseToArmaGlobal(basis), Cfactor, CselectedTopology,
+                "reduced-rank residual trace", usedFallback,
+                solverName == "cholmod" ? std::function<Eigen::MatrixXd(const Eigen::Ref<const Eigen::MatrixXd> &, const std::string &)>(solveCMatrix) : nullptr,
+                solverName == "cholmod");
+              value = gridTraceDR(parameter) - correction;
+              return std::isfinite(value);
+            };
+          }
         }
         (*rrCallback)(operators);
       }
@@ -7312,6 +7750,97 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     const arma::uword residualAIDimension = reducedAIAssembly
       ? residualAICoordinates.n_elem : nResidualPar;
 
+    sommer::ai::AugmentedWorkspacePlan augmentedWorkspacePlan;
+    const auto admitAugmentedWorkspace = [&](){
+    if(augmentedWorkingAI){
+      std::size_t residentBytes = 0;
+      const auto addWorkspace = [&](std::size_t rows, std::size_t columns,
+                                    const char * context) {
+        const std::size_t entries = sommer::ai::checkedProduct(rows, columns, context);
+        residentBytes = sommer::ai::checkedSum(residentBytes,
+          sommer::ai::checkedProduct(entries, sizeof(double), context), context);
+      };
+      const std::size_t directions = static_cast<std::size_t>(aiDimension);
+      const std::size_t residualDirections = static_cast<std::size_t>(residualAIDimension);
+      addWorkspace(directions, directions, "retained AI output");
+      addWorkspace(static_cast<std::size_t>(nEffects), directions,
+        "augmented coefficient border");
+      addWorkspace(directions, directions, "augmented direct Gram");
+      addWorkspace(static_cast<std::size_t>(nR), 2,
+        "working residual and precision residual");
+      if(!compressedData){
+        addWorkspace(static_cast<std::size_t>(nR), residualDirections,
+          "residual working panel");
+        addWorkspace(static_cast<std::size_t>(nR), residualDirections,
+          "precision-applied residual panel");
+        addWorkspace(static_cast<std::size_t>(nEffects), residualDirections,
+          "residual coefficient cross-product");
+        addWorkspace(static_cast<std::size_t>(nEffects), residualDirections,
+          "residual cross-product conversion scratch");
+        addWorkspace(residualDirections, residualDirections,
+          "residual direct Gram");
+        addWorkspace(residualDirections, residualDirections,
+          "residual Gram conversion scratch");
+        addWorkspace(static_cast<std::size_t>(nR), 8,
+          "residual derivative and precision scratch");
+      }else{
+        const std::size_t groups = sufficient.groups.size();
+        addWorkspace(groups, residualDirections, "compressed residual grouped RHS");
+        addWorkspace(static_cast<std::size_t>(nEffects), residualDirections,
+          "compressed residual coefficient cross-product");
+        addWorkspace(static_cast<std::size_t>(nEffects), residualDirections,
+          "compressed residual cross-product conversion scratch");
+        addWorkspace(residualDirections, residualDirections,
+          "compressed residual direct Gram");
+        addWorkspace(residualDirections, residualDirections,
+          "compressed residual Gram conversion scratch");
+      }
+      std::size_t largestLocalTermBytes = 0;
+      for(int term = 0; term < nRe; ++term){
+        const arma::mat termPartitions = partitions(term);
+        const std::size_t levels = static_cast<std::size_t>(
+          termPartitions(0, 1) - termPartitions(0, 0) + 1);
+        const std::size_t traits = static_cast<std::size_t>(termPartitions.n_rows);
+        const std::size_t localParameters = static_cast<std::size_t>(nVc(term));
+        const std::size_t localCells = sommer::ai::checkedProduct(
+          levels, traits, "random covariance term workspace");
+        addWorkspace(traits, traits, "random quadratic base");
+        addWorkspace(sommer::ai::checkedProduct(localParameters, traits,
+          "random covariance derivative workspace"), traits,
+          "random covariance derivative workspace");
+        std::size_t termDoubles = sommer::ai::checkedProduct(
+          sommer::ai::checkedSum(
+            sommer::ai::checkedProduct(localParameters, 2,
+              "random prior loading workspace"), 8,
+            "random prior loading workspace"),
+          localCells, "random prior loading workspace");
+        termDoubles = sommer::ai::checkedSum(termDoubles,
+          sommer::ai::checkedProduct(localParameters, localParameters,
+            "random prior Gram workspace"), "random prior term workspace");
+        largestLocalTermBytes = std::max(largestLocalTermBytes,
+          sommer::ai::checkedProduct(termDoubles, sizeof(double),
+            "random prior term workspace"));
+      }
+      residentBytes = sommer::ai::checkedSum(residentBytes,
+        largestLocalTermBytes, "augmented assembly resident workspace");
+      const long double requestedBytes =
+        static_cast<long double>(blockSchurPolicy.maxDoubles) * sizeof(double);
+      const std::size_t workspaceBudgetBytes =
+        requestedBytes >= static_cast<long double>(
+          std::numeric_limits<std::size_t>::max())
+          ? std::numeric_limits<std::size_t>::max()
+          : static_cast<std::size_t>(requestedBytes);
+      try{
+        augmentedWorkspacePlan = sommer::ai::planAugmentedWorkspace(
+          static_cast<std::size_t>(nEffects), directions,
+          residentBytes, workspaceBudgetBytes);
+      }catch(const std::exception & error){
+        Rcpp::stop(std::string("Augmented working-variate AI workspace admission failed: ") +
+          error.what());
+      }
+    }
+    };
+
     arma::vec e;
     if(!compressedData){
       const Eigen::Map<const Eigen::VectorXd> buEig(
@@ -7347,6 +7876,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
 
     auto computeAverageInformation = [&](bool required, bool reduceFixed){
     phaseProfile.enter(sommer::FitPhase::Sensitivities);
+    if(required){ admitAugmentedWorkspace(); }
 
     // Forward-sensitivity right-hand sides:
     //
@@ -7357,6 +7887,11 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     arma::mat sensitivityRHS(
       nEffects,
       required ? aiDimension : 0,
+      arma::fill::zeros
+    );
+    arma::mat augmentedDirectGram(
+      augmentedWorkingAI && required ? aiDimension : 0,
+      augmentedWorkingAI && required ? aiDimension : 0,
       arma::fill::zeros
     );
 
@@ -7444,6 +7979,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
           static_cast<arma::uword>(
             nVc(iR)
           );
+        const arma::uword globalStart = static_cast<arma::uword>(nVcStart(iR) - 1);
 
         randomDLambda[iCache].resize(
           static_cast<std::size_t>(localNvc)
@@ -7534,6 +8070,44 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
                 sensitivityRHS(idx(rr), globalK) = -dCbuLocal(rr, trait);
               }
             }
+
+          }
+        }
+        if(augmentedWorkingAI && required && aiDimension > 0){
+          const arma::mat covarianceInput = U * lambdaDense;
+          std::vector<arma::mat> loadings(static_cast<std::size_t>(localNvc));
+          std::vector<arma::mat> precisionActions(static_cast<std::size_t>(localNvc));
+          for(arma::uword localK = 0; localK < localNvc; ++localK){
+            loadings[static_cast<std::size_t>(localK)] =
+              precisionState.factorWise
+              ? factorEngine.applyDescriptorCovarianceD1Right(
+                  covarianceInput, precisionState, localK)
+              : covarianceInput * cachedCovarianceD1(iR, localK);
+            precisionActions[static_cast<std::size_t>(localK)] =
+              arma::mat(Ai(iR) * loadings[static_cast<std::size_t>(localK)]) *
+              lambdaDense;
+          }
+          arma::mat localPriorGram(localNvc, localNvc, arma::fill::zeros);
+          for(arma::uword localJ = 0; localJ < localNvc; ++localJ){
+            for(arma::uword localI = 0; localI <= localJ; ++localI){
+              const double value = arma::accu(
+                loadings[static_cast<std::size_t>(localI)] %
+                precisionActions[static_cast<std::size_t>(localJ)]);
+              localPriorGram(localI, localJ) = value;
+              localPriorGram(localJ, localI) = value;
+            }
+          }
+          if(!localPriorGram.is_finite()){
+            Rcpp::stop("Non-finite first-derivative prior Gram for augmented working-variate AI.");
+          }
+          if(reducedAIAssembly){
+            const arma::mat localTangent = aiTangent.rows(
+              globalStart, globalStart + localNvc - 1);
+            augmentedDirectGram += localTangent.t() * localPriorGram * localTangent;
+          }else{
+            augmentedDirectGram.submat(
+              globalStart, globalStart, globalStart + localNvc - 1,
+              globalStart + localNvc - 1) += localPriorGram;
           }
         }
       }
@@ -7631,6 +8205,39 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       const Eigen::MatrixXd residualCrossRHSEig = W.transpose() * RiResidualWorkingEig;
       residualCrossRHS.set_size(residualCrossRHSEig.rows(), residualCrossRHSEig.cols());
       std::copy(residualCrossRHSEig.data(), residualCrossRHSEig.data() + residualCrossRHSEig.size(), residualCrossRHS.memptr());
+    }
+
+    if(augmentedWorkingAI && residualAIDimension > 0){
+      arma::mat residualGram;
+      if(compressedData){
+        Eigen::MatrixXd gram = Eigen::MatrixXd::Zero(
+          residualAIDimension, residualAIDimension);
+        for(std::size_t group = 0; group < sufficient.groups.size(); ++group){
+          const int category = sufficient.groups[group].residualClass;
+          const double variance = compressedVariance(category);
+          Eigen::RowVectorXd derivative = compressedDerivative.row(category);
+          if(reducedAIAssembly){
+            const Eigen::Map<const Eigen::MatrixXd> mapping(
+              packedResidualTangent.memptr(), packedResidualTangent.n_rows,
+              packedResidualTangent.n_cols);
+            derivative = (derivative * mapping).eval();
+          }
+          gram.noalias() +=
+            (compressedSquares(group) / (variance * variance * variance)) *
+            derivative.transpose() * derivative;
+        }
+        residualGram = arma::mat(gram.data(), gram.rows(), gram.cols());
+      }else{
+        residualGram = residualWorking.t() * RiResidualWorking;
+      }
+      if(reducedAIAssembly){
+        augmentedDirectGram.submat(
+          residualAICoordinates, residualAICoordinates) += residualGram;
+      }else{
+        augmentedDirectGram.submat(
+          residualVcStart, residualVcStart,
+          nVcTotal - 1, nVcTotal - 1) += residualGram;
+      }
     }
 
     if(reducedAIAssembly){
@@ -7739,6 +8346,44 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         }
       }
     }
+    if(augmentedWorkingAI){
+      phaseProfile.enter(sommer::FitPhase::AIAssembly);
+      ProfileTimer aiAssemblyTimer(aiAssemblyWallSeconds, phaseProfile.enabled());
+      sensitivityRHS *= -1.0;
+      Eigen::Map<const Eigen::MatrixXd> borderMap(
+        sensitivityRHS.memptr(), sensitivityRHS.n_rows, sensitivityRHS.n_cols);
+      Eigen::Map<const Eigen::MatrixXd> directMap(
+        augmentedDirectGram.memptr(), augmentedDirectGram.n_rows,
+        augmentedDirectGram.n_cols);
+      sommer::ai::AugmentedAssemblyResult augmented;
+      try{
+        augmented = sommer::ai::absorbAugmentedBorder(
+          borderMap, directMap,
+          [&](const Eigen::MatrixXd & rhs) -> Eigen::MatrixXd {
+            return solveCMatrix(rhs, "augmented working-variate AI absorption");
+          },
+          augmentedWorkspacePlan);
+      }catch(const std::exception & error){
+        Rcpp::stop(std::string("Augmented working-variate AI assembly failed: ") +
+          error.what());
+      }
+      avInf.zeros(aiDimension, aiDimension);
+      std::copy(augmented.information.data(),
+        augmented.information.data() + augmented.information.size(),
+        avInf.memptr());
+      sensitivityRHSColumns += augmented.directions;
+      sensitivityRHSColumnsSkipped += nVcTotal - augmented.directions;
+      augmentedAIRefreshes++;
+      augmentedAIDirections += augmented.directions;
+      augmentedAISolveCalls += augmented.solveCalls;
+      augmentedAIPanelColumns = std::max(
+        augmentedAIPanelColumns, augmented.panelColumns);
+      augmentedAIWorkspaceBytes = std::max(
+        augmentedAIWorkspaceBytes, augmented.workspaceBytes);
+      augmentedAITiled = augmentedAITiled || augmented.tiled;
+      ++exactAIRefreshes;
+      aiAssemblyTimer.stop();
+    }else{
     ProfileTimer sensitivitySolveTimer(sensitivitySolveSeconds, phaseProfile.enabled());
     Eigen::MatrixXd dBuEig;
     if(reduceFixed && !reducedAIAssembly && hybridFree.n_elem < static_cast<arma::uword>(nVcTotal)){
@@ -7748,6 +8393,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         const arma::mat packed = sensitivityRHS.cols(hybridFree);
         const Eigen::Map<const Eigen::MatrixXd> mapped(packed.memptr(), packed.n_rows, packed.n_cols);
         const Eigen::MatrixXd solved = solveCMatrix(mapped, "free AI sensitivity equations");
+        ++sensitivityAISolveCalls;
+        sensitivityAIPanelColumns = std::max(
+          sensitivityAIPanelColumns, static_cast<std::size_t>(hybridFree.n_elem));
         for(arma::uword column = 0; column < hybridFree.n_elem; ++column){
           dBuEig.col(hybridFree(column)) = solved.col(column);
         }
@@ -7759,6 +8407,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         sensitivityRHSEig,
         "factor-differentiation AI sensitivity equations"
       );
+      ++sensitivityAISolveCalls;
+      sensitivityAIPanelColumns = std::max(
+        sensitivityAIPanelColumns, static_cast<std::size_t>(aiDimension));
       sensitivityRHSColumns += aiDimension;
       sensitivityRHSColumnsSkipped += nVcTotal - aiDimension;
     }
@@ -8170,6 +8821,7 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
     }
     ++exactAIRefreshes;
     aiAssemblyTimer.stop();
+    }
     };
 
     if(!exactAIThisIteration){
@@ -9079,6 +9731,31 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
               residualActiveColumns[static_cast<std::size_t>(block)];
             if(columns.n_elem == 0){
               continue;
+            }
+            if(Rgrid && gridBlockSparse[static_cast<std::size_t>(block)]){
+              // W' (Q dR Q) W stays inside C's banded pattern, so the trace
+              // uses only selected-inverse entries.
+              EigenSpMat M;
+              const int status = gridSparseDerivative(block, iP, M);
+              if(status == 0){
+                continue;
+              }
+              if(status == 1){
+                const EigenSpMat & Wb = gridBlockWsp[static_cast<std::size_t>(block)];
+                const EigenSpMat MW = M * Wb;
+                const EigenSpMat basis = EigenSpMat(Wb.transpose()) * MW;
+                for(int outer = 0; outer < basis.outerSize(); ++outer){
+                  for(EigenSpMat::InnerIterator it(basis, outer); it; ++it){
+                    if(it.value() != 0.0){
+                      derivativeTrips.emplace_back(
+                        static_cast<int>(columns(static_cast<arma::uword>(it.row()))),
+                        static_cast<int>(columns(static_cast<arma::uword>(it.col()))),
+                        it.value());
+                    }
+                  }
+                }
+                continue;
+              }
             }
             const arma::mat & blockRiW =
               residualKronBlockRiW[static_cast<std::size_t>(block)];
@@ -11409,6 +12086,24 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
       Rcpp::Named("legacyScoreCrossproducts") = legacyScoreCrossproducts,
       Rcpp::Named("denseScoreMemoryFallbacks") = denseScoreMemoryFallbacks,
       Rcpp::Named("denseScoreRowProductsAvoided") = denseScoreRowProducts,
+      Rcpp::Named("aiAssembly") = Rcpp::List::create(
+        Rcpp::Named("requested") = sommer::control::aiAssemblyName(aiAssembly),
+        Rcpp::Named("selected") = sommer::control::aiAssemblyName(aiAssembly),
+        Rcpp::Named("active") = !augmentedWorkingAI || augmentedAIRefreshes > 0,
+        Rcpp::Named("fallbackReason") = "",
+        Rcpp::Named("representation") = augmentedWorkingAI
+          ? "prior-shifted-coefficient" : "sensitivity",
+        Rcpp::Named("refreshes") = static_cast<double>(augmentedWorkingAI
+          ? augmentedAIRefreshes : exactAIRefreshes),
+        Rcpp::Named("directions") = static_cast<double>(augmentedWorkingAI
+          ? augmentedAIDirections : sensitivityRHSColumns),
+        Rcpp::Named("solveCalls") = static_cast<double>(augmentedWorkingAI
+          ? augmentedAISolveCalls : sensitivityAISolveCalls),
+        Rcpp::Named("panelColumns") = static_cast<double>(augmentedWorkingAI
+          ? augmentedAIPanelColumns : sensitivityAIPanelColumns),
+        Rcpp::Named("workspaceBytes") = static_cast<double>(augmentedAIWorkspaceBytes),
+        Rcpp::Named("tiled") = augmentedAITiled,
+        Rcpp::Named("randomObservationColumns") = 0),
       Rcpp::Named("diagonalResidualTraceSolveColumns") = diagonalResidualTraceSolveColumns,
       Rcpp::Named("emInverseTraceFallbackPanels") = emInverseTraceFallbackPanels,
       Rcpp::Named("emDesignTraceCalls") = emDesignTraceCalls,
@@ -11466,6 +12161,9 @@ for (int iIter = 0; iIter < nIters; ++iIter) {
         : residualPlan.diagonal() ? "diagonal" : residualPlan.kronecker() ? "kronecker" : "sparse",
       Rcpp::Named("gridFactorizations") = gridFactorizations,
       Rcpp::Named("gridFactorReuses") = gridFactorReuses,
+      Rcpp::Named("gridSparseBlocks") = gridSparseBlockCandidates,
+      Rcpp::Named("gridSparseBlockUses") = gridSparseBlockUses,
+      Rcpp::Named("gridBandFallbacks") = gridBandFallbacks,
       Rcpp::Named("pcgResidualTraceContractions") = pcgResidualTraceContractions,
       Rcpp::Named("blockSchurGroups") = blockEngine.active ? static_cast<int>(blockEngine.groups.size()) : 0,
       Rcpp::Named("blockSchurBorder") = blockEngine.active ? static_cast<int>(blockEngine.borderCols.size()) : 0,

@@ -26,6 +26,14 @@ public:
 
   Method method() const { return control::method(string("acceleration", "none")); }
 
+  AIAssembly aiAssembly() const {
+    AIAssembly result = AIAssembly::Sensitivity;
+    if(!parseAIAssembly(string("aiAssembly", "sensitivity"), result)) {
+      Rcpp::stop("curvature$assembly must be 'sensitivity' or 'augmented-working'.");
+    }
+    return result;
+  }
+
   Blend blend(const char * error) const {
     Blend result = Blend::EM;
     if(!parseBlend(string("blend", "em"), result)) { Rcpp::stop(error); }

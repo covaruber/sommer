@@ -14,6 +14,7 @@ enum class Extrapolation { None, Aitken };
 enum class Blend { EM, PXEM };
 enum class Information { Full, None };
 enum class Memory { Speed, Limit };
+enum class AIAssembly { Sensitivity, AugmentedWorking };
 
 struct Representation {
   bool commonScale = false;
@@ -112,6 +113,18 @@ inline bool parseMemory(const std::string & value, Memory & memory) {
   else if(value == "limit") { memory = Memory::Limit; }
   else { return false; }
   return true;
+}
+
+inline bool parseAIAssembly(const std::string & value, AIAssembly & assembly) {
+  if(value == "sensitivity") { assembly = AIAssembly::Sensitivity; }
+  else if(value == "augmented-working") { assembly = AIAssembly::AugmentedWorking; }
+  else { return false; }
+  return true;
+}
+
+inline const char * aiAssemblyName(AIAssembly assembly) {
+  return assembly == AIAssembly::AugmentedWorking
+    ? "augmented-working" : "sensitivity";
 }
 
 inline const char * memoryName(Memory memory) {

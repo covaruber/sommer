@@ -42,6 +42,72 @@ Storage and engine selection are deliberately separate. Compact storage does
 not imply grid eligibility, and a diagonal covariance does not imply diagonal
 precision after a non-diagonal weight transformation.
 
+### Coefficient-space augmented working-variate AI
+
+`curvature=list(assembly="augmented-working")` selects exact working-direction
+absorption, independently of `curvature$method` and the deterministic solver.
+The default remains `"sensitivity"`. Both routes target the same first-
+derivative-product information in working parameter coordinates, not the full
+observed Hessian for nonlinear covariance parameterizations.
+
+Let `C = W' R^-1 W + J`, where `W=[X Z]` and `J=diag(0,G^-1)`.
+For random directions, embed `t_i=G_i G^-1 u` into joint coefficient coordinates
+and collect these into `T`. Let `H` contain residual directions `R_j P y`.
+The ordinary working-variate border would use `F=[W T,H]`. A coefficient
+congruence removes the random loadings from that border and gives
+
+```
+B = [-J T, W' R^-1 H]
+D = blockdiag(T' J T, H' R^-1 H)
+AI_internal = D - B' solve(C, B).
+```
+
+The direct mixed block of `D` is zero; the absorbed mixed information is not.
+Cross-random-term information likewise comes from joint absorption. Internal
+AI is twice the conventional log-likelihood AI; final variance-parameter
+uncertainty retains the existing factor of two.
+
+This shifted representation never constructs `W T`, a second data
+cross-product matrix, a full coefficient inverse or an additional coefficient
+factorization. The augmented AI border is not appended to the publicly
+returned coefficient matrix and its determinant is not part of the likelihood.
+Existing generic, Schur and other eligible joint coefficient solve adapters
+remain authoritative. ML changes score/determinant contractions, not the joint
+AI projection.
+
+For separable `G=Sigma kron A`, known relationships cancel from
+`G_i G^-1 u`; covariance-factor actions and local prior-metric products suffice.
+The random block uses first covariance derivative loadings rather than
+reconstructing observation working variates. Its border equals the negative
+of the existing sensitivity RHS, so both assemblies reuse much of the same
+preparation and solve infrastructure. This is not a claim of fewer projections
+or inherently better conditioning.
+
+Residual directions reuse diagonal, repeated-block, grid/ragged and generic
+sparse operators, including effective weight transformations. Compressed
+statistics retain centered within-group residual squares. General residual
+work may still scale with records; coefficient-space fitting does not eliminate
+arbitrary residual covariance operations.
+
+Tangent maps act on the border and direct Gram before absorption, including
+directions that mix random and residual parameters. Common-scale profiling
+then applies its existing shape/scale Schur correction once. Recovery,
+hybrid exact refreshes and final inference preserve assembly selection.
+Unsupported PCG, non-Gaussian, conditional, factor-score and zero-specific
+latent reduced-rank requests error, rather than silently selecting sensitivity.
+The existing weighted/ragged serial-residual selected-inverse demand-closure
+limitation affects both assemblies; this option does not change score traces
+or bypass their preparation.
+
+The pure numerical module is `mme_ai_augmented.h`. Native descriptor transport
+uses `aiAssembly`, owned by `curvature$assembly`; no new global option or native
+entrypoint is introduced. Workspace admission and exact multi-column tiling
+retain all off-diagonal information. Numerical products are evaluation-local,
+preventing stale reuse across trial/accepted points, while existing factor,
+derivative and layout caches remain shared. Diagnostics under
+`engineDiagnostics$aiAssembly` identify actual work and resource admission.
+The dense workspace bound is not a total-process memory limit.
+
 ### Dense spline designs and residual score cross-products
 
 For diagonal effective residual precision and a diagonal residual derivative,
@@ -842,6 +908,25 @@ An experimental benchmarking and crossover calibration framework is provided via
 `analyze_mme_crossovers()`. It evaluates runtime, memory consumption, convergence,
 and numerical parity across factor levels and dimensions to calibrate empirical
 crossover frontiers.
+
+## Native cache and contraction reuse
+
+Sparse identity detection scans stored entries and verifies the diagonal rather
+than probing every matrix coordinate. The direct observation-space engine
+retains `Z_a K` once per random-design block and lazily caches `Z_a K Z_b'`
+only when a nonzero covariance or derivative uses that pair. Exact direct-EM
+moments explicitly materialize all pairs before use; ordinary likelihood and
+AI paths do not pay that cost for unused covariance blocks.
+
+Multinomial score contractions read requested category columns directly from
+the shared sparse design. Selected-inverse entries are used when complete;
+otherwise bounded dense RHS panels are gathered from those columns for exact
+solves. Direct post-fit covariance builds each sparse random-design block once
+per term and reuses it across block contractions. The CHOLMOD log determinant
+reads the LL' diagonal in its native factor storage, and Gaussian residual
+precision is obtained by triangular solves from the Cholesky already used for
+the log determinant. These reuse paths preserve the existing covariance,
+derivative, and inference algebra.
 
 ## Phase Boundaries
 

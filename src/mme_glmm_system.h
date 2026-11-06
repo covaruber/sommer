@@ -371,6 +371,55 @@ inline arma::mat laplacePredictorCovariance(System & system,
 }
 
 template<class System>
+inline arma::mat laplacePredictorCovariance(System & system,
+    const arma::sp_mat & transposed, const arma::uvec & columns,
+    arma::uword panelSize){
+  const arma::uword dimension = columns.n_elem;
+  arma::mat result(dimension, dimension, arma::fill::zeros);
+  bool available = system.traceChoice != "panels" && !system.observationSpace();
+  for(arma::uword j = 0; available && j < dimension; ++j)
+    for(arma::uword k = 0; available && k < dimension; ++k){
+      double sum = 0.0;
+      for(auto a = transposed.begin_col(columns(j));
+          available && a != transposed.end_col(columns(j)); ++a)
+        for(auto b = transposed.begin_col(columns(k));
+            b != transposed.end_col(columns(k)); ++b){
+          double value;
+          if(!system.selectedEntry(a.row(), b.row(), value)){
+            available = false;
+            break;
+          }
+          sum += (*a) * (*b) * value;
+        }
+      result(j,k) = sum;
+    }
+  if(available) return result;
+  for(arma::uword first = 0; first < dimension; first += panelSize){
+    const arma::uword width = std::min(dimension - first, panelSize);
+    arma::mat rhs(transposed.n_rows, width, arma::fill::zeros);
+    for(arma::uword column = 0; column < width; ++column){
+      for(auto entry = transposed.begin_col(columns(first + column));
+          entry != transposed.end_col(columns(first + column)); ++entry){
+        rhs(entry.row(), column) = *entry;
+      }
+    }
+    ++system.contractionSolves;
+    const arma::mat solved = system.solve(rhs);
+    for(arma::uword column = 0; column < dimension; ++column){
+      for(arma::uword panelColumn = 0; panelColumn < width; ++panelColumn){
+        double sum = 0.0;
+        for(auto entry = transposed.begin_col(columns(column));
+            entry != transposed.end_col(columns(column)); ++entry){
+          sum += (*entry) * solved(entry.row(), panelColumn);
+        }
+        result(column, first + panelColumn) = sum;
+      }
+    }
+  }
+  return result;
+}
+
+template<class System>
 inline bool laplaceSelectedTrace(System & system,
     const LaplacePrecisionDerivative & derivative,double & result){
   if(system.traceChoice=="panels" || system.observationSpace()) return false;

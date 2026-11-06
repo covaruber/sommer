@@ -772,12 +772,12 @@ BEGIN_RCPP
 END_RCPP
 }
 // isIdentity_spmat
-bool isIdentity_spmat(const arma::sp_mat x);
+bool isIdentity_spmat(const arma::sp_mat& x);
 RcppExport SEXP _sommer_isIdentity_spmat(SEXP xSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< const arma::sp_mat >::type x(xSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type x(xSEXP);
     rcpp_result_gen = Rcpp::wrap(isIdentity_spmat(x));
     return rcpp_result_gen;
 END_RCPP

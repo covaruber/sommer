@@ -179,12 +179,13 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   arma::vec nVcStart = nVcEnd - nVc + 1;
 
   // ------------------------------------------------------------
-  // Build and cache Z_a K Z_b' blocks per random structure, once.
-  // Constant across REML iterations: only the small Sigma_i(a,b)
-  // scalars change, never these n x n record-space blocks.
+  // Cache record-space blocks only when a covariance entry uses them.
   // ------------------------------------------------------------
   std::vector<arma::field<arma::mat>> Bcache(nRe);
   std::vector<std::vector<arma::mat>> Zdense(nRe);
+  std::vector<std::vector<arma::mat>> ZKcache(nRe);
+  std::vector<arma::mat> Kcache(nRe);
+  std::vector<bool> identityRelationship(nRe, false);
   std::vector<arma::uword> qOf(nRe);
   std::vector<arma::uvec> levelStart(nRe), levelEnd(nRe); // per-block coefficient offsets within u
 
@@ -212,6 +213,7 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
 
     arma::sp_mat AiSp = convertSparse(AiI(i));
     const bool aiIsIdentity = isIdentity_spmat(AiSp);
+    identityRelationship[i] = aiIsIdentity;
     arma::mat Kdense;
     if(!aiIsIdentity){
       arma::mat Adense = arma::mat(AiSp);
@@ -224,19 +226,28 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
         }
       }
     }
+    if(!aiIsIdentity) Kcache[i] = std::move(Kdense);
 
-    std::vector<arma::mat> ZK(q);
-    for(arma::uword a = 0; a < q; ++a){
-      ZK[a] = aiIsIdentity ? Zdense[i][a] : (Zdense[i][a] * Kdense);
-    }
-
+    ZKcache[i].resize(q);
     Bcache[i].set_size(q, q);
     for(arma::uword a = 0; a < q; ++a){
       for(arma::uword b = 0; b < q; ++b){
-        Bcache[i](a,b) = ZK[a] * Zdense[i][b].t();
+        Bcache[i](a,b).reset();
       }
     }
   }
+  auto recordBlock = [&](int term, arma::uword a, arma::uword b) -> const arma::mat& {
+    arma::mat & cached = Bcache[term](a,b);
+    if(cached.is_empty()){
+      if(!identityRelationship[term] && ZKcache[term][a].is_empty()){
+        ZKcache[term][a] = Zdense[term][a] * Kcache[term];
+      }
+      const arma::mat & left = identityRelationship[term] ?
+        Zdense[term][a] : ZKcache[term][a];
+      cached = left * Zdense[term][b].t();
+    }
+    return cached;
+  };
   const int Nu = lastOffset - nX;
   const int nEffects = nX + Nu;
 
@@ -261,7 +272,7 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
       const arma::uword q = qOf[i];
       for(arma::uword a = 0; a < q; ++a){
         for(arma::uword b = 0; b < q; ++b){
-          if(Sigma(a,b) != 0.0){ V += Sigma(a,b) * Bcache[i](a,b); }
+          if(Sigma(a,b) != 0.0){ V += Sigma(a,b) * recordBlock(i, a, b); }
         }
       }
     }
@@ -277,7 +288,9 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
     arma::mat D(nR, nR, arma::fill::zeros);
     for(arma::uword a = 0; a < q; ++a){
       for(arma::uword b = 0; b < q; ++b){
-        if(dSigma(a,b) != 0.0){ D += dSigma(a,b) * Bcache[iStruct](a,b); }
+        if(dSigma(a,b) != 0.0){
+          D += dSigma(a,b) * recordBlock(iStruct, a, b);
+        }
       }
     }
     return D;
@@ -581,6 +594,13 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
         const double budget = Rcpp::as<double>(covStructI.attr("denseMemoryMB"));
         if(workspaceEntries * sizeof(double) > budget * 1024.0 * 1024.0) {
           Rcpp::stop("Exact direct EM moments exceed denseMemoryMB. Increase the engine memory budget; no approximate moments or diagonal AI substitution are used.");
+        }
+      }
+      for(int term = 0; term < nRe; ++term){
+        for(arma::uword a = 0; a < qOf[term]; ++a){
+          for(arma::uword b = 0; b < qOf[term]; ++b){
+            recordBlock(term, a, b);
+          }
         }
       }
       em = sommer::directEMProposal(covDescriptor, covPar, freeUnlisted,

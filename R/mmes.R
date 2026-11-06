@@ -100,6 +100,12 @@
   isGaussianIdentity <- inherits(family, "family") &&
     identical(family$family, "gaussian") &&
     identical(family$link, "identity")
+  if(identical(engineControl$aiAssembly, "augmented-working") &&
+     (!isGaussianIdentity || .pqlInner || !henderson || solveOnly ||
+      identical(solver, "pcg") || conditionalFA || factorScoreAugmentation != "none")){
+    stop("curvature$assembly='augmented-working' requires a Gaussian identity-link deterministic Henderson fit without PQL, task$mode='solve', conditional equations or factor scores.",
+      call.=FALSE)
+  }
   if(identical(engineControl$experimental$denseCrossproduct, "force") &&
      (!isGaussianIdentity || .pqlInner)){
     stop("score$denseCrossproduct='force' requires a Gaussian identity-link fit without PQL.",
@@ -575,6 +581,10 @@
   }
   reducedRankRandom <- any(vapply(covStruct[seq_len(nRandomStruct)],
                                   hasReducedRank, logical(1)))
+  if(reducedRankRandom && identical(engineControl$aiAssembly, "augmented-working")){
+    stop("curvature$assembly='augmented-working' does not support zero-specific latent reduced-rank covariance; use assembly='sensitivity'.",
+      call.=FALSE)
+  }
   if(reducedRankRandom && solveOnly){
     stop("task$mode='solve' does not support singular rrm() covariance structures; use task$mode='fit' with fixed covariance parameters.",
          call.=FALSE)
@@ -1247,6 +1257,7 @@
     attr(covStruct, "pcgControl") <- engineControl$pcg
   }
   attr(covStruct, "engineControl") <- engineControl
+  attr(covStruct, "aiAssembly") <- engineControl$aiAssembly
   attr(covStruct, "denseMemoryMB") <- engineControl$denseMemoryMB
   attr(covStruct, "memoryPolicy") <- engineControl$memoryPolicy
   attr(covStruct, "blockBanded") <- engineControl$experimental$blockBanded
@@ -1367,16 +1378,39 @@
     covStruct <- res$covStruct
     vcParams <- .vc_param_table(covStruct, c(rtermss, residualLabel))
   }else if(isTRUE(henderson)){
+    gridEligibility <- if(!REML) "requires REML"
+      else if(!isGaussianIdentity || .pqlInner) "requires a Gaussian identity-link fit"
+      else if(solveOnly) "is not used with task$mode='solve'"
+      else if(!solver %in% c("ldlt", "cholmod")) "requires solve$method 'ldlt' or 'cholmod'"
+      else if(useH || !is.null(weightBlocks)) "is not available with weights or W"
+      else if(!is.null(rotationInfo)) "is not available with rotated random effects"
+      else if(!is.null(factorScoreInfo)) "is not available with factor-score augmentation"
+      else if(saddlePoint) "is not available with saddle-point equations"
+      else ""
+    gridAugmentation <- .mmes_grid_augment(engineControl$experimental$gridAugment,
+      gridEligibility, covStruct, X, Z, yvar, residualBlock, localIndex,
+      engineControl$experimental$sparseFactors)
+    engineInputs <- if(gridAugmentation$applied) gridAugmentation else
+      list(covStruct=covStruct, X=X, Z=Z, yvar=yvar, W=W,
+           residualBlock=residualBlock, localIndex=localIndex)
     res <- .Call("_sommer_ai_mme_sp2", PACKAGE="sommer",
-                 X, Z, Zind, Ai, yvar, W, useH,
-                 residualBlock, localIndex,
+                 engineInputs$X, engineInputs$Z, Zind, Ai, engineInputs$yvar,
+                 engineInputs$W, useH,
+                 engineInputs$residualBlock, engineInputs$localIndex,
                  nIters, tolParConvLL, tolParConvNorm,
-                 tolParInv, covStruct, blendWeight, stepWeight,
+                 tolParInv, engineInputs$covStruct, blendWeight, stepWeight,
                  verbose, computeCi, solver, pcgTol, pcgMaxIters,
                  pcgTraceProbes, pcgLanczosSteps, REML,
                  responsePrepared, preparedMean, preparedSd,
                  preparedIntercept, engineControl$gpu, engineControl$gpuMinSize)
-
+    rm(engineInputs)
+    if(gridAugmentation$applied){
+      res <- .mmes_grid_restore(res, gridAugmentation$info)
+    }else if(nzchar(gridAugmentation$reason) && is.list(res$engineDiagnostics)){
+      res$engineDiagnostics$gridAugmentation <- list(active=FALSE,
+        fallbackReason=gridAugmentation$reason)
+    }
+    rm(gridAugmentation)
   }else{
     res <- .Call("_sommer_ai_reml_direct_sp2", PACKAGE="sommer",
                  X, Z, Zind, Ai, yvar, W, useH,

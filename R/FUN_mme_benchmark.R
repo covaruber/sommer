@@ -195,6 +195,8 @@ mme_workload_grid <- function(structures = c("ar1", "us", "diag"),
     blockSchurActive=isTRUE(diagnostics$blockSchurActive),
     blockBandedActive=isTRUE(diagnostics$blockBandedActive),
     factorSchurActive=isTRUE(diagnostics$factorSchurActive),
+    aiAssembly=if(is.null(diagnostics$aiAssembly$selected)) NA_character_ else
+      diagnostics$aiAssembly$selected,
     parity_ok=parity, max_rel_diff=difference, error=error,
     .mme_profile_columns(diagnostics), stringsAsFactors=FALSE)
 }
@@ -208,6 +210,56 @@ mme_workload_grid <- function(structures = c("ar1", "us", "diag"),
   max(relative(tail(as.numeric(fit$llik), 1L), tail(as.numeric(reference$llik), 1L)),
       relative(unlist(fit$theta, use.names=FALSE), unlist(reference$theta, use.names=FALSE)),
       relative(as.numeric(fit$bu), as.numeric(reference$bu)))
+}
+
+.mme_benchmark_ai_assembly <- function(workload, control, replications=3L){
+  replications <- .mme_positive(replications, "replications", integer=TRUE)
+  control$output$setup <- TRUE
+  control$task$objective <- if(workload$REML) "reml" else "ml"
+  control$update$blendWeight <- 0
+  control$curvature$method <- "exact-ai"
+  control$curvature$assembly <- "sensitivity"
+  control$diagnostics$verbose <- FALSE
+  control$diagnostics$dateWarning <- FALSE
+  control$convergence$maxIters <- 1L
+  setup <- mmes(fixed=workload$fixed, random=workload$random,
+    rcov=workload$rcov, data=workload$data, control=control)
+  evaluate <- function(assembly){
+    covariance <- setup$covStruct
+    attr(covariance, "aiAssembly") <- assembly
+    attr(covariance, "directionBlend") <- FALSE
+    attr(covariance, "emInformationOnly") <- TRUE
+    attr(covariance, "covarianceInformation") <- "none"
+    ai_mme_sp2(setup$X, setup$Z, setup$Zind, setup$Ai, setup$yvar,
+      setup$W, setup$useH, setup$residualBlock, setup$residualIndex,
+      1L, setup$tolParConvLL, setup$tolParConvNorm, setup$tolParInv, covariance,
+      0, 1, FALSE, solver=setup$solver, reml=setup$REML,
+      responsePrepared=setup$responsePrepared, preparedMean=setup$preparedMean,
+      preparedSd=setup$preparedSd, preparedIntercept=setup$preparedIntercept)
+  }
+  reference <- evaluate("sensitivity")
+  relative <- function(actual, expected){
+    if(!identical(dim(actual), dim(expected)) || length(actual) != length(expected) ||
+       any(!is.finite(actual)) || any(!is.finite(expected))) return(Inf)
+    if(!length(actual)) return(0)
+    max(abs(actual-expected) / (1+abs(expected)))
+  }
+  rows <- lapply(c("sensitivity", "augmented-working"), function(assembly){
+    evaluate(assembly)
+    elapsed <- numeric(replications)
+    for(index in seq_len(replications)){
+      start <- proc.time()[["elapsed"]]
+      fit <- evaluate(assembly)
+      elapsed[index] <- proc.time()[["elapsed"]] - start
+    }
+    data.frame(workload=workload$name, solver=setup$solver, assembly=assembly,
+      elapsed_sec=stats::median(elapsed),
+      ai_max_rel_diff=relative(fit$InfMat, reference$InfMat),
+      score_max_rel_diff=relative(fit$dLu, reference$dLu),
+      coefficient_max_rel_diff=relative(fit$bu, reference$bu),
+      stringsAsFactors=FALSE)
+  })
+  do.call(rbind, rows)
 }
 
 #' Run Experimental MME Benchmark Suite
