@@ -17,6 +17,19 @@ the type r > c (more records in the dataset than coefficients to estimate), the
 MME-based algorithm in the \code{\link{mmes}} function is faster and we recommend 
 to shift to use that function.
 
+At the end of each successful call, after fitting or preparing the model,
+the function prints the deprecation message followed by an \code{mmes} model
+showing the corresponding \code{fixed}, \code{random}, and \code{rcov}
+formulas and the reminder ``please switch!''. Standard \code{vs}/\code{vsr},
+\code{dsr}, \code{usr}, and \code{atr} terms are translated to the new
+covariance constructors. Known covariance matrices supplied through \code{Gu}
+are shown as marked precision matrices. Multivariate models include a
+\code{\link{stackTraits}} example. Models requiring manual changes (such as
+custom covariance structures, constraints, or legacy weights) are explicitly
+labelled as templates rather than exact equivalents. This guidance is printed
+even when \code{verbose=FALSE}; use \code{suppressMessages()} to suppress it.
+The original model is still fitted by \code{mmer}.
+
 }
 
 \usage{

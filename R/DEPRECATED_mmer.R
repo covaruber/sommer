@@ -1,4 +1,4 @@
-# Legacy mmer API: retained unchanged pending deprecation.
+# Legacy mmer API: retained for compatibility with migration guidance.
 # The historical covm below is superseded by CovarianceFactor-v2 covm in FUN_vsm.R.
 
 # ---- FUN_special.R ----
@@ -1284,6 +1284,115 @@ GWAS <- function(fixed, random, rcov, data, weights, W,
 }
 
 # ---- mmer.R ----
+.mmer_mmes_message <- function(fixed, random, rcov, modelCall){
+  notes <- character()
+  note <- function(text) notes <<- unique(c(notes, text))
+  multivariate <- is.call(fixed[[2L]]) &&
+    identical(.mmes_call_name(fixed[[2L]]), "cbind")
+  traitFactor <- if(multivariate) quote(usm(trait)) else NULL
+
+  factorTerm <- function(expr){
+    constructors <- c(dsr="dsm", usr="usm", atr="atm")
+    name <- .mmes_call_name(expr)
+    if(length(name) && name %in% names(constructors)){
+      expr[[1L]] <- as.name(constructors[[name]])
+      return(expr)
+    }
+    if(.mmes_has_call(expr, c("csr", "gvsr", "spl2Da", "spl2Db", "covm"))){
+      note("Custom covariance and spline terms require manual translation; see ?vsm.")
+      return(expr)
+    }
+    as.call(list(as.name("ism"), expr))
+  }
+  term <- function(expr, residual=FALSE){
+    name <- .mmes_call_name(expr)
+    if(length(name) && name %in% c("+", "-", "(")){
+      for(i in seq.int(2L, length(expr))) expr[[i]] <- term(expr[[i]], residual)
+      return(expr)
+    }
+    if(is.numeric(expr) && expr %in% c(0, 1)) return(expr)
+    if(length(name) && name %in% c("vs", "vsr")){
+      args <- as.list(expr)[-1L]
+      argNames <- names(args)
+      if(is.null(argNames)) argNames <- rep("", length(args))
+      factors <- lapply(args[argNames == ""], factorTerm)
+      if(residual && multivariate){
+        factors <- lapply(factors, function(x){
+          if(identical(x, quote(ism(units)))) quote(ism(record)) else x
+        })
+      }
+      if("Gu" %in% argNames && !identical(args$Gu, quote(NULL))){
+        # Legacy Gu is a covariance, whereas vsm() requires a marked precision.
+        factors$Gu <- substitute(structure(solve(K), inverse=TRUE), list(K=args$Gu))
+      }
+      if(any(argNames %in% c("Gti", "Gtc"))){
+        note("Gti/Gtc starting values and constraints need manual translation to the new covariance parameterization.")
+      }
+      if(any(argNames %in% c("buildGu", "reorderGu"))){
+        note("Review buildGu/reorderGu options; these are not arguments of vsm().")
+      }
+    }else{
+      if(residual && multivariate && identical(expr, quote(units))) expr <- quote(record)
+      factors <- list(factorTerm(expr))
+    }
+    if(multivariate) factors <- c(list(traitFactor), factors)
+    as.call(c(list(as.name("vsm")), factors))
+  }
+  translate <- function(formula, residual=FALSE){
+    if(is.null(formula)) return(NULL)
+    formula[[2L]] <- term(formula[[2L]], residual)
+    formula
+  }
+  random <- translate(random)
+  rcov <- translate(rcov, residual=TRUE)
+  prelude <- character()
+  dataExpr <- modelCall$data
+  if(.mmes_has_call(fixed[[3L]], c("fcm", "vs", "vsr"))){
+    note("Legacy fixed-effect covariance structures and fcm() constraints require manual translation.")
+  }
+  if(multivariate){
+    traits <- as.list(fixed[[2L]])[-1L]
+    if(!all(vapply(traits, is.symbol, logical(1)))){
+      note("Transformed multivariate responses must be added as columns before calling stackTraits().")
+    }
+    fixedTerms <- stats::terms(fixed)
+    labels <- attr(fixedTerms, "term.labels")
+    rhs <- c(if(attr(fixedTerms, "intercept")) "trait",
+             if(length(labels)) paste0("trait:(", labels, ")"))
+    fixed <- stats::as.formula(paste("value ~ 0",
+      if(length(rhs)) paste("+", paste(rhs, collapse=" + ")) else ""))
+    if(is.null(dataExpr)){
+      note("Supply a data frame to stackTraits() for the multivariate model.")
+      dataExpr <- quote(data)
+    }
+    stacked <- substitute(stackTraits(DATA, traits=TRAITS),
+      list(DATA=dataExpr, TRAITS=vapply(traits, function(x){
+        if(is.symbol(x)) as.character(x) else .mmes_expr_label(x)
+      }, character(1))))
+    prelude <- paste0("data_long <- ", .mmes_expr_label(stacked), "\n")
+    dataExpr <- quote(data_long)
+    note("The stacked model uses trait, value and record columns; rename them if they already exist in your data. Match the original missing-response filtering before stacking.")
+  }
+  if(!is.null(modelCall$constraints) || !is.null(modelCall$init)){
+    note("Model-level init/constraints are not translated; review covariance starting values and constraints.")
+  }
+  if(!is.null(modelCall$weights) || !is.null(modelCall$W)){
+    note("Legacy weights/W are not translated; review the mmes weighting interface.")
+  }
+  args <- list(fixed=fixed)
+  if(!is.null(random)) args$random <- random
+  args$rcov <- rcov
+  if(!is.null(dataExpr)) args$data <- dataExpr
+  model <- as.call(c(list(as.name("mmes")), args))
+  paste0(
+    if(length(notes)) "mmes model template (manual adjustments required):\n" else
+      "Equivalent mmes model (fixed, random and rcov):\n",
+    prelude, paste(deparse(model, width.cutoff=80L), collapse="\n"), "\n",
+    if(length(notes)) paste0(paste(notes, collapse="\n"), "\n") else "",
+    "please switch!"
+  )
+}
+
 mmer <- function(fixed, random, rcov, data, weights, W,
                  nIters=20, tolParConvLL = 1e-03, tolParInv = 1e-06,
                  init=NULL, constraints=NULL, method="NR",
@@ -1296,7 +1405,8 @@ mmer <- function(fixed, random, rcov, data, weights, W,
                  stepWeight=NULL, emWeight=NULL, 
                  contrasts=NULL){
 
-  message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions. This function will be no longer maintained.")
+  migrationMessage <- .mmer_mmes_message(fixed, if(missing(random)) NULL else random,
+    if(missing(rcov)) ~units else rcov, match.call())
   dateWarning=FALSE
   desc <- utils::packageDescription("sommer")
   my.date <- as.Date(desc$Date)+90
@@ -1769,5 +1879,7 @@ mmer <- function(fixed, random, rcov, data, weights, W,
     }
   }
   # print("good")
+  message("This function has been deprecated. Please start using 'mmes' and its auxiliary functions. This function will be no longer maintained.")
+  message(migrationMessage)
   return(res)
 }

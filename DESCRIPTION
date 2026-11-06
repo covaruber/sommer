@@ -1,7 +1,7 @@
 Package: sommer
 Type: Package
 Title: Solving Mixed Model Equations in R
-Version: 4.5.20
+Version: 4.5.21
 Date: 2026-09-30
 Authors@R: c(
     person("Giovanny","Covarrubias-Pazaran", email="covaruberpaz@gmail.com", role=c("aut","cre"),
@@ -17,7 +17,7 @@ Imports: Rcpp (>= 0.12.19), MASS, crayon
 BugReports: https://github.com/covaruber/sommer/issues
 URL: https://github.com/covaruber/sommer
 LinkingTo: Rcpp, RcppArmadillo, RcppProgress, RcppEigen, Matrix
-SystemRequirements: METIS graph partitioning library (optional; enables nested-dissection sparse ordering for large relationship matrices, auto-detected at configure time, falls back to AMD ordering when absent), NVIDIA CUDA toolkit with cuBLAS and cuSOLVER (optional; enables GPU kernels on Linux through SOMMER_CUDA_HOME; CUDA libraries are loaded dynamically)
+SystemRequirements: METIS graph partitioning library (optional; enables nested-dissection sparse ordering for large relationship matrices, auto-detected at configure time, falls back to AMD ordering when absent), NVIDIA GPU toolkit with cuBLAS and cuSOLVER (optional; enables GPU kernels on Linux through SOMMER_CUDA_HOME; the GPU libraries are loaded dynamically at run time and are not needed to build the package)
 Suggests: 
     RcppArmadillo,
     flexiblas,
