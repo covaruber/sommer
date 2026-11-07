@@ -82,6 +82,99 @@ test_that("marker wrappers mean-impute and preserve dimensions and names", {
   expect_equal(tcrossprod(tr$Z) / tr$k, a$A, tolerance=1e-12)
 })
 
+relationship_dosage_reference <- function(X, ploidy, min.MAF=0){
+  for(j in seq_len(ncol(X))){
+    X[is.na(X[,j]),j] <- mean(X[,j], na.rm=TRUE)
+  }
+  p <- colMeans(X) / ploidy
+  keep <- pmin(p, 1 - p) > min.MAF & apply(X, 2, var) > 0
+  Z <- sweep(X[, keep, drop=FALSE], 2, ploidy * p[keep])
+  k <- ploidy * sum(p[keep] * (1 - p[keep]))
+  list(X=X, A=tcrossprod(Z) / k, Z=Z, k=k, keep=keep)
+}
+
+test_that("explicit ploidy uses dosage frequencies and additive normalization", {
+  for(ploidy in c(2, 3, 4, 6, 8)){
+    X <- (relationship_marker_data() + 1) * ploidy / 2
+    for(maf in c(0, .1, .3)){
+      ref <- relationship_dosage_reference(X, ploidy, maf)
+      actual <- A.mat(X, min.MAF=maf, ploidy=ploidy)
+      expect_equal(actual, ref$A, tolerance=1e-12)
+      expect_equal(actual, A.mat(ploidy-X, min.MAF=maf, ploidy=ploidy),
+                   tolerance=1e-12)
+      tr <- sommer:::.amat_marker_transform(X, maf, ploidy=ploidy)
+      expect_equal(tr$Z, ref$Z, tolerance=1e-12)
+      expect_equal(tr$keep, ref$keep)
+      expect_equal(tr$k, ref$k, tolerance=1e-12)
+      expect_equal(tcrossprod(tr$Z) / tr$k, actual, tolerance=1e-12)
+    }
+  }
+  X <- relationship_marker_data()
+  expect_equal(A.mat(X + 1, ploidy=2), A.mat(X), tolerance=1e-12)
+  expect_equal(A.mat(X, 0, TRUE), A.mat(X, return.imputed=TRUE))
+  # A tetraploid marker need not contain all five dosage classes.
+  dosage <- matrix(c(1, 1, 2, 2, 3, 3), ncol=1)
+  expect_equal(A.mat(dosage, ploidy=4),
+               relationship_dosage_reference(dosage, 4)$A)
+  cutoff <- matrix(c(0, 0, 0, 2, 0, 1, 3, 4), nrow=4)
+  expect_equal(A.mat(cutoff, min.MAF=.125, ploidy=4),
+               A.mat(cutoff[,2,drop=FALSE], ploidy=4))
+  cutoff <- matrix(c(0, 0, 0, 1, 0, 1, 2, 3), nrow=4)
+  for(ploidy in c(3, 4, 6, 8, 41, 49, 98)){
+    expect_equal(A.mat(cutoff, min.MAF=mean(cutoff[,1])/ploidy, ploidy=ploidy),
+                 A.mat(cutoff[,2,drop=FALSE], ploidy=ploidy))
+  }
+})
+
+test_that("polyploid dosages are mean-imputed on their original scale", {
+  X <- 2 * (relationship_marker_data() + 1)
+  X[1:2,1] <- NA_real_
+  ref <- relationship_dosage_reference(X, 4, .1)
+  capture.output(actual <- A.mat(X, min.MAF=.1, return.imputed=TRUE, ploidy=4))
+  expect_named(actual, c("X", "A"))
+  expect_equal(actual$X, ref$X)
+  expect_equal(actual$A, ref$A, tolerance=1e-12)
+  expect_identical(dimnames(actual$X), dimnames(X))
+  expect_identical(dimnames(actual$A), list(rownames(X), rownames(X)))
+  capture.output(single <- A.mat(X[,1,drop=FALSE], return.imputed=TRUE, ploidy=4))
+  expect_equal(single$X, ref$X[,1,drop=FALSE])
+  expect_equal(single$A, relationship_dosage_reference(X[,1,drop=FALSE], 4)$A)
+})
+
+test_that("the supplied polyploid example produces the dosage reference matrix", {
+  data("DT_polyploid", package="enhancer", envir=environment())
+  capture.output(numo <- enhancer::atcg1234(GT_polyploid[,1:100], ploidy=4,
+                                           silent=TRUE))
+  common <- intersect(DT_polyploid$Name, rownames(numo$M))
+  X <- numo$M[common,,drop=FALSE]
+  expect_equal(A.mat(X, ploidy=4), relationship_dosage_reference(X, 4)$A,
+               tolerance=1e-12)
+})
+
+test_that("invalid ploidy and dosage inputs fail explicitly", {
+  X <- 2 * (relationship_marker_data() + 1)
+  for(ploidy in list(0, 1, -2, 2.5, NA_real_, Inf, "4", TRUE,
+                     numeric(), c(2, 4))){
+    expect_error(A.mat(X, ploidy=ploidy), "ploidy must be")
+    expect_error(sommer:::.amat_marker_transform(X, 0, ploidy=ploidy),
+                 "ploidy must be")
+  }
+  for(bad in c(-1, 5, Inf, -Inf)){
+    invalid <- X
+    invalid[1,1] <- bad
+    expect_error(A.mat(invalid, ploidy=4), "finite genotypes")
+  }
+  X[,1] <- NA_real_
+  expect_error(A.mat(X, ploidy=4), "no observed genotypes")
+  expect_error(A.mat(matrix(2, 4, 2), ploidy=4), "No variable markers")
+  expect_error(A.mat(matrix(c(0, 1, 2, 4), 4), min.MAF=.5, ploidy=4),
+               "No variable markers")
+  for(maf in c(-.1, .6, NA_real_, Inf)){
+    expect_error(A.mat(matrix(c(0, 1, 2, 4), 4), min.MAF=maf, ploidy=4),
+                 "min.MAF")
+  }
+})
+
 test_that("epistatic kernels share the same imputed marker formulas", {
   X <- relationship_marker_data()
   X[1:2, 1] <- NA

@@ -129,6 +129,14 @@ amat <- function(Xo, vanraden, minMAF) {
     .Call(`_sommer_amat`, Xo, vanraden, minMAF)
 }
 
+amat_asv <- function(W) {
+    .Call(`_sommer_amat_asv`, W)
+}
+
+amat_shrink <- function(W, normalization) {
+    .Call(`_sommer_amat_shrink`, W, normalization)
+}
+
 dmat <- function(Xo, nishio, minMAF) {
     .Call(`_sommer_dmat`, Xo, nishio, minMAF)
 }

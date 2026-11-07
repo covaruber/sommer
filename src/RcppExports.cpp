@@ -580,6 +580,29 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// amat_asv
+arma::mat amat_asv(const arma::mat& W);
+RcppExport SEXP _sommer_amat_asv(SEXP WSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    rcpp_result_gen = Rcpp::wrap(amat_asv(W));
+    return rcpp_result_gen;
+END_RCPP
+}
+// amat_shrink
+Rcpp::List amat_shrink(const arma::mat& W, double normalization);
+RcppExport SEXP _sommer_amat_shrink(SEXP WSEXP, SEXP normalizationSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< double >::type normalization(normalizationSEXP);
+    rcpp_result_gen = Rcpp::wrap(amat_shrink(W, normalization));
+    return rcpp_result_gen;
+END_RCPP
+}
 // dmat
 arma::mat dmat(const arma::mat& Xo, const bool& nishio, double minMAF);
 RcppExport SEXP _sommer_dmat(SEXP XoSEXP, SEXP nishioSEXP, SEXP minMAFSEXP) {
@@ -875,6 +898,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_mmes_vcov_solve_cpp", (DL_FUNC) &_sommer_mmes_vcov_solve_cpp, 2},
     {"_sommer_mme_pcg_solve", (DL_FUNC) &_sommer_mme_pcg_solve, 18},
     {"_sommer_amat", (DL_FUNC) &_sommer_amat, 3},
+    {"_sommer_amat_asv", (DL_FUNC) &_sommer_amat_asv, 1},
+    {"_sommer_amat_shrink", (DL_FUNC) &_sommer_amat_shrink, 2},
     {"_sommer_dmat", (DL_FUNC) &_sommer_dmat, 3},
     {"_sommer_emat", (DL_FUNC) &_sommer_emat, 2},
     {"_sommer_emat_genotypes", (DL_FUNC) &_sommer_emat_genotypes, 4},

@@ -17,13 +17,48 @@
   X
 }
 
-A.mat <- function(X, min.MAF=0, return.imputed=FALSE){
+.relationship_additive_input <- function(X, ploidy){
+  if(!is.null(ploidy) &&
+     (!is.numeric(ploidy) || length(ploidy) != 1L ||
+      !is.finite(ploidy) || ploidy < 2 || ploidy != floor(ploidy))){
+    stop("ploidy must be NULL or one finite integer of at least two.", call.=FALSE)
+  }
   X <- .relationship_impute(X)
-  vanraden=TRUE
+  lower <- if(is.null(ploidy)) -1 else 0
+  upper <- if(is.null(ploidy)) 1 else ploidy
+  if(any(!is.finite(X)) || any(X < lower | X > upper)){
+    stop("X must contain finite genotypes in [", lower, ", ", upper,
+         "] after imputation.", call.=FALSE)
+  }
+  X
+}
+
+A.mat <- function(X, min.MAF=0, return.imputed=FALSE, ploidy=NULL, shrink=FALSE,
+                  method=c("VanRaden", "ASV")){
+  method <- match.arg(method)
+  if(!is.logical(shrink) || length(shrink) != 1L || is.na(shrink)){
+    stop("shrink must be TRUE or FALSE; TRUE selects Endelman-Jannink shrinkage.", call.=FALSE)
+  }
+  if(method == "ASV" && shrink){
+    stop("shrink=TRUE is not supported with method='ASV'.", call.=FALSE)
+  }
   ##################
-  res <- .Call("_sommer_amat",PACKAGE = "sommer",
-               X, vanraden, min.MAF
-  )
+  if(is.null(ploidy) && !shrink && method == "VanRaden"){
+    X <- .relationship_impute(X)
+    res <- .Call("_sommer_amat", PACKAGE="sommer", X, TRUE, min.MAF)
+  }else{
+    tr <- .amat_marker_transform(X, min.MAF, ploidy=ploidy)
+    X <- tr$X
+    if(method == "ASV"){
+      res <- .Call("_sommer_amat_asv", PACKAGE="sommer", tr$Z)
+    }else if(shrink){
+      shrunk <- .Call("_sommer_amat_shrink", PACKAGE="sommer", tr$Z, tr$k)
+      res <- shrunk$A
+      attr(res, "shrinkage") <- shrunk$intensity
+    }else{
+      res <- tcrossprod(tr$Z) / tr$k
+    }
+  }
   colnames(res) <- rownames(res) <- rownames(X)
   if(return.imputed){
     return(list(X=X,A=res))

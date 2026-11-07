@@ -68,3 +68,49 @@ test_that("marker effects are returned per coordinate for structured terms", {
   expect_error(meffects_mmes(fit, 1, s$M[-1, ]), "missing from M")
   expect_error(meffects_mmes(fit, "nope", s$M), "Unknown random term")
 })
+
+test_that("polyploid marker effects and standard errors use the fitted dosage scale", {
+  s <- markerData()
+  M <- 2 * (s$M + 1)
+  G <- (1 - s$lambda) * A.mat(M, ploidy=4) + s$lambda * diag(nrow(M))
+  Gi <- solve(G)
+  attr(Gi, "inverse") <- TRUE
+  fit <- mmes(y~1, random=~vsm(ism(id), Gu=Gi), data=s$d,
+              control=mmes_control(diagnostics=list(verbose=FALSE), output=list(inverse=2)))
+  me <- meffects_mmes(fit, 1, M, ploidy=4, blend=s$lambda, se=TRUE, chunk=37)
+  tr <- sommer:::.amat_marker_transform(M, 0, ploidy=4)
+  u <- fit$uList[[1]][rownames(M), 1]
+  expect_equal(unname(drop(tr$Z %*% me$effect[tr$keep])),
+               unname(u - s$lambda * drop(Gi %*% u)), tolerance=1e-8)
+  custom <- meffects_mmes(fit, 1, method="custom", Z=tr$Z, scale=1/tr$k,
+                          blend=s$lambda, se=TRUE, chunk=37)
+  expect_equal(me$effect[tr$keep], custom$effect, tolerance=1e-12)
+  expect_equal(me$se[tr$keep], custom$se, tolerance=1e-8)
+  expect_true(is.na(me$effect[5]))
+  expect_equal(attr(me, "scale"), (1 - s$lambda) / tr$k)
+})
+
+test_that("ASV marker effects and standard errors use empirical variance normalization", {
+  s <- markerData()
+  for(ploidy in list(NULL, 4)){
+    M <- if(is.null(ploidy)) s$M else 2 * (s$M + 1)
+    G <- (1 - s$lambda) * A.mat(M, method="ASV", ploidy=ploidy) +
+      s$lambda * diag(nrow(M))
+    Gi <- solve(G)
+    attr(Gi, "inverse") <- TRUE
+    fit <- mmes(y~1, random=~vsm(ism(id), Gu=Gi), data=s$d,
+                control=mmes_control(diagnostics=list(verbose=FALSE), output=list(inverse=2)))
+    me <- meffects_mmes(fit, 1, M, method="ASV", ploidy=ploidy,
+                        blend=s$lambda, se=TRUE, chunk=37)
+    tr <- sommer:::.amat_marker_transform(M, 0, ploidy=ploidy, method="ASV")
+    u <- fit$uList[[1]][rownames(M), 1]
+    expect_equal(unname(drop(tr$Z %*% me$effect[tr$keep])),
+                 unname(u - s$lambda * drop(Gi %*% u)), tolerance=1e-8)
+    custom <- meffects_mmes(fit, 1, method="custom", Z=tr$Z, scale=1/tr$k,
+                            blend=s$lambda, se=TRUE, chunk=37)
+    expect_equal(me$effect[tr$keep], custom$effect, tolerance=1e-12)
+    expect_equal(me$se[tr$keep], custom$se, tolerance=1e-8)
+    expect_true(is.na(me$effect[5]))
+    expect_equal(attr(me, "scale"), (1 - s$lambda) / tr$k)
+  }
+})

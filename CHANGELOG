@@ -1307,6 +1307,30 @@ version 4.4.90 (2026-10-13)
    3-4 seconds with identical likelihoods, estimates, scores and AI matrices.
    Added rank-1/2/3 dense-Gu FA/grid parity and inference regression tests.
 
+ + A.mat() now accepts explicit ploidy with allele dosages from zero to
+   ploidy and uses the additive scale ploidy*sum(p*(1-p)). The default
+   retains diploid -1/0/1 coding; ploidy is not inferred from incomplete
+   dosage classes. Mean imputation retains the original dosage scale.
+   meffects_mmes() shares the same ploidy-aware transform for marker
+   effects and their standard errors.
+
+ + A.mat(shrink=TRUE) now computes deterministic Endelman-Jannink (2012)
+   covariance shrinkage in C++, with the same EJ estimator as rrBLUP for
+   matched retained and imputed markers. Supports legacy diploid coding
+   and explicit polyploid dosages, preserves mean diagonal scaling, and
+   reports intensity in the matrix's "shrinkage" attribute. Defaults and
+   the existing imputed-result structure remain unchanged. Regression
+   shrinkage and EM imputation are not included.
+
+ + A.mat(method="ASV") now implements the average semivariance
+   normalization of Feldmann et al. (2023), equation (2), in C++.
+   Centered marker crossproducts are divided by trace/(n-1), giving
+   unit average pairwise semivariance. Diploid and polyploid inputs
+   retain the existing filters and mean imputation. VanRaden remains
+   the default; ASV rejects shrink=TRUE and does not regularize the
+   matrix. meffects_mmes(method="ASV") uses the corresponding marker
+   transform for effect and standard-error recovery.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes

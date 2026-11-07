@@ -8,21 +8,25 @@ and back-solved GWAS-type tests. This is the post-fit equivalent of ASReml's
 \code{mef} argument and does not require refitting the model.
 }
 \usage{
-meffects_mmes(object, term, M, method = c("A.mat", "custom"),
+meffects_mmes(object, term, M, method = c("A.mat", "custom", "ASV"),
               min.MAF = 0, Z = NULL, scale = NULL, blend = 0, Gu = NULL,
-              se = FALSE, chunk = 1000)
+              se = FALSE, chunk = 1000, ploidy = NULL)
 }
 \arguments{
   \item{object}{A fitted \code{\link{mmes}} model.}
   \item{term}{Name (as in \code{names(object$uList)}) or position of the random term fitted with \code{Gu}.}
-  \item{M}{Marker matrix (individuals by markers, coded -1/0/1 as for
+  \item{M}{Marker matrix (individuals by markers, using the same coding as for
   \code{\link{A.mat}}) with rownames matching the levels of the term. Use the
   same matrix (same rows) that was used to build the relationship matrix,
   because allele frequencies are computed from it. Rows that are not levels of
   the term are ignored.}
   \item{method}{\code{"A.mat"} reproduces exactly how \code{\link{A.mat}}
-  builds G from \code{M} (imputation, \code{min.MAF} and monomorphic filters,
-  centring by \eqn{2p} and scaling by \eqn{2\sum p_jq_j}). \code{"custom"} uses
+  builds the unshrunken G from \code{M} (imputation, \code{min.MAF} and monomorphic filters,
+  centring by \eqn{Pp} and scaling by \eqn{P\sum p_jq_j}, where \eqn{P=2}
+  for legacy diploid coding). \code{"ASV"} reproduces
+  \code{A.mat(method="ASV")} using the same marker filters and
+  centering, with normalization \eqn{\mathrm{tr}(ZZ')/(n-1)}.
+  \code{"custom"} uses
   \code{Z} and \code{scale}.}
   \item{min.MAF}{The \code{min.MAF} used in \code{A.mat}.}
   \item{Z}{For \code{method="custom"}: transformed marker matrix with rownames
@@ -36,6 +40,10 @@ meffects_mmes(object, term, M, method = c("A.mat", "custom"),
   \item{se}{If \code{TRUE}, add standard errors, z statistics and p-values.}
   \item{chunk}{Positive integer number of markers processed per block when
   \code{se=TRUE}.}
+  \item{ploidy}{The \code{ploidy} used in \code{A.mat}. The default
+  \code{NULL} selects legacy diploid -1/0/1 coding. An explicit integer of
+  at least two selects dosages from zero to \code{ploidy}. Used only for
+  \code{method="A.mat"} and \code{method="ASV"}.}
 }
 \details{
 If the fitted relationship matrix is \eqn{G=(1-\lambda)sZZ^\top+\lambda I}, the
@@ -59,6 +67,14 @@ effects-only calculations do not materialize it for all markers.
 Rebuilding \eqn{G^{-1}}, if no retained precision is available, requires the
 data used in the original call; supply \code{Gu} otherwise. Markers removed by
 the filters are returned as \code{NA}.
+
+The \code{method="A.mat"} transform assumes
+\code{A.mat(method="VanRaden", shrink=FALSE)}. Use \code{method="ASV"}
+for a term fitted with \code{A.mat(method="ASV")}.
+Endelman-Jannink covariance shrinkage is not a simple identity blend and
+is not reproduced by the \code{blend} argument. Marker-effect recovery
+for matrices built with \code{A.mat(shrink=TRUE)} is not supported by
+this method.
 }
 \value{A data frame with columns \code{marker}, \code{coordinate} (structured
 terms only), \code{effect} and, if \code{se=TRUE}, \code{se}, \code{z} and

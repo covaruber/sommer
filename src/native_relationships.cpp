@@ -144,6 +144,82 @@ arma::mat amat(const arma::mat & Xo, const bool & vanraden, double minMAF) {
 }
 
 // [[Rcpp::export]]
+arma::mat amat_asv(const arma::mat & W) {
+  if(W.n_rows < 2 || W.n_cols == 0 || !W.is_finite()) {
+    Rcpp::stop("W must be a finite centered matrix with at least two individuals and one marker.");
+  }
+  const double scale = arma::abs(W).max();
+  if(scale <= 0) {
+    Rcpp::stop("The ASV normalization must be finite and positive.");
+  }
+  // Global rescaling cancels and avoids underflow or overflow in the trace.
+  const arma::mat Z = W / scale;
+  const double normalization = arma::accu(arma::square(Z)) / (W.n_rows - 1);
+  if(!std::isfinite(normalization) || normalization <= 0) {
+    Rcpp::stop("The ASV normalization must be finite and positive.");
+  }
+  Rcpp::checkUserInterrupt();
+  arma::mat result = (Z * Z.t()) / normalization;
+  if(!result.is_finite()) {
+    Rcpp::stop("The ASV relationship matrix must be finite.");
+  }
+  return result;
+}
+
+// [[Rcpp::export]]
+Rcpp::List amat_shrink(const arma::mat & W, double normalization) {
+  if(W.n_rows < 2 || W.n_cols == 0 || !W.is_finite()) {
+    Rcpp::stop("W must be a finite matrix with at least two individuals and one marker.");
+  }
+  if(!std::isfinite(normalization) || normalization <= 0) {
+    Rcpp::stop("The relationship matrix normalization must be finite and positive.");
+  }
+  const double m = static_cast<double>(W.n_cols);
+  const arma::vec means = arma::mean(W, 1);
+  arma::mat Z = W;
+  Z.each_col() -= means;
+  Rcpp::checkUserInterrupt();
+  arma::mat S = (Z * Z.t()) / m;
+  const double target = arma::mean(S.diag());
+  long double fourthMoment = 0;
+  for(arma::uword j = 0; j < Z.n_cols; ++j) {
+    if(j % 1024 == 0) { Rcpp::checkUserInterrupt(); }
+    const long double norm = arma::dot(Z.col(j), Z.col(j));
+    fourthMoment += norm * norm;
+  }
+  long double squaredCovariance = 0;
+  long double targetDistance = 0;
+  for(arma::uword j = 0; j < S.n_cols; ++j) {
+    if(j % 1024 == 0) { Rcpp::checkUserInterrupt(); }
+    for(arma::uword i = 0; i < S.n_rows; ++i) {
+      const long double value = S(i, j);
+      const long double difference = value - (i == j ? target : 0);
+      squaredCovariance += value * value;
+      targetDistance += difference * difference;
+    }
+  }
+  // Sum covariance-entry variances without another n-by-n crossproduct.
+  const long double variance = (fourthMoment / m - squaredCovariance) / m;
+  if(!std::isfinite(variance) || !std::isfinite(targetDistance)) {
+    Rcpp::stop("The shrinkage moments must be finite.");
+  }
+  double intensity = 0;
+  if(targetDistance > 0) {
+    intensity = static_cast<double>(std::max(0.0L, std::min(1.0L, variance / targetDistance)));
+  }
+  S *= 1 - intensity;
+  S.diag() += intensity * target;
+  // EJ shrinks covariance across markers, not the retained row means.
+  S += means * means.t();
+  S *= m / normalization;
+  if(!S.is_finite()) {
+    Rcpp::stop("The shrunken relationship matrix must be finite.");
+  }
+  return Rcpp::List::create(Rcpp::Named("A")=S,
+                            Rcpp::Named("intensity")=intensity);
+}
+
+// [[Rcpp::export]]
 arma::mat dmat(const arma::mat & Xo, const bool & nishio, double minMAF) {
   const RelationshipMarkers markers(Xo, minMAF);
   return relationshipKernel(Xo, markers, false, nishio);

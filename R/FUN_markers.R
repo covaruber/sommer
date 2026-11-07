@@ -3,21 +3,36 @@
 #### =========== ####
 
 # Marker transform used by A.mat(): imputation, MAF and monomorphic filters,
-# centring by 2p and the VanRaden scale 2*sum(p*q).
-.amat_marker_transform <- function(M, min.MAF){
-  M <- .relationship_impute(M)
-  p <- colMeans(M + 1) / 2
+# centring by ploidy*p and the VanRaden scale ploidy*sum(p*q).
+.amat_marker_transform <- function(M, min.MAF, ploidy=NULL,
+                                    method=c("VanRaden", "ASV")){
+  method <- match.arg(method)
+  M <- .relationship_additive_input(M, ploidy)
+  dosage <- if(is.null(ploidy)) M + 1 else M
+  copies <- if(is.null(ploidy)) 2 else ploidy
+  if(!is.numeric(min.MAF) || length(min.MAF) != 1L ||
+     !is.finite(min.MAF) || min.MAF < 0 || min.MAF > .5){
+    stop("min.MAF must be finite and between zero and 0.5.", call.=FALSE)
+  }
+  p <- colMeans(dosage) / copies
   maf <- pmin(p, 1 - p)
   keep <- maf > min.MAF
   keep[keep] <- apply(M[, keep, drop=FALSE], 2, stats::var) > 0
+  if(!any(keep)){
+    stop("No variable markers remain after min.MAF filtering.", call.=FALSE)
+  }
   pk <- p[keep]
-  Z <- sweep(M[, keep, drop=FALSE] + 1, 2, 2 * pk)
-  list(Z=Z, keep=keep, k=2 * sum(pk * (1 - pk)))
+  Z <- sweep(dosage[, keep, drop=FALSE], 2, copies * pk)
+  k <- if(method == "ASV") sum(Z^2) / (nrow(Z) - 1) else copies * sum(pk * (1 - pk))
+  if(!is.finite(k) || k <= 0){
+    stop("The relationship matrix normalization must be finite and positive.", call.=FALSE)
+  }
+  list(Z=Z, keep=keep, k=k, X=M)
 }
 
-meffects_mmes <- function(object, term, M, method=c("A.mat", "custom"),
+meffects_mmes <- function(object, term, M, method=c("A.mat", "custom", "ASV"),
                           min.MAF=0, Z=NULL, scale=NULL, blend=0, Gu=NULL,
-                          se=FALSE, chunk=1000){
+                          se=FALSE, chunk=1000, ploidy=NULL){
   if(!inherits(object, "mmes")) stop("object must inherit from class 'mmes'.", call.=FALSE)
   method <- match.arg(method)
   terms <- names(object$uList)
@@ -49,7 +64,7 @@ meffects_mmes <- function(object, term, M, method=c("A.mat", "custom"),
   }
   Ginv <- Ginv[levels, levels, drop=FALSE]
 
-  if(method == "A.mat"){
+  if(method %in% c("A.mat", "ASV")){
     if(missing(M) || is.null(rownames(M))) stop("M must be a marker matrix with rownames.", call.=FALSE)
     M <- as.matrix(M)
     absent <- setdiff(levels, rownames(M))
@@ -60,7 +75,8 @@ meffects_mmes <- function(object, term, M, method=c("A.mat", "custom"),
     extra <- setdiff(rownames(M), levels)
     if(length(extra)) message(length(extra), " rows of M are not levels of the term and are ignored.")
     # allele frequencies are computed on the rows used to build G (all rows of M)
-    tr <- .amat_marker_transform(M, min.MAF)
+    tr <- .amat_marker_transform(M, min.MAF, ploidy=ploidy,
+                                 method=if(method == "ASV") "ASV" else "VanRaden")
     Zm <- tr$Z[levels, , drop=FALSE]
     s <- (1 - blend) / tr$k
     keep <- tr$keep
