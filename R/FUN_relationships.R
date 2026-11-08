@@ -68,17 +68,30 @@ A.mat <- function(X, min.MAF=0, return.imputed=FALSE, ploidy=NULL, shrink=FALSE,
   
 }
 
-D.mat <- function(X, nishio=TRUE, min.MAF=0, return.imputed=FALSE){
-  X <- .relationship_impute(X)
+D.mat <- function(X, nishio=TRUE, min.MAF=0, return.imputed=FALSE, ploidy=NULL){
   ##################
-  res <- .Call("_sommer_dmat",PACKAGE = "sommer", 
-               X, nishio, min.MAF
-  )
+  if(is.null(ploidy)){
+    X <- .relationship_impute(X)
+    res <- .Call("_sommer_dmat", PACKAGE="sommer", X, nishio, min.MAF)
+  }else{
+    X <- .relationship_additive_input(X, ploidy)
+    .relationship_dosage_dominance(ploidy, nishio)
+    res <- .Call("_sommer_dmat_dosage", PACKAGE="sommer", X, nishio, min.MAF, ploidy)
+  }
   colnames(res) <- rownames(res) <- rownames(X)
   if(return.imputed){
     return(list(X=X,D=res))
   }else{
     return(res)
+  }
+}
+
+.relationship_dosage_dominance <- function(ploidy, nishio){
+  if(!is.logical(nishio) || length(nishio) != 1L || is.na(nishio)){
+    stop("nishio must be TRUE or FALSE.", call.=FALSE)
+  }
+  if(ploidy > 2 && !nishio){
+    stop("nishio=FALSE is not supported for ploidy > 2; use orthogonal digenic dominance (nishio=TRUE).", call.=FALSE)
   }
 }
 
@@ -170,13 +183,18 @@ APY <- function(G, core, tol=1e-10, return.details=FALSE){
   Q
 }
 
-E.mat <- function(X,nishio=TRUE,type="A#A",min.MAF=0.02){
+E.mat <- function(X,nishio=TRUE,type="A#A",min.MAF=0.02,ploidy=NULL){
   if(length(type) != 1L || is.na(type) || !type %in% c("A#A", "A#D", "D#D")){
     stop("type must be one of 'A#A', 'A#D' or 'D#D'.", call.=FALSE)
   }
-  X <- .relationship_impute(X)
-  E <- .Call("_sommer_emat_genotypes",PACKAGE = "sommer",
-             X, nishio, type, min.MAF)
+  if(is.null(ploidy)){
+    X <- .relationship_impute(X)
+    E <- .Call("_sommer_emat_genotypes", PACKAGE="sommer", X, nishio, type, min.MAF)
+  }else{
+    X <- .relationship_additive_input(X, ploidy)
+    if(type != "A#A") .relationship_dosage_dominance(ploidy, nishio)
+    E <- .Call("_sommer_emat_dosage", PACKAGE="sommer", X, nishio, type, min.MAF, ploidy)
+  }
   colnames(E) <- rownames(E) <- rownames(X)
   return(E)
 }

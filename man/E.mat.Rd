@@ -8,16 +8,22 @@ Epistatic relationship matrix
 Calculates the realized epistatic relationship matrix of second order (additive x additive, additive x dominance, or dominance x dominance) using hadamard products with the C++ Armadillo library.
 }
 \usage{
-E.mat(X,nishio=TRUE,type="A#A",min.MAF=0.02)
+E.mat(X,nishio=TRUE,type="A#A",min.MAF=0.02,ploidy=NULL)
 }
 
 \arguments{
   \item{X}{
 Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} lines and \eqn{m} biallelic markers, 
-coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are allowed.
+coded as \{-1,0,1\} by default, or allele dosages from zero to
+\code{ploidy} when \code{ploidy} is supplied.
+Fractional (imputed) and missing values (NA) are allowed.
 }
 \item{nishio}{
 If TRUE, Nishio and Satoh (2014) (orthogonal parameterization of Vitezica et al. 2013), otherwise Su et al. (2012) (see Details in the D.mat help page).
+For explicit \code{ploidy>2}, dominance components use orthogonal
+digenic coding; \code{nishio=FALSE} raises an error for
+\code{type="A#D"} and \code{type="D#D"}. This argument does not affect
+\code{type="A#A"}.
 }
 \item{type}{
 An argument specifying the type of epistatic relationship matrix desired. The default is the second order epistasis (additive x additive) type="A#A". Other options are additive x dominant (type="A#D"), or dominant by dominant (type="D#D").  
@@ -25,10 +31,24 @@ An argument specifying the type of epistatic relationship matrix desired. The de
 \item{min.MAF}{
 Minimum minor allele frequency, a finite value between zero and 0.5. Markers at or below this threshold and all constant markers are removed. The default is 0.02.
 }
+\item{ploidy}{
+Number of chromosome copies, a finite integer of at least two.
+\code{NULL} preserves legacy diploid coding. Explicit
+\code{ploidy=2} accepts diploid dosages \{0,1,2\}.
+}
 }
 
 \details{
 The result is the element-wise (Hadamard) product \eqn{E=A\circ A}, \eqn{E=A\circ D}, or \eqn{E=D\circ D}. Mean imputation, allele-frequency estimation and marker filtering are shared between the component matrices. Their definitions and input requirements are the same as in \code{\link{A.mat}} and \code{\link{D.mat}}. As in \code{A.mat}, the correction from inadvertent median imputation to mean imputation can change results for missing genotypes.
+
+For explicit ploidy, \eqn{A} is the unshrunken VanRaden matrix
+\code{A.mat(X, min.MAF=min.MAF, ploidy=ploidy)} and \eqn{D} is
+\code{D.mat(X, nishio=nishio, min.MAF=min.MAF, ploidy=ploidy)}.
+The native implementation shares the imputed input and retained
+markers across both components. No ASV normalization or EJ shrinkage
+is applied. For \code{ploidy>2}, the dominance-containing kernels
+inherit the digenic-only and binomial-equilibrium assumptions of
+\code{D.mat}; higher within-locus dominance orders are not included.
 }
 \value{
 The epistatic relationship matrix is returned.
@@ -58,4 +78,9 @@ for (i in 1:200) {
 
 E <- E.mat(X, type="A#A") 
 # if heterozygote markers are present can be used "A#D" or "D#D"
+
+#### Tetraploid additive-by-digenic-dominance epistasis
+data(DT_polyploid, package="enhancer")
+numo <- enhancer::atcg1234(GT_polyploid[,1:100], ploidy=4, silent=TRUE)
+E4 <- E.mat(numo$M, type="A#D", ploidy=4)
 }

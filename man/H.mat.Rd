@@ -37,6 +37,21 @@ When \code{omega=1} and \code{tau>0}, \eqn{H_{22}=G_{22}/\tau}; redundant invers
 The retry increment is applied separately to \eqn{A_{22}}, \eqn{G_{22}}, or the genotyped precision block when required.
 
 The returned matrix is dense. Its row and column order is \code{rev(unique(c(rownames(G), rownames(A))))}, including when there is just one genotyped individual.
+
+\code{H.mat} operates on already constructed relationship matrices,
+not marker dosages. It is therefore ploidy-independent and requires
+no \code{ploidy} argument. A polyploid genomic matrix from
+\code{A.mat(markers, ploidy=P)} can be supplied as \code{G}.
+The pedigree matrix \code{A} must already reflect the intended
+inheritance model and base population; \code{H.mat} does not build
+a polyploid pedigree, account for double reduction, or infer these
+assumptions.
+
+Ensure that \code{A} and \code{G} use compatible additive relationship
+scales and base populations, or explicitly choose suitable
+\code{tau} and \code{omega}. In particular, ASV and EJ matrices need
+not match a pedigree matrix's scale automatically. Dominance and
+epistatic matrices are not substitutes for the additive inputs.
 }
 \value{
 
@@ -70,4 +85,9 @@ G <- A.mat(M2)
 H <- H.mat(A,G)
 # colfunc <- colorRampPalette(c("steelblue4","springgreen","yellow"))
 # hv <- heatmap(H[1:15,1:15], col = colfunc(100),Colv = "Rowv")
+#### Polyploid genomic input; A must be a compatible pedigree matrix
+M4 <- 2 * (M + 1)
+A4 <- A.mat(M4, ploidy=4) # stand-in only, not a polyploid pedigree
+G4 <- A.mat(M4[v,,drop=FALSE], ploidy=4)
+H4 <- H.mat(A4, G4)
 }

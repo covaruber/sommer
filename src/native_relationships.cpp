@@ -7,13 +7,17 @@ struct RelationshipMarkers {
   arma::uvec columns;
   arma::vec frequencies;
 
-  RelationshipMarkers(const arma::mat & X, double minMAF)
+  RelationshipMarkers(const arma::mat & X, double minMAF,
+                      double ploidy=2, bool dosage=false)
     : columns(X.n_cols), frequencies(X.n_cols) {
     if(X.n_rows < 2 || X.n_cols == 0) {
       Rcpp::stop("X must have at least two individuals and one marker.");
     }
     if(!std::isfinite(minMAF) || minMAF < 0 || minMAF > 0.5) {
       Rcpp::stop("min.MAF must be finite and between zero and 0.5.");
+    }
+    if(!std::isfinite(ploidy) || ploidy < 2 || ploidy != std::floor(ploidy)) {
+      Rcpp::stop("ploidy must be one finite integer of at least two.");
     }
     arma::uword count = 0;
     for(arma::uword j = 0; j < X.n_cols; ++j) {
@@ -22,13 +26,17 @@ struct RelationshipMarkers {
       double total = 0;
       bool variable = false;
       for(arma::uword i = 0; i < X.n_rows; ++i) {
-        if(!std::isfinite(x[i]) || x[i] < -1 || x[i] > 1) {
+        if(!std::isfinite(x[i]) || x[i] < (dosage ? 0 : -1) ||
+           x[i] > (dosage ? ploidy : 1)) {
+          if(dosage) {
+            Rcpp::stop("X must contain finite genotypes in [0, ploidy] after imputation.");
+          }
           Rcpp::stop("X must contain finite genotypes in [-1, 1] after imputation.");
         }
-        total += x[i] + 1;
+        total += dosage ? x[i] : x[i] + 1;
         variable = variable || x[i] != x[0];
       }
-      const double p = total / (2.0 * X.n_rows);
+      const double p = dosage ? total / X.n_rows / ploidy : total / (2.0 * X.n_rows);
       if(variable && std::min(p, 1 - p) > minMAF) {
         columns[count] = j;
         frequencies[count++] = p;
@@ -81,6 +89,41 @@ arma::mat relationshipKernel(const arma::mat & X,
     Rcpp::stop("The relationship matrix normalization must be finite and positive.");
   }
   result /= denominator;
+  return result;
+}
+
+arma::mat relationshipDosageKernel(const arma::mat & X,
+                                  const RelationshipMarkers & markers,
+                                  double ploidy, bool additive, bool nishio) {
+  if(ploidy == 2) {
+    return relationshipKernel(X - 1, markers, additive, additive || nishio);
+  }
+  if(!additive && !nishio) {
+    Rcpp::stop("nishio=FALSE is not supported for ploidy > 2; use orthogonal digenic dominance (nishio=TRUE).");
+  }
+  arma::mat W(X.n_rows, markers.columns.n_elem);
+  double denominator = 0;
+  for(arma::uword k = 0; k < W.n_cols; ++k) {
+    if(k % 1024 == 0) { Rcpp::checkUserInterrupt(); }
+    const double p = markers.frequencies[k];
+    const double pq = p * (1 - p);
+    const double * x = X.colptr(markers.columns[k]);
+    double * w = W.colptr(k);
+    for(arma::uword i = 0; i < W.n_rows; ++i) {
+      const double centered = x[i] - ploidy * p;
+      // The second binomial orthogonal polynomial isolates digenic dominance.
+      w[i] = additive ? centered :
+        -centered * centered + (1 - 2 * p) * centered + ploidy * pq;
+    }
+    denominator += additive ? ploidy * pq : 2 * ploidy * (ploidy - 1) * pq * pq;
+  }
+  if(!std::isfinite(denominator) || denominator <= 0) {
+    Rcpp::stop("The relationship matrix normalization must be finite and positive.");
+  }
+  arma::mat result = (W * W.t()) / denominator;
+  if(!result.is_finite()) {
+    Rcpp::stop("The relationship matrix must be finite.");
+  }
   return result;
 }
 
@@ -226,6 +269,12 @@ arma::mat dmat(const arma::mat & Xo, const bool & nishio, double minMAF) {
 }
 
 // [[Rcpp::export]]
+arma::mat dmat_dosage(const arma::mat & X, bool nishio, double minMAF, double ploidy) {
+  const RelationshipMarkers markers(X, minMAF, ploidy, true);
+  return relationshipDosageKernel(X, markers, ploidy, false, nishio);
+}
+
+// [[Rcpp::export]]
 arma::mat emat(const arma::mat & X1, const arma::mat & X2) {
   if(X1.n_rows != X2.n_rows || X1.n_cols != X2.n_cols) {
     Rcpp::stop("Epistatic relationship matrices must have identical dimensions.");
@@ -243,6 +292,22 @@ arma::mat emat_genotypes(const arma::mat & Xo, bool nishio,
   arma::mat E = relationshipKernel(Xo, markers, type != "D#D", type != "D#D" || nishio);
   if(type == "A#D") {
     E %= relationshipKernel(Xo, markers, false, nishio);
+  }else{
+    E = arma::square(E);
+  }
+  return E;
+}
+
+// [[Rcpp::export]]
+arma::mat emat_dosage(const arma::mat & X, bool nishio, const std::string & type,
+                      double minMAF, double ploidy) {
+  if(type != "A#A" && type != "A#D" && type != "D#D") {
+    Rcpp::stop("type must be one of 'A#A', 'A#D' or 'D#D'.");
+  }
+  const RelationshipMarkers markers(X, minMAF, ploidy, true);
+  arma::mat E = relationshipDosageKernel(X, markers, ploidy, type != "D#D", nishio);
+  if(type == "A#D") {
+    E %= relationshipDosageKernel(X, markers, ploidy, false, nishio);
   }else{
     E = arma::square(E);
   }

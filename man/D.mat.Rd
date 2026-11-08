@@ -8,16 +8,22 @@ Dominance relationship matrix
 C++ implementation of the dominance matrix. Calculates the realized dominance relationship matrix. Can help to increase the prediction accuracy when 2 conditions are met; 1) The trait has intermediate to high heritability, 2) The population contains a big number of individuals that are half or full sibs (HS & FS).
 }
 \usage{
-D.mat(X,nishio=TRUE,min.MAF=0,return.imputed=FALSE)
+D.mat(X,nishio=TRUE,min.MAF=0,return.imputed=FALSE,ploidy=NULL)
 }
 
 \arguments{
   \item{X}{
 Matrix (\eqn{n \times m}) of unphased genotypes for \eqn{n} lines and \eqn{m} biallelic markers, 
-coded as \{-1,0,1\}. Fractional (imputed) and missing values (NA) are allowed.
+coded as \{-1,0,1\} by default. With explicit \code{ploidy=P}, use
+allele dosages from zero to \code{P}, as returned by
+\code{enhancer::atcg1234}. Fractional (imputed) and missing values (NA)
+are allowed.
 }
 \item{nishio}{
 If TRUE, Nishio and Satoh (2014), which uses the orthogonal parameterization of Vitezica et al. (2013). Otherwise Su et al. (2012). See Details and references.
+With \code{ploidy>2}, \code{TRUE} selects the orthogonal digenic
+extension under binomial dosage equilibrium; \code{FALSE} is not
+supported and raises an error.
 }
 \item{min.MAF}{
 Minimum minor allele frequency, a finite value between zero and 0.5. Markers at or below this threshold and all constant markers are removed.
@@ -25,7 +31,12 @@ Minimum minor allele frequency, a finite value between zero and 0.5. Markers at 
 \item{return.imputed}{
 When TRUE, the imputed marker matrix is returned.  
 }
-
+\item{ploidy}{
+Number of chromosome copies, a finite integer of at least two.
+The default \code{NULL} preserves diploid \{-1,0,1\} coding.
+Explicit \code{ploidy=2} selects diploid dosages \{0,1,2\} and
+reproduces either existing dominance method.
+}
 
 }
 \details{
@@ -37,6 +48,37 @@ For the nishio method (Nishio and Satoh, 2014; Vitezica et al., 2013): genotypes
 For the Su method (Su et al., 2012): heterozygosity is coded as \eqn{h_{ik} = 1-|x_{ik}|} and centered as \eqn{m_{ik} = h_{ik} - 2p_kq_k}. Then \eqn{D = M M'/c}, where \eqn{c = \sum_k 2p_kq_k(1-2p_kq_k)}.
 
 Versions of sommer earlier than 4.4.9 used a different formula for \code{nishio=TRUE}: \eqn{h_{ik}} centered by its column mean and divided by \eqn{\sum_k (2p_kq_k)^2}. That was not the Nishio and Satoh (2014) method, so results from those versions will differ.
+
+For explicit ploidy \eqn{P>2}, let \eqn{d_{ik}} be allele dosage,
+\eqn{p_k=\bar d_k/P}, \eqn{q_k=1-p_k}, and
+\eqn{t_{ik}=d_{ik}-Pp_k}. The orthogonal digenic code is
+\deqn{w_{ik}=-t_{ik}^2+(1-2p_k)t_{ik}+Pp_kq_k,}
+and the relationship matrix is
+\deqn{D=WW'/\sum_k 2P(P-1)(p_kq_k)^2.}
+For \eqn{d_k\sim\mathrm{Binomial}(P,p_k)}, this code has zero mean,
+zero covariance with the additive code \eqn{t_k}, and variance
+\eqn{2P(P-1)(p_kq_k)^2}. At \eqn{P=2}, it reduces to the
+Nishio/Vitezica code above. Its sign convention makes the
+heterozygous allele-pair contribution positive.
+
+This extension models only digenic (allele-pair) dominance, not the
+full nonadditive genetic variance of a polyploid: trigenic and higher
+within-locus interactions are excluded. The binomial equilibrium
+assumption corresponds to independent homologous allele copies
+(polysomic random segregation without double reduction); it is not
+a model for arbitrary disomic inheritance, inbreeding, or double
+reduction. Orthogonality need not hold in an observed sample.
+Fractional dosages use the same polynomial after marker-mean
+imputation; the returned \code{X} retains its original dosage scale.
+An imputed mean dosage receives code \eqn{Pp_kq_k}, not zero.
+See Endelman et al. (2018) for digenic and higher-order dominance
+in autotetraploids.
+
+The Su heterozygosity model has no uniquely specified polyploid
+extension here. Consequently \code{nishio=FALSE} with
+\code{ploidy>2} raises an error instead of silently treating
+polyploid genotypes as diploid. All methods retain the same mean
+imputation and strict MAF/constant-marker filters.
 
 }
 \value{
@@ -59,6 +101,10 @@ Vitezica ZG, Varona L, Legarra A. 2013. On the Additive and Dominant Variance an
 
 Su G, Christensen OF, Ostersen T, Henryon M, Lund MS. 2012. Estimating Additive and Non-Additive Genetic Variances and Predicting Genetic Merits Using Genome-Wide Dense Single Nucleotide Polymorphism Markers. PLoS ONE 7(9): e45293. doi:10.1371/journal.pone.0045293
 
+Endelman JB et al. 2018. Genetic Variance Partitioning and Genome-Wide
+Prediction with Allele Dosage Information in Autotetraploid Potato.
+Genetics 209(1):77-87. doi:10.1534/genetics.118.300685.
+
 }
 
 \examples{
@@ -72,5 +118,10 @@ for (i in 1:200) {
 }
 
 D <- D.mat(X)
+
+#### Orthogonal digenic dominance from tetraploid dosages
+data(DT_polyploid, package="enhancer")
+numo <- enhancer::atcg1234(GT_polyploid[,1:100], ploidy=4, silent=TRUE)
+D4 <- D.mat(numo$M, ploidy=4)
 
 }

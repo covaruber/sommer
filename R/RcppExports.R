@@ -141,12 +141,20 @@ dmat <- function(Xo, nishio, minMAF) {
     .Call(`_sommer_dmat`, Xo, nishio, minMAF)
 }
 
+dmat_dosage <- function(X, nishio, minMAF, ploidy) {
+    .Call(`_sommer_dmat_dosage`, X, nishio, minMAF, ploidy)
+}
+
 emat <- function(X1, X2) {
     .Call(`_sommer_emat`, X1, X2)
 }
 
 emat_genotypes <- function(Xo, nishio, type, minMAF) {
     .Call(`_sommer_emat_genotypes`, Xo, nishio, type, minMAF)
+}
+
+emat_dosage <- function(X, nishio, type, minMAF, ploidy) {
+    .Call(`_sommer_emat_dosage`, X, nishio, type, minMAF, ploidy)
 }
 
 hmat <- function(A, G22, index, tolparinv, tau, omega) {

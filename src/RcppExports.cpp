@@ -616,6 +616,20 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// dmat_dosage
+arma::mat dmat_dosage(const arma::mat& X, bool nishio, double minMAF, double ploidy);
+RcppExport SEXP _sommer_dmat_dosage(SEXP XSEXP, SEXP nishioSEXP, SEXP minMAFSEXP, SEXP ploidySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< bool >::type nishio(nishioSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    Rcpp::traits::input_parameter< double >::type ploidy(ploidySEXP);
+    rcpp_result_gen = Rcpp::wrap(dmat_dosage(X, nishio, minMAF, ploidy));
+    return rcpp_result_gen;
+END_RCPP
+}
 // emat
 arma::mat emat(const arma::mat& X1, const arma::mat& X2);
 RcppExport SEXP _sommer_emat(SEXP X1SEXP, SEXP X2SEXP) {
@@ -639,6 +653,21 @@ BEGIN_RCPP
     Rcpp::traits::input_parameter< const std::string& >::type type(typeSEXP);
     Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
     rcpp_result_gen = Rcpp::wrap(emat_genotypes(Xo, nishio, type, minMAF));
+    return rcpp_result_gen;
+END_RCPP
+}
+// emat_dosage
+arma::mat emat_dosage(const arma::mat& X, bool nishio, const std::string& type, double minMAF, double ploidy);
+RcppExport SEXP _sommer_emat_dosage(SEXP XSEXP, SEXP nishioSEXP, SEXP typeSEXP, SEXP minMAFSEXP, SEXP ploidySEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type X(XSEXP);
+    Rcpp::traits::input_parameter< bool >::type nishio(nishioSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type type(typeSEXP);
+    Rcpp::traits::input_parameter< double >::type minMAF(minMAFSEXP);
+    Rcpp::traits::input_parameter< double >::type ploidy(ploidySEXP);
+    rcpp_result_gen = Rcpp::wrap(emat_dosage(X, nishio, type, minMAF, ploidy));
     return rcpp_result_gen;
 END_RCPP
 }
@@ -901,8 +930,10 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_amat_asv", (DL_FUNC) &_sommer_amat_asv, 1},
     {"_sommer_amat_shrink", (DL_FUNC) &_sommer_amat_shrink, 2},
     {"_sommer_dmat", (DL_FUNC) &_sommer_dmat, 3},
+    {"_sommer_dmat_dosage", (DL_FUNC) &_sommer_dmat_dosage, 4},
     {"_sommer_emat", (DL_FUNC) &_sommer_emat, 2},
     {"_sommer_emat_genotypes", (DL_FUNC) &_sommer_emat_genotypes, 4},
+    {"_sommer_emat_dosage", (DL_FUNC) &_sommer_emat_dosage, 5},
     {"_sommer_hmat", (DL_FUNC) &_sommer_hmat, 6},
     {"_sommer_scorecalc", (DL_FUNC) &_sommer_scorecalc, 7},
     {"_sommer_gwasForLoop", (DL_FUNC) &_sommer_gwasForLoop, 7},

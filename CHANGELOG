@@ -1331,6 +1331,16 @@ version 4.4.90 (2026-10-13)
    matrix. meffects_mmes(method="ASV") uses the corresponding marker
    transform for effect and standard-error recovery.
 
+ + D.mat() and E.mat() now accept explicit ploidy and allele dosages
+   from zero to ploidy. Native kernels use orthogonal digenic dominance
+   under binomial dosage equilibrium, with variance normalization
+   2*ploidy*(ploidy-1)*sum((p*q)^2). All three Hadamard epistasis
+   types support polyploids. Defaults and both diploid methods remain
+   unchanged; nishio=FALSE is rejected for polyploid dominance rather
+   than applying an unspecified Su extension. H.mat() already accepts
+   polyploid additive relationships without a ploidy argument; its
+   documentation now explains inheritance and scale requirements.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes
