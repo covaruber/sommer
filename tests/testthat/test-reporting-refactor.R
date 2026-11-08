@@ -25,18 +25,18 @@ test_that("native covariance SE propagates selected terms jointly", {
   expect_equal(dim(attr(empty, "vcov")), c(0L, 0L))
 })
 
-test_that("vpredict uses the full native covariance quadratic form", {
+test_that("vcDelta uses the full native covariance quadratic form", {
   fit <- reportingRefactorFit()
   fit$covParNative <- covparams_mmes(fit)
   covariance <- fit$theta_se
   attr(fit$covParNative, "vcov") <- covariance
 
-  result <- vpredict(fit, ~V1/(V1+V2))
+  result <- vcDelta(fit, ~V1/(V1+V2))
   estimate <- fit$covParNative$estimate
   gradient <- c(estimate[2L], -estimate[1L], 0) /
     (estimate[1L] + estimate[2L])^2
   expectedSE <- sqrt(abs(drop(crossprod(gradient, covariance %*% gradient))))
-  expect_s3_class(result, "vpredict.mmes")
+  expect_s3_class(result, "vcDelta.mmes")
   expect_named(result, c("Estimate", "SE"))
   expect_equal(as.numeric(result$Estimate), estimate[1L] / sum(estimate[1:2]))
   expect_equal(result$SE, expectedSE)
@@ -54,8 +54,8 @@ test_that("unavailable uncertainty does not contaminate independent reports", {
   expect_equal(reported$StdError[2], sqrt(0.5))
   expect_true(all(is.na(attr(reported, "vcov")[1,])))
   fit$covParNative <- reported
-  expect_equal(vpredict(fit, ~V2)$SE, sqrt(0.5))
-  expect_true(is.na(vpredict(fit, ~V1)$SE))
+  expect_equal(vcDelta(fit, ~V2)$SE, sqrt(0.5))
+  expect_true(is.na(vcDelta(fit, ~V1)$SE))
 })
 
 test_that("covmatrix SE agrees with direct Jacobian covariance propagation", {

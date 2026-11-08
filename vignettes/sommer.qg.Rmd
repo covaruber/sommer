@@ -24,7 +24,7 @@ The vignettes aim to provide several examples in how to use the sommer package u
 
 1) Heritability ($h^2$) calculation
 2) Specifying heterogeneous variances in mixed models
-3) Using the `vpredict()` calculator
+3) Using the `vcDelta()` calculator
 4) Half and full diallel designs (using the overlay)
 5) Genomic selection (predicting mendelian sampling)
     + GBLUP
@@ -120,7 +120,7 @@ $\theta^{k+1} = \theta^{k} + AI(\theta^k)^{-1}s(\theta^k)$
 
 <br>
 
-Here \(\theta\) denotes the working covariance-parameter vector, \(s(\theta)\) is the REML score, and \(AI(\theta)\) is the Average Information matrix. For structured covariance factors, `mmes()` differentiates the factorized mixed-model solve analytically with respect to the covariance parameters and assembles the AI system from those derivatives. Parameters are represented in working coordinates chosen to respect covariance constraints, and the proposed update is protected by trust scaling and a global exact-likelihood backtracking procedure. For nonlinear covariance parameterizations the AI matrix uses first covariance derivatives, rather than adding second derivatives of the covariance model that belong to an observed-Hessian formulation. The `vpredict()` function can subsequently use estimated variance-covariance information and the delta method to obtain standard errors for functions such as heritabilities and genetic correlations.
+Here \(\theta\) denotes the working covariance-parameter vector, \(s(\theta)\) is the REML score, and \(AI(\theta)\) is the Average Information matrix. For structured covariance factors, `mmes()` differentiates the factorized mixed-model solve analytically with respect to the covariance parameters and assembles the AI system from those derivatives. Parameters are represented in working coordinates chosen to respect covariance constraints, and the proposed update is protected by trust scaling and a global exact-likelihood backtracking procedure. For nonlinear covariance parameterizations the AI matrix uses first covariance derivatives, rather than adding second derivatives of the covariance model that belong to an observed-Hessian formulation. The `vcDelta()` function can subsequently use estimated variance-covariance information and the delta method to obtain standard errors for functions such as heritabilities and genetic correlations.
 
 Please refer to the canonical papers listed in the Literature section to check how the algorithms work. We have tested widely the methods to make sure they provide the same solution when the likelihood behaves well, but for complex problems they might lead to slightly different answers. If you have any concern please contact me at covaruberpaz@gmail.com.
 
@@ -150,7 +150,7 @@ ans1 <- mmes(Yield~1,
   data=DT,
   control = mmes_control(convergence = list(maxIters = 1L), diagnostics = list(verbose = FALSE)))
 summary(ans1)$varcomp
-vpredict(ans1, h2 ~ V1 / ( V1 + (V3/5) + (V5/10) ) )
+vcDelta(ans1, h2 ~ V1 / ( V1 + (V3/5) + (V5/10) ) )
 ```
 That is an estimate of broad-sense heritability.
 
@@ -185,8 +185,8 @@ attr(Di, "inverse")=TRUE
 #                  control=mmes_control(convergence=list(maxIters=10),
 #                    diagnostics=list(verbose=FALSE)))
 # (summary(ans.ADE)$varcomp)
-# vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense
-# vpredict(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) ) # broad-sense
+# vcDelta(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense
+# vcDelta(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) ) # broad-sense
 ```
 
 This example illustrates how marker-derived additive and dominance relationship structures can be associated with random effects and used to estimate additive and dominance variance components, from which narrow- and broad-sense heritability functions can be formed. In the current Henderson-based `mmes()` interface, `vsm()` defines the covariance structure of a random term. When a matrix supplied through `Gu` is already a precision matrix, as `Ai` and `Di` are in the code above, it is converted to sparse form and marked with `attr(..., "inverse")=TRUE`. Thus the solver can use the supplied precision directly rather than inverting it internally. This replaces the older `formulation="direct"` direct-inversion distinction.
@@ -214,9 +214,9 @@ summary(modFD)
 In the previous example `atm()` is used as a covariance-shaping factor inside `vsm()`. It permits selected levels of the factor—in this case Locations 3 and 4—to have their own relative diagonal variance parameters within the random-effect covariance. In the current parameterization the covariance factor is normalized and `vsm()` supplies one product-level variance scale, so the selected-level parameters describe variance ratios rather than redundant absolute scales. The residual term similarly uses `dsm(Location)` to allow location-specific residual variances.
 
  
-### 3) Using the vpredict calculator
+### 3) Using the vcDelta calculator
 
-Sometimes the user needs to calculate ratios or functions of specific variance-covariance components and obtain the standard errors for such parameters. Examples of these are the genetic correlations, heritabilities, etc. Using the CPdata we will show how to estimate the heritability and the standard error using the `vpredict()` function that uses the delta method to come up with these parameters. This can be extended for any linear combination of the variance components.
+Sometimes the user needs to calculate ratios or functions of specific variance-covariance components and obtain the standard errors for such parameters. Examples of these are the genetic correlations, heritabilities, etc. Using the CPdata we will show how to estimate the heritability and the standard error using the `vcDelta()` function that uses the delta method to come up with these parameters. This can be extended for any linear combination of the variance components.
 
 
 #### 3.1) Standar error for heritability
@@ -239,10 +239,10 @@ ans <- mmes(color~1,
   control = mmes_control(convergence = list(maxIters = 10),
   diagnostics = list(verbose = FALSE)))
 summary(ans)$varcomp
-vpredict(ans, h2 ~ (V1) / ( V1+V2) )
+vcDelta(ans, h2 ~ (V1) / ( V1+V2) )
 
 ```
-The same can be used for multivariate models. Please check the documentation of the `vpredict` function to see more examples.
+The same can be used for multivariate models. Please check the documentation of the `vcDelta` function to see more examples.
 
 ### 4) Half and full diallel designs (use of the overlay)
 
@@ -709,7 +709,7 @@ are not. Covariances are retained in factorized form: request a small explicit
 covariance with `covmatrix_mmes(..., se=FALSE)` rather than using `theta`.
 Coefficient PEVs and covariance-parameter standard errors are unavailable on
 this path, so it cannot supply the uncertainty needed by the earlier
-heritability/`vpredict()` examples.
+heritability/`vcDelta()` examples.
 
 EM can be much slower than AI near variance boundaries, and 500 updates do
 not guarantee convergence. A nonconverged fit produces a warning; inspect

@@ -118,7 +118,7 @@ space providing examples for:</p>
 (<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>h</mi><mn>2</mn></msup><annotation encoding="application/x-tex">h^2</annotation></semantics></math>)
 calculation</li>
 <li>Specifying heterogeneous variances in mixed models</li>
-<li>Using the <code><a href="../reference/vpredict.html">vpredict()</a></code> calculator</li>
+<li>Using the <code><a href="../reference/vcDelta.html">vcDelta()</a></code> calculator</li>
 <li>Half and full diallel designs (using the overlay)</li>
 <li>Genomic selection (predicting mendelian sampling)
 <ul>
@@ -264,7 +264,7 @@ update is protected by trust scaling and a global exact-likelihood
 backtracking procedure. For nonlinear covariance parameterizations the
 AI matrix uses first covariance derivatives, rather than adding second
 derivatives of the covariance model that belong to an observed-Hessian
-formulation. The <code><a href="../reference/vpredict.html">vpredict()</a></code> function can subsequently use
+formulation. The <code><a href="../reference/vcDelta.html">vcDelta()</a></code> function can subsequently use
 estimated variance-covariance information and the delta method to obtain
 standard errors for functions such as heritabilities and genetic
 correlations.</p>
@@ -344,7 +344,7 @@ extract the variance components to calculate the
 <code class="sourceCode R"><span><span class="op">(</span><span class="va">n.env</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/length.html" class="external-link">length</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/levels.html" class="external-link">levels</a></span><span class="op">(</span><span class="va">DT</span><span class="op">$</span><span class="va">Env</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">## [1] 3</span></span></code></pre>
 <div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/vpredict.html">vpredict</a></span><span class="op">(</span><span class="va">ans1</span>, <span class="va">h2</span> <span class="op">~</span> <span class="va">V1</span> <span class="op">/</span> <span class="op">(</span> <span class="va">V1</span> <span class="op">+</span> <span class="op">(</span><span class="va">V3</span><span class="op">/</span><span class="va">n.env</span><span class="op">)</span> <span class="op">+</span> <span class="op">(</span><span class="va">V5</span><span class="op">/</span><span class="op">(</span><span class="fl">2</span><span class="op">*</span><span class="va">n.env</span><span class="op">)</span><span class="op">)</span> <span class="op">)</span> <span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/vcDelta.html">vcDelta</a></span><span class="op">(</span><span class="va">ans1</span>, <span class="va">h2</span> <span class="op">~</span> <span class="va">V1</span> <span class="op">/</span> <span class="op">(</span> <span class="va">V1</span> <span class="op">+</span> <span class="op">(</span><span class="va">V3</span><span class="op">/</span><span class="va">n.env</span><span class="op">)</span> <span class="op">+</span> <span class="op">(</span><span class="va">V5</span><span class="op">/</span><span class="op">(</span><span class="fl">2</span><span class="op">*</span><span class="va">n.env</span><span class="op">)</span><span class="op">)</span> <span class="op">)</span> <span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##     Estimate         SE</span></span>
 <span><span class="co">## h2 0.6032952 0.08141253</span></span></code></pre>
 <p>That is an estimate of broad-sense heritability.</p>
@@ -392,8 +392,8 @@ variance (with high marker density
 <span><span class="co">#                  rcov=~units, nIters=10,</span></span>
 <span><span class="co">#                  data=DT,verbose = FALSE)</span></span>
 <span><span class="co"># (summary(ans.ADE)$varcomp)</span></span>
-<span><span class="co"># vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense</span></span>
-<span><span class="co"># vpredict(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) ) # broad-sense</span></span></code></pre></div>
+<span><span class="co"># vcDelta(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense</span></span>
+<span><span class="co"># vcDelta(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) ) # broad-sense</span></span></code></pre></div>
 <p>This example illustrates how marker-derived additive and dominance
 relationship structures can be associated with random effects and used
 to estimate additive and dominance variance components, from which
@@ -473,13 +473,13 @@ than redundant absolute scales. The residual term similarly uses
 variances.</p>
 </div>
 <div class="section level3">
-<h3 id="using-the-vpredict-calculator">3) Using the vpredict calculator<a class="anchor" aria-label="anchor" href="#using-the-vpredict-calculator"></a>
+<h3 id="using-the-vcDelta-calculator">3) Using the vcDelta calculator<a class="anchor" aria-label="anchor" href="#using-the-vcDelta-calculator"></a>
 </h3>
 <p>Sometimes the user needs to calculate ratios or functions of specific
 variance-covariance components and obtain the standard errors for such
 parameters. Examples of these are the genetic correlations,
 heritabilities, etc. Using the CPdata we will show how to estimate the
-heritability and the standard error using the <code><a href="../reference/vpredict.html">vpredict()</a></code>
+heritability and the standard error using the <code><a href="../reference/vcDelta.html">vcDelta()</a></code>
 function that uses the delta method to come up with these parameters.
 This can be extended for any linear combination of the variance
 components.</p>
@@ -508,11 +508,11 @@ components.</p>
 <span><span class="co">## 1 vsm(ism(id), Gu = Ai) sigma2    sigma2 0.005121546 0.0007363648  6.955175</span></span>
 <span><span class="co">## 2       vsm(ism(units)) sigma2    sigma2 0.002743183 0.0002113857 12.977143</span></span></code></pre>
 <div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu"><a href="../reference/vpredict.html">vpredict</a></span><span class="op">(</span><span class="va">ans</span>, <span class="va">h2</span> <span class="op">~</span> <span class="op">(</span><span class="va">V1</span><span class="op">)</span> <span class="op">/</span> <span class="op">(</span> <span class="va">V1</span><span class="op">+</span><span class="va">V2</span><span class="op">)</span> <span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="fu"><a href="../reference/vcDelta.html">vcDelta</a></span><span class="op">(</span><span class="va">ans</span>, <span class="va">h2</span> <span class="op">~</span> <span class="op">(</span><span class="va">V1</span><span class="op">)</span> <span class="op">/</span> <span class="op">(</span> <span class="va">V1</span><span class="op">+</span><span class="va">V2</span><span class="op">)</span> <span class="op">)</span></span></code></pre></div>
 <pre><code><span><span class="co">##     Estimate         SE</span></span>
 <span><span class="co">## h2 0.6512044 0.03705198</span></span></code></pre>
 <p>The same can be used for multivariate models. Please check the
-documentation of the <code>vpredict</code> function to see more
+documentation of the <code>vcDelta</code> function to see more
 examples.</p>
 </div>
 </div>

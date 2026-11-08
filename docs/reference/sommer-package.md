@@ -79,7 +79,7 @@ package).
 ## Functions for statistical analysis and S3 methods
 
 The
-[`vpredict`](https://covaruber.github.io/sommer/reference/vpredict.md)
+[`vcDelta`](https://covaruber.github.io/sommer/reference/vcDelta.md)
 function can be used to estimate standard errors for linear combinations
 of variance components (e.g. ratios like h2). The
 [`r2`](https://covaruber.github.io/sommer/reference/r2.md) function

@@ -43,8 +43,8 @@ test_that("C-free saddle fits skip compatibility assembly and preserve statistic
       expect_output(print(summary(candidate)), "Coefficient matrix C was not retained")
       if(information == "full"){
         expect_equal(covparams_mmes_se(candidate), covparams_mmes_se(reference))
-        expect_equal(vpredict(candidate, ~V1/(V1+V2)),
-          vpredict(reference, ~V1/(V1+V2)))
+        expect_equal(vcDelta(candidate, ~V1/(V1+V2)),
+          vcDelta(reference, ~V1/(V1+V2)))
       }
     }
   }

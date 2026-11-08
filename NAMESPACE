@@ -26,7 +26,7 @@ export( # small matrices constructors
        # mmes covariance functions
        usr, dsr, csr, atr,  
        # mmer DEPRECATED
-        vpredict, vs        
+        vs
        )
 
 ## FUN_spatial
@@ -57,7 +57,8 @@ export(
        randef)
 
 # S3 METHODS mmes
-S3method(vpredict, mmes)
+export(vcDelta)
+S3method(vcDelta, mmes)
 
 # S3 METHODS mmes
 S3method(anova, mmes)

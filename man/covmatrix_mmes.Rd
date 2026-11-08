@@ -39,7 +39,7 @@ Diagonal standard errors of the correlation matrix are zero. Terms split by
 \value{A list with \code{covariance} and \code{correlation} and, if
 \code{se=TRUE}, \code{covariance.se} and \code{correlation.se}.}
 \seealso{\code{\link{covparams_mmes}}, \code{\link{covparams_mmes_se}},
-\code{\link{vpredict}}, \code{\link{stackTraits}}}
+\code{\link{vcDelta}}, \code{\link{stackTraits}}}
 \examples{
 set.seed(17)
 n <- 60

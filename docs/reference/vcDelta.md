@@ -1,6 +1,6 @@
-# vpredict form of a LMM fitted with mmes
+# vcDelta form of a LMM fitted with mmes
 
-`vpredict` method for class `"mmes"`.
+`vcDelta` method for class `"mmes"`.
 
 Post-analysis procedure to calculate linear combinations of variance
 components. Its intended use is when the variance components are either
@@ -26,9 +26,9 @@ with shortcuts \`V1\`, \`V2\`, etc. See the example below.
 ## Usage
 
 ``` r
-vpredict(object, transform)
+vcDelta(object, transform)
 # S3 method for class 'mmes'
-vpredict(object, transform)
+vcDelta(object, transform)
 ```
 
 ## Arguments
@@ -51,7 +51,7 @@ implemented to approximate the standard error for a function of
 calculated by algorithmic differentiation with
 [`deriv`](https://rdrr.io/r/stats/deriv.html).
 
-Though `vpredict` can calculate standard errors for non-linear functions
+Though `vcDelta` can calculate standard errors for non-linear functions
 of (co)variance parameters from a fitted `mmes` model, it is limited to
 non-linear functions constructed by mathematical operations such as the
 arithmetic operators `+`, `-`, `*`, `/` and `^`, and single-variable
@@ -82,7 +82,7 @@ Giovanny Covarrubias
 
 ## See also
 
-`vpredict`,
+`vcDelta`,
 [`mmes`](https://covaruber.github.io/sommer/reference/mmes.md)
 
 ## Examples
@@ -106,7 +106,7 @@ Giovanny Covarrubias
 #               random=~vsm(ism(id),Gu=A), 
 #               data=DT)
 # summary(mix1)$varcomp
-# #### run the vpredict function
-# vpredict(mix1, h2 ~ V1 / ( V1 + V2 ) )
+# #### run the vcDelta function
+# vcDelta(mix1, h2 ~ V1 / ( V1 + V2 ) )
 
 ```

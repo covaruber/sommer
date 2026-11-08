@@ -1,8 +1,8 @@
-\name{vpredict}
-\alias{vpredict}
-\alias{vpredict.mmes}
-\title{vpredict form of a LMM fitted with mmes}
-\description{\code{vpredict} method for class \code{"mmes"}.
+\name{vcDelta}
+\alias{vcDelta}
+\alias{vcDelta.mmes}
+\title{Delta-method variance component functions for mmes}
+\description{\code{vcDelta} method for class \code{"mmes"}.
 
 Post-analysis procedure to calculate linear combinations of variance components. Its intended use is when the variance components are either simple variances or are variances and covariances in an unstructured matrix. The functions covered are linear combinations of the variance components (for example, phenotypic variance), a ratio of two components (for example, heritabilities) and the correlation based on three components (for example, genetic correlation). 
  
@@ -13,8 +13,8 @@ The transform is specified with a formula. On the left side of the formula is a 
 }
 \usage{
 
-vpredict(object, transform)
-\method{vpredict}{mmes}(object, transform)
+vcDelta(object, transform)
+\method{vcDelta}{mmes}(object, transform)
 
 }
 \arguments{
@@ -37,7 +37,7 @@ vpredict(object, transform)
   different fitted terms. Parameters with zero derivatives do not contribute
   uncertainty to the requested transformation.
 
-Though \code{vpredict} can calculate standard errors for non-linear functions
+Though \code{vcDelta} can calculate standard errors for non-linear functions
   of (co)variance parameters from a fitted \code{mmes} model, it is limited
   to non-linear functions constructed by mathematical operations such as the
   arithmetic operators \code{+}, \code{-}, \code{*}, \code{/} and \code{^},
@@ -59,7 +59,7 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
   
  }
 \author{Giovanny Covarrubias}
-\seealso{\code{\link{vpredict}}, \code{\link{mmes}}}
+\seealso{\code{\link{vcDelta}}, \code{\link{mmes}}}
 \keyword{models}
 \examples{
 
@@ -81,8 +81,8 @@ Though \code{vpredict} can calculate standard errors for non-linear functions
 #               random=~vsm(ism(id),Gu=A), 
 #               data=DT)
 # summary(mix1)$varcomp
-# #### run the vpredict function
-# vpredict(mix1, h2 ~ V1 / ( V1 + V2 ) )
+# #### run the vcDelta function
+# vcDelta(mix1, h2 ~ V1 / ( V1 + V2 ) )
 
 
 }

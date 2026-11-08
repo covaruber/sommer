@@ -62,7 +62,7 @@ test_that("methods requiring omitted covariance information fail explicitly", {
   error <- "refit with output=list\\(covariance='full'\\)"
   expect_error(covparams_mmes_se(candidate), error)
   expect_error(covmatrix_mmes(candidate, 1L), error)
-  expect_error(vpredict(candidate, ~V1/(V1+V2)), error)
+  expect_error(vcDelta(candidate, ~V1/(V1+V2)), error)
   for(method in c("satterthwaite", "kr")){
     expect_error(wald_mmes(candidate, denDF=method), error)
   }

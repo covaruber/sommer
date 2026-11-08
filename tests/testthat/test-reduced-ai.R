@@ -159,7 +159,7 @@ test_that("reduced tied fits preserve optimizer, reporting and coefficient uncer
         expect_equal(diagnostics$fullInformationEvaluations, 0L)
         expect_null(reduced$InfMat)
         expect_null(reduced$theta_se)
-        expect_error(vpredict(reduced, ~V1/(V1+V3)),
+        expect_error(vcDelta(reduced, ~V1/(V1+V3)),
           "refit with output=list\\(covariance='full'\\)")
       }
     }

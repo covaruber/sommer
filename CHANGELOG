@@ -1087,7 +1087,7 @@ version 4.4.90 (2026-10-13)
    form relationship-marker products by block, reuse retained precision and
    preserve sparse supplied inverses.
  + Native covariance reporting now propagates cross-term uncertainty jointly;
-   vpredict uses the full native covariance matrix. Unavailable uncertainty
+   vcDelta uses the full native covariance matrix. Unavailable uncertainty
    does not contaminate independent native quantities.
  + Reduced allocations in covariance-matrix SEs, leverage diagonals, spatial
    splines and APY assembly; reused covariance-factor compilation, shared

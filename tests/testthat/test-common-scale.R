@@ -127,7 +127,7 @@ test_that("profiled fits preserve converged estimates and exact final uncertaint
     }
     expect_null(omitted$theta_se)
     expect_null(omitted$InfMat)
-    expect_error(vpredict(omitted, ~V1/(V1+V3)),
+    expect_error(vcDelta(omitted, ~V1/(V1+V3)),
       "refit with output=list\\(covariance='full'\\)")
     expect_false(any(startsWith(names(profiled), ".commonScale")))
     expect_false(".aiTangent" %in% names(profiled))
@@ -207,7 +207,7 @@ test_that("profile final information supports prediction and covariance-dependen
   expect_true(profiled$convergence)
   expect_equal(predict(profiled, D="id")$pvals, predict(ordinary, D="id")$pvals,
     tolerance=2e-5)
-  expect_equal(vpredict(profiled, ~V1/(V1+V2)), vpredict(ordinary, ~V1/(V1+V2)),
+  expect_equal(vcDelta(profiled, ~V1/(V1+V2)), vcDelta(ordinary, ~V1/(V1+V2)),
     tolerance=2e-5)
   for(method in c("none", "satterthwaite", "kr")){
     expect_equal(as.data.frame(wald_mmes(profiled, denDF=method)),

@@ -352,7 +352,7 @@ S3 methods are available for some parameter extraction such as
 and
 [`predict.mmer`](https://covaruber.github.io/sommer/reference/predict_mmes.md)
 to obtain adjusted means. In addition, the
-[`vpredict`](https://covaruber.github.io/sommer/reference/vpredict.md)
+[`vcDelta`](https://covaruber.github.io/sommer/reference/vcDelta.md)
 function (replacement of the pin function) can be used to estimate
 standard errors for linear combinations of variance components (e.g.,
 ratios like h2).

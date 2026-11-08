@@ -45,7 +45,7 @@ providing examples for:
 1.  Heritability ($`h^2`$) calculation
 2.  Specifying heterogeneous variances in mixed models
 3.  Using the
-    [`vpredict()`](https://covaruber.github.io/sommer/reference/vpredict.md)
+    [`vcDelta()`](https://covaruber.github.io/sommer/reference/vcDelta.md)
     calculator
 4.  Half and full diallel designs (using the overlay)
 5.  Genomic selection (predicting mendelian sampling)
@@ -195,7 +195,7 @@ protected by trust scaling and a global exact-likelihood backtracking
 procedure. For nonlinear covariance parameterizations the AI matrix uses
 first covariance derivatives, rather than adding second derivatives of
 the covariance model that belong to an observed-Hessian formulation. The
-[`vpredict()`](https://covaruber.github.io/sommer/reference/vpredict.md)
+[`vcDelta()`](https://covaruber.github.io/sommer/reference/vcDelta.md)
 function can subsequently use estimated variance-covariance information
 and the delta method to obtain standard errors for functions such as
 heritabilities and genetic correlations.
@@ -286,7 +286,7 @@ summary(ans1)$varcomp
     ## [1] 3
 
 ``` r
-vpredict(ans1, h2 ~ V1 / ( V1 + (V3/n.env) + (V5/(2*n.env)) ) )
+vcDelta(ans1, h2 ~ V1 / ( V1 + (V3/n.env) + (V5/(2*n.env)) ) )
 ```
 
     ##     Estimate         SE
@@ -334,8 +334,8 @@ attr(Di, "inverse")=TRUE
 #                  rcov=~units, nIters=10,
 #                  data=DT,verbose = FALSE)
 # (summary(ans.ADE)$varcomp)
-# vpredict(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense
-# vpredict(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) ) # broad-sense
+# vcDelta(ans.ADE, h2 ~ (V1) / ( V1+V3) ) # narrow sense
+# vcDelta(ans.ADE, h2 ~ (V1+V2) / ( V1+V2+V3) ) # broad-sense
 ```
 
 This example illustrates how marker-derived additive and dominance
@@ -424,14 +424,14 @@ describe variance ratios rather than redundant absolute scales. The
 residual term similarly uses `dsm(Location)` to allow location-specific
 residual variances.
 
-### 3) Using the vpredict calculator
+### 3) Using the vcDelta calculator
 
 Sometimes the user needs to calculate ratios or functions of specific
 variance-covariance components and obtain the standard errors for such
 parameters. Examples of these are the genetic correlations,
 heritabilities, etc. Using the CPdata we will show how to estimate the
 heritability and the standard error using the
-[`vpredict()`](https://covaruber.github.io/sommer/reference/vpredict.md)
+[`vcDelta()`](https://covaruber.github.io/sommer/reference/vcDelta.md)
 function that uses the delta method to come up with these parameters.
 This can be extended for any linear combination of the variance
 components.
@@ -466,14 +466,14 @@ summary(ans)$varcomp
     ## 2       vsm(ism(units)) sigma2    sigma2 0.002743183 0.0002113857 12.977143
 
 ``` r
-vpredict(ans, h2 ~ (V1) / ( V1+V2) )
+vcDelta(ans, h2 ~ (V1) / ( V1+V2) )
 ```
 
     ##     Estimate         SE
     ## h2 0.6512044 0.03705198
 
 The same can be used for multivariate models. Please check the
-documentation of the `vpredict` function to see more examples.
+documentation of the `vcDelta` function to see more examples.
 
 ### 4) Half and full diallel designs (use of the overlay)
 

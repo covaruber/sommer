@@ -1,8 +1,8 @@
-vpredict <- function(object, transform) {
-  UseMethod("vpredict")
+vcDelta <- function(object, transform) {
+  UseMethod("vcDelta")
 }
 
-vpredict.mmes <- function(object, transform){
+vcDelta.mmes <- function(object, transform){
   .mmes_require_covariance_information(object)
   pframe <- as.list(object$covParNative$estimate)
   names(pframe) <- paste0("V", seq_along(pframe))
@@ -16,6 +16,6 @@ vpredict.mmes <- function(object, transform){
   }else 0
   out <- data.frame(Estimate=tvalue, SE=se)
   rownames(out) <- if(length(transform) == 3L) transform[[2L]] else ""
-  class(out) <- c("vpredict.mmes", "data.frame")
+  class(out) <- c("vcDelta.mmes", "data.frame")
   out
 }

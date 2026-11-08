@@ -72,7 +72,7 @@ matrix (use the `getA` function from the pedigreemm package).
 
 \section{Functions for statistical analysis and S3 methods}{
 
-The \code{\link{vpredict}} function can be used to estimate standard errors for linear combinations of variance components (e.g. ratios like h2). The \code{\link{r2}} function calculates reliability. S3 methods are available for some parameter extraction such as:
+The \code{\link{vcDelta}} function can be used to estimate standard errors for linear combinations of variance components (e.g. ratios like h2). The \code{\link{r2}} function calculates reliability. S3 methods are available for some parameter extraction such as:
 
 + \code{\link{predict.mmes}}
 

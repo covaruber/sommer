@@ -190,8 +190,8 @@
 
   Unstructured covariance structure for `mmer` and `vsr`
 
-- [`vpredict()`](https://covaruber.github.io/sommer/reference/vpredict.md)
-  : vpredict form of a LMM fitted with mmes
+- [`vcDelta()`](https://covaruber.github.io/sommer/reference/vcDelta.md)
+  : vcDelta form of a LMM fitted with mmes
 
 - [`vsm()`](https://covaruber.github.io/sommer/reference/vsm.md) :
   Variance-structure model with arbitrary Kronecker covariance factors
