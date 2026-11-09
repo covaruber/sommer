@@ -241,7 +241,11 @@
 #' @param formulation Equation domain: \code{"henderson"} or \code{"direct"}.
 #'   PQL supports either domain for its weighted Gaussian working fits;
 #'   native Laplace requires Henderson.
-#' @param task Named list selecting \code{mode}, \code{objective} and outer \code{pql} controls.
+#' @param task Named list selecting \code{mode}, \code{objective}, outer
+#'   \code{pql}/\code{glmm} controls, and \code{nonlinear} controls for
+#'   \code{\link{nonlinear_curve}}: optimizer (nlminb), gradient (analytic),
+#'   initialization (auto/supplied), named natural-scale curve starts,
+#'   conditional mode controls and population quadrature controls.
 #' @param representation Named list of equation, compression and covariance representation requests.
 #' @param solve Named list of linear solver, preconditioning, reuse and elimination requests.
 #' @param logdet Named list controlling stochastic determinant scaling and Lanczos depth.
@@ -304,7 +308,9 @@ mmes_control <- function(formulation="henderson", task=list(),
   base <- .mmes_engine_control()
   formulation <- .mme_choice(formulation, c("henderson", "direct"), "formulation")
   task <- .mme_module(task, list(mode="fit", objective="reml",
-    pql=.mme_pql_defaults, glmm=.mme_glmm_defaults), "task")
+    pql=.mme_pql_defaults, glmm=.mme_glmm_defaults,
+    nonlinear=.mme_nonlinear_defaults), "task")
+  task$nonlinear <- .nonlinear_controls(task$nonlinear)
   task$mode <- .mme_choice(task$mode, c("fit", "solve"), "task$mode")
   task$objective <- .mme_choice(task$objective, c("reml", "ml"), "task$objective")
   task$pql <- .mme_module(task$pql, .mme_pql_defaults, "task$pql")
@@ -508,7 +514,8 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
                  naMethodX="exclude", naMethodY="exclude",
                  naMethodRandom="exclude", naMethodR="exclude",
                  contrasts=NULL, family=stats::gaussian(), vcc=NULL,
-                 covPar=NULL, control=mmes_control(), .internal=NULL, ...){
+                 covPar=NULL, control=mmes_control(), .internal=NULL,
+                 nonlinear=NULL, ...){
   if(!inherits(control, "sommer_mmes_control")){
     stop("control must be created by mmes_control().", call.=FALSE)
   }
@@ -555,13 +562,27 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
   if(is.null(supplied)) supplied <- c("formulation", .mme_control_paths(control))
   .mmes_check_compatibility(control, supplied)
   attr(control, "supplied") <- supplied
-  .mmes_check_family_controls(control, supplied, family, .internal)
+  if(is.null(nonlinear)){
+    if(!identical(control$task$nonlinear, .mme_nonlinear_defaults)){
+      stop("task$nonlinear controls require a nonlinear model specification.", call.=FALSE)
+    }
+    .mmes_check_family_controls(control, supplied, family, .internal)
+  }
   call <- match.call()
   model <- as.list(call)[-1L]
-  model[c("control", ".internal", names(legacy))] <- NULL
+  model[c("control", ".internal", "nonlinear", names(legacy))] <- NULL
   args <- lapply(model, eval, envir=parent.frame())
-  args <- c(args, .mmes_control_args(control), list(.internal=.internal))
-  result <- do.call(".mmes_fit", args, envir=environment(mmes))
+  if(is.null(nonlinear)){
+    args <- c(args, .mmes_control_args(control), list(.internal=.internal))
+    result <- do.call(".mmes_fit", args, envir=environment(mmes))
+  }else{
+    path <- .nonlinear_path_plan(nonlinear, control, family, args$random,
+      args$rcov, args$W, weights, covPar, .internal)
+    args$nonlinear <- nonlinear
+    args$control <- control
+    result <- do.call(".mmes_nonlinear_fit", args, envir=environment(mmes))
+    result$nonlinearPathPlan <- path
+  }
   result$control <- control
   result$engineControl <- NULL
   if(is.list(result$engineDiagnostics)){
@@ -624,6 +645,26 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
 }
 
 .mmes_execution_plan <- function(control, result){
+  if(inherits(result, "mmes.nonlinear")){
+    return(list(version=1L, task="fit",
+      objective=if(isTRUE(result$nonlinearFamily)) "ml (Laplace family)" else
+        if(is.null(result$nonlinearRandom)) "ml (exact Gaussian)" else "ml (Laplace Gaussian)",
+      formulation="henderson", nonlinear=result$nonlinearPathPlan,
+      solver=list(requested=control$solve$method, selected="native sparse random-space"),
+      output=list(inverse=0L, uncertaintyComputed=FALSE),
+      work=result$nonlinearDiagnostics$work,
+      optimizer=result$nonlinearDiagnostics$optimizer,
+      starts=result$nonlinearDiagnostics$starts,
+      dimensions=result$nonlinearDiagnostics$dimensions,
+      memory=result$nonlinearDiagnostics$memory,
+      profile=result$nonlinearDiagnostics$profile,
+      boundaryParameters=result$nonlinearDiagnostics$boundaryParameters,
+      mode=list(iterations=result$nonlinearDiagnostics$modeIterations,
+        score=result$nonlinearDiagnostics$modeScore,
+        failedStarts=result$nonlinearDiagnostics$failedStarts,
+        competingModes=result$nonlinearDiagnostics$competingModes),
+      status=if(isTRUE(result$convergence)) "converged" else "not converged"))
+  }
   diagnostics <- result$engineDiagnostics
   laplace <- inherits(result, "mmes.glmm.laplace")
   solver <- if(laplace) "Native Laplace mode solver"

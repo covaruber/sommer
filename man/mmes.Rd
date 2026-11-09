@@ -22,9 +22,26 @@ mmes(fixed, random, rcov, data, W, weights=NULL,
      naMethodX="exclude", naMethodY="exclude",
      naMethodRandom="exclude", naMethodR="exclude",
      contrasts=NULL, family=stats::gaussian(), vcc=NULL,
-     covPar=NULL, control=mmes_control(), .internal=NULL, ...)
+     covPar=NULL, control=mmes_control(), .internal=NULL,
+     nonlinear=NULL, ...)
 }
 \arguments{
+  \item{nonlinear}{Optional \code{\link{nonlinear_curve}} specification for a
+  traditional parametric curve added to ordinary formula terms, optionally
+  with independent or jointly correlated Gaussian random curve parameters.
+  Requires explicit ML, a supported native response family/link,
+  Henderson formulation, at least one additive
+  or curve-random term, \code{rcov=~units} (or omitted), and
+  \code{output$inverse=0}. Numerical choices belong to
+  \code{task$nonlinear} in \code{\link{mmes_control}}.
+  Point prediction, diagnostic residuals and conditional/prior-population
+  response simulation are supported for scalar, categorical, zero-inflated
+  and mixed families. Nonlinear parameter covariance, approximate PEV,
+  standard errors, intervals and regular model comparisons are available
+  strictly post-fit; see \code{\link{post_nonlinear}} for definitions,
+  approximation labels and unsupported boundary tests.
+  The ordinary fixed formula still supplies the response; use \code{y~0}
+  when the curve is the entire fixed link predictor.}
   \item{fixed}{A formula specifying the \strong{response variable(s)} \strong{and fixed effects}, i.e:
 
   \emph{response ~ covariate}

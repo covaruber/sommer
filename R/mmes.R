@@ -464,6 +464,13 @@
   responseMF <- mf_full[, 1L, drop=FALSE]
   responseOK <- stats::complete.cases(responseMF)
   fixedOK <- if(ncol(mf_full) > 1L) stats::complete.cases(mf_full[, -1L, drop=FALSE]) else rep(TRUE, nObs)
+  if(.prepareOnly && !is.null(.internal$nonlinearInput)){
+    nonlinearInput <- .internal$nonlinearInput
+    if(length(nonlinearInput) != nObs){
+      stop("Nonlinear input and model frame have incompatible lengths.", call.=FALSE)
+    }
+    fixedOK <- fixedOK & !is.na(nonlinearInput)
+  }
   if(.prepareOnly){
     fixedOK <- fixedOK & .laplace_zero_complete(family, data_full, nObs)
   }

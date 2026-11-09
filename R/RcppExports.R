@@ -121,6 +121,62 @@ mmes_vcov_solve_cpp <- function(pointer, Dmat) {
     .Call(`_sommer_mmes_vcov_solve_cpp`, pointer, Dmat)
 }
 
+sommer_nonlinear_curve_eval <- function(curve, input, parameters, gradient = TRUE) {
+    .Call(`_sommer_sommer_nonlinear_curve_eval`, curve, input, parameters, gradient)
+}
+
+sommer_nonlinear_gaussian_create <- function(fixed, random, response, offset, input, curve, descriptors, relationships, memoryMB = 1000) {
+    .Call(`_sommer_sommer_nonlinear_gaussian_create`, fixed, random, response, offset, input, curve, descriptors, relationships, memoryMB)
+}
+
+sommer_nonlinear_gaussian_eval <- function(context, parameters, gradient = TRUE) {
+    .Call(`_sommer_sommer_nonlinear_gaussian_eval`, context, parameters, gradient)
+}
+
+sommer_nonlinear_curve_derivatives <- function(curve, input, parameters) {
+    .Call(`_sommer_sommer_nonlinear_curve_derivatives`, curve, input, parameters)
+}
+
+sommer_nonlinear_laplace_create <- function(fixed, random, response, offset, input, curve, coordinate, curveStart, descriptors, relationships, memoryMB = 1000, maxIters = 100L, scoreTol = 1e-8, stepTol = 1e-8) {
+    .Call(`_sommer_sommer_nonlinear_laplace_create`, fixed, random, response, offset, input, curve, coordinate, curveStart, descriptors, relationships, memoryMB, maxIters, scoreTol, stepTol)
+}
+
+sommer_nonlinear_laplace_eval <- function(context, parameters, gradient = TRUE) {
+    .Call(`_sommer_sommer_nonlinear_laplace_eval`, context, parameters, gradient)
+}
+
+sommer_nonlinear_conditional_eval <- function(context, parameters, mode) {
+    .Call(`_sommer_sommer_nonlinear_conditional_eval`, context, parameters, mode)
+}
+
+sommer_nonlinear_curve_random_eval <- function(curve, input, parameters, coordinate, deviations) {
+    .Call(`_sommer_sommer_nonlinear_curve_random_eval`, curve, input, parameters, coordinate, deviations)
+}
+
+sommer_nonlinear_sparse_admission <- function(design, precision, curvature, memoryMB = 1000) {
+    .Call(`_sommer_sommer_nonlinear_sparse_admission`, design, precision, curvature, memoryMB)
+}
+
+sommer_nonlinear_coordinate_map <- function(random, descriptors, relationships, memoryMB = 1000) {
+    .Call(`_sommer_sommer_nonlinear_coordinate_map`, random, descriptors, relationships, memoryMB)
+}
+
+sommer_nonlinear_family_create <- function(fixed, random, response, offset, input, curve, coordinate, curveStart, descriptors, relationships, specifications, index, trials, memoryMB = 1000, maxIters = 100L, scoreTol = 1e-8, stepTol = 1e-8, coordinateMap = NULL) {
+    .Call(`_sommer_sommer_nonlinear_family_create`, fixed, random, response, offset, input, curve, coordinate, curveStart, descriptors, relationships, specifications, index, trials, memoryMB, maxIters, scoreTol, stepTol, coordinateMap)
+}
+
+sommer_nonlinear_curve_joint_eval <- function(curve, input, parameters, deviations) {
+    .Call(`_sommer_sommer_nonlinear_curve_joint_eval`, curve, input, parameters, deviations)
+}
+
+sommer_nonlinear_family_eval <- function(context, parameters, gradient = TRUE) {
+    .Call(`_sommer_sommer_nonlinear_family_eval`, context, parameters, gradient)
+}
+
+sommer_nonlinear_family_conditional <- function(context, parameters, mode) {
+    .Call(`_sommer_sommer_nonlinear_family_conditional`, context, parameters, mode)
+}
+
 mme_pcg_solve <- function(design, y, nFixed, termStart, termLevels, AiI, lambdaI, residualCovStruct, residualPar, residualBlock, residualIndex, weights, tol, maxIter, denseFixedMax, maxResidualBlock, start, verbose) {
     .Call(`_sommer_mme_pcg_solve`, design, y, nFixed, termStart, termLevels, AiI, lambdaI, residualCovStruct, residualPar, residualBlock, residualIndex, weights, tol, maxIter, denseFixedMax, maxResidualBlock, start, verbose)
 }

@@ -1341,6 +1341,101 @@ version 4.4.90 (2026-10-13)
    polyploid additive relationships without a ploidy argument; its
    documentation now explains inheritance and scale requirements.
 
+ + Experimental traditional nonlinear Gaussian mixed models now accept
+   nonlinear=nonlinear_curve("x", "exponential"), "logistic" or "saturation".
+   Native curve derivatives and exact Gaussian integration jointly estimate
+   fixed mean, additive random covariance and residual variance parameters.
+   Numerical choices use task$nonlinear in mmes_control(); point prediction,
+   named natural-scale coefficients and serialization are supported.
+   Initial scope is univariate Gaussian ML, Henderson, native analytic
+   covariance descriptors and homogeneous independent residuals. Layers,
+   backpropagation are not included.
+   PEV and all uncertainty remain post-fit; nonlinear post-fit inference
+   and model-comparison methods are explicitly unavailable in this slice.
+
+ + Traditional nonlinear curves now support one Gaussian random curve
+   parameter with optional independent ordinary additive effects.
+   Positive parameters use log deviations; midpoint uses identity deviations.
+   Dedicated exact-Hessian safeguarded modes and complete analytic Laplace
+   scores include mode motion and third curve derivatives.
+   task$nonlinear$mode and population controls govern deterministic starts
+   and checked population quadrature. Conditional, zero-deviation and
+   prior-population point means are distinct; group parameters are retained.
+   Native covariance descriptors and known relationship precision are reused.
+   Multiple random parameters, zero overall random variance and unseen
+   new-data groups are explicitly unsupported. PEV/uncertainty remain post-fit.
+
+ + Nonlinear Gaussian and Laplace fits now support pure reduced-rank rrm()
+   through normalized native loading maps and proper latent Gaussian priors.
+   Analytic loading scores include the changing design, mode and Hessian;
+   singular full covariance is never inverted or regularized with a ridge.
+   Full-coordinate random modes and group parameters are restored, with
+   latentRandomMode/randomCoordinates retained separately. Population means
+   use implied marginal prior variances, including reduced-rank covariance.
+   Dedicated nonlinear tests cover FA, diagonal, unstructured, serial,
+   compound-symmetry and representative Kronecker structures, with
+   constraints, fixed parameters and known relationships. No new controls
+   or fit-time uncertainty outputs are introduced.
+
+ + Traditional nonlinear mixed models now support all existing native
+   response families and links, including ordinal, nominal, zero-inflated
+   Poisson zero-regression and categorical/scalar familym() mixtures.
+   The curve is a shared link-predictor contribution, not a response-scale
+   mean or a separate parameter set per trait/category.
+   Modular family-aware Laplace modes use exact conditional Hessians and
+   complete analytic fixed/curve/covariance/nuisance scores, including
+   moving RR maps and block nominal curvature. Exact additive Gaussian ML
+   remains unchanged. Family choices reuse task$glmm$familyParameters;
+   other fitting choices use the existing nonlinear controls.
+   Link/response prediction, diagnostic residuals, serialized new-data
+   reconstruction, checked joint-prior population integration and
+   conditional/population response simulation are supported.
+   PEV and every uncertainty product remain separate post-fit processes;
+   structured Gaussian residuals and multiple random curve parameters
+   remain outside this phase.
+
+ + Traditional nonlinear inference is now available strictly post-fit through
+   post_nonlinear(), postPEV(), vcov(), confint() and prediction SE/intervals.
+   Checked differences of analytic marginal scores provide observed
+   parameter curvature; native conditional curvature and mode sensitivity
+   distinguish conditional covariance from empirical Bayes approximate PEV.
+   Natural-scale covariance, group-parameter SE and descriptor-report SE
+   include delta-method transformations and constrained/RR coordinates.
+   Scalar, categorical and mixed-family output shapes are preserved.
+   Population uncertainty differentiates joint-prior integration; scalar
+   future-response intervals include observation and prior variability.
+   Numerical choices use task$nonlinear$inference in mmes_control().
+   AIC/BIC count all free coordinates; regular nested ordinary fixed terms
+   support approximate likelihood-ratio comparisons. Explicit finite
+   working-coordinate nulls support fixed/curve Wald tests. Boundary tests,
+   weak curvature and unsupported linear inference formulas fail explicitly.
+   Fitting, point summaries and generative simulation remain inference-free.
+
+ + Traditional nonlinear qualification adds opt-in fitting phase timings and
+   profile_nonlinear() for separate inclusive curve, Jacobian, conditional
+   curvature, marginal objective/score and prediction measurements.
+   Execution plans report actual optimizer/gradient, iteration/evaluation
+   counts, starts, mode diagnostics, dimensions and memory admission policy.
+   Sparse-component factor-fill bounds reject oversized Hessian operations
+   before assembly without densifying conventional designs. Bounds remain
+   conservative for large connected relationship graphs.
+   A reproducible installed scaling benchmark and independent dense ML tests
+   qualify the traditional-curve envelope; no layers or backpropagation.
+   Validation uses numerical oracles and simulated truth without nlme or
+   lme4 dependencies, including Suggests and CI requirements.
+
+ + Traditional nonlinear curves now support multiple independent named random
+   parameter formulas and a separate joint=list(parameters=..., random=...)
+   covariance block. Existing random formulas and vsm() syntax are unchanged.
+   The internal .parameter axis uses native covariance descriptors, known
+   relationships, constraints and reduced-rank maps without replicating
+   responses. Exact conditional curvature and complete analytic Laplace
+   scores include every cross-parameter second/third derivative.
+   Joint prior prediction, simulation, serialization, profiling and explicit
+   post-fit group covariance/PEV retain the fitted coordinate basis.
+   vcov(type="group") exposes natural-scale post-fit group-parameter
+   covariance; uncertainty remains absent from fitting.
+
 ######################
 ## PENDINGS AND PRIORITIES
 + Fix plot.mmes

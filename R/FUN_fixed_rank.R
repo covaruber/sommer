@@ -75,6 +75,7 @@
 }
 
 .mmes_require_full_rank_inference <- function(object, method){
+  .nonlinear_no_inference(object, method)
   if(!is.null(object$fixedRank)){
     stop(method, " is not available for automatically rank-reduced fixed effects. ",
          "Refit an explicitly identified full-rank model for this inference method; ",

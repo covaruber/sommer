@@ -600,7 +600,7 @@ out$controls <- rbind(out$controls,data.frame(
 out$controls <- rbind(out$controls, data.frame(
   path="control.task.glmm.familyParameters", module="task",
   values="Named list: theta, dispersion, zeroInflation or ordinal thresholds and estimate; trait-named nested lists for supported familym families.",
-  default="list()", requires="Native Laplace NB2 shape, Gaussian/Gamma dispersion, zero-inflated Poisson structural-zero probability or ordinal cutpoints (trait-nested in familym).",
+  default="list()", requires="Native linear or nonlinear Laplace NB2 shape, Gaussian/Gamma dispersion, zero-inflated Poisson structural-zero probability or ordinal cutpoints (trait-nested in familym).",
   excludes="Non-empty settings are rejected by PQL and by fixed-parameter binomial/Poisson families.",
   fallback="Estimated by default; estimate=FALSE fixes the value. Unknown/invalid settings error.",
   effect="Jointly estimate or fix per-family shape, dispersion, zero-inflation probability or ordered cutpoints with full marginal scores; estimates count in npar and AIC/BIC. Ordinal estimation removes only the existing intercept column and initializes unsupplied cutpoints from retained cumulative frequencies; fixed cutpoints require explicit thresholds and retain the formula intercept.",
@@ -640,5 +640,77 @@ out$decisions <- rbind(out$decisions, data.frame(
   modules="representation, update"))
 out$edges <- rbind(out$edges, data.frame(from="henderson", to="conditional-fa", kind="branch"),
   data.frame(from="conditional-fa", to="outputs", kind="join"))
+out$controls <- rbind(out$controls, data.frame(
+  path=c("mmes.nonlinear", paste0("control.task.nonlinear.",
+    c("optimizer", "gradient", "initialization", "start"))),
+  module=c("model", rep("task", 4L)),
+  values=c("NULL or nonlinear_curve().", "nlminb.", "analytic.",
+    "auto, supplied.", "NULL or finite named natural-scale curve parameters."),
+  default=c("NULL", "nlminb", "analytic", "auto", "NULL"),
+  requires="Traditional nonlinear curve, existing native response family/link or familym mixture, ML, Henderson, additive Gaussian effects and/or independent or jointly correlated random curve parameters, independent homogeneous Gaussian residuals.",
+  excludes="REML, PQL/other GLMM fitting controls except familyParameters, direct/solve mode, structured residuals, W/weights, covPar, layers, cross-covariance with ordinary additive effects and fit-time inference.",
+  fallback="No fallback. Unsupported curves, controls, layouts and non-finite evaluations fail explicitly.",
+  effect=c("Add a shared native exponential, logistic or saturation link-predictor contribution. Exact Gaussian integration when applicable, otherwise complete family-aware Laplace ML, RR maps and serializable point output.",
+    "Jointly optimize ordinary fixed, curve, random covariance and family nuisance coordinates.",
+    "Use explicit analytic curve and likelihood derivatives with complete Laplace scores; no backpropagation or numerical-gradient fallback.",
+    "Use deterministic data-based starts or require supplied starts. No random-number state is consumed.",
+    "Supply positive asymptote/rate/half and an unconstrained logistic midpoint. Positive parameters are optimized on the log scale."),
+  source="R/FUN_nonlinear_model.R, R/FUN_nonlinear_paths.R, R/FUN_nonlinear_fit.R, src/mme_nonlinear_gaussian.h, src/mme_nonlinear_covariance.h",
+  status="experimental", previous="new"))
+out$controls <- rbind(out$controls, data.frame(
+  path=paste0("control.task.nonlinear.", c("mode.maxIters", "mode.scoreTol",
+    "mode.stepTol", "mode.warmStart", "mode.starts", "population.order",
+    "population.maxOrder", "population.tol")),
+  module="task",
+  values=c("Positive integer.", "Positive finite number.", "Positive finite number.",
+    "off.", "deterministic.", "Integer >=2.", "Integer >=2*order, <=512.",
+    "Positive finite number."),
+  default=c("100", "1e-8", "1e-8", "off", "deterministic", "20", "160", "1e-7"),
+  requires="A nonlinear Laplace model, including independent or joint Gaussian curve parameters.",
+  excludes="Warm starts, stochastic starts and inference. Joint population quadrature must fit the declared workspace budget.",
+  fallback="Fail explicitly on mode failure or quadrature disagreement.",
+  effect=c("Bound safeguarded exact-Hessian conditional mode iterations.",
+    "Require a scaled conditional-score tolerance.",
+    "Detect a stalled mode above score tolerance.",
+    "Keep outer objective deterministic and independent of optimizer history.",
+    "Compare zero and +/-0.5 curve-coordinate starts, in latent coordinates for RR.",
+    "Initial Gaussian population quadrature order.",
+    "Maximum order for quadrature agreement.",
+    "Require relative-scaled agreement between successive quadrature rules."),
+  source="R/FUN_nonlinear_paths.R, R/FUN_nonlinear_methods.R, src/mme_nonlinear_mode.h",
+  status="experimental", previous="new"))
+out$decisions <- rbind(out$decisions, data.frame(
+  id="nonlinear-gaussian", parent="model",
+  condition="nonlinear=nonlinear_curve(...), native response family/link or mixed-family ML with additive effects and/or independent or jointly correlated random curve parameters.",
+  result="Shared traditional link-predictor contribution, exact Gaussian or complete family-aware Laplace integration, latent RR maps and analytic scores; uncertainty is explicitly post-fit through post_nonlinear().",
+  modules="model, task, convergence, execution"))
+out$edges <- rbind(out$edges,
+  data.frame(from="model", to="nonlinear-gaussian", kind="branch"),
+  data.frame(from="nonlinear-gaussian", to="outputs", kind="join"))
+out$controls <- rbind(out$controls,data.frame(
+  path=paste0("control.task.nonlinear.inference.",
+    c("step","derivativeTol","curvatureTol","maxCondition")),
+  module="task",values=c("Positive, <0.1.","Positive, <1.","Positive, <1.",">1."),
+  default=c("1e-4","5e-3","1e-8","1e10"),
+  requires="Explicit nonlinear post-fit inference on a converged, identifiable regular fit.",
+  excludes="Fit-time uncertainty, automatic nonlinear-term selection and uncalibrated boundary tests.",
+  fallback="Fail explicitly on derivative disagreement, invalid curvature or memory admission.",
+  effect=c("Relative central-difference step for post-fit score, mode and prediction derivatives.",
+    "Successive h and h/2 derivative agreement tolerance.",
+    "Minimum relative eigenvalue of standardized observed information.",
+    "Maximum standardized observed-information condition number."),
+  source="R/FUN_nonlinear_inference.R, R/FUN_nonlinear_paths.R",
+  status="experimental",previous="new"))
+nonlinearProfileRow <- out$controls$path=="control.diagnostics.profile"
+out$controls$requires[nonlinearProfileRow] <- paste(
+  out$controls$requires[nonlinearProfileRow],
+  "Traditional nonlinear fits support force for preparation/outer/result timings.")
+out$controls$effect[nonlinearProfileRow] <- paste(
+  out$controls$effect[nonlinearProfileRow],
+  "profile_nonlinear() separately measures inclusive nonlinear kernels without refitting.")
+nonlinearMemoryRow <- out$controls$path=="control.execution.denseMemoryMB"
+out$controls$effect[nonlinearMemoryRow] <- paste(
+  out$controls$effect[nonlinearMemoryRow],
+  "Nonlinear Hessian assembly checks a conservative sparse-component factor-fill bound; not a process-wide RSS cap.")
 out
 }

@@ -20,8 +20,42 @@ mmes_control(formulation = "henderson", task = list(),
 \code{"direct"}. Henderson forms coefficient-space mixed-model equations;
 direct uses observation-space inversion. PQL supports either formulation for
 its weighted Gaussian working fits; native Laplace requires Henderson.}
-\item{task}{Named list with \code{mode}, \code{objective}, \code{glmm}, and
-\code{pql}.
+\item{task}{Named list with \code{mode}, \code{objective}, \code{glmm},
+\code{pql}, and \code{nonlinear}.
+For \code{\link{nonlinear_curve}} models, \code{nonlinear} defaults to
+\code{list(optimizer="nlminb", gradient="analytic",
+initialization="auto", start=NULL, mode=list(maxIters=100L, scoreTol=1e-8,
+stepTol=1e-8, warmStart="off", starts="deterministic"),
+population=list(order=20L, maxOrder=160L, tol=1e-7),
+inference=list(step=1e-4, derivativeTol=5e-3, curvatureTol=1e-8,
+maxCondition=1e10))}.
+\code{initialization="supplied"} requires a complete named vector of
+natural-scale curve parameters in \code{start}. Supplying starts overrides
+automatic initialization. Non-default nonlinear controls require a nonlinear
+model specification. Mode controls govern safeguarded exact-Hessian conditional
+optimization for nonlinear family models or Gaussian random curve parameters; no warm or stochastic starts are
+implemented. Population controls govern prior-mean Gaussian quadrature with
+increasing-order agreement; \code{order>=2} and
+\code{2*order<=maxOrder<=512} are required.
+Explicit ML with existing native families/links (including categorical,
+zero-inflated and mixed families), additive effects and/or independent or joint
+random curve parameters, Henderson formulation and independent homogeneous Gaussian
+residuals is supported. Family nuisance choices reuse
+\code{task$glmm$familyParameters}; other GLMM fitting controls do not apply.
+\code{convergence$maxIters}, \code{likelihoodTol} and
+\code{parameterTol} control outer optimization; no layers or backpropagation
+are used. Random curves use Laplace ML with complete analytic scores.
+All PEV and uncertainty remain post-fit. The \code{inference} controls apply
+only when \code{\link{post_nonlinear}}, \code{vcov()}, or prediction uncertainty
+is requested: relative central-difference step, successive-step agreement,
+standardized curvature tolerance and maximum standardized condition number.
+They do not change fitting or compute any fit-time Hessian.
+For nonlinear models, \code{diagnostics$profile="force"} records preparation,
+outer optimization and result construction, with native evaluation time
+reported as a subset of outer optimization. \code{"off"} and \code{"auto"}
+do not activate timing. See \code{\link{profile_nonlinear}} for separate
+inclusive kernel measurements and the sparse-component factor-fill memory
+admission policy. No whole design is densified to evaluate a curve.
 Defaults: \code{mode="fit"}, \code{objective="reml"}, and
 \code{pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)}.
 \code{mode} is \code{"fit"} or \code{"solve"}; \code{objective} is
@@ -68,7 +102,8 @@ public uncertainty. Work counters appear under
 \code{laplaceDiagnostics$nativeWork}; settings survive prediction,
 post-fit inference, bootstrap and serialization. Non-default acceleration
 settings are rejected for PQL.
-\code{familyParameters} is Laplace-only. For a single NB2 family it accepts
+\code{familyParameters} is available for native linear and nonlinear Laplace
+fits. Other GLMM fitting controls do not apply to nonlinear fits. For a single NB2 family it accepts
 \code{list(theta=2, estimate=TRUE)}; for Gaussian/Gamma it accepts
 \code{list(dispersion=1, estimate=TRUE)}. Estimation is the default, and
 \code{estimate=FALSE} fixes the supplied value. NB2 starts from its family

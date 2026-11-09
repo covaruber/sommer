@@ -42,7 +42,8 @@ mmes(fixed, random, rcov, data, W, weights = NULL,
      naMethodX = "exclude", naMethodY = "exclude",
      naMethodRandom = "exclude", naMethodR = "exclude",
      contrasts = NULL, family = stats::gaussian(), vcc = NULL,
-     covPar = NULL, control = mmes_control(), .internal = NULL)
+     covPar = NULL, control = mmes_control(), .internal = NULL,
+     nonlinear = NULL)
 
 mmes_control(
   formulation = "henderson", task = list(), representation = list(),
@@ -63,6 +64,244 @@ duplicate names, and malformed named lists error. Removed options are not
 accepted through `...`, aliases, or a legacy `engine` argument. Controls record
 requests; they do not fit a model or establish model-specific eligibility.
 Fitting validation remains authoritative.
+
+# Traditional nonlinear fixed means
+
+`nonlinear=nonlinear_curve("time", "exponential")` adds the fixed mean
+`asymptote * exp(-rate * time)` to ordinary formula contributions.
+`"logistic"` and `"saturation"` provide logistic growth and
+Michaelis-Menten saturation, respectively. These are traditional parametric
+curves: there are no layers, backpropagation, or arbitrary R callbacks.
+
+```r
+fit <- mmes(
+  fixed = y ~ 0,
+  random = ~ group,
+  data = dat,
+  nonlinear = nonlinear_curve("time", "exponential"),
+  control = mmes_control(
+    task = list(
+      objective = "ml",
+      nonlinear = list(
+        optimizer = "nlminb",
+        gradient = "analytic",
+        initialization = "supplied",
+        start = c(asymptote = 4, rate = 0.6)
+      )
+    ),
+    convergence = list(maxIters = 500L,
+                       likelihoodTol = 1e-8, parameterTol = 1e-6),
+    output = list(inverse = 0L)
+  )
+)
+coef(fit)
+predict(fit, newdata = dat)
+predict(fit, newdata = data.frame(time = c(1, 2)), re.form = NA)
+```
+
+The curve parameters are fixed; random terms remain additive Gaussian
+effects. Gaussian integration is exact. The residual variance and random
+covariance parameters are estimated jointly with the fixed mean.
+Positive curve parameters use log coordinates; starts and coefficients
+use natural coordinates. Automatic starts are deterministic, with no RNG
+use or automatic input scaling. Nonlinear input missingness follows
+`naMethodX` and shares the ordinary observation mask.
+
+The exact Gaussian path requires univariate Gaussian identity ML, Henderson,
+at least one random term, and independent homogeneous residuals.
+Unsupported controls error rather than selecting a different model.
+Multiple random curve parameters, REML, direct/PQL fitting, structured
+residuals, weights, and fixed-only models are not yet supported.
+
+All existing native response families are also available, including ordinal,
+nominal, zero-inflated and `familym()` mixtures. These use complete analytic
+Laplace ML. The traditional curve contributes to the **link predictor**;
+it is shared across traits and every nonreference nominal logit. Family
+nuisance choices use `task$glmm$familyParameters`; outer/mode/quadrature
+choices use the nonlinear controls above, not other GLMM fitting controls.
+For example, `family=nbinom2(theta=3)` with
+`task=list(objective="ml", glmm=list(familyParameters=list(theta=3,
+estimate=FALSE)))` fixes the NB2 shape. A zero-component regression uses
+`family=zipoisson(zero=~treatment)`.
+
+For these families `type="response"` returns response means or category
+probabilities and `type="link"` returns predictors. Categorical mixtures
+return trait-named lists. Population prediction integrates additive and
+curve deviations jointly, including covariance between nominal logits;
+it is not inverse-link at zero random effects. Accuracy and workspace
+failures are explicit. `simulate(re.form="conditional")` draws observations
+at fitted modes; `simulate(re.form="population")` draws fresh prior random
+effects before evaluating the nonlinear predictor. A supplied `seed` is
+local to simulation. Neither operation computes uncertainty.
+
+Fitting computes no SE, PEV, parameter covariance, or outer observed Hessian.
+Uncertainty remains strictly post-fit:
+
+```{r, eval=FALSE}
+post <- post_nonlinear(fit, mode=2)
+vcov(post)                         # Natural fixed/curve covariance
+vcov(post, type="conditional")     # Conditional mode covariance
+vcov(post, type="random")          # Empirical Bayes approximate PEV
+confint(post)                      # Working-normal, positive curves transformed
+predict(post, newdata=dat, interval="confidence", cov.fit=TRUE)
+predict(post, newdata=dat, re.form="population", interval="prediction")
+```
+
+`postPEV()` dispatches to the same nonlinear implementation. Conditional
+mode covariance and estimated-parameter approximate PEV are distinct;
+neither is an exact unconditional frequentist PEV. Numerical choices use
+`task$nonlinear$inference` in `mmes_control()`. Prediction intervals are
+normal approximations for scalar response-scale outputs, while categorical
+probabilities support confidence intervals. `summary()` displays saved
+uncertainty without computing it; `summary(inference=TRUE)` requests it.
+`AIC()`/`BIC()` count all free coordinates. Model comparisons require
+regular nested ordinary fixed terms with the same nonlinear architecture;
+automatic nonlinear or variance-boundary tests are rejected.
+New conditional predictions must use
+represented random levels and the fitted covariance basis.
+For these additive Gaussian models, the population mean equals the
+zero-random-effect mean. See `?nonlinear_curve` for curve equations,
+parameter names, restrictions, and identification diagnostics.
+
+Nonlinear scalability can be inspected without changing the model:
+
+```{r, eval=FALSE}
+ctrl <- mmes_control(task=list(objective="ml"),
+  diagnostics=list(profile="force"))
+fit <- mmes(y~0, random=~group, data=dat,
+  nonlinear=nonlinear_curve("time"), control=ctrl)
+profile <- profile_nonlinear(fit, replications=3L)
+profile$table
+fit$executionPlan$dimensions
+fit$executionPlan$memory
+```
+
+Preparation, outer optimization, mode work, initialization and convergence
+diagnostics are recorded separately. Kernel times are inclusive, overlapping,
+and not additive. Memory reports retained R object sizes and the declared
+admission policy, not native peak RSS. The nonlinear sparse workspace guard
+bounds factor fill by connected random components before Hessian assembly:
+independent groups retain linear admission, whereas a large connected
+relationship graph may be rejected conservatively. Prediction and post-fit
+inference keep their separate memory checks. The reproducible installed
+benchmark is `system.file("benchmarks", "nonlinear-qualification.R",
+package="sommer")`; it varies observations and groups across exact Gaussian
+and Gaussian/Poisson random-curve paths. Timings are descriptive, never
+portable performance guarantees.
+
+## Random curve parameters (Laplace ML)
+
+```r
+model <- nonlinear_curve("time", "exponential",
+  random = list(rate = ~ vsm(ism(subject), sigma2 = 0.04)))
+fit <- mmes(y ~ 0, data = dat, nonlinear = model,
+  control = mmes_control(
+    task = list(objective = "ml", nonlinear = list(
+      start = c(asymptote = 4, rate = 0.6),
+      mode = list(maxIters = 100L, scoreTol = 1e-8, stepTol = 1e-8,
+                  warmStart = "off", starts = "deterministic"),
+      population = list(order = 20L, maxOrder = 160L, tol = 1e-7))),
+    convergence = list(maxIters = 500L),
+    diagnostics = list(verbose = FALSE)))
+```
+
+Here `log(rate_j) = log(rate) + b_j`. Any one parameter of the three
+traditional curves can vary; positive parameters use log coordinates,
+and logistic midpoint uses identity coordinates. An optional ordinary
+`random=~subject` adds independent additive effects. Supported covariance
+descriptors and known relationship precision retain their existing conventions.
+One unit-incidence curve coordinate per row is required. Exact zero random
+variance is unsupported; with additive effects retained, remove its declaration
+for the zero-curve-variance model. Fixed-only fits remain unsupported.
+
+The mode solver uses exact conditional curvature, safeguards Newton steps,
+and compares deterministic starts. Laplace scores include mode motion and
+third curve derivatives. No layers, backpropagation, uncertainty, or PEV are
+introduced. Mode diagnostics report failures and competing candidates; they
+do not certify a global optimum.
+
+Conditional predictions use fitted curve modes (`re.form=NULL`); `re.form=NA`
+uses shared, zero-deviation parameters. `re.form="population"` integrates
+against the fitted prior variance with increasing-order Gaussian quadrature,
+and errors if the requested agreement is not reached. This is a population
+mean, not an uncertainty calculation. New-data conditional/population
+predictions currently require represented groups and the fitted covariance
+basis. The fitted object retains `groupParameters` and `curveRandomMode`.
+
+## Structured and reduced-rank random covariance
+
+The nonlinear paths have dedicated numerical checks for `ism()`, `dsm()`,
+`usm()`, `ar1m()`, `csm()`, `fam()` (heterogeneous or homogeneous specifics),
+and representative Kronecker combinations. `fam()` requires positive specific
+variances. Known positive-definite relationship precision keeps the usual `Gu`
+convention. Other constructors are eligible only when their evaluator and
+derivative contracts match; eligibility alone is not comprehensive validation.
+
+Pure `rrm()` factors are supported in both ordinary additive effects and
+random curve parameters:
+
+```r
+model <- nonlinear_curve("time", "exponential",
+  random = list(rate = ~ vsm(rrm(environment, k = 1), ism(subject))))
+```
+
+Reduced-rank effects use `b = L v`, with a nonsingular Gaussian latent prior.
+The existing normalized loading convention is retained; there is no singular
+inverse, added ridge, or artificial specific variance. Loading-dependent
+designs and their analytic derivatives enter the exact Gaussian or full
+Laplace score. The declared curve incidence is still one unit per observation;
+weighted latent loadings are internal, not a new random-slope API.
+
+`randomMode`, `curveRandomMode` and `groupParameters` use restored original
+coordinates. `latentRandomMode` and `randomCoordinates` retain the latent point
+mode and dimensions. Predictions rebuild the saved basis; population means use
+the implied marginal prior variance. Neither latent modes nor these population
+integrals are PEV or parameter uncertainty. Existing post-fit inference guards
+remain in force. No new numerical controls are needed for this parameterization.
+
+## Multiple random curve parameters
+
+Existing named formulas and all `vsm()` arguments keep their syntax and
+meaning. Separate named formulas specify independent Gaussian parameter blocks:
+
+```r
+model <- nonlinear_curve("time", random=list(
+  asymptote=~vsm(ism(subject), sigma2=0.04),
+  rate=~vsm(ism(subject), sigma2=0.01)))
+```
+
+For correlated deviations, use the separate `joint` argument:
+
+```r
+model <- nonlinear_curve("time", joint=list(
+  parameters=c("asymptote","rate"),
+  random=~vsm(usm(.parameter), ism(subject), sigma2=0.04)))
+```
+
+The internal `.parameter` axis follows `joint$parameters` in that exact order.
+It is a covariance-shaping factor, not a user data column or the final grouping
+term. `usm()` models cross-parameter covariance; `dsm()`, `fam()`, `rrm()` and
+other eligible native descriptors retain their existing semantics.
+Known relationships remain `Gu` precisions. No response replication or
+user-data reshaping is needed. A joint block can coexist with independent
+formulas for other parameters, but the parameter names cannot overlap.
+Ordinary additive effects remain separate independent `mmes(random=~...)`
+terms; their cross-covariance with curve parameters is not supported.
+Reports qualify covariance terms by `curve[parameter]` or the joint parameter
+names, avoiding ambiguous names when grouping formulas coincide. `vcc` retains
+its existing indexed/named constraint semantics.
+
+Positive parameters vary on their log coordinates; logistic midpoint varies
+on its identity coordinate. All cross-parameter second and third derivatives
+enter exact conditional curvature and complete analytic Laplace scores.
+Population predictions integrate the *joint prior*, rather than integrating
+each parameter separately. Quadrature cost grows with its effective rank;
+existing `task$nonlinear$population` and `execution$denseMemoryMB` controls
+apply and failure is explicit. Conditional prediction, generative simulation
+and serialization retain the joint basis. PEV, group-parameter standard errors
+and prediction uncertainty remain explicitly post-fit.
+`vcov(fit, type="group")` explicitly requests natural-scale group-parameter
+covariance, including cross-parameter terms; it is not computed during fitting.
 
 # Ownership and defaults
 

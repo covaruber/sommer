@@ -4,6 +4,7 @@
 #### =========== ####
 
 .mmes_require_covariance_information <- function(object){
+  .nonlinear_no_inference(object, "Covariance inference")
   if(identical(object$covarianceInformation, "none") ||
      identical(object$control$output$covariance, "none") ||
      identical(object$engineControl$covarianceInformation, "none")){
@@ -14,6 +15,7 @@
 }
 
 .mmes_require_coefficient_matrix <- function(object){
+  .nonlinear_no_inference(object, "Coefficient-system inference")
   if(identical(object$retainCoefficientMatrix, FALSE) ||
      identical(object$control$output$coefficientMatrix, FALSE) ||
      identical(object$engineControl$retainCoefficientMatrix, FALSE)){
@@ -783,6 +785,8 @@ rotate_back_mmes <- function(object){
 }
 
 .covparams_mmes_se <- function(object, term=NULL, rel_step=1e-6){
+  if(inherits(object,"mmes.nonlinear"))
+    return(.nonlinear_covparams_se(object,term,rel_step))
   if(inherits(object, "mmes.glmm.laplace")){
     if(length(rel_step) != 1L || !is.finite(rel_step) ||
        !identical(as.numeric(rel_step), 1e-6)){
@@ -1090,6 +1094,7 @@ anova.mmes <- function(object, object2=NULL, ...) {
 }
 
 plot.mmes <- function(x, stnd=TRUE, ...) {
+  .nonlinear_no_inference(x, "Leverage diagnostics")
   digits = max(3, getOption("digits") - 3)
   transp <- function (col, alpha = 0.5){
     res <- apply(col2rgb(col), 2, function(c) rgb(c[1]/255, c[2]/255,c[3]/255, alpha))

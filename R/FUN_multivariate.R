@@ -28,6 +28,8 @@ stackTraits <- function(data, traits, keep=NULL, trait="trait", value="value",
 }
 
 covmatrix_mmes <- function(object, term, se=TRUE, max.dim=500L, rel_step=1e-5){
+  if(inherits(object,"mmes.nonlinear") && isTRUE(se))
+    return(.nonlinear_covmatrix_se(object,term,max.dim,rel_step))
   if(!inherits(object, "mmes")) stop("object must inherit from class 'mmes'.", call.=FALSE)
   if(se) .mmes_require_covariance_information(object)
   terms <- names(object$covStruct)

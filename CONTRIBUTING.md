@@ -17,6 +17,10 @@ not a replacement for runtime checks.
 | Covariance families | `R/FUN_covariance_{basic,serial,factor,spatial}.R` |
 | Public inference and prediction | [R/FUN_methods_mmes.R](R/FUN_methods_mmes.R), [R/predict_mmes.R](R/predict_mmes.R) |
 | GLMM likelihood planning and latent-process prediction | [src/mme_glmm_paths.h](src/mme_glmm_paths.h), [R/FUN_glmm_latent.R](R/FUN_glmm_latent.R) |
+| Traditional nonlinear curves, exact Gaussian/family-aware Laplace ML and point output | [R/FUN_nonlinear_model.R](R/FUN_nonlinear_model.R), [R/FUN_nonlinear_fit.R](R/FUN_nonlinear_fit.R), [R/FUN_nonlinear_family.R](R/FUN_nonlinear_family.R), [R/FUN_nonlinear_methods.R](R/FUN_nonlinear_methods.R), [R/FUN_nonlinear_family_methods.R](R/FUN_nonlinear_family_methods.R), [src/mme_nonlinear_gaussian.h](src/mme_nonlinear_gaussian.h), [src/mme_nonlinear_covariance.h](src/mme_nonlinear_covariance.h), [src/mme_nonlinear_mode.h](src/mme_nonlinear_mode.h), [src/mme_nonlinear_laplace.h](src/mme_nonlinear_laplace.h), [src/mme_nonlinear_family.h](src/mme_nonlinear_family.h) |
+| Nonlinear post-fit curvature, approximate PEV, intervals and regular comparisons | [R/FUN_nonlinear_inference.R](R/FUN_nonlinear_inference.R), [R/FUN_nonlinear_prediction_inference.R](R/FUN_nonlinear_prediction_inference.R), [R/FUN_nonlinear_comparison.R](R/FUN_nonlinear_comparison.R) |
+| Independent/joint random curve maps and cross-parameter acceptance | [R/FUN_nonlinear_random.R](R/FUN_nonlinear_random.R), [tests/testthat/test-nonlinear-joint.R](tests/testthat/test-nonlinear-joint.R), [inst/benchmarks/nonlinear-joint-qualification.R](inst/benchmarks/nonlinear-joint-qualification.R) |
+| Nonlinear profiling, sparse workspace admission and release qualification | [R/FUN_nonlinear_profile.R](R/FUN_nonlinear_profile.R), [src/mme_nonlinear_memory.h](src/mme_nonlinear_memory.h), [inst/benchmarks/nonlinear-qualification.R](inst/benchmarks/nonlinear-qualification.R), [tests/testthat/test-nonlinear-qualification.R](tests/testthat/test-nonlinear-qualification.R) |
 | Interchangeable Laplace factor/solve algebra and post-fit operators | [src/mme_glmm_system.h](src/mme_glmm_system.h), [R/FUN_glmm_system.R](R/FUN_glmm_system.R) |
 | Gaussian Henderson optimizer and dispatch | [src/ai_mme_sp2.cpp](src/ai_mme_sp2.cpp) and specialized `mme_*.h` kernels |
 | Direct observation-space fitting | [src/mme_direct.cpp](src/mme_direct.cpp) |
@@ -68,6 +72,15 @@ cohesive layout, assembly, evaluation, and optimization operations separately;
 do not combine a mechanical move with changed statistical or dispatch logic.
 
 ## Local validation
+
+Do not add `lme4` or `nlme` as dependencies, including `Suggests`, or require
+them in package tests, benchmarks or CI. Use independent numerical oracles
+and simulated truth for mixed-model validation.
+
+Keep each automated test case below 30 seconds. Measure new tests individually
+and use small, representative fixtures. Put slower validation examples and
+scaling workloads in standalone scripts under `inst/benchmarks/`, not in the
+automated test suite.
 
 Install the declared dependencies before running tests. From the repository root:
 

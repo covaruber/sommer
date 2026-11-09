@@ -1,6 +1,7 @@
 \name{vcDelta}
 \alias{vcDelta}
 \alias{vcDelta.mmes}
+\alias{vcDelta.mmes.nonlinear}
 \title{Delta-method variance component functions for mmes}
 \description{\code{vcDelta} method for class \code{"mmes"}.
 
@@ -15,6 +16,7 @@ The transform is specified with a formula. On the left side of the formula is a 
 
 vcDelta(object, transform)
 \method{vcDelta}{mmes}(object, transform)
+\method{vcDelta}{mmes.nonlinear}(object, transform)
 
 }
 \arguments{
@@ -25,6 +27,14 @@ vcDelta(object, transform)
  
 }
 \details{
+
+  Nonlinear fits use the observed marginal-likelihood covariance from
+  \code{\link{post_nonlinear}}, not linear Fisher/average-information formulas.
+  Their \code{V1}, \code{V2}, ... map to natural covariance, residual and
+  family nuisance entries in \code{coef(object, type="all")}, excluding
+  fixed/curve parameters. The returned \code{parameters} attribute records
+  the mapping. A parameter ratio is not automatically a response-scale
+  heritability or reliability for a nonlinear model.
   
   The delta method (e.g., Lynch and Walsh 1998, Appendix 1; Ver Hoef 2012) uses
   a Taylor series expansion to approximate the moments of a function of

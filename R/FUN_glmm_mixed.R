@@ -77,6 +77,9 @@
     component <- components[[position]]
     if(!component$family %in% c("ordinal", "multinomial")) next
     value <- response[which(index == position)]
+    declaredLevels <- model$families[[position]]$.nonlinearLevels
+    if(!is.null(declaredLevels))
+      value <- factor(value,levels=seq_along(declaredLevels),labels=declaredLevels)
     nominal <- .laplace_nominal_response(value, component$reference)
     component$levels <- nominal$levels
     if(component$family == "multinomial"){
@@ -134,10 +137,10 @@
   basis <- as.matrix(basis)
   basisModel <- stats::model.matrix(attr(prepared$modelFrame, "terms"),
     prepared$retainedFrame, contrasts.arg=mmesArgs$contrasts)
-  map <- data.frame(basis=seq_len(ncol(basis)), trait=NA_integer_,
-    coordinate=NA_integer_, name=colnames(basis))
+  map <- data.frame(basis=seq_len(ncol(basis)), trait=rep(NA_integer_,ncol(basis)),
+    coordinate=rep(NA_integer_,ncol(basis)), name=if(ncol(basis)) colnames(basis) else character())
   map$nominalTraits <- rep(list(nominalTraits), nrow(map))
-  for(position in nominalTraits){
+  for(position in if(ncol(basis)) nominalTraits else integer()){
     for(coordinate in seq_along(components[[position]]$predictorLevels)){
       addition <- data.frame(basis=seq_len(ncol(basis)), trait=position,
         coordinate=coordinate,
@@ -320,6 +323,8 @@
   frame <- stats::model.frame(object$fixedTerms, data=expanded$data,
     na.action=stats::na.pass, xlev=object$fixedXlevels)
   basis <- stats::model.matrix(object$fixedTerms, frame, contrasts.arg=object$contrasts)
+  if("Intercept" %in% metadata$basisColumns && !"(Intercept)" %in% metadata$basisColumns)
+    colnames(basis)[colnames(basis)=="(Intercept)"] <- "Intercept"
   if(!setequal(colnames(basis), metadata$basisColumns) || any(!is.finite(basis))){
     stop("Categorical prediction fixed design differs from the fitted model or contains missing/nonfinite predictors.",
       call.=FALSE)

@@ -1,4 +1,16 @@
 postPEV <- function(object, mode = 1L){
+  if(inherits(object,"mmes.nonlinear")){
+    if(length(mode)!=1L || is.na(mode) || !mode %in% 0:2)
+      stop("mode must be 0, 1 or 2.",call.=FALSE)
+    if(mode==0L){
+      object$nonlinearInference <- NULL
+      object$uPevList <- NULL
+      object$uPevMode <- 0L
+      object$nonlinearDiagnostics$uncertaintyComputed <- FALSE
+      return(object)
+    }
+    return(post_nonlinear(object,mode=mode))
+  }
   
   if(!inherits(object, "mmes")){
     stop("'object' must inherit from class 'mmes'.", call. = FALSE)
@@ -456,6 +468,7 @@ postPEV <- function(object, mode = 1L){
 }
 
 .mmes_varu_check <- function(object){
+  .nonlinear_no_inference(object, "Random-effect uncertainty")
   if(!inherits(object, "mmes") || inherits(object, "mmes.glmm")){
     stop("VarU requires a Gaussian mmes fit.", call.=FALSE)
   }
@@ -659,6 +672,7 @@ corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
 
 
 r2 <- function(object, object2=NULL){
+  .nonlinear_no_inference(object, "Random-effect reliability")
   if(!inherits(object, "mmes")){
     stop("This function is only available for models fitted with the mmes() function.", call. = FALSE)
   }

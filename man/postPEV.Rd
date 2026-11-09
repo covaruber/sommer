@@ -23,6 +23,16 @@ Integer specifying the post-fit inverse calculation to perform. Use \code{0} to 
 \details{
 The function is intended for post-processing models fitted with \code{mmes}, allowing prediction error variances or the complete inverse to be calculated only when they are needed.
 
+Traditional nonlinear fits dispatch to \code{\link{post_nonlinear}} for
+modes 1 and 2. They distinguish conditional-mode covariance from a
+first-order empirical Bayes approximate PEV that includes estimated-parameter
+mode sensitivity. Mode 1 retains diagonal approximate PEVs; mode 2 retains
+the complete random covariance and parameter/mode cross-covariance in
+\code{nonlinearInference}, not a linear-model \code{Ci}. Both currently
+require budgeted full conditional-covariance workspace. Mode 0 clears all
+saved nonlinear uncertainty without performing inference. The linear-model
+inverse descriptions below do not apply to nonlinear fits.
+
 For Henderson fits, when \code{mode = 1}, the sparse mixed model coefficient matrix stored in the fitted object is factorized and the Takahashi equations obtain the selected elements of its inverse required for diagonal prediction error variances. Native Laplace fits obtain the needed joint-information inverse diagonal using bounded solve panels. Their global random backend factors the joint matrix; their observation or explicitly enabled random block backend reconstructs operation-local mode solves and a fixed-effect Schur complement. Observation space does not construct the random-effect Hessian. The complete inverse is not formed.
 
 For direct Gaussian and direct PQL fits, post-fit covariance is computed in

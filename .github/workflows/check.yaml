@@ -63,7 +63,7 @@ jobs:
   native:
     name: Required source-tree native tests
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
     env:
       SOMMER_REQUIRE_NATIVE: "true"
       OMP_NUM_THREADS: 2
@@ -75,9 +75,10 @@ jobs:
           use-public-rspm: true
       - uses: r-lib/actions/setup-r-dependencies@v2
         with:
-          extra-packages: any::pkgload
+          extra-packages: |
+            any::pkgload
           needs: check
       - name: Run native checks against the source tree
         shell: Rscript {0}
         run: |
-          testthat::test_local(filter = "mme-control|mme-paths|mme-solver|mme-saddle|pcg-numerics|ai-recovery|ai-variance-floor|reduced-ai", stop_on_failure = TRUE)
+          testthat::test_local(filter = "mme-control|mme-paths|mme-solver|mme-saddle|pcg-numerics|ai-recovery|ai-variance-floor|reduced-ai|nonlinear", stop_on_failure = TRUE)

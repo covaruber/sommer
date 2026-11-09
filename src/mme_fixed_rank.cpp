@@ -74,8 +74,17 @@ Rcpp::List fixed_design_basis_cpp(const Eigen::Map<Eigen::SparseMatrix<double>> 
     relationEntries.emplace_back(basisIndex, retainedColumns[basisIndex], 1.0);
   }
   // X_original = X_retained * relation, without a dense rank-by-column workspace.
-  const SparseDesign triangularFactor = basisFactor.matrixR().topLeftCorner(basisRank, basisRank);
   const SparseDesign fullFactor = basisFactor.matrixR();
+  // SparseQR may leave R's inner indices unsorted; block assignment assumes sorted indices.
+  std::vector<DesignEntry> triangularEntries;
+  for(int columnIndex=0;columnIndex<basisRank;++columnIndex){
+    for(SparseDesign::InnerIterator entry(fullFactor,columnIndex);entry;++entry){
+      if(entry.row()<basisRank)
+        triangularEntries.emplace_back(entry.row(),columnIndex,entry.value());
+    }
+  }
+  SparseDesign triangularFactor(basisRank,basisRank);
+  triangularFactor.setFromTriplets(triangularEntries.begin(),triangularEntries.end());
   for(int pivotIndex = basisRank; pivotIndex < static_cast<int>(nonzeroColumns.size()); ++pivotIndex){
     if(pivotIndex % 32 == 0) Rcpp::checkUserInterrupt();
     const int originalColumn = nonzeroColumns[basisPermutation[pivotIndex]];

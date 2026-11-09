@@ -476,7 +476,8 @@ ordinal <- function(link="logit", thresholds=NULL){
     dispersion[familyIndex]
 }
 
-.laplace_random_effect_sampling_factors <- function(object, maxMemoryMB){
+.laplace_random_effect_sampling_factors <- function(object, maxMemoryMB,
+                                                   allowSingular=FALSE){
   covarianceFactors <- vector("list", length(object$covStruct))
   for(termIndex in seq_along(object$covStruct)){
     blockWidth <- object$randomBlockWidths[termIndex]
@@ -512,9 +513,16 @@ ordinal <- function(link="logit", thresholds=NULL){
     }
     relationshipFactor <- Matrix::Cholesky(relationshipPrecision,
       LDL=FALSE, perm=TRUE)
+    descriptorFactor <- if(allowSingular){
+      decomposition <- eigen(descriptorCovariance,symmetric=TRUE)
+      tolerance <- 1e-12*max(1,max(abs(decomposition$values)))
+      if(any(decomposition$values < -tolerance))
+        stop("Population sampling covariance is not positive semidefinite.",call.=FALSE)
+      sweep(decomposition$vectors,2L,sqrt(pmax(0,decomposition$values)),"*")
+    }else t(chol(descriptorCovariance))
     covarianceFactors[[termIndex]] <- list(
       relationship=relationshipFactor,
-      descriptor=t(chol(descriptorCovariance)),
+      descriptor=descriptorFactor,
       relationshipCount=relationshipCount,
       descriptorCount=descriptorCount)
   }
@@ -723,9 +731,10 @@ ordinal <- function(link="logit", thresholds=NULL){
 }
 
 .laplace_population_variance <- function(randomDesign, structures,
-                                         relationships, blockWidths, memoryMB=1000){
+                                         relationships, blockWidths, memoryMB=1000,
+                                         allowSingular=FALSE){
   covariance <- .laplace_latent_covariance(randomDesign,structures,
-    relationships,blockWidths,memoryMB=memoryMB)
+    relationships,blockWidths,memoryMB=memoryMB,allowSingular=allowSingular)
   variance <- as.numeric(covariance)
   if(any(variance < -1e-12))
     stop("Population prediction latent variance is negative.",call.=FALSE)

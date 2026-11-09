@@ -1,5 +1,6 @@
 .laplace_latent_covariance <- function(design, structures, relationships,
-                                        blockWidths, groups=NULL, memoryMB=1000){
+                                        blockWidths, groups=NULL, memoryMB=1000,
+                                        allowSingular=FALSE){
   if(length(structures)!=length(relationships) ||
      length(structures)!=length(blockWidths) || sum(blockWidths)!=ncol(design))
     stop("Population prediction could not align latent covariance blocks.",call.=FALSE)
@@ -32,7 +33,12 @@
     sigma <- evaluate_covstruct_cpp(descriptor,descriptor$par)
     if(any(!is.finite(sigma)) || !isSymmetric(sigma))
       stop("Population prediction latent coordinate covariance is invalid.",call.=FALSE)
-    chol(sigma)
+    if(allowSingular){
+      eigenvalues <- eigen(sigma,symmetric=TRUE,only.values=TRUE)$values
+      if(any(eigenvalues < -1e-12*max(1,max(abs(eigenvalues)))))
+        stop("Population prediction latent covariance is not positive semidefinite.",
+          call.=FALSE)
+    }else chol(sigma)
     precision@factors <- list()
     factor <- Matrix::Cholesky(precision,LDL=FALSE,perm=TRUE)
     block <- design[,start+seq_len(width),drop=FALSE]

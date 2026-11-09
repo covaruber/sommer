@@ -539,6 +539,226 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// sommer_nonlinear_curve_eval
+Rcpp::List sommer_nonlinear_curve_eval(const std::string& curve, const arma::vec& input, const arma::vec& parameters, const bool gradient);
+RcppExport SEXP _sommer_sommer_nonlinear_curve_eval(SEXP curveSEXP, SEXP inputSEXP, SEXP parametersSEXP, SEXP gradientSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::string& >::type curve(curveSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type input(inputSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const bool >::type gradient(gradientSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_curve_eval(curve, input, parameters, gradient));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_gaussian_create
+SEXP sommer_nonlinear_gaussian_create(const arma::sp_mat& fixed, const arma::sp_mat& random, const arma::vec& response, const arma::vec& offset, const arma::vec& input, const std::string& curve, const Rcpp::List& descriptors, const Rcpp::List& relationships, const double memoryMB);
+RcppExport SEXP _sommer_sommer_nonlinear_gaussian_create(SEXP fixedSEXP, SEXP randomSEXP, SEXP responseSEXP, SEXP offsetSEXP, SEXP inputSEXP, SEXP curveSEXP, SEXP descriptorsSEXP, SEXP relationshipsSEXP, SEXP memoryMBSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type fixed(fixedSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type random(randomSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type response(responseSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type offset(offsetSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type input(inputSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type curve(curveSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type descriptors(descriptorsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type relationships(relationshipsSEXP);
+    Rcpp::traits::input_parameter< const double >::type memoryMB(memoryMBSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_gaussian_create(fixed, random, response, offset, input, curve, descriptors, relationships, memoryMB));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_gaussian_eval
+Rcpp::List sommer_nonlinear_gaussian_eval(SEXP context, const arma::vec& parameters, const bool gradient);
+RcppExport SEXP _sommer_sommer_nonlinear_gaussian_eval(SEXP contextSEXP, SEXP parametersSEXP, SEXP gradientSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type context(contextSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const bool >::type gradient(gradientSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_gaussian_eval(context, parameters, gradient));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_curve_derivatives
+Rcpp::List sommer_nonlinear_curve_derivatives(const std::string& curve, const double input, const arma::vec& parameters);
+RcppExport SEXP _sommer_sommer_nonlinear_curve_derivatives(SEXP curveSEXP, SEXP inputSEXP, SEXP parametersSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::string& >::type curve(curveSEXP);
+    Rcpp::traits::input_parameter< const double >::type input(inputSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_curve_derivatives(curve, input, parameters));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_laplace_create
+SEXP sommer_nonlinear_laplace_create(const arma::sp_mat& fixed, const arma::sp_mat& random, const arma::vec& response, const arma::vec& offset, const arma::vec& input, const std::string& curve, const int coordinate, const int curveStart, const Rcpp::List& descriptors, const Rcpp::List& relationships, const double memoryMB, const int maxIters, const double scoreTol, const double stepTol);
+RcppExport SEXP _sommer_sommer_nonlinear_laplace_create(SEXP fixedSEXP, SEXP randomSEXP, SEXP responseSEXP, SEXP offsetSEXP, SEXP inputSEXP, SEXP curveSEXP, SEXP coordinateSEXP, SEXP curveStartSEXP, SEXP descriptorsSEXP, SEXP relationshipsSEXP, SEXP memoryMBSEXP, SEXP maxItersSEXP, SEXP scoreTolSEXP, SEXP stepTolSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type fixed(fixedSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type random(randomSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type response(responseSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type offset(offsetSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type input(inputSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type curve(curveSEXP);
+    Rcpp::traits::input_parameter< const int >::type coordinate(coordinateSEXP);
+    Rcpp::traits::input_parameter< const int >::type curveStart(curveStartSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type descriptors(descriptorsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type relationships(relationshipsSEXP);
+    Rcpp::traits::input_parameter< const double >::type memoryMB(memoryMBSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxIters(maxItersSEXP);
+    Rcpp::traits::input_parameter< const double >::type scoreTol(scoreTolSEXP);
+    Rcpp::traits::input_parameter< const double >::type stepTol(stepTolSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_laplace_create(fixed, random, response, offset, input, curve, coordinate, curveStart, descriptors, relationships, memoryMB, maxIters, scoreTol, stepTol));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_laplace_eval
+Rcpp::List sommer_nonlinear_laplace_eval(SEXP context, const arma::vec& parameters, const bool gradient);
+RcppExport SEXP _sommer_sommer_nonlinear_laplace_eval(SEXP contextSEXP, SEXP parametersSEXP, SEXP gradientSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type context(contextSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const bool >::type gradient(gradientSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_laplace_eval(context, parameters, gradient));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_conditional_eval
+Rcpp::List sommer_nonlinear_conditional_eval(SEXP context, const arma::vec& parameters, const arma::vec& mode);
+RcppExport SEXP _sommer_sommer_nonlinear_conditional_eval(SEXP contextSEXP, SEXP parametersSEXP, SEXP modeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type context(contextSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type mode(modeSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_conditional_eval(context, parameters, mode));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_curve_random_eval
+arma::vec sommer_nonlinear_curve_random_eval(const std::string& curve, const arma::vec& input, const arma::vec& parameters, const int coordinate, const arma::vec& deviations);
+RcppExport SEXP _sommer_sommer_nonlinear_curve_random_eval(SEXP curveSEXP, SEXP inputSEXP, SEXP parametersSEXP, SEXP coordinateSEXP, SEXP deviationsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::string& >::type curve(curveSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type input(inputSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const int >::type coordinate(coordinateSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type deviations(deviationsSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_curve_random_eval(curve, input, parameters, coordinate, deviations));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_sparse_admission
+double sommer_nonlinear_sparse_admission(const arma::sp_mat& design, const arma::sp_mat& precision, const arma::sp_mat& curvature, const double memoryMB);
+RcppExport SEXP _sommer_sommer_nonlinear_sparse_admission(SEXP designSEXP, SEXP precisionSEXP, SEXP curvatureSEXP, SEXP memoryMBSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type design(designSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type precision(precisionSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type curvature(curvatureSEXP);
+    Rcpp::traits::input_parameter< const double >::type memoryMB(memoryMBSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_sparse_admission(design, precision, curvature, memoryMB));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_coordinate_map
+arma::sp_mat sommer_nonlinear_coordinate_map(const arma::sp_mat& random, const Rcpp::List& descriptors, const Rcpp::List& relationships, const double memoryMB);
+RcppExport SEXP _sommer_sommer_nonlinear_coordinate_map(SEXP randomSEXP, SEXP descriptorsSEXP, SEXP relationshipsSEXP, SEXP memoryMBSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type random(randomSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type descriptors(descriptorsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type relationships(relationshipsSEXP);
+    Rcpp::traits::input_parameter< const double >::type memoryMB(memoryMBSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_coordinate_map(random, descriptors, relationships, memoryMB));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_family_create
+SEXP sommer_nonlinear_family_create(const arma::sp_mat& fixed, const arma::sp_mat& random, const arma::vec& response, const arma::vec& offset, const arma::vec& input, const std::string& curve, const int coordinate, const int curveStart, const Rcpp::List& descriptors, const Rcpp::List& relationships, const Rcpp::List& specifications, const arma::uvec& index, const arma::vec& trials, const double memoryMB, const int maxIters, const double scoreTol, const double stepTol, Rcpp::Nullable<Rcpp::NumericMatrix> coordinateMap);
+RcppExport SEXP _sommer_sommer_nonlinear_family_create(SEXP fixedSEXP, SEXP randomSEXP, SEXP responseSEXP, SEXP offsetSEXP, SEXP inputSEXP, SEXP curveSEXP, SEXP coordinateSEXP, SEXP curveStartSEXP, SEXP descriptorsSEXP, SEXP relationshipsSEXP, SEXP specificationsSEXP, SEXP indexSEXP, SEXP trialsSEXP, SEXP memoryMBSEXP, SEXP maxItersSEXP, SEXP scoreTolSEXP, SEXP stepTolSEXP, SEXP coordinateMapSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type fixed(fixedSEXP);
+    Rcpp::traits::input_parameter< const arma::sp_mat& >::type random(randomSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type response(responseSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type offset(offsetSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type input(inputSEXP);
+    Rcpp::traits::input_parameter< const std::string& >::type curve(curveSEXP);
+    Rcpp::traits::input_parameter< const int >::type coordinate(coordinateSEXP);
+    Rcpp::traits::input_parameter< const int >::type curveStart(curveStartSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type descriptors(descriptorsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type relationships(relationshipsSEXP);
+    Rcpp::traits::input_parameter< const Rcpp::List& >::type specifications(specificationsSEXP);
+    Rcpp::traits::input_parameter< const arma::uvec& >::type index(indexSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type trials(trialsSEXP);
+    Rcpp::traits::input_parameter< const double >::type memoryMB(memoryMBSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxIters(maxItersSEXP);
+    Rcpp::traits::input_parameter< const double >::type scoreTol(scoreTolSEXP);
+    Rcpp::traits::input_parameter< const double >::type stepTol(stepTolSEXP);
+    Rcpp::traits::input_parameter< Rcpp::Nullable<Rcpp::NumericMatrix> >::type coordinateMap(coordinateMapSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_family_create(fixed, random, response, offset, input, curve, coordinate, curveStart, descriptors, relationships, specifications, index, trials, memoryMB, maxIters, scoreTol, stepTol, coordinateMap));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_curve_joint_eval
+arma::vec sommer_nonlinear_curve_joint_eval(const std::string& curve, const arma::vec& input, const arma::vec& parameters, const arma::mat& deviations);
+RcppExport SEXP _sommer_sommer_nonlinear_curve_joint_eval(SEXP curveSEXP, SEXP inputSEXP, SEXP parametersSEXP, SEXP deviationsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const std::string& >::type curve(curveSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type input(inputSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type deviations(deviationsSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_curve_joint_eval(curve, input, parameters, deviations));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_family_eval
+Rcpp::List sommer_nonlinear_family_eval(SEXP context, const arma::vec& parameters, const bool gradient);
+RcppExport SEXP _sommer_sommer_nonlinear_family_eval(SEXP contextSEXP, SEXP parametersSEXP, SEXP gradientSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type context(contextSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const bool >::type gradient(gradientSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_family_eval(context, parameters, gradient));
+    return rcpp_result_gen;
+END_RCPP
+}
+// sommer_nonlinear_family_conditional
+Rcpp::List sommer_nonlinear_family_conditional(SEXP context, const arma::vec& parameters, const arma::vec& mode);
+RcppExport SEXP _sommer_sommer_nonlinear_family_conditional(SEXP contextSEXP, SEXP parametersSEXP, SEXP modeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< SEXP >::type context(contextSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type parameters(parametersSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type mode(modeSEXP);
+    rcpp_result_gen = Rcpp::wrap(sommer_nonlinear_family_conditional(context, parameters, mode));
+    return rcpp_result_gen;
+END_RCPP
+}
 // mme_pcg_solve
 Rcpp::List mme_pcg_solve(const Rcpp::S4& design, const Rcpp::NumericVector& y, const int nFixed, const Rcpp::IntegerVector& termStart, const Rcpp::IntegerVector& termLevels, const Rcpp::List& AiI, const Rcpp::List& lambdaI, const Rcpp::List& residualCovStruct, const arma::vec& residualPar, const Rcpp::IntegerVector& residualBlock, const Rcpp::IntegerVector& residualIndex, const Rcpp::NumericVector& weights, const double tol, const int maxIter, const int denseFixedMax, const int maxResidualBlock, const Rcpp::NumericVector& start, const bool verbose);
 RcppExport SEXP _sommer_mme_pcg_solve(SEXP designSEXP, SEXP ySEXP, SEXP nFixedSEXP, SEXP termStartSEXP, SEXP termLevelsSEXP, SEXP AiISEXP, SEXP lambdaISEXP, SEXP residualCovStructSEXP, SEXP residualParSEXP, SEXP residualBlockSEXP, SEXP residualIndexSEXP, SEXP weightsSEXP, SEXP tolSEXP, SEXP maxIterSEXP, SEXP denseFixedMaxSEXP, SEXP maxResidualBlockSEXP, SEXP startSEXP, SEXP verboseSEXP) {
@@ -925,6 +1145,20 @@ static const R_CallMethodDef CallEntries[] = {
     {"_sommer_predict_mmes_vcov_cpp", (DL_FUNC) &_sommer_predict_mmes_vcov_cpp, 2},
     {"_sommer_mmes_vcov_factor_cpp", (DL_FUNC) &_sommer_mmes_vcov_factor_cpp, 1},
     {"_sommer_mmes_vcov_solve_cpp", (DL_FUNC) &_sommer_mmes_vcov_solve_cpp, 2},
+    {"_sommer_sommer_nonlinear_curve_eval", (DL_FUNC) &_sommer_sommer_nonlinear_curve_eval, 4},
+    {"_sommer_sommer_nonlinear_gaussian_create", (DL_FUNC) &_sommer_sommer_nonlinear_gaussian_create, 9},
+    {"_sommer_sommer_nonlinear_gaussian_eval", (DL_FUNC) &_sommer_sommer_nonlinear_gaussian_eval, 3},
+    {"_sommer_sommer_nonlinear_curve_derivatives", (DL_FUNC) &_sommer_sommer_nonlinear_curve_derivatives, 3},
+    {"_sommer_sommer_nonlinear_laplace_create", (DL_FUNC) &_sommer_sommer_nonlinear_laplace_create, 14},
+    {"_sommer_sommer_nonlinear_laplace_eval", (DL_FUNC) &_sommer_sommer_nonlinear_laplace_eval, 3},
+    {"_sommer_sommer_nonlinear_conditional_eval", (DL_FUNC) &_sommer_sommer_nonlinear_conditional_eval, 3},
+    {"_sommer_sommer_nonlinear_curve_random_eval", (DL_FUNC) &_sommer_sommer_nonlinear_curve_random_eval, 5},
+    {"_sommer_sommer_nonlinear_sparse_admission", (DL_FUNC) &_sommer_sommer_nonlinear_sparse_admission, 4},
+    {"_sommer_sommer_nonlinear_coordinate_map", (DL_FUNC) &_sommer_sommer_nonlinear_coordinate_map, 4},
+    {"_sommer_sommer_nonlinear_family_create", (DL_FUNC) &_sommer_sommer_nonlinear_family_create, 18},
+    {"_sommer_sommer_nonlinear_curve_joint_eval", (DL_FUNC) &_sommer_sommer_nonlinear_curve_joint_eval, 4},
+    {"_sommer_sommer_nonlinear_family_eval", (DL_FUNC) &_sommer_sommer_nonlinear_family_eval, 3},
+    {"_sommer_sommer_nonlinear_family_conditional", (DL_FUNC) &_sommer_sommer_nonlinear_family_conditional, 3},
     {"_sommer_mme_pcg_solve", (DL_FUNC) &_sommer_mme_pcg_solve, 18},
     {"_sommer_amat", (DL_FUNC) &_sommer_amat, 3},
     {"_sommer_amat_asv", (DL_FUNC) &_sommer_amat_asv, 1},

@@ -68,6 +68,42 @@ likelihood analysis.
 
 # 1. The model
 
+## Traditional nonlinear contributions and post-fit uncertainty
+
+`nonlinear_curve()` adds a shared exponential, logistic or saturation
+contribution to the link predictor. It is not a neural layer. Existing
+scalar, ordinal, nominal, zero-inflated and mixed-family likelihoods are
+reused. Positive curve parameters and their random deviations use log
+coordinates. Exact conditional curvature includes likelihood score times
+second curve derivatives, not just a working weighted design crossproduct.
+
+Nonlinear uncertainty is requested only after fitting with
+`post_nonlinear()`, `postPEV()`, `vcov()` or prediction uncertainty arguments.
+For all free marginal parameters $a$, let
+$V=(-\partial^2\ell/\partial a\partial a^\mathsf{T})^{-1}$,
+$S$ be inverse exact conditional random-mode curvature, and
+$D=\partial\hat u/\partial a$. The local empirical Bayes approximation is
+$S+DVD^\mathsf{T}$; it differs from $S$ and is not an exact unconditional
+frequentist PEV. Family nuisance parameters and moving reduced-rank
+loading maps are included in these derivatives.
+
+For conditional response prediction $g(a,u)$, the total parameter derivative
+is $g_a+g_uD$. Its covariance approximation is
+$(g_a+g_uD)V(g_a+g_uD)^\mathsf{T}+g_uSg_u^\mathsf{T}$.
+For zero-deviation and prior-population means only marginal parameter
+uncertainty is propagated. Population derivatives differentiate the actual
+joint-prior integration, rather than substituting conditional mode
+covariance for prior variability. Future-response normal intervals also
+include conditional observation variability and, for population prediction,
+the variance across the joint prior. Probability confidence intervals
+retain categorical shapes; numeric future-category intervals are rejected.
+
+Checked numerical choices use `task$nonlinear$inference` in
+`mmes_control()`. Invalid curvature, weak identification, nonstationarity
+and estimated boundaries reject inference explicitly. Ordinary
+chi-square references are not supplied for random-variance boundaries.
+See `?post_nonlinear` for assumptions, scales and complete output semantics.
+
 ## 1.1 Conditional response distributions
 
 Let $y_i$ denote observation $i$, and let $u$ collect all random effects.
