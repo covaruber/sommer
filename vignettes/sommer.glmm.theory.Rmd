@@ -462,6 +462,53 @@ Why does the denominator matter? A proportion of 1/2 could mean 1 success in
 the second gives much stronger evidence about the underlying probability.
 The trial count tells the model how much information each proportion carries.
 
+### Where these mean and variance formulas come from
+
+The response family describes how an outcome varies around its conditional
+mean. The link connects that mean, or another family parameter, to the
+predictor $\eta$. For example, with a logit link,
+$p=\operatorname{logit}^{-1}(\eta)=1/(1+\exp(-\eta))$. At $\eta=\log(3)$,
+$p=0.75$. The family and link answer different questions: the family
+describes the outcome's randomness, while the link translates predictor
+values into the distribution's parameters.
+
+For a binomial response, imagine $m$ independent trials, each succeeding
+with probability $p$. Each trial has mean $p$ and variance $p(1-p)$. Adding
+the trials gives a success count with mean $mp$ and variance $mp(1-p)$.
+Dividing that count by $m$ gives a proportion with mean $p$ and variance
+$p(1-p)/m$, as shown in the table. For example, if $p=0.3$ and $m=10$, the
+expected count is 3, its variance is 2.1, and the sample proportion has
+variance $0.021$.
+
+A Poisson count can be understood as many small, independent chances for an
+event to occur. In the limit where each chance is tiny but their total
+expected count stays at $\lambda$, both the count's mean and variance are
+$\lambda$. For $\lambda=2.5$, the model expects 2.5 events and has variance
+2.5; it assigns probability $\exp(-2.5)\approx0.082$ to observing no events.
+
+The NB2 distribution allows the Poisson rate itself to vary between
+observations. Let the rate $\Lambda$ have a Gamma distribution with mean
+$\mu$ and variance $\mu^2/\theta$, then draw $Y\mid\Lambda$ from a Poisson
+distribution with rate $\Lambda$. Averaging over rates gives
+$E(Y)=E(\Lambda)=\mu$. The law of total variance gives
+$\operatorname{Var}(Y)=E\{\operatorname{Var}(Y\mid\Lambda)\}
++\operatorname{Var}\{E(Y\mid\Lambda)\}=\mu+\mu^2/\theta$.
+For example, $\mu=4$ and $\theta=2$ give variance $4+16/2=12$,
+three times the Poisson variance of 4. Smaller $\theta$ means more variation
+in the hidden rates and therefore more overdispersion.
+
+The Gaussian row starts with an additive-error model,
+$Y=\mu+\epsilon$, where $\epsilon$ has mean zero and variance $\phi$.
+Therefore $Y$ has mean $\mu$ and variance $\phi$. If $\mu=10$ and
+$\phi=4$, outcomes have standard deviation 2 around the mean.
+
+The Gamma row is useful for positive, right-skewed outcomes. A Gamma
+distribution with shape $k$ and scale $s$ has mean $ks$ and variance
+$ks^2$. Choosing $k=1/\phi$ and $s=\phi\mu$ makes its mean $\mu$ and
+variance $\phi\mu^2$. For example, $\mu=10$ and $\phi=0.25$ give shape 4,
+scale 2.5, and variance 25. Its standard deviation is 5, so its variability
+grows with the size of its mean rather than staying constant.
+
 ## 3.1 Negative binomial and dispersion parameters
 
 The NB2 parameter $\theta$ is a positive shape parameter. Large $\theta$
@@ -513,6 +560,15 @@ $$
 \operatorname{Var}(Y_i\mid u)
 =(1-\pi)\lambda_i+(1-\pi)\pi\lambda_i^2.
 $$
+
+For a numerical example, take $\pi=0.25$ and $\lambda_i=2$. The structural
+zero process contributes 25% zeros; the remaining 75% of outcomes come from
+a Poisson count. The observed mean is $0.75(2)=1.5$, and the variance is
+$0.75(2)+0.75(0.25)(2^2)=2.25$. The probability of a zero is
+$0.25+0.75\exp(-2)\approx0.3515$: it includes both structural zeros and
+ordinary Poisson zeros. The probability of exactly two events is
+$0.75\exp(-2)2^2/2!\approx0.2030$, because a positive count can only come
+from the Poisson part.
 
 Think of ZIP as a two-step chance experiment. First, with probability
 $\pi$, the observation is in a state that can only produce zero. Otherwise,
@@ -701,6 +757,33 @@ rare-event, or sparse-count data, especially with substantial random-effect
 variance. Convergence of the outer iteration is numerical convergence of the
 chosen approximation, not proof of unbiasedness.
 
+### One numerical PQL/IRLS iteration
+
+Consider four binary observations: two successes in group A and two failures
+in group B. Use a logit link, start with fixed intercept $\beta=0$ and group
+effects $u_A=u_B=0$, and hold the random-intercept variance at 1 for this
+illustration. The starting predictor is zero for every observation, so each
+fitted probability is $p=0.5$. For a Bernoulli response, the derivative of
+the mean with respect to the logit predictor is $h=p(1-p)=0.25$, and the
+variance is $V=p(1-p)=0.25$. Thus each working precision is
+$d=h^2/V=0.25$.
+
+The working response is $z=\eta+(y-p)/h$. Each success gives
+$z=0+(1-0.5)/0.25=2$; each failure gives $z=0+(0-0.5)/0.25=-2$.
+The inner weighted Gaussian mixed-model fit now uses two copies of $z=2$
+for group A, two copies of $z=-2$ for group B, precision $0.25$ per row,
+and a unit-variance Gaussian prior for each group effect. Symmetry gives
+$\widehat\beta=0$. For group A, its random-effect equation is
+$0.25\{(u_A-2)+(u_A-2)\}+u_A=0$, so $\widehat u_A=2/3$;
+group B gives $\widehat u_B=-2/3$.
+
+After this one iteration, the predictors are $2/3$ in group A and $-2/3$
+in group B. Their updated probabilities are approximately $0.661$ and
+$0.339$. PQL would recompute the working responses and precisions at these
+new predictors, then repeat. Holding the variance fixed keeps this example
+focused on one IRLS update; a real fit can also update covariance parameters
+inside the Gaussian step.
+
 An analogy: PQL repeatedly draws a tangent line to a curved road and solves
 the easier straight-road problem, then moves to a new point and draws another
 tangent. This can be fast and useful, but the answer is still based on those
@@ -801,6 +884,34 @@ When the log density really is a quadratic, this bell-shaped approximation
 is exact. With a non-Gaussian outcome it may only be approximately
 bell-shaped, so the approximation can be less accurate, especially with
 sparse data or few independent groups.
+
+### One numerical Laplace calculation
+
+Take two binary successes from one group, fix the population intercept at
+$\beta=0$, and give the group's random intercept $u$ a standard normal
+prior. Each success has probability $p(u)=\operatorname{logit}^{-1}(u)$.
+Including the normal-prior normalizing constant, the log joint density is
+
+$$
+h(u)=2\log\{p(u)\}-\frac{u^2}{2}-\frac12\log(2\pi).
+$$
+
+At $u=0$, $p=0.5$. The score is
+$h'(u)=2\{1-p(u)\}-u$, so $h'(0)=1$. The negative second derivative is
+$H(u)=1+2p(u)\{1-p(u)\}$, giving $H(0)=1.5$. One Newton step to maximize
+$h$ is $u_{\mathrm{new}}=u+H^{-1}h'(u)=0+1/1.5=0.667$.
+Repeating that update converges to $\widehat u=0.6748$, where
+$p(\widehat u)=0.6626$, $h(\widehat u)=-1.9699$, and
+$H(\widehat u)=1.4471$.
+
+There is one random effect, so the Laplace log likelihood is
+$h(\widehat u)+\tfrac12\log(2\pi)-\tfrac12\log H(\widehat u)
+\approx-1.2357$. The first two terms involving $\log(2\pi)$ cancel here
+because the prior is standard normal. Direct numerical integration gives
+log likelihood $-1.2263$ for this example, close to the Laplace result.
+The calculation shows both parts of the approximation: evaluate the joint
+density at its best random-effect value, then adjust for the local width
+using the curvature $H$.
 
 ## 5.2 Numerical optimization in sommer
 
