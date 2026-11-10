@@ -15,7 +15,6 @@ nonlinearQualificationControl <- function(curve="exponential",profile="off"){
     logistic=c(asymptote=3,rate=1.2,midpoint=2.5),saturation=c(asymptote=3,half=.8))
   mmes_control(task=list(objective="ml",nonlinear=list(start=start)),
     convergence=list(maxIters=500L,likelihoodTol=1e-10,parameterTol=1e-8),
-    execution=list(blasThreads=1L),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE,profile=profile))
 }
 

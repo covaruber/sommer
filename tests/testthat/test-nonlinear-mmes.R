@@ -201,10 +201,18 @@ test_that("relationships, covariance shapes and constraints retain their semanti
   dimnames(relationship) <- list(levels(data$group), levels(data$group))
   precision <- solve(relationship)
   attr(precision, "inverse") <- TRUE
+  # Use an interior AR(1) covariance rather than a random-intercept boundary.
+  occasionCovariance <- 0.09*0.4^abs(outer(1:3, 1:3, "-"))
+  effects <- as.numeric(t(chol(kronecker(occasionCovariance, relationship))) %*%
+    rnorm(60L))
+  data$y <- 4*exp(-0.55*data$x)+
+    effects[as.integer(data$group)+20L*(as.integer(data$occasion)-1L)]+
+    rnorm(nrow(data), sd=0.12)
   fit <- mmes(y~0,
     random=~vsm(ar1m(occasion), ism(group), Gu=precision),
     data=data, nonlinear=nonlinear_curve("x"), control=nonlinearControl())
   expect_true(fit$convergence)
+  expect_lt(abs(fit$covPar[[1L]][2L]), 0.95)
   expect_equal(predict(fit, newdata=data[1:3, ]), fitted(fit)[1:3], tolerance=1e-10)
   proposal <- c(log(4), log(0.55), log(0.09), atanh(0.4), log(0.0144))
   context <- sommer:::sommer_nonlinear_gaussian_create(fit$fixedDesign,
@@ -221,6 +229,7 @@ test_that("relationships, covariance shapes and constraints retain their semanti
       sum(forwardsolve(t(factor), residual)^2))
   }
   expect_equal(value$logLik, independent(proposal), tolerance=1e-9)
+  expect_equal(fit$llik, independent(fit$optimizer$par), tolerance=1e-8)
   for(index in seq_along(proposal)){
     upper <- lower <- proposal
     upper[index] <- upper[index]+1e-5

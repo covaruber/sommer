@@ -179,6 +179,8 @@ scale-only, compressed-model, and fixed-only prediction cases in that coverage.
 Test BLAS-dependent documentation on the available backends. Examples that
 change runtime thread settings are opt-in, since a controller's presence does
 not guarantee that the BLAS accepts those settings.
+Model-fitting tests that do not test threading should leave `blasThreads=NULL`
+so they also run on BLAS backends without runtime thread control.
 
 The project mixes manually maintained Rd/namespace entries and roxygen comments.
 Do not regenerate all documentation blindly. Update the directly related help
@@ -207,6 +209,9 @@ Rscript --vanilla pkgdown/mmes-options/check-mmes-options.R
 
 When compatibility rules change, update the guide's rule contexts and relevant
 decision nodes together; the guide checker validates rule and node references.
+Both guide scripts load control defaults directly from the working-tree sources,
+including nonlinear defaults in `R/FUN_nonlinear_paths.R`. Keep their source lists
+in sync when adding control dependencies.
 
 ## Numerical and performance changes
 

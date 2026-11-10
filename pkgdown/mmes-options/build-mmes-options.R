@@ -7,7 +7,8 @@
 
 stopifnot(file.exists("DESCRIPTION"), requireNamespace("jsonlite", quietly=TRUE))
 src <- new.env(parent=baseenv())
-for(file in c("R/FUN_mme_control.R", "R/FUN_mme_capabilities.R", "R/FUN_mme_modules.R")){
+for(file in c("R/FUN_mme_control.R", "R/FUN_mme_capabilities.R",
+    "R/FUN_mme_modules.R", "R/FUN_nonlinear_paths.R")){
   sys.source(file, envir=src, keep.source=FALSE)
 }
 
@@ -49,9 +50,7 @@ controls$effect[controls$path == "control.output.inverse"] <-
 
 public_path <- function(path){
   path <- sub("^control\\.", "", path)
-  if(grepl("^task\\.glmm\\.", path)) return(sub("^task\\.glmm\\.", "task$glmm$", path))
-  if(grepl("^task\\.pql\\.", path)) return(sub("^task\\.pql\\.", "task$pql$", path))
-  sub(".", "$", path, fixed=TRUE)
+  gsub(".", "$", path, fixed=TRUE)
 }
 controls$option <- vapply(controls$path, function(path)
   if(grepl("^control\\.", path)) public_path(path) else sub("^(mmes|model)\\.", "", path), "")
@@ -59,13 +58,11 @@ controls$kind <- ifelse(grepl("^control\\.", controls$path), "mmes_control()",
   ifelse(grepl("^mmes\\.", controls$path), "mmes() argument", "model formula"))
 controls$usage <- vapply(controls$path, function(path){
   if(path == "control.formulation") return('mmes_control(formulation = "direct")')
-  if(grepl("^control\\.task\\.pql\\.", path))
-    return(sprintf("mmes_control(task = list(pql = list(%s = ...)))", sub("^control\\.task\\.pql\\.", "", path)))
-  if(grepl("^control\\.task\\.glmm\\.", path))
-    return(sprintf("mmes_control(task = list(glmm = list(%s = ...)))", sub("^control\\.task\\.glmm\\.", "", path)))
   if(grepl("^control\\.", path)){
     parts <- strsplit(sub("^control\\.", "", path), ".", fixed=TRUE)[[1]]
-    return(sprintf("mmes_control(%s = list(%s = ...))", parts[1], parts[2]))
+    argument <- sprintf("%s = ...", tail(parts, 1L))
+    for(part in rev(head(parts, -1L))) argument <- sprintf("%s = list(%s)", part, argument)
+    return(sprintf("mmes_control(%s)", argument))
   }
   if(grepl("^mmes\\.", path)) return(sprintf("mmes(..., %s = ...)", sub("^mmes\\.", "", path)))
   switch(path,
@@ -94,10 +91,11 @@ allowed_under <- function(id, control){
   sort(union(setdiff(everything, rule(id)$settings(control)), bad))
 }
 direct_allowed <- setdiff(allowed_under("direct-engine", build(formulation="direct")),
-  c("task$mode", "task$pql", "task$glmm",
+  c("task$mode", "task$pql", "task$glmm", "task$nonlinear",
     grep("^diagnostics\\$", src$.mme_control_paths(defaults), value=TRUE)))
 solve_allowed <- setdiff(allowed_under("solve-mode", build(task=list(mode="solve"))),
-  c("task$mode", "task$glmm", grep("^(diagnostics|execution)\\$", src$.mme_control_paths(defaults), value=TRUE),
+  c("task$mode", "task$glmm", "task$nonlinear",
+    grep("^(diagnostics|execution)\\$", src$.mme_control_paths(defaults), value=TRUE),
     "solve$blockSchur", "solve$blockBanded", "solve$factorSchurMultiFactor", "solve$dFirstML"))
 pcg_only <- src$.mme_pcg_paths
 
@@ -125,6 +123,11 @@ nodes <- list(
     "Is the response Gaussian with identity link?",
     "family selects the statistical response model, not a solver. Gaussian identity fits go straight to the equation domain. Other families use PQL by default, or the opt-in Laplace backend for its narrower supported model set.",
     "mmes.family", c("gaussian-pql"), 'mmes(y ~ x, random = ~ id, data = d, family = binomial())'),
+  node("nonlinear", "Nonlinear mixed models", "Traditional curves | ML | Henderson",
+    "Does the mean include a traditional nonlinear curve?",
+    "nonlinear_curve() adds a curve to the linear predictor. Nonlinear fits require ML and Henderson formulation. Gaussian additive models use exact likelihood; random curve parameters and native non-Gaussian families use Laplace likelihood. Uncertainty is post-fit through post_nonlinear() or postPEV().",
+    c("mmes.nonlinear", grep("^control\\.task\\.nonlinear\\.", controls$path, value=TRUE)),
+    example='mmes_control(task = list(objective = "ml", nonlinear = list(start = c(asymptote = 3, rate = 0.65))))'),
   node("pql", "Outer PQL loop", "Non-Gaussian or non-identity link",
     "How should the outer PQL iterations run?",
     "task$pql owns outer PQL convergence; convergence$* owns the inner Gaussian working fits. Changing task$pql on a Gaussian identity fit is an error because it would be ignored.",
@@ -220,6 +223,8 @@ edges <- list(
   c("model", "task", "", "branch"),
   c("task", "known", "mode = 'solve'", "branch"),
   c("task", "family", "mode = 'fit'", "branch"),
+  c("family", "nonlinear", "nonlinear_curve()", "branch"),
+  c("nonlinear", "outputs", "post-fit uncertainty", "join"),
   c("family", "pql", "non-Gaussian", "branch"),
   c("family", "domain", "Gaussian identity", "branch"),
   c("pql", "domain", "inner working fit", "join"),

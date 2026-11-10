@@ -6,7 +6,8 @@ json <- regmatches(page, regexpr('(?s)(?<=<script id="catalogData" type="applica
 stopifnot(length(json) == 1L, nzchar(json))
 data <- jsonlite::fromJSON(json, simplifyVector=FALSE)
 src <- new.env(parent=baseenv())
-for(file in c("R/FUN_mme_control.R", "R/FUN_mme_capabilities.R", "R/FUN_mme_modules.R")){
+for(file in c("R/FUN_mme_control.R", "R/FUN_mme_capabilities.R",
+    "R/FUN_mme_modules.R", "R/FUN_nonlinear_paths.R")){
   sys.source(file, envir=src)
 }
 paths <- vapply(data$controls, `[[`, "", "path")
@@ -22,6 +23,13 @@ for(rule in data$rules) stopifnot(all(unlist(rule$nodes) %in% ids))
 for(node in data$nodes) stopifnot(all(unlist(node$rules) %in% rule_ids))
 for(row in data$controls){
   stopifnot(nzchar(row$values), nzchar(row$default), nzchar(row$effect), nzchar(row$usage))
+  if(startsWith(row$path, "control.")){
+    parts <- strsplit(sub("^control\\.", "", row$path), ".", fixed=TRUE)[[1]]
+    value <- Reduce(function(x, part) x[[part]], parts, src$mmes_control())
+    example <- gsub("...", paste(deparse(value), collapse=""), row$usage, fixed=TRUE)
+    control <- eval(parse(text=example), envir=src)
+    stopifnot(inherits(control, "sommer_mmes_control"))
+  }
 }
 for(node in data$nodes){
   stopifnot(length(node$controls) > 0L, all(unlist(node$controls) %in% paths))
