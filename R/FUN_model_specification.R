@@ -260,7 +260,22 @@ graph_term <- function(name){
 }
 
 .spec_evaluate <- function(at,context,details=FALSE){
-  list2env(context,envir=environment())
+  p <- context$p
+  q <- context$q
+  n <- context$n
+  widths <- context$widths
+  variancePosition <- context$variancePosition
+  covariancePositions <- context$covariancePositions
+  records <- context$records
+  spec <- context$spec
+  data <- context$data
+  design <- context$design
+  randomDesign <- context$randomDesign
+  zeros <- context$zeros
+  y <- context$y
+  family <- context$family
+  exact <- context$exact
+  control <- context$control
   splitMode <- function(mode){
     ends <- cumsum(widths)
     lapply(seq_along(widths),function(i)

@@ -7,7 +7,7 @@
 \usage{
 \method{predict}{mmes}(object, Dtable=NULL, D, levels=NULL, sed=FALSE,
         pairwise=FALSE, adjust="none", df=Inf, PEV=TRUE, VarU=TRUE,
-        observed=FALSE, maxMemoryMB=NULL, \dots)
+        observed=FALSE, maxMemoryMB=NULL, target=NULL, \dots)
 }
 \arguments{
  \item{object}{a mixed model of class \code{"mmes"}}
@@ -106,6 +106,13 @@
  Unobserved requested combinations are errors, not silently removed.
  Explicit matrix contrasts must use \code{observed=FALSE} and are still
  checked for estimability. This option is not used for full-rank fits.}
+ \item{target}{Optional prediction target for native Laplace fits:
+ \code{"conditional"} includes fitted random deviations,
+ \code{"zero"} sets them to zero, and \code{"population"} integrates over
+ their fitted prior distribution. This is an alternative to \code{re.form}
+ in \code{\dots}; do not supply both. Gaussian and PQL fits retain the
+ \code{D}/\code{Dtable} interface and reject a non-NULL \code{target}.
+ Nonlinear and formula-specification fits have their own prediction methods.}
  \item{maxMemoryMB}{Positive finite workspace budget in decimal MB for
  rank-reduced and direct-engine predictions. Defaults to the fitted
  \code{control$execution$denseMemoryMB}, or 1000 MB for older objects.
