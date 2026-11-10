@@ -222,7 +222,7 @@ mme_workload_grid <- function(structures = c("ar1", "us", "diag"),
   control$diagnostics$verbose <- FALSE
   control$diagnostics$dateWarning <- FALSE
   control$convergence$maxIters <- 1L
-  setup <- mmes(fixed=workload$fixed, random=workload$random,
+  setup <- .mmes_dispatch(fixed=workload$fixed, random=workload$random,
     rcov=workload$rcov, data=workload$data, control=control)
   evaluate <- function(assembly){
     covariance <- setup$covStruct
@@ -290,8 +290,8 @@ run_mme_benchmark <- function(workloads,
     workloads <- list(workloads)
     names(workloads) <- workloads[[1L]]$name
   }
-  mmeControl <- get("mmes_control", mode="function")
-  mmesFn <- get("mmes", mode="function")
+  mmeControl <- .mmes_control_internal
+  mmesFn <- .mmes_dispatch
   if(is.null(engines)){
     engines <- list(
       baseline = mmeControl(),
@@ -454,7 +454,7 @@ profile_mme_workload <- function(workload, engine = mmes_control(), nIters = 5L,
   engine$diagnostics$verbose <- FALSE
   engine$diagnostics$dateWarning <- FALSE
   t0 <- proc.time()
-  fit <- mmes(fixed = workload$fixed, random = workload$random, rcov = workload$rcov,
+  fit <- .mmes_dispatch(fixed = workload$fixed, random = workload$random, rcov = workload$rcov,
               data = workload$data, control = engine)
   elapsed <- unname((proc.time() - t0)[3L])
   prof <- fit$engineDiagnostics$profile

@@ -1,5 +1,5 @@
 nonlinearInferenceControl <- function(...){
-  mmes_control(task=list(objective="ml",nonlinear=list(
+  sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(
     start=c(asymptote=1.4,rate=0.65))),
     convergence=list(maxIters=500L,likelihoodTol=1e-10,parameterTol=1e-8),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE),...)
@@ -36,7 +36,7 @@ nonlinearInferenceData <- function(family=gaussian(),randomCurve=FALSE,seed=715)
 
 test_that("post-fit curvature, natural scales and PEV match independent Gaussian algebra", {
   data <- nonlinearInferenceData()
-  fit <- mmes(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x"),
+  fit <- sommer:::.mmes_dispatch(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x"),
     control=nonlinearInferenceControl())
   expect_null(fit$nonlinearInference)
   expect_false(fit$nonlinearDiagnostics$uncertaintyComputed)
@@ -115,7 +115,7 @@ test_that("post-fit curvature, natural scales and PEV match independent Gaussian
 
 test_that("prediction delta covariance includes mode motion and keeps estimands distinct", {
   data <- nonlinearInferenceData()
-  fit <- post_nonlinear(mmes(y~0,random=~group,data=data,
+  fit <- post_nonlinear(sommer:::.mmes_dispatch(y~0,random=~group,data=data,
     nonlinear=nonlinear_curve("x"),control=nonlinearInferenceControl()),mode=2)
   newdata <- data[c(1,5,20),]
   prediction <- predict(fit,newdata,se.fit=TRUE,cov.fit=TRUE,interval="confidence")
@@ -158,7 +158,7 @@ for(family in list(binomial(),binomial("probit"),binomial("cloglog"),poisson(),
       control$task$glmm$familyParameters <- list(dispersion=.25,estimate=FALSE)
     if(family$family=="ziPoisson")
       control$task$glmm$familyParameters <- list(zeroInflation=.25,estimate=FALSE)
-    fit <- mmes(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
+    fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
       data=data,family=family,nonlinear=nonlinear_curve("x"),control=control)
     post <- post_nonlinear(fit,mode=2)
     expect_true(all(is.finite(vcov(post,type="all"))),info=family$family)
@@ -178,7 +178,7 @@ for(family in list(binomial(),binomial("probit"),binomial("cloglog"),poisson(),
 
 test_that("random curve group uncertainty and prior-population prediction are post-fit", {
   data <- nonlinearInferenceData(poisson(),TRUE)
-  fit <- mmes(y~0,data=data,family=poisson(),
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,family=poisson(),
     nonlinear=nonlinear_curve("x",random=list(rate=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE))),
     control=nonlinearInferenceControl())
   post <- post_nonlinear(fit,mode=2)
@@ -197,7 +197,7 @@ for(family in list(ordinal(),ordinal("probit"),multinomial(reference="red"))){
   test_that(paste(family$family,family$link,"retains categorical uncertainty shapes"), {
     data <- nonlinearInferenceData(family)
     fixed <- if(family$family=="ordinal") y~1 else y~0
-    fit <- mmes(fixed,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
+    fit <- sommer:::.mmes_dispatch(fixed,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
       data=data,family=family,nonlinear=nonlinear_curve("x"),
       control=nonlinearInferenceControl())
     post <- post_nonlinear(fit)
@@ -222,7 +222,7 @@ for(family in list(ordinal(),ordinal("probit"),multinomial(reference="red"))){
 
 test_that("zero-regression retains uncertainty shapes", {
   data <- nonlinearInferenceData(zipoisson(.25))
-  fit <- mmes(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
     data=data,family=zipoisson(zero=~z),nonlinear=nonlinear_curve("x"),
     control=nonlinearInferenceControl())
   post <- post_nonlinear(fit)
@@ -235,7 +235,7 @@ test_that("mixed families retain uncertainty shapes", {
   right <- nonlinearInferenceData(gaussian(),seed=730)
   left$trait <- "count"; right$trait <- "normal"
   data <- rbind(left,right)
-  fit <- mmes(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),data=data,
+  fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),data=data,
     family=familym("trait",count=poisson(),normal=gaussian()),
     nonlinear=nonlinear_curve("x"),control=nonlinearInferenceControl())
   post <- post_nonlinear(fit)
@@ -245,7 +245,7 @@ test_that("mixed families retain uncertainty shapes", {
 
 test_that("inference rejects invalid curvature, controls and uncalibrated tests", {
   data <- nonlinearInferenceData()
-  fit <- mmes(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x"),
+  fit <- sommer:::.mmes_dispatch(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x"),
     control=nonlinearInferenceControl())
   expect_error(post_nonlinear(fit,mode=1.5),"mode")
   expect_error(post_nonlinear(fit,control=list()),"mmes_control")
@@ -260,7 +260,7 @@ test_that("inference rejects invalid curvature, controls and uncalibrated tests"
   control <- nonlinearInferenceControl(execution=list(denseMemoryMB=.0001))
   expect_error(post_nonlinear(fit,control=control),"workspace")
   expect_error(nonlinearInferenceControl(task=list()),"matched by multiple")
-  expect_error(mmes_control(task=list(nonlinear=list(inference=list(step=.2)))),"step<")
+  expect_error(sommer:::.mmes_control_internal(task=list(nonlinear=list(inference=list(step=.2)))),"step<")
   settings <- sommer:::.mme_nonlinear_inference_defaults
   expect_error(sommer:::.nonlinear_positive_inverse(diag(c(1,-1)),settings,"test"),
     "positive definite")
@@ -283,9 +283,9 @@ test_that("regular nested fixed comparisons preserve the nonlinear architecture"
   data <- nonlinearInferenceData()
   data$y <- data$y+.25*data$z
   random <- ~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE)
-  small <- mmes(y~0,random=random,data=data,nonlinear=nonlinear_curve("x"),
+  small <- sommer:::.mmes_dispatch(y~0,random=random,data=data,nonlinear=nonlinear_curve("x"),
     control=nonlinearInferenceControl())
-  large <- mmes(y~0+z,random=random,data=data,nonlinear=nonlinear_curve("x"),
+  large <- sommer:::.mmes_dispatch(y~0+z,random=random,data=data,nonlinear=nonlinear_curve("x"),
     control=nonlinearInferenceControl())
   comparison <- anova(small,large)
   expect_equal(comparison$Chisq[2],2*(large$llik-small$llik))
@@ -299,7 +299,7 @@ test_that("Gaussian curve intervals have reasonable simulated coverage", {
   covered <- matrix(FALSE,16,2)
   for(index in seq_len(nrow(covered))){
     data <- nonlinearInferenceData(seed=800+index)
-    fit <- mmes(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
+    fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
       data=data,nonlinear=nonlinear_curve("x"),control=nonlinearInferenceControl())
     interval <- confint(fit)
     truth <- c(1.4,.65)
@@ -321,7 +321,7 @@ test_that("reduced-rank uncertainty restores the full singular covariance basis"
   attr(precision,"inverse") <- TRUE
   random <- ~vsm(rrm(environment,k=1,loadings=matrix(c(1,.7,-.3),3,1),
     fixed=rep(TRUE,3)),ism(subject),Gu=precision,sigma2=.04,fixedSigma2=TRUE)
-  fit <- mmes(y~0,random=random,data=data,nonlinear=nonlinear_curve("x"),
+  fit <- sommer:::.mmes_dispatch(y~0,random=random,data=data,nonlinear=nonlinear_curve("x"),
     control=nonlinearInferenceControl())
   post <- post_nonlinear(fit,mode=2)
   z <- as.matrix(fit$randomDesign)
@@ -354,14 +354,14 @@ test_that("all curve parameterizations and estimated family tails have uncertain
     control <- nonlinearInferenceControl()
     control$task$nonlinear$start <- if(curve=="logistic")
       c(asymptote=1.4,rate=1.2,midpoint=2.5) else c(asymptote=1.4,half=.8)
-    fit <- mmes(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x",curve),
+    fit <- sommer:::.mmes_dispatch(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x",curve),
       control=control)
     expect_true(all(is.finite(vcov(fit))))
     expect_true(all(is.finite(confint(fit))))
   }
   for(family in list(nbinom2(3),Gamma("log"))){
     data <- nonlinearInferenceData(family)
-    fit <- mmes(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
+    fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
       data=data,family=family,nonlinear=nonlinear_curve("x"),
       control=nonlinearInferenceControl())
     covariance <- vcov(fit,type="all")
@@ -376,7 +376,7 @@ test_that("grouped-binomial intervals require declared new-data trial counts", {
   set.seed(73)
   data$success <- rbinom(nrow(data),20,plogis(1.4*exp(-.65*data$x)))
   data$failure <- 20-data$success
-  fit <- mmes(cbind(success,failure)~0,
+  fit <- sommer:::.mmes_dispatch(cbind(success,failure)~0,
     random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),data=data,
     family=binomial(),nonlinear=nonlinear_curve("x"),control=nonlinearInferenceControl())
   post <- post_nonlinear(fit)
@@ -392,7 +392,7 @@ test_that("covariance constraints and mixed categorical uncertainty remain align
   data <- nonlinearInferenceData()
   data$cluster <- factor(rep(1:3,each=64))
   data$y <- data$y+rep(c(-.15,.2,-.05),each=64)
-  fit <- mmes(y~0,random=~vsm(ism(group),sigma2=.04)+vsm(ism(cluster),sigma2=.04),
+  fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(group),sigma2=.04)+vsm(ism(cluster),sigma2=.04),
     data=data,vcc=data.frame(parameter=1:2,group=1L,scale=c(1,1)),
     nonlinear=nonlinear_curve("x"),control=nonlinearInferenceControl())
   post <- post_nonlinear(fit,mode=2)
@@ -411,7 +411,7 @@ test_that("covariance constraints and mixed categorical uncertainty remain align
   control <- nonlinearInferenceControl()
   control$task$glmm$familyParameters <- list(
     ordered=list(thresholds=c(-.6,.7),estimate=FALSE))
-  fit <- mmes(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),data=data,
+  fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),data=data,
     family=familym("trait",ordered=ordinal(),nominal=multinomial()),
     nonlinear=nonlinear_curve("x"),control=control)
   post <- post_nonlinear(fit)
@@ -426,7 +426,7 @@ test_that("covariance constraints and mixed categorical uncertainty remain align
 
 test_that("Gaussian future-response intervals agree with conditional simulation", {
   data <- nonlinearInferenceData()
-  post <- post_nonlinear(mmes(y~0,random=~group,data=data,
+  post <- post_nonlinear(sommer:::.mmes_dispatch(y~0,random=~group,data=data,
     nonlinear=nonlinear_curve("x"),control=nonlinearInferenceControl()))
   interval <- predict(post,interval="prediction")
   draws <- as.matrix(simulate(post,nsim=400,seed=127))
@@ -439,7 +439,7 @@ test_that("Gaussian random curves combine additive effects and exact conditional
   data <- nonlinearInferenceData(gaussian(),TRUE)
   data$cluster <- factor(rep(1:3,each=64))
   data$y <- data$y+rep(c(-.1,.12,-.02),each=64)
-  fit <- mmes(y~0,random=~vsm(ism(cluster),sigma2=.0144,fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(cluster),sigma2=.0144,fixedSigma2=TRUE),
     data=data,nonlinear=nonlinear_curve("x",
       random=list(rate=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE))),
     control=nonlinearInferenceControl())

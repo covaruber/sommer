@@ -23,14 +23,14 @@ local({
         1.4*exp(-.65*data$x)+deviation
       data$y <- if(path=="curve-poisson") rpois(nrow(data),exp(mean)) else
         mean+rnorm(nrow(data),sd=.12)
-      settings <- mmes_control(task=list(objective="ml",nonlinear=list(
+      settings <- sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(
         start=c(asymptote=1.4,rate=.65))),
         convergence=list(maxIters=500L,likelihoodTol=1e-9,parameterTol=1e-7),
         execution=list(blasThreads=1L,denseMemoryMB=256),
         diagnostics=list(verbose=FALSE,dateWarning=FALSE,profile="force"))
       model <- nonlinear_curve("x",random=if(randomCurve)
         list(rate=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE)) else list())
-      timing <- system.time(fit <- mmes(y~0,
+      timing <- system.time(fit <- sommer:::.mmes_dispatch(y~0,
         random=if(randomCurve) NULL else ~group,data=data,nonlinear=model,
         family=if(path=="curve-poisson") poisson() else gaussian(),control=settings))
       if(!isTRUE(fit$convergence) || !isTRUE(fit$nonlinearDiagnostics$identified))

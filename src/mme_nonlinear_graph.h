@@ -416,6 +416,28 @@ public:
     return Rcpp::List::create(Rcpp::_["valid"]=true,Rcpp::_["reason"]="evaluated",
       Rcpp::_["output"]=outputValues,Rcpp::_["jacobian"]=gradient);
   }
+
+  arma::vec evaluateValues(const arma::mat & data,const arma::mat & parameters,
+      double memoryMB) const {
+    const arma::uword n=data.n_rows;
+    if(!n || data.n_cols==0 || parameters.n_rows!=n ||
+       parameters.n_cols!=parameterCount || !data.is_finite() ||
+       !parameters.is_finite() || !std::isfinite(memoryMB) || memoryMB<=0)
+      Rcpp::stop("Native nonlinear graph data or parameter dimensions are invalid.");
+    if(workspaceBytes(n,data.n_cols)>memoryMB*1048576)
+      Rcpp::stop("Nonlinear graph workspace exceeds execution$denseMemoryMB.");
+    arma::vec result(n);
+    for(arma::uword row=0;row<n;++row){
+      if(row%256==0) Rcpp::checkUserInterrupt();
+      const auto values=forward(data.row(row),parameters.row(row),false);
+      if(values.empty())
+        Rcpp::stop("Nonlinear graph produced a non-finite intermediate value.");
+      result(row)=values[output](0);
+    }
+    if(!result.is_finite())
+      Rcpp::stop("Nonlinear graph produced a non-finite output.");
+    return result;
+  }
 };
 
 } // namespace sommer

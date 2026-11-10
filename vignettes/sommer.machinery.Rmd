@@ -78,7 +78,7 @@ at their specified values and omitted from the free update.
 
 For REML, the target is the restricted likelihood, which accounts for the
 fixed-effect design while estimating covariance. For ML, it is the ordinary
-likelihood. `task$objective="reml"` is the default. `task$objective="ml"` is supported by the
+likelihood. `method$objective="reml"` is the default. `method$objective="ml"` is supported by the
 `ldlt` and `cholmod` solvers; the current `pcg` path is REML-only.
 
 # 2. Henderson equations and the restricted likelihood
@@ -301,7 +301,7 @@ Diagnostics, including numerical M-step convergence, appear in
 
 ### ML posterior moments and fixed effects
 
-The same AI-first policy applies to `task$objective="ml"`. At each accepted covariance,
+The same AI-first policy applies to `method$objective="ml"`. At each accepted covariance,
 the engine profiles the fixed effects by GLS. REML E-steps use the joint
 coefficient inverse, including fixed-effect uncertainty. ML instead conditions
 on that GLS estimate and uses random-effect posterior covariance
@@ -643,7 +643,7 @@ Current defaults are `solve$tol=1e-8`, `score$traceProbes=8`, and
 `logdet$lanczosSteps=20`; `solve$maxIters=0` chooses an automatic iteration limit.
 The defaults are practical settings, not a universal error bound.
 
-`solve$method="pcg"` currently requires `task$objective="reml"`. `output$inverse=1` is not
+`solve$method="pcg"` currently requires `method$objective="reml"`. `output$inverse=1` is not
 available because it requests the LDLT/Takahashi selected inverse. Use
 `output$inverse=0` for the factorization-free fit, or request
 `output$inverse=2` only when an explicit full inverse is genuinely needed and
@@ -665,7 +665,7 @@ matrices for which the preconditioner is weak.
 | $\log|C|$ | Factor pivots | Direct factor or exact block-Schur | SLQ estimate |
 | Trace strategy | Selected inverse, then solve fallback | Cached inverse blocks, then solves | Hutchinson probes and solves |
 | Exact likelihood calculations | Yes, up to round-off | Yes, up to round-off | Approximate determinant/traces |
-| ML (`task$objective="ml"`) | Yes | Yes | No |
+| ML (`method$objective="ml"`) | Yes | Yes | No |
 | Selected inverse (`output$inverse=1`) | Native Takahashi subset | Final LDLT subset | Not supported |
 | Typical fit | Sparse pedigree-like precision | Dense/fill-heavy precision | Very large systems where solves dominate |
 

@@ -13,7 +13,7 @@ nonlinearQualificationData <- function(groups=16L,points=12L,curve="exponential"
 nonlinearQualificationControl <- function(curve="exponential",profile="off"){
   start <- switch(curve,exponential=c(asymptote=3,rate=.65),
     logistic=c(asymptote=3,rate=1.2,midpoint=2.5),saturation=c(asymptote=3,half=.8))
-  mmes_control(task=list(objective="ml",nonlinear=list(start=start)),
+  sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(start=start)),
     convergence=list(maxIters=500L,likelihoodTol=1e-10,parameterTol=1e-8),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE,profile=profile))
 }
@@ -43,10 +43,10 @@ test_that("sparse admission scales by connected components before matrix assembl
 
 test_that("profiling is opt-in, deterministic, serializable and inference-free",{
   data <- nonlinearQualificationData()
-  fit <- mmes(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x"),
+  fit <- sommer:::.mmes_dispatch(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x"),
     control=nonlinearQualificationControl())
   expect_null(fit$nonlinearDiagnostics$profile)
-  timed <- mmes(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x"),
+  timed <- sommer:::.mmes_dispatch(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x"),
     control=nonlinearQualificationControl(profile="force"))
   expect_equal(coef(timed),coef(fit),tolerance=1e-12)
   expect_equal(timed$llik,fit$llik,tolerance=1e-12)
@@ -56,7 +56,7 @@ test_that("profiling is opt-in, deterministic, serializable and inference-free",
   expect_true(all(diagnostics$profile$seconds>=0))
   expect_true(is.finite(diagnostics$profile$marginalEvaluationSeconds))
   expect_equal(diagnostics$optimizer$iterations,fit$optimizer$iterations)
-  expect_identical(timed$executionPlan$optimizer$gradient,"analytic")
+  expect_identical(timed$executionPlan$optimizer$gradient,"analytic native score")
   expect_identical(timed$executionPlan$starts$curve,"supplied")
   expect_equal(timed$executionPlan$dimensions["randomFull"],16,ignore_attr=TRUE)
   before <- .Random.seed
@@ -75,7 +75,7 @@ test_that("profiling is opt-in, deterministic, serializable and inference-free",
   expect_error(profile_nonlinear(list()),"nonlinear mmes")
   expect_error(profile_nonlinear(timed,inference=NA),"inference")
   expect_error(profile_nonlinear(timed,
-    control=mmes_control(execution=list(denseMemoryMB=.0001))),"workspace")
+    control=sommer:::.mmes_control_internal(execution=list(denseMemoryMB=.0001))),"workspace")
   withInference <- profile_nonlinear(timed,replications=1L,inference=TRUE)
   expect_true("postFitInference" %in% withInference$table$phase)
   expect_null(timed$nonlinearInference)
@@ -87,7 +87,7 @@ for(curve in c("exponential","logistic","saturation")){
       logistic=c(logA=log(3),logRate=log(1.2),midpoint=2.5,location=0),
       saturation=c(logA=log(3),logHalf=log(.8),location=0))
     data <- nonlinearQualificationData(curve=curve)
-    fit <- mmes(y~1,random=~group,data=data,nonlinear=nonlinear_curve("x",curve),
+    fit <- sommer:::.mmes_dispatch(y~1,random=~group,data=data,nonlinear=nonlinear_curve("x",curve),
       control=nonlinearQualificationControl(curve))
     k <- length(starts[[curve]])-1L
     meanValue <- function(at) switch(curve,
@@ -122,7 +122,7 @@ for(curve in c("exponential","logistic","saturation")){
 
 test_that("random curve recovery and predictions agree with generating truth",{
   data <- nonlinearQualificationData(groups=30L,points=16L,randomCurve=TRUE)
-  fit <- mmes(y~0,data=data,nonlinear=nonlinear_curve("x",random=list(rate=~group)),
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=nonlinear_curve("x",random=list(rate=~group)),
     control=nonlinearQualificationControl())
   expect_true(fit$convergence)
   expect_lt(sqrt(mean((fitted(fit)-data$y)^2)),.15)
@@ -137,7 +137,7 @@ test_that("native family profiling preserves likelihood and no inference work",{
   data$y <- rpois(nrow(data),exp(1.2*exp(-.65*data$x)))
   control <- nonlinearQualificationControl(profile="force")
   control$task$nonlinear$start <- c(asymptote=1.2,rate=.65)
-  fit <- mmes(y~0,data=data,family=poisson(),nonlinear=nonlinear_curve("x",
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,family=poisson(),nonlinear=nonlinear_curve("x",
     random=list(rate=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE))),
     control=control)
   expect_true(fit$convergence)

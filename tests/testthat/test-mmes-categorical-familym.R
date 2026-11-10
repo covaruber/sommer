@@ -20,10 +20,10 @@ categoricalMixedFixture <- function(composition=c("ord", "nom", "count"), slopes
   }
   families <- list(ord=ordinal(), nom=multinomial(reference="2"), count=poisson())[composition]
   family <- do.call(familym, c(list(by="trait"), families))
-  control <- mmes_control(task=list(objective="ml",glmm=list(method="laplace")),
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace")),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
   fixed <- if(slopes) y~trait+trait:x-1 else y~trait-1
-  fit <- mmes(fixed, random=~vsm(ism(group),sigma2=0.15,fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(fixed, random=~vsm(ism(group),sigma2=0.15,fixedSigma2=TRUE),
     data=data, family=family, control=control)
   list(fit=fit,data=data,family=family,control=control)
 }
@@ -156,13 +156,13 @@ test_that("mixed inference, simulation and bootstrap stay post-fit", {
 
 test_that("mixed comparisons and explicit random coordinates are supported", {
   fixture <- categoricalMixedFixture()
-  small <- mmes(y~trait-1,random=~vsm(ism(group),sigma2=.15,fixedSigma2=TRUE),
+  small <- sommer:::.mmes_dispatch(y~trait-1,random=~vsm(ism(group),sigma2=.15,fixedSigma2=TRUE),
     data=fixture$data,family=fixture$family,control=fixture$control)
   comparison <- anova(small,fixture$fit)
   expect_true(all(is.finite(comparison[,"logLik"])))
   bootstrap <- boot_mmes(small,fixture$fit,nsim=2L,seed=12,maxit=300L)
   expect_true(all(bootstrap$diagnostics$valid))
-  explicit <- mmes(y~trait+trait:x-1,
+  explicit <- sommer:::.mmes_dispatch(y~trait+trait:x-1,
     random=~vsm(ism(.familyCoordinate),ism(group),sigma2=.15,fixedSigma2=TRUE),
     data=fixture$data,family=fixture$family,control=fixture$control)
   expect_true(explicit$convergence)
@@ -175,7 +175,7 @@ test_that("mixed comparisons and explicit random coordinates are supported", {
     re.form="population")
   expect_true(all(is.finite(unlist(population))))
   expect_equal(rowSums(population$nom),1,ignore_attr=TRUE,tolerance=1e-10)
-  expect_error(mmes(y~trait,random=~vsm(ism(.nominalCategory),ism(group)),
+  expect_error(sommer:::.mmes_dispatch(y~trait,random=~vsm(ism(.nominalCategory),ism(group)),
     data=fixture$data,family=fixture$family,control=fixture$control),"ambiguous")
 })
 
@@ -183,11 +183,11 @@ test_that("categorical familym enforces ML, response coding and memory policy", 
   fixture <- categoricalMixedFixture(c("ord","count"))
   data <- fixture$data
   family <- fixture$family
-  pql <- mmes_control(task=list(objective="ml",glmm=list(method="pql")),
+  pql <- sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="pql")),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-  expect_error(mmes(y~trait,data=data,family=family,control=pql),"not supported by PQL")
+  expect_error(sommer:::.mmes_dispatch(y~trait,data=data,family=family,control=pql),"not supported by PQL")
   data$y[1] <- 5
-  expect_error(mmes(y~trait,random=~vsm(ism(group)),data=data,
+  expect_error(sommer:::.mmes_dispatch(y~trait,random=~vsm(ism(group)),data=data,
     family=family,control=fixture$control),"contiguous")
   limited <- fixture$fit
   limited$laplacePostPEVSettings$denseMemoryMB <- 1e-6
@@ -223,9 +223,9 @@ test_that("categorical composition retains scalar shapes, trials and missingness
     }
     family <- familym("trait",ord=ordinal(),count=scalarFamilies[[code]],
       trials=if(code=="binomial") "trials" else NULL)
-    control <- mmes_control(task=list(objective="ml",glmm=list(method="laplace",
+    control <- sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace",
       familyParameters=settings)),diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-    fit <- mmes(y~trait+trait:x-1,random=~vsm(ism(group),sigma2=.15,fixedSigma2=TRUE),
+    fit <- sommer:::.mmes_dispatch(y~trait+trait:x-1,random=~vsm(ism(group),sigma2=.15,fixedSigma2=TRUE),
       data=data,family=family,control=control)
     expect_true(fit$convergence)
     expect_true(all(is.finite(unlist(fitted(fit)))))
@@ -236,7 +236,7 @@ test_that("categorical composition retains scalar shapes, trials and missingness
   fixture <- categoricalMixedFixture()
   data <- fixture$data
   data$x[c(1,121,241)] <- NA
-  fit <- mmes(y~trait+trait:x-1,random=~vsm(ism(group),sigma2=.15,fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~trait+trait:x-1,random=~vsm(ism(group),sigma2=.15,fixedSigma2=TRUE),
     data=data,family=fixture$family,control=fixture$control)
   expect_identical(nobs(fit),357L)
   expect_equal(vapply(fitted(fit),NROW,integer(1)),c(ord=119L,nom=119L,count=119L))
@@ -248,7 +248,7 @@ test_that("binary nominal traits and fitted contrasts retain their coordinate ma
   data <- fixture$data
   data$y[data$trait=="nom"] <- rep(1:2,60)
   data$treatment <- factor(rep(c("a","b","c"),120))
-  fit <- mmes(y~trait+trait:x+trait:treatment-1,
+  fit <- sommer:::.mmes_dispatch(y~trait+trait:x+trait:treatment-1,
     random=~vsm(ism(group),sigma2=.15,fixedSigma2=TRUE),data=data,
     family=fixture$family,control=fixture$control,contrasts=list(treatment="contr.sum"))
   expect_true(fit$convergence)
@@ -275,7 +275,7 @@ test_that("mixed fitting never computes post-fit inference and filters ZIP-only 
   data$y[rows[seq.int(1L,length(rows),by=3L)]] <- 0
   family <- familym("trait",ord=ordinal(),nom=multinomial(reference="2"),
     count=zipoisson(zero=~z))
-  fit <- mmes(y~trait+trait:x-1,random=~vsm(ism(group),sigma2=.15,fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~trait+trait:x-1,random=~vsm(ism(group),sigma2=.15,fixedSigma2=TRUE),
     data=data,family=family,control=fixture$control)
   expect_true(fit$convergence)
   expect_identical(nobs(fit),359L)

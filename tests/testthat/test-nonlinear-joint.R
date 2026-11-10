@@ -2,7 +2,7 @@ nonlinearJointControl <- function(curve="exponential",...){
   start <- switch(curve,exponential=c(asymptote=2,rate=.6),
     saturation=c(asymptote=2,half=.6),
     logistic=c(asymptote=2,rate=1.1,midpoint=2.5))
-  mmes_control(task=list(objective="ml",nonlinear=list(start=start,
+  sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(start=start,
     population=list(order=8L,maxOrder=64L,tol=1e-6))),
     convergence=list(maxIters=500L,likelihoodTol=1e-10,parameterTol=1e-8),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE),...)
@@ -194,7 +194,7 @@ test_that("joint reduced-rank scores include moving parameter-axis loadings",{
 
 test_that("joint fits predict simulate serialize and defer uncertainty",{
   data <- nonlinearJointData()
-  fit <- mmes(y~0,data=data,nonlinear=nonlinearJointModel(structure="fixed"),
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=nonlinearJointModel(structure="fixed"),
     control=nonlinearJointControl())
   expect_true(fit$convergence)
   expect_null(fit$nonlinearInference)
@@ -236,7 +236,7 @@ test_that("independent named curves and ordinary additive vsm terms coexist",{
   model <- nonlinear_curve("x",random=list(
     asymptote=~vsm(ism(group),sigma2=.01,fixedSigma2=TRUE),
     rate=~vsm(ism(group),sigma2=.01,fixedSigma2=TRUE)))
-  fit <- mmes(y~0,random=~vsm(ism(group),sigma2=.002,fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(group),sigma2=.002,fixedSigma2=TRUE),
     data=data,nonlinear=model,control=nonlinearJointControl())
   expect_true(fit$convergence)
   expect_equal(predict(fit,data[1:3,]),as.numeric(fitted(fit)[1:3]),tolerance=1e-10)
@@ -250,7 +250,7 @@ test_that("all logistic coordinates vary jointly on their declared scales",{
     parameters=c("asymptote","rate","midpoint"),
     random=~vsm(usm(.parameter,theta=diag(3),fixed=rep(TRUE,5)),
       ism(group),sigma2=.005,fixedSigma2=TRUE)))
-  fit <- mmes(y~0,data=data,nonlinear=model,control=nonlinearJointControl("logistic"))
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=model,control=nonlinearJointControl("logistic"))
   expect_true(fit$convergence)
   expect_equal(dim(fit$groupParameters),c(6L,3L))
   expect_true(all(fit$groupParameters[,1:2]>0))
@@ -264,7 +264,7 @@ test_that("joint covariance and independent midpoint coexist without changing vs
   model <- nonlinearJointModel("logistic","fixed")
   model <- nonlinear_curve("x","logistic",random=list(
     midpoint=~vsm(ism(group),sigma2=.002,fixedSigma2=TRUE)),joint=model$joint)
-  fit <- mmes(y~0,data=data,nonlinear=model,control=nonlinearJointControl("logistic"))
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=model,control=nonlinearJointControl("logistic"))
   expect_true(fit$convergence)
   expect_equal(dim(fit$groupParameters),c(6L,3L))
   expect_equal(predict(fit,data[1:2,]),as.numeric(fitted(fit)[1:2]),tolerance=1e-10)
@@ -279,7 +279,7 @@ test_that("joint known relationships preserve full covariance and prediction bas
   model <- nonlinear_curve("x",joint=list(parameters=c("asymptote","rate"),
     random=~vsm(usm(.parameter,theta=diag(2),fixed=rep(TRUE,2)),
       ism(group),Gu=precision,sigma2=.01,fixedSigma2=TRUE)))
-  fit <- mmes(y~0,data=data,nonlinear=model,control=nonlinearJointControl())
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=model,control=nonlinearJointControl())
   expect_true(fit$convergence)
   restored <- unserialize(serialize(fit,NULL))
   expect_equal(predict(restored,data[1:2,]),as.numeric(fitted(fit)[1:2]),tolerance=1e-10)
@@ -304,7 +304,7 @@ for(family in list(poisson(),ordinal(),multinomial(reference="red"))){
       code <- 1L+rowSums(runif(nrow(data))>t(apply(p,1,cumsum))[,-3,drop=FALSE])
       data$y <- factor(c("red","green","blue")[code],levels=c("red","green","blue"))
     }
-    fit <- mmes(y~0,data=data,family=family,
+    fit <- sommer:::.mmes_dispatch(y~0,data=data,family=family,
       nonlinear=nonlinearJointModel(structure="fixed"),control=nonlinearJointControl())
     expect_true(fit$convergence)
     expect_null(fit$nonlinearInference)
@@ -328,7 +328,7 @@ test_that("joint reduced-rank fits restore post-fit full group covariance",{
   model <- nonlinear_curve("x",joint=list(parameters=c("asymptote","rate"),
     random=~vsm(rrm(.parameter,k=1,loadings=matrix(c(1,.5),2,1),
       fixed=c(TRUE,TRUE)),ism(group),sigma2=.01,fixedSigma2=TRUE)))
-  fit <- mmes(y~0,data=data,nonlinear=model,control=nonlinearJointControl())
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=model,control=nonlinearJointControl())
   expect_true(fit$convergence)
   expect_lt(length(fit$latentRandomMode),length(fit$randomMode))
   post <- post_nonlinear(fit,mode=2)
@@ -354,7 +354,7 @@ test_that("covariance constraints retain independent parameter formula semantics
   model <- nonlinear_curve("x",random=list(
     asymptote=~vsm(ism(group),sigma2=.01),
     rate=~vsm(ism(group),sigma2=.01)))
-  fit <- mmes(y~0,data=data,nonlinear=model,control=nonlinearJointControl(),
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=model,control=nonlinearJointControl(),
     vcc=data.frame(parameter=1:2,group=1L,scale=c(1,1)))
   expect_true(fit$convergence)
   expect_equal(length(coef(fit,type="working")),4L)
@@ -371,8 +371,8 @@ test_that("diagonal joint covariance agrees with independent named formulas",{
   joint <- nonlinear_curve("x",joint=list(parameters=c("rate","asymptote"),
     random=~vsm(usm(.parameter,theta=diag(2),fixed=rep(TRUE,2)),
       ism(group),sigma2=.01,fixedSigma2=TRUE)))
-  a <- mmes(y~0,data=data,nonlinear=independent,control=nonlinearJointControl())
-  b <- mmes(y~0,data=data,nonlinear=joint,control=nonlinearJointControl())
+  a <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=independent,control=nonlinearJointControl())
+  b <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=joint,control=nonlinearJointControl())
   expect_true(a$convergence); expect_true(b$convergence)
   expect_equal(a$llik,b$llik,tolerance=1e-9)
   expect_equal(coef(a),coef(b),tolerance=1e-8)
@@ -390,7 +390,7 @@ test_that("joint mixed-family fits retain scalar trait output and post-fit covar
   set.seed(351)
   data$y <- rpois(nrow(data),exp(data$eta))
   data <- rbind(data,normal)
-  fit <- mmes(y~0,data=data,nonlinear=nonlinearJointModel(structure="fixed"),
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=nonlinearJointModel(structure="fixed"),
     family=familym("trait",count=poisson(),normal=gaussian()),
     control=nonlinearJointControl())
   expect_true(fit$convergence)

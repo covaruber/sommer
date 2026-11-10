@@ -46,7 +46,7 @@ prediction distinguishes a fitted individual's process from a population
 average. See the [GLMM guide](https://covaruber.github.io/sommer/articles/sommer.glmm.html)
 for temporal/spatial recipes, prediction targets and supported limits.
 Laplace also offers interchangeable random-effect and observation-space
-linear algebra through `task$glmm$backend`. The default `"auto"` considers
+linear algebra through `likelihood$backend` in `mmes_control()`. The default `"auto"` considers
 dimensions, sparsity-related coupling and memory; inspect
 `fit$executionPlan$glmm$backend` for its decision. This changes computation,
 not the fitted likelihood, and is separate from the Gaussian/PQL direct engine.
@@ -59,6 +59,17 @@ contract.
 
 ## Choose the next step
 
+The unified model interface separates formulas and parameter models,
+`method=mmes_method()`, numerical `control=mmes_control()`, and `start`.
+Defaults remain Gaussian REML and non-Gaussian mixed-model PQL with REML
+working fits, not an exact GLMM REML likelihood. Native Laplace is requested
+with `method=mmes_method(objective="ml", integration="laplace")`.
+Fixed-only generalized and nonlinear likelihood models require an explicit
+`objective="ml"` rather than silently changing the default objective.
+The former `task` control module and `nonlinear=` argument have been replaced,
+not retained as compatibility aliases.
+
+- [Model classes and specification](vignettes/sommer.models.Rmd)
 - [Quantitative-genetics tutorial](https://covaruber.github.io/sommer/articles/sommer.qg.html)
 - [Covariance structures](https://covaruber.github.io/sommer/articles/sommer.covariance.structures.html)
 - [Solver decision tree](https://covaruber.github.io/sommer/mmes-options.html)

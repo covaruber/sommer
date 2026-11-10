@@ -58,9 +58,9 @@ test_that("public dispatch rejects ineligible paths before invoking a fitter", {
       list(method="laplace",objective="reml",rcov=~units,reason="laplace-requires-ml"),
       list(method="laplace",objective="ml",rcov=~vsm(ism(group)),
         reason="laplace-residual-dependence"))){
-    control <- mmes_control(task=list(objective=case$objective,
+    control <- sommer:::.mmes_control_internal(task=list(objective=case$objective,
       glmm=list(method=case$method)),diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-    error <- tryCatch(mmes(y~trait,random=~group,rcov=case$rcov,data=data,
+    error <- tryCatch(sommer:::.mmes_dispatch(y~trait,random=~group,rcov=case$rcov,data=data,
       family=family,control=control),error=identity)
     expect_s3_class(error,"sommer_glmm_path_error")
     expect_identical(error$glmmPathPlan$reason,case$reason)

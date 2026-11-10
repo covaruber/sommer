@@ -4,8 +4,8 @@
                          replicate=seq_len(2))
   dataset$response <- sin(seq_len(nrow(dataset))) + as.integer(dataset$id) / 3
   random <- if(rr) ~vsm(rrm(environment, 1), ism(id)) else ~vsm(ism(id))
-  mmes(response~environment, random=random, data=dataset,
-    control=mmes_control(solve=list(method=solver, blockSchur=schur),
+  sommer:::.mmes_dispatch(response~environment, random=random, data=dataset,
+    control=sommer:::.mmes_control_internal(solve=list(method=solver, blockSchur=schur),
       convergence=list(maxIters=1L),
       update=list(blendWeight=blendWeight, commonScale=commonScale),
       diagnostics=list(verbose=verbose, dateWarning=FALSE)))
@@ -67,11 +67,11 @@ test_that("grid residual status describes the actual residual engine", {
                          row=factor(seq_len(3)), column=factor(seq_len(3)))
   dataset$id <- factor(rep(seq_len(5), length.out=nrow(dataset)))
   dataset$response <- sin(seq_len(nrow(dataset)))
-  output <- capture.output(fit <- mmes(response~environment,
+  output <- capture.output(fit <- sommer:::.mmes_dispatch(response~environment,
     random=~vsm(ism(id)),
     rcov=~dsumm(vsm(ar1m(row, rho=0.2), ar1m(column, rho=0.3), ism(units)),
                 by=environment),
-    data=dataset, control=mmes_control(convergence=list(maxIters=1L),
+    data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=1L),
       update=list(blendWeight=0),
       diagnostics=list(verbose=TRUE, dateWarning=FALSE))))
   path <- grep("^MME path:", output, value=TRUE)

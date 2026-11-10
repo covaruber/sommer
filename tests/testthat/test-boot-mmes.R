@@ -2,12 +2,12 @@ bootstrapFixture <- function(){
   set.seed(617)
   data <- data.frame(group=factor(rep(seq_len(35), each=8)), x=rnorm(280))
   data$y <- rpois(280, exp(0.8+0.12*data$x+rnorm(35, sd=0.6)[data$group]))
-  control <- mmes_control(task=list(objective="ml", glmm=list(method="laplace")),
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace")),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
   list(
     data=data, control=control,
-    null=mmes(y~1, random=~group, data=data, family=poisson(), control=control),
-    alternative=mmes(y~x, random=~group, data=data, family=poisson(), control=control))
+    null=sommer:::.mmes_dispatch(y~1, random=~group, data=data, family=poisson(), control=control),
+    alternative=sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=poisson(), control=control))
 }
 
 test_that("bootstrap native refits reproduce the fitted objective and scores", {
@@ -21,7 +21,7 @@ test_that("bootstrap native refits reproduce the fitted objective and scores", {
   expect_false(fit$laplaceDiagnostics$uncertaintyComputed)
   data <- fits$data
   data$y <- simulate(fit, nsim=1, seed=18, re.form="population")[[1L]]
-  public <- mmes(y~x, random=~group, data=data, family=poisson(),
+  public <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=poisson(),
     control=fits$control)
   direct <- sommer:::.boot_mmes_refit(fit, data$y, 1000L)
   expect_equal(direct$logLik, public$llik, tolerance=1e-6)
@@ -73,9 +73,9 @@ test_that("bootstrap refits preserve grouped binomial trial counts", {
   data <- data.frame(group=factor(rep(seq_len(35), each=8)), trials=rep(8, 280))
   probability <- plogis(-0.2+rnorm(35, sd=0.7)[data$group])
   data$successes <- rbinom(280, 8, probability)
-  fit <- mmes(binm(successes, trials=trials)~1, random=~group,
+  fit <- sommer:::.mmes_dispatch(binm(successes, trials=trials)~1, random=~group,
     data=data, family=binomial(),
-    control=mmes_control(task=list(objective="ml", glmm=list(method="laplace")),
+    control=sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace")),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_equal(sommer:::.boot_mmes_refit(fit, fit$y, 1000L)$logLik,
     fit$llik, tolerance=1e-6)
@@ -107,9 +107,9 @@ test_that("bootstrap supports ZIP zero formulas and mixed nuisance parameters", 
   other$trait <- "continuous"
   data <- rbind(data, other)
   data$trait <- factor(data$trait)
-  fit <- mmes(y~trait-1+trait:x, random=~group, data=data,
+  fit <- sommer:::.mmes_dispatch(y~trait-1+trait:x, random=~group, data=data,
     family=familym("trait", count=zipoisson(zero=~x), continuous=gaussian()),
-    control=mmes_control(task=list(objective="ml", glmm=list(method="laplace")),
+    control=sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace")),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   refit <- sommer:::.boot_mmes_refit(fit, fit$y, 1000L)
   expect_equal(refit$logLik, fit$llik, tolerance=1e-6)

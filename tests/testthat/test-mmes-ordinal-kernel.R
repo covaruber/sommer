@@ -26,11 +26,11 @@ test_that("ordinal scaffolding rejects misleading scalar-family calculations", {
   }
   expect_error(ordinal("cloglog"), "supports link")
   data <- data.frame(y=rep(1:3, 3))
-  expect_error(mmes(y~1, data=data, family=ordinal(),
-    control=mmes_control(diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
+  expect_error(sommer:::.mmes_dispatch(y~1, data=data, family=ordinal(),
+    control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "not supported by PQL")
-  expect_error(mmes(y~1, data=data, family=familym("trait", score=ordinal()),
-    control=mmes_control(diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
+  expect_error(sommer:::.mmes_dispatch(y~1, data=data, family=familym("trait", score=ordinal()),
+    control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "not supported by PQL")
 })
 

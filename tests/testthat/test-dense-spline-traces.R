@@ -18,7 +18,7 @@ test_that("dense spline residual traces agree with observation-space fitting", {
         x=seq(0.7, 1.8, length.out=nrow(M$data))) else NULL
       fit <- function(formulation, solver="ldlt"){
         args <- list(fixed=y~geno, random=random, rcov=residual, data=M$data,
-          control=mmes_control(formulation=formulation,
+          control=sommer:::.mmes_control_internal(formulation=formulation,
             task=list(objective=objective),
             solve=if(formulation == "direct") list() else list(method=solver),
             score=if(formulation == "direct") list() else
@@ -27,7 +27,7 @@ test_that("dense spline residual traces agree with observation-space fitting", {
             convergence=list(maxIters=2L),
             diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
         if(!is.null(weights)) args$W <- weights
-        do.call(mmes, args)
+        do.call(sommer:::.mmes_dispatch, args)
       }
       reference <- fit("direct")
       for(solver in c("ldlt", "cholmod")){
@@ -68,8 +68,8 @@ test_that("auto dense score dispatch is structural and off preserves the legacy 
   dataset <- data.frame(y=sin(seq_len(200L)), id=factor(rep(1:20, 10)))
   design <- sin(outer(seq_len(200L), seq_len(80L), `*`))
   fit <- function(mode, dense=TRUE, budget=1000, policy="speed"){
-    mmes(y~1, random=if(dense) ~vsm(ism(design)) else ~id, data=dataset,
-      control=mmes_control(score=list(denseCrossproduct=mode),
+    sommer:::.mmes_dispatch(y~1, random=if(dense) ~vsm(ism(design)) else ~id, data=dataset,
+      control=sommer:::.mmes_control_internal(score=list(denseCrossproduct=mode),
         execution=list(denseMemoryMB=budget, memoryPolicy=policy),
         update=list(blendWeight=0), convergence=list(maxIters=1L),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -101,24 +101,24 @@ test_that("auto dense score dispatch is structural and off preserves the legacy 
 })
 
 test_that("forced dense score requests reject unsupported equation domains", {
-  expect_error(mmes_control(formulation="direct",
+  expect_error(sommer:::.mmes_control_internal(formulation="direct",
     score=list(denseCrossproduct="force")), "direct")
-  expect_error(mmes_control(solve=list(method="pcg"),
+  expect_error(sommer:::.mmes_control_internal(solve=list(method="pcg"),
     score=list(denseCrossproduct="force")), "deterministic normal Henderson")
-  expect_error(mmes_control(representation=list(equations="saddle-point"),
+  expect_error(sommer:::.mmes_control_internal(representation=list(equations="saddle-point"),
     score=list(denseCrossproduct="force")), "deterministic normal Henderson")
-  expect_error(mmes_control(representation=list(compression="groups"),
+  expect_error(sommer:::.mmes_control_internal(representation=list(compression="groups"),
     score=list(denseCrossproduct="force")), "without compression")
-  expect_error(mmes_control(score=list(denseCrossproduct="typo")), "Experimental toggle")
-  expect_identical(mmes_control()$score$denseCrossproduct, "auto")
+  expect_error(sommer:::.mmes_control_internal(score=list(denseCrossproduct="typo")), "Experimental toggle")
+  expect_identical(sommer:::.mmes_control_internal()$score$denseCrossproduct, "auto")
   dataset <- data.frame(y=rep(c(0, 1, 2), 4L), id=factor(rep(1:4, each=3L)))
-  control <- mmes_control(score=list(denseCrossproduct="force"),
+  control <- sommer:::.mmes_control_internal(score=list(denseCrossproduct="force"),
     convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE))
-  expect_error(mmes(y~1, random=~id, family=poisson(), data=dataset,
+  expect_error(sommer:::.mmes_dispatch(y~1, random=~id, family=poisson(), data=dataset,
     control=control), "Gaussian identity-link")
   weights <- diag(12L)
   weights[1L, 2L] <- weights[2L, 1L] <- 0.1
-  expect_error(mmes(y~1, random=~id, data=dataset, W=weights, control=control),
+  expect_error(sommer:::.mmes_dispatch(y~1, random=~id, data=dataset, W=weights, control=control),
     "Forced dense score cross-products require diagonal")
 })
 
@@ -128,8 +128,8 @@ test_that("established covariance paths retain their original score assembly", {
       n_levels=4L, seed=814L)
     for(solver in c("ldlt", "cholmod")){
       fit <- function(mode){
-        mmes(workload$fixed, random=workload$random, data=workload$data,
-          control=mmes_control(solve=list(method=solver),
+        sommer:::.mmes_dispatch(workload$fixed, random=workload$random, data=workload$data,
+          control=sommer:::.mmes_control_internal(solve=list(method=solver),
             score=list(denseCrossproduct=mode),
             convergence=list(maxIters=2L),
             diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -153,8 +153,8 @@ test_that("dense score selection is visible through AI recovery and native progr
   dataset <- data.frame(y=sin(seq_len(200L)))
   design <- sin(outer(seq_len(200L), seq_len(80L), `*`))
   for(recovery in c(FALSE, TRUE)){
-    text <- capture.output(fit <- mmes(y~1, random=~vsm(ism(design)),
-      data=dataset, control=mmes_control(
+    text <- capture.output(fit <- sommer:::.mmes_dispatch(y~1, random=~vsm(ism(design)),
+      data=dataset, control=sommer:::.mmes_control_internal(
         update=if(recovery) list() else list(blendWeight=0),
         convergence=list(maxIters=2L),
         diagnostics=list(verbose=TRUE, dateWarning=FALSE))))

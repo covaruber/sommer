@@ -16,7 +16,7 @@ nonlinearStructureContext <- function(random, data=nonlinearStructureData(),
   model <- nonlinear_curve("x",curve,random=if(curveRandom)
     stats::setNames(list(random),parameter) else list())
   joint <- if(curveRandom) sommer:::.nonlinear_joint_formula(additive,model,data) else random
-  control <- mmes_control(task=list(objective="ml"),
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml"),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
   prepared <- sommer:::.nonlinear_prepare(y~0,joint,data,control,
     "exclude","exclude","exclude","exclude",NULL,data$x)
@@ -205,7 +205,7 @@ test_that("FA and reduced-rank fits retain full-coordinate and population predic
       ism(subject),Gu=precision,sigma2=0.04,fixedSigma2=TRUE),
     fa=~vsm(fam(environment,k=1),ism(subject),Gu=precision,sigma2=0.04,
       fixedSigma2=TRUE))
-  control <- mmes_control(task=list(objective="ml",nonlinear=list(
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(
     start=c(asymptote=4,rate=0.6))),
     convergence=list(maxIters=400L,likelihoodTol=1e-8,parameterTol=1e-7),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
@@ -219,7 +219,7 @@ test_that("FA and reduced-rank fits retain full-coordinate and population predic
         as.integer(data$subject)]
       data$y <- 4*exp(-0.6*exp(local)*data$x)+rnorm(nrow(data),sd=0.12)
     }
-    fit <- mmes(y~0,data=data,nonlinear=nonlinear_curve("x",
+    fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=nonlinear_curve("x",
       random=list(rate=formulas[[name]])),control=control)
     expect_true(fit$convergence,info=name)
     expect_equal(unname(coef(fit)),c(4,0.6),tolerance=0.06)
@@ -257,10 +257,10 @@ test_that("FA and reduced-rank fits retain full-coordinate and population predic
 test_that("additive reduced-rank modes and covariance constraints preserve existing semantics",{
   data <- nonlinearStructureData(groups=8L)
   data$cluster <- factor(rep(1:2,length.out=nrow(data)))
-  control <- mmes_control(task=list(objective="ml",nonlinear=list(
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(
     start=c(asymptote=4,rate=0.6))),convergence=list(maxIters=400L),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-  fit <- mmes(y~0,random=~vsm(rrm(environment,k=1),ism(subject),sigma2=0.04),
+  fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(rrm(environment,k=1),ism(subject),sigma2=0.04),
     nonlinear=nonlinear_curve("x"),data=data,control=control)
   expect_true(fit$convergence)
   expect_identical(fit$likelihoodMethod,"exact Gaussian ML")

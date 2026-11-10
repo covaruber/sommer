@@ -44,7 +44,7 @@ test_that("native PCG primitives pass strict standalone checks", {
   execution <- modules$execution
   if(is.null(execution)) execution <- list()
   execution <- utils::modifyList(execution, extra, keep.null=TRUE)
-  control <- mmes_control(
+  control <- sommer:::.mmes_control_internal(
     solve=merge("solve", c(list(method=solver), if(solver == "pcg") list(tol=1e-10))),
     logdet=merge("logdet", if(solver == "pcg") list(lanczosSteps=40L) else list()),
     score=merge("score", if(solver == "pcg") list(traceProbes=8L) else list()),
@@ -53,7 +53,7 @@ test_that("native PCG primitives pass strict standalone checks", {
     execution=execution,
     update=list(blendWeight=0),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
-  suppressMessages(mmes(workload$fixed, random=workload$random,
+  suppressMessages(sommer:::.mmes_dispatch(workload$fixed, random=workload$random,
     rcov=workload$rcov, data=workload$data, control=control))
 }
 
@@ -134,13 +134,13 @@ test_that("PCG controls preserve weighted incomplete residual score contractions
       if(is.null(values)) values <- list()
       utils::modifyList(defaults, values, keep.null=TRUE)
     }
-    control <- mmes_control(
+    control <- sommer:::.mmes_control_internal(
       solve=merge("solve", c(list(method=solver), if(solver == "pcg") list(tol=1e-10))),
       logdet=merge("logdet", if(solver == "pcg") list(lanczosSteps=40L) else list()),
       score=merge("score", if(solver == "pcg") list(traceProbes=8L) else list()),
       convergence=list(maxIters=1L),       update=list(blendWeight=0),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))
-    suppressMessages(mmes(response~environment, random=~id,
+    suppressMessages(sommer:::.mmes_dispatch(response~environment, random=~id,
       rcov=~vsm(usm(environment), ism(record)), W=weights, data=dataset,
       control=control))
   }

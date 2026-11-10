@@ -102,7 +102,7 @@ unweighted residual covariance. The score and AI use derivatives of the
 corresponding covariance \eqn{U^{-\mathsf T}R_0U^{-1}}.
 
 The native path does not currently support PCG, \code{vcc} constraints,
-covariance-update acceleration, \code{control$task$mode="solve"}, or
+covariance-update acceleration, \code{method$task="solve"}, or
 \code{control$representation$factorScores} augmentation. These combinations
 produce explicit errors.
 The stored coefficient matrix \code{C} describes the latent equations;

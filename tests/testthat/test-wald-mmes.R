@@ -9,7 +9,7 @@ oatsWaldData <- function(drop=0L){
 }
 
 tightFit <- function(..., formulation="henderson"){
-  mmes(..., control=mmes_control(formulation=formulation,
+  sommer:::.mmes_dispatch(..., control=sommer:::.mmes_control_internal(formulation=formulation,
     diagnostics=list(verbose=FALSE),
     convergence=list(likelihoodTol=1e-12, parameterTol=1e-12, maxIters=100)))
 }
@@ -90,7 +90,7 @@ test_that("Wald tests are available for PQL fits but small-sample df are not", {
   set.seed(4)
   d <- data.frame(x=rnorm(120), g=factor(rep(1:12, each=10)))
   d$y <- rpois(120, exp(0.3 + 0.4 * d$x))
-  fit <- mmes(y~x, random=~g, data=d, family=poisson(), control=mmes_control(update=list(blendWeight=0), diagnostics=list(verbose=FALSE)))
+  fit <- sommer:::.mmes_dispatch(y~x, random=~g, data=d, family=poisson(), control=sommer:::.mmes_control_internal(update=list(blendWeight=0), diagnostics=list(verbose=FALSE)))
   expect_true(all(is.finite(wald_mmes(fit)$p.value)))
   expect_error(wald_mmes(fit, denDF="kr"), "PQL")
 })

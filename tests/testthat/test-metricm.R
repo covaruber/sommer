@@ -30,14 +30,14 @@ test_that("metricm analytic derivatives match numerical derivatives", {
 
 test_that("exponential, power and Matern(0.5) fits are equivalent", {
   s <- metricSites()
-  control <- mmes_control(
+  control <- sommer:::.mmes_control_internal(
     convergence=list(maxIters=100L, likelihoodTol=1e-10, parameterTol=1e-10),
     diagnostics=list(verbose=FALSE))
-  mExp <- mmes(yv~1, random=~vsm(metricm(cbind(x, y)), ism(one)),
+  mExp <- sommer:::.mmes_dispatch(yv~1, random=~vsm(metricm(cbind(x, y)), ism(one)),
     data=s$data, control=control)
-  mMat <- mmes(yv~1, random=~vsm(maternm(cbind(x, y), nu=0.5,
+  mMat <- sommer:::.mmes_dispatch(yv~1, random=~vsm(maternm(cbind(x, y), nu=0.5,
     fixed=c(FALSE, TRUE)), ism(one)), data=s$data, control=control)
-  mPow <- mmes(yv~1, random=~vsm(metricm(cbind(x, y), model="power"),
+  mPow <- sommer:::.mmes_dispatch(yv~1, random=~vsm(metricm(cbind(x, y), model="power"),
     ism(one)), data=s$data, control=control)
   rangeExp <- mExp$covPar[[1]][2]
   expect_equal(rangeExp, mMat$covPar[[1]][2], tolerance=1e-5)

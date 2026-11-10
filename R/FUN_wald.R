@@ -254,6 +254,9 @@
 wald_mmes <- function(object, ssType=c("incremental", "conditional"),
                       denDF=c("none", "residual", "satterthwaite", "kr"),
                       terms=NULL){
+  if(inherits(object,"mmes.specification"))
+    stop("wald_mmes() is not implemented for formula specification fits.",
+      call.=FALSE)
   if(!inherits(object, "mmes")) stop("object must inherit from class 'mmes'.", call.=FALSE)
   if(inherits(object, "mmes.glmm.laplace")){
     ssType <- match.arg(ssType)

@@ -8,7 +8,7 @@ laplaceExampleData <- function(){
 }
 
 laplaceControl <- function(...){
-  mmes_control(
+  sommer:::.mmes_control_internal(
     task=list(objective="ml", glmm=list(method="laplace", maxit=2000L)),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE),
     ...
@@ -17,7 +17,7 @@ laplaceControl <- function(...){
 
 test_that("native Laplace GLMMs expose likelihood and prediction methods", {
   data <- laplaceExampleData()
-  fit <- mmes(y~x, random=~group, data=data, family=binomial(),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
     control=laplaceControl())
 
   expect_s3_class(fit, "mmes.glmm.laplace")
@@ -27,7 +27,7 @@ test_that("native Laplace GLMMs expose likelihood and prediction methods", {
   expect_false("hessian" %in% names(fit$optimizer))
   expect_true(all(is.na(fit$betaSummary[, "Std. Error"])))
   expect_true(all(is.na(fit$covParNative$StdError)))
-  expect_error(mmes(y~x, random=~group, data=data, family=binomial(),
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
     control=laplaceControl(output=list(inverse=1L))), "defer PEV")
   expect_true(is.finite(fit$llik))
   expect_equal(fit$AIC, AIC(fit))
@@ -139,9 +139,9 @@ test_that("native Laplace inference exposes guarded covariance and Wald tests", 
   data <- laplaceExampleData()
   fixedCovariance <- 0.2
   randomModel <- ~vsm(ism(group), sigma2=fixedCovariance, fixedSigma2=TRUE)
-  fit <- mmes(y~x, random=randomModel, data=data, family=binomial(),
+  fit <- sommer:::.mmes_dispatch(y~x, random=randomModel, data=data, family=binomial(),
     control=laplaceControl())
-  smaller <- mmes(y~1, random=randomModel, data=data, family=binomial(),
+  smaller <- sommer:::.mmes_dispatch(y~1, random=randomModel, data=data, family=binomial(),
     control=laplaceControl())
   likelihoodInputs <- unserialize(serialize(fit[c("y", "offset",
     "laplaceFamilyIndex", "priorWeights", "familySpecifications",
@@ -257,7 +257,7 @@ test_that("Laplace backend supports Poisson models with formula offsets", {
   data <- data.frame(group=group, exposure=exposure, x=x)
   data$count <- rpois(nrow(data),
     exposure * exp(0.2 + 0.25 * x + randomEffect[group]))
-  fit <- mmes(count~x+offset(log(exposure)), random=~group,
+  fit <- sommer:::.mmes_dispatch(count~x+offset(log(exposure)), random=~group,
     data=data, family=poisson(), control=laplaceControl())
 
   expect_true(is.finite(fit$llik))
@@ -268,7 +268,7 @@ test_that("Laplace backend supports Poisson models with formula offsets", {
 test_that("native Laplace uses sommer structured random covariance descriptors", {
   data <- laplaceExampleData()
   data$x <- factor(rep(letters[1:3], length.out=nrow(data)))
-  fit <- mmes(y~x, random=~vsm(usm(x), ism(group)),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~vsm(usm(x), ism(group)),
     data=data, family=binomial(), control=laplaceControl())
 
   expect_s3_class(fit, "mmes.glmm.laplace")
@@ -294,7 +294,7 @@ test_that("native Laplace converges with supplied relationship precision", {
   probability <- plogis(-0.2 + 0.4 * value + randomEffect[individual])
   data <- data.frame(y=rbinom(length(individual), 1L, probability),
     value=value, individual=individual)
-  fit <- mmes(y~value, random=~vsm(ism(individual), Gu=precision), data=data,
+  fit <- sommer:::.mmes_dispatch(y~value, random=~vsm(ism(individual), Gu=precision), data=data,
     family=binomial(), control=laplaceControl())
 
   expect_true(fit$convergence)
@@ -314,36 +314,36 @@ test_that("native Laplace converges with supplied relationship precision", {
 test_that("Laplace backend rejects unsupported model and engine combinations", {
   data <- laplaceExampleData()
   expect_error(
-    mmes(y~x, random=~group, data=data, family=binomial(),
-      control=mmes_control(task=list(glmm=list(method="laplace")),
+    sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
+      control=sommer:::.mmes_control_internal(task=list(glmm=list(method="laplace")),
         diagnostics=list(verbose=FALSE))),
     "objective='ml'"
   )
   expect_error(
-    mmes(y~x, random=~group, data=data, family=binomial(),
+    sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
       control=laplaceControl(formulation="direct")),
     "formulation='direct'"
   )
   expect_error(
-    mmes(y~x, random=~group, rcov=~vsm(ism(group)), data=data,
+    sommer:::.mmes_dispatch(y~x, random=~group, rcov=~vsm(ism(group)), data=data,
       family=binomial(), control=laplaceControl()),
     "structured rcov requires Gaussian observation blocks"
   )
   data$trials <- 4L
   data$successes <- rbinom(nrow(data), data$trials, 0.4)
-  expect_error(mmes(y~x, random=~group, data=data,
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data,
     family=binomial("cauchit"), control=laplaceControl()),
     "Unsupported native Laplace family/link")
 })
 
 test_that("Laplace task controls validate method and optimizer budget", {
-  expect_error(mmes_control(task=list(glmm=list(method="invalid"))),
+  expect_error(sommer:::.mmes_control_internal(task=list(glmm=list(method="invalid"))),
     "task\\$glmm\\$method")
-  expect_error(mmes_control(task=list(glmm=list(maxit=0L))),
+  expect_error(sommer:::.mmes_control_internal(task=list(glmm=list(maxit=0L))),
     "task\\$glmm\\$maxit")
-  expect_error(mmes_control(task=list(glmm=list(modeMaxit=0L))),
+  expect_error(sommer:::.mmes_control_internal(task=list(glmm=list(modeMaxit=0L))),
     "task\\$glmm\\$modeMaxit")
-  expect_error(mmes_control(task=list(glmm=list(modeTol=0))),
+  expect_error(sommer:::.mmes_control_internal(task=list(glmm=list(modeTol=0))),
     "task\\$glmm\\$modeTol")
 })
 
@@ -449,26 +449,26 @@ test_that("Laplace preparation preserves filtering, offsets and missing-data pol
   data$x[7L] <- NA_real_
   data$group[14L] <- NA
   included <- complete.cases(data)
-  fit <- mmes(y~x, random=~group, data=data, family=binomial(),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
     naMethodX="omit", naMethodRandom="omit", naMethodR="fail",
     control=laplaceControl())
-  completeFit <- mmes(y~x, random=~group, data=data[included, ],
+  completeFit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data[included, ],
     family=binomial(), control=laplaceControl())
   expect_identical(fit$obsInfo$included, included)
   expect_equal(fit$y, data$y[included])
   expect_equal(fit$offset, numeric(sum(included)))
   expect_equal(fit$llik, completeFit$llik, tolerance=1e-8)
   expect_equal(fit$b, completeFit$b, tolerance=1e-6)
-  expect_error(mmes(y~x, random=~group, data=data, family=binomial(),
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
     naMethodX="fail", control=laplaceControl()), "fixed-effect variables")
-  expect_error(mmes(y~x, random=~group, data=data, family=binomial(),
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
     naMethodRandom="fail", control=laplaceControl()), "random-effect variables")
   data$exposure <- seq(0.5, 2, length.out=nrow(data))
-  fitOffset <- mmes(y~x+offset(log(exposure)), random=~group,
+  fitOffset <- sommer:::.mmes_dispatch(y~x+offset(log(exposure)), random=~group,
     data=data, family=binomial(), control=laplaceControl())
   expect_equal(fitOffset$offset, log(data$exposure[included]))
   data$x[7L] <- Inf
-  expect_error(mmes(y~x, random=~group, data=data, family=binomial(),
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
     control=laplaceControl()), "finite retained")
 })
 
@@ -476,7 +476,7 @@ test_that("Laplace predictions preserve training contrasts, levels and transform
   data <- laplaceExampleData()
   data$treatment <- factor(rep(letters[1:3], length.out=nrow(data)),
     levels=letters[1:4])
-  fit <- mmes(y~treatment+poly(x, 2), random=~group, data=data,
+  fit <- sommer:::.mmes_dispatch(y~treatment+poly(x, 2), random=~group, data=data,
     contrasts=list(treatment="contr.sum"), family=binomial(),
     control=laplaceControl())
   expect_equal(fit$contrasts$treatment, "contr.sum")
@@ -493,7 +493,7 @@ test_that("Laplace predictions preserve training contrasts, levels and transform
 
 test_that("Laplace residuals and prediction options have explicit semantics", {
   data <- laplaceExampleData()
-  fit <- mmes(y~x, random=~group, data=data, family=binomial(),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
     control=laplaceControl())
   expect_equal(residuals(fit, type="working"),
     (fit$y - fitted(fit)) / fit$family$mu.eta(fit$linear.predictors))
@@ -518,20 +518,20 @@ test_that("Laplace rejects unused Gaussian controls rather than ignoring them", 
     list(proposal=list(stepWeight=0.5)),
     list(execution=list(memoryPolicy="limit")))){
     control <- do.call(laplaceControl, extraControl)
-    expect_error(mmes(y~x, random=~group, data=data, family=binomial(),
+    expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
       control=control), "does not use these Gaussian engine controls")
   }
 })
 
 test_that("Laplace uses the public dense panel memory budget", {
   fixtureData <- laplaceExampleData()
-  defaultFit <- mmes(y~x, random=~group, data=fixtureData,
+  defaultFit <- sommer:::.mmes_dispatch(y~x, random=~group, data=fixtureData,
     family=binomial(), control=laplaceControl())
-  budgetFit <- mmes(y~x, random=~group, data=fixtureData,
+  budgetFit <- sommer:::.mmes_dispatch(y~x, random=~group, data=fixtureData,
     family=binomial(), control=laplaceControl(execution=list(denseMemoryMB=0.003)))
   expect_equal(budgetFit$llik, defaultFit$llik, tolerance=1e-8)
   expect_equal(budgetFit$b, defaultFit$b, tolerance=1e-7)
-  expect_error(mmes(y~x, random=~group, data=fixtureData,
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=fixtureData,
     family=binomial(), control=laplaceControl(execution=list(denseMemoryMB=1e-8))),
     "dense memory budget")
   expect_error(predict(budgetFit, se.fit=TRUE),
@@ -549,12 +549,12 @@ test_that("Laplace curvature validity is distinct from optimizer convergence", {
     expect_false(sommer:::.mmes_laplace_curvature(invalidHessian)$valid)
   }
   data <- laplaceExampleData()
-  limitedControl <- mmes_control(
+  limitedControl <- sommer:::.mmes_control_internal(
     task=list(objective="ml", glmm=list(method="laplace", maxit=1L)),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
   warningMessages <- character()
   limitedFit <- withCallingHandlers(
-    mmes(y~x, random=~group, data=data, family=binomial(),
+    sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
       control=limitedControl),
     warning=function(condition){
       warningMessages <<- c(warningMessages, conditionMessage(condition))
@@ -569,9 +569,9 @@ test_that("Laplace curvature validity is distinct from optimizer convergence", {
 
 test_that("Laplace covariance starts preserve the marginal optimum", {
   data <- laplaceExampleData()
-  lowStart <- mmes(y~x, random=~vsm(ism(group), sigma2=0.2), data=data,
+  lowStart <- sommer:::.mmes_dispatch(y~x, random=~vsm(ism(group), sigma2=0.2), data=data,
     family=binomial(), control=laplaceControl())
-  highStart <- mmes(y~x, random=~vsm(ism(group), sigma2=0.8), data=data,
+  highStart <- sommer:::.mmes_dispatch(y~x, random=~vsm(ism(group), sigma2=0.8), data=data,
     family=binomial(), control=laplaceControl())
   expect_true(lowStart$convergence)
   expect_true(highStart$convergence)
@@ -581,16 +581,16 @@ test_that("Laplace covariance starts preserve the marginal optimum", {
 
 test_that("Laplace reports a failed initial mode instead of returning a fit", {
   data <- laplaceExampleData()
-  control <- mmes_control(task=list(objective="ml",
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml",
     glmm=list(method="laplace", modeMaxit=1L)),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
-  expect_error(mmes(y~x, random=~group, data=data, family=binomial(),
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
     control=control), "starting parameters are invalid: mode iteration limit")
 })
 
 test_that("Laplace permits models with no free parameters", {
   data <- laplaceExampleData()
-  fit <- mmes(y~0, random=~vsm(ism(group), sigma2=0.5, fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~0, random=~vsm(ism(group), sigma2=0.5, fixedSigma2=TRUE),
     data=data, family=binomial(), control=laplaceControl())
   expect_true(fit$convergence)
   expect_equal(fit$npar, 0L)

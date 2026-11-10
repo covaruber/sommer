@@ -1,7 +1,7 @@
 #' Declare a bounded nonlinear predictor graph
 #'
-#' Create a serializable directed acyclic graph for evaluation and fixed-network
-#' Gaussian fitting.
+#' Create a serializable directed acyclic graph for evaluation and Gaussian
+#' mixed-model fitting with fixed or group-random graph coordinates.
 #' @param nodes Ordered list of named \code{input}, \code{affine},
 #'   \code{identity}, or \code{tanh} nodes. Each node may refer only to earlier
 #'   nodes. Input nodes use \code{column}, optional \code{center}, and positive
@@ -16,12 +16,28 @@
 #' @param parameterMap Optional named list mapping coordinates to
 #'   \code{list(type="fixed")} or \code{list(type="random", group="column")}.
 #'   Each coordinate may also set \code{transform="log"}.
+#' @param random Optional named list of one-term random formulas, one for each
+#'   independently distributed random graph coordinate. The formula declares
+#'   its covariance using existing \code{vsm()} syntax.
+#' @param joint Optional list with \code{parameters} and one random formula
+#'   containing the internal \code{.parameter} axis to declare a joint
+#'   covariance block, following \code{nonlinear_curve()}.
 #' @details Use fixed graph coordinates with
-#'   \code{mmes(..., nonlinear=graph)} for Gaussian ML. Supply a complete named
+#'   \code{mmes(y ~ graph_term("net"), predictors=list(net=graph))} for Gaussian ML. Supply a complete named
 #'   working-coordinate start through
-#'   \code{mmes_control(task=list(nonlinear=list(start=...)))}. Random graph
-#'   coordinates and non-Gaussian fitting are not supported. Use \code{tanh}
-#'   only in hidden layers; Gaussian graph fits require an identity output.
+#'   \code{mmes(start=list(parameters=...))}. Starts use natural parameter
+#'   values; the standalone evaluator continues to use working coordinates. For random
+#'   coordinates, mark them in \code{parameterMap} and declare their
+#'   independent or joint covariance with \code{random} or \code{joint}.
+#'   Gaussian deviations are on the declared working-coordinate scale
+#'   (including log coordinates), and are integrated with an exact conditional
+#'   Hessian and a Laplace likelihood. Outer Laplace scores for random graph
+#'   fits use central finite differences of that objective and are reported in
+#'   fit diagnostics. Conditional and zero-deviation predictions, prior-
+#'   integrated population predictions, and simulation are supported.
+#'   Non-Gaussian fitting and post-fit parameter uncertainty are not supported.
+#'   Use \code{tanh} only in hidden layers; Gaussian graph fits require an
+#'   identity output.
 #'   Hidden-unit permutations and scaling can make raw weights non-unique;
 #'   convergence does not establish a global optimum. Parameter uncertainty is
 #'   not supported for graph fits.
@@ -43,11 +59,12 @@
 #'   mean=list(op="affine", inputs="x", weights=matrix(1L), bias=2L),
 #'   output=list(op="identity", input="mean")
 #' ), output="output", parameters=c("slope", "intercept"))
-#' fit <- mmes(y~0, random=~group, data=fitData, nonlinear=fitGraph,
-#'   control=mmes_control(task=list(objective="ml",
-#'     nonlinear=list(start=c(slope=0.4, intercept=0)))))
+#' fit <- mmes(y~0+graph_term("net"), random=~group, data=fitData,
+#'   predictors=list(net=fitGraph), method=mmes_method(objective="ml"),
+#'   start=list(parameters=c(slope=0.4, intercept=0)))
 #' @export
-nonlinear_graph <- function(nodes, output, parameters, parameterMap=NULL){
+nonlinear_graph <- function(nodes, output, parameters, parameterMap=NULL,
+    random=list(), joint=NULL){
   if(!is.list(nodes) || !length(nodes) ||
      !is.character(output) || length(output)!=1L || is.na(output) ||
      !nzchar(output) || !is.character(parameters) || !length(parameters) ||
@@ -87,6 +104,65 @@ nonlinear_graph <- function(nodes, output, parameters, parameterMap=NULL){
     }
   })
   names(parameterMap) <- parameters
+  randomCoordinates <- parameters[vapply(parameterMap,function(map)
+    identical(map$type,"random"),logical(1))]
+  if(!is.list(random) ||
+     (length(random) && (is.null(names(random)) || anyNA(names(random)) ||
+       anyDuplicated(names(random)) ||
+       any(!names(random) %in% randomCoordinates) ||
+       any(!vapply(random,function(formula) inherits(formula,"formula") &&
+         length(formula)==2L && length(.mmes_split_plus(formula[[2L]]))==1L,
+         logical(1)))))){
+    stop("random must contain uniquely named one-term formulas for independent random graph coordinates.",
+      call.=FALSE)
+  }
+  if(!is.null(joint)){
+    if(!is.list(joint) || length(joint)!=2L || anyDuplicated(names(joint)) ||
+       !setequal(names(joint),c("parameters","random")) ||
+       !is.character(joint$parameters) || length(joint$parameters)<2L ||
+       anyNA(joint$parameters) || anyDuplicated(joint$parameters) ||
+       any(!joint$parameters %in% randomCoordinates) ||
+       any(joint$parameters %in% names(random)) ||
+       !inherits(joint$random,"formula") || length(joint$random)!=2L ||
+       length(.mmes_split_plus(joint$random[[2L]]))!=1L ||
+       !".parameter" %in% all.vars(joint$random)){
+      stop("joint requires unique random graph parameters disjoint from random and one random formula containing .parameter.",
+        call.=FALSE)
+    }
+    expression <- joint$random[[2L]]
+    if(!is.call(expression) || !identical(expression[[1L]],as.name("vsm")))
+      stop("joint$random must use vsm() with .parameter as a covariance-shaping factor.",
+        call.=FALSE)
+    arguments <- as.list(expression)[-1L]
+    if(!is.null(names(arguments))) arguments <- arguments[!names(arguments) %in%
+      c("Gu","sigma2","fixedSigma2","rotation","isFixed","verbose")]
+    axis <- which(vapply(arguments,function(value)
+      ".parameter" %in% all.vars(value),logical(1)))
+    if(length(axis)!=1L || axis>=length(arguments))
+      stop("Joint .parameter must identify exactly one covariance-shaping axis.",
+        call.=FALSE)
+    joint <- joint[c("parameters","random")]
+    joint$parameters <- unname(joint$parameters)
+  }
+  hasCovarianceMap <- length(random)>0L || !is.null(joint)
+  if(hasCovarianceMap &&
+     !setequal(c(names(random),if(!is.null(joint)) joint$parameters),
+       randomCoordinates))
+    stop("Every random graph coordinate must be declared exactly once in random or joint.",
+      call.=FALSE)
+  for(parameter in names(random)){
+    group <- parameterMap[[parameter]]$group
+    if(!group %in% all.vars(random[[parameter]]))
+      stop("Random formula for graph parameter '",parameter,
+        "' must include its declared group column '",group,"'.",call.=FALSE)
+  }
+  if(!is.null(joint)){
+    groups <- vapply(joint$parameters,function(parameter)
+      parameterMap[[parameter]]$group,character(1))
+    if(length(unique(groups))!=1L || !groups[1L] %in% all.vars(joint$random))
+      stop("Joint random graph coordinates must declare the same group column and the joint formula must include it.",
+        call.=FALSE)
+  }
   widths <- integer()
   compiled <- vector("list",length(nodes))
   names(compiled) <- names(nodes)
@@ -145,9 +221,12 @@ nonlinear_graph <- function(nodes, output, parameters, parameterMap=NULL){
   }
   if(!output %in% names(widths) || widths[[output]]!=1L)
     stop("Graph output must name one scalar node.",call.=FALSE)
-  structure(list(version=1L,nodes=compiled,output=output,
-    parameters=unname(parameters),parameterMap=parameterMap),
-    class="sommer_nonlinear_graph")
+  result <- list(version=if(hasCovarianceMap) 2L else 1L,
+    nodes=compiled,output=output,parameters=unname(parameters),
+    parameterMap=parameterMap)
+  if(length(random)) result$random <- random
+  if(!is.null(joint)) result$joint <- joint
+  structure(result,class="sommer_nonlinear_graph")
 }
 
 #' Evaluate a nonlinear predictor graph and derivative products
@@ -177,7 +256,7 @@ nonlinear_graph_eval <- function(graph,data,parameters,directions=NULL,
     stop("data must be a non-empty data frame.",call.=FALSE)
   if(!inherits(control,"sommer_mmes_control"))
     stop("control must be created by mmes_control().",call.=FALSE)
-  control <- do.call(.mmes_control_build,unclass(control))
+  control <- do.call(.mmes_control_build,.mmes_engine_arguments(control))
   required <- unique(c(vapply(graph$nodes,function(node)
       if(identical(node$op,"input")) node$column else character(1),
     character(1)),vapply(graph$parameterMap,function(map)
@@ -323,13 +402,14 @@ nonlinear_graph_eval <- function(graph,data,parameters,directions=NULL,
 
 .nonlinear_graph_validate <- function(graph){
   if(!inherits(graph,"sommer_nonlinear_graph") || !is.list(graph) ||
-     !identical(graph$version,1L) || is.null(graph$nodes) ||
+     !graph$version %in% 1:2 || is.null(graph$nodes) ||
      is.null(graph$output) || is.null(graph$parameters) ||
      is.null(graph$parameterMap))
     stop("graph must be a versioned object created by nonlinear_graph().",
       call.=FALSE)
   rebuilt <- nonlinear_graph(graph$nodes,graph$output,graph$parameters,
-    graph$parameterMap)
+    graph$parameterMap,if(is.null(graph$random)) list() else graph$random,
+    graph$joint)
   if(!identical(unclass(graph),unclass(rebuilt)))
     stop("The nonlinear graph layout has been modified.",call.=FALSE)
   graph
@@ -381,11 +461,6 @@ nonlinear_graph_eval <- function(graph,data,parameters,directions=NULL,
     stop("parameters must be a finite named vector containing every graph coordinate.",
       call.=FALSE)
   }
-  if(any(!vapply(layout$graph$parameterMap,function(map)
-      identical(map$type,"fixed"),logical(1)))){
-    stop("First-order graph prediction requires fixed graph coordinates.",
-      call.=FALSE)
-  }
   value <- sommer_nonlinear_graph_first_cpp(layout$nodes,layout$output,
     layout$inputs,as.numeric(parameters[layout$graph$parameters]),
     layout$transformed,control$execution$denseMemoryMB)
@@ -393,4 +468,20 @@ nonlinear_graph_eval <- function(graph,data,parameters,directions=NULL,
     stop("Nonlinear graph evaluation failed: ",value$reason,".",call.=FALSE)
   colnames(value$jacobian) <- layout$graph$parameters
   value
+}
+
+.nonlinear_graph_values <- function(graph,data,parameters,
+    control=mmes_control()){
+  layout <- .nonlinear_graph_native_layout(graph,data)
+  if(!is.matrix(parameters) || !is.numeric(parameters) ||
+     nrow(parameters)!=nrow(data) ||
+     ncol(parameters)!=length(layout$graph$parameters) ||
+     is.null(colnames(parameters)) ||
+     !setequal(colnames(parameters),layout$graph$parameters) ||
+     any(!is.finite(parameters)))
+    stop("parameters must be a finite observation-by-parameter matrix with every graph coordinate.",
+      call.=FALSE)
+  sommer_nonlinear_graph_values_cpp(layout$nodes,layout$output,
+    layout$inputs,unname(parameters[,layout$graph$parameters,drop=FALSE]),
+    layout$transformed,control$execution$denseMemoryMB)
 }

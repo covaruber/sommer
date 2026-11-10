@@ -1,8 +1,9 @@
 .nonlinear_inference_settings <- function(object, control=NULL){
-  if(is.null(control)) control <- object$control
+  if(is.null(control)) control <- .mmes_fitting_control(object)
   if(!inherits(control,"sommer_mmes_control"))
     stop("control must be an mmes_control() object.",call.=FALSE)
-  list(numerical=.nonlinear_controls(control$task$nonlinear)$inference,
+  list(numerical=if(!is.null(control$inference)) control$inference else
+      .nonlinear_controls(control$task$nonlinear)$inference,
     memory=.mme_positive(control$execution$denseMemoryMB,"execution$denseMemoryMB"))
 }
 
@@ -75,6 +76,31 @@
   model <- object$nonlinear
   random <- object$nonlinearRandom
   if(isTRUE(object$nonlinearGraph)){
+    if(!is.null(random)){
+      mode <- .mmes_fitting_control(object)$task$nonlinear$mode
+      context <- sommer_nonlinear_graph_laplace_create(object$fixedDesign,
+        object$randomDesign,object$y,object$offset,object$graphData,
+        object$graphNative$nodes,object$graphNative$output,
+        object$graphNative$transformed,random$coordinateMap*1.0,
+        object$covStruct,object$randomRelationships,memory,
+        mode$maxIters,mode$scoreTol,mode$stepTol)
+      evaluate <- function(parameters,gradient=TRUE){
+        value <- .laplace_constrained_evaluate(parameters,layout,function(expanded)
+          sommer_nonlinear_graph_laplace_eval(context,expanded,gradient))
+        if(!isTRUE(value$valid))
+          stop("Nonlinear graph Laplace evaluation failed: ",value$reason,".",
+            call.=FALSE)
+        value
+      }
+      return(list(evaluate=evaluate,conditional=function(parameters,latent){
+        value <- sommer_nonlinear_graph_laplace_conditional(context,
+          .laplace_expand_parameters(parameters,layout),latent)
+        if(!isTRUE(value$valid))
+          stop("Nonlinear graph conditional curvature failed: ",value$reason,".",
+            call.=FALSE)
+        value
+      }))
+    }
     context <- sommer_nonlinear_graph_gaussian_create(object$fixedDesign,
       object$randomDesign,object$y,object$offset,object$graphData,
       object$graphNative$nodes,object$graphNative$output,
@@ -90,7 +116,7 @@
     }
     return(list(evaluate=evaluate))
   }
-  mode <- object$control$task$nonlinear$mode
+  mode <- .mmes_fitting_control(object)$task$nonlinear$mode
   specifications <- if(isTRUE(object$nonlinearFamily)) object$familySpecifications else
     .laplace_family_specs(stats::gaussian(),list())$specifications
   familyContext <- sommer_nonlinear_family_create(object$fixedDesign,object$randomDesign,

@@ -18,7 +18,7 @@
 #'   \code{midpoint} is unconstrained. Positive parameters are optimized on
 #'   the log scale. Exponential and saturation inputs must be non-negative.
 #'   Starting values, on the natural scale, belong to
-#'   \code{mmes_control(task=list(nonlinear=list(start=...)))}.
+#'   \code{mmes(start=list(parameters=...))}.
 #' @return A serializable \code{sommer_nonlinear_curve} specification.
 #' @export
 nonlinear_curve <- function(input, curve=c("exponential", "logistic", "saturation"),

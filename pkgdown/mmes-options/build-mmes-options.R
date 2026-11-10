@@ -8,7 +8,7 @@
 stopifnot(file.exists("DESCRIPTION"), requireNamespace("jsonlite", quietly=TRUE))
 src <- new.env(parent=baseenv())
 for(file in c("R/FUN_mme_control.R", "R/FUN_mme_capabilities.R",
-    "R/FUN_mme_modules.R", "R/FUN_nonlinear_paths.R")){
+    "R/FUN_mme_modules.R", "R/FUN_nonlinear_paths.R", "R/FUN_model_interface.R")){
   sys.source(file, envir=src, keep.source=FALSE)
 }
 
@@ -304,7 +304,7 @@ rules <- c(rules, list(
     hint="Remove task$pql or use a non-Gaussian family.", offending="task$pql")))
 
 # -------------------------------------------------------------- fit-time checks
-module_pattern <- "(formulation|task|representation|solve|logdet|score|curvature|update|proposal|convergence|output|execution|diagnostics)\\$[A-Za-z]+"
+module_pattern <- "(method|optimizer|mode|working|likelihood|population|inference|formulation|task|representation|solve|logdet|score|curvature|update|proposal|convergence|output|execution|diagnostics)\\$[A-Za-z]+"
 fit_checks <- list()
 collect <- function(x, file){
   if(!is.call(x)) return(invisible())
@@ -399,13 +399,172 @@ tips <- list(
   tip("Benchmarking", "Hold the model, tolerances, requested outputs, thread settings and iterations constant, and separate data preparation from native fitting time.", "policy"),
   tip("Threads and GPU", "execution$blasThreads sets BLAS threads per fit ('auto' needs flexiblas or RhpcBLASctl). GPU kernels help only large dense blocks; transfers can outweigh the gains.", "policy"))
 
+# Project transport paths using the same public catalog used by validation checks.
+public <- src$.mmes_public_catalog()
+path_map <- public$map
+map_paths <- function(paths){
+  mapped <- unname(path_map[paths])
+  mapped[paths %in% public$controls$path] <- paths[paths %in% public$controls$path]
+  unique(mapped[!is.na(mapped)])
+}
+translate <- function(x){
+  if(is.list(x)) return(lapply(x, translate))
+  if(!is.character(x)) return(x)
+  replacements <- c(
+    "task$nonlinear$mode$maxIters"="mode$maxit",
+    "task$nonlinear$mode$scoreTol"="mode$tol",
+    "task$nonlinear$mode$"="mode$",
+    "task$nonlinear$population"="population",
+    "task$nonlinear$inference"="inference",
+    "task$glmm$familyParameters"="familyParameters",
+    "task$glmm$modeMaxit"="mode$maxit",
+    "task$glmm$modeTol"="mode$tol",
+    "task$glmm$maxit"="optimizer$maxit",
+    "task$glmm$gradient"="optimizer$gradient",
+    "task$glmm$warmStart"="mode$warmStart",
+    "task$nonlinear$start"="start$parameters",
+    "task$nonlinear$initialization"="start",
+    "task$nonlinear$optimizer"="optimizer$algorithm",
+    "task$nonlinear$gradient"="optimizer$gradient",
+    "task$glmm$method"="method$integration",
+    "task$glmm$"="likelihood$",
+    "task$glmm"="likelihood",
+    "task$nonlinear"="nonlinear model controls",
+    "task$objective"="method$objective",
+    "task$mode"="method$task",
+    "task$pql"="working",
+    "control.task.pql"="control.working")
+  for(from in names(replacements)) x <- gsub(from,replacements[[from]],x,fixed=TRUE)
+  x
+}
+nodes <- translate(nodes)
+for(i in seq_along(nodes)) nodes[[i]]$controls <- map_paths(nodes[[i]]$controls)
+set_node <- function(id, ...){
+  i <- match(id, vapply(nodes, `[[`, "", "id"))
+  for(name in names(list(...))) nodes[[i]][[name]] <<- list(...)[[name]]
+}
+set_node("task", title="Statistical method", subtitle="Objective, integration, approximation, task",
+  text=paste("mmes_method() defaults to objective='reml', integration='auto',",
+    "approximation='auto', task='fit'. Auto preserves non-Gaussian mixed PQL",
+    "with REML Gaussian working fits, not an exact GLMM REML likelihood."),
+  controls=grep("^method\\.",public$controls$path,value=TRUE),
+  example='method <- mmes_method()\nmmes(y ~ x, random = ~ group, data = dat, method = method)')
+set_node("known", example=paste0(
+  'mmes(y ~ x, random = ~ group, data = dat, covPar = fit0,\n',
+  '     method = mmes_method(task = "solve"),\n',
+  '     control = mmes_control(solve = list(method = "pcg", tol = 1e-10, warmStart = TRUE)))'))
+set_node("nonlinear", title="Nonlinear parameters and bounded graphs",
+  subtitle="Formula declarations | ML | Henderson",
+  text=paste("Use parameters=list(...) for parameter() declarations or one named",
+    "native curve/bounded graph in predictors and graph_term('name') in the formula.",
+    "Ordinary additive random locations, parameter-level deviations and graph-node",
+    "deviations are separate capabilities, not interchangeable syntax.",
+    "No general multilayer convenience builders are available.",
+    "Native graphs currently require Gaussian identity ML and identity output,",
+    "and do not support post-fit parameter uncertainty; curve family and",
+    "inference capabilities must not be attributed to graphs.",
+    "optimizer$gradient='auto' retains native analytic scores and selects the",
+    "reported numerical method for reference expressions. Explicit analytic",
+    "is rejected for reference expressions and random native graphs;",
+    "random native graphs support central, while native curves reject it.",
+    "Native exact Gaussian and supported Laplace fits require ML and Henderson;",
+    "REML, PQL, solve and unsupported residual/weight layouts error explicitly.",
+    "Starts use natural coordinates; inference is strictly post-fit."),
+  controls=c("mmes.parameters","mmes.predictors","mmes.start",
+    grep("^control\\.(optimizer|mode|population|inference)\\.",
+      public$controls$path,value=TRUE)),
+  example=paste0('mmes(y ~ 0 + graph_term("curve"), random = ~ group, data = dat,\n',
+    '     predictors = list(curve = nonlinear_curve("time", "exponential")),\n',
+    '     start = list(parameters = c(asymptote = 4, rate = 0.6)),\n',
+    '     method = mmes_method(objective = "ml"),\n',
+    '     control = mmes_control(optimizer = list(maxit = 500L)))'))
+set_node("pql", example='mmes_control(working = list(maxit = 40L, tol = 1e-6))')
+set_node("laplace", subtitle="Native response families | ML | Henderson",
+  text=paste("Native Laplace uses prepared CovarianceFactor designs and complete",
+    "mode/likelihood scores for supported scalar, grouped, ordinal, nominal,",
+    "zero-inflated and familym responses. Family nuisance choices belong in",
+    "mmes(familyParameters=), not in control.",
+    "It requires ML, Henderson and supported random/residual covariance layouts;",
+    "unsupported residual transforms, weights, constraints or Gaussian solver",
+    "accelerations error explicitly. Supported covariance constraint maps retain",
+    "their native semantics; do not assume arbitrary maps are admissible.",
+    "output$inverse must be 0. PEV, vcov, summary inference and prediction",
+    "uncertainty are post-fit; output$panelSize and execution$denseMemoryMB",
+    "bound solve panels. Inspect curvature and boundary diagnostics."),
+  example=paste0(
+  'mmes(y ~ x, random = ~ group, data = dat, family = poisson(),\n',
+  '     method = mmes_method(objective = "ml", integration = "laplace"),\n',
+  '     control = mmes_control(likelihood = list(backend = "auto")))'))
+set_node("deterministic", example=paste0(
+  'mmes(y ~ x, random = ~ group, data = dat,\n',
+  '     method = mmes_method(objective = "ml"),\n',
+  '     control = mmes_control(solve = list(method = "cholmod", blockSchur = "force")))'))
+rules <- translate(rules)
+for(i in seq_along(rules)) if(rules[[i]]$id=="laplace-eligibility")
+  rules[[i]]$hint <- paste("Use only supported residual/weight/constraint layouts.",
+    "Non-default Gaussian solver modules are rejected; PQL is an explicit",
+    "alternative only for models within its own supported family scope.")
+fit_checks <- translate(fit_checks)
+structures <- translate(structures)
+tips <- translate(tips)
+for(i in seq_along(structures))
+  if(identical(structures[[i]]$pattern,"ML fit with random coefficients"))
+    structures[[i]]$example <- 'mmes_method(objective = "ml")'
+edges <- translate(edges)
+controls <- public$controls
+public_defaults <- src$.mmes_public_control_defaults()
+leaf_paths <- function(x, prefix="control"){
+  unlist(lapply(names(x), function(name){
+    path <- paste(prefix,name,sep=".")
+    if(is.list(x[[name]]) && length(x[[name]])) leaf_paths(x[[name]],path) else path
+  }),use.names=FALSE)
+}
+canonical <- leaf_paths(public_defaults)
+catalog <- controls$path[startsWith(controls$path,"control.")]
+if(!setequal(canonical,catalog)) stop("Public catalog differs: ",
+  paste(union(setdiff(canonical,catalog),setdiff(catalog,canonical)),collapse=", "))
+for(i in seq_len(nrow(controls))){
+  path <- controls$path[i]
+  if(startsWith(path,"control.") || startsWith(path,"method.")){
+    prefix <- if(startsWith(path,"control.")) "control" else "method"
+    parts <- strsplit(sub("^[^.]+\\.","",path),".",fixed=TRUE)[[1]]
+    defaults <- if(prefix=="control") public_defaults else unclass(src$mmes_method())
+    value <- Reduce(function(x,part) x[[part]],parts,defaults)
+    controls$default[i] <- paste(deparse(value),collapse="")
+    argument <- sprintf("%s = ...",tail(parts,1L))
+    for(part in rev(head(parts,-1L))) argument <- sprintf("%s = list(%s)",part,argument)
+    controls$usage[i] <- sprintf("mmes_%s(%s)",prefix,argument)
+    controls$option[i] <- paste(parts,collapse="$")
+    controls$kind[i] <- paste0("mmes_",prefix,"()")
+  }else{
+    controls$option[i] <- sub("^(mmes|model)\\.","",path)
+    controls$kind[i] <- if(startsWith(path,"mmes.")) "mmes() argument" else "model formula"
+    controls$usage[i] <- if(startsWith(path,"mmes."))
+      sprintf("mmes(..., %s = ...)",controls$option[i]) else
+      switch(path,model.covariance="random = ~ vsm(usm(env), ism(id))",
+        model.rotation="random = ~ vsm(ism(id), Gu = Ai, rotation = TRUE)",
+        model.latentRR="random = ~ vsm(rrm(env, nPC = 2), ism(id))",
+        model.Gu="random = ~ vsm(ism(id), Gu = Ai)")
+    name <- sub("^mmes\\.","",path)
+    if(startsWith(path,"mmes.") && name %in% names(formals(src$mmes))){
+      declared <- paste(deparse(formals(src$mmes)[[name]]),collapse="")
+      if(nzchar(declared)) controls$default[i] <- declared
+    }
+  }
+}
+controls <- as.data.frame(translate(as.list(controls)), stringsAsFactors=FALSE)
+placed <- unique(unlist(lapply(nodes,`[[`,"controls")))
+nodes[[1L]]$controls <- unique(c(nodes[[1L]]$controls,setdiff(controls$path,placed)))
+controls$nodes <- lapply(controls$path,function(path)
+  vapply(Filter(function(n) path %in% n$controls,nodes),`[[`,"","id"))
+modules <- public$modules
 # ------------------------------------------------------------------- render
 data <- list(
   meta=list(version=read.dcf("DESCRIPTION", fields="Version")[1, 1],
     generated=format(Sys.Date()),
-    defaults=paste(utils::capture.output(utils::str(unclass(defaults), give.attr=FALSE,
+    defaults=paste(utils::capture.output(utils::str(public_defaults, give.attr=FALSE,
       no.list=TRUE, vec.len=3)), collapse="\n")),
-  modules=capabilities$modules, controls=controls, nodes=nodes, edges=edges,
+  modules=modules, controls=controls, nodes=nodes, edges=edges,
   rules=rules, fitChecks=fit_checks, structures=structures, tips=tips)
 json <- jsonlite::toJSON(data, dataframe="rows", auto_unbox=TRUE, na="null", null="null")
 json <- gsub("</", "<\\/", json, fixed=TRUE)

@@ -199,7 +199,7 @@
       }
       localCovariance <- matrix(covariance[,,i],nrow=dim(covariance)[1L])
       values[[i]] <- .nonlinear_normal_integral(localCovariance,evaluate,
-        object$control$task$nonlinear$population,object$control$execution$denseMemoryMB)
+        .mmes_fitting_control(object)$task$nonlinear$population,object$control$execution$denseMemoryMB)
     }
     value <- do.call(rbind,values)
     if(is.null(object$categorical)){
@@ -237,7 +237,23 @@
     for(i in seq_len(nsim)){
       mean <- if(re.form=="conditional") object$fitted.values else{
         mode <- .laplace_draw_random_effects(factors)
-        object$fixedMean+as.numeric(object$randomDesign%*%mode)
+        if(is.null(object$nonlinearRandom)){
+          object$fixedMean+as.numeric(object$randomDesign%*%mode)
+        }else{
+          parameters <- .nonlinear_graph_parameters(object,
+            object$trainingData,object$randomDesign,mode)
+          graphMean <- .nonlinear_graph_values(object$nonlinear,
+            object$trainingData,parameters,object$control)
+          baseGraph <- .nonlinear_graph_values(object$nonlinear,
+            object$trainingData,
+            .nonlinear_graph_parameters(object,object$trainingData),
+            object$control)
+          additiveDesign <- object$randomDesign
+          graphColumns <- which(rowSums(object$nonlinearRandom$coordinateMap)!=0)
+          additiveDesign[,graphColumns] <- 0
+          object$fixedMean+graphMean-baseGraph+
+            as.numeric(additiveDesign%*%mode)
+        }
       }
       simulations[,i] <- stats::rnorm(object$nobs,mean,
         sqrt(object$dispersion))

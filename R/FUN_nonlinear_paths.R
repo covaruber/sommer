@@ -67,6 +67,11 @@
   if(graph) .nonlinear_graph_validate(model) else .nonlinear_validate(model)
   .laplace_family_specs(family, control$task$glmm$familyParameters)
   gaussian <- .nonlinear_exact_gaussian(family, control)
+  graphRandom <- graph && (length(model$random) || !is.null(model$joint))
+  if(graph && any(vapply(model$parameterMap,function(map)
+      identical(map$type,"random"),logical(1))) && !graphRandom)
+    stop("Random graph coordinates require explicit random or joint covariance formulas.",
+      call.=FALSE)
   if(graph && !gaussian)
     stop("Nonlinear graph fitting currently requires Gaussian identity-link ML.",
       call.=FALSE)
@@ -83,25 +88,22 @@
     stop("Nonlinear fitting requires task$objective='ml', task$mode='fit' and formulation='henderson'.",
       call.=FALSE)
   }
-  if(graph && any(!vapply(model$parameterMap,function(map)
-      identical(map$type,"fixed"),logical(1)))){
-    stop("Nonlinear graph fitting currently requires fixed graph parameters; random graph parameters are reserved for a later phase.",
-      call.=FALSE)
-  }
   if(graph && is.null(control$task$nonlinear$start)){
     stop("Nonlinear graph fitting requires a complete named task$nonlinear$start vector.",
       call.=FALSE)
   }
-  if(graph && !identical(control$task$nonlinear$mode,.mme_nonlinear_mode_defaults)){
-    stop("Nonlinear mode controls require random curve parameters and do not apply to fixed graph fits.",
+  if(graph && !graphRandom &&
+     !identical(control$task$nonlinear$mode,.mme_nonlinear_mode_defaults)){
+    stop("Nonlinear mode controls require random graph parameters and do not apply to fixed graph fits.",
       call.=FALSE)
   }
-  if(graph && !identical(control$task$nonlinear$population,
+  if(graph && !graphRandom && !identical(control$task$nonlinear$population,
       .mme_nonlinear_prediction_defaults)){
-    stop("Nonlinear population controls require random curve parameters and do not apply to fixed graph fits.",
+    stop("Nonlinear population controls require random graph parameters and do not apply to fixed graph fits.",
       call.=FALSE)
   }
-  if(is.null(random) && (graph || !length(model$random) && is.null(model$joint))){
+  if(is.null(random) && ((graph && !graphRandom) ||
+      (!graph && !length(model$random) && is.null(model$joint)))){
     stop("Nonlinear mixed models require at least one additive Gaussian random term.",
       call.=FALSE)
   }
@@ -127,7 +129,7 @@
     stop("Nonlinear fits defer PEV and uncertainty until post-fit; output$inverse must be 0.",
       call.=FALSE)
   }
-  defaults <- mmes_control()
+  defaults <- .mmes_control_internal()
   checked <- control
   checked$task$glmm$familyParameters <- defaults$task$glmm$familyParameters
   allowed <- c("task$mode", "task$objective", "task$nonlinear",
@@ -149,13 +151,15 @@
     stop("Nonlinear fitting does not use these controls: ",
       paste(changed, collapse=", "), ".", call.=FALSE)
   }
-  list(requested=if(graph) "fixed nonlinear graph Gaussian ML" else
+  list(requested=if(graph) "nonlinear graph Gaussian ML" else
       "traditional nonlinear ML", eligible=TRUE,
-    selected=if(graph) "exact Gaussian ML" else if(!gaussian) "Laplace family ML" else
+    selected=if(graph && graphRandom) "Laplace Gaussian ML" else
+      if(graph) "exact Gaussian ML" else if(!gaussian) "Laplace family ML" else
       if(length(model$random) || !is.null(model$joint)) "Laplace Gaussian ML" else "exact Gaussian ML",
     curve=if(graph) NULL else model$curve,
     graph=graph,
-    random=if(graph) "additive linear Gaussian" else
+    random=if(graphRandom) "additive and graph-parameter Gaussian effects" else
+      if(graph) "additive linear Gaussian" else
       if(length(model$random) || !is.null(model$joint)) "Gaussian curve-coordinate deviations" else
         "additive linear Gaussian", backend="random",
     optimizer=control$task$nonlinear$optimizer,
@@ -165,6 +169,9 @@
 }
 
 .nonlinear_no_inference <- function(object, method){
+  if(inherits(object,"mmes.specification"))
+    stop(method," is not supported for formula specification fits; coefficient covariance is available through vcov().",
+      call.=FALSE)
   if(inherits(object, "mmes.nonlinear")){
     stop(method, " is not yet supported for nonlinear models; PEV and uncertainty are post-fit operations.",
       call.=FALSE)

@@ -15,14 +15,14 @@
 | 7: Classical-model consolidation and release gate | Skipped by user direction; exit gate remains open | Portability, full-suite, numerical/statistical and release qualification are not claimed. |
 | 8: Declarative graph and derivative foundation | Implemented as bounded standalone prototype by explicit user direction | Versioned serializable graph evaluator, fixed/random parameter maps, native reverse gradients, Hessian-vector products and third-order directional contractions; no network fitting. |
 | 9: Fixed multi-layer predictors | Implemented and locally validated; Phase 7 remains skipped and unqualified | Fixed smooth graphs, exact Gaussian ML, conventional additive Gaussian random effects, prediction and simulation. |
-| 10: Random multi-layer parameters | Proposed; awaits separate approval | Small declared Gaussian parameter deviations, exact conditional curvature and complete Laplace derivatives. |
-| 11: Graph families, post-fit inference and release | Proposed; blocked by Phase 10 | Qualify native families, identifiable uncertainty products, all output surfaces and resource/portability gates. |
+| 10: Random multi-layer parameters | Implemented and locally validated for the stated Gaussian scope | Independent and joint graph-coordinate covariance blocks, exact conditional curvature, numerical outer Laplace scores, prediction, simulation and reduced-rank maps. |
+| 11: Graph families, post-fit inference and release | Proposed; awaits separate approval | Qualify native families, identifiable uncertainty products, all output surfaces and resource/portability gates. |
 
 Phases 7--11 are roadmap updates, not automatic authorization for later phases.
 On 2026-11-09, the user directed that Phase 7 be skipped and Phase 8 proceed.
-The user later authorized full Phase 9 implementation and acknowledged that
-Phase 7 remains skipped and unqualified. Neither change closes Phase 7 release
-gates or authorizes Phase 10.
+The user later authorized full Phase 9 and Phase 10 implementations and
+acknowledged that Phase 7 remains skipped and unqualified. Phase 10 does not
+close Phase 7 release gates or authorize Phase 11.
 
 Latest Phase 3 validation checkpoint: **5,163 regression assertions passed,
 zero failures**, with one existing linear-Laplace optimizer warning at
@@ -1054,34 +1054,35 @@ optimality, and fit-time parameter uncertainty.
 
 ### Phase 10 — small random multi-layer parameter blocks
 
-**Prerequisite:** Phase 9. **Deliverable:** explicitly declared Gaussian
-deviations on selected smooth network parameters, starting with small
-group-level blocks rather than every weight or per-observation networks.
+**Status:** Implemented and locally validated for the supported envelope.
+Graph fits may opt in to Gaussian identity-link ML with explicitly declared
+group-level random deviations on smooth parameters. Independent coordinates
+use named `random` formulas; cross-parameter blocks use `joint` with a
+`.parameter` covariance axis. Existing `vsm()` covariance, relationship and
+reduced-rank machinery is reused. Priors are on graph working coordinates,
+including log-transformed parameters.
 
-1. Preserve existing `vsm()` formulas and declare parameter-to-covariance maps
-   separately, following the classical independent/joint contract. Establish
-   fixed-plus-deviation coordinates, transforms and identifiability before
-   admitting a block; reuse constraints, relationships and native RR maps.
-2. Form the exact conditional random-mode Hessian, including score-weighted
-   predictor second derivatives. Use the existing safeguarded mode/factor
-   machinery and require undamped positive final curvature for Laplace.
-3. Compute complete outer Laplace scores, including mode motion, determinant
-   derivatives, cross-layer third-order contractions and moving covariance
-   maps. Do not substitute first-order backpropagation or Gauss-Newton
-   curvature and label it the existing exact-Hessian estimator.
-4. Check independent dense tiny-network modes, Hessians and marginal
-   likelihood/score references. Use numerical integration for very small
-   random dimensions where practical to characterize Laplace error separately
-   from derivative error.
-5. Validate conditional, zero-deviation and joint-prior population prediction
-   and simulation with checked integration error and explicit dimension/cost
-   admission. Reject impractical integration instead of silently substituting
-   zero effects or posterior-mode covariance.
+1. The conditional mode uses the exact Hessian, including score-weighted
+   predictor second derivatives, safeguarded optimization and a positive
+   undamped final curvature requirement.
+2. The outer Laplace score is central finite differences of the exact fitted
+   objective, not an analytic score. This is recorded in fit diagnostics and
+   remains a limitation to address before broader performance/release claims.
+3. Conditional and population prediction, conditional and population
+   simulation, serialization, independent/joint covariance blocks and reduced
+   rank are covered. Population integration has explicit memory/order gates
+   and is checked against an independent high-order one-coordinate reference.
+4. Dense numerical references check the conditional mode, Hessian and
+   marginal likelihood. The graph regression tests also check recovery on a
+   seeded small grouped example and exact-score finite-difference agreement.
+5. Graph non-Gaussian families and post-fit parameter uncertainty remain
+   explicitly unsupported; unsupported requests fail rather than falling back
+   to zero deviations or linear-model machinery.
 
-**Exit gate:** Gaussian random-network recovery and complete derivative
-references, declared covariance/RR coverage, deterministic mode behavior,
-all point-output surfaces, serialization and bounded fit/integration memory.
-No inference validity is inferred from successful optimization alone.
+The graph regression gate passes, and all nonlinear regression files pass
+locally (2,705 assertions). Phase 7 portability, full-package-suite and
+external release qualification remain open; successful Phase 10 fitting is
+not evidence of general inference validity.
 
 ### Phase 11 — graph families, post-fit inference and release
 
@@ -1140,9 +1141,9 @@ separate research decisions; none bypasses the classical or graph gates.
 
 ## Recommended next implementation step
 
-Phase 8 now provides a standalone, versioned graph evaluator and derivative
-products. Do not start Phase 9 fitting until the user separately approves
-network fitting and acknowledges the still-open Phase 7 stability risks.
-The optional classical backlog remains separate. Existing nonlinear fits,
-formulas, validated control options and strictly post-fit PEV/uncertainty stay
-unchanged.
+Phase 10 is implemented within its documented Gaussian scope. The next
+proposed work is Phase 11: qualify additional graph response families and
+post-fit inference, then complete portability and release gates. Phase 11
+requires separate user approval; Phase 7 remains skipped and unqualified.
+The optional classical backlog remains separate, and existing nonlinear
+formulas and validated control options remain unchanged.

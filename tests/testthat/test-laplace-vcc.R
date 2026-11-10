@@ -1,5 +1,5 @@
 .laplace_vcc_control <- function(setup=FALSE, parameters=list()){
-  mmes_control(task=list(objective="ml", glmm=list(method="laplace",
+  sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace",
     maxit=1000L, modeTol=1e-10, familyParameters=parameters)),
     output=list(setup=setup), diagnostics=list(verbose=FALSE, dateWarning=FALSE))
 }
@@ -83,11 +83,11 @@ test_that("native Laplace vcc equals independent combined-design reformulations"
   data <- .laplace_vcc_data()
   for(ratio in c(1, 2)){
     constraint <- data.frame(parameter=1:2, group=1L, scale=c(ratio, 1))
-    fit <- mmes(y~x, random=~group+block, family=poisson(), data=data,
+    fit <- sommer:::.mmes_dispatch(y~x, random=~group+block, family=poisson(), data=data,
       vcc=constraint, control=.laplace_vcc_control())
     combined <- cbind(sqrt(ratio)*model.matrix(~group-1, data),
       model.matrix(~block-1, data))
-    reference <- mmes(y~x, random=~vsm(ism(combined)), family=poisson(),
+    reference <- sommer:::.mmes_dispatch(y~x, random=~vsm(ism(combined)), family=poisson(),
       data=data, control=.laplace_vcc_control())
     expect_true(fit$convergence)
     expect_equal(fit$covPar[[1L]], ratio*fit$covPar[[2L]], tolerance=1e-12)
@@ -151,12 +151,12 @@ test_that("Laplace constraints expose only random covariance parameters in setup
   data <- .laplace_vcc_data()
   local_mocked_bindings(sommer_laplace_objective_create=function(...)
     stop("Native likelihood reached during setup"), .package="sommer")
-  setup <- mmes(y~x, random=~group+block, family=poisson(), data=data,
+  setup <- sommer:::.mmes_dispatch(y~x, random=~group+block, family=poisson(), data=data,
     control=.laplace_vcc_control(setup=TRUE))
   expect_equal(nrow(setup$vcParams), 2L)
   expect_false(any(grepl("units", setup$vcParams$term)))
   names <- paste(setup$vcParams$term, setup$vcParams$parameter, sep=":")
-  constrained <- mmes(y~x, random=~group+block, family=poisson(), data=data,
+  constrained <- sommer:::.mmes_dispatch(y~x, random=~group+block, family=poisson(), data=data,
     vcc=data.frame(parameter=names, group="shared", scale=c(2,1)),
     control=.laplace_vcc_control(setup=TRUE))
   expect_equal(constrained$vcParams$start[1], 2*constrained$vcParams$start[2])
@@ -175,7 +175,7 @@ test_that("structured variance and correlation ties match exact Gaussian margina
     group[cbind(as.integer(data$group),as.integer(data$occasion))] +
     block[cbind(as.integer(data$block),as.integer(data$occasion))] +
     rnorm(nrow(data),sd=sqrt(.3))
-  fit <- mmes(y~x, random=~vsm(ar1m(occasion,rho=.2),ism(group))+
+  fit <- sommer:::.mmes_dispatch(y~x, random=~vsm(ar1m(occasion,rho=.2),ism(group))+
       vsm(ar1m(occasion,rho=.2),ism(block)),
     family=gaussian(),data=data,
     vcc=data.frame(parameter=c(1,3,2,4),group=c(1,1,2,2),scale=c(2,1,1,1)),
@@ -224,12 +224,12 @@ test_that("structured variance and correlation ties match exact Gaussian margina
 
 test_that("fixed anchors remove constrained coordinates from fitting and uncertainty", {
   data <- .laplace_vcc_data()
-  fit <- mmes(continuous~x,
+  fit <- sommer:::.mmes_dispatch(continuous~x,
     random=~vsm(ism(group), sigma2=0.6, fixedSigma2=TRUE)+block,
     family=gaussian(), data=data,
     vcc=data.frame(parameter=1:2, group=1, scale=c(2,1)),
     control=.laplace_vcc_control(parameters=list(dispersion=0.25, estimate=FALSE)))
-  reference <- mmes(continuous~x,
+  reference <- sommer:::.mmes_dispatch(continuous~x,
     random=~vsm(ism(group), sigma2=0.6, fixedSigma2=TRUE)+
       vsm(ism(block), sigma2=0.3, fixedSigma2=TRUE),
     family=gaussian(), data=data,
@@ -261,9 +261,9 @@ test_that("covariance constraints preserve grouped trials and estimated family p
     list(fixed=zip~x,family=zipoisson(),parameters=list(zeroInflation=.25,estimate=FALSE)))
   for(case in cases){
     control <- .laplace_vcc_control(parameters=case$parameters)
-    fit <- mmes(case$fixed,random=~group+block,data=data,family=case$family,
+    fit <- sommer:::.mmes_dispatch(case$fixed,random=~group+block,data=data,family=case$family,
       vcc=data.frame(parameter=1:2,group=1,scale=c(2,1)),control=control)
-    reference <- mmes(case$fixed,random=~vsm(ism(combined)),data=data,
+    reference <- sommer:::.mmes_dispatch(case$fixed,random=~vsm(ism(combined)),data=data,
       family=case$family,control=control)
     expect_true(fit$convergence)
     expect_equal(fit$llik,reference$llik,tolerance=1e-7)
@@ -284,7 +284,7 @@ test_that("covariance constraints preserve grouped trials and estimated family p
 test_that("Laplace vcc validates groups, types, fixed anchors and likelihood-only boundaries", {
   data <- .laplace_vcc_data()
   fit <- function(vcc, random=~group+block)
-    mmes(y~x, random=random, family=poisson(), data=data,
+    sommer:::.mmes_dispatch(y~x, random=random, family=poisson(), data=data,
       vcc=vcc, control=.laplace_vcc_control(setup=TRUE))
   expect_error(fit(data.frame(parameter=c(1,3), group=1)), "Unknown parameters")
   expect_error(fit(data.frame(parameter=c(1,1), group=1)), "more than once")
@@ -298,7 +298,7 @@ test_that("Laplace vcc validates groups, types, fixed anchors and likelihood-onl
       vsm(ism(block), sigma2=0.3, fixedSigma2=TRUE)), "inconsistent")
   expect_error(fit(data.frame(parameter=c(1,2), group=1),
     ~vsm(ar1m(occasion), ism(group))+block), "different kinds")
-  expect_error(mmes(y~x, random=~group+block, family=poisson(), data=data,
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group+block, family=poisson(), data=data,
     W=Matrix::Diagonal(nrow(data)), vcc=data.frame(parameter=1:2,group=1),
     control=.laplace_vcc_control()), "W or weights")
 })
@@ -316,10 +316,10 @@ test_that("ordinal and nominal constraints retain full post-fit and refit suppor
   for(kind in c("ordinal", "nominal")){
     family <- if(kind=="ordinal") ordinal() else multinomial(reference="3")
     fixed <- if(kind=="ordinal") ordered~x else category~x
-    fit <- mmes(fixed, random=~group+block, family=family, data=data,
+    fit <- sommer:::.mmes_dispatch(fixed, random=~group+block, family=family, data=data,
       vcc=constraint, control=.laplace_vcc_control())
     referenceDesign <- if(kind=="nominal") combined[rep(seq_len(nrow(data)),2L),] else combined
-    reference <- mmes(fixed, random=~vsm(ism(referenceDesign)), family=family, data=data,
+    reference <- sommer:::.mmes_dispatch(fixed, random=~vsm(ism(referenceDesign)), family=family, data=data,
       control=.laplace_vcc_control())
     expect_true(fit$convergence)
     expect_equal(fit$covPar[[1]], 2*fit$covPar[[2]], tolerance=1e-12)
@@ -355,7 +355,7 @@ test_that("ordinal and nominal constraints retain full post-fit and refit suppor
           objective$evaluate(lower, FALSE)$logLik)/2e-4
         expect_equal(as.numeric(evaluation$gradient)[index], numerical, tolerance=2e-5)
       }
-      setup <- mmes(fixed, random=~group+block, family=family, data=data,
+      setup <- sommer:::.mmes_dispatch(fixed, random=~group+block, family=family, data=data,
         vcc=constraint, control=.laplace_vcc_control(setup=TRUE))
       expect_equal(setup$vcParams$group, c(1L,1L))
       expect_equal(setup$parameterLayout$covarianceCount, 1L)
@@ -378,7 +378,7 @@ test_that("mixed categorical familym respects vcc in prediction, PEV and bootstr
   family <- familym("trait", count=poisson(), ord=ordinal(),
     nom=multinomial(reference="3"))
   constraint <- data.frame(parameter=1:2, group=1L)
-  fit <- mmes(y~trait+trait:x-1, random=~group+block, data=data, family=family,
+  fit <- sommer:::.mmes_dispatch(y~trait+trait:x-1, random=~group+block, data=data, family=family,
     vcc=constraint, control=.laplace_vcc_control())
   expect_true(fit$convergence)
   expect_equal(fit$covPar[[1]], fit$covPar[[2]], tolerance=1e-12)
@@ -406,12 +406,12 @@ test_that("mixed categorical familym respects vcc in prediction, PEV and bootstr
 test_that("Laplace constraints persist through bootstrap refits and comparisons", {
   data <- .laplace_vcc_data()
   constraint <- data.frame(parameter=1:2,group=1,scale=c(2,1))
-  fit <- mmes(y~x, random=~group+block, family=poisson(), data=data,
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group+block, family=poisson(), data=data,
     vcc=constraint, control=.laplace_vcc_control())
-  smaller <- mmes(y~1, random=~group+block, family=poisson(), data=data,
+  smaller <- sommer:::.mmes_dispatch(y~1, random=~group+block, family=poisson(), data=data,
     vcc=constraint, control=.laplace_vcc_control())
   expect_equal(anova(smaller, fit)$`Chi Df`[2], 1L)
-  unrestricted <- mmes(y~x, random=~group+block, family=poisson(), data=data,
+  unrestricted <- sommer:::.mmes_dispatch(y~x, random=~group+block, family=poisson(), data=data,
     control=.laplace_vcc_control())
   expect_error(anova(smaller, unrestricted), "vcc constraints")
   parameters <- sommer:::.boot_mmes_parameters(fit)

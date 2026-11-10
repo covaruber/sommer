@@ -13,7 +13,7 @@ test_that("response scaling preserves no-intercept GLS fits in both engines", {
   for(henderson in c(TRUE, FALSE)){
     for(REML in c(TRUE, FALSE)){
       for(fixed in list(Yield~Env-1+cov:Env, Yield~Env+cov:Env, Yield~cov-1)){
-        model <- mmes(fixed, random=~Name, data=data, control=mmes_control(formulation=if(henderson) "henderson" else "direct", diagnostics=list(verbose=FALSE), task=list(objective=if(REML) "reml" else "ml")))
+        model <- sommer:::.mmes_dispatch(fixed, random=~Name, data=data, control=sommer:::.mmes_control_internal(formulation=if(henderson) "henderson" else "direct", diagnostics=list(verbose=FALSE), task=list(objective=if(REML) "reml" else "ml")))
         variance <- summary(model)$varcomp$estimate
         X <- model.matrix(fixed, data)
         Z <- model.matrix(~Name-1, data)
@@ -39,8 +39,8 @@ test_that("no-intercept rotation agrees with unrotated fits", {
   attr(precision, "inverse") <- TRUE
   for(henderson in c(TRUE, FALSE)){
     for(fixed in list(y~env-1+cov:env, y~cov-1)){
-      ordinary <- mmes(fixed, random=~vsm(ism(id), Gu=precision), data=data, control=mmes_control(formulation=if(henderson) "henderson" else "direct", diagnostics=list(verbose=FALSE)))
-      rotated <- mmes(fixed, random=~vsm(ism(id), Gu=precision, rotation=TRUE), data=data, control=mmes_control(formulation=if(henderson) "henderson" else "direct", diagnostics=list(verbose=FALSE)))
+      ordinary <- sommer:::.mmes_dispatch(fixed, random=~vsm(ism(id), Gu=precision), data=data, control=sommer:::.mmes_control_internal(formulation=if(henderson) "henderson" else "direct", diagnostics=list(verbose=FALSE)))
+      rotated <- sommer:::.mmes_dispatch(fixed, random=~vsm(ism(id), Gu=precision, rotation=TRUE), data=data, control=sommer:::.mmes_control_internal(formulation=if(henderson) "henderson" else "direct", diagnostics=list(verbose=FALSE)))
       expect_equal(as.numeric(rotated$b), as.numeric(ordinary$b), tolerance=1e-6)
       expect_equal(unname(rotated$theta), unname(ordinary$theta), tolerance=1e-6)
       expect_equal(rotated$uList[[1]], ordinary$uList[[1]], tolerance=1e-6)
@@ -53,7 +53,7 @@ test_that("structured predictions use fitted genetic effects for empty cells", {
   counts <- table(data$Name, data$Env)
   for(shape in c("usm", "dsm", "corgm", "fam")){
     random <- as.formula(paste0("~vsm(", shape, "(Env), ism(Name))"))
-    model <- mmes(Yield~Env, random=random, data=data, control=mmes_control(diagnostics=list(verbose=FALSE)))
+    model <- sommer:::.mmes_dispatch(Yield~Env, random=random, data=data, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE)))
     prediction <- predict(model, D="Env:Name")
     ids <- prediction$pvals[[1]]
     env <- sub(":.*", "", ids)
@@ -95,7 +95,7 @@ test_that("structured cell maps include Gu-only levels and remain term local", {
   precision <- diag(length(ids))
   dimnames(precision) <- list(ids, ids)
   attr(precision, "inverse") <- TRUE
-  model <- mmes(Yield~Env, random=~Name+vsm(usm(Env), ism(Name), Gu=precision), data=data, control=mmes_control(diagnostics=list(verbose=FALSE)))
+  model <- sommer:::.mmes_dispatch(Yield~Env, random=~Name+vsm(usm(Env), ism(Name), Gu=precision), data=data, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE)))
   term <- names(model$uList)[2L]
   requested <- "CA.2011:new-genotype"
   prediction <- predict(model, D="Env:Name", levels=setNames(list(requested), term))
@@ -110,7 +110,7 @@ test_that("structured cell maps include Gu-only levels and remain term local", {
 test_that("mixed terms use numeric means and preserve supplied numeric values", {
   data <- prediction_issue_data()
   for(fixed in list(Yield~Env+cov:Env, Yield~Env-1+cov:Env)){
-    model <- mmes(fixed, random=~Name, data=data, control=mmes_control(diagnostics=list(verbose=FALSE)))
+    model <- sommer:::.mmes_dispatch(fixed, random=~Name, data=data, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE)))
     term <- names(model$partitionsX)[grepl("cov", names(model$partitionsX))]
     columns <- as.vector(model$partitionsX[[term]])
     prediction <- predict(model, D="Name")
@@ -145,7 +145,7 @@ test_that("numeric reference grids respect fitted contrasts and included factors
   data <- prediction_issue_data()
   contrasts <- list(Env="contr.sum")
   fixed <- Yield~Env*cov
-  model <- mmes(fixed, random=~Name, data=data, contrasts=contrasts, control=mmes_control(diagnostics=list(verbose=FALSE)))
+  model <- sommer:::.mmes_dispatch(fixed, random=~Name, data=data, contrasts=contrasts, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE)))
   prediction <- predict(model, D="Name")
   numericTerms <- names(model$partitionsX)[grepl("cov", names(model$partitionsX))]
   columns <- unlist(model$partitionsX[numericTerms], use.names=FALSE)
@@ -161,7 +161,7 @@ test_that("numeric reference grids respect fitted contrasts and included factors
   expect_equal(unname(as.matrix(included$D[,columns])),
                unname(model.matrix(fixed, grid, contrasts.arg=contrasts)[,columns]), tolerance=1e-12)
   data$second <- data$cov/2
-  product <- mmes(Yield~Env+cov:second, random=~Name, data=data, control=mmes_control(diagnostics=list(verbose=FALSE)))
+  product <- sommer:::.mmes_dispatch(Yield~Env+cov:second, random=~Name, data=data, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE)))
   term <- names(product$partitionsX)[grepl("cov", names(product$partitionsX))]
   result <- predict(product, D="Name", levels=setNames(list(list(cov=-2, second=3)), term))
   expect_equal(as.numeric(result$D[,as.vector(product$partitionsX[[term]])]), rep(-6, nrow(result$D)))
@@ -172,8 +172,8 @@ test_that("numeric reference grids respect fitted contrasts and included factors
 
 test_that("standalone numeric settings remain separate from compact term rules", {
   predictionData <- prediction_issue_data()
-  fittedModel <- mmes(Yield~Env+cov, random=~Name, data=predictionData,
-    control=mmes_control(diagnostics=list(verbose=FALSE)))
+  fittedModel <- sommer:::.mmes_dispatch(Yield~Env+cov, random=~Name, data=predictionData,
+    control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE)))
   covariateColumns <- as.vector(fittedModel$partitionsX[["cov"]])
   for(referenceValue in c(-2, 0, 5)){
     predictions <- predict(fittedModel, D="Name", levels=list(cov=referenceValue))

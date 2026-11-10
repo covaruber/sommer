@@ -9,7 +9,7 @@
 .information_fit <- function(mode="full", solver="ldlt", blend=0,
                              acceleration="none", inverse=0L, REML=TRUE){
   arguments <- list(fixed=y~x, random=~id, data=.information_data(),
-    control=mmes_control(
+    control=sommer:::.mmes_control_internal(
       solve=list(method=solver),
       task=list(objective=if(REML) "reml" else "ml"),
       convergence=list(maxIters=4L),
@@ -20,15 +20,15 @@
       score=if(solver == "pcg") list(traceProbes=12L) else list(),
       logdet=if(solver == "pcg") list(lanczosSteps=40L) else list(),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  suppressMessages(do.call(mmes, arguments))
+  suppressMessages(do.call(sommer:::.mmes_dispatch, arguments))
 }
 
 test_that("covariance information controls validate and preserve defaults", {
-  expect_identical(mmes_control()$output$covariance, "full")
+  expect_identical(sommer:::.mmes_control_internal()$output$covariance, "full")
   for(value in list(NULL, NA_character_, "", c("full", "none"), TRUE, 1)){
-    expect_error(mmes_control(output=list(covariance=value)))
+    expect_error(sommer:::.mmes_control_internal(output=list(covariance=value)))
   }
-  expect_error(mmes_control(output=list(unknownInformation="none")),
+  expect_error(sommer:::.mmes_control_internal(output=list(unknownInformation="none")),
     "Unknown output settings")
 })
 
@@ -75,20 +75,20 @@ test_that("methods requiring omitted covariance information fail explicitly", {
 })
 
 test_that("information omission rejects unsupported engines before fitting", {
-  baseControl <- mmes_control(output=list(covariance="none"),
+  baseControl <- sommer:::.mmes_control_internal(output=list(covariance="none"),
     diagnostics=list(verbose=FALSE))
   for(settings in list(list(formulation="direct"),
                        list(task=list(mode="solve")), NULL)){
     arguments <- list(fixed=y~x, random=~id, data=.information_data())
     expect_error(suppressMessages({
       if(!is.null(settings)){
-        arguments$control <- do.call(mmes_control,
+        arguments$control <- do.call(sommer:::.mmes_control_internal,
           utils::modifyList(unclass(baseControl), settings, keep.null=TRUE))
       }else{
         arguments$control <- baseControl
         arguments$family <- poisson()
       }
-      do.call(mmes, arguments)
+      do.call(sommer:::.mmes_dispatch, arguments)
     }))
   }
 })

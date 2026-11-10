@@ -48,8 +48,8 @@ others), and \code{fitted()} and \code{residuals()} apply the inverse link and
 variance function of each trait to its rows. Random-effect variances are on
 the link scale of each trait.
 
-For native Laplace, select \code{task=list(objective="ml",
-glmm=list(method="laplace"))}. Supported families are binomial with logit,
+For native Laplace, select \code{method=mmes_method(objective="ml",
+integration="laplace")}. Supported families are binomial with logit,
 probit or complementary log-log link; Poisson-log;
 \code{\link{zipoisson}} with an intercept-only or fixed-effects formula
 logit structural-zero component; \code{nbinom2()}-log; Gaussian-identity;
@@ -69,7 +69,7 @@ requirement to place a fixed-dispersion trait first.
 NB2 shape and Gaussian/Gamma dispersion are estimated separately for each
 declared trait by default; zero-inflated Poisson structural-zero probability
 is also estimated by default. Configure starting/fixed values under
-\code{task$glmm$familyParameters}, for example
+\code{familyParameters}, for example
 \code{list(count=list(theta=2, estimate=FALSE),
 zeroCount=list(zeroInflation=0.2, estimate=TRUE),
 continuous=list(dispersion=0.7, estimate=TRUE))}.

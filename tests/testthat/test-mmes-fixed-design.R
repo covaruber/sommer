@@ -4,17 +4,17 @@ test_that("zero columns after response filtering have actionable diagnostics", {
     locale=factor(rep(c("north", "south", "unused"), each=2L)),
     covariate=c(0, 0, 0, 0, 1, 2)
   )
-  quietControl <- mmes_control(diagnostics=list(verbose=FALSE))
+  quietControl <- sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE))
   expect_error(
-    mmes(maturity ~ locale + covariate, data=maturityRecords, control=quietControl),
+    sommer:::.mmes_dispatch(maturity ~ locale + covariate, data=maturityRecords, control=quietControl),
     "1 of 3 columns are all zero \\(4 retained observations\\)"
   )
   expect_error(
-    mmes(maturity ~ locale + covariate, data=maturityRecords, control=quietControl),
+    sommer:::.mmes_dispatch(maturity ~ locale + covariate, data=maturityRecords, control=quietControl),
     "Affected fixed terms: covariate.*"
   )
   expect_error(
-    mmes(maturity ~ locale + covariate, data=maturityRecords, control=quietControl),
+    sommer:::.mmes_dispatch(maturity ~ locale + covariate, data=maturityRecords, control=quietControl),
     "droplevels\\(\\)"
   )
 })
@@ -26,13 +26,13 @@ test_that("unobserved interaction cells are explained without dense rank analysi
     cultivar=factor(c("early", "early", "late", "late"))
   )
   expect_error(
-    mmes(maturity ~ locale + locale:cultivar, data=maturityRecords,
-         control=mmes_control(diagnostics=list(verbose=FALSE))),
+    sommer:::.mmes_dispatch(maturity ~ locale + locale:cultivar, data=maturityRecords,
+         control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE))),
     "Example zero columns:.*"
   )
   expect_error(
-    mmes(maturity ~ locale + locale:cultivar, data=maturityRecords,
-         control=mmes_control(diagnostics=list(verbose=FALSE))),
+    sommer:::.mmes_dispatch(maturity ~ locale + locale:cultivar, data=maturityRecords,
+         control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE))),
     "interaction\\(\\.\\.\\., drop=TRUE\\)"
   )
 })
@@ -46,19 +46,19 @@ test_that("parent and cell effects report aliasing even without zero columns", {
   maturityRecords$maturity <- seq_len(nrow(maturityRecords))
   maturityRecords$cell <- interaction(maturityRecords$locale,
                                       maturityRecords$cultivar, drop=TRUE)
-  quietControl <- mmes_control(diagnostics=list(verbose=FALSE))
+  quietControl <- sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE))
   expect_error(
-    mmes(maturity ~ locale + cell, data=maturityRecords, control=quietControl),
+    sommer:::.mmes_dispatch(maturity ~ locale + cell, data=maturityRecords, control=quietControl),
     "rank 4 < 5 columns"
   )
   expect_error(
-    mmes(maturity ~ locale + cell, data=maturityRecords, control=quietControl),
+    sommer:::.mmes_dispatch(maturity ~ locale + cell, data=maturityRecords, control=quietControl),
     "control=mmes_control\\(representation=list\\(fixedRank='drop'\\)\\)"
   )
   maturityRecords$covariate <- seq_len(nrow(maturityRecords))
   maturityRecords$duplicate <- maturityRecords$covariate
   expect_error(
-    mmes(maturity ~ covariate + duplicate, data=maturityRecords, control=quietControl),
+    sommer:::.mmes_dispatch(maturity ~ covariate + duplicate, data=maturityRecords, control=quietControl),
     "rank 2 < 3 columns"
   )
 })
@@ -103,16 +103,16 @@ test_that("full-rank cell means still fit and setup preserves aliased designs", 
   )
   maturityRecords$cell <- interaction(maturityRecords$locale,
                                       maturityRecords$cultivar, drop=TRUE)
-  cellFit <- mmes(maturity ~ 0 + cell, data=maturityRecords,
-    control=mmes_control(diagnostics=list(verbose=FALSE)))
+  cellFit <- sommer:::.mmes_dispatch(maturity ~ 0 + cell, data=maturityRecords,
+    control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE)))
   expect_true(cellFit$convergence)
   expect_equal(as.numeric(fitted(cellFit)),
     as.numeric(ave(maturityRecords$maturity, maturityRecords$cell)),
     tolerance=1e-8)
   expect_equal(as.numeric(cellFit$theta[[1L]]), 2, tolerance=1e-4)
 
-  aliasedSetup <- mmes(maturity ~ locale + cell, data=maturityRecords,
-    control=mmes_control(output=list(setup=TRUE),
+  aliasedSetup <- sommer:::.mmes_dispatch(maturity ~ locale + cell, data=maturityRecords,
+    control=sommer:::.mmes_control_internal(output=list(setup=TRUE),
                          diagnostics=list(verbose=FALSE)))
   expect_equal(ncol(aliasedSetup$X), 5L)
   expect_equal(sommer:::.sparse_rank(aliasedSetup$X), 4L)

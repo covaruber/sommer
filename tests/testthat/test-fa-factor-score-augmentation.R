@@ -6,7 +6,7 @@ test_that("fixed-shape heterogeneous/homogeneous FA augmentation matches the mar
     shape <- if(model == "fa") fam(data$env, 2L, fixed=rep(TRUE, 10L)) else
       fam(data$env, 2L, fixed=rep(TRUE, 7L), variance="homogeneous")
     fit <- function(mode){
-      mmes(y~env, random=~vsm(shape, ism(id)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=60, likelihoodTol=1e-12, parameterTol=1e-12), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores=mode)))
+      sommer:::.mmes_dispatch(y~env, random=~vsm(shape, ism(id)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=60, likelihoodTol=1e-12, parameterTol=1e-12), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores=mode)))
     }
     marginal <- fit("none")
     augmented <- fit("fixed-shape")
@@ -19,8 +19,8 @@ test_that("fixed-shape heterogeneous/homogeneous FA augmentation matches the mar
     expect_equal(dim(augmented$C)[1L], length(augmented$bu) +
       (if(model == "fa") 2L else 2L) * nlevels(data$id))
     expect_identical(augmented$CRepresentation, "factor-score-augmented")
-    expect_error(mmes(y~env, random=~vsm(if(model == "fa") fam(env, 2L) else
-      fam(env, 2L, variance="homogeneous"), ism(id)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=2), representation=list(factorScores="fixed-shape"))), "requires all covariance-shape")
+    expect_error(sommer:::.mmes_dispatch(y~env, random=~vsm(if(model == "fa") fam(env, 2L) else
+      fam(env, 2L, variance="homogeneous"), ism(id)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=2), representation=list(factorScores="fixed-shape"))), "requires all covariance-shape")
   }
 })
 
@@ -47,7 +47,7 @@ test_that("compound-symmetry augmentation matches marginal fits", {
       latent[cbind(as.integer(data$env), as.integer(data$id))] +
       rnorm(nrow(data), sd=sqrt(0.5))
     fit <- function(mode){
-      mmes(y~env, random=~vsm(shape, ism(id)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=100, likelihoodTol=1e-8, parameterTol=1e-8), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores=mode)))
+      sommer:::.mmes_dispatch(y~env, random=~vsm(shape, ism(id)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=100, likelihoodTol=1e-8, parameterTol=1e-8), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores=mode)))
     }
     marginal <- fit("none")
     augmented <- fit("fixed-shape")
@@ -67,7 +67,7 @@ test_that("augmented prediction contrasts map to the original-effect coefficient
   set.seed(83)
   data <- expand.grid(env=factor(letters[1:3]), id=factor(seq_len(5L)))
   data$y <- rnorm(nrow(data))
-  fit <- mmes(y~env, random=~vsm(fam(env, 1L, fixed=rep(TRUE, 5L)), ism(id)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=4), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores="fixed-shape")))
+  fit <- sommer:::.mmes_dispatch(y~env, random=~vsm(fam(env, 1L, fixed=rep(TRUE, 5L)), ism(id)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=4), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores="fixed-shape")))
   contrast <- Matrix::Diagonal(nrow(fit$bu))
   dimnames(contrast) <- list(rownames(fit$bu), rownames(fit$bu))
   augmentedContrast <- sommer:::.mmes_engine_contrast(fit, contrast)
@@ -83,8 +83,8 @@ test_that("profile mode optimizes free FA shapes using augmented REML", {
   data <- expand.grid(env=factor(letters[1:2]), id=factor(seq_len(8L)))
   data$y <- rnorm(nrow(data))
   shape <- fam(data$env, 1L, fixed=c(TRUE, TRUE, FALSE))
-  initial <- mmes(y~env, random=~vsm(shape, ism(id)), rcov=~units, data=data, control=mmes_control(output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
-  profile <- mmes(y~env, random=~vsm(shape, ism(id)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=1), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores="profile")))
+  initial <- sommer:::.mmes_dispatch(y~env, random=~vsm(shape, ism(id)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  profile <- sommer:::.mmes_dispatch(y~env, random=~vsm(shape, ism(id)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=1), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores="profile")))
   expect_identical(profile$factorScoreAugmentation, "profile")
   expect_identical(profile$CRepresentation, "factor-score-augmented")
   expect_gt(profile$factorScoreProfile$profileEvaluations, 1L)
@@ -99,10 +99,10 @@ test_that("profile mode optimizes free FA shapes using augmented REML", {
   if(profile$factorScoreProfile$convergence != 0L){
     expect_false(profile$convergence)
   }
-  expect_error(mmes(y~env, random=~vsm(fam(env, 1L), ism(id)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=2), representation=list(factorScores="profile"), solve=list(method="pcg"), diagnostics=list(verbose=FALSE))), "representation\\$factorScores")
+  expect_error(sommer:::.mmes_dispatch(y~env, random=~vsm(fam(env, 1L), ism(id)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=2), representation=list(factorScores="profile"), solve=list(method="pcg"), diagnostics=list(verbose=FALSE))), "representation\\$factorScores")
 
-  rrProfile <- mmes(y~env, random=~vsm(fam(env, 1L, fixed=c(TRUE, FALSE),
-    variance="homogeneous"), ism(id)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=1), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores="profile")))
+  rrProfile <- sommer:::.mmes_dispatch(y~env, random=~vsm(fam(env, 1L, fixed=c(TRUE, FALSE),
+    variance="homogeneous"), ism(id)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=1), output=list(inverse=0), solve=list(method="ldlt"), diagnostics=list(verbose=FALSE, dateWarning=FALSE), representation=list(factorScores="profile")))
   expect_identical(rrProfile$factorScoreAugmentation, "profile")
   expect_gt(rrProfile$factorScoreProfile$profileEvaluations, 1L)
   expect_lt(rrProfile$factorScoreProfile$objective,

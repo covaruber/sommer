@@ -17,7 +17,7 @@ ordinal(link = "logit", thresholds = NULL)
   \code{"logit"} and \code{"probit"}.}
   \item{thresholds}{Optional strictly increasing numeric threshold values used
   to initialize the ordered category cutpoints. To hold them fixed, set
-  \code{task$glmm$familyParameters$estimate=FALSE}.}
+  \code{familyParameters$estimate=FALSE}.}
 }
 \details{
 For categories \eqn{1,\ldots,K}, the cumulative-link convention is
@@ -45,7 +45,7 @@ standard response, fixed-covariate and random-covariate missing-data policies
 are applied. With fixed cutpoints, absent ordered-factor levels are preserved.
 
 Preparation reads \code{thresholds} and \code{estimate} from the
-existing \code{task$glmm$familyParameters} list. Control-supplied thresholds
+existing \code{familyParameters} list. Control-supplied thresholds
 override constructor thresholds. With \code{estimate=TRUE} (the default),
 unsupplied cutpoints start at the link-transformed retained cumulative category
 frequencies. With \code{estimate=FALSE}, cutpoints must be supplied.
@@ -126,9 +126,10 @@ results. The constructor itself does not validate any response.
 ordinal()
 ordinal(link = "probit", thresholds = c(-1, 0.5, 2))
 \dontrun{
-ctrl <- mmes_control(task=list(objective="ml", glmm=list(method="laplace")))
+ctrl <- mmes_control()
 fit <- mmes(rating ~ treatment, random=~group, data=dat,
-  family=ordinal(), control=ctrl)
+  family=ordinal(), control=ctrl,
+  method=mmes_method(objective="ml", integration="laplace"))
 fitted(fit)                       # labelled category probabilities
 predict(fit, re.form=NA)
 summary(fit)$thresholds           # uncertainty computed after fitting

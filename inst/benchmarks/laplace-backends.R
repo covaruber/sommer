@@ -13,8 +13,8 @@ local({
   results <- lapply(seq_len(nrow(cases)),function(index){
     case <- cases[index,]
     data <- data.frame(y=rep(1,case$q),id=factor(seq_len(case$q)))
-    setup <- mmes(y~1,random=~vsm(ism(id),sigma2=.3),data=data,
-      family=poisson(),control=mmes_control(task=list(objective="ml",
+    setup <- sommer:::.mmes_dispatch(y~1,random=~vsm(ism(id),sigma2=.3),data=data,
+      family=poisson(),control=sommer:::.mmes_control_internal(task=list(objective="ml",
         glmm=list(method="laplace")),output=list(setup=TRUE),
         diagnostics=list(verbose=FALSE,dateWarning=FALSE)))
     design <- if(case$dense)

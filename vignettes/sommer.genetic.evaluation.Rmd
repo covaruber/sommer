@@ -34,7 +34,7 @@ $$
 
 once, for possibly millions of animals.
 
-`mmes(..., control = mmes_control(task = list(mode = "solve")))` does exactly
+`mmes(..., method = mmes_method(task = "solve"))` does exactly
 that. It uses the same formula interface
 as a REML fit but never estimates variances, never computes a likelihood, and never
 assembles $C$. Instead, it iterates on the data with a preconditioned conjugate
@@ -238,7 +238,8 @@ timeEval <- system.time(
   rcov = ~ vsm(usm(trait), ism(record)),
   data=long,
   covPar=reml,
-  control = mmes_control(task = list(mode = "solve"),
+  method = mmes_method(task = "solve"),
+  control = mmes_control(
   diagnostics = list(verbose = FALSE)))
 )
 timeEval[["elapsed"]]
@@ -306,7 +307,8 @@ ebvTrue <- mmes(value ~ trait + trait:herd,
   rcov = ~ vsm(usm(trait), ism(record)),
   data=long,
   covPar=list(G0, R0),
-  control = mmes_control(task = list(mode = "solve"),
+  method = mmes_method(task = "solve"),
+  control = mmes_control(
   diagnostics = list(verbose = FALSE)))
 uTrue <- ebvTrue$uList[[1]][ped$id, ]
 diag(cor(u, uTrue))
@@ -322,7 +324,8 @@ single <- mmes(y1 ~ herd,
   random = ~ vsm(ism(id), Gu=Ainv, sigma2=0.30, fixedSigma2=TRUE),
   rcov = ~ vsm(ism(units), sigma2=0.70, fixedSigma2=TRUE),
   data=pheno,
-  control = mmes_control(task = list(mode = "solve"),
+  method = mmes_method(task = "solve"),
+  control = mmes_control(
   diagnostics = list(verbose = FALSE)))
 cor(single$uList[[1]][candidates, 1], bv[candidates, "y1"])
 ```
@@ -343,7 +346,7 @@ cor(single$uList[[1]][candidates, 1], bv[candidates, "y1"])
   residual terms must be the same terms with the same labels; otherwise an
   error names the missing terms. Data, fixed effects and the levels of the
   relationship matrix may differ.
-* **Scope.** `task$mode="solve"` needs a Gaussian model and a residual covariance
+* **Scope.** `method$task="solve"` needs a Gaussian model and a residual covariance
   that is block diagonal with blocks of at most 10000 records. Weights must be
   a diagonal `W`. It does not return prediction error variances, reliabilities,
   or a likelihood; use a regular `mmes()` fit with `control$output$inverse`

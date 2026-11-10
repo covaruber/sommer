@@ -4,7 +4,14 @@
 \alias{nonlinear_graph}
 \title{Declare a bounded nonlinear predictor graph}
 \usage{
-nonlinear_graph(nodes, output, parameters, parameterMap = NULL)
+nonlinear_graph(
+  nodes,
+  output,
+  parameters,
+  parameterMap = NULL,
+  random = list(),
+  joint = NULL
+)
 }
 \arguments{
 \item{nodes}{Ordered list of named \code{input}, \code{affine},
@@ -24,21 +31,39 @@ transform treats supplied values as log coordinates.}
 \item{parameterMap}{Optional named list mapping coordinates to
 \code{list(type="fixed")} or \code{list(type="random", group="column")}.
 Each coordinate may also set \code{transform="log"}.}
+
+\item{random}{Optional named list of one-term random formulas, one for each
+independently distributed random graph coordinate. The formula declares
+its covariance using existing \code{vsm()} syntax.}
+
+\item{joint}{Optional list with \code{parameters} and one random formula
+containing the internal \code{.parameter} axis to declare a joint
+covariance block, following \code{nonlinear_curve()}.}
 }
 \value{
 A versioned, serializable \code{sommer_nonlinear_graph}.
 }
 \description{
-Create a serializable directed acyclic graph for evaluation and fixed-network
-Gaussian fitting.
+Create a serializable directed acyclic graph for evaluation and Gaussian
+mixed-model fitting with fixed or group-random graph coordinates.
 }
 \details{
 Use fixed graph coordinates with
-  \code{mmes(..., nonlinear=graph)} for Gaussian ML. Supply a complete named
+  \code{mmes(y ~ graph_term("net"), predictors=list(net=graph))} for Gaussian ML. Supply a complete named
   working-coordinate start through
-  \code{mmes_control(task=list(nonlinear=list(start=...)))}. Random graph
-  coordinates and non-Gaussian fitting are not supported. Use \code{tanh}
-  only in hidden layers; Gaussian graph fits require an identity output.
+  \code{mmes(start=list(parameters=...))}. Starts use natural parameter
+  values; the standalone evaluator continues to use working coordinates. For random
+  coordinates, mark them in \code{parameterMap} and declare their
+  independent or joint covariance with \code{random} or \code{joint}.
+  Gaussian deviations are on the declared working-coordinate scale
+  (including log coordinates), and are integrated with an exact conditional
+  Hessian and a Laplace likelihood. Outer Laplace scores for random graph
+  fits use central finite differences of that objective and are reported in
+  fit diagnostics. Conditional and zero-deviation predictions, prior-
+  integrated population predictions, and simulation are supported.
+  Non-Gaussian fitting and post-fit parameter uncertainty are not supported.
+  Use \code{tanh} only in hidden layers; Gaussian graph fits require an
+  identity output.
   Hidden-unit permutations and scaling can make raw weights non-unique;
   convergence does not establish a global optimum. Parameter uncertainty is
   not supported for graph fits.
@@ -60,7 +85,7 @@ fitGraph <- nonlinear_graph(list(
   mean=list(op="affine", inputs="x", weights=matrix(1L), bias=2L),
   output=list(op="identity", input="mean")
 ), output="output", parameters=c("slope", "intercept"))
-fit <- mmes(y~0, random=~group, data=fitData, nonlinear=fitGraph,
-  control=mmes_control(task=list(objective="ml",
-    nonlinear=list(start=c(slope=0.4, intercept=0)))))
+fit <- mmes(y~0+graph_term("net"), random=~group, data=fitData,
+  predictors=list(net=fitGraph), method=mmes_method(objective="ml"),
+  start=list(parameters=c(slope=0.4, intercept=0)))
 }

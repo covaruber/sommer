@@ -59,7 +59,7 @@ parameters share their standard errors.
 \section{Native Laplace GLMMs}{
 Native Laplace ML supports these constraints for random covariance parameters,
 including ordinal, nominal and mixed \code{familym()} responses. Use the same
-family and \code{task$glmm$method="laplace"} when requesting
+family and \code{method$integration="laplace"} when requesting
 \code{output$setup=TRUE}: the returned \code{vcParams} table contains random
 covariance parameters, plus actual Gaussian observation-residual parameters
 when structured Gaussian blocks are requested. The latter are reported for

@@ -1,6 +1,6 @@
 accelerationControl <- function(warmStart="off",gradient="analytic",trace="panels",
     blocks="off",backend="random",parameters=list()){
-  mmes_control(task=list(objective="ml",
+  sommer:::.mmes_control_internal(task=list(objective="ml",
     glmm=list(method="laplace",backend=backend,warmStart=warmStart,gradient=gradient,
       trace=trace,blocks=blocks,maxit=1000L,modeTol=1e-11,
       familyParameters=parameters)),
@@ -10,8 +10,8 @@ accelerationControl <- function(warmStart="off",gradient="analytic",trace="panel
 accelerationFixture <- function(q=12L,n=36L,dense=FALSE){
   set.seed(972)
   data <- data.frame(y=1,id=factor(seq_len(q)))
-  setup <- mmes(y~1,random=~vsm(ism(id),sigma2=.4),data=data,
-    family=poisson(),control=mmes_control(task=list(objective="ml",
+  setup <- sommer:::.mmes_dispatch(y~1,random=~vsm(ism(id),sigma2=.4),data=data,
+    family=poisson(),control=sommer:::.mmes_control_internal(task=list(objective="ml",
       glmm=list(method="laplace")),output=list(setup=TRUE),
       diagnostics=list(verbose=FALSE,dateWarning=FALSE)))
   list(X=Matrix::Matrix(cbind(1,rnorm(n)),sparse=TRUE),
@@ -160,7 +160,7 @@ accelerationMixedData <- function(){
 
 test_that("mixed nominal analytic scores include nuisance, residual and constrained covariance derivatives", {
   data <- accelerationMixedData()
-  model <- mmes(y~trait+trait:x-1,
+  model <- sommer:::.mmes_dispatch(y~trait+trait:x-1,
     random=~vsm(ism(id),sigma2=.3)+vsm(ism(replicate),sigma2=.15),
     vcc=data.frame(parameter=1:2,group=1L,scale=c(2,1)),data=data,
     family=familym("trait",count=poisson(),binary=binomial(),
@@ -193,11 +193,11 @@ test_that("standalone nominal acceleration preserves analytic scores and mode sy
   data <- expand.grid(id=factor(1:12),replicate=1:8)
   data$x <- rnorm(nrow(data))
   data$y <- factor(sample(c("a","b","c"),nrow(data),replace=TRUE))
-  reference <- mmes(y~x,random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),
+  reference <- sommer:::.mmes_dispatch(y~x,random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),
     data=data,family=multinomial(),control=accelerationControl())
   for(backend in c("random","observation")) for(trace in
       if(backend=="random") c("panels","selected") else "panels"){
-    fit <- mmes(y~x,random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),data=data,
+    fit <- sommer:::.mmes_dispatch(y~x,random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),data=data,
       family=multinomial(),control=accelerationControl(warmStart="auto",trace=trace,
         backend=backend,blocks=if(backend=="random") "on" else "off"))
     expect_true(fit$convergence)
@@ -208,7 +208,7 @@ test_that("standalone nominal acceleration preserves analytic scores and mode sy
     expect_equal(sommer:::.boot_mmes_refit(fit,fit$nominalPreparation$nominal$response,1000)$logLik,
       fit$llik,tolerance=1e-7)
   }
-  numeric <- mmes(y~x,random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),data=data,
+  numeric <- sommer:::.mmes_dispatch(y~x,random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),data=data,
     family=multinomial(),control=accelerationControl(gradient="numeric"))
   expect_equal(numeric$llik,reference$llik,tolerance=1e-8)
   expect_equal(numeric$b,reference$b,tolerance=2e-6)
@@ -217,7 +217,7 @@ test_that("standalone nominal acceleration preserves analytic scores and mode sy
 test_that("public scalar controls persist across uncertainty, bootstrap and serialization", {
   f <- accelerationFixture(q=10,n=100)
   data <- data.frame(y=f$y,x=f$X[,2],id=factor(rep(1:10,10)))
-  fit <- function(control) mmes(y~x,random=~vsm(ism(id),sigma2=.4,fixedSigma2=TRUE),
+  fit <- function(control) sommer:::.mmes_dispatch(y~x,random=~vsm(ism(id),sigma2=.4,fixedSigma2=TRUE),
     data=data,family=poisson(),control=control)
   reference <- fit(accelerationControl())
   accelerated <- fit(accelerationControl(warmStart="auto",trace="selected",blocks="on"))
@@ -243,7 +243,7 @@ test_that("public scalar controls persist across uncertainty, bootstrap and seri
 
 test_that("mixed analytic and numerical full fits retain inference and refit parity", {
   data <- droplevels(subset(accelerationMixedData(),trait %in% c("count","ord","nom")))
-  fit <- function(control) mmes(y~trait+trait:x-1,
+  fit <- function(control) sommer:::.mmes_dispatch(y~trait+trait:x-1,
     random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),data=data,
     family=familym("trait",count=poisson(),ord=ordinal(),nom=multinomial()),
     control=control)
@@ -287,15 +287,15 @@ test_that("low-level nominal inverse-subset traces solve unavailable arbitrary d
 
 test_that("unsupported choices are rejected and exposed by mmes_options", {
   for(name in c("warmStart","gradient","trace","blocks"))
-    expect_error(mmes_control(task=list(glmm=setNames(list("invalid"),name))),name)
+    expect_error(sommer:::.mmes_control_internal(task=list(glmm=setNames(list("invalid"),name))),name)
   f <- accelerationFixture()
   expect_error(accelerationContext(f,backend="observation",trace="selected"),"random-space")
   expect_error(accelerationContext(f,backend="observation",blocks="on"),"random-space")
   data <- data.frame(y=f$y,id=factor(rep(1:12,3)))
   for(choice in list(list(warmStart="on"),list(gradient="numeric"),
       list(trace="selected"),list(blocks="on")))
-    expect_error(mmes(y~1,random=~id,data=data,family=poisson(),
-      control=mmes_control(task=list(glmm=choice))),"Laplace only")
+    expect_error(sommer:::.mmes_dispatch(y~1,random=~id,data=data,family=poisson(),
+      control=sommer:::.mmes_control_internal(task=list(glmm=choice))),"Laplace only")
   paths <- sommer:::.mmes_capabilities()$controls$path
   expect_true(all(paste0("control.task.glmm.",c("warmStart","gradient","trace","blocks")) %in% paths))
 })

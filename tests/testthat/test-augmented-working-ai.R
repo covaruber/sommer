@@ -15,7 +15,7 @@
     update=list(blendWeight=0),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE, profile="force")),
     list(...), keep.null=TRUE)
-  do.call(mmes_control, values)
+  do.call(sommer:::.mmes_control_internal, values)
 }
 
 .augmented_native <- function(setup, assembly="augmented-working", tangent=NULL){
@@ -38,39 +38,39 @@ test_that("augmented AI algebra passes independent native checks", {
 })
 
 test_that("AI assembly is strictly validated and transported", {
-  expect_identical(mmes_control()$curvature$assembly, "sensitivity")
-  control <- mmes_control(curvature=list(assembly="AUGMENTED-WORKING"))
+  expect_identical(sommer:::.mmes_control_internal()$curvature$assembly, "sensitivity")
+  control <- sommer:::.mmes_control_internal(curvature=list(assembly="AUGMENTED-WORKING"))
   expect_identical(control$curvature$assembly, "augmented-working")
   expect_identical(attr(control, "native")$aiAssembly, "augmented-working")
   for(value in list("", NA_character_, NULL, TRUE, c("sensitivity", "augmented-working"))){
-    expect_error(mmes_control(curvature=list(assembly=value)), "curvature\\$assembly")
+    expect_error(sommer:::.mmes_control_internal(curvature=list(assembly=value)), "curvature\\$assembly")
   }
   for(settings in list(list(formulation="direct"),
       list(solve=list(method="pcg")), list(task=list(mode="solve")),
       list(representation=list(equations="conditional"), output=list(covariance="none",
         coefficientMatrix=FALSE)),
       list(representation=list(factorScores="fixed-shape")))){
-    expect_error(do.call(mmes_control, c(settings,
+    expect_error(do.call(sommer:::.mmes_control_internal, c(settings,
       list(curvature=list(assembly="augmented-working")))), "curvature\\$assembly")
   }
   dataset <- .augmented_data()
   control$curvature$assembly <- "typo"
-  expect_error(mmes(y~level, random=~id, data=dataset, control=control),
+  expect_error(sommer:::.mmes_dispatch(y~level, random=~id, data=dataset, control=control),
     "curvature\\$assembly")
   control <- .augmented_control()
-  expect_error(mmes(y~level, random=~id, data=dataset, family=poisson(),
+  expect_error(sommer:::.mmes_dispatch(y~level, random=~id, data=dataset, family=poisson(),
     control=control), "curvature\\$assembly")
-  expect_error(mmes(y~level, random=~id, data=dataset,
+  expect_error(sommer:::.mmes_dispatch(y~level, random=~id, data=dataset,
     .internal=list(pqlInner=TRUE), control=control), "curvature\\$assembly")
-  expect_error(mmes(y~level, random=~vsm(rrm(level, 1L), ism(id)),
+  expect_error(sommer:::.mmes_dispatch(y~level, random=~vsm(rrm(level, 1L), ism(id)),
     data=dataset, control=control), "curvature\\$assembly")
-  for(control in list(mmes_control(formulation="direct"),
-      mmes_control(solve=list(method="pcg")))){
+  for(control in list(sommer:::.mmes_control_internal(formulation="direct"),
+      sommer:::.mmes_control_internal(solve=list(method="pcg")))){
     control$curvature$assembly <- "augmented-working"
-    expect_error(mmes(y~level, random=~id, data=dataset, control=control),
+    expect_error(sommer:::.mmes_dispatch(y~level, random=~id, data=dataset, control=control),
       "curvature\\$assembly")
   }
-  setup <- mmes(y~level, random=~id, data=dataset,
+  setup <- sommer:::.mmes_dispatch(y~level, random=~id, data=dataset,
     control=.augmented_control(output=list(setup=TRUE)))
   expect_identical(attr(setup$covStruct, "aiAssembly"), "augmented-working")
   expect_error(.augmented_native(setup, "typo"), "aiAssembly|assembly")
@@ -79,7 +79,7 @@ test_that("AI assembly is strictly validated and transported", {
   expect_equal(fit$engineDiagnostics$aiAssembly$randomObservationColumns, 0)
   setup$solver <- "pcg"
   expect_error(.augmented_native(setup), "deterministic|PCG|pcg")
-  latent <- mmes(y~level, random=~vsm(rrm(level, 1L), ism(id)),
+  latent <- sommer:::.mmes_dispatch(y~level, random=~vsm(rrm(level, 1L), ism(id)),
     data=dataset, control=.augmented_control("sensitivity", output=list(setup=TRUE)))
   expect_error(.augmented_native(latent), "latent|reduced.rank")
 })
@@ -103,7 +103,7 @@ test_that("same-point augmented AI matches sensitivity across covariance structu
     list(random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE)+h))
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
     for(index in seq_along(models)){
-      setup <- do.call(mmes, c(list(fixed=y~level, data=dataset,
+      setup <- do.call(sommer:::.mmes_dispatch, c(list(fixed=y~level, data=dataset,
         control=.augmented_control(solve=list(method=solver),
           task=list(objective=if(reml) "reml" else "ml"),
           output=list(setup=TRUE))), models[[index]]))
@@ -125,7 +125,7 @@ test_that("same-point augmented AI matches sensitivity across covariance structu
 test_that("budgeted augmented panels preserve cross-panel information", {
   dataset <- .augmented_data()
   for(solver in c("ldlt", "cholmod")){
-    setup <- mmes(y~level, random=~vsm(ar1m(level), ism(id))+h,
+    setup <- sommer:::.mmes_dispatch(y~level, random=~vsm(ar1m(level), ism(id))+h,
       data=dataset, control=.augmented_control(solve=list(method=solver),
         output=list(setup=TRUE)))
     full <- .augmented_native(setup)
@@ -156,7 +156,7 @@ test_that("budgeted augmented panels preserve cross-panel information", {
 test_that("augmented AI matches an independent dense derivative-product formula", {
   dataset <- .augmented_data()
   for(reml in c(TRUE, FALSE)){
-    setup <- mmes(y~level, random=~id+h, data=dataset,
+    setup <- sommer:::.mmes_dispatch(y~level, random=~id+h, data=dataset,
       control=.augmented_control(output=list(setup=TRUE),
         task=list(objective=if(reml) "reml" else "ml")))
     fit <- .augmented_native(setup)
@@ -196,7 +196,7 @@ test_that("weights, incomplete residual blocks and compressed statistics retain 
         data=dataset[selected, ],
         control=.augmented_control(solve=list(method=solver), output=list(setup=TRUE)))
       if(!is.null(weight)) arguments$W <- weight[selected, selected]
-      setup <- do.call(mmes, arguments)
+      setup <- do.call(sommer:::.mmes_dispatch, arguments)
       reference <- .augmented_native(setup, "sensitivity")
       candidate <- .augmented_native(setup)
       for(field in c("InfMat", "dLu", "bu", "llik")){
@@ -206,7 +206,7 @@ test_that("weights, incomplete residual blocks and compressed statistics retain 
   }
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
     model <- function(compression, assembly){
-      mmes(y~level, random=~id+h, rcov=~vsm(dsm(level), ism(units)),
+      sommer:::.mmes_dispatch(y~level, random=~id+h, rcov=~vsm(dsm(level), ism(units)),
         data=dataset, W=diagonal,
         control=.augmented_control(assembly, solve=list(method=solver),
           representation=list(compression=compression),
@@ -225,7 +225,7 @@ test_that("weights, incomplete residual blocks and compressed statistics retain 
 test_that("mixed and empty direction maps preserve full information pullbacks", {
   dataset <- .augmented_data()
   for(solver in c("ldlt", "cholmod")){
-    setup <- mmes(y~level, random=~vsm(ar1m(level), ism(id))+h,
+    setup <- sommer:::.mmes_dispatch(y~level, random=~vsm(ar1m(level), ism(id))+h,
       data=dataset, control=.augmented_control(solve=list(method=solver),
         output=list(setup=TRUE)))
     full <- .augmented_native(setup)
@@ -253,7 +253,7 @@ test_that("grid, sectioned and generic sparse residuals retain augmented informa
         ~dsumm(vsm(ar1m(row, rho=0.2), ar1m(column, rho=-0.15), ism(units)),
           by=site),
         ~dsumm(vsm(usm(row), ism(units)), by=site))){
-      setup <- mmes(y~site, random=~id, rcov=residual, data=selected,
+      setup <- sommer:::.mmes_dispatch(y~site, random=~id, rcov=residual, data=selected,
         control=.augmented_control(output=list(setup=TRUE),
           solve=list(method=solver)))
       candidate <- .augmented_native(setup)
@@ -268,7 +268,7 @@ test_that("grid, sectioned and generic sparse residuals retain augmented informa
 test_that("saddle and rotated coefficient representations use the same AI contract", {
   dataset <- .augmented_data()
   for(reml in c(TRUE, FALSE)){
-    setup <- mmes(y~level, random=~id+h,
+    setup <- sommer:::.mmes_dispatch(y~level, random=~id+h,
       rcov=~vsm(ar1m(level, rho=0.2), ism(unit)), data=dataset,
       control=.augmented_control(output=list(setup=TRUE),
         representation=list(equations="saddle-point"),
@@ -285,7 +285,7 @@ test_that("saddle and rotated coefficient representations use the same AI contra
   attr(precision, "inverse") <- TRUE
   for(solver in c("ldlt", "cholmod")){
     model <- function(assembly){
-      mmes(y~level, random=~vsm(ism(id), Gu=precision, rotation=TRUE),
+      sommer:::.mmes_dispatch(y~level, random=~vsm(ism(id), Gu=precision, rotation=TRUE),
         data=selected, control=.augmented_control(assembly,
           solve=list(method=solver), convergence=list(maxIters=3L)))
     }
@@ -316,7 +316,7 @@ test_that("recursive recovery, profiling and reduced fits preserve assembly sele
       args <- utils::modifyList(list(solve=list(method=solver),
         convergence=list(maxIters=5L)), settings, keep.null=TRUE)
       control <- do.call(.augmented_control, c(list(assembly=assembly), args))
-      mmes(y~level, random=~id+h, data=dataset, vcc=constraints, control=control)
+      sommer:::.mmes_dispatch(y~level, random=~id+h, data=dataset, vcc=constraints, control=control)
     }
     reference <- model("sensitivity")
     candidate <- model("augmented-working")
@@ -337,7 +337,7 @@ test_that("complete fits and post-fit coefficient uncertainty retain their contr
   dataset <- .augmented_data()
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)) for(inverse in 0:2){
     model <- function(assembly, information="full"){
-      mmes(y~level, random=~id, data=dataset,
+      sommer:::.mmes_dispatch(y~level, random=~id, data=dataset,
         control=.augmented_control(assembly, solve=list(method=solver),
           task=list(objective=if(reml) "reml" else "ml"),
           output=list(inverse=inverse, covariance=information),
@@ -374,7 +374,7 @@ test_that("new evaluations cannot reuse stale numerical borders", {
     arguments <- list(fixed=y~level, random=~id+h, data=data,
       control=.augmented_control(assembly, solve=list(method="cholmod")))
     if(!is.null(W)) arguments$W <- W
-    do.call(mmes, arguments)
+    do.call(sommer:::.mmes_dispatch, arguments)
   }
   for(change in c("response", "design", "weights")){
     changed <- dataset
@@ -394,7 +394,7 @@ test_that("fixed-rank reduction and fixed covariance parameters preserve reporti
   dataset <- .augmented_data()
   dataset$cell <- interaction(dataset$level, dataset$replicate)
   model <- function(assembly){
-    mmes(y~level+cell, random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE),
+    sommer:::.mmes_dispatch(y~level+cell, random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE),
       rcov=~vsm(ism(units), sigma2=0.8, fixedSigma2=TRUE), data=dataset,
       control=.augmented_control(assembly, representation=list(fixedRank="drop")))
   }

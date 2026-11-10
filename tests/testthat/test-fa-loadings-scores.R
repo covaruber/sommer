@@ -10,7 +10,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
   data$BLUEs <- 100 + trial_effect[data$trial] +
     genotype_effect[data$genotype] + interaction
 
-  fit_fa <- mmes(BLUEs ~ trial, random=~vsm(fam(trial, 2), ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=20), diagnostics=list(verbose=FALSE)))
+  fit_fa <- sommer:::.mmes_dispatch(BLUEs ~ trial, random=~vsm(fam(trial, 2), ism(genotype)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=20), diagnostics=list(verbose=FALSE)))
 
   term_fa <- names(fit_fa$uList)[1]
   fa <- loadings_mmes(fit_fa, term_fa, varianceScale = FALSE, rotation = FALSE)
@@ -43,7 +43,7 @@ test_that("loadings_mmes and scores_mmes reconstruct the fitted FA/RR covariance
   expect_equal(scores_fa_bartlett, blups %*% weights %*% fa$loadings %*%
     solve(crossprod(fa$loadings, weights %*% fa$loadings)), tolerance=1e-8)
 
-  fit_rr <- mmes(BLUEs ~ trial, random=~vsm(rrm(trial, 1), ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=20), diagnostics=list(verbose=FALSE)))
+  fit_rr <- sommer:::.mmes_dispatch(BLUEs ~ trial, random=~vsm(rrm(trial, 1), ism(genotype)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=20), diagnostics=list(verbose=FALSE)))
 
   term_rr <- names(fit_rr$uList)[1]
   rr <- loadings_mmes(fit_rr, term_rr, varianceScale = FALSE, rotation = FALSE)
@@ -78,7 +78,7 @@ test_that("loadings_mmes gives an informative error for unsupported terms", {
   )
   data$BLUEs <- sin(seq_len(nrow(data)))
 
-  fit <- mmes(BLUEs ~ trial, random=~vsm(ism(genotype)), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE)))
+  fit <- sommer:::.mmes_dispatch(BLUEs ~ trial, random=~vsm(ism(genotype)), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE)))
 
   expect_error(loadings_mmes(fit, varianceScale = FALSE, rotation = FALSE), "No fam\\(\\)/rrm\\(\\) covariance term")
 })

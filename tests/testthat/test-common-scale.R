@@ -38,23 +38,23 @@
 }
 
 test_that("common-scale control uses update module and validates canonical requests", {
-  expect_identical(mmes_control()$update$commonScale, "off")
-  expect_identical(mmes_control(update=list(commonScale="AUTO"))$update$commonScale,
+  expect_identical(sommer:::.mmes_control_internal()$update$commonScale, "off")
+  expect_identical(sommer:::.mmes_control_internal(update=list(commonScale="AUTO"))$update$commonScale,
     "auto")
-  expect_identical(mmes_control(update=list(commonScale="force"))$update$commonScale,
+  expect_identical(sommer:::.mmes_control_internal(update=list(commonScale="force"))$update$commonScale,
     "force")
-  expect_error(mmes_control(update=list(commonScale="invalid")),
+  expect_error(sommer:::.mmes_control_internal(update=list(commonScale="invalid")),
     "Experimental toggle")
-  control <- mmes_control()
+  control <- sommer:::.mmes_control_internal()
   control$update$commonScale <- "invalid"
-  expect_error(mmes(y~level, random=~id, data=.common_scale_data(), control=control),
+  expect_error(sommer:::.mmes_dispatch(y~level, random=~id, data=.common_scale_data(), control=control),
     "Experimental toggle")
 })
 
 test_that("profile likelihood, score and AI match independent same-point evaluations", {
   dataset <- .common_scale_data()
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
-    setup <- mmes(y~level, random=~vsm(ar1m(level, rho=0.25), ism(id)), data=dataset, control=mmes_control(output=list(setup=TRUE), task=list(objective=if(reml) "reml" else "ml"), solve=list(method=solver), diagnostics=list(verbose=FALSE)))
+    setup <- sommer:::.mmes_dispatch(y~level, random=~vsm(ar1m(level, rho=0.25), ism(id)), data=dataset, control=sommer:::.mmes_control_internal(output=list(setup=TRUE), task=list(objective=if(reml) "reml" else "ml"), solve=list(method=solver), diagnostics=list(verbose=FALSE)))
     # The residual is the reference scale; random log-scale and rho remain shapes.
     point <- c(log(1.5), atanh(0.25), 0)
     shape <- diag(3)[, 1:2, drop=FALSE]
@@ -97,7 +97,7 @@ test_that("profiled fits preserve converged estimates and exact final uncertaint
   dataset <- .common_scale_data()
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
     model <- function(mode, information="full", inverse=2L, returnParam=FALSE){
-      mmes(y~level, random=~vsm(ar1m(level), ism(id)), data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(output=list(covariance=information), update=list(commonScale=mode), diagnostics=list(profile="force"))), list(convergence=list(maxIters=80L, likelihoodTol=1e-11, parameterTol=1e-9), task=list(objective=if(reml) "reml" else "ml"), output=list(inverse=inverse, setup=returnParam), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
+      sommer:::.mmes_dispatch(y~level, random=~vsm(ar1m(level), ism(id)), data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(sommer:::.mmes_control_internal(output=list(covariance=information), update=list(commonScale=mode), diagnostics=list(profile="force"))), list(convergence=list(maxIters=80L, likelihoodTol=1e-11, parameterTol=1e-9), task=list(objective=if(reml) "reml" else "ml"), output=list(inverse=inverse, setup=returnParam), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
     }
     ordinary <- model("off")
     profiled <- model("force")
@@ -138,7 +138,7 @@ test_that("scale-only fits profile exactly and retain original observations unde
   dataset <- .common_scale_data()
   for(reml in c(TRUE, FALSE)) for(compression in c("off", "groups", "classes")){
     for(information in c("full", "none")){
-      fit <- mmes(y~level, data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(output=list(covariance=information), update=list(commonScale="force"), representation=list(compression=compression))), list(convergence=list(maxIters=1L), task=list(objective=if(reml) "reml" else "ml"), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
+      fit <- sommer:::.mmes_dispatch(y~level, data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(sommer:::.mmes_control_internal(output=list(covariance=information), update=list(commonScale="force"), representation=list(compression=compression))), list(convergence=list(maxIters=1L), task=list(objective=if(reml) "reml" else "ml"), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
       residuals <- lm(y~level, dataset)$residuals
       degrees <- nrow(dataset) - if(reml) 3L else 0L
       expect_true(fit$convergence)
@@ -154,7 +154,7 @@ test_that("scale-only fits profile exactly and retain original observations unde
 test_that("correlated weighted residuals retain exact profile derivatives", {
   dataset <- .common_scale_data()
   for(reml in c(TRUE, FALSE)){
-    setup <- mmes(y~level, random=~id, rcov=~vsm(ar1m(level), ism(unit)), data=dataset, W=diag(rep(c(0.8, 1, 1.2), length.out=nrow(dataset))), control=mmes_control(task=list(objective=if(reml) "reml" else "ml"), output=list(setup=TRUE), diagnostics=list(verbose=FALSE)))
+    setup <- sommer:::.mmes_dispatch(y~level, random=~id, rcov=~vsm(ar1m(level), ism(unit)), data=dataset, W=diag(rep(c(0.8, 1, 1.2), length.out=nrow(dataset))), control=sommer:::.mmes_control_internal(task=list(objective=if(reml) "reml" else "ml"), output=list(setup=TRUE), diagnostics=list(verbose=FALSE)))
     expect_equal(ncol(setup$X), 3L)
     point <- c(log(1.5), 0, atanh(0.2))
     shape <- diag(3)[, c(1L, 3L), drop=FALSE]
@@ -176,9 +176,9 @@ test_that("random-residual variance-ratio ties reduce to analytic scale-only fit
   dataset <- .common_scale_data()
   for(reml in c(TRUE, FALSE)) for(information in c("full", "none")){
     model <- function(mode, iterations){
-      mmes(y~level, random=~id, data=dataset,
+      sommer:::.mmes_dispatch(y~level, random=~id, data=dataset,
         vcc=data.frame(parameter=1:2, group=1L, scale=c(2, 1)),
-        control=mmes_control(output=list(covariance=information, inverse=2L),
+        control=sommer:::.mmes_control_internal(output=list(covariance=information, inverse=2L),
           update=list(commonScale=mode),
           task=list(objective=if(reml) "reml" else "ml"),
           convergence=list(maxIters=iterations, likelihoodTol=1e-11,
@@ -200,7 +200,7 @@ test_that("random-residual variance-ratio ties reduce to analytic scale-only fit
 test_that("profile final information supports prediction and covariance-dependent inference", {
   dataset <- .common_scale_data()
   model <- function(mode, inverse=2L){
-    mmes(y~level, random=~id, data=dataset, control=mmes_control(convergence=list(maxIters=60L, likelihoodTol=1e-11, parameterTol=1e-9), output=list(inverse=inverse), update=list(commonScale=mode), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(y~level, random=~id, data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=60L, likelihoodTol=1e-11, parameterTol=1e-9), output=list(inverse=inverse), update=list(commonScale=mode), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   ordinary <- model("off")
   profiled <- model("force")
@@ -233,22 +233,22 @@ test_that("unsupported scale profiling requests fail explicitly or report auto f
     override <- setting$control
     if(is.null(override)) override <- list()
     setting$control <- NULL
-    control <- utils::modifyList(unclass(mmes_control(
+    control <- utils::modifyList(unclass(sommer:::.mmes_control_internal(
       update=list(commonScale="force"), convergence=list(maxIters=1L),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
       override, keep.null=TRUE)
     expect_error({
-      setting$control <- do.call(mmes_control, control)
-      do.call(mmes, c(base, setting))
+      setting$control <- do.call(sommer:::.mmes_control_internal, control)
+      do.call(sommer:::.mmes_dispatch, c(base, setting))
     }, "commonScale")
   }
-  expect_error(mmes(y~level, random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE), data=dataset, control=mmes_control(output=list(setup=TRUE), update=list(commonScale="force"))), "every product-level")
-  expect_error(mmes(y~level, random=~vsm(rrm(level, 1L), ism(id)), data=dataset, control=mmes_control(output=list(setup=TRUE), update=list(commonScale="force"))), "latent reduced-rank")
+  expect_error(sommer:::.mmes_dispatch(y~level, random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE), data=dataset, control=sommer:::.mmes_control_internal(output=list(setup=TRUE), update=list(commonScale="force"))), "every product-level")
+  expect_error(sommer:::.mmes_dispatch(y~level, random=~vsm(rrm(level, 1L), ism(id)), data=dataset, control=sommer:::.mmes_control_internal(output=list(setup=TRUE), update=list(commonScale="force"))), "latent reduced-rank")
   dataset$alias <- as.integer(dataset$level)
-  expect_error(mmes(y~level+alias, random=~id, data=dataset, control=mmes_control(output=list(setup=TRUE), update=list(commonScale="force"))), "full-column-rank")
-  fallback <- mmes(y~level, random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE), data=dataset, control=mmes_control(convergence=list(maxIters=1L), update=list(commonScale="auto"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  expect_error(sommer:::.mmes_dispatch(y~level+alias, random=~id, data=dataset, control=sommer:::.mmes_control_internal(output=list(setup=TRUE), update=list(commonScale="force"))), "full-column-rank")
+  fallback <- sommer:::.mmes_dispatch(y~level, random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE), data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=1L), update=list(commonScale="auto"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_false(fallback$engineDiagnostics$commonScale$active)
   expect_match(fallback$engineDiagnostics$commonScale$fallbackReason, "every product-level")
   dataset$constant <- rep(c(1, 2, 3), each=24L, length.out=nrow(dataset))
-  expect_error(mmes(constant~level, data=dataset, control=mmes_control(update=list(commonScale="force"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "positive|variance floor")
+  expect_error(sommer:::.mmes_dispatch(constant~level, data=dataset, control=sommer:::.mmes_control_internal(update=list(commonScale="force"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "positive|variance floor")
 })

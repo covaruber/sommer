@@ -1,7 +1,8 @@
 .nonlinear_fit_diagnostics <- function(object, optimized, control,
     started=NULL, preparation=NULL){
   diagnostics <- object$nonlinearDiagnostics
-  diagnostics$optimizer <- list(method="nlminb",gradient="analytic",
+  diagnostics$optimizer <- list(method="nlminb",
+    gradient=if(!is.null(diagnostics$outerScore)) diagnostics$outerScore else "analytic",
     iterations=object$optimizer$iterations,evaluations=object$optimizer$evaluations,
     message=object$optimizer$message)
   startName <- if(isTRUE(object$nonlinearGraph)) "graph" else "curve"
@@ -23,8 +24,10 @@
   diagnostics$memory <- list(budgetMB=control$execution$denseMemoryMB,
     sparseDesignBytes=as.numeric(utils::object.size(object$fixedDesign))+
       as.numeric(utils::object.size(object$randomDesign)),
-    admission=if(isTRUE(object$nonlinearGraph))
-      "Graph forward/gradient and exact Gaussian factor workspaces admitted against execution$denseMemoryMB" else
+    admission=if(isTRUE(object$nonlinearGraph) && !is.null(object$nonlinearRandom))
+      "Graph forward/derivative, exact conditional curvature, and finite-difference Laplace score workspaces admitted against execution$denseMemoryMB" else
+      if(isTRUE(object$nonlinearGraph))
+        "Graph forward/gradient and exact Gaussian factor workspaces admitted against execution$denseMemoryMB" else
         "Sparse-support component-wise dense factor-fill bound; checked before Hessian assembly",
     scope="Conservative operation workspace, not a process-wide peak RSS limit")
   if(!is.null(started)){
@@ -66,6 +69,9 @@ profile_nonlinear <- function(object, replications=3L, control=NULL,
       marginalObjective=function() context$evaluate(parameters,gradient=FALSE),
       marginalScore=function() context$evaluate(parameters,gradient=TRUE),
       conditionalPrediction=function() stats::predict(object))
+    if(!is.null(object$nonlinearRandom))
+      operations$conditionalCurvature <- function()
+        context$conditional(parameters,as.numeric(value$latentMode))
   }else{
     curve <- object$nonlinear
     operations <- list(

@@ -15,7 +15,7 @@
 }
 
 .conditional_control <- function(iterations=4L, panel=8L){
-  mmes_control(update=list(method="conditional-fa"),
+  sommer:::.mmes_control_internal(update=list(method="conditional-fa"),
     convergence=list(maxIters=iterations),
     output=list(covariance="none", coefficientMatrix=FALSE, panelSize=panel),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
@@ -32,7 +32,7 @@ test_that("conditional FA handles incomplete replicated records with exact REML 
   G <- tcrossprod(Lg) + diag(pg); R <- tcrossprod(Le) + diag(pe)
   sg <- fam(data$trait, 1, loadings=Lg, specific=pg, fixed=rep(TRUE, 5L))
   se <- fam(data$trait, 1, loadings=Le, specific=pe, fixed=rep(TRUE, 5L))
-  fit <- mmes(y~trait+trait:x, random=~vsm(sg, ism(id), Gu=precision,
+  fit <- sommer:::.mmes_dispatch(y~trait+trait:x, random=~vsm(sg, ism(id), Gu=precision,
     sigma2=G[1,1], fixedSigma2=TRUE),
     rcov=~vsm(se, ism(record), sigma2=R[1,1], fixedSigma2=TRUE),
     data=data, control=.conditional_control())
@@ -63,10 +63,10 @@ test_that("conditional FA handles incomplete replicated records with exact REML 
   expect_output(print(summary(fit)), "Covariance information omitted")
   expect_error(covmatrix_mmes(fit,1L), "Covariance information was omitted")
   expect_error(postPEV(fit), "Coefficient matrix C was not retained")
-  ordinary <- mmes(y~trait+trait:x, random=~vsm(sg,ism(id),Gu=precision,
+  ordinary <- sommer:::.mmes_dispatch(y~trait+trait:x, random=~vsm(sg,ism(id),Gu=precision,
     sigma2=G[1,1],fixedSigma2=TRUE),
     rcov=~vsm(se,ism(record),sigma2=R[1,1],fixedSigma2=TRUE),data=data,
-    control=mmes_control(diagnostics=list(verbose=FALSE,dateWarning=FALSE)))
+    control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE,dateWarning=FALSE)))
   expect_equal(as.numeric(fit$b),as.numeric(ordinary$b),tolerance=1e-9)
   expect_equal(as.numeric(fit$u),as.numeric(ordinary$u),tolerance=1e-9)
   expect_equal(tail(as.numeric(fit$llik),1L),
@@ -81,7 +81,7 @@ test_that("independent and shared conditional updates increase observed REML", {
   for(shared in list(NULL, "axes")){
     sg <- fam(data$trait, 1, shared=shared)
     se <- fam(data$trait, 1, shared=shared)
-    expect_warning(fit <- mmes(y~trait, random=~vsm(sg, ism(id), Gu=precision),
+    expect_warning(fit <- sommer:::.mmes_dispatch(y~trait, random=~vsm(sg, ism(id), Gu=precision),
       rcov=~vsm(se, ism(record)), data=data, control=.conditional_control()),
       "did not converge")
     expect_true(all(diff(as.numeric(fit$llik)) >= -1e-8))
@@ -109,7 +109,7 @@ test_that("diagonal and homogeneous residuals use the same conditional blocks", 
   precision <- fixture$precision
   for(residual in list(~units, ~vsm(dsm(trait),ism(record)),
                        ~vsm(ism(trait),ism(record)))){
-    expect_warning(fit <- mmes(y~trait,
+    expect_warning(fit <- sommer:::.mmes_dispatch(y~trait,
       random=~vsm(fam(trait,1),ism(id),Gu=precision),
       rcov=residual, data=fixture$data, control=.conditional_control(2L)),
       "did not converge")
@@ -120,8 +120,8 @@ test_that("diagonal and homogeneous residuals use the same conditional blocks", 
 
 test_that("factor score regression uses the low-rank contraction on both scales", {
   fixture <- .conditional_fixture()
-  fit <- mmes(y~trait, random=~vsm(fam(trait,1),ism(id)), data=fixture$data,
-    control=mmes_control(convergence=list(maxIters=2L),
+  fit <- sommer:::.mmes_dispatch(y~trait, random=~vsm(fam(trait,1),ism(id)), data=fixture$data,
+    control=sommer:::.mmes_control_internal(convergence=list(maxIters=2L),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   term <- names(fit$uList)[1L]
   for(scale in c(FALSE, TRUE)) for(rotate in c(FALSE, TRUE)){
@@ -137,18 +137,18 @@ test_that("shared loadings and conditional controls fail explicitly outside thei
   data <- fixture$data
   precision <- fixture$precision
   expect_error(fam(data$trait, shared=TRUE), "loading-group")
-  expect_error(mmes_control(update=list(method="unknown")), "update\\$method")
-  expect_error(mmes(y~trait, random=~vsm(fam(trait,1,shared="a"),ism(id)),
-    data=data, control=mmes_control(diagnostics=list(verbose=FALSE))), "requires update")
-  expect_error(mmes(y~trait, random=~vsm(fam(trait,1),ism(id)),
-    data=data, control=mmes_control(update=list(method="conditional-fa"))),
+  expect_error(sommer:::.mmes_control_internal(update=list(method="unknown")), "update\\$method")
+  expect_error(sommer:::.mmes_dispatch(y~trait, random=~vsm(fam(trait,1,shared="a"),ism(id)),
+    data=data, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE))), "requires update")
+  expect_error(sommer:::.mmes_dispatch(y~trait, random=~vsm(fam(trait,1),ism(id)),
+    data=data, control=sommer:::.mmes_control_internal(update=list(method="conditional-fa"))),
     "output=list")
-  expect_error(mmes(y~trait, random=~id, data=data,
+  expect_error(sommer:::.mmes_dispatch(y~trait, random=~id, data=data,
     control=.conditional_control()), "one fam")
-  expect_error(mmes(y~trait, random=~vsm(fam(trait,1,shared="a"),ism(id)),
+  expect_error(sommer:::.mmes_dispatch(y~trait, random=~vsm(fam(trait,1,shared="a"),ism(id)),
     rcov=~vsm(fam(trait,1,shared="b"),ism(record)), data=data,
     control=.conditional_control()), "matching")
-  expect_error(mmes(y~trait, random=~vsm(fam(trait,1),ism(id),Gu=precision),
+  expect_error(sommer:::.mmes_dispatch(y~trait, random=~vsm(fam(trait,1),ism(id),Gu=precision),
     rcov=~vsm(fam(trait,1),ism(record)), data=data, W=diag(nrow(data))*2,
     control=.conditional_control()), "W/weights")
 })
@@ -164,7 +164,7 @@ test_that("conditional EM converges to an independently optimized restricted lik
   control <- .conditional_control(300L)
   control$convergence$likelihoodTol <- 1e-9
   control$convergence$parameterTol <- 1e-7
-  fit <- mmes(y~trait+trait:x,
+  fit <- sommer:::.mmes_dispatch(y~trait+trait:x,
     random=~vsm(sg,ism(id),Gu=precision,sigma2=G[1,1],fixedSigma2=TRUE),
     rcov=~units,data=data,control=control)
   X <- model.matrix(~trait+trait:x,data)
@@ -188,11 +188,11 @@ test_that("conditional EM converges to an independently optimized restricted lik
   expect_equal(as.numeric(fit$b),evaluate(optimum$maximum,TRUE),tolerance=1e-6)
   expect_equal(fit$AIC,-2*tail(as.numeric(fit$llik),1L)+2*ncol(X))
   expect_equal(fit$BIC,-2*tail(as.numeric(fit$llik),1L)+log(nrow(data))*ncol(X))
-  controlAI <- mmes_control(representation=list(equations="conditional"),
+  controlAI <- sommer:::.mmes_control_internal(representation=list(equations="conditional"),
     convergence=list(maxIters=100L,likelihoodTol=1e-9,parameterTol=1e-7),
     output=list(covariance="none",coefficientMatrix=FALSE),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-  fitAI <- mmes(y~trait+trait:x,
+  fitAI <- sommer:::.mmes_dispatch(y~trait+trait:x,
     random=~vsm(sg,ism(id),Gu=precision,sigma2=G[1,1],fixedSigma2=TRUE),
     rcov=~units,data=data,control=controlAI)
   expect_true(fitAI$convergence)
@@ -210,7 +210,7 @@ test_that("unequal FA ranks and homogeneous specifics preserve marginal descript
   data$record <- interaction(data$id,data$rep)
   data$y <- rnorm(nrow(data))
   data$y[c(3,17)] <- NA
-  expect_warning(fit <- mmes(y~trait,
+  expect_warning(fit <- sommer:::.mmes_dispatch(y~trait,
     random=~vsm(fam(trait,2,variance="homogeneous"),ism(id)),
     rcov=~vsm(fam(trait,1,variance="homogeneous"),ism(record)),
     data=data,control=.conditional_control(3L)), "did not converge")

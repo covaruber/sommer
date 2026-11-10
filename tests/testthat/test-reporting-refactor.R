@@ -63,8 +63,8 @@ test_that("covmatrix SE agrees with direct Jacobian covariance propagation", {
   data <- expand.grid(id=factor(seq_len(8L)), env=factor(letters[1:3]),
                       replicate=seq_len(2L))
   data$y <- rnorm(nrow(data)) + as.integer(data$id) / 5
-  fit <- suppressMessages(mmes(y~env, random=~vsm(usm(env), ism(id)),
-    data=data, control=mmes_control(convergence=list(maxIters=3L),
+  fit <- suppressMessages(sommer:::.mmes_dispatch(y~env, random=~vsm(usm(env), ism(id)),
+    data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=3L),
       diagnostics=list(verbose=FALSE))))
   term <- 1L
   covarianceResult <- covmatrix_mmes(fit, term, se=TRUE)
@@ -121,12 +121,12 @@ test_that("random-effect outputs share the original response scale", {
   precision <- crossprod(W) / 12.25 + diag(c(0, rep(1 / 49, 8L)))
   expected <- solve(precision, crossprod(W, dataset$y) / 12.25)
   for(method in c("ldlt", "cholmod", "pcg", "direct")){
-    control <- mmes_control(
+    control <- sommer:::.mmes_control_internal(
       formulation=if(method == "direct") "direct" else "henderson",
       solve=if(method == "direct") list() else list(method=method),
       convergence=list(maxIters=1L),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))
-    fit <- mmes(y~1, random=~vsm(ism(id), sigma2=49, fixedSigma2=TRUE),
+    fit <- sommer:::.mmes_dispatch(y~1, random=~vsm(ism(id), sigma2=49, fixedSigma2=TRUE),
       rcov=~vsm(ism(units), sigma2=12.25, fixedSigma2=TRUE),
       data=dataset, control=control)
     expect_equal(as.numeric(fit$bu), as.numeric(expected), tolerance=1e-6)

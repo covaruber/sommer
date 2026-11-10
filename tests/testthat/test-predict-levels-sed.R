@@ -1,6 +1,6 @@
 oatsFit <- function(){
   data(DT_yatesoats, package="enhancer", envir=environment())
-  mmes(Y ~ V + N + V:N, random=~ B + B:MP, rcov=~units, data=DT_yatesoats, control=mmes_control(diagnostics=list(verbose=FALSE)))
+  sommer:::.mmes_dispatch(Y ~ V + N + V:N, random=~ B + B:MP, rcov=~units, data=DT_yatesoats, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE)))
 }
 
 oatsDtable <- function(m){
@@ -80,7 +80,7 @@ test_that("levels can request random-effect levels without phenotypes", {
   d <- data.frame(id=factor(rep(ids[1:10], each=3), levels=ids))
   genetic <- drop(t(chol(G)) %*% rnorm(length(ids)))
   d$y <- genetic[as.integer(d$id)] + rnorm(nrow(d), sd=0.5)
-  m <- mmes(y~1, random=~vsm(ism(id), Gu=Gi), data=d, control=mmes_control(diagnostics=list(verbose=FALSE)))
+  m <- sommer:::.mmes_dispatch(y~1, random=~vsm(ism(id), Gu=Gi), data=d, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE)))
   expect_true(m$convergence)
   term <- m$Dtable$term[2]
   p <- predict(m, D="id", levels=setNames(list(c("i1", "i12")), term))

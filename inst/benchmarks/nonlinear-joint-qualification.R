@@ -20,12 +20,12 @@ local({
     model <- nonlinear_curve("x",joint=list(parameters=c("asymptote","rate"),
       random=~vsm(usm(.parameter,theta=matrix(c(1,.4,.4,1),2L)),
         ism(group),sigma2=.01)))
-    control <- mmes_control(task=list(objective="ml",nonlinear=list(
+    control <- sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(
       start=c(asymptote=2,rate=.6))),
       convergence=list(maxIters=500L,likelihoodTol=1e-10,parameterTol=1e-8),
       execution=list(blasThreads=1L,denseMemoryMB=256),
       diagnostics=list(verbose=FALSE,dateWarning=FALSE,profile="force"))
-    elapsed <- system.time(fit <- mmes(y~0,data=data,nonlinear=model,control=control))
+    elapsed <- system.time(fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=model,control=control))
     if(!isTRUE(fit$convergence) || !isTRUE(fit$nonlinearDiagnostics$identified))
       stop("Joint reference fit did not converge or is unidentified.")
     recovery <- max(abs(fit$nonlinearParameters-c(2,.6)))

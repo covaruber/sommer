@@ -2,15 +2,15 @@ test_that("predict.mmes gives exact SEs without requiring the full Ci inverse", 
   data(DT_example)
   DT <- DT_example
 
-  m0 <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE)))
+  m0 <- sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE)))
   expect_identical(m0$CiMode, 0L)
   expect_false(isTRUE(m0$CiComputed))
 
-  m1 <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE), output=list(inverse=1)))
+  m1 <- sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE), output=list(inverse=1)))
   expect_identical(m1$CiMode, 1L)
   expect_false(isTRUE(m1$CiComputed))
 
-  m2 <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE), output=list(inverse=2)))
+  m2 <- sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE), output=list(inverse=2)))
   expect_identical(m2$CiMode, 2L)
   expect_true(isTRUE(m2$CiComputed))
 
@@ -43,7 +43,7 @@ test_that("predict.mmes averages fixed interactions over their full level space"
   data(DT_yatesoats)
 
   expect_warning(
-    model <- mmes(Y ~ B + B:MP, random=~V, rcov=~units, data=DT_yatesoats, control=mmes_control(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE))),
+    model <- sommer:::.mmes_dispatch(Y ~ B + B:MP, random=~V, rcov=~units, data=DT_yatesoats, control=sommer:::.mmes_control_internal(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE))),
     "Omitting 1 structurally unestimable")
   prediction <- predict(model, D="V")
 

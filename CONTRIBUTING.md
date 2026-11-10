@@ -2,8 +2,12 @@
 
 ## Architecture
 
-The public `mmes()` and `mmes_control()` interface and model-independent
-compatibility rules live in [R/FUN_mme_modules.R](R/FUN_mme_modules.R).
+The public `mmes()`, `mmes_method()` and `mmes_control()` interface lives in
+[R/FUN_model_interface.R](R/FUN_model_interface.R). Formula parameter declarations
+and their likelihood implementation live in
+[R/FUN_model_specification.R](R/FUN_model_specification.R).
+The private engine transport and model-independent compatibility rules remain
+in [R/FUN_mme_modules.R](R/FUN_mme_modules.R).
 Private defaults/validation and the shared PCG transport mapping live in
 [R/FUN_mme_control.R](R/FUN_mme_control.R). Model-dependent eligibility stays
 with model preparation or the engine; the capability map describes it but is
@@ -72,6 +76,12 @@ cohesive layout, assembly, evaluation, and optimization operations separately;
 do not combine a mechanical move with changed statistical or dispatch logic.
 
 ## Local validation
+
+Public model-contract tests use the unified interface. Existing numerical
+kernel regression fixtures call `.mmes_dispatch()` and
+`.mmes_control_internal()` directly, so changes to the public model language
+do not remove coverage of the established Gaussian, PQL and native nonlinear
+engines. These private transport functions are not public compatibility aliases.
 
 Do not add `lme4` or `nlme` as dependencies, including `Suggests`, or require
 them in package tests, benchmarks or CI. Use independent numerical oracles

@@ -55,6 +55,10 @@
 }
 
 .nonlinear_random_layout <- function(model, prepared){
+  if(inherits(model,"sommer_nonlinear_graph")){
+    if(!length(model$random) && is.null(model$joint)) return(NULL)
+    return(.nonlinear_multiple_layout(model,prepared))
+  }
   if(length(model$random)>1L || !is.null(model$joint))
     return(.nonlinear_multiple_layout(model,prepared))
   if(!length(model$random)) return(NULL)
@@ -78,19 +82,22 @@
 
 .nonlinear_random_parameters <- function(model, coordinates, layout, mode){
   if(is.null(layout)) return(NULL)
+  positive <- if(inherits(model,"sommer_nonlinear_graph"))
+    vapply(model$parameterMap,function(map) identical(map$transform,"log"),
+      logical(1)) else model$positive
   if(identical(layout$version,2L)){
     values <- matrix(rep(as.numeric(coordinates),each=nrow(layout$groupMap)),
       nrow=nrow(layout$groupMap),dimnames=dimnames(layout$groupMap))
     selected <- layout$groupMap>0L
     values[selected] <- values[selected]+mode[layout$groupMap[selected]]
-    values[,model$positive] <- exp(values[,model$positive,drop=FALSE])
+    values[,positive] <- exp(values[,positive,drop=FALSE])
     return(values)
   }
   values <- matrix(rep(as.numeric(coordinates), each=layout$count),
     nrow=layout$count, dimnames=list(layout$columns, model$parameters))
   values[, layout$coordinate] <- values[, layout$coordinate]+
     mode[layout$start+seq_len(layout$count)]
-  values[, model$positive] <- exp(values[, model$positive, drop=FALSE])
+  values[, positive] <- exp(values[, positive, drop=FALSE])
   values
 }
 
@@ -108,7 +115,8 @@
   selected <- length(terms)-length(labels)+seq_along(labels)
   if(!is.null(model$joint))
     terms[tail(selected,1L)] <- paste(deparse(model$joint$random[[2L]]),collapse="")
-  terms[selected] <- paste0("curve[",labels,"]:",terms[selected])
+  prefix <- if(inherits(model,"sommer_nonlinear_graph")) "graph[" else "curve["
+  terms[selected] <- paste0(prefix,labels,"]:",terms[selected])
   terms
 }
 

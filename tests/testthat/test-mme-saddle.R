@@ -21,16 +21,16 @@ test_that("augmented numerical identities pass standalone native checks", {
 })
 
 test_that("saddle controls are opt-in and reject unsupported routes", {
-  expect_equal(mmes_control()$representation$equations, "normal")
-  expect_equal(mmes_control(representation=list(equations="saddle-point"))$
+  expect_equal(sommer:::.mmes_control_internal()$representation$equations, "normal")
+  expect_equal(sommer:::.mmes_control_internal(representation=list(equations="saddle-point"))$
     representation$equations, "saddle-point")
   dataset <- .saddle_dataset()
-  saddleControl <- mmes_control(representation=list(equations="saddle-point"),
+  saddleControl <- sommer:::.mmes_control_internal(representation=list(equations="saddle-point"),
     update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE))
   model <- function(control=list(), family=stats::gaussian(), internal=NULL){
     merged <- utils::modifyList(unclass(saddleControl), control, keep.null=TRUE)
-    mmes(response~level, random=~id, data=dataset, family=family,
-      control=do.call(mmes_control, merged), .internal=internal)
+    sommer:::.mmes_dispatch(response~level, random=~id, data=dataset, family=family,
+      control=do.call(sommer:::.mmes_control_internal, merged), .internal=internal)
   }
   expect_error(model(list(solve=list(method="pcg")), family=stats::gaussian()), "representation\\$equations")
   expect_error(model(list(formulation="direct")), "representation\\$equations")
@@ -40,7 +40,7 @@ test_that("saddle controls are opt-in and reject unsupported routes", {
   expect_error(model(list(representation=list(factorScores="fixed-shape"))),
     "representation\\$equations")
   expect_error(model(internal=list(pqlInner=TRUE)), "representation\\$equations")
-  setup <- mmes(response~level, random=~id, data=dataset, control=mmes_control(output=list(setup=TRUE), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  setup <- sommer:::.mmes_dispatch(response~level, random=~id, data=dataset, control=sommer:::.mmes_control_internal(output=list(setup=TRUE), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   reference <- .saddle_at(setup)
   attr(setup$covStruct, "saddlePoint") <- "auto"
   auto <- sommer:::ai_mme_sp2(setup$X, setup$Z, setup$Zind, setup$Ai, setup$yvar,
@@ -49,7 +49,7 @@ test_that("saddle controls are opt-in and reject unsupported routes", {
     setup$covStruct, 0, 1, FALSE, solver=setup$solver)
   expect_identical(auto$bu, reference$bu)
   expect_null(auto$engineDiagnostics$saddlePoint)
-  expect_error(mmes(response~level, random=~vsm(rrm(level, 1L), ism(id)), data=dataset,
+  expect_error(sommer:::.mmes_dispatch(response~level, random=~vsm(rrm(level, 1L), ism(id)), data=dataset,
     control=saddleControl),
     "reduced rank")
 })
@@ -57,7 +57,7 @@ test_that("saddle controls are opt-in and reject unsupported routes", {
 test_that("saddle likelihood score and AI match independent dense marginal formulas", {
   dataset <- .saddle_dataset()
   for(reml in c(TRUE, FALSE)){
-    setup <- mmes(response~level, random=~id, data=dataset, control=mmes_control(output=list(setup=TRUE), task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    setup <- sommer:::.mmes_dispatch(response~level, random=~id, data=dataset, control=sommer:::.mmes_control_internal(output=list(setup=TRUE), task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     fit <- .saddle_at(setup, TRUE, 2L)
     X <- as.matrix(setup$X)
     Z <- as.matrix(setup$Z[[1L]])
@@ -93,7 +93,7 @@ test_that("weighted and repeated residual blocks retain exact saddle derivatives
     for(reml in c(TRUE, FALSE)){
       arguments <- list(fixed=response~level, random=~id,
         rcov=~vsm(ar1m(level, rho=0.3), ism(units)), data=dataset,
-        control=mmes_control(task=list(objective=if(reml) "reml" else "ml"),
+        control=sommer:::.mmes_control_internal(task=list(objective=if(reml) "reml" else "ml"),
           update=list(blendWeight=0), output=list(setup=TRUE),
           diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       if(weight != "none"){
@@ -102,7 +102,7 @@ test_that("weighted and repeated residual blocks retain exact saddle derivatives
             diagonals=list(rep(0.05, nrow(dataset)-1L), rep(1.2, nrow(dataset)),
                            rep(0.05, nrow(dataset)-1L)))
       }
-      setup <- do.call(mmes, arguments)
+      setup <- do.call(sommer:::.mmes_dispatch, arguments)
       reference <- .saddle_at(setup)
       candidate <- .saddle_at(setup, TRUE)
       for(field in c("llik", "bu", "C", "dLu", "InfMat", "theta_se")){
@@ -116,7 +116,7 @@ test_that("weighted and repeated residual blocks retain exact saddle derivatives
 test_that("saddle convergence and coefficient inverse modes preserve post-fit consumers", {
   dataset <- .saddle_dataset()
   model <- function(saddle, mode, reml=TRUE){
-    mmes(response~level, random=~id, data=dataset, control=mmes_control(
+    sommer:::.mmes_dispatch(response~level, random=~id, data=dataset, control=sommer:::.mmes_control_internal(
       representation=list(equations=if(saddle) "saddle-point" else "normal"),
       output=list(inverse=mode), task=list(objective=if(reml) "reml" else "ml"),
       update=list(blendWeight=0),
@@ -149,7 +149,7 @@ test_that("saddle convergence and coefficient inverse modes preserve post-fit co
 test_that("saddle supports fixed and tied parameters and models without random effects", {
   dataset <- .saddle_dataset()
   for(reml in c(TRUE, FALSE)){
-    setup <- mmes(response~level, data=dataset, control=mmes_control(task=list(objective=if(reml) "reml" else "ml"), output=list(setup=TRUE), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    setup <- sommer:::.mmes_dispatch(response~level, data=dataset, control=sommer:::.mmes_control_internal(task=list(objective=if(reml) "reml" else "ml"), output=list(setup=TRUE), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     reference <- .saddle_at(setup)
     candidate <- .saddle_at(setup, TRUE)
     for(field in c("llik", "bu", "dLu", "InfMat", "theta_se")){
@@ -158,11 +158,11 @@ test_that("saddle supports fixed and tied parameters and models without random e
   }
   for(tied in c(FALSE, TRUE)){
     model <- function(saddle){
-      mmes(response~level, random=~vsm(dsm(level), ism(id)), data=dataset, vcc=if(tied) data.frame(parameter=c(2L, 3L), group=1L) else NULL, control=mmes_control(representation=list(equations=if(saddle) "saddle-point" else "normal"), update=list(blendWeight=0), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+      sommer:::.mmes_dispatch(response~level, random=~vsm(dsm(level), ism(id)), data=dataset, vcc=if(tied) data.frame(parameter=c(2L, 3L), group=1L) else NULL, control=sommer:::.mmes_control_internal(representation=list(equations=if(saddle) "saddle-point" else "normal"), update=list(blendWeight=0), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     if(!tied){
       # Fixed descriptor coordinates still contribute exact final information.
-      setup <- mmes(response~level, random=~vsm(ar1m(level, rho=0.3, fixed=TRUE), ism(id)), data=dataset, control=mmes_control(update=list(blendWeight=0), output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+      setup <- sommer:::.mmes_dispatch(response~level, random=~vsm(ar1m(level, rho=0.3, fixed=TRUE), ism(id)), data=dataset, control=sommer:::.mmes_control_internal(update=list(blendWeight=0), output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       reference <- .saddle_at(setup)
       candidate <- .saddle_at(setup, TRUE)
     }else{
@@ -179,14 +179,14 @@ test_that("saddle rejects compact grids rather than materializing hidden covaria
   dataset <- expand.grid(trial=factor(1:2), row=factor(1:3), column=factor(1:3))
   dataset <- dataset[-1L, ]
   dataset$response <- sin(seq_len(nrow(dataset)))
-  expect_error(mmes(response~trial, rcov=~vsm(ar1m(row), ar1m(column), ism(units)), data=dataset, control=mmes_control(representation=list(equations="saddle-point"), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
+  expect_error(sommer:::.mmes_dispatch(response~trial, rcov=~vsm(ar1m(row), ar1m(column), ism(units)), data=dataset, control=sommer:::.mmes_control_internal(representation=list(equations="saddle-point"), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "grid/ragged")
 })
 
 test_that("saddle prediction and emmeans preserve their public coefficient contract", {
   dataset <- .saddle_dataset()
   model <- function(saddle){
-    mmes(response~level, random=~id, data=dataset, control=mmes_control(representation=list(equations=if(saddle) "saddle-point" else "normal"), convergence=list(maxIters=40L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(response~level, random=~id, data=dataset, control=sommer:::.mmes_control_internal(representation=list(equations=if(saddle) "saddle-point" else "normal"), convergence=list(maxIters=40L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   reference <- model(FALSE)
   candidate <- model(TRUE)

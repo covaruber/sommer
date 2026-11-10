@@ -13,7 +13,7 @@ multinomialPublicFixture <- function(){
       sample(c("low", "mid", "high"), 1L, prob=value)),
       levels=c("low", "mid", "high")),
     x=x, group=group)
-  control <- mmes_control(task=list(objective="ml",
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml",
     glmm=list(method="laplace", maxit=500L)),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
   list(data=data, control=control)
@@ -21,7 +21,7 @@ multinomialPublicFixture <- function(){
 
 test_that("public multinomial fits expose probabilities and post-fit methods", {
   fixture <- multinomialPublicFixture()
-  fit <- mmes(y~x, random=~group, data=fixture$data,
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=fixture$data,
     family=multinomial(reference="high"), control=fixture$control)
 
   expect_s3_class(fit, "mmes.glmm.laplace")
@@ -84,7 +84,7 @@ test_that("public multinomial fits expose probabilities and post-fit methods", {
     "fixed-effect curvature available")
   expect_output(print(summaryFit), "Uncertainty:")
   expect_equal(dim(vcov(fit)), c(length(fit$b), length(fit$b)))
-  interceptFit <- mmes(y~1, random=~group, data=fixture$data,
+  interceptFit <- sommer:::.mmes_dispatch(y~1, random=~group, data=fixture$data,
     family=multinomial(reference="high"), control=fixture$control)
   expect_s3_class(anova(interceptFit, fit), "anova")
   expect_true(is.finite(AIC(fit)))
@@ -206,15 +206,15 @@ test_that("public multinomial fits expose probabilities and post-fit methods", {
 test_that("multinomial family requires the native Laplace ML route", {
   fixture <- multinomialPublicFixture()
   expect_s3_class(multinomial(), "family")
-  expect_error(mmes(y~x, random=~group, data=fixture$data,
-    family=multinomial(), control=mmes_control()),
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=fixture$data,
+    family=multinomial(), control=sommer:::.mmes_control_internal()),
     "supported only by native Laplace")
-  expect_error(mmes(y~x, random=~group, data=fixture$data,
-    family=multinomial(), control=mmes_control(task=list(objective="reml",
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=fixture$data,
+    family=multinomial(), control=sommer:::.mmes_control_internal(task=list(objective="reml",
       glmm=list(method="laplace")))),
     "maximum likelihood")
-  expect_error(mmes(y~x, random=~group, data=fixture$data,
-    family=multinomial(), control=mmes_control(task=list(objective="ml",
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=fixture$data,
+    family=multinomial(), control=sommer:::.mmes_control_internal(task=list(objective="ml",
       glmm=list(method="laplace")), output=list(inverse=1L))),
     "defers uncertainty")
 })

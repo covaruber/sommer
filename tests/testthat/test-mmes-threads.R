@@ -43,8 +43,8 @@ test_that("mmes restores real BLAS settings after success, early return, and err
   on.exit(controller$set(previous), add=TRUE)
   data(DT_example)
   fit <- function(method="ldlt", setup=FALSE){
-    mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example,
-      control=mmes_control(solve=list(method=method),
+    sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT_example,
+      control=sommer:::.mmes_control_internal(solve=list(method=method),
         convergence=list(maxIters=2), output=list(setup=setup),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE),
         execution=list(blasThreads=1L)))
@@ -90,7 +90,7 @@ test_that("parallel AI contractions preserve serial fits and cache accounting", 
     results <- list()
     for(repetition in seq_len(2L)){
       for(model in models){
-        fit <- mmes(y~trial+block, random=model, data=dataset, control=mmes_control(convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+        fit <- sommer:::.mmes_dispatch(y~trial+block, random=model, data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
         results[[length(results) + 1L]] <- c(
           fit[c("theta", "bu", "llik", "InfMat", "dLu")],
           list(contractionDigitEntries=fit$engineDiagnostics$contractionDigitEntries)

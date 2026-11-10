@@ -25,7 +25,7 @@
 }
 
 test_that("hybrid AI controls merge, print, and reject unsupported combinations", {
-  hybridControl <- mmes_control(curvature=list(method="hybrid-ai"))
+  hybridControl <- sommer:::.mmes_control_internal(curvature=list(method="hybrid-ai"))
   expect_equal(hybridControl$curvature$method, "hybrid-ai")
   expect_output(print(hybridControl), "hybrid-ai")
   dataset <- .hybrid_ai_fixture()
@@ -34,21 +34,21 @@ test_that("hybrid AI controls merge, print, and reject unsupported combinations"
       keep.null=TRUE)
     control <- utils::modifyList(control, list(update=list(blendWeight=0),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)
-    mmes(response~level, random=~id, data=dataset,
-      control=do.call(mmes_control, control))
+    sommer:::.mmes_dispatch(response~level, random=~id, data=dataset,
+      control=do.call(sommer:::.mmes_control_internal, control))
   }
   expect_error(model(list(solve=list(method="pcg"))), "deterministic")
   expect_error(model(list(formulation="direct")), "formulation='direct'")
   expect_error(model(list(task=list(mode="solve"))), "task\\$mode='solve'")
-  expect_error(mmes(response~level, random=~id, data=dataset, family=poisson(),
+  expect_error(sommer:::.mmes_dispatch(response~level, random=~id, data=dataset, family=poisson(),
     control=hybridControl), "PQL")
-  expect_error(mmes(response~level, random=~id, data=dataset,
+  expect_error(sommer:::.mmes_dispatch(response~level, random=~id, data=dataset,
     control=hybridControl, .internal=list(pqlInner=TRUE)), "PQL")
   expect_error(model(list(representation=list(factorScores="fixed-shape"))),
     "representation\\$factorScores")
   expect_error(model(list(representation=list(factorScores="profile"))),
     "representation\\$factorScores")
-  expect_error(mmes(response~level, random=~vsm(rrm(level, 1L), ism(id)), data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(hybridControl), list(update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))),
+  expect_error(sommer:::.mmes_dispatch(response~level, random=~vsm(rrm(level, 1L), ism(id)), data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(hybridControl), list(update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))),
     "latent reduced-rank")
 })
 
@@ -56,7 +56,7 @@ test_that("hybrid AI preserves converged fits and reduces actual sensitivity sol
   dataset <- .hybrid_ai_fixture()
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
     model <- function(mode, computeCi=0L, returnParam=FALSE){
-      mmes(response~level, random=~vsm(usm(level), ism(id)), data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(proposal=list(extrapolation=if(mode == "aitken") "aitken" else "none"), curvature=list(method=if(mode == "hybrid-ai") "hybrid-ai" else "exact-ai"))), list(update=list(blendWeight=0), convergence=list(maxIters=100L, likelihoodTol=1e-10, parameterTol=1e-8), task=list(objective=if(reml) "reml" else "ml"), output=list(inverse=computeCi, setup=returnParam), diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
+      sommer:::.mmes_dispatch(response~level, random=~vsm(usm(level), ism(id)), data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(sommer:::.mmes_control_internal(proposal=list(extrapolation=if(mode == "aitken") "aitken" else "none"), curvature=list(method=if(mode == "hybrid-ai") "hybrid-ai" else "exact-ai"))), list(update=list(blendWeight=0), convergence=list(maxIters=100L, likelihoodTol=1e-10, parameterTol=1e-8), task=list(objective=if(reml) "reml" else "ml"), output=list(inverse=computeCi, setup=returnParam), diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
     }
     plain <- model("none")
     hybrid <- model("hybrid-ai")
@@ -97,7 +97,7 @@ test_that("hybrid AI returns exact information at iteration limits and skips fix
   dataset <- .hybrid_ai_fixture()
   for(iterations in c(1L, 2L, 3L, 6L)){
     model <- function(mode, returnParam=FALSE){
-      mmes(response~level, random=~vsm(ar1m(level, rho=0.35, fixed=TRUE), ism(id)), data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(proposal=list(extrapolation=if(mode == "aitken") "aitken" else "none"), curvature=list(method=if(mode == "hybrid-ai") "hybrid-ai" else "exact-ai"))), list(convergence=list(maxIters=iterations, likelihoodTol=1e-14, parameterTol=1e-14), update=list(blendWeight=0), proposal=list(stepWeight=0.7), output=list(setup=returnParam), diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
+      sommer:::.mmes_dispatch(response~level, random=~vsm(ar1m(level, rho=0.35, fixed=TRUE), ism(id)), data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(sommer:::.mmes_control_internal(proposal=list(extrapolation=if(mode == "aitken") "aitken" else "none"), curvature=list(method=if(mode == "hybrid-ai") "hybrid-ai" else "exact-ai"))), list(convergence=list(maxIters=iterations, likelihoodTol=1e-14, parameterTol=1e-14), update=list(blendWeight=0), proposal=list(stepWeight=0.7), output=list(setup=returnParam), diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
     }
     hybrid <- model("hybrid-ai")
     reference <- .hybrid_ai_at(model("none", TRUE), hybrid, em=0)
@@ -128,9 +128,9 @@ test_that("hybrid AI returns exact information at iteration limits and skips fix
 test_that("tied covariance parameters explicitly retain the exact optimizer", {
   dataset <- .hybrid_ai_fixture()
   model <- function(mode){
-    mmes(response~level, random=~id + replicate, data=dataset,
+    sommer:::.mmes_dispatch(response~level, random=~id + replicate, data=dataset,
       vcc=data.frame(parameter=c(1L, 2L), group=1L),
-      control=mmes_control(
+      control=sommer:::.mmes_control_internal(
         proposal=list(extrapolation=if(mode == "aitken") "aitken" else "none"),
         curvature=list(method=if(mode == "hybrid-ai") "hybrid-ai" else "exact-ai"),
         update=list(blendWeight=0), convergence=list(maxIters=8L),

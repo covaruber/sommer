@@ -3,7 +3,7 @@ test_that("benchmark records frozen-point AI parity rather than just final estim
     structure="ar1", seed=771L)
   for(solver in c("ldlt", "cholmod")){
     result <- sommer:::.mme_benchmark_ai_assembly(workload,
-      mmes_control(solve=list(method=solver)), replications=1L)
+      sommer:::.mmes_control_internal(solve=list(method=solver)), replications=1L)
     expect_equal(nrow(result), 2L)
     expect_identical(result$assembly, c("sensitivity", "augmented-working"))
     expect_true(all(result$solver == solver))

@@ -93,19 +93,19 @@ test_that("one true EM step matches independent dense REML and ML moments", {
       diag=~vsm(dsm(trait), ism(id), sigma2=0.8))
     arguments <- list(fixed=y~trait, random=random,
       rcov=~vsm(ism(units), sigma2=0.6), data=dataset,
-      control=mmes_control(convergence=list(maxIters=2L),
+      control=sommer:::.mmes_control_internal(convergence=list(maxIters=2L),
         update=list(blendWeight=1),
         proposal=list(stepWeight=1),
         task=list(objective=if(reml) "reml" else "ml"),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     setupArguments <- arguments
-    setupArguments$control <- do.call(mmes_control, utils::modifyList(
+    setupArguments$control <- do.call(sommer:::.mmes_control_internal, utils::modifyList(
       unclass(arguments$control), list(output=list(setup=TRUE)),
       keep.null=TRUE))
-    setup <- do.call(mmes, setupArguments)
+    setup <- do.call(sommer:::.mmes_dispatch, setupArguments)
     reference <- .em_dense_step(setup, dataset$y)
     if(shape == "diag") reference[[1L]] <- diag(diag(reference[[1L]]))
-    fitted <- do.call(mmes, arguments)
+    fitted <- do.call(sommer:::.mmes_dispatch, arguments)
     for(term in seq_along(reference)){
       expect_equal(fitted$theta[[term]], reference[[term]], tolerance=1e-8,
                    ignore_attr=TRUE)
@@ -129,9 +129,9 @@ test_that("ML trials reprofile fixed effects and preserve D-first and inverse-mo
   for(solver in c("ldlt", "cholmod")) for(method in c("em", "pxem")){
     reference <- NULL
     for(path in c("off", "force")) for(mode in 0:2){
-      fit <- mmes(y~trait, random=~vsm(ism(id), sigma2=0.8),
+      fit <- sommer:::.mmes_dispatch(y~trait, random=~vsm(ism(id), sigma2=0.8),
         rcov=~vsm(ism(units), sigma2=0.6), data=dataset, W=weights,
-        control=mmes_control(solve=list(method=solver, dFirstML=path),
+        control=sommer:::.mmes_control_internal(solve=list(method=solver, dFirstML=path),
           task=list(objective="ml"), update=list(recovery=method,
             blendWeight=c(1, 0.5, 0)),
           convergence=list(maxIters=3L), output=list(inverse=mode),
@@ -161,7 +161,7 @@ test_that("generic covariance and tied M-steps increase Q and preserve constrain
   dataset <- .em_direction_data()
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")) for(model in c("ar", "residual", "fixed", "tie", "rr")){
     arguments <- list(fixed=y~trait, random=~id, data=dataset,
-      control=mmes_control(solve=list(method=solver),
+      control=sommer:::.mmes_control_internal(solve=list(method=solver),
         task=list(objective=if(reml) "reml" else "ml"),
         update=list(blendWeight=1), convergence=list(maxIters=4L),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -173,7 +173,7 @@ test_that("generic covariance and tied M-steps increase Q and preserve constrain
       arguments$vcc <- data.frame(parameter=c(1L, 2L), group=1L)
     }
     if(model == "rr") arguments$random <- ~vsm(rrm(trait, 1L), ism(id))
-    fitted <- do.call(mmes, arguments)
+    fitted <- do.call(sommer:::.mmes_dispatch, arguments)
     diagnostics <- fitted$engineDiagnostics$blend
     expect_true(all(diff(c(fitted$llik)) >= -1e-9))
     expect_true(all(diagnostics$qGains >= -1e-9))
@@ -207,18 +207,18 @@ test_that("weighted relationship EM matches dense moments without a full inverse
     arguments <- list(fixed=y~trait,
       random=~vsm(ism(id), Gu=precision, sigma2=0.8),
       rcov=~vsm(ism(units), sigma2=0.6), W=weights, data=dataset,
-      control=mmes_control(convergence=list(maxIters=2L),
+      control=sommer:::.mmes_control_internal(convergence=list(maxIters=2L),
         update=list(blendWeight=1),
         task=list(objective=if(reml) "reml" else "ml"),
         solve=list(method=solver),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     setupArguments <- arguments
-    setupArguments$control <- do.call(mmes_control, utils::modifyList(
+    setupArguments$control <- do.call(sommer:::.mmes_control_internal, utils::modifyList(
       unclass(arguments$control), list(output=list(setup=TRUE)),
       keep.null=TRUE))
-    setup <- do.call(mmes, setupArguments)
+    setup <- do.call(sommer:::.mmes_dispatch, setupArguments)
     reference <- .em_dense_step(setup, dataset$y)
-    fitted <- do.call(mmes, arguments)
+    fitted <- do.call(sommer:::.mmes_dispatch, arguments)
     for(term in seq_along(reference)){
       expect_equal(fitted$theta[[term]], reference[[term]], tolerance=1e-8, ignore_attr=TRUE)
     }
@@ -233,18 +233,18 @@ test_that("complete unstructured and diagonal residuals have exact EM M-steps", 
     arguments <- list(fixed=y~trait, random=~id, data=dataset,
       rcov=if(shape == "us") ~vsm(usm(trait), ism(units)) else
         ~vsm(dsm(trait), ism(units)),
-      control=mmes_control(convergence=list(maxIters=2L),
+      control=sommer:::.mmes_control_internal(convergence=list(maxIters=2L),
         update=list(blendWeight=1),
         task=list(objective=if(reml) "reml" else "ml"),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     setupArguments <- arguments
-    setupArguments$control <- do.call(mmes_control, utils::modifyList(
+    setupArguments$control <- do.call(sommer:::.mmes_control_internal, utils::modifyList(
       unclass(arguments$control), list(output=list(setup=TRUE)),
       keep.null=TRUE))
-    setup <- do.call(mmes, setupArguments)
+    setup <- do.call(sommer:::.mmes_dispatch, setupArguments)
     reference <- .em_dense_step(setup, dataset$y)
     if(shape == "diag") reference[[2L]] <- diag(diag(reference[[2L]]))
-    fitted <- do.call(mmes, arguments)
+    fitted <- do.call(sommer:::.mmes_dispatch, arguments)
     expect_equal(as.numeric(fitted$theta[[1L]]), as.numeric(reference[[1L]]), tolerance=1e-8)
     expect_equal(fitted$covParWorking[[2L]][1L], log(reference[[2L]][1L, 1L]), tolerance=1e-8)
     covariance <- sommer:::evaluate_covstruct_cpp(setup$covStruct[[2L]],
@@ -259,7 +259,7 @@ test_that("mixed schedules skip unused EM or AI work and return clean inference"
   dataset <- .em_direction_data()
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")){
   fit <- function(weights, iterations=length(weights), computeCi=0L){
-    mmes(y~trait, random=~id, data=dataset, control=mmes_control(convergence=list(maxIters=iterations), update=list(blendWeight=weights), output=list(inverse=computeCi), task=list(objective=if(reml) "reml" else "ml"), solve=list(method=solver), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(y~trait, random=~id, data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=iterations), update=list(blendWeight=weights), output=list(inverse=computeCi), task=list(objective=if(reml) "reml" else "ml"), solve=list(method=solver), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   mixed <- fit(c(1, 0.5, 0, 0))
   diagnostics <- mixed$engineDiagnostics$blend
@@ -282,12 +282,12 @@ test_that("mixed schedules skip unused EM or AI work and return clean inference"
 
 test_that("exact EM moments respect their memory budget", {
   dataset <- .em_direction_data()
-  expect_error(mmes(y~trait, random=~id, data=dataset,
-    control=mmes_control(execution=list(denseMemoryMB=0.001),
+  expect_error(sommer:::.mmes_dispatch(y~trait, random=~id, data=dataset,
+    control=sommer:::.mmes_control_internal(execution=list(denseMemoryMB=0.001),
       convergence=list(maxIters=2L), update=list(blendWeight=1),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "EM moments")
-  expect_error(mmes(y~trait, random=~id, data=dataset,
-    control=mmes_control(execution=list(denseMemoryMB=0.003),
+  expect_error(sommer:::.mmes_dispatch(y~trait, random=~id, data=dataset,
+    control=sommer:::.mmes_control_internal(execution=list(denseMemoryMB=0.003),
       convergence=list(maxIters=2L), update=list(blendWeight=1),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "EM moments")
 })
@@ -295,7 +295,7 @@ test_that("exact EM moments respect their memory budget", {
 test_that("blending interpolates proposals rather than information matrices", {
   dataset <- .em_direction_data()
   fit <- function(weight, iterations, damping=1){
-    mmes(y~trait, random=~vsm(ism(id), sigma2=0.8), rcov=~vsm(ism(units), sigma2=0.6), data=dataset, control=mmes_control(convergence=list(maxIters=iterations), update=list(blendWeight=weight), proposal=list(stepWeight=damping), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(y~trait, random=~vsm(ism(id), sigma2=0.8), rcov=~vsm(ism(units), sigma2=0.6), data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=iterations), update=list(blendWeight=weight), proposal=list(stepWeight=damping), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   initial <- fit(0, 1L)
   em <- fit(1, 2L)
@@ -309,7 +309,7 @@ test_that("blending interpolates proposals rather than information matrices", {
 
 test_that("large damped EM proposals backtrack without decreasing likelihood", {
   dataset <- .em_direction_data()
-  fitted <- mmes(y~trait, random=~vsm(ism(id), sigma2=0.8), rcov=~vsm(ism(units), sigma2=0.6), data=dataset, control=mmes_control(convergence=list(maxIters=3L), update=list(blendWeight=1), proposal=list(stepWeight=20), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  fitted <- sommer:::.mmes_dispatch(y~trait, random=~vsm(ism(id), sigma2=0.8), rcov=~vsm(ism(units), sigma2=0.6), data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=3L), update=list(blendWeight=1), proposal=list(stepWeight=20), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_gt(fitted$engineDiagnostics$blend$lineSearchHalvings, 0L)
   expect_true(all(diff(c(fitted$llik)) >= -1e-9))
 })
@@ -320,7 +320,7 @@ test_that("EM and blended fits reach the standalone AI optimum", {
   dataset$y <- as.integer(dataset$trait) +
     2 * rnorm(nlevels(dataset$id))[as.integer(dataset$id)] + rnorm(nrow(dataset), sd=0.6)
   fit <- function(weight){
-    mmes(y~trait, random=~id, data=dataset, control=mmes_control(convergence=list(maxIters=150L, likelihoodTol=1e-8, parameterTol=1e-8), update=list(blendWeight=weight), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(y~trait, random=~id, data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=150L, likelihoodTol=1e-8, parameterTol=1e-8), update=list(blendWeight=weight), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   ai <- fit(0)
   for(weight in c(1, 0.5)){
@@ -339,7 +339,7 @@ test_that("final scores, information, and uncertainty match accepted parameters"
     random <- switch(shape, scalar=~id, us=~vsm(usm(trait), ism(id)),
       ar=~vsm(ar1m(trait), ism(id)), rr=~vsm(rrm(trait, 1L), ism(id)))
     arguments <- list(fixed=y~trait, random=random, data=dataset,
-      control=mmes_control(solve=list(method=solver),
+      control=sommer:::.mmes_control_internal(solve=list(method=solver),
         convergence=list(maxIters=4L),
         update=list(blendWeight=c(1, 0.5, 0, 0)),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -348,11 +348,11 @@ test_that("final scores, information, and uncertainty match accepted parameters"
         matrix(0.01, nrow(dataset), nrow(dataset))
     }
     setupArguments <- arguments
-    setupArguments$control <- do.call(mmes_control, utils::modifyList(
+    setupArguments$control <- do.call(sommer:::.mmes_control_internal, utils::modifyList(
       unclass(arguments$control), list(output=list(setup=TRUE)),
       keep.null=TRUE))
-    setup <- do.call(mmes, setupArguments)
-    fitted <- do.call(mmes, arguments)
+    setup <- do.call(sommer:::.mmes_dispatch, setupArguments)
+    fitted <- do.call(sommer:::.mmes_dispatch, arguments)
     reference <- .em_information_at(setup, fitted)
     for(field in c("InfMat", "theta_se", "dLu")){
       expect_equal(fitted[[field]], reference[[field]], tolerance=1e-9)
@@ -367,7 +367,7 @@ test_that("blended directions respect variance floors, fixed scales, and ratios"
   for(tied in c(FALSE, TRUE)){
     random <- if(tied) ~vsm(ism(id), sigma2=2e-6) +
       vsm(ism(replicate), sigma2=1e-6) else ~vsm(ism(id), sigma2=1e-6)
-    fitted <- mmes(y~trait, random=random, data=dataset, vcc=if(tied) data.frame(parameter=1:2, group=1L, scale=c(2, 1)) else NULL, control=mmes_control(update=list(blendWeight=0.5), convergence=list(maxIters=30L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    fitted <- sommer:::.mmes_dispatch(y~trait, random=random, data=dataset, vcc=if(tied) data.frame(parameter=1:2, group=1L, scale=c(2, 1)) else NULL, control=sommer:::.mmes_control_internal(update=list(blendWeight=0.5), convergence=list(maxIters=30L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_gte(fitted$covPar[[1L]][1L], 1e-6 - 1e-14)
     expect_true(all(diff(c(fitted$llik)) >= -1e-9))
     if(tied){
@@ -376,6 +376,6 @@ test_that("blended directions respect variance floors, fixed scales, and ratios"
       expect_gte(fitted$covPar[[2L]][1L], 1e-6 - 1e-14)
     }
   }
-  fixed <- mmes(y~trait, random=~vsm(ism(id), sigma2=5e-7, fixedSigma2=TRUE), data=dataset, control=mmes_control(update=list(blendWeight=0.5), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  fixed <- sommer:::.mmes_dispatch(y~trait, random=~vsm(ism(id), sigma2=5e-7, fixedSigma2=TRUE), data=dataset, control=sommer:::.mmes_control_internal(update=list(blendWeight=0.5), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_equal(fixed$covPar[[1L]][1L], 5e-7, tolerance=1e-12)
 })

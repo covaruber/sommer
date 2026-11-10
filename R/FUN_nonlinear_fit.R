@@ -53,7 +53,8 @@
   graphFit <- inherits(nonlinear,"sommer_nonlinear_graph")
   model <- if(graphFit) .nonlinear_graph_validate(nonlinear) else
     .nonlinear_validate(nonlinear)
-  if(!graphFit) random <- .nonlinear_joint_formula(random, model, data)
+  if(!graphFit || length(model$random) || !is.null(model$joint))
+    random <- .nonlinear_joint_formula(random, model, data)
   graphLayout <- if(graphFit) .nonlinear_graph_native_layout(model,data,
     allowMissing=TRUE) else NULL
   input <- if(graphFit) graphLayout$inputs else
@@ -65,7 +66,7 @@
   included <- prepared$obsInfo$included
   x <- prepared$X
   z <- Matrix::Matrix(do.call(cbind, prepared$Z), sparse=TRUE)
-  curveRandom <- if(graphFit) NULL else .nonlinear_random_layout(model, prepared)
+  curveRandom <- .nonlinear_random_layout(model, prepared)
   prepared$rtermss <- .nonlinear_term_labels(model,prepared$rtermss)
   y <- stats::model.response(prepared$modelFrame)
   if(!is.numeric(y) || !is.null(dim(y))){
@@ -124,12 +125,20 @@
     stats::setNames(theta,paste0(if(graphFit) "graph:" else "curve:",
       model$parameters)),
     mapping$map$initial, `residual:logVariance`=log(variance))
-  if(graphFit){
+  if(graphFit && is.null(curveRandom)){
     context <- sommer_nonlinear_graph_gaussian_create(x,z,y,offset,
       graphLayout$inputs[included,,drop=FALSE],graphLayout$nodes,
       graphLayout$output,graphLayout$transformed,mapping$structures,
       prepared$Ai,control$execution$denseMemoryMB)
     nativeEvaluate <- sommer_nonlinear_gaussian_eval
+  }else if(graphFit){
+    mode <- control$task$nonlinear$mode
+    context <- sommer_nonlinear_graph_laplace_create(x,z,y,offset,
+      graphLayout$inputs[included,,drop=FALSE],graphLayout$nodes,
+      graphLayout$output,graphLayout$transformed,curveRandom$coordinateMap,
+      mapping$structures,prepared$Ai,control$execution$denseMemoryMB,
+      mode$maxIters,mode$scoreTol,mode$stepTol)
+    nativeEvaluate <- sommer_nonlinear_graph_laplace_eval
   }else if(is.null(curveRandom)){
     context <- sommer_nonlinear_gaussian_create(x, z, y, offset, input,
       model$curve, mapping$structures, prepared$Ai, control$execution$denseMemoryMB)
@@ -178,8 +187,11 @@
   covariance <- .nonlinear_covariance_parameters(structures)
   names(covariance) <- prepared$rtermss
   beta <- stats::setNames(optimization$par[seq_len(p)], colnames(x))
-  if(!is.null(curveRandom)){
+  if(!is.null(curveRandom) && !graphFit){
     final$fixedMean <- offset+as.numeric(x %*% beta)+as.numeric(curve$mean)
+  }else if(graphFit && !is.null(curveRandom)){
+    final$fixedMean <- offset+as.numeric(x%*%beta)+as.numeric(
+      .nonlinear_graph_first(model,data[included,,drop=FALSE],theta,control)$output)
   }
   fixedTerms <- stats::delete.response(attr(prepared$modelFrame, "terms"))
   retainedFrame <- droplevels(prepared$modelFrame[included, , drop=FALSE])
@@ -205,7 +217,7 @@
     nonlinearRandom=curveRandom,
     groupParameters=.nonlinear_random_parameters(model, theta, curveRandom, final$mode),
     likelihoodMethod=if(is.null(curveRandom)) "exact Gaussian ML" else "Laplace Gaussian ML",
-    nonlinearParameterLayout=list(version=1L, fixed=names(beta),
+    nonlinearParameterLayout=list(version=if(graphFit) 2L else 1L, fixed=names(beta),
       curve=if(graphFit) character() else model$parameters,
       graph=if(graphFit) model$parameters else character(),
       positive=if(graphFit) which(vapply(model$parameterMap,function(map)
@@ -248,11 +260,13 @@
       modeIterations=final$modeIterations, failedStarts=final$failedStarts,
       failedStartReasons=final$failedStartReasons,
       competingModes=final$competingModes, logDetHessian=final$logDetHessian,
+      outerScore=if(graphFit && !is.null(curveRandom))
+        final$work$outerScore else "analytic native score",
       boundaryParameters=boundary, rejectedEvaluations=rejected,
       work=final$work, uncertaintyComputed=FALSE),
     uPevMode=0L, retainCoefficientMatrix=FALSE, covarianceInformation="none")
   class(result) <- c("mmes.nonlinear", "mmes")
-  if(!is.null(curveRandom)){
+  if(!is.null(curveRandom) && !graphFit){
     result$curveRandomMode <- stats::setNames(
       result$randomMode[curveRandom$start+seq_len(curveRandom$count)], curveRandom$columns)
     result$additiveRandomMode <- result$randomMode[seq_len(curveRandom$start)]

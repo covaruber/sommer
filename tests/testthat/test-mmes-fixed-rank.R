@@ -1,5 +1,5 @@
 .rank_control <- function(formulation="henderson", objective="reml", inverse=0L){
-  mmes_control(formulation=formulation, representation=list(fixedRank="drop"),
+  sommer:::.mmes_control_internal(formulation=formulation, representation=list(fixedRank="drop"),
     task=list(objective=objective), output=list(inverse=inverse),
     convergence=list(maxIters=60L, likelihoodTol=1e-7, parameterTol=1e-7),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
@@ -18,14 +18,14 @@
 }
 
 test_that("fixed-rank control is opt-in and strictly validated", {
-  expect_identical(mmes_control()$representation$fixedRank, "error")
+  expect_identical(sommer:::.mmes_control_internal()$representation$fixedRank, "error")
   expect_identical(.rank_control("direct")$representation$fixedRank, "drop")
-  expect_error(mmes_control(representation=list(fixedRank=TRUE)),
+  expect_error(sommer:::.mmes_control_internal(representation=list(fixedRank=TRUE)),
     "representation\\$fixedRank")
-  expect_error(mmes_control(representation=list(fixedRank="automatic")),
+  expect_error(sommer:::.mmes_control_internal(representation=list(fixedRank="automatic")),
     "representation\\$fixedRank")
-  expect_error(mmes(response ~ locale + cell, data=.rank_records(),
-    control=mmes_control(diagnostics=list(verbose=FALSE))),
+  expect_error(sommer:::.mmes_dispatch(response ~ locale + cell, data=.rank_records(),
+    control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE))),
     "rank deficient")
 })
 
@@ -63,12 +63,12 @@ test_that("both engines preserve fits and random partitions under ML and REML", 
   for(formulationName in c("henderson", "direct")){
     for(objectiveName in c("reml", "ml")){
       expect_warning(
-        reducedFit <- mmes(response ~ locale + cell, random=~lineage, data=records,
+        reducedFit <- sommer:::.mmes_dispatch(response ~ locale + cell, random=~lineage, data=records,
           control=.rank_control(formulationName, objectiveName)),
         "rank reduction retained 4 of 5"
       )
-      referenceFit <- mmes(response ~ 0 + cell, random=~lineage, data=records,
-        control=mmes_control(formulation=formulationName, task=list(objective=objectiveName),
+      referenceFit <- sommer:::.mmes_dispatch(response ~ 0 + cell, random=~lineage, data=records,
+        control=sommer:::.mmes_control_internal(formulation=formulationName, task=list(objective=objectiveName),
           convergence=list(maxIters=60L, likelihoodTol=1e-7, parameterTol=1e-7),
           diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       expect_true(reducedFit$convergence)
@@ -100,12 +100,12 @@ test_that("zero interaction columns and setup use the same full-rank subset", {
   records <- .rank_records()
   records <- records[records$locale == "north" | records$cultivar == "late", ]
   expect_warning(
-    reducedFit <- mmes(response ~ locale + locale:cultivar, data=records,
+    reducedFit <- sommer:::.mmes_dispatch(response ~ locale + locale:cultivar, data=records,
       control=.rank_control()), "rank reduction"
   )
   setupControl <- .rank_control()
   setupControl$output$setup <- TRUE
-  setup <- mmes(response ~ locale + locale:cultivar, data=records, control=setupControl)
+  setup <- sommer:::.mmes_dispatch(response ~ locale + locale:cultivar, data=records, control=setupControl)
   expect_equal(setup$fixedRank$retained, reducedFit$fixedRank$retained)
   expect_equal(ncol(setup$X), 3L)
   expect_equal(nrow(reducedFit$b), 4L)
@@ -118,7 +118,7 @@ test_that("rank selection uses the rows retained after missing-response filterin
     locale=factor(rep(c("north", "south", "unused"), each=2L)),
     covariate=c(0, 0, 0, 0, 1, 2))
   expect_warning(
-    reducedFit <- mmes(response ~ locale + covariate, data=records,
+    reducedFit <- sommer:::.mmes_dispatch(response ~ locale + covariate, data=records,
       control=.rank_control()), "rank reduction retained 2 of 3")
   expect_equal(nrow(reducedFit$W), 4L)
   expect_equal(reducedFit$fixedRank$columnNames[reducedFit$fixedRank$omitted],
@@ -130,7 +130,7 @@ test_that("rank selection uses the rows retained after missing-response filterin
 test_that("Henderson prediction distinguishes estimable means from constrained coefficients", {
   records <- .rank_records()
   expect_warning(
-    reducedFit <- mmes(response ~ locale + cell, random=~lineage, data=records,
+    reducedFit <- sommer:::.mmes_dispatch(response ~ locale + cell, random=~lineage, data=records,
       control=.rank_control(inverse=2L)), "rank reduction"
   )
   fixedDesign <- model.matrix(~locale + cell, records)
@@ -167,12 +167,12 @@ test_that("Henderson prediction distinguishes estimable means from constrained c
 
 test_that("full-rank opt-in leaves outputs unchanged without warnings", {
   records <- .rank_records()
-  controlDefault <- mmes_control(diagnostics=list(verbose=FALSE, dateWarning=FALSE))
-  controlReduced <- mmes_control(representation=list(fixedRank="drop"),
+  controlDefault <- sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE, dateWarning=FALSE))
+  controlReduced <- sommer:::.mmes_control_internal(representation=list(fixedRank="drop"),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
-  referenceFit <- mmes(response ~ locale, random=~lineage, data=records, control=controlDefault)
+  referenceFit <- sommer:::.mmes_dispatch(response ~ locale, random=~lineage, data=records, control=controlDefault)
   expect_warning(
-    optedFit <- mmes(response ~ locale, random=~lineage, data=records, control=controlReduced),
+    optedFit <- sommer:::.mmes_dispatch(response ~ locale, random=~lineage, data=records, control=controlReduced),
     NA
   )
   expect_null(optedFit$fixedRank)
@@ -184,7 +184,7 @@ test_that("rank reduction composes with REML omissions and latent RR mappings", 
   records <- .rank_records()
   capturedWarnings <- character()
   reducedFit <- withCallingHandlers(
-    mmes(response ~ locale + cell,
+    sommer:::.mmes_dispatch(response ~ locale + cell,
       random=~vsm(rrm(locale, 1L, loadings=matrix(c(1, 0.7), 2L, 1L),
                        fixed=rep(TRUE, 2L)), ism(lineage)) + vsm(ism(locale)),
       data=records, control=.rank_control(inverse=2L)),
@@ -212,11 +212,11 @@ test_that("alternate Henderson solvers use the same selected basis", {
   records <- .rank_records()
   referenceFit <- NULL
   for(solverName in c("ldlt", "cholmod", "pcg")){
-    solverControl <- mmes_control(representation=list(fixedRank="drop"),
+    solverControl <- sommer:::.mmes_control_internal(representation=list(fixedRank="drop"),
       solve=list(method=solverName), convergence=list(maxIters=1L),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))
     expect_warning(
-      solverFit <- mmes(response ~ locale + cell, random=~lineage,
+      solverFit <- sommer:::.mmes_dispatch(response ~ locale + cell, random=~lineage,
         data=records, control=solverControl), "rank reduction")
     if(is.null(referenceFit)) referenceFit <- solverFit
     expect_equal(solverFit$fixedRank$retained, referenceFit$fixedRank$retained)
@@ -226,12 +226,12 @@ test_that("alternate Henderson solvers use the same selected basis", {
     expect_true(all(is.finite(predict(solverFit, D=observedContrasts,
                                      VarU=FALSE)$pvals$std.error)))
   }
-  saddleControl <- mmes_control(
+  saddleControl <- sommer:::.mmes_control_internal(
     representation=list(fixedRank="drop", equations="saddle-point"),
     update=list(blendWeight=0), convergence=list(maxIters=1L),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
   expect_warning(
-    saddleFit <- mmes(response ~ locale + cell, random=~lineage,
+    saddleFit <- sommer:::.mmes_dispatch(response ~ locale + cell, random=~lineage,
       data=records, control=saddleControl), "rank reduction")
   expect_equal(saddleFit$fixedRank$retained, referenceFit$fixedRank$retained)
   expect_equal(as.numeric(fitted(saddleFit)), as.numeric(fitted(referenceFit)),
@@ -240,20 +240,20 @@ test_that("alternate Henderson solvers use the same selected basis", {
 
 test_that("unsupported workflows fail explicitly rather than ignore rank policy", {
   records <- .rank_records()
-  expect_error(mmes(response ~ locale + cell, data=records, family=poisson(),
+  expect_error(sommer:::.mmes_dispatch(response ~ locale + cell, data=records, family=poisson(),
     control=.rank_control()), "requires a Gaussian identity-link")
-  expect_error(mmes(response ~ locale + cell, data=records,
-    control=mmes_control(representation=list(fixedRank="drop", compression="groups"))),
+  expect_error(sommer:::.mmes_dispatch(response ~ locale + cell, data=records,
+    control=sommer:::.mmes_control_internal(representation=list(fixedRank="drop", compression="groups"))),
     "without PQL.*compression")
-  expect_error(mmes_control(task=list(mode="solve"),
+  expect_error(sommer:::.mmes_control_internal(task=list(mode="solve"),
     representation=list(fixedRank="drop")), "representation\\$fixedRank")
-  expect_error(mmes(response ~ locale + cell, random=~lineage, data=records,
-    control=mmes_control(representation=list(fixedRank="drop", factorScores="fixed-shape"))),
+  expect_error(sommer:::.mmes_dispatch(response ~ locale + cell, random=~lineage, data=records,
+    control=sommer:::.mmes_control_internal(representation=list(fixedRank="drop", factorScores="fixed-shape"))),
     "without PQL.*factor scores")
   lineagePrecision <- diag(nlevels(records$lineage))
   dimnames(lineagePrecision) <- rep(list(levels(records$lineage)), 2L)
   attr(lineagePrecision, "inverse") <- TRUE
-  expect_error(mmes(response ~ locale + cell,
+  expect_error(sommer:::.mmes_dispatch(response ~ locale + cell,
     random=~vsm(ism(lineage), Gu=lineagePrecision, rotation=TRUE),
     data=records, control=.rank_control()),
     "does not currently support rotation=TRUE")

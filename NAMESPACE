@@ -9,7 +9,8 @@ export(
 
 ## FUN_main
 export(mmes, vsm, nbinom2, zipoisson, ordinal, multinomial,
-       mmes_control, nonlinear_curve, nonlinear_graph, nonlinear_graph_eval,
+       mmes_control, mmes_method, parameter, graph_term,
+       nonlinear_curve, nonlinear_graph, nonlinear_graph_eval,
        profile_nonlinear, boot_mmes,
        generate_mme_workload, mme_workload_grid,
        run_mme_benchmark, analyze_mme_crossovers, profile_mme_workload,
@@ -99,6 +100,17 @@ S3method(print, sommer_mme_crossover)
 S3method(print, sommer_mme_profile)
 S3method(residuals, mmes)
 S3method(simulate, mmes.glmm.laplace)
+S3method(coef, mmes.specification)
+S3method(fitted, mmes.specification)
+S3method(residuals, mmes.specification)
+S3method(predict, mmes.specification)
+S3method(logLik, mmes.specification)
+S3method(nobs, mmes.specification)
+S3method(vcov, mmes.specification)
+S3method(simulate, mmes.specification)
+S3method(summary, mmes.specification)
+S3method(print, mmes.specification)
+S3method(print, summary.mmes.specification)
 S3method(summary, mmes)
 S3method(summary, mmer)
 S3method("[", binm)

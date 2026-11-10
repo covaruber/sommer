@@ -28,8 +28,8 @@ methods.
 
 Fit with maximum likelihood and the native Laplace method, for example:
 \code{mmes(y ~ x, random = ~ group, data = dat, family = multinomial(),
-control = mmes_control(task = list(objective = "ml",
-glmm = list(method = "laplace"))))}. At least one random-effect term is
+method = mmes_method(objective = "ml",
+integration = "laplace"))}. At least one random-effect term is
 required. The model uses category-specific fixed coefficients. Random effects
 can be shared across comparisons (for example \code{~group}) or category
 specific using the internal \code{.nominalCategory} factor in the random
@@ -130,9 +130,10 @@ for the nominal model remains a separate validation task.
 multinomial()
 multinomial(reference = "control")
 \dontrun{
-ctrl <- mmes_control(task=list(objective="ml", glmm=list(method="laplace")))
+ctrl <- mmes_control()
 fit <- mmes(color ~ treatment, random=~group, data=dat,
-  family=multinomial(reference="green"), control=ctrl)
+  family=multinomial(reference="green"), control=ctrl,
+  method=mmes_method(objective="ml", integration="laplace"))
 fitted(fit)                       # labelled category probabilities
 predict(fit, re.form=NA)          # random effects set to zero
 predict(fit, re.form="population") # eligible population category means

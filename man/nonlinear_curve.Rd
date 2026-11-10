@@ -109,23 +109,26 @@ Single categorical responses may be factors; categorical mixtures use
 numeric category codes as in ordinary native Laplace models.
 
 Numerical choices belong to \code{\link{mmes_control}}.
-\code{task$nonlinear} accepts \code{optimizer="nlminb"},
-\code{gradient="analytic"}, \code{initialization="auto"} or \code{"supplied"},
-and \code{start=NULL} or a complete named vector of natural-scale curve starts.
+\code{optimizer} accepts \code{algorithm="nlminb"} and
+\code{gradient="analytic"}. Supply a complete named vector of natural-scale
+curve starts through \code{mmes(start=list(parameters=...))}, or omit it
+for deterministic automatic initialization.
 Supplying \code{start} overrides automatic initialization.
 Automatic starts are deterministic and require input variation and a positive
 response maximum after subtracting the offset. They do not consume random
 numbers. For non-Gaussian models automatic starts use unit link-scale amplitude;
 supplied starts are recommended. No silent numerical-gradient or optimizer
 fallback is performed. Family nuisance parameters use the existing
-\code{task$glmm$familyParameters} list (trait-nested for \code{familym()}),
+\code{familyParameters} list (trait-nested for \code{familym()}),
 including fixed/estimated NB2 shape, Gamma/Gaussian dispersion,
 zero-inflation probability and ordinal thresholds. Other GLMM fitting controls
 do not apply. Zero-component regression uses \code{zipoisson(zero=~...)}.
 
-For Laplace fits, \code{task$nonlinear$mode} defaults to
-\code{list(maxIters=100L, scoreTol=1e-8, stepTol=1e-8,
-warmStart="off", starts="deterministic")}. Safeguarded Newton steps compare
+For Laplace fits, \code{mode} defaults to
+\code{list(maxit=100L, tol=1e-8, stepTol=1e-8,
+warmStart="auto", starts="deterministic")}. Here \code{"auto"} selects
+deterministic cold starts, equivalent to \code{"off"}.
+Safeguarded Newton steps compare
 zero and \eqn{+/-0.5} curve-coordinate starts (latent curve coordinates for
 reduced-rank terms). Final curvature must be
 positive definite without damping; failures, score norms, iterations and
@@ -165,7 +168,7 @@ responses, additive effects also change the population response mean.
 Their joint prior, including within-observation nominal predictor covariance,
 is integrated; link output integrates the predictor and response output
 integrates means or category probabilities. Gaussian quadrature compares increasing orders with
-\code{task$nonlinear$population=list(order=20L, maxOrder=160L, tol=1e-7)};
+\code{population=list(order=20L, maxOrder=160L, tol=1e-7)};
 failure to meet scaled agreement is an explicit error. Conditional and
 population new-data predictions require represented random levels and the
 fitted covariance basis. Fitted \code{groupParameters} and
@@ -199,10 +202,11 @@ dat <- data.frame(x=rep(seq(0, 5, length.out=10), 12),
 dat$y <- 4*exp(-0.6*dat$x) + rnorm(12, sd=0.3)[dat$group] +
   rnorm(nrow(dat), sd=0.15)
 model <- nonlinear_curve("x", "exponential")
-fit <- mmes(y~0, random=~group, data=dat, nonlinear=model,
+fit <- mmes(y~0+graph_term("growth"), random=~group, data=dat,
+  predictors=list(growth=model),
+  method=mmes_method(objective="ml"),
+  start=list(parameters=c(asymptote=4, rate=0.5)),
   control=mmes_control(
-    task=list(objective="ml",
-      nonlinear=list(start=c(asymptote=4, rate=0.5))),
     convergence=list(maxIters=300),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
 coef(fit)

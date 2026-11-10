@@ -9,7 +9,7 @@ nonlinearExample <- function(curve="exponential"){
 }
 
 nonlinearControl <- function(start=NULL, ...){
-  mmes_control(task=list(objective="ml", nonlinear=list(start=start)),
+  sommer:::.mmes_control_internal(task=list(objective="ml", nonlinear=list(start=start)),
     convergence=list(maxIters=500L, likelihoodTol=1e-10, parameterTol=1e-8),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE), ...)
 }
@@ -116,7 +116,7 @@ test_that("Gaussian curve fitting recovers identifiable parameters without infer
   for(curve in names(targets)){
     data <- nonlinearExample(curve)
     seed <- .Random.seed
-    fit <- mmes(y~0, random=~group, data=data,
+    fit <- sommer:::.mmes_dispatch(y~0, random=~group, data=data,
       nonlinear=nonlinear_curve("x", curve), control=nonlinearControl())
     expect_identical(.Random.seed, seed)
     expect_s3_class(fit, "mmes.nonlinear")
@@ -162,19 +162,19 @@ test_that("Gaussian curve fitting recovers identifiable parameters without infer
 
 test_that("traditional mean agrees with Gaussian ML for equivalent centered responses", {
   data <- nonlinearExample()
-  fit <- mmes(y~0, random=~group, data=data,
+  fit <- sommer:::.mmes_dispatch(y~0, random=~group, data=data,
     nonlinear=nonlinear_curve("x"), control=nonlinearControl())
   data$mean <- predict(fit, re.form=NA)
   data$centered <- data$y-data$mean
-  reference <- mmes(centered~0, random=~group, data=data,
-    control=mmes_control(task=list(objective="ml"),
+  reference <- sommer:::.mmes_dispatch(centered~0, random=~group, data=data,
+    control=sommer:::.mmes_control_internal(task=list(objective="ml"),
       convergence=list(maxIters=100L, likelihoodTol=1e-9, parameterTol=1e-8),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_equal(fit$covPar[[1L]], as.numeric(reference$covPar[[1L]]), tolerance=1e-4)
   expect_equal(unname(fit$dispersion), as.numeric(reference$covPar[[2L]]),
     tolerance=1e-4)
-  normalized <- mmes(centered~0, random=~group, data=data,
-    control=mmes_control(task=list(objective="ml",
+  normalized <- sommer:::.mmes_dispatch(centered~0, random=~group, data=data,
+    control=sommer:::.mmes_control_internal(task=list(objective="ml",
       glmm=list(method="laplace", maxit=500L, modeTol=1e-10)),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_equal(fit$llik, normalized$llik, tolerance=1e-7)
@@ -183,7 +183,7 @@ test_that("traditional mean agrees with Gaussian ML for equivalent centered resp
 
 test_that("curve ML agrees with an independent optimizer", {
   data <- droplevels(nonlinearExample()[1:120, ])
-  fit <- mmes(y~0, random=~group, data=data,
+  fit <- sommer:::.mmes_dispatch(y~0, random=~group, data=data,
     nonlinear=nonlinear_curve("x"), control=nonlinearControl())
   oracle <- function(parameters) -nonlinearDense(parameters, fit$fixedDesign,
     fit$randomDesign, data$y, numeric(nrow(data)), data$x, "exponential")
@@ -208,7 +208,7 @@ test_that("relationships, covariance shapes and constraints retain their semanti
   data$y <- 4*exp(-0.55*data$x)+
     effects[as.integer(data$group)+20L*(as.integer(data$occasion)-1L)]+
     rnorm(nrow(data), sd=0.12)
-  fit <- mmes(y~0,
+  fit <- sommer:::.mmes_dispatch(y~0,
     random=~vsm(ar1m(occasion), ism(group), Gu=precision),
     data=data, nonlinear=nonlinear_curve("x"), control=nonlinearControl())
   expect_true(fit$convergence)
@@ -237,7 +237,7 @@ test_that("relationships, covariance shapes and constraints retain their semanti
     expect_equal(as.numeric(value$gradient)[index],
       (independent(upper)-independent(lower))/2e-5, tolerance=1e-5)
   }
-  fixed <- mmes(y~0, random=~vsm(ism(group), sigma2=0.09, fixedSigma2=TRUE),
+  fixed <- sommer:::.mmes_dispatch(y~0, random=~vsm(ism(group), sigma2=0.09, fixedSigma2=TRUE),
     data=data, nonlinear=nonlinear_curve("x"), control=nonlinearControl())
   expect_length(fixed$optimizer$par, 3L)
   expect_equal(fixed$covPar[[1L]], 0.09)
@@ -246,7 +246,7 @@ test_that("relationships, covariance shapes and constraints retain their semanti
   restored <- unserialize(serialize(fit, NULL))
   expect_equal(predict(restored, newdata=data[1:3, ]), savedPrediction)
   data$block <- factor(rep(rep(1:4, 3), 20))
-  tied <- mmes(y~0, random=~group+block, data=data,
+  tied <- sommer:::.mmes_dispatch(y~0, random=~group+block, data=data,
     nonlinear=nonlinear_curve("x"),
     vcc=data.frame(parameter=1:2, group=1L, scale=c(2, 1)),
     control=nonlinearControl())
@@ -263,15 +263,15 @@ test_that("preparation filters nonlinear inputs and preserves offsets and fixed 
   data$y <- data$y+0.7*data$z+data$o
   data$x[2L] <- NA
   data$y[3L] <- NA
-  fit <- mmes(y~0+z+offset(o), random=~group, data=data,
+  fit <- sommer:::.mmes_dispatch(y~0+z+offset(o), random=~group, data=data,
     nonlinear=nonlinear_curve("x"), control=nonlinearControl())
   expect_equal(which(!fit$obsInfo$included), 2:3)
   expect_identical(fit$obsInfo$reason[2L], "missing fixed covariate")
   expect_equal(unname(fit$b), 0.7, tolerance=0.04)
   expect_equal(predict(fit, newdata=data[-c(2, 3), ]), fitted(fit), tolerance=1e-10)
-  expect_error(mmes(y~0, random=~group, data=data, nonlinear=nonlinear_curve("x"),
+  expect_error(sommer:::.mmes_dispatch(y~0, random=~group, data=data, nonlinear=nonlinear_curve("x"),
     control=nonlinearControl(), naMethodX="fail"), "Missing values")
-  expect_error(mmes(y~0, random=~group, data=data, nonlinear=nonlinear_curve("x"),
+  expect_error(sommer:::.mmes_dispatch(y~0, random=~group, data=data, nonlinear=nonlinear_curve("x"),
     control=nonlinearControl(), naMethodX="pass"), "finite retained")
   new <- data[1L, ]
   new$group <- "unseen"
@@ -287,7 +287,7 @@ test_that("ordinary intercepts and factor preprocessing survive new-data predict
   data <- nonlinearExample()
   data$treatment <- factor(rep(c("a", "b"), length.out=nrow(data)))
   data$y <- data$y+0.9+0.4*(data$treatment == "b")
-  fit <- mmes(y~treatment, random=~group, data=data,
+  fit <- sommer:::.mmes_dispatch(y~treatment, random=~group, data=data,
     nonlinear=nonlinear_curve("x"), control=nonlinearControl(
       c(asymptote=4, rate=0.55)))
   expect_true(fit$convergence)
@@ -306,8 +306,8 @@ test_that("nonlinear routes reject unsupported models and controls before fittin
   data <- nonlinearExample()
   model <- nonlinear_curve("x")
   fit <- function(control=nonlinearControl(), ...)
-    mmes(y~0, random=~group, data=data, nonlinear=model, control=control, ...)
-  expect_error(fit(mmes_control()), "objective='ml'")
+    sommer:::.mmes_dispatch(y~0, random=~group, data=data, nonlinear=model, control=control, ...)
+  expect_error(fit(sommer:::.mmes_control_internal()), "objective='ml'")
   expect_error(fit(nonlinearControl(output=list(inverse=1L))), "post-fit")
   expect_error(fit(nonlinearControl(output=list(setup=TRUE))), "output\\$setup")
   expect_error(fit(family=poisson()), "integer")
@@ -320,16 +320,16 @@ test_that("nonlinear routes reject unsupported models and controls before fittin
   expect_error(fit(nonlinearControl(list(asymptote=4, rate=0.5))), "numeric vector")
   expect_error(fit(nonlinearControl(c(asymptote=-4, rate=0.5))), "positive")
   expect_error(fit(nonlinearControl(c(asymptote=4, typo=0.5))), "containing exactly")
-  expect_error(mmes(y~0, data=data, nonlinear=model, control=nonlinearControl()),
+  expect_error(sommer:::.mmes_dispatch(y~0, data=data, nonlinear=model, control=nonlinearControl()),
     "random term")
-  expect_error(mmes_control(task=list(nonlinear=list(gradient="numeric"))), "analytic")
-  expect_error(mmes(y~1, data=data, control=nonlinearControl(
+  expect_error(sommer:::.mmes_control_internal(task=list(nonlinear=list(gradient="numeric"))), "analytic")
+  expect_error(sommer:::.mmes_dispatch(y~1, data=data, control=nonlinearControl(
     c(asymptote=4, rate=0.5))), "require a nonlinear")
   constant <- data
   constant$x <- 1
-  expect_error(mmes(y~0, random=~group, data=constant,
+  expect_error(sommer:::.mmes_dispatch(y~0, random=~group, data=constant,
     nonlinear=model, control=nonlinearControl()), "distinct inputs")
-  exhausted <- mmes_control(task=list(objective="ml"),
+  exhausted <- sommer:::.mmes_control_internal(task=list(objective="ml"),
     convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE))
   expect_warning(notConverged <- fit(exhausted), "did not converge")
   expect_false(notConverged$convergence)

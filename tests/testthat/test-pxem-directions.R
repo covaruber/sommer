@@ -8,9 +8,9 @@
 
 .px_setup <- function(arguments){
   setupArguments <- arguments
-  setupArguments$control <- do.call(mmes_control, utils::modifyList(
+  setupArguments$control <- do.call(sommer:::.mmes_control_internal, utils::modifyList(
     unclass(arguments$control), list(output=list(setup=TRUE)), keep.null=TRUE))
-  do.call(mmes, setupArguments)
+  do.call(sommer:::.mmes_dispatch, setupArguments)
 }
 
 .px_dense_objective <- function(setup, y){
@@ -91,7 +91,7 @@ test_that("scalar PX reduction matches independent expanded REML and ML objectiv
   for(reml in c(TRUE, FALSE)) for(weighted in c(FALSE, TRUE)){
     arguments <- list(fixed=y~site, random=~vsm(ism(id), sigma2=0.8) +
       vsm(ism(replicate), sigma2=0.4), rcov=~vsm(ism(units), sigma2=0.6),
-      data=dataset, control=mmes_control(
+      data=dataset, control=sommer:::.mmes_control_internal(
         task=list(objective=if(reml) "reml" else "ml"),
         update=list(recovery="pxem", blendWeight=1),
         convergence=list(maxIters=2L),
@@ -102,7 +102,7 @@ test_that("scalar PX reduction matches independent expanded REML and ML objectiv
     setup <- .px_setup(arguments)
     objective <- .px_dense_objective(setup, dataset$y)
     initial <- lapply(setup$covStruct, function(term) term$par)
-    native <- do.call(mmes, arguments)
+    native <- do.call(sommer:::.mmes_dispatch, arguments)
     diagnostics <- native$engineDiagnostics$blend
     fitted <- lapply(native$covParWorking, as.numeric)
     expansion <- diagnostics$pxLogExpansion[, 1L]
@@ -110,7 +110,7 @@ test_that("scalar PX reduction matches independent expanded REML and ML objectiv
     expect_equal(diagnostics$qGains[1L], (objective(initial) - q) / 2, tolerance=1e-7)
     seedArguments <- arguments
     seedArguments$control$update$recovery <- "em"
-    seed <- do.call(mmes, seedArguments)
+    seed <- do.call(sommer:::.mmes_dispatch, seedArguments)
     seedPoint <- lapply(seed$covParWorking, as.numeric)
     reference <- optim(c(unlist(seedPoint), 0, 0), function(point){
       objective(as.list(point[1:3]), point[4:5])
@@ -143,7 +143,7 @@ test_that("PX uses loading-aware latent moments for reduced-rank covariance", {
   arguments <- list(fixed=y~site, random=~vsm(rrm(site, 2L), ism(id), sigma2=0.8),
     rcov=if(correlated) ~vsm(ar1m(site), ism(units), sigma2=0.6) else
       ~vsm(ism(units), sigma2=0.6), data=dataset,
-    control=mmes_control(task=list(objective=if(reml) "reml" else "ml"),
+    control=sommer:::.mmes_control_internal(task=list(objective=if(reml) "reml" else "ml"),
       update=list(recovery="pxem", blendWeight=1),
       convergence=list(maxIters=2L),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -206,7 +206,7 @@ test_that("PX uses loading-aware latent moments for reduced-rank covariance", {
       as.numeric(determinant(residual, logarithm=TRUE)$modulus) +
       sum(diag(solve(residual, tcrossprod(error) + expanded %*% posterior %*% t(expanded))))
   }
-  fitted <- do.call(mmes, arguments)
+  fitted <- do.call(sommer:::.mmes_dispatch, arguments)
   point <- lapply(fitted$covParWorking, as.numeric)
   diagnostics <- fitted$engineDiagnostics$blend
   expect_equal(diagnostics$qGains[1L],
@@ -223,7 +223,7 @@ test_that("PX reduction preserves fixed parameters and cross-term constraints", 
   dataset <- .px_data()
   for(model in c("fixed-shape", "fixed-scale", "random-tie", "residual-tie", "rr-tie")){
     arguments <- list(fixed=y~site, random=~id + replicate,
-      data=dataset, control=mmes_control(update=list(recovery="pxem",
+      data=dataset, control=sommer:::.mmes_control_internal(update=list(recovery="pxem",
         blendWeight=1), convergence=list(maxIters=3L),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     if(model == "fixed-shape"){
@@ -239,7 +239,7 @@ test_that("PX reduction preserves fixed parameters and cross-term constraints", 
       selected <- if(model == "residual-tie") scales[c(1L, length(scales))] else scales[1:2]
       arguments$vcc <- data.frame(parameter=selected, group=1L, scale=c(2, 1))
     }
-    fitted <- do.call(mmes, arguments)
+    fitted <- do.call(sommer:::.mmes_dispatch, arguments)
     diagnostics <- fitted$engineDiagnostics$blend
     expect_true(all(diff(c(fitted$llik)) >= -1e-9), info=model)
     expect_true(all(diagnostics$qGains >= -1e-9), info=model)
@@ -257,14 +257,14 @@ test_that("PX reduction preserves fixed parameters and cross-term constraints", 
       # The first update is checked separately from the final fitted point.
       firstArguments <- arguments
       firstArguments$control$convergence$maxIters <- 2L
-      first <- do.call(mmes, firstArguments)
+      first <- do.call(sommer:::.mmes_dispatch, firstArguments)
       q <- objective(lapply(first$covParWorking, as.numeric),
         first$engineDiagnostics$blend$pxLogExpansion[, 1L])
       expect_equal(first$engineDiagnostics$blend$qGains[1L],
         (objective(initial) - q) / 2, tolerance=1e-7)
     }
   }
-  fixed <- mmes(y~site, random=~vsm(ism(id), sigma2=0.8, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=0.6, fixedSigma2=TRUE), data=dataset, control=mmes_control(update=list(recovery="pxem", blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  fixed <- sommer:::.mmes_dispatch(y~site, random=~vsm(ism(id), sigma2=0.8, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=0.6, fixedSigma2=TRUE), data=dataset, control=sommer:::.mmes_control_internal(update=list(recovery="pxem", blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_true(fixed$convergence)
   expect_equal(fixed$engineDiagnostics$blend$pxEvaluations, 0L)
   expect_equal(as.numeric(unlist(fixed$theta)), c(0.8, 0.6))
@@ -276,12 +276,12 @@ test_that("PX schedules skip endpoint work and refresh final inference", {
     random <- switch(shape, scalar=~id, us=~vsm(usm(site), ism(id)),
       rr=~vsm(rrm(site, 1L), ism(id)))
     arguments <- list(fixed=y~site, random=random, data=dataset,
-      control=mmes_control(update=list(recovery="pxem",
+      control=sommer:::.mmes_control_internal(update=list(recovery="pxem",
         blendWeight=c(1, 0.4, 0, 0)), convergence=list(maxIters=4L),
         solve=list(method="ldlt"),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     setup <- .px_setup(arguments)
-    fitted <- do.call(mmes, arguments)
+    fitted <- do.call(sommer:::.mmes_dispatch, arguments)
     diagnostics <- fitted$engineDiagnostics$blend
     expect_equal(diagnostics$pxEvaluations, 2L)
     expect_equal(diagnostics$emEvaluations, 2L)
@@ -309,7 +309,7 @@ test_that("PX schedules skip endpoint work and refresh final inference", {
     expect_equal(tail(c(fitted$llik), 1L), tail(c(reference$llik), 1L), tolerance=1e-9)
   }
   for(solver in c("ldlt", "cholmod")){
-    fitted <- mmes(y~site, random=~id, data=dataset, control=mmes_control(update=list(recovery="pxem", blendWeight=1), convergence=list(maxIters=3L), solve=list(method=solver), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    fitted <- sommer:::.mmes_dispatch(y~site, random=~id, data=dataset, control=sommer:::.mmes_control_internal(update=list(recovery="pxem", blendWeight=1), convergence=list(maxIters=3L), solve=list(method=solver), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_equal(fitted$engineDiagnostics$blend$iterationSensitivityColumns, 0)
     expect_equal(fitted$engineDiagnostics$blend$finalAIRefreshes, 1L)
     if(solver == "ldlt") expect_equal(fitted$engineDiagnostics$CsymbolicAnalyses, 1)
@@ -319,22 +319,22 @@ test_that("PX schedules skip endpoint work and refresh final inference", {
 test_that("PX handles residual-only models and enforces its additional memory budget", {
   dataset <- .px_data()
   fit <- function(method){
-    mmes(y~site, data=dataset, control=mmes_control(update=list(recovery=method, blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(y~site, data=dataset, control=sommer:::.mmes_control_internal(update=list(recovery=method, blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   ordinary <- fit("em")
   expanded <- fit("pxem")
   expect_equal(expanded$llik, ordinary$llik)
   expect_equal(expanded$covPar, ordinary$covPar)
   expect_equal(expanded$engineDiagnostics$blend$pxEvaluations, 0L)
-  expect_error(mmes(y~site, random=~id, data=dataset,
-    control=mmes_control(execution=list(denseMemoryMB=0.001),
+  expect_error(sommer:::.mmes_dispatch(y~site, random=~id, data=dataset,
+    control=sommer:::.mmes_control_internal(execution=list(denseMemoryMB=0.001),
       update=list(recovery="pxem", blendWeight=1),
       convergence=list(maxIters=2L),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "EM moments")
   # Allow EM's stored moments and solve panels, but not PX's extra contractions.
   budget <- (5 * 2 + 4 * (4 + 7) * 32 + 20) * 8 / 1e6
   limited <- function(method){
-    mmes(y~site, random=~id, data=dataset, control=mmes_control(
+    sommer:::.mmes_dispatch(y~site, random=~id, data=dataset, control=sommer:::.mmes_control_internal(
       execution=list(denseMemoryMB=budget, memoryPolicy="limit"),
       update=list(recovery=method, blendWeight=1),
       convergence=list(maxIters=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -346,7 +346,7 @@ test_that("PX handles residual-only models and enforces its additional memory bu
 test_that("PX blends reduced directions rather than expanded parameters or information", {
   dataset <- .px_data()
   fit <- function(weight, iterations, damping=1){
-    mmes(y~site, random=~vsm(ism(id), sigma2=0.8), rcov=~vsm(ism(units), sigma2=0.6), data=dataset, control=mmes_control(convergence=list(maxIters=iterations), update=list(recovery="pxem", blendWeight=weight), proposal=list(stepWeight=damping), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(y~site, random=~vsm(ism(id), sigma2=0.8), rcov=~vsm(ism(units), sigma2=0.6), data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=iterations), update=list(recovery="pxem", blendWeight=weight), proposal=list(stepWeight=damping), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   initial <- fit(0, 1L)
   expanded <- fit(1, 2L)
@@ -366,7 +366,7 @@ test_that("PX and PX-AI reach the standalone AI optimum from a small starting va
   dataset <- expand.grid(id=factor(1:30), replicate=1:4)
   dataset$y <- rnorm(30L, sd=1.2)[dataset$id] + rnorm(nrow(dataset), sd=0.7)
   fit <- function(method, weight){
-    mmes(y~1, random=~vsm(ism(id), sigma2=0.01), rcov=~vsm(ism(units), sigma2=1), data=dataset, control=mmes_control(convergence=list(maxIters=150L, likelihoodTol=1e-8, parameterTol=1e-8), update=list(recovery=method, blendWeight=weight), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(y~1, random=~vsm(ism(id), sigma2=0.01), rcov=~vsm(ism(units), sigma2=1), data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=150L, likelihoodTol=1e-8, parameterTol=1e-8), update=list(recovery=method, blendWeight=weight), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   ai <- fit("em", 0)
   for(weight in c(1, 5)){

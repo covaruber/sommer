@@ -12,7 +12,7 @@ zipFormulaData <- function(seed=109L, groups=60L, perGroup=8L){
 }
 
 zipFormulaControl <- function(){
-  mmes_control(task=list(objective="ml", glmm=list(method="laplace")),
+  sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace")),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
 }
 
@@ -20,19 +20,19 @@ test_that("ZIP zero formula validation is bounded and backward compatible", {
   expect_error(zipoisson(zero=y~x), "one-sided")
   expect_error(zipoisson(zero=~(1|group)), "without random effects")
   data <- zipFormulaData()
-  old <- mmes(y~x, random=~group, data=data, family=zipoisson(),
+  old <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=zipoisson(),
     control=zipFormulaControl())
-  explicit <- mmes(y~x, random=~group, data=data, family=zipoisson(zero=~1),
+  explicit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=zipoisson(zero=~1),
     control=zipFormulaControl())
   expect_equal(logLik(old), logLik(explicit), tolerance=1e-10)
   expect_equal(old$familyParameters, explicit$familyParameters)
   expect_null(explicit$zeroCoefficients)
-  expect_error(mmes(y~x, random=~group, data=data,
-    family=zipoisson(zero=~z), control=mmes_control(task=list(objective="ml",
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data,
+    family=zipoisson(zero=~z), control=sommer:::.mmes_control_internal(task=list(objective="ml",
       glmm=list(method="laplace",
         familyParameters=list(zeroInflation=0.2, estimate=FALSE))))),
     "requires estimate=TRUE")
-  expect_error(mmes(y~x, random=~group, data=data,
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data,
     family=zipoisson(zero=~z + I(2*z)), control=zipFormulaControl()),
     "full rank")
 })
@@ -40,7 +40,7 @@ test_that("ZIP zero formula validation is bounded and backward compatible", {
 test_that("native zero-design scores differentiate the full Laplace objective", {
   data <- zipFormulaData(groups=4L, perGroup=5L)
   expect_warning(
-    fit <- mmes(y~x, random=~group, data=data, family=zipoisson(zero=~z),
+    fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=zipoisson(zero=~z),
       control=zipFormulaControl()),
     "low-information screening heuristic"
   )
@@ -72,7 +72,7 @@ test_that("zero coefficients precede subsequent estimated family parameters", {
   other$trait <- "overdispersed"
   data <- rbind(data, other)
   data$trait <- factor(data$trait)
-  fit <- mmes(y~trait-1+trait:x, random=~group, data=data,
+  fit <- sommer:::.mmes_dispatch(y~trait-1+trait:x, random=~group, data=data,
     family=familym("trait", count=zipoisson(zero=~z), overdispersed=nbinom2()),
     control=zipFormulaControl())
   expect_equal(fit$npar, 8)
@@ -99,7 +99,7 @@ test_that("zero coefficients precede subsequent estimated family parameters", {
 
 test_that("a no-intercept zero formula keeps its declared basis", {
   data <- zipFormulaData()
-  fit <- mmes(y~x, random=~group, data=data, family=zipoisson(zero=~0+z),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=zipoisson(zero=~0+z),
     control=zipFormulaControl())
   expect_equal(fit$zeroCoefficients$term, "z")
   expect_equal(fit$npar, 4)
@@ -111,7 +111,7 @@ test_that("a no-intercept zero formula keeps its declared basis", {
 
 test_that("formula ZIP wires fitted means, inference, prediction and diagnostics", {
   data <- zipFormulaData()
-  fit <- mmes(y~x, random=~group, data=data, family=zipoisson(zero=~z),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=zipoisson(zero=~z),
     control=zipFormulaControl())
   expect_true(fit$convergence)
   zipDiagnostics <- fit$laplaceDiagnostics$zip
@@ -187,7 +187,7 @@ test_that("formula ZIP wires fitted means, inference, prediction and diagnostics
 
 test_that("ZIP screening distinguishes low information and mixture boundaries", {
   data <- zipFormulaData(groups=12L, perGroup=4L)
-  fit <- mmes(y~x, random=~group, data=data, family=zipoisson(zero=~z),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=zipoisson(zero=~z),
     control=zipFormulaControl())
   unchanged <- fit$familySpecifications
   lowInformation <- fit
@@ -211,11 +211,11 @@ test_that("ZIP screening distinguishes low information and mixture boundaries", 
 test_that("zero-only missing covariates use the fixed missing-data policy", {
   data <- zipFormulaData()
   data$z[c(2, 9)] <- NA_real_
-  fit <- mmes(y~x, random=~group, data=data, family=zipoisson(zero=~z),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=zipoisson(zero=~z),
     control=zipFormulaControl())
   expect_equal(which(!fit$obsInfo$included), c(2L, 9L))
   expect_true(all(fit$obsInfo$reason[c(2, 9)] == "missing fixed covariate"))
-  expect_error(mmes(y~x, random=~group, data=data,
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data,
     family=zipoisson(zero=~z), naMethodX="fail", control=zipFormulaControl()),
     "fixed-effect")
   expect_error(predict(fit, newdata=data[2, ], type="response", re.form=NA),
@@ -226,7 +226,7 @@ test_that("zero designs retain factors, transformations and offsets for new data
   data <- zipFormulaData()
   data$f <- factor(rep(c("a", "b"), length.out=nrow(data)))
   data$off <- rep(0.2, nrow(data))
-  fit <- mmes(y~x, random=~group, data=data,
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data,
     family=zipoisson(zero=~f+I(z^2)+offset(off)), control=zipFormulaControl())
   new <- data[1:5, ]
   new$f <- as.character(new$f)
@@ -248,7 +248,7 @@ test_that("mixed traits restrict zero-only covariates to their ZIP rows", {
   other$z <- NA_real_
   long <- rbind(data, other)
   long$trait <- factor(long$trait)
-  fit <- mmes(y~trait-1+trait:x, random=~group, data=long,
+  fit <- sommer:::.mmes_dispatch(y~trait-1+trait:x, random=~group, data=long,
     family=familym("trait", count=zipoisson(zero=~z), ordinary=poisson()),
     control=zipFormulaControl())
   expect_equal(fit$nobs, nrow(long))

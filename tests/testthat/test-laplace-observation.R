@@ -1,5 +1,5 @@
 observationControl <- function(backend, parameters=list(), setup=FALSE){
-  mmes_control(task=list(objective="ml",glmm=list(method="laplace",
+  sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace",
     backend=backend,modeTol=1e-10,familyParameters=parameters)),
     output=list(setup=setup),diagnostics=list(verbose=FALSE,dateWarning=FALSE))
 }
@@ -16,7 +16,7 @@ observationData <- function(){
 observationNative <- function(n=10L,q=24L){
   set.seed(409)
   data <- data.frame(y=rep(1,q),id=factor(seq_len(q)))
-  prepared <- mmes(y~1,random=~vsm(ism(id),sigma2=.4),data=data,
+  prepared <- sommer:::.mmes_dispatch(y~1,random=~vsm(ism(id),sigma2=.4),data=data,
     family=poisson(),control=observationControl("random",setup=TRUE))
   z <- matrix(rnorm(n*q)/sqrt(q),n,q)
   z[n,] <- z[1,]
@@ -119,14 +119,14 @@ test_that("automatic selection accounts for size, coupling and memory", {
   expect_identical(evaluate(fixture)$selected,"random")
   fixture <- observationNative()
   expect_identical(evaluate(fixture,memory=.01)$selected,"random")
-  expect_error(mmes_control(task=list(glmm=list(backend="wrong"))),"backend")
-  expect_error(mmes(y~x,random=~id,data=observationData(),family=poisson(),
-    control=mmes_control(task=list(glmm=list(backend="observation")))),"Laplace only")
+  expect_error(sommer:::.mmes_control_internal(task=list(glmm=list(backend="wrong"))),"backend")
+  expect_error(sommer:::.mmes_dispatch(y~x,random=~id,data=observationData(),family=poisson(),
+    control=sommer:::.mmes_control_internal(task=list(glmm=list(backend="observation")))),"Laplace only")
 })
 
 test_that("public observation fits preserve prediction, covariance, PEV and serialization", {
   data <- observationData()
-  fit <- function(backend) mmes(y~x,
+  fit <- function(backend) sommer:::.mmes_dispatch(y~x,
     random=~vsm(ar1m(time,rho=.4,fixed=TRUE),ism(id),sigma2=.3,fixedSigma2=TRUE),
     data=data,family=poisson(),control=observationControl(backend))
   random <- fit("random")
@@ -166,7 +166,7 @@ test_that("Gaussian residual blocks and family nuisance gradients retain backend
   families <- list(gaussian=gaussian(),binomial=binomial(),nb=nbinom2(3),gamma=Gamma("log"))
   for(name in names(responses)){
     data$y <- responses[[name]]
-    fit <- function(backend) mmes(y~x,
+    fit <- function(backend) sommer:::.mmes_dispatch(y~x,
       random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),
       rcov=if(name=="gaussian") ~vsm(ar1m(time,rho=.25,fixed=TRUE),ism(unit),
         sigma2=.4,fixedSigma2=TRUE) else ~units,
@@ -192,7 +192,7 @@ test_that("ordinal and nominal engines share observation algebra and post-fit op
     data$y <- if(kind=="ordinal") ordinalResponse else nominalResponse
     family <- if(kind=="ordinal") ordinal() else multinomial(reference="c")
     parameters <- if(kind=="ordinal") list(thresholds=c(-.5,.7),estimate=FALSE) else list()
-    fit <- function(backend) mmes(y~x,random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),
+    fit <- function(backend) sommer:::.mmes_dispatch(y~x,random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),
       data=data,family=family,control=observationControl(backend,parameters))
     random <- fit("random")
     observation <- fit("observation")
@@ -228,7 +228,7 @@ test_that("mixed category blocks, vcc and weighted Gaussian blocks preserve the 
     result
   }))
   data$trait <- factor(data$trait,levels=c("count","ord","nom"))
-  fit <- function(backend) mmes(y~trait+trait:x-1,
+  fit <- function(backend) sommer:::.mmes_dispatch(y~trait+trait:x-1,
     random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),
     data=data,family=familym("trait",count=poisson(),ord=ordinal(),nom=multinomial()),
     control=observationControl(backend,list(ord=list(thresholds=c(-.5,.7),estimate=FALSE))))
@@ -245,7 +245,7 @@ test_that("mixed category blocks, vcc and weighted Gaussian blocks preserve the 
       do.call(predict,c(list(object=random),args)),tolerance=1e-4)
   }
   data <- observationData()
-  fit <- function(backend) mmes(y~x,
+  fit <- function(backend) sommer:::.mmes_dispatch(y~x,
     random=~vsm(ism(id),sigma2=.3)+vsm(ism(replicate),sigma2=.15),
     vcc=data.frame(parameter=1:2,group=1,scale=c(2,1)),
     data=data,family=poisson(),control=observationControl(backend))
@@ -259,7 +259,7 @@ test_that("mixed category blocks, vcc and weighted Gaussian blocks preserve the 
   set.seed(727)
   data$y <- data$eta+rnorm(nrow(data),sd=.5)
   data$w <- seq(.8,1.2,length.out=nrow(data))
-  fit <- function(backend) mmes(y~x,
+  fit <- function(backend) sommer:::.mmes_dispatch(y~x,
     random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),data=data,
     W=Matrix::Diagonal(x=seq(.9,1.1,length.out=nrow(data))),weights=~w,
     family=gaussian(),control=observationControl(backend))
@@ -277,7 +277,7 @@ test_that("public auto-selected observation fits retain represented relationship
   precision <- .4^abs(outer(1:48,1:48,`-`))
   dimnames(precision) <- list(levels(data$id),levels(data$id))
   attr(precision,"inverse") <- TRUE
-  fit <- function(backend) mmes(y~x,random=~vsm(ism(id),Gu=precision,
+  fit <- function(backend) sommer:::.mmes_dispatch(y~x,random=~vsm(ism(id),Gu=precision,
     sigma2=.3,fixedSigma2=TRUE),data=data,family=poisson(),
     control=observationControl(backend))
   random <- fit("random")
@@ -303,7 +303,7 @@ test_that("observation errors and post-fit work restore saved BLAS controls", {
   control <- observationControl("observation")
   control$execution$blasThreads <- 1L
   data <- observationData()
-  fit <- mmes(y~x,random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),
     data=data,family=poisson(),control=control)
   expect_identical(configured,4L)
   for(operation in list(vcov,postPEV,function(object)
@@ -324,7 +324,7 @@ test_that("observation errors and post-fit work restore saved BLAS controls", {
 test_that("structured covariance shape scores and alternative links share the algebra", {
   data <- observationData()
   data <- droplevels(data[data$replicate==1,])
-  prepared <- mmes(y~x,random=~vsm(ar1m(time,rho=.4),ism(id),sigma2=.3),
+  prepared <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(time,rho=.4),ism(id),sigma2=.3),
     data=data,family=poisson(),control=observationControl("random",setup=TRUE))
   create <- function(backend,specs=NULL,response=data$y)
     sommer:::sommer_laplace_objective_create(prepared$X,do.call(cbind,prepared$Z),

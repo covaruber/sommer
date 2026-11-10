@@ -82,7 +82,7 @@ variance, respectively. A ratio is a parameter transform, not automatically
 a validated reliability measure for a nonlinear response.
 
 Numerical choices use
-\code{task$nonlinear$inference=list(step=1e-4, derivativeTol=5e-3,
+\code{inference=list(step=1e-4, derivativeTol=5e-3,
 curvatureTol=1e-8, maxCondition=1e10)} in \code{mmes_control()}.
 Steps are relative to \code{max(1,abs(coordinate))}. Positive-definiteness and
 conditioning checks use diagonally standardized information.
@@ -151,8 +151,10 @@ set.seed(12)
 dat <- expand.grid(x=seq(0, 5, length.out=10), group=factor(seq_len(12)))
 dat$y <- 3*exp(-0.6*dat$x)+rnorm(12, sd=0.2)[dat$group]+
   rnorm(nrow(dat), sd=0.1)
-fit <- mmes(y~0, random=~group, data=dat, nonlinear=nonlinear_curve("x"),
-  control=mmes_control(task=list(objective="ml"),
+fit <- mmes(y~0+graph_term("growth"), random=~group, data=dat,
+  predictors=list(growth=nonlinear_curve("x")),
+  method=mmes_method(objective="ml"),
+  control=mmes_control(
     diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
 post <- post_nonlinear(fit)
 confint(post)

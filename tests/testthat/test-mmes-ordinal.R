@@ -7,13 +7,13 @@ ordinalFitFixture <- function(link="logit", fixedThresholds=FALSE, estimateVaria
   latent <- eta + if(link == "logit") rlogis(240) else rnorm(240)
   data$y <- ordered(cut(latent, c(-Inf, -1, 0.8, Inf),
     labels=c("low", "medium", "high")), levels=c("low", "medium", "high"))
-  control <- mmes_control(task=list(objective="ml", glmm=list(method="laplace",
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace",
     familyParameters=if(fixedThresholds)
       list(thresholds=c(-1, 0.8), estimate=FALSE) else list())),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
   random <- if(estimateVariance) ~vsm(ism(group), sigma2=0.16, fixedSigma2=FALSE) else
     ~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE)
-  fit <- mmes(y~x+treatment+offset(log(exposure)), random=random,
+  fit <- sommer:::.mmes_dispatch(y~x+treatment+offset(log(exposure)), random=random,
     data=data, family=ordinal(link), control=control)
   list(fit=fit, data=data, control=control)
 }
@@ -160,7 +160,7 @@ test_that("ordinal post-fit uncertainty includes cutpoints and prediction cross-
 test_that("public ordinal fits agree with independent proportional-odds fits in the zero-variance limit", {
   for(link in c("logit", "probit")){
     fixture <- ordinalFitFixture(link)
-    fit <- mmes(y~x+treatment+offset(log(exposure)),
+    fit <- sommer:::.mmes_dispatch(y~x+treatment+offset(log(exposure)),
       random=~vsm(ism(group), sigma2=1e-8, fixedSigma2=TRUE),
       data=fixture$data, family=ordinal(link), control=fixture$control)
     reference <- MASS::polr(y~x+treatment+offset(log(exposure)), data=fixture$data,
@@ -177,7 +177,7 @@ test_that("public ordinal fits agree with independent proportional-odds fits in 
 test_that("ordinal intercept-only, fixed thresholds and binary fits are complete", {
   fixture <- ordinalFitFixture()
   for(link in c("logit", "probit")){
-    fit <- mmes(y~1, random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
+    fit <- sommer:::.mmes_dispatch(y~1, random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
       data=fixture$data, family=ordinal(link), control=fixture$control)
     expect_true(fit$convergence)
     expect_length(coef(fit), 0L)
@@ -188,10 +188,10 @@ test_that("ordinal intercept-only, fixed thresholds and binary fits are complete
     expect_true(all(is.finite(postPEV(fit, mode=1)$uPevList[[1]])))
     data <- fixture$data
     data$y <- ordered(ifelse(data$y == "high", "yes", "no"), levels=c("no", "yes"))
-    fit <- mmes(y~x, random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
+    fit <- sommer:::.mmes_dispatch(y~x, random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
       data=data, family=ordinal(link), control=fixture$control)
     data$binary <- as.integer(data$y == "yes")
-    binary <- mmes(binary~x, random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
+    binary <- sommer:::.mmes_dispatch(binary~x, random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
       data=data, family=binomial(link), control=fixture$control)
     expect_true(fit$convergence)
     expect_equal(as.numeric(logLik(fit)), as.numeric(logLik(binary)), tolerance=1e-7)
@@ -208,7 +208,7 @@ test_that("ordinal intercept-only, fixed thresholds and binary fits are complete
 test_that("ordinal bootstrap and likelihood comparisons preserve the category experiment", {
   fixture <- ordinalFitFixture()
   fit <- fixture$fit
-  reduced <- mmes(y~x+offset(log(exposure)),
+  reduced <- sommer:::.mmes_dispatch(y~x+offset(log(exposure)),
     random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
     data=fixture$data, family=ordinal(), control=fixture$control)
   expect_true(reduced$convergence)
@@ -306,11 +306,11 @@ test_that("ordinal public fits retain category schema after filtering", {
   fixture <- ordinalFitFixture()
   data <- fixture$data
   data$y[data$y == "medium"] <- NA
-  expect_error(mmes(y~x, random=~group, data=data, family=ordinal(),
+  expect_error(sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=ordinal(),
     control=fixture$control), "every declared category")
-  fixed <- mmes(y~x, random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
+  fixed <- sommer:::.mmes_dispatch(y~x, random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
     data=data, family=ordinal(thresholds=c(-1, 0.8)),
-    control=mmes_control(task=list(objective="ml", glmm=list(method="laplace",
+    control=sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace",
       familyParameters=list(estimate=FALSE))),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_true(fixed$convergence)
@@ -318,7 +318,7 @@ test_that("ordinal public fits retain category schema after filtering", {
   expect_true(all(fitted(fixed)[, "medium"] > 0))
   expect_equal(nrow(predict(fixed, newdata=fixture$data)), 240)
   data$y <- as.integer(fixture$data$y)
-  numeric <- mmes(y~x+treatment+offset(log(exposure)),
+  numeric <- sommer:::.mmes_dispatch(y~x+treatment+offset(log(exposure)),
     random=fixture$fit$randomFormula, data=data, family=ordinal(), control=fixture$control)
   expect_equal(unname(fitted(numeric)), unname(fitted(fixture$fit)))
   expect_identical(colnames(fitted(numeric)), c("1", "2", "3"))

@@ -200,7 +200,7 @@ multinomial <- function(reference=NULL){
   }
   supplied <- attr(control, "supplied")
   native <- attr(control, "native")
-  control <- do.call(.mmes_control_build, unclass(control))
+  control <- do.call(.mmes_control_build, .mmes_engine_arguments(control))
   if(!is.null(native)) attr(control, "native") <- native
   if(is.null(supplied)) supplied <- c("formulation", .mme_control_paths(control))
   .mmes_check_compatibility(control, supplied)
@@ -223,7 +223,7 @@ multinomial <- function(reference=NULL){
 }
 
 .laplace_prepare_nominal <- function(fixed, random, data=NULL, reference=NULL,
-    control=mmes_control(task=list(objective="ml", glmm=list(method="laplace"))),
+    control=.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace"))),
     naMethodY="exclude", naMethodX="exclude", naMethodRandom="exclude",
     contrasts=NULL){
   control <- .laplace_nominal_control(control)
@@ -514,7 +514,7 @@ multinomial <- function(reference=NULL){
       stop("Native multinomial Laplace fitting does not use non-default Gaussian solver, acceleration, update, fixed-rank, conditional FA, factor-score, compression, GPU, or forced experimental controls.",
         call.=FALSE)
     }
-    control <- mmes_control(task=list(objective="ml",
+    control <- .mmes_control_internal(task=list(objective="ml",
         glmm=list(method="laplace", maxit=maxit,
           modeMaxit=modeMaxit, modeTol=modeTol,backend=backend,warmStart=warmStart,
           gradient=gradientMethod,trace=trace,blocks=blocks)),

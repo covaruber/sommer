@@ -2,8 +2,8 @@ test_that("progress reports iterations without changing numerical results", {
   data(DT_example)
   for(formulation in c("henderson", "direct")){
     fit <- function(verbose){
-      mmes(Yield~Env, random=~Name, data=DT_example,
-        control=mmes_control(formulation=formulation,
+      sommer:::.mmes_dispatch(Yield~Env, random=~Name, data=DT_example,
+        control=sommer:::.mmes_control_internal(formulation=formulation,
           convergence=list(maxIters=3L),
           diagnostics=list(verbose=verbose, dateWarning=FALSE)))
     }

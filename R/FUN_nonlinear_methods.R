@@ -102,7 +102,7 @@ print.mmes.nonlinear <- function(x, ...){
     object$randomRelationships[term], layout$count,
     memoryMB=object$control$execution$denseMemoryMB,
     allowSingular=.nonlinear_has_reduced_rank(object$covStruct[term]))
-  settings <- object$control$task$nonlinear$population
+  settings <- .mmes_fitting_control(object)$task$nonlinear$population
   evaluate <- function(order){
     rule <- .laplace_normal_quadrature(order)
     mean <- numeric(length(input))
@@ -152,7 +152,8 @@ print.mmes.nonlinear <- function(x, ...){
   formula <- stats::as.formula(call("~", as.name(response), 0),
     env=environment(object$fixedFormula))
   settings <- object$predictionSettings
-  prepared <- .nonlinear_prepare(formula, object$randomFormula, data, object$control,
+  prepared <- .nonlinear_prepare(formula, object$randomFormula, data,
+    .mmes_fitting_control(object),
     "fail", "fail", "fail", "fail", settings$contrasts)
   if(length(prepared$Z) != length(object$randomBlockColumns)){
     stop("Prediction random-effect blocks differ from the fitted model.", call.=FALSE)
@@ -172,10 +173,110 @@ print.mmes.nonlinear <- function(x, ...){
   if(design) combined else as.numeric(combined %*% object$randomMode)
 }
 
+.nonlinear_graph_bases <- function(object,design){
+  layout <- object$nonlinearRandom
+  lapply(seq_along(object$nonlinear$parameters),function(coordinate){
+    result <- design*0
+    columns <- which(layout$coordinateMap[,coordinate]!=0)
+    if(length(columns)) result[,columns] <- design[,columns,drop=FALSE]
+    result
+  })
+}
+
+.nonlinear_graph_parameters <- function(object,data,design=NULL,mode=NULL){
+  coordinates <- object$nonlinearCoordinates
+  values <- matrix(rep(as.numeric(coordinates),each=nrow(data)),
+    nrow=nrow(data),dimnames=list(NULL,names(coordinates)))
+  if(!is.null(mode) && !is.null(object$nonlinearRandom)){
+    bases <- .nonlinear_graph_bases(object,design)
+    for(coordinate in object$nonlinearRandom$coordinate)
+      values[,coordinate] <- values[,coordinate]+
+        as.numeric(bases[[coordinate]]%*%mode)
+  }
+  values
+}
+
+.nonlinear_graph_population <- function(object,data,design){
+  layout <- object$nonlinearRandom
+  coordinates <- layout$coordinate
+  bases <- .nonlinear_graph_bases(object,design)[coordinates]
+  n <- nrow(data)
+  if(!length(coordinates))
+    return(.nonlinear_graph_values(object$nonlinear,data,
+      .nonlinear_graph_parameters(object,data),object$control))
+  stacked <- do.call(rbind,bases)
+  groups <- matrix(rep(seq_len(n),times=length(coordinates)),nrow=n)
+  groups <- groups+matrix(rep((seq_along(coordinates)-1L)*n,each=n),nrow=n)
+  covariance <- .laplace_latent_covariance(stacked,object$covStruct,
+    object$randomRelationships,object$randomBlockWidths,groups=groups,
+    memoryMB=object$control$execution$denseMemoryMB,
+    allowSingular=.nonlinear_has_reduced_rank(object$covStruct))
+  settings <- .mmes_fitting_control(object)$task$nonlinear$population
+  result <- numeric(n)
+  baseParameters <- .nonlinear_graph_parameters(object,data)
+  for(row in seq_len(n)){
+    localCovariance <- covariance[,,row,drop=FALSE][,,1L]
+    decomposition <- eigen((localCovariance+t(localCovariance))/2,
+      symmetric=TRUE)
+    tolerance <- 1e-12*max(1,max(abs(decomposition$values)))
+    if(any(decomposition$values < -tolerance))
+      stop("Graph population covariance is not positive semidefinite.",call.=FALSE)
+    selected <- which(decomposition$values>tolerance)
+    if(!length(selected)){
+      result[row] <- .nonlinear_graph_values(object$nonlinear,data[row,,drop=FALSE],
+        baseParameters[row,,drop=FALSE],object$control)
+      next
+    }
+    loading <- sweep(decomposition$vectors[,selected,drop=FALSE],2L,
+      sqrt(decomposition$values[selected]),"*")
+    integrate <- function(order){
+      rank <- length(selected)
+      count <- as.double(order)^rank
+      if(!is.finite(count) || count>.Machine$integer.max ||
+         8*count*(rank+length(coordinates)+length(object$nonlinear$parameters)+8)>
+           object$control$execution$denseMemoryMB*1048576)
+        stop("Graph population integration exceeds execution$denseMemoryMB; reduce random parameter dimension or quadrature order.",
+          call.=FALSE)
+      rule <- .laplace_normal_quadrature(order)
+      index <- matrix(as.matrix(expand.grid(rep(list(seq_len(order)),rank),
+        KEEP.OUT.ATTRS=FALSE)),ncol=rank)
+      nodes <- matrix(rule$nodes[index],nrow(index),rank)
+      weights <- apply(matrix(rule$weights[index],nrow(index),rank),1L,prod)
+      deviations <- nodes%*%t(loading)
+      parameters <- baseParameters[rep(row,nrow(deviations)),,drop=FALSE]
+      for(j in seq_along(coordinates))
+        parameters[,coordinates[j]] <- parameters[,coordinates[j]]+deviations[,j]
+      values <- .nonlinear_graph_values(object$nonlinear,
+        data[rep(row,nrow(deviations)),,drop=FALSE],parameters,object$control)
+      sum(weights*values)
+    }
+    order <- settings$order
+    previous <- integrate(order)
+    repeat{
+      order <- min(2L*order,settings$maxOrder)
+      current <- integrate(order)
+      if(abs(current-previous)<=settings$tol*(1+abs(current))){
+        result[row] <- current
+        break
+      }
+      if(order>=settings$maxOrder)
+        stop("Graph population quadrature did not meet task$nonlinear$population$tol at maxOrder.",
+          call.=FALSE)
+      previous <- current
+    }
+  }
+  result
+}
+
 predict.mmes.nonlinear <- function(object, newdata=NULL, re.form=NULL,
     type=c("response", "link"), se.fit=FALSE, cov.fit=FALSE,
-    interval=c("none","confidence","prediction"), level=0.95, trials=NULL, ...){
+    interval=c("none","confidence","prediction"), level=0.95, trials=NULL,
+    target=NULL, ...){
   .nonlinear_check_dots(...)
+  if(!is.null(target)){
+    if(!missing(re.form)) stop("Specify target or re.form, not both.",call.=FALSE)
+    re.form <- .mmes_prediction_arguments(list(),target)$re.form
+  }
   type <- match.arg(type)
   interval <- match.arg(interval)
   if(!is.null(trials) && interval!="prediction")
@@ -185,7 +286,8 @@ predict.mmes.nonlinear <- function(object, newdata=NULL, re.form=NULL,
       se.fit,cov.fit,interval,level,trials))
   if(isTRUE(object$nonlinearFamily))
     return(.nonlinear_family_predict(object,newdata,re.form,type))
-  if(identical(object$nonlinearRandom$version,2L))
+  if(!isTRUE(object$nonlinearGraph) &&
+     identical(object$nonlinearRandom$version,2L))
     return(.nonlinear_family_predict(.nonlinear_inference_proxy(object),
       newdata,re.form,type))
   includeRandom <- is.null(re.form)
@@ -194,6 +296,17 @@ predict.mmes.nonlinear <- function(object, newdata=NULL, re.form=NULL,
     stop("re.form must be NULL, NA or 'population' for nonlinear models.", call.=FALSE)
   }
   if(is.null(newdata)){
+    if(isTRUE(object$nonlinearGraph) && !is.null(object$nonlinearRandom)){
+      if(identical(re.form,"population")){
+        graphMean <- .nonlinear_graph_population(object,object$trainingData,
+          object$randomDesign)
+        return(object$fixedMean-
+          .nonlinear_graph_values(object$nonlinear,object$trainingData,
+            .nonlinear_graph_parameters(object,object$trainingData),object$control)+
+          graphMean)
+      }
+      return(if(includeRandom) object$fitted.values else object$fixedMean)
+    }
     if(!is.null(object$nonlinearRandom) && identical(re.form, "population")){
       return(object$fixedMean-as.numeric(sommer_nonlinear_curve_eval(
         object$nonlinear$curve, object$input, object$nonlinearCoordinates,
@@ -229,7 +342,26 @@ predict.mmes.nonlinear <- function(object, newdata=NULL, re.form=NULL,
     stop("Nonlinear prediction workspace exceeds execution$denseMemoryMB.", call.=FALSE)
   }
   curveRandom <- object$nonlinearRandom
-  if(!is.null(curveRandom) && (includeRandom || identical(re.form, "population"))){
+  if(isTRUE(object$nonlinearGraph) && !is.null(curveRandom)){
+    graphDesign <- if(includeRandom || identical(re.form,"population"))
+      .nonlinear_random_prediction(object,newdata,design=TRUE) else NULL
+    if(identical(re.form,"population")){
+      mean <- .nonlinear_graph_population(object,newdata,graphDesign)
+    }else{
+      parameters <- .nonlinear_graph_parameters(object,newdata,graphDesign,
+        if(includeRandom) object$randomMode else NULL)
+      mean <- .nonlinear_graph_values(object$nonlinear,newdata,parameters,
+        object$control)
+      if(includeRandom){
+        graphColumns <- which(rowSums(curveRandom$coordinateMap)!=0)
+        if(length(graphColumns)){
+          additiveDesign <- graphDesign
+          additiveDesign[,graphColumns] <- 0
+          mean <- mean+as.numeric(additiveDesign%*%object$randomMode)
+        }
+      }
+    }
+  }else if(!is.null(curveRandom) && (includeRandom || identical(re.form, "population"))){
     design <- .nonlinear_random_prediction(object, newdata, design=TRUE)
     curveDesign <- design[, curveRandom$start+seq_len(curveRandom$count), drop=FALSE]
     if(includeRandom){
@@ -245,7 +377,8 @@ predict.mmes.nonlinear <- function(object, newdata=NULL, re.form=NULL,
       object$nonlinearCoordinates, gradient=FALSE)$mean
   }
   prediction <- offset + as.numeric(fixed %*% object$b) + as.numeric(mean)
-  if(includeRandom){
+  if(includeRandom && !(isTRUE(object$nonlinearGraph) &&
+      !is.null(curveRandom))){
     if(is.null(curveRandom)) prediction <- prediction+.nonlinear_random_prediction(object, newdata)
     else if(curveRandom$start) prediction <- prediction+as.numeric(
       design[, seq_len(curveRandom$start), drop=FALSE] %*% object$additiveRandomMode)

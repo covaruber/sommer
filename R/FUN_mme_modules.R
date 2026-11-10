@@ -279,8 +279,8 @@
 #' \code{formulation="direct"}, and estimation modules with \code{task$mode="solve"}.
 #' Rules that depend on the data, family, \code{vcc} or rotation are checked by
 #' \code{\link{mmes}}.
-#' @export
-mmes_control <- function(formulation="henderson", task=list(),
+#' @keywords internal
+.mmes_control_internal <- function(formulation="henderson", task=list(),
                          representation=list(), solve=list(), logdet=list(),
                          score=list(), curvature=list(), update=list(),
                          proposal=list(), convergence=list(), output=list(),
@@ -498,6 +498,7 @@ mmes_control <- function(formulation="henderson", task=list(),
 
 print.sommer_mmes_control <- function(x, ...){
   cat("-- sommer modular numerical controls --\n")
+  if(!is.null(attr(x,"publicArguments"))) x <- unclass(x)
   cat("Formulation:", x$formulation, "\n")
   for(module in setdiff(names(x), "formulation")){
     values <- vapply(x[[module]], function(value){
@@ -510,11 +511,11 @@ print.sommer_mmes_control <- function(x, ...){
   invisible(x)
 }
 
-mmes <- function(fixed, random, rcov, data, W, weights=NULL,
+.mmes_dispatch <- function(fixed, random, rcov, data, W, weights=NULL,
                  naMethodX="exclude", naMethodY="exclude",
                  naMethodRandom="exclude", naMethodR="exclude",
                  contrasts=NULL, family=stats::gaussian(), vcc=NULL,
-                 covPar=NULL, control=mmes_control(), .internal=NULL,
+                 covPar=NULL, control=.mmes_control_internal(), .internal=NULL,
                  nonlinear=NULL, ...){
   if(!inherits(control, "sommer_mmes_control")){
     stop("control must be created by mmes_control().", call.=FALSE)
@@ -548,7 +549,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
       control$diagnostics["verbose"] <- legacy["verbose"]
     }
     supplied <- unique(c(supplied, unname(replacements[names(legacy)])))
-    control <- do.call(mmes_control, unclass(control))
+    control <- do.call(.mmes_control_internal, .mmes_engine_arguments(control))
     warning("Passing ", paste(names(legacy), collapse=", "),
       " through mmes(...) is deprecated. Start using control=mmes_control() with ",
       paste(paste0(names(legacy), " -> ", replacements[names(legacy)]),
@@ -558,7 +559,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
         " getPEV=FALSE sets output$inverse=0, while getPEV=TRUE leaves it unchanged.",
       call.=FALSE)
   }
-  control <- do.call(.mmes_control_build, unclass(control))
+  control <- do.call(.mmes_control_build, .mmes_engine_arguments(control))
   if(is.null(supplied)) supplied <- c("formulation", .mme_control_paths(control))
   .mmes_check_compatibility(control, supplied)
   attr(control, "supplied") <- supplied
@@ -610,7 +611,7 @@ mmes <- function(fixed, random, rcov, data, W, weights=NULL,
       stop("task$pql controls PQL only; remove it when using task$glmm$method='laplace'.",
            call.=FALSE)
     }
-    laplaceDefaults <- mmes_control()
+    laplaceDefaults <- .mmes_control_internal()
     laplaceAllowed <- c("formulation", "task$mode", "task$objective",
       "task$glmm", "task$pql", "output$inverse", "output$panelSize", "output$setup",
       "execution$blasThreads", "execution$denseMemoryMB",

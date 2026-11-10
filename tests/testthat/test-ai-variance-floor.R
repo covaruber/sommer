@@ -61,8 +61,8 @@ test_that("diagonal variance floors converge consistently on direct and MME path
     c(-1, -0.4, 0.4, 1)[dataset$replicate]
   for(objective in c("reml", "ml")){
     fits <- lapply(c("cholmod", "ldlt", "direct"), function(solver){
-      mmes(y~environment, random=~vsm(dsm(environment), ism(id), sigma2=1),
-        data=dataset, control=mmes_control(
+      sommer:::.mmes_dispatch(y~environment, random=~vsm(dsm(environment), ism(id), sigma2=1),
+        data=dataset, control=sommer:::.mmes_control_internal(
           formulation=if(solver == "direct") "direct" else "henderson",
           solve=list(method=if(solver == "direct") "auto" else solver),
           task=list(objective=objective),
@@ -90,10 +90,10 @@ test_that("latent RR certifies outward diagonal boundary scores with the correct
     (dataset$environment == "a") * cos(as.numeric(dataset$block)) +
     c(-0.4, 0.4)[dataset$replicate]
   for(objective in c("reml", "ml")){
-    fit <- mmes(y~environment,
+    fit <- sommer:::.mmes_dispatch(y~environment,
       random=~vsm(rrm(environment, 1), ism(id), sigma2=1) +
         vsm(dsm(environment), ism(block), sigma2=1),
-      data=dataset, control=mmes_control(task=list(objective=objective),
+      data=dataset, control=sommer:::.mmes_control_internal(task=list(objective=objective),
         convergence=list(maxIters=30), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     recovery <- fit$engineDiagnostics$recovery
     expect_true(fit$convergence)
@@ -112,9 +112,9 @@ test_that("fixed variance ratios below the numerical floor remain exact", {
     replicate=seq_len(2))
   dataset$y <- sin(as.numeric(dataset$id)) + c(-0.4, 0.4)[dataset$replicate]
   for(formulation in c("henderson", "direct")){
-    fit <- mmes(y~environment,
+    fit <- sommer:::.mmes_dispatch(y~environment,
       random=~vsm(dsm(environment, values=c(1, 1e-10), fixed=TRUE), ism(id), sigma2=1),
-      data=dataset, control=mmes_control(formulation=formulation,
+      data=dataset, control=sommer:::.mmes_control_internal(formulation=formulation,
         convergence=list(maxIters=3), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_equal(as.numeric(fit$covParWorking[[1]][2]), log(1e-10), tolerance=1e-12)
   }
@@ -125,9 +125,9 @@ test_that("a supported variance ratio can leave its initial floor", {
     replicate=seq_len(4))
   dataset$y <- 2 * sin(as.numeric(dataset$id)) + c(-1, -0.4, 0.4, 1)[dataset$replicate]
   for(formulation in c("henderson", "direct")){
-    fit <- mmes(y~environment,
+    fit <- sommer:::.mmes_dispatch(y~environment,
       random=~vsm(dsm(environment, values=c(1, 1e-6)), ism(id), sigma2=1),
-      data=dataset, control=mmes_control(formulation=formulation,
+      data=dataset, control=sommer:::.mmes_control_internal(formulation=formulation,
         convergence=list(maxIters=40), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_true(fit$convergence)
     expect_equal(as.numeric(fit$covParWorking[[1]][2]), 0, tolerance=1e-3)

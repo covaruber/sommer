@@ -2,8 +2,8 @@ test_that("profiling reports phase totals without changing the fit", {
   workload <- generate_mme_workload(structure="ar2", n_levels=6L, n_ind=4L,
                                    seed=303L)
   fit <- function(profile="off", traceBatch="off"){
-    mmes(workload$fixed, random=workload$random, data=workload$data,
-      control=mmes_control(score=list(traceBatch=traceBatch),
+    sommer:::.mmes_dispatch(workload$fixed, random=workload$random, data=workload$data,
+      control=sommer:::.mmes_control_internal(score=list(traceBatch=traceBatch),
         convergence=list(maxIters=2L),
         diagnostics=list(profile=profile, verbose=FALSE, dateWarning=FALSE)))
   }
@@ -29,8 +29,8 @@ test_that("diagonal residuals do not build unused block design caches", {
   dataset <- data.frame(id=factor(rep(seq_len(20L), each=4L)))
   dataset$x <- 1 + sin(seq_len(nrow(dataset)))
   dataset$y <- cos(seq_len(nrow(dataset))) + as.integer(dataset$id) / 10
-  fit <- mmes(y~x, random=~id, data=dataset,
-    control=mmes_control(convergence=list(maxIters=2L),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~id, data=dataset,
+    control=sommer:::.mmes_control_internal(convergence=list(maxIters=2L),
       diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)))
   counters <- fit$engineDiagnostics$profile$counters
   expect_identical(fit$engineDiagnostics$residualEngine, "diagonal")
@@ -52,10 +52,10 @@ test_that("residual block design caches visit each design entry once and preserv
       args <- list(fixed=y~x, random=~id,
         rcov=~vsm(ar1m(environment, rho=0.3, fixed=TRUE), ism(record)),
         data=data[order, ],
-        control=mmes_control(convergence=list(maxIters=3L),
+        control=sommer:::.mmes_control_internal(convergence=list(maxIters=3L),
           diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE)))
       if(weighted) args$W <- weights[order, order]
-      do.call(mmes, args)
+      do.call(sommer:::.mmes_dispatch, args)
     }
     reference <- fitModel(seq_len(nrow(data)))
     candidate <- fitModel(rev(seq_len(nrow(data))))

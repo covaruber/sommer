@@ -26,7 +26,7 @@ test_that("correlation variance modes create consistent covariance descriptors",
 })
 
 test_that("automatic sparse factor kernels use exact structure and crossover gates", {
-  control <- mmes_control()
+  control <- sommer:::.mmes_control_internal()
   expect_identical(control$representation$sparseFactors, "auto")
 
   large <- antem(factor(seq_len(64L)), order=2L)$covFactor
@@ -74,7 +74,7 @@ test_that("native covariance reporting returns model-scale parameters", {
   envFixed <- rep(FALSE, nlevels(DT_example$Env) - 1L)
   envFixed[1L] <- TRUE
 
-  fitDiag <- mmes(Yield ~ Env, random=~vsm(dsm(Env, fixed=envFixed), ism(Name)), rcov=~units, data=DT_example, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=3)))
+  fitDiag <- sommer:::.mmes_dispatch(Yield ~ Env, random=~vsm(dsm(Env, fixed=envFixed), ism(Name)), rcov=~units, data=DT_example, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE), convergence=list(maxIters=3)))
   diagNative <- covparams_mmes(fitDiag, 1L)
   expect_equal(nrow(diagNative), nlevels(DT_example$Env))
   expect_true(all(grepl("^variance\\[", diagNative$parameter)))
@@ -98,7 +98,7 @@ test_that("native covariance reporting returns model-scale parameters", {
   analyticSE <- sqrt(pmax(diag(analyticJacobian %*% localCovariance %*%
                                  t(analyticJacobian)), 0))
 
-  fitUs <- mmes(Yield ~ Env, random=~vsm(usm(Env), ism(Name)), rcov=~units, data=DT_example, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=3)))
+  fitUs <- sommer:::.mmes_dispatch(Yield ~ Env, random=~vsm(usm(Env), ism(Name)), rcov=~units, data=DT_example, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE), convergence=list(maxIters=3)))
   usNative <- covparams_mmes(fitUs, 1L)
   expected <- fitUs$theta[[1]][lower.tri(fitUs$theta[[1]], diag=TRUE)]
   expect_equal(usNative$estimate, expected, tolerance=1e-8)
@@ -107,7 +107,7 @@ test_that("native covariance reporting returns model-scale parameters", {
   expect_true(all(is.finite(usSE$StdError)))
   expect_equal(usSE$parameter, usNative$parameter)
 
-  fitCorrelation <- mmes(Yield ~ Env, random=~vsm(csm(Env, rho=0.2, fixed=TRUE), ism(Name)), rcov=~units, data=DT_example, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=3)))
+  fitCorrelation <- sommer:::.mmes_dispatch(Yield ~ Env, random=~vsm(csm(Env, rho=0.2, fixed=TRUE), ism(Name)), rcov=~units, data=DT_example, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE), convergence=list(maxIters=3)))
   correlationSE <- covparams_mmes_se(fitCorrelation, 1L)
   expect_equal(correlationSE$StdError[correlationSE$parameter == "rho"], 0)
   expect_true(is.na(correlationSE$Zratio[correlationSE$parameter == "rho"]))
@@ -125,8 +125,8 @@ test_that("ownm native reporting callback is dispatched generically", {
     c(variance=scale, correlation=tanh(par[1]))
   }
 
-  fit <- mmes(y ~ 1, random=~vsm(ownm(group, fun=covariance, par=0.1,
-                     par_names="rho_work", native_report=reporter), ism(id)), rcov=~units, data=data.frame(y, group, id), control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=2)))
+  fit <- sommer:::.mmes_dispatch(y ~ 1, random=~vsm(ownm(group, fun=covariance, par=0.1,
+                     par_names="rho_work", native_report=reporter), ism(id)), rcov=~units, data=data.frame(y, group, id), control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE), convergence=list(maxIters=2)))
   native <- covparams_mmes(fit, 1L)
   expect_equal(native$parameter, c("variance", "correlation"))
   expect_true(all(is.finite(native$estimate)))
@@ -268,7 +268,7 @@ test_that("normalized SAR and CAR precision paths match the observation-space re
     expect_equal(logDetDerivative, numericLogDetDerivative, tolerance=1e-7)
 
     fitModel <- function(solver){
-      mmes(response~site, random=~vsm(shape, ism(id), Gu=relationship), rcov=~units, data=dataset, control=mmes_control(solve=list(method=solver), convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+      sommer:::.mmes_dispatch(response~site, random=~vsm(shape, ism(id), Gu=relationship), rcov=~units, data=dataset, control=sommer:::.mmes_control_internal(solve=list(method=solver), convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     coefficient <- fitModel("ldlt")
     supernodal <- fitModel("cholmod")
@@ -281,7 +281,7 @@ test_that("normalized SAR and CAR precision paths match the observation-space re
 
 test_that("heterogeneous AR1 reports rho and environment variances", {
   DT_example <- get("DT_example", envir=asNamespace("sommer"))
-  fit <- mmes(Yield ~ Env, random=~vsm(ar1m(Env, variance="heterogeneous"), ism(Name)), rcov=~vsm(dsm(Env), ism(units)), data=DT_example, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=5)))
+  fit <- sommer:::.mmes_dispatch(Yield ~ Env, random=~vsm(ar1m(Env, variance="heterogeneous"), ism(Name)), rcov=~vsm(dsm(Env), ism(units)), data=DT_example, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE), convergence=list(maxIters=5)))
   native <- covparams_mmes(fit, 1L)
   varianceRows <- grepl("^variance\\[", native$parameter)
   expect_equal(native$parameter[1L], "rho")
@@ -322,8 +322,8 @@ test_that("factor capabilities are label independent and spatial products have e
                  antem(dataset$site), fam(dataset$site, 1L), rrm(dataset$site, 1L))
   for(shape in shapes){
     for(mode in c("off", "force")){
-      setup <- mmes(response ~ 1, random=~vsm(shape, ar1m(environment, rho=0.3), ism(id)),
-        data=dataset, control=mmes_control(solve=list(blockSchur="off"),
+      setup <- sommer:::.mmes_dispatch(response ~ 1, random=~vsm(shape, ar1m(environment, rho=0.3), ism(id)),
+        data=dataset, control=sommer:::.mmes_control_internal(solve=list(blockSchur="off"),
           convergence=list(maxIters=2L),
           output=list(inverse=0L, setup=TRUE),
           diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -392,8 +392,8 @@ test_that("large ANTE sparse derivative storage preserves fit outputs", {
   for(order in 1:3){
     shape <- antem(dataset$level, order=order)
     fitWith <- function(mode){
-      mmes(response ~ 1, random=~vsm(shape, ism(id)), rcov=~units, data=dataset,
-        control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(
+      sommer:::.mmes_dispatch(response ~ 1, random=~vsm(shape, ism(id)), rcov=~units, data=dataset,
+        control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(sommer:::.mmes_control_internal(
           representation=list(sparseFactors=mode))), list(
             convergence=list(maxIters=2L), output=list(inverse=0L),
             diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))

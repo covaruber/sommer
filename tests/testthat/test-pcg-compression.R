@@ -26,7 +26,7 @@
       list(estimator=pcg$traceEstimator) else list(),
     if("traceRank" %in% names(pcg))
       list(rank=pcg$traceRank) else list())
-  control <- mmes_control(
+  control <- sommer:::.mmes_control_internal(
     representation=list(compression=method),
     solve=solve, logdet=logdet, score=score,
     convergence=list(maxIters=iterations),
@@ -36,7 +36,7 @@
   arguments <- list(fixed=response~environment+x, random=~id, rcov=rcov,
     data=dataset, control=control)
   if(!is.null(weights)) arguments$W <- weights
-  suppressMessages(do.call(mmes, arguments))
+  suppressMessages(do.call(sommer:::.mmes_dispatch, arguments))
 }
 
 test_that("compression preserves weighted likelihood, score, AI and original records", {
@@ -74,9 +74,9 @@ test_that("exact grouping keeps distinct covariates and residual variance classe
   expect_equal(candidate$engineDiagnostics$pcg$compression$groups, nrow(dataset))
   expect_equal(candidate$bu, reference$bu, tolerance=1e-7)
   expect_equal(candidate$dLu, reference$dLu, tolerance=1e-7)
-  fit <- function(method) suppressMessages(mmes(response~environment+x,
+  fit <- function(method) suppressMessages(sommer:::.mmes_dispatch(response~environment+x,
     random=~id, rcov=~vsm(dsm(environment), ism(units)),
-    data=.compression_fixture(), control=mmes_control(
+    data=.compression_fixture(), control=sommer:::.mmes_control_internal(
       solve=list(method="pcg"),
       representation=list(compression=method),
       score=list(traceProbes=12L), logdet=list(lanczosSteps=40L),
@@ -96,8 +96,8 @@ test_that("compression explicitly rejects changing weights and correlated residu
   denseWeights <- diag(nrow(dataset)) + matrix(0.01, nrow(dataset), nrow(dataset))
   expect_error(.compression_fit(dataset, "groups", weights=denseWeights),
     "independent residuals")
-  expect_error(suppressMessages(mmes(response~environment+x, random=~id, data=dataset,
-    family=poisson(), control=mmes_control(
+  expect_error(suppressMessages(sommer:::.mmes_dispatch(response~environment+x, random=~id, data=dataset,
+    family=poisson(), control=sommer:::.mmes_control_internal(
       solve=list(method="pcg"),
       representation=list(compression="groups"),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))), "Gaussian")
@@ -110,11 +110,11 @@ test_that("Krylov recycling works without observation compression across residua
     fit <- function(pcg) {
       unknown <- setdiff(names(pcg), c("recycleRank", "recycleMethod", "warmStart"))
       if(length(unknown)) stop("Unknown PCG settings: ", paste(unknown, collapse=", "))
-      control <- mmes_control(solve=c(list(method="pcg"), pcg),
+      control <- sommer:::.mmes_control_internal(solve=c(list(method="pcg"), pcg),
         score=list(traceProbes=8L), logdet=list(lanczosSteps=40L),
         convergence=list(maxIters=4L),         update=list(blendWeight=0),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE))
-      suppressMessages(mmes(workload$fixed, random=workload$random,
+      suppressMessages(sommer:::.mmes_dispatch(workload$fixed, random=workload$random,
         rcov=workload$rcov, data=workload$data, control=control))
     }
     reference <- fit(list())

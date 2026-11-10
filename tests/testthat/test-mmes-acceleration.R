@@ -1,6 +1,6 @@
 test_that("the default uses undamped AI with on-demand recovery", {
   data(DT_example)
-  setup <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example, control=mmes_control(convergence=list(maxIters=30), output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  setup <- sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT_example, control=sommer:::.mmes_control_internal(convergence=list(maxIters=30), output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_equal(setup$blendWeight, rep(0, 30L))
   expect_equal(setup$stepWeight, rep(1, 30L))
   expect_equal(setup$blend, "em")
@@ -12,7 +12,7 @@ test_that("the default uses undamped AI with on-demand recovery", {
 test_that("guarded Aitken acceleration preserves the converged deterministic fit", {
   data(DT_example)
   fit <- function(acceleration){
-    mmes(Yield~Env, random=~Name, rcov=~units, data=DT_example, control=mmes_control(convergence=list(maxIters=80, likelihoodTol=1e-10, parameterTol=1e-10), update=list(blendWeight=0), proposal=list(extrapolation=if(acceleration == "aitken") "aitken" else "none"), curvature=list(method=if(acceleration == "hybrid-ai") "hybrid-ai" else "exact-ai"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT_example, control=sommer:::.mmes_control_internal(convergence=list(maxIters=80, likelihoodTol=1e-10, parameterTol=1e-10), update=list(blendWeight=0), proposal=list(extrapolation=if(acceleration == "aitken") "aitken" else "none"), curvature=list(method=if(acceleration == "hybrid-ai") "hybrid-ai" else "exact-ai"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   plain <- fit("none")
   accelerated <- fit("aitken")
@@ -27,6 +27,6 @@ test_that("guarded Aitken acceleration preserves the converged deterministic fit
 
 test_that("acceleration rejects unsupported solver modes", {
   data(DT_example)
-  expect_error(mmes(Yield~Env, random=~Name, data=DT_example, control=mmes_control(update=list(blendWeight=0), proposal=list(extrapolation=if("aitken" %in% c("aitken", "hybrid-ai")) "aitken" else "none"), curvature=list(method=if("aitken" == "hybrid-ai") "hybrid-ai" else "exact-ai"), solve=list(method="pcg"))), "deterministic")
-  expect_error(mmes(Yield~Env, random=~Name, data=DT_example, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", update=list(blendWeight=0), proposal=list(extrapolation=if("aitken" %in% c("aitken", "hybrid-ai")) "aitken" else "none"), curvature=list(method=if("aitken" == "hybrid-ai") "hybrid-ai" else "exact-ai"))), "formulation='direct'")
+  expect_error(sommer:::.mmes_dispatch(Yield~Env, random=~Name, data=DT_example, control=sommer:::.mmes_control_internal(update=list(blendWeight=0), proposal=list(extrapolation=if("aitken" %in% c("aitken", "hybrid-ai")) "aitken" else "none"), curvature=list(method=if("aitken" == "hybrid-ai") "hybrid-ai" else "exact-ai"), solve=list(method="pcg"))), "deterministic")
+  expect_error(sommer:::.mmes_dispatch(Yield~Env, random=~Name, data=DT_example, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", update=list(blendWeight=0), proposal=list(extrapolation=if("aitken" %in% c("aitken", "hybrid-ai")) "aitken" else "none"), curvature=list(method=if("aitken" == "hybrid-ai") "hybrid-ai" else "exact-ai"))), "formulation='direct'")
 })

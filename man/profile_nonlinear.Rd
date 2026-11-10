@@ -64,8 +64,10 @@ R/platform/BLAS metadata. Timings are seconds; \code{fitBytes} and
 \code{\link{mmes_control}}}
 \examples{
 \dontrun{
-fit <- mmes(y~0, random=~group, data=dat, nonlinear=nonlinear_curve("x"),
-  control=mmes_control(task=list(objective="ml"),
+fit <- mmes(y~0+graph_term("growth"), random=~group, data=dat,
+  predictors=list(growth=nonlinear_curve("x")),
+  method=mmes_method(objective="ml"),
+  control=mmes_control(
     diagnostics=list(profile="force")))
 profile_nonlinear(fit)
 }

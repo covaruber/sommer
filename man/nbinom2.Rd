@@ -14,9 +14,9 @@ nbinom2(theta = 1, link = "log")
   \item{link}{Currently \code{"log"} only.}
 }
 \details{
-For \code{mmes()} with \code{task$glmm$method="laplace"}, shape is estimated
+For \code{mmes()} with \code{method$integration="laplace"}, shape is estimated
 jointly with fixed effects and free random covariance coordinates by default.
-Use \code{task$glmm$familyParameters=list(theta=2, estimate=FALSE)} to fix shape.
+Use \code{familyParameters=list(theta=2, estimate=FALSE)} to fix shape.
 For \code{familym()}, nest this configuration under the trait's name.
 The constructor's \code{theta} is the default starting value; an explicitly
 supplied control value overrides it. Counts must be non-negative integers.
@@ -39,7 +39,7 @@ PQL is not changed into a marginal-likelihood estimator by choosing this family.
 \examples{
 family <- nbinom2(theta=2)
 family$variance(c(1, 2, 3))
-control <- mmes_control(task=list(objective="ml",
-  glmm=list(method="laplace", familyParameters=list(theta=2, estimate=FALSE))))
+method <- mmes_method(objective="ml", integration="laplace")
+# Pass familyParameters=list(theta=2, estimate=FALSE) to mmes().
 }
 \keyword{models}

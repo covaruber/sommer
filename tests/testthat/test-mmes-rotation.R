@@ -22,7 +22,7 @@ rotation_fixture <- function(){
 
 .rotation_control <- function(formulation="henderson", maxIters=15L,
                               stepWeight=NULL){
-  mmes_control(formulation=formulation, convergence=list(maxIters=maxIters),
+  sommer:::.mmes_control_internal(formulation=formulation, convergence=list(maxIters=maxIters),
     solve=if(formulation == "henderson") list(method="ldlt") else list(),
     proposal=list(stepWeight=stepWeight), output=list(inverse=0L),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
@@ -35,11 +35,11 @@ test_that("rotation preserves a balanced Henderson fit", {
     control=.rotation_control(maxIters=12L)
   )
   ordinary <- do.call(
-    mmes,
+    sommer:::.mmes_dispatch,
     c(common, list(random=~vsm(ism(id), Gu=fixture$Gu)))
   )
   rotated <- do.call(
-    mmes,
+    sommer:::.mmes_dispatch,
     c(common, list(random=~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE)))
   )
 
@@ -82,11 +82,11 @@ test_that("rotation respects covariance-coordinate blocks and shuffled rows", {
     control=.rotation_control(maxIters=12L)
   )
   ordinary <- do.call(
-    mmes,
+    sommer:::.mmes_dispatch,
     c(common, list(random=~vsm(dsm(env), ism(id), Gu=fixture$Gu)))
   )
   rotated <- do.call(
-    mmes,
+    sommer:::.mmes_dispatch,
     c(common, list(
       random=~vsm(dsm(env), ism(id), Gu=fixture$Gu, rotation=TRUE)
     ))
@@ -99,8 +99,8 @@ test_that("rotation respects covariance-coordinate blocks and shuffled rows", {
 
 expect_rotation_equivalent <- function(common, randomOrdinary, randomRotated,
                                        tolerance=1e-6){
-  ordinary <- do.call(mmes, c(common, list(random=randomOrdinary)))
-  rotated <- do.call(mmes, c(common, list(random=randomRotated)))
+  ordinary <- do.call(sommer:::.mmes_dispatch, c(common, list(random=randomOrdinary)))
+  rotated <- do.call(sommer:::.mmes_dispatch, c(common, list(random=randomRotated)))
   expect_equal(tail(ordinary$llik, 1), tail(rotated$llik, 1), tolerance=tolerance)
   expect_equal(unname(ordinary$theta), unname(rotated$theta), tolerance=tolerance)
   expect_equal(as.numeric(fitted(ordinary)), as.numeric(fitted(rotated)),
@@ -126,10 +126,10 @@ test_that("rotation supports multi-trait Kronecker residuals", {
     common$control <- .rotation_control(
       formulation=if(henderson) "henderson" else "direct",
       stepWeight=if(henderson) 1 else 0.1)
-    ordinary <- do.call(mmes, c(common, list(
+    ordinary <- do.call(sommer:::.mmes_dispatch, c(common, list(
       random=~vsm(usm(trait), ism(id), Gu=fixture$Gu)
     )))
-    rotated <- do.call(mmes, c(common, list(
+    rotated <- do.call(sommer:::.mmes_dispatch, c(common, list(
       random=~vsm(usm(trait), ism(id), Gu=fixture$Gu, rotation=TRUE)
     )))
     expect_equal(tail(ordinary$llik, 1), tail(rotated$llik, 1), tolerance=1e-6)
@@ -164,7 +164,7 @@ test_that("rotation rejects residual structures that are not invariant", {
                  rcov=rcov, data=data,
                  control=.rotation_control(maxIters=1L))
     if(!is.null(W)) args$W <- W
-    do.call(mmes, args)
+    do.call(sommer:::.mmes_dispatch, args)
   }
   expect_error(fit(~vsm(ar1m(id), ism(units))), "different relationship levels")
   expect_error(fit(~vsm(dsm(grp), ism(units))), "same residual covariance coordinate")
@@ -188,12 +188,12 @@ test_that("rotation rejects unsupported or incomplete models", {
 
   incomplete <- fixture$data[-1, , drop=FALSE]
   expect_error(
-    mmes(y~env, random=~vsm(dsm(env), ism(id), Gu=fixture$Gu, rotation=TRUE), rcov=~units, data=incomplete, control=mmes_control(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
+    sommer:::.mmes_dispatch(y~env, random=~vsm(dsm(env), ism(id), Gu=fixture$Gu, rotation=TRUE), rcov=~units, data=incomplete, control=sommer:::.mmes_control_internal(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "every Gu level equally often|complete balanced layout"
   )
 
   expect_error(
-    mmes(y~env, random=~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE), rcov=~units, data=fixture$data, control=mmes_control(convergence=list(maxIters=1), output=list(inverse=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
+    sommer:::.mmes_dispatch(y~env, random=~vsm(ism(id), Gu=fixture$Gu, rotation=TRUE), rcov=~units, data=fixture$data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=1), output=list(inverse=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "requires output\\$inverse=0"
   )
 })

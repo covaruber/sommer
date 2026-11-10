@@ -25,8 +25,8 @@ test_that("empty and random-only AI tangents preserve likelihoods and informatio
   dataset <- .reduced_ai_data()
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
     for(compression in c("off", "groups")){
-      setup <- mmes(y~level, random=~id+h, data=dataset,
-        control=mmes_control(solve=list(method=solver),
+      setup <- sommer:::.mmes_dispatch(y~level, random=~id+h, data=dataset,
+        control=sommer:::.mmes_control_internal(solve=list(method=solver),
           task=list(objective=if(reml) "reml" else "ml"),
           representation=list(compression=compression),
           output=list(setup=TRUE), diagnostics=list(verbose=FALSE)))
@@ -48,16 +48,16 @@ test_that("empty and random-only AI tangents preserve likelihoods and informatio
 })
 
 test_that("reduced AI uses curvature module and revalidates mutated requests", {
-  expect_identical(mmes_control()$curvature$reduced, "off")
-  expect_identical(mmes_control(curvature=list(reduced="force"))$curvature$reduced,
+  expect_identical(sommer:::.mmes_control_internal()$curvature$reduced, "off")
+  expect_identical(sommer:::.mmes_control_internal(curvature=list(reduced="force"))$curvature$reduced,
     "force")
-  expect_identical(mmes_control(curvature=list(reduced="auto"))$curvature$reduced,
+  expect_identical(sommer:::.mmes_control_internal(curvature=list(reduced="auto"))$curvature$reduced,
     "auto")
-  expect_error(mmes_control(curvature=list(reduced="invalid")),
+  expect_error(sommer:::.mmes_control_internal(curvature=list(reduced="invalid")),
     "Experimental toggle")
-  control <- mmes_control()
+  control <- sommer:::.mmes_control_internal()
   control$curvature$reduced <- "invalid"
-  expect_error(mmes(y~level, random=~id, data=.reduced_ai_data(), control=control),
+  expect_error(sommer:::.mmes_dispatch(y~level, random=~id, data=.reduced_ai_data(), control=control),
     "Experimental toggle")
 })
 
@@ -100,8 +100,8 @@ test_that("packed native AI equals independent contraction of full information",
   )
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
     for(index in seq_along(models)){
-      setup <- do.call(mmes, c(list(fixed=y~level, data=dataset,
-        control=mmes_control(solve=list(method=solver),
+      setup <- do.call(sommer:::.mmes_dispatch, c(list(fixed=y~level, data=dataset,
+        control=sommer:::.mmes_control_internal(solve=list(method=solver),
           task=list(objective=if(reml) "reml" else "ml"),
           output=list(setup=TRUE),
           diagnostics=list(verbose=FALSE))), models[[index]]))
@@ -128,9 +128,9 @@ test_that("reduced tied fits preserve optimizer, reporting and coefficient uncer
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
     for(information in c("full", "none")){
       model <- function(mode){
-        mmes(y~level, random=~id+h, data=dataset,
+        sommer:::.mmes_dispatch(y~level, random=~id+h, data=dataset,
           vcc=data.frame(parameter=1:2, group=1L, scale=c(2, 1)),
-          control=mmes_control(output=list(covariance=information, inverse=2L),
+          control=sommer:::.mmes_control_internal(output=list(covariance=information, inverse=2L),
             diagnostics=list(profile="force", verbose=FALSE, dateWarning=FALSE),
             curvature=list(reduced=mode),
             convergence=list(maxIters=12L, likelihoodTol=1e-10,
@@ -172,9 +172,9 @@ test_that("reduced certification handles iteration limits, fixed residuals and e
     for(fixedResidual in c(FALSE, TRUE)){
       for(information in c("full", "none")){
         model <- function(mode){
-          mmes(y~level, random=~id+h, data=dataset, rcov=if(fixedResidual) ~vsm(ism(units), sigma2=1, fixedSigma2=TRUE)
+          sommer:::.mmes_dispatch(y~level, random=~id+h, data=dataset, rcov=if(fixedResidual) ~vsm(ism(units), sigma2=1, fixedSigma2=TRUE)
               else ~units, vcc=data.frame(parameter=1:2, group=1L),
-            control=mmes_control(output=list(covariance=information),
+            control=sommer:::.mmes_control_internal(output=list(covariance=information),
               curvature=list(reduced=mode),
               convergence=list(maxIters=iterations),
               diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -190,8 +190,8 @@ test_that("reduced certification handles iteration limits, fixed residuals and e
     }
   }
   for(information in c("full", "none")){
-    fit <- mmes(y~level, random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE)+
-        vsm(ism(h), sigma2=1, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=1, fixedSigma2=TRUE), data=dataset, vcc=data.frame(parameter=1:2, group=1L), control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(curvature=list(reduced="force"))), list(convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
+    fit <- sommer:::.mmes_dispatch(y~level, random=~vsm(ism(id), sigma2=1, fixedSigma2=TRUE)+
+        vsm(ism(h), sigma2=1, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=1, fixedSigma2=TRUE), data=dataset, vcc=data.frame(parameter=1:2, group=1L), control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(sommer:::.mmes_control_internal(curvature=list(reduced="force"))), list(convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))
     expect_true(fit$convergence)
     expect_true(all(is.finite(unlist(fit$covPar))))
   }
@@ -201,7 +201,7 @@ test_that("reduced assembly rejects unsupported force requests and reports auto 
   dataset <- .reduced_ai_data()
   base <- list(fixed=y~level, random=~id+h, data=dataset,
     vcc=data.frame(parameter=1:2, group=1L))
-  control <- mmes_control(convergence=list(maxIters=2L),
+  control <- sommer:::.mmes_control_internal(convergence=list(maxIters=2L),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE),
     curvature=list(reduced="force"))
   for(settings in list(
@@ -215,14 +215,14 @@ test_that("reduced assembly rejects unsupported force requests and reports auto 
     settings$control <- NULL
     if(is.null(override)) override <- list()
     merged <- utils::modifyList(unclass(control), override, keep.null=TRUE)
-    expect_error(do.call(mmes, c(base, settings, list(control=do.call(mmes_control, merged)))),
+    expect_error(do.call(sommer:::.mmes_dispatch, c(base, settings, list(control=do.call(sommer:::.mmes_control_internal, merged)))),
       "curvature\\$reduced")
   }
-  expect_error(mmes(y~level, random=~id, data=dataset, control=mmes_control(curvature=list(reduced="force"), output=list(setup=TRUE))), "requires vcc")
-  fallbackControl <- do.call(mmes_control, utils::modifyList(
+  expect_error(sommer:::.mmes_dispatch(y~level, random=~id, data=dataset, control=sommer:::.mmes_control_internal(curvature=list(reduced="force"), output=list(setup=TRUE))), "requires vcc")
+  fallbackControl <- do.call(sommer:::.mmes_control_internal, utils::modifyList(
     unclass(control), list(curvature=list(reduced="auto"),
       update=list(blendWeight=0)), keep.null=TRUE))
-  fallback <- do.call(mmes, c(base, list(control=fallbackControl)))
+  fallback <- do.call(sommer:::.mmes_dispatch, c(base, list(control=fallbackControl)))
   expect_false(fallback$engineDiagnostics$reducedAI$active)
   expect_match(fallback$engineDiagnostics$reducedAI$fallbackReason, "legacy optimizer")
 })

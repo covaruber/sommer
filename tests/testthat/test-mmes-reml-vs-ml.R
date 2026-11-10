@@ -24,8 +24,8 @@ test_that("REML=FALSE gives ML estimates matching a dense brute-force optimizer"
                control=list(reltol=1e-12, maxit=500))
   refVarcomp <- exp(opt$par)
 
-  fitReml <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=40, likelihoodTol=1e-10), diagnostics=list(verbose=FALSE)))
-  fitMl <- mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=40, likelihoodTol=1e-10), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml")))
+  fitReml <- sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=40, likelihoodTol=1e-10), diagnostics=list(verbose=FALSE)))
+  fitMl <- sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=40, likelihoodTol=1e-10), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml")))
 
   expect_true(fitReml$REML)
   expect_false(fitMl$REML)
@@ -50,8 +50,8 @@ test_that("REML=FALSE with no random effects recovers the classical SSE/n MLE", 
   p <- length(unique(DT$Env))
   sse <- sum(residuals(lm(Yield~Env, data=DT))^2)
 
-  fitReml <- mmes(Yield~Env, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=20), diagnostics=list(verbose=FALSE)))
-  fitMl <- mmes(Yield~Env, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=20, likelihoodTol=1e-10, parameterTol=1e-10), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml")))
+  fitReml <- sommer:::.mmes_dispatch(Yield~Env, rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=20), diagnostics=list(verbose=FALSE)))
+  fitMl <- sommer:::.mmes_dispatch(Yield~Env, rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=20, likelihoodTol=1e-10, parameterTol=1e-10), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml")))
 
   expect_equal(as.numeric(fitReml$theta[[1]]), sse / (n - p), tolerance=1e-4)
   expect_equal(as.numeric(fitMl$theta[[1]]), sse / n, tolerance=1e-4)
@@ -62,16 +62,16 @@ test_that("REML=FALSE validates its inputs and the solver restriction", {
   DT <- DT_example
 
   expect_error(
-    mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE), task=list(objective=NA_character_))),
+    sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE), task=list(objective=NA_character_))),
     "task\\$objective"
   )
   expect_error(
-    mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml"), solve=list(method="pcg"))),
+    sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml"), solve=list(method="pcg"))),
     "task\\$objective"
   )
   # cholmod is a supported REML=FALSE backend (unlike pcg above)
   expect_error(
-    mmes(Yield~Env, random=~Name, rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml"), solve=list(method="cholmod"))),
+    sommer:::.mmes_dispatch(Yield~Env, random=~Name, rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=2), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml"), solve=list(method="cholmod"))),
     NA
   )
 })
@@ -91,8 +91,8 @@ test_that("REML=FALSE with a dense Gu (solver='cholmod') matches solver='ldlt'",
   u <- MASS::mvrnorm(1, mu=rep(0, nInd), Sigma=5 * Gu)
   DTg$y <- 10 + u[as.integer(DTg$id)] + rnorm(nrow(DTg), sd=2)
 
-  fLdlt <- mmes(y~1, random=~vsm(ism(id), Gu=GuInv), rcov=~units, data=DTg, control=mmes_control(convergence=list(maxIters=25), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml"), solve=list(method="ldlt")))
-  fAuto <- mmes(y~1, random=~vsm(ism(id), Gu=GuInv), rcov=~units, data=DTg, control=mmes_control(convergence=list(maxIters=25), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml")))
+  fLdlt <- sommer:::.mmes_dispatch(y~1, random=~vsm(ism(id), Gu=GuInv), rcov=~units, data=DTg, control=sommer:::.mmes_control_internal(convergence=list(maxIters=25), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml"), solve=list(method="ldlt")))
+  fAuto <- sommer:::.mmes_dispatch(y~1, random=~vsm(ism(id), Gu=GuInv), rcov=~units, data=DTg, control=sommer:::.mmes_control_internal(convergence=list(maxIters=25), diagnostics=list(verbose=FALSE), task=list(objective=if(FALSE) "reml" else "ml")))
 
   expect_equal(as.numeric(fLdlt$theta[[1]]), as.numeric(fAuto$theta[[1]]),
                tolerance=1e-6)
@@ -110,7 +110,7 @@ test_that("matrix-free PCG handles multi-factor Kronecker random precision", {
   dat$y <- rnorm(nrow(dat))
 
   fit <- function(solver, nIters=5){
-    mmes(y ~ 1, random=~vsm(csm(environment, rho=0.15), dsm(trait), ism(id)), rcov=~units, data=dat, control=mmes_control(convergence=list(maxIters=nIters), diagnostics=list(verbose=FALSE), output=list(inverse=0), solve=c(list(method=solver), if(solver == "pcg") list(tol=1e-10)), score=if(solver == "pcg") list(traceProbes=24) else list(), logdet=if(solver == "pcg") list(lanczosSteps=30) else list()))
+    sommer:::.mmes_dispatch(y ~ 1, random=~vsm(csm(environment, rho=0.15), dsm(trait), ism(id)), rcov=~units, data=dat, control=sommer:::.mmes_control_internal(convergence=list(maxIters=nIters), diagnostics=list(verbose=FALSE), output=list(inverse=0), solve=c(list(method=solver), if(solver == "pcg") list(tol=1e-10)), score=if(solver == "pcg") list(traceProbes=24) else list(), logdet=if(solver == "pcg") list(lanczosSteps=30) else list()))
   }
 
   pcg1 <- fit("pcg")
@@ -129,7 +129,7 @@ test_that("matrix-free PCG handles multi-factor Kronecker random precision", {
   expect_equal(dim(pcg1$C), c(length(pcg1$bu), length(pcg1$bu)))
   expect_gt(Matrix::nnzero(pcg1$C), Matrix::nnzero(Matrix::crossprod(pcg1$W)))
 
-  pcgLogLik <- mmes(y ~ 1, random=~vsm(csm(environment, rho=0.15), dsm(trait), ism(id)), rcov=~units, data=dat, control=mmes_control(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE), output=list(inverse=0), solve=list(method="pcg", tol=1e-10), score=list(traceProbes=128), logdet=list(lanczosSteps=72)))
+  pcgLogLik <- sommer:::.mmes_dispatch(y ~ 1, random=~vsm(csm(environment, rho=0.15), dsm(trait), ism(id)), rcov=~units, data=dat, control=sommer:::.mmes_control_internal(convergence=list(maxIters=1), diagnostics=list(verbose=FALSE), output=list(inverse=0), solve=list(method="pcg", tol=1e-10), score=list(traceProbes=128), logdet=list(lanczosSteps=72)))
   exactLogLik <- fit("ldlt", nIters=1)
   expect_equal(as.numeric(pcgLogLik$llik), as.numeric(exactLogLik$llik),
                tolerance=0.2)
@@ -146,7 +146,7 @@ test_that("Nyström PCG preconditioning preserves dense-Gu fits and reduces iter
   attr(precision, "inverse") <- TRUE
   data <- data.frame(id=factor(rep(ids, each=3L), levels=ids), y=rnorm(nId * 3L))
   fit <- function(preconditioner){
-    mmes(y~1, random=~vsm(ism(id), Gu=precision), rcov=~units, data=data, control=mmes_control(convergence=list(maxIters=3), solve=list(method="pcg", preconditioner=preconditioner, nystromRank=16L), output=list(inverse=2), score=list(traceProbes=32L), logdet=list(lanczosSteps=30L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(y~1, random=~vsm(ism(id), Gu=precision), rcov=~units, data=data, control=sommer:::.mmes_control_internal(convergence=list(maxIters=3), solve=list(method="pcg", preconditioner=preconditioner, nystromRank=16L), output=list(inverse=2), score=list(traceProbes=32L), logdet=list(lanczosSteps=30L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   diagonal <- fit("diagonal")
   nystrom <- fit("nystrom")
@@ -168,7 +168,7 @@ test_that("PCG contracts correlated complete and ragged residual derivatives thr
   for(missing in c(FALSE, TRUE)){
     active <- if(missing) dataset[-c(2L, 7L, 15L), ] else dataset
     fitModel <- function(solver){
-      mmes(response~environment, random=~id, rcov=~vsm(ar1m(environment), ism(record)), data=active, control=mmes_control(solve=c(list(method=solver), if(solver == "pcg") list(tol=1e-10)), convergence=list(maxIters=1L), score=if(solver == "pcg") list(traceProbes=24L) else list(), logdet=if(solver == "pcg") list(lanczosSteps=30L) else list(), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+      sommer:::.mmes_dispatch(response~environment, random=~id, rcov=~vsm(ar1m(environment), ism(record)), data=active, control=sommer:::.mmes_control_internal(solve=c(list(method=solver), if(solver == "pcg") list(tol=1e-10)), convergence=list(maxIters=1L), score=if(solver == "pcg") list(traceProbes=24L) else list(), logdet=if(solver == "pcg") list(lanczosSteps=30L) else list(), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     reference <- fitModel("ldlt")
     candidate <- fitModel("pcg")
@@ -184,7 +184,7 @@ test_that("D-first ML matches joint factorization and full uncertainty for both 
   data(DT_example)
   for(solver in c("ldlt", "cholmod")){
     fitModel <- function(mode){
-      mmes(Yield~Env, random=~Name, data=DT_example, control=mmes_control(solve=list(method=solver), task=list(objective=if(FALSE) "reml" else "ml"), convergence=list(maxIters=4L), output=list(inverse=mode), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+      sommer:::.mmes_dispatch(Yield~Env, random=~Name, data=DT_example, control=sommer:::.mmes_control_internal(solve=list(method=solver), task=list(objective=if(FALSE) "reml" else "ml"), convergence=list(maxIters=4L), output=list(inverse=mode), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     joint <- fitModel(1L)
     reduced <- fitModel(0L)

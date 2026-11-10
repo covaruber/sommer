@@ -94,9 +94,9 @@ test_that("latent RR analytic scores and AI match independent dense formulas", {
   shape <- rrm(dataset$environment, 2L, loadings=fixture$loading)
   for(reml in c(TRUE, FALSE)) for(solver in c("ldlt", "cholmod")){
     fitModel <- function(returnParam, blendWeight=0){
-      mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9) +
+      sommer:::.mmes_dispatch(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9) +
           vsm(ism(replicate), sigma2=0.2), rcov=~vsm(dsm(environment, values=c(0.6, 0.8, 0.5, 0.9)), ism(units),
-                  sigma2=0.6), data=dataset, control=mmes_control(task=list(objective=if(reml) "reml" else "ml"), solve=list(method=solver), convergence=list(maxIters=1L), update=list(blendWeight=blendWeight), proposal=list(stepWeight=1), output=list(inverse=0L, setup=returnParam), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+                  sigma2=0.6), data=dataset, control=sommer:::.mmes_control_internal(task=list(objective=if(reml) "reml" else "ml"), solve=list(method=solver), convergence=list(maxIters=1L), update=list(blendWeight=blendWeight), proposal=list(stepWeight=1), output=list(inverse=0L, setup=returnParam), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     setup <- fitModel(TRUE)
     fit <- fitModel(FALSE)
@@ -131,9 +131,9 @@ test_that("RR trace caches select pattern entries and restore general lookups on
     loading <- matrix(c(1, 0.6, if(zeroLoading) 0 else -0.4, 1.1), 4L)
     shape <- rrm(dataset$environment, 1L, loadings=loading)
     fitModel <- function(solver="cholmod", setup=FALSE, inverse=0L){
-      mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9) +
+      sommer:::.mmes_dispatch(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9) +
           vsm(dsm(environment), ism(id), Gu=precision, sigma2=0.3),
-        data=dataset, control=mmes_control(
+        data=dataset, control=sommer:::.mmes_control_internal(
           solve=list(method=solver, blockSchur="off"),
           output=list(setup=setup, inverse=inverse),
           convergence=list(maxIters=1L), update=list(blendWeight=0),
@@ -169,7 +169,7 @@ test_that("latent RR updates honor step weights and retain an iteration history"
   precision <- fixture$precision
   shape <- rrm(dataset$environment, 1L, loadings=matrix(c(1, 0.6, -0.4, 1.1), 4L))
   fitModel <- function(step, iterations, em=0){
-    mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9), rcov=~vsm(ism(units), sigma2=0.6), data=dataset, control=mmes_control(convergence=list(maxIters=iterations, likelihoodTol=1e-12, parameterTol=1e-10), update=list(blendWeight=rep(em, iterations)), proposal=list(stepWeight=step), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9), rcov=~vsm(ism(units), sigma2=0.6), data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=iterations, likelihoodTol=1e-12, parameterTol=1e-10), update=list(blendWeight=rep(em, iterations)), proposal=list(stepWeight=step), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   full <- fitModel(1, 2L)
   half <- fitModel(0.5, 2L)
@@ -222,7 +222,7 @@ test_that("latent AI differentiates covariance-product axes and correlated resid
       ~vsm(ar1m(replicate, rho=0.2), shape, ism(id), Gu=precision, sigma2=0.9)
     }
     fitModel <- function(returnParam){
-      mmes(response~environment, random=random, rcov=~vsm(ar1m(environment, rho=0.25), ism(record), sigma2=0.6), data=dataset, control=mmes_control(output=list(setup=returnParam), convergence=list(maxIters=1L), proposal=list(stepWeight=1), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+      sommer:::.mmes_dispatch(response~environment, random=random, rcov=~vsm(ar1m(environment, rho=0.25), ism(record), sigma2=0.6), data=dataset, control=sommer:::.mmes_control_internal(output=list(setup=returnParam), convergence=list(maxIters=1L), proposal=list(stepWeight=1), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     }
     setup <- fitModel(TRUE)
     fit <- fitModel(FALSE)
@@ -246,7 +246,7 @@ test_that("latent AI scores and information honor residual weights", {
     residual <- if(heterogeneous)
       ~vsm(dsm(environment, values=c(0.6, 0.8, 0.5, 0.9)), ism(units), sigma2=0.6)
     else ~vsm(ism(units), sigma2=0.6)
-    mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9), rcov=residual, W=weights, data=dataset, control=mmes_control(output=list(setup=returnParam), convergence=list(maxIters=1L), update=list(blendWeight=0), proposal=list(stepWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9), rcov=residual, W=weights, data=dataset, control=sommer:::.mmes_control_internal(output=list(setup=returnParam), convergence=list(maxIters=1L), update=list(blendWeight=0), proposal=list(stepWeight=1), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   correlated <- weights + 0.01 * 0.5^abs(outer(seq_len(nrow(dataset)),
                                              seq_len(nrow(dataset)), "-"))
@@ -275,7 +275,7 @@ test_that("latent AI matches independently optimized ML", {
   dataset <- fixture$data
   precision <- fixture$precision
   fitModel <- function(returnParam){
-    mmes(response~environment, random=~vsm(rrm(environment, 1L), ism(id), Gu=precision), rcov=~units, data=dataset, control=mmes_control(task=list(objective=if(FALSE) "reml" else "ml"), convergence=list(maxIters=150L, likelihoodTol=1e-10, parameterTol=1e-8), output=list(setup=returnParam, inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(response~environment, random=~vsm(rrm(environment, 1L), ism(id), Gu=precision), rcov=~units, data=dataset, control=sommer:::.mmes_control_internal(task=list(objective=if(FALSE) "reml" else "ml"), convergence=list(maxIters=150L, likelihoodTol=1e-10, parameterTol=1e-8), output=list(setup=returnParam, inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   }
   setup <- fitModel(TRUE)
   fit <- fitModel(FALSE)
@@ -318,13 +318,13 @@ test_that("diagonal residual contractions are exact across layouts, solvers and 
             random=~vsm(shape, ism(id), Gu=precision, sigma2=0.9) +
               vsm(csm(replicate, rho=0.2), sigma2=0.2),
             rcov=residual, data=dataset,
-            control=mmes_control(solve=list(method=solver),
+            control=sommer:::.mmes_control_internal(solve=list(method=solver),
               task=list(objective=if(reml) "reml" else "ml"),
               convergence=list(maxIters=1L), output=list(setup=setup),
               update=list(blendWeight=blend),
               diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
           if(!is.null(weights)) arguments$W <- weights
-          do.call(mmes, arguments)
+          do.call(sommer:::.mmes_dispatch, arguments)
         }
         setup <- fitModel(TRUE)
         fit <- fitModel(FALSE)
@@ -385,9 +385,9 @@ test_that("latent RR sectioned spatial scores and AI match dense observation for
     }
     for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
       fitModel <- function(returnParam){
-        mmes(response~environment, random=~vsm(rrm(environment, 1L), ism(id), sigma2=0.9), rcov=~dsumm(vsm(ar1m(range, rho=0.2), ar1m(row, rho=-0.15),
+        sommer:::.mmes_dispatch(response~environment, random=~vsm(rrm(environment, 1L), ism(id), sigma2=0.9), rcov=~dsumm(vsm(ar1m(range, rho=0.2), ar1m(row, rho=-0.15),
                           ism(units), sigma2=0.6),
-                      by=environment, levels=selected), data=dataset, control=mmes_control(solve=list(method=solver), task=list(objective=if(reml) "reml" else "ml"), convergence=list(maxIters=3L), output=list(inverse=0L, setup=returnParam), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+                      by=environment, levels=selected), data=dataset, control=sommer:::.mmes_control_internal(solve=list(method=solver), task=list(objective=if(reml) "reml" else "ml"), convergence=list(maxIters=3L), output=list(inverse=0L, setup=returnParam), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       }
       setup <- fitModel(TRUE)
       fit <- fitModel(FALSE)
@@ -417,7 +417,7 @@ test_that("latent RR residual workspace follows observed blocks, not the full gr
                             (as.integer(dataset$environment) - 1L) * 6L)
   dataset$id <- factor((seq_len(nrow(dataset)) - 1L) %% 7L + 1L)
   dataset$response <- rnorm(nrow(dataset))
-  fit <- mmes(response~environment, random=~vsm(rrm(environment, 1L), ism(id)), rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=environment), data=dataset, control=mmes_control(convergence=list(maxIters=1L), output=list(inverse=0L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  fit <- sommer:::.mmes_dispatch(response~environment, random=~vsm(rrm(environment, 1L), ism(id)), rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=environment), data=dataset, control=sommer:::.mmes_control_internal(convergence=list(maxIters=1L), output=list(inverse=0L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_equal(tail(fit$covStruct, 1L)[[1L]]$dim, 21870L)
   expect_equal(fit$engineDiagnostics$largestResidualBlock, 30)
   expect_identical(fit$engineDiagnostics$residualEvaluation, "observed-blocks")

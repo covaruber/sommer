@@ -1014,6 +1014,9 @@ rotate_back_mmes <- function(object){
 #### =========== ####
 
 anova.mmes <- function(object, object2=NULL, ...) {
+  if(inherits(object,"mmes.specification"))
+    stop("anova() is not implemented for formula specification fits.",
+      call.=FALSE)
   signifo <- function(x){
     if(x >= 0 & x < 0.001){y="***"}
     if(x >= 0.001 & x < 0.01){y="**"}

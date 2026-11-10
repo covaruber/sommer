@@ -11,8 +11,8 @@ test_that("joint and random-only solvers compose with irregular residual solves"
   dataset <- dataset[-c(1L, 7L), ]
   weights <- diag(nrow(dataset)) + matrix(0.02, nrow(dataset), nrow(dataset))
   fitModel <- function(solver, reml, dFirst, inverseMode){
-    mmes(response~environment, random=~id, rcov=~vsm(usm(environment), ism(record)), W=weights,
-      data=dataset, control=mmes_control(solve=list(method=solver,
+    sommer:::.mmes_dispatch(response~environment, random=~id, rcov=~vsm(usm(environment), ism(record)), W=weights,
+      data=dataset, control=sommer:::.mmes_control_internal(solve=list(method=solver,
           blockSchur="off", dFirstML=dFirst),
         task=list(objective=if(reml) "reml" else "ml"),
         convergence=list(maxIters=3L),

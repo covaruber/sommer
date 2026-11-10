@@ -714,3 +714,158 @@ out$controls$effect[nonlinearMemoryRow] <- paste(
   "Nonlinear Hessian assembly checks a conservative sparse-component factor-fill bound; not a process-wide RSS cap.")
 out
 }
+
+# Shared projection of private transport metadata onto the breaking public API.
+# Multiple private consumers of one public setting produce just one catalog row.
+.mmes_public_control_defaults <- function(control=mmes_control()){
+  public <- attr(control,"publicArguments")
+  numerical <- intersect(names(public),names(control))
+  public[numerical] <- unclass(control)[numerical]
+  public
+}
+
+.mmes_public_catalog <- function(){
+  private <- .mmes_capabilities()
+  map <- stats::setNames(private$controls$path, private$controls$path)
+  map["mmes.nonlinear"] <- "mmes.predictors"
+  map["control.task.mode"] <- "method.task"
+  map["control.task.objective"] <- "method.objective"
+  map["control.task.glmm.method"] <- "method.integration"
+  map <- sub("^control.task.pql.", "control.working.", map)
+  names(map) <- private$controls$path
+  for(module in c("population", "inference"))
+    map <- stats::setNames(sub(paste0("^control.task.nonlinear.", module, "."),
+      paste0("control.", module, "."), map), names(map))
+  replacements <- c(
+    "control.task.glmm.backend"="control.likelihood.backend",
+    "control.task.glmm.warmStart"="control.mode.warmStart",
+    "control.task.glmm.trace"="control.likelihood.trace",
+    "control.task.glmm.blocks"="control.likelihood.blocks",
+    "control.task.glmm.familyParameters"="mmes.familyParameters",
+    "control.task.glmm.maxit"="control.optimizer.maxit",
+    "control.task.glmm.gradient"="control.optimizer.gradient",
+    "control.task.nonlinear.optimizer"="control.optimizer.algorithm",
+    "control.task.nonlinear.gradient"="control.optimizer.gradient",
+    "control.task.nonlinear.start"="mmes.start",
+    "control.task.glmm.modeMaxit"="control.mode.maxit",
+    "control.task.glmm.modeTol"="control.mode.tol",
+    "control.task.nonlinear.mode.maxIters"="control.mode.maxit",
+    "control.task.nonlinear.mode.scoreTol"="control.mode.tol",
+    "control.task.nonlinear.mode.stepTol"="control.mode.stepTol",
+    "control.task.nonlinear.mode.warmStart"="control.mode.warmStart",
+    "control.task.nonlinear.mode.starts"="control.mode.starts",
+    "control.task.nonlinear.initialization"=NA_character_)
+  map[names(replacements)] <- replacements
+  public <- private$controls
+  public$path <- unname(map[public$path])
+  public <- public[!is.na(public$path) & !duplicated(public$path), , drop=FALSE]
+  public$module[startsWith(public$path, "control.")] <-
+    sub("^control\\.([^.]+).*", "\\1",
+      public$path[startsWith(public$path, "control.")])
+  public$module[startsWith(public$path, "method.")] <- "method"
+  public$module[startsWith(public$path, "mmes.")] <- "model"
+  add <- function(path, values, effect){
+    row <- public[1L, , drop=FALSE]
+    row[1L, ] <- ""
+    row$path <- path
+    row$module <- if(startsWith(path, "method.")) "method" else "model"
+    row$values <- values
+    row$effect <- effect
+    row$default <- "list()"
+    row$requires <- "A supported model specification."
+    row$excludes <- "Unsupported models or combinations error explicitly."
+    row$fallback <- "No silent statistical approximation change."
+    row$source <- "R/FUN_model_interface.R"
+    row$status <- "supported"
+    public <<- rbind(public, row)
+  }
+  add("method.approximation", "auto, pql, likelihood.",
+    "Auto preserves Gaussian REML and non-Gaussian mixed PQL with REML Gaussian working fits; this is not exact GLMM REML.")
+  add("mmes.parameters", "Named list of parameter() declarations.",
+    "Declare unknown nonlinear parameters separately from observed data and named native predictors.")
+  for(name in c("parameters", "predictors", "start", "method", "familyParameters"))
+    if(!paste0("mmes.",name) %in% public$path)
+      add(paste0("mmes.",name), "Validated model specification.",
+        "Declare model structure independently of numerical controls.")
+  public$values[public$path=="mmes.predictors"] <-
+    "Named list of nonlinear_curve() or bounded nonlinear_graph() specifications."
+  public$effect[public$path=="mmes.predictors"] <- paste(
+    "Reference one named component with graph_term('name') in the fixed formula.",
+    "Ordinary additive random locations, parameter-level deviations and bounded graph-node deviations are distinct declarations; no multilayer convenience builders are available.",
+    "Native graphs currently require Gaussian identity ML and identity output, with no post-fit parameter uncertainty; curves have their own broader native family/inference scope.")
+  public$values[public$path=="mmes.start"] <-
+    "NULL or list(parameters = named natural-scale starts)."
+  public$values[public$path=="control.optimizer.gradient"] <- "auto, analytic, central."
+  public$effect[public$path=="control.optimizer.gradient"] <- paste(
+    "Auto retains analytic scores on native curve and linear Laplace paths,",
+    "without changing REML/PQL defaults, and selects the reported numerical",
+    "method on the reference expression route.",
+    "Explicit analytic is rejected on reference expression and random native",
+    "graph routes rather than silently replaced by numerical derivatives.",
+    "Random native graphs support central; native curves reject explicit central.")
+  public$fallback[public$path=="control.optimizer.gradient"] <-
+    "Unsupported explicit derivative requests error; auto records the selected method."
+  public$excludes[public$path=="control.optimizer.gradient"] <-
+    "Explicit analytic on reference expressions or random native graphs; explicit central on native curves."
+  public$values[public$path=="control.mode.warmStart"] <- "auto, off, on; nonlinear modes reject on."
+  public$requires[public$path=="control.mode.warmStart"] <-
+    "Conditional-mode fitting; auto preserves the selected engine's historical reuse policy."
+  public$effect[public$path=="control.mode.warmStart"] <- paste(
+    "Single owner of conditional-mode reuse. Auto selects native GLMM auto reuse",
+    "and deterministic cold nonlinear modes (off), preserving both effective defaults.",
+    "Explicit off restores cold starts; nonlinear explicit on is rejected.",
+    "Native GLMM failed warm modes retry zero, with existing ZIP cold-verification safeguards.")
+  public$excludes[public$path=="control.mode.warmStart"] <-
+    "Explicit on for nonlinear modes; unrelated PQL working-fit and linear-solve reuse have their own distinct settings."
+  public$fallback[public$path=="control.mode.warmStart"] <-
+    "Auto resolves by mode engine; unsupported explicit requests error."
+  public$requires[public$path=="control.mode.stepTol"] <-
+    "Nonlinear conditional-mode convergence only."
+  public$excludes[public$path=="control.mode.stepTol"] <-
+    "Non-default values on native GLMM modes error; those modes use mode$tol."
+  public$values[public$path=="method.integration"] <- "auto, exact, laplace."
+  public$effect[public$path=="method.integration"] <- paste(
+    "Auto retains PQL for non-Gaussian mixed models.",
+    "Explicit Laplace requires ML and supported Henderson models;",
+    "exact non-Gaussian mixed integration and PQL with explicit integration are rejected.")
+  public$effect[public$path=="control.optimizer.maxit"] <- paste(
+    "NULL retains the selected engine's iteration limit (Gaussian 30, linear Laplace 1000).",
+    "A supplied value sets the outer limit; do not also set a conflicting convergence$maxIters.")
+  public$requires[public$path %in% c("control.optimizer.gradient",
+    "control.optimizer.algorithm", "control.optimizer.maxit")] <-
+    "Supported optimizer path; Gaussian covariance engines retain AI/update modules."
+  public$excludes[public$path=="mmes.predictors"] <- paste(
+    "Native curves/graphs require ML and Henderson; PQL, REML, direct and solve",
+    "are unsupported. Bounded graphs are not arbitrary callbacks or general multilayer builders.")
+  defaults <- list(control=.mmes_public_control_defaults(),
+    method=unclass(mmes_method()))
+  for(i in seq_len(nrow(public))){
+    parts <- strsplit(public$path[i],".",fixed=TRUE)[[1L]]
+    if(parts[1L] %in% names(defaults)){
+      value <- Reduce(function(x,part) x[[part]],parts,defaults)
+      public$default[i] <- paste(deparse(value),collapse="")
+    }else if(parts[1L]=="mmes" && parts[2L] %in% names(formals(mmes))){
+      value <- paste(deparse(formals(mmes)[[parts[2L]]]),collapse="")
+      if(nzchar(value)) public$default[i] <- value
+    }
+  }
+  stopifnot(!anyDuplicated(public$path), !any(startsWith(public$path,"control.task.")))
+  modules <- private$modules
+  modules <- modules[!modules$id %in% c("task","compatibility"),,drop=FALSE]
+  responsibilities <- c(
+    method="Declare objective, integration, approximation and task.",
+    optimizer="Set outer optimizer policy, independently of Gaussian AI updates.",
+    mode="Control conditional-mode convergence and starts.",
+    working="Control PQL outer working fits.",
+    likelihood="Select exact native likelihood execution policy.",
+    population="Control population quadrature accuracy.",
+    inference="Control post-fit nonlinear uncertainty.")
+  for(module in names(responsibilities)){
+    row <- modules[1L,,drop=FALSE]
+    row$id <- module
+    row$responsibility <- responsibilities[[module]]
+    row$contract <- "Validated public declaration; model-specific compatibility is checked during fitting."
+    modules <- rbind(modules,row)
+  }
+  list(modules=modules, controls=public, map=map)
+}

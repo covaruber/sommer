@@ -1,8 +1,8 @@
 gpuEngineArguments <- function(workload, solver = "cholmod", inverseMode = 0L,
                                reml = TRUE){
-  setup <- mmes(workload$fixed, random=workload$random, rcov=workload$rcov,
+  setup <- sommer:::.mmes_dispatch(workload$fixed, random=workload$random, rcov=workload$rcov,
     data=workload$data,
-    control=mmes_control(solve=list(method=solver,
+    control=sommer:::.mmes_control_internal(solve=list(method=solver,
         blockSchur=if(solver == "cholmod") "force" else "off"),
       convergence=list(maxIters=2L),
       output=list(inverse=inverseMode, setup=TRUE),
@@ -75,22 +75,22 @@ test_that("CUDA kernels match CPU fits when GPU testing is enabled", {
 test_that("GPU controls honor global defaults and explicit per-fit overrides", {
   old <- options(sommer.mme.gpu = TRUE, sommer.mme.gpuMinSize = 512L)
   on.exit(options(old), add = TRUE)
-  expect_true(mmes_control()$execution$gpu)
-  expect_identical(mmes_control()$execution$gpuMinSize, 512L)
-  expect_false(mmes_control(execution=list(gpu=FALSE))$execution$gpu)
-  expect_error(mmes_control(execution=list(gpu=NA)), "TRUE/FALSE")
-  expect_error(mmes_control(execution=list(gpuMinSize=1.5)), "positive integer")
-  expect_error(mmes_control(gpu=TRUE), "unused argument")
+  expect_true(sommer:::.mmes_control_internal()$execution$gpu)
+  expect_identical(sommer:::.mmes_control_internal()$execution$gpuMinSize, 512L)
+  expect_false(sommer:::.mmes_control_internal(execution=list(gpu=FALSE))$execution$gpu)
+  expect_error(sommer:::.mmes_control_internal(execution=list(gpu=NA)), "TRUE/FALSE")
+  expect_error(sommer:::.mmes_control_internal(execution=list(gpuMinSize=1.5)), "positive integer")
+  expect_error(sommer:::.mmes_control_internal(gpu=TRUE), "unused argument")
   options(sommer.mme.gpu = FALSE)
   workload <- generate_mme_workload(n_ind = 6L, n_levels = 4L, structure = "ar1")
-  fit <- mmes(workload$fixed, random=workload$random, rcov=workload$rcov, data=workload$data,
-    control=mmes_control(execution=list(gpu=FALSE),
+  fit <- sommer:::.mmes_dispatch(workload$fixed, random=workload$random, rcov=workload$rcov, data=workload$data,
+    control=sommer:::.mmes_control_internal(execution=list(gpu=FALSE),
       convergence=list(maxIters=2L),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_false(fit$gpuDiagnostics$enabled)
   expect_identical(fit$gpuDiagnostics$minimumSize, 512L)
-  expect_error(mmes(workload$fixed, data=workload$data, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", execution=list(gpu=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "execution\\$gpu")
+  expect_error(sommer:::.mmes_dispatch(workload$fixed, data=workload$data, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", execution=list(gpu=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "execution\\$gpu")
   if(!sommer:::.mmes_gpu_status()$available){
-    expect_error(mmes(workload$fixed, data=workload$data, control=mmes_control(execution=list(gpu=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "gpu=TRUE cannot run")
+    expect_error(sommer:::.mmes_dispatch(workload$fixed, data=workload$data, control=sommer:::.mmes_control_internal(execution=list(gpu=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "gpu=TRUE cannot run")
   }
 })

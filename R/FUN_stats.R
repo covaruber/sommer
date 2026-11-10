@@ -1,4 +1,7 @@
 postPEV <- function(object, mode = 1L){
+  if(inherits(object,"mmes.specification"))
+    stop("Random-effect PEV is not implemented for formula specification fits; use vcov() for coefficient covariance.",
+      call.=FALSE)
   if(inherits(object,"mmes.nonlinear")){
     if(length(mode)!=1L || is.na(mode) || !mode %in% 0:2)
       stop("mode must be 0, 1 or 2.",call.=FALSE)
@@ -654,7 +657,8 @@ corImputation <- function(wide, Gu=NULL, nearest=10, roundR=FALSE){
       # model <- lm(partial~full,data=dd[which(!is.na(dd$partial)),])
       model <- mmes(partial~full,data=dd[which(!is.na(dd$partial)),],
                     control=mmes_control(diagnostics=list(verbose=FALSE)))
-      pp=as.vector(model$b[1,1])+(dd[which(is.na(dd$partial)),"full"]*as.vector(model$b[2,1]))
+      pp <- as.vector(model$b[1,1])+
+        dd[is.na(dd$partial),"full"]*as.vector(model$b[2,1])
       if(roundR){
         wide[jRow,miss] <- round(pp)#round(predict(model,newdata = dd[which(is.na(dd$partial)),]))
       }else{

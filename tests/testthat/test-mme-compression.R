@@ -1,15 +1,15 @@
 test_that("compression controls validate in representation module", {
-  expect_identical(mmes_control()$representation$compression, "off")
+  expect_identical(sommer:::.mmes_control_internal()$representation$compression, "off")
   for(value in list(NA_character_, "", TRUE, character(), c("off", "groups"), 1)){
-    expect_error(mmes_control(representation=list(compression=value)),
+    expect_error(sommer:::.mmes_control_internal(representation=list(compression=value)),
       "compression")
   }
   for(solver in c("auto", "ldlt", "cholmod", "pcg")){
-    control <- mmes_control(solve=list(method=solver),
+    control <- sommer:::.mmes_control_internal(solve=list(method=solver),
       representation=list(compression="CLASSES"))
     expect_identical(control$representation$compression, "classes")
   }
-  expect_error(mmes_control(representation=list(unknownCompression="groups")),
+  expect_error(sommer:::.mmes_control_internal(representation=list(unknownCompression="groups")),
     "Unknown representation settings")
 })
 
@@ -29,7 +29,7 @@ test_that("compression controls validate in representation module", {
   arguments <- list(fixed=response~environment+x,
     random=if(is.null(relationship)) ~id else ~vsm(ism(id), Gu=relationship),
     rcov=~vsm(dsm(environment), ism(units)), data=dataset,
-    control=mmes_control(solve=c(list(method=solver, dFirstML=dFirst),
+    control=sommer:::.mmes_control_internal(solve=c(list(method=solver, dFirstML=dFirst),
         if(solver == "pcg") list(tol=1e-11)),
       task=list(objective=if(reml) "reml" else "ml"),
       convergence=list(maxIters=iterations),
@@ -42,7 +42,7 @@ test_that("compression controls validate in representation module", {
       logdet=if(solver == "pcg") list(lanczosSteps=40L) else list(),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   if(!is.null(weights)) arguments$W <- weights
-  suppressMessages(do.call(mmes, arguments))
+  suppressMessages(do.call(sommer:::.mmes_dispatch, arguments))
 }
 
 test_that("all deterministic solvers preserve compressed likelihood, exact traces, AI and PEV", {
@@ -84,12 +84,12 @@ test_that("all deterministic solvers preserve compressed likelihood, exact trace
 test_that("shared compression rejects unsupported models on deterministic solvers", {
   dataset <- .mme_compression_data()
   for(solver in c("ldlt", "cholmod", "auto")){
-    control <- mmes_control(solve=list(method=solver),
+    control <- sommer:::.mmes_control_internal(solve=list(method=solver),
       representation=list(compression="groups"))
-    expect_error(suppressMessages(mmes(response~environment+x, random=~id, rcov=~vsm(usm(environment), ism(units)), data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(control), list(diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))), "independent residuals")
-    expect_error(suppressMessages(mmes(response~environment+x, random=~id, data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(control), list(formulation=if(FALSE) "henderson" else "direct", diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))), "formulation='direct'")
-    expect_error(suppressMessages(mmes(response~environment+x, random=~id, data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(control), list(task=list(mode=if(TRUE) "solve" else "fit"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))), "task\\$mode='solve'")
-    expect_error(suppressMessages(mmes(response~environment+x, random=~id, data=dataset, family=poisson(), control=do.call(mmes_control, utils::modifyList(unclass(control), list(diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))), "Gaussian identity")
+    expect_error(suppressMessages(sommer:::.mmes_dispatch(response~environment+x, random=~id, rcov=~vsm(usm(environment), ism(units)), data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(control), list(diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))), "independent residuals")
+    expect_error(suppressMessages(sommer:::.mmes_dispatch(response~environment+x, random=~id, data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(control), list(formulation=if(FALSE) "henderson" else "direct", diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))), "formulation='direct'")
+    expect_error(suppressMessages(sommer:::.mmes_dispatch(response~environment+x, random=~id, data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(control), list(task=list(mode=if(TRUE) "solve" else "fit"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))), "task\\$mode='solve'")
+    expect_error(suppressMessages(sommer:::.mmes_dispatch(response~environment+x, random=~id, data=dataset, family=poisson(), control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(control), list(diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))), "Gaussian identity")
   }
 })
 
@@ -97,7 +97,7 @@ test_that("compression preserves fixed-only ML and nonreplicated continuous desi
   dataset <- .mme_compression_data()
   dataset$x <- seq_len(nrow(dataset)) / nrow(dataset)
   for(solver in c("ldlt", "cholmod")){
-    fit <- function(method, reml) suppressMessages(mmes(response~environment+x, rcov=~vsm(dsm(environment), ism(units)), data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(representation=list(compression=method))), list(task=list(objective=if(reml) "reml" else "ml"), convergence=list(maxIters=2L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))))
+    fit <- function(method, reml) suppressMessages(sommer:::.mmes_dispatch(response~environment+x, rcov=~vsm(dsm(environment), ism(units)), data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(sommer:::.mmes_control_internal(representation=list(compression=method))), list(task=list(objective=if(reml) "reml" else "ml"), convergence=list(maxIters=2L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))))
     for(reml in c(TRUE, FALSE)){
       reference <- fit("off", reml)
       for(method in c("groups", "classes")){
@@ -108,6 +108,6 @@ test_that("compression preserves fixed-only ML and nonreplicated continuous desi
         }
       }
     }
-    expect_error(suppressMessages(mmes(response~environment+x, random=~id, data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(representation=list(compression="classes"), execution=list(denseMemoryMB=0.0001))), list(diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))), "denseMemoryMB")
+    expect_error(suppressMessages(sommer:::.mmes_dispatch(response~environment+x, random=~id, data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(sommer:::.mmes_control_internal(representation=list(compression="classes"), execution=list(denseMemoryMB=0.0001))), list(diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE)))), "denseMemoryMB")
   }
 })

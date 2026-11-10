@@ -11,7 +11,7 @@ nativeFamilyCases <- function(){
 }
 
 nativeFamilyControl <- function(){
-  mmes_control(task=list(objective="ml", glmm=list(method="laplace")),
+  sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace")),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
 }
 
@@ -135,7 +135,7 @@ test_that("zero-inflated Poisson fits, predicts, simulates and reports uncertain
   response <- rpois(length(group), countMean)
   response[zeroInflated] <- 0L
   data <- data.frame(response=response, x=x, group=group)
-  fit <- mmes(response~x,
+  fit <- sommer:::.mmes_dispatch(response~x,
     random=~vsm(ism(group), sigma2=0.09, fixedSigma2=TRUE), data=data,
     family=zipoisson(pi=0.15),
     control=nativeFamilyControl())
@@ -156,8 +156,8 @@ test_that("zero-inflated Poisson fits, predicts, simulates and reports uncertain
       (1 - fit$familyParameters$estimate)))
   expect_lt(abs(mean(simulations == 0) - expectedZeroRate), 0.06)
   expect_true(is.finite(summary(fit)$familyParameters$StdError))
-  expect_error(mmes(response~x, random=~group, data=data,
-    family=zipoisson(), control=mmes_control(
+  expect_error(sommer:::.mmes_dispatch(response~x, random=~group, data=data,
+    family=zipoisson(), control=sommer:::.mmes_control_internal(
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "supported only by native Laplace")
 })
@@ -170,12 +170,12 @@ test_that("zero-inflated Poisson approaches the Poisson special case", {
   data <- data.frame(x=x, group=group)
   data$count <- rpois(nrow(data), exp(0.2 + 0.3*x + randomEffect[group]))
   random <- ~vsm(ism(group), sigma2=0.09, fixedSigma2=TRUE)
-  poissonFit <- mmes(count~x, random=random, data=data, family=poisson(),
+  poissonFit <- sommer:::.mmes_dispatch(count~x, random=random, data=data, family=poisson(),
     control=nativeFamilyControl())
   expect_warning(
-    zeroInflatedFit <- mmes(count~x, random=random, data=data,
+    zeroInflatedFit <- sommer:::.mmes_dispatch(count~x, random=random, data=data,
       family=zipoisson(pi=1e-8),
-      control=mmes_control(task=list(objective="ml", glmm=list(method="laplace",
+      control=sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace",
         familyParameters=list(zeroInflation=1e-8, estimate=FALSE))),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "numerically near a boundary"
@@ -200,10 +200,10 @@ test_that("grouped binomial forms preserve constants filtering and residual unit
   dataset$failures <- dataset$trials - dataset$successes
   dataset$x[c(2L, 13L)] <- NA
   for(linkName in c("logit", "probit", "cloglog")){
-    fit <- mmes(binm(successes, trials=trials)~x,
+    fit <- sommer:::.mmes_dispatch(binm(successes, trials=trials)~x,
       random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
       data=dataset, family=binomial(linkName), control=nativeFamilyControl())
-    matrixFit <- mmes(cbind(successes, failures)~x,
+    matrixFit <- sommer:::.mmes_dispatch(cbind(successes, failures)~x,
       random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
       data=dataset, family=binomial(linkName), control=nativeFamilyControl())
     expect_true(fit$convergence)
@@ -232,10 +232,10 @@ test_that("native Gaussian likelihood agrees with exact marginal GLS", {
   dataset <- data.frame(x=rnorm(40L), group=factor(rep(seq_len(8L), each=5L)))
   dataset$response <- 0.4 + 0.5 * dataset$x + rnorm(8L, sd=sqrt(0.3))[dataset$group] +
     rnorm(40L, sd=sqrt(0.7))
-  control <- mmes_control(task=list(objective="ml", glmm=list(method="laplace",
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace",
     familyParameters=list(dispersion=0.7, estimate=FALSE))),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
-  fit <- mmes(response~x, random=~vsm(ism(group), sigma2=0.3, fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(response~x, random=~vsm(ism(group), sigma2=0.3, fixedSigma2=TRUE),
     data=dataset, family=gaussian(), control=control)
   design <- cbind(1, dataset$x)
   randomDesign <- model.matrix(~group-1, dataset)
@@ -280,9 +280,9 @@ test_that("native NB2 and Gamma fits estimate shape and dispersion", {
   meanValue <- exp(0.3 + 0.35 * dataset$x + groupEffect[dataset$group])
   dataset$count <- rnbinom(nrow(dataset), size=2.5, mu=meanValue)
   dataset$positive <- rgamma(nrow(dataset), shape=5, scale=meanValue / 5)
-  nbFit <- mmes(count~x, random=~vsm(ism(group), sigma2=0.0625, fixedSigma2=TRUE),
+  nbFit <- sommer:::.mmes_dispatch(count~x, random=~vsm(ism(group), sigma2=0.0625, fixedSigma2=TRUE),
     data=dataset, family=nbinom2(1.5), control=nativeFamilyControl())
-  gammaFit <- mmes(positive~x, random=~vsm(ism(group), sigma2=0.0625, fixedSigma2=TRUE),
+  gammaFit <- sommer:::.mmes_dispatch(positive~x, random=~vsm(ism(group), sigma2=0.0625, fixedSigma2=TRUE),
     data=dataset, family=Gamma("log"), control=nativeFamilyControl())
   expect_true(nbFit$convergence)
   expect_true(gammaFit$convergence)
@@ -298,9 +298,9 @@ test_that("native NB2 and Gamma fits estimate shape and dispersion", {
     (gammaFit$y - fitted(gammaFit)) / (fitted(gammaFit) * sqrt(gammaFit$dispersion)))
   expect_equal(sum(residuals(gammaFit, "deviance")^2), gammaFit$deviance)
   expect_equal(AIC(nbFit), -2*nbFit$llik + 2*nbFit$npar)
-  fixedFit <- mmes(count~x, random=~vsm(ism(group), sigma2=0.0625, fixedSigma2=TRUE),
+  fixedFit <- sommer:::.mmes_dispatch(count~x, random=~vsm(ism(group), sigma2=0.0625, fixedSigma2=TRUE),
     data=dataset, family=nbinom2(2.5),
-    control=mmes_control(task=list(objective="ml", glmm=list(method="laplace",
+    control=sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace",
       familyParameters=list(theta=2.5, estimate=FALSE))),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_equal(fixedFit$theta.nb, 2.5)
@@ -332,7 +332,7 @@ test_that("mixed native fits estimate separate family parameters with shared cov
   countRows <- dataset$trait == "count"
   dataset$response[countRows] <- rnbinom(sum(countRows), size=2.5, mu=exp(eta[countRows]))
   dataset$response[!countRows] <- rnorm(sum(!countRows), eta[!countRows], sqrt(0.7))
-  fit <- mmes(response~trait-1+x,
+  fit <- sommer:::.mmes_dispatch(response~trait-1+x,
     random=~vsm(usm(trait, theta=shapeCovariance, fixed=rep(TRUE, 2L)),
       ism(group), sigma2=0.1, fixedSigma2=TRUE),
     data=dataset, family=familym("trait", count=nbinom2(2), continuous=gaussian()),
@@ -409,11 +409,11 @@ test_that("mixed native likelihoods index all agreed families and share latent e
     ziPoisson=list(zeroInflation=0.2, estimate=FALSE),
     gamma=list(dispersion=0.7, estimate=FALSE),
     gaussian=list(dispersion=0.8, estimate=FALSE))
-  control <- mmes_control(task=list(objective="ml",
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml",
     glmm=list(method="laplace", familyParameters=settings)),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
   expect_warning(
-    fit <- mmes(response~trait-1+x,
+    fit <- sommer:::.mmes_dispatch(response~trait-1+x,
       random=~vsm(usm(trait,
         fixed=rep(TRUE, length(cases) * (length(cases) + 1L) / 2L - 1L)), ism(group),
         sigma2=0.1, fixedSigma2=TRUE),
@@ -463,7 +463,7 @@ test_that("mixed native likelihoods index all agreed families and share latent e
   unknownData$trait[1L] <- "unknown"
   expect_error(predict(fit, newdata=unknownData, re.form=NA, type="response"),
     "new levels|Traits without a family")
-  expect_error(mmes(response~trait-1+x, random=~group, data=dataset,
+  expect_error(sommer:::.mmes_dispatch(response~trait-1+x, random=~group, data=dataset,
     family=familyObject, naMethodX="fail", control=control), "Missing")
   expect_equal(fit$priorWeights, dataset$trials[fit$obsInfo$included])
 })
@@ -485,8 +485,8 @@ test_that("expanded native family contracts reject unsupported or invalid data",
     list(zeroInflation=1)), "strictly between 0 and 1")
   expect_error(familym("trait", a=poisson(), trials=NA_character_), "column name")
   invalidData <- data.frame(response=c(1, 2, 3, 4), group=factor(c("a", "a", "b", "b")))
-  expect_error(mmes(response~1, random=~group, data=invalidData, family=poisson(),
-    control=mmes_control(task=list(glmm=list(familyParameters=list(theta=1))))),
+  expect_error(sommer:::.mmes_dispatch(response~1, random=~group, data=invalidData, family=poisson(),
+    control=sommer:::.mmes_control_internal(task=list(glmm=list(familyParameters=list(theta=1))))),
     "native Laplace only")
   specification <- sommer:::.laplace_family_specs(Gamma("log"), list())$specifications
   expect_error(sommer:::sommer_glmm_family_eval(0, 0, specification, 1L, 1), "strictly positive")

@@ -78,7 +78,7 @@ test_that("zero-specific RR matches independent observation-space REML", {
   expectedLoading <- c(exp(optimum$par[1L]), optimum$par[2:4])
   precision <- example$precision
   for(henderson in c(TRUE, FALSE)){
-    fit <- mmes(response~environment, random=~vsm(rrm(environment, 1L), ism(id), Gu=precision), data=dataset, control=mmes_control(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=150, likelihoodTol=1e-10, parameterTol=1e-8), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    fit <- sommer:::.mmes_dispatch(response~environment, random=~vsm(rrm(environment, 1L), ism(id), Gu=precision), data=dataset, control=sommer:::.mmes_control_internal(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=150, likelihoodTol=1e-10, parameterTol=1e-8), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_equal(unname(fit$theta[[1L]]), tcrossprod(expectedLoading), tolerance=2e-3)
     expect_equal(unname(fit$theta[[2L]][1L, 1L]), exp(optimum$par[5L]), tolerance=2e-3)
     normalized <- loadings_mmes(fit, varianceScale=FALSE, rotation=FALSE)
@@ -121,7 +121,7 @@ test_that("rank-two RR agrees across engines with extra terms and residual heter
   dataset <- dataset[-c(3, 15, 72), ]
   shape <- rrm(dataset$environment, 2L, loadings=loading, fixed=rep(TRUE, 9L))
   fits <- lapply(c(TRUE, FALSE), function(henderson){
-    mmes(response~environment, random=~vsm(shape, ism(id)) + vsm(ism(replicate)), rcov=~vsm(dsm(environment), ism(units)), data=dataset, control=mmes_control(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=100, likelihoodTol=1e-10, parameterTol=1e-8), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    sommer:::.mmes_dispatch(response~environment, random=~vsm(shape, ism(id)) + vsm(ism(replicate)), rcov=~vsm(dsm(environment), ism(units)), data=dataset, control=sommer:::.mmes_control_internal(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=100, likelihoodTol=1e-10, parameterTol=1e-8), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   })
   expect_equal(unname(fits[[1L]]$theta), unname(fits[[2L]]$theta), tolerance=2e-3)
   expect_equal(fits[[1L]]$bu, fits[[2L]]$bu, tolerance=2e-3)
@@ -133,10 +133,10 @@ test_that("rank-two RR agrees across engines with extra terms and residual heter
 test_that("singular RR misuse fails explicitly", {
   example <- .rr_test_data()
   dataset <- example$data
-  expect_error(mmes(response~1, rcov=~vsm(rrm(environment), ism(units)), data=dataset, control=mmes_control(diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "only supported for random effects")
-  expect_error(mmes(response~1, random=~vsm(rrm(environment), ism(id)), data=dataset, control=mmes_control(task=list(mode=if(TRUE) "solve" else "fit"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
+  expect_error(sommer:::.mmes_dispatch(response~1, rcov=~vsm(rrm(environment), ism(units)), data=dataset, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "only supported for random effects")
+  expect_error(sommer:::.mmes_dispatch(response~1, random=~vsm(rrm(environment), ism(id)), data=dataset, control=sommer:::.mmes_control_internal(task=list(mode=if(TRUE) "solve" else "fit"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "task\\$mode='solve' does not support")
-  expect_error(mmes(response~1, random=~vsm(rrm(environment), ism(id)), data=dataset, control=mmes_control(representation=list(factorScores="fixed-shape"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "not representation\\$factorScores")
+  expect_error(sommer:::.mmes_dispatch(response~1, random=~vsm(rrm(environment), ism(id)), data=dataset, control=sommer:::.mmes_control_internal(representation=list(factorScores="fixed-shape"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))), "not representation\\$factorScores")
 })
 
 test_that("latent RR prediction and post-fit PEV use the original effect space", {
@@ -144,7 +144,7 @@ test_that("latent RR prediction and post-fit PEV use the original effect space",
   dataset <- example$data
   precision <- example$precision
   shape <- rrm(dataset$environment, 1L, fixed=rep(TRUE, 4L))
-  fit <- mmes(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.8, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=0.5, fixedSigma2=TRUE), data=dataset, control=mmes_control(output=list(inverse=0L), convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  fit <- sommer:::.mmes_dispatch(response~environment, random=~vsm(shape, ism(id), Gu=precision, sigma2=0.8, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=0.5, fixedSigma2=TRUE), data=dataset, control=sommer:::.mmes_control_internal(output=list(inverse=0L), convergence=list(maxIters=1L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   full <- postPEV(fit, mode=2L)
   selected <- postPEV(fit, mode=1L)
   expect_equal(diag(selected$Ci), diag(full$Ci), tolerance=1e-8)
@@ -154,6 +154,6 @@ test_that("latent RR prediction and post-fit PEV use the original effect space",
   expect_equal(prediction$pvals$predicted.value, drop(D %*% fit$bu), tolerance=1e-8)
   expect_equal(prediction$pvals$std.error^2, diag(as.matrix(full$Ci))[seq_len(8L)],
                tolerance=1e-8)
-  expect_error(mmes(response~environment, random=~vsm(shape, ism(id)), data=dataset, control=mmes_control(solve=list(method="pcg"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
+  expect_error(sommer:::.mmes_dispatch(response~environment, random=~vsm(shape, ism(id)), data=dataset, control=sommer:::.mmes_control_internal(solve=list(method="pcg"), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "requires solver='ldlt' or solver='cholmod'")
 })

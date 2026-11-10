@@ -1,5 +1,5 @@
 latentProcessControl <- function(setup=FALSE,parameters=list()){
-  mmes_control(task=list(objective="ml",glmm=list(method="laplace",
+  sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace",
     maxit=1000L,modeTol=1e-10,familyParameters=parameters)),
     output=list(setup=setup),diagnostics=list(verbose=FALSE,dateWarning=FALSE))
 }
@@ -37,7 +37,7 @@ test_that("temporal Poisson processes use the existing likelihood and covariance
   data <- latentProcessData()
   missing <- which((data$time=="2" & data$id=="1") | seq_len(nrow(data))==70L)
   data$y[missing] <- NA
-  fit <- mmes(y~x,random=~vsm(ar1m(time,rho=.55),ism(id),sigma2=.4),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(time,rho=.55),ism(id),sigma2=.4),
     data=data,family=poisson(),control=latentProcessControl())
   expect_true(fit$convergence)
   expect_equal(which(!fit$obsInfo$included),missing)
@@ -109,7 +109,7 @@ test_that("temporal Poisson processes use the existing likelihood and covariance
 
 test_that("latent covariance panels handle arbitrary loadings, correlations and row groups", {
   data <- latentProcessData()
-  setup <- mmes(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
+  setup <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
     sigma2=.4,fixedSigma2=TRUE),data=data,family=poisson(),
     control=latentProcessControl(TRUE))
   descriptor <- setup$covStruct[1]
@@ -137,7 +137,7 @@ test_that("binomial and spatial count processes support conditional and populati
   data <- latentProcessData()
   set.seed(192)
   data$y <- rbinom(nrow(data),1,plogis(data$eta))
-  fit <- mmes(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
     sigma2=.4,fixedSigma2=TRUE),data=data,family=binomial(),
     control=latentProcessControl())
   expect_true(fit$convergence)
@@ -158,7 +158,7 @@ test_that("binomial and spatial count processes support conditional and populati
     site=factor(1:8),replicate=1:3)
   spatial$x <- rnorm(nrow(spatial))
   spatial$y <- rpois(nrow(spatial),exp(.2+.3*spatial$x))
-  model <- mmes(y~x,random=~vsm(ar1m(row,rho=.3,fixed=TRUE),
+  model <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(row,rho=.3,fixed=TRUE),
     ar1m(column,rho=.6,fixed=TRUE),ism(site),sigma2=.25,fixedSigma2=TRUE),
     data=spatial,family=poisson(),control=latentProcessControl())
   expect_true(model$convergence)
@@ -173,7 +173,7 @@ test_that("ordinal latent processes integrate the fitted correlated prior", {
   set.seed(812)
   data$y <- ordered(cut(data$eta+rnorm(nrow(data)),c(-Inf,-.5,.7,Inf)),
     labels=c("low","medium","high"))
-  fit <- mmes(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
     sigma2=.4,fixedSigma2=TRUE),data=data,family=ordinal("probit"),
     control=latentProcessControl(parameters=list(thresholds=c(-.5,.7),estimate=FALSE)))
   expect_true(fit$convergence)
@@ -192,7 +192,7 @@ test_that("nominal processes integrate row-specific correlated logit loadings", 
   set.seed(87)
   probability <- cbind(exp(data$eta),exp(-.4*data$eta),1)
   data$y <- factor(apply(probability,1,function(p) sample.int(3,1,prob=p)))
-  fit <- mmes(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),
     ism(.nominalCategory),ism(id),sigma2=.2,fixedSigma2=TRUE),
     data=data,family=multinomial(),control=latentProcessControl())
   expect_true(fit$convergence)
@@ -240,7 +240,7 @@ test_that("mixed count, binary, ordinal and nominal responses share a temporal p
   data$trait <- factor(data$trait,levels=c("count","binary","ord","nom"))
   family <- familym("trait",count=poisson(),binary=binomial(),ord=ordinal(),
     nom=multinomial())
-  fit <- mmes(y~trait+trait:x-1,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~trait+trait:x-1,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),
     ism(id),sigma2=.4,fixedSigma2=TRUE),data=data,family=family,
     control=latentProcessControl(parameters=list(ord=list(thresholds=c(-.5,.7),
       estimate=FALSE))))
@@ -277,7 +277,7 @@ test_that("relationship precision and random slopes contribute to population mea
   precision <- .3^abs(outer(1:17,1:17,`-`))
   dimnames(precision) <- list(levels(data$id),levels(data$id))
   attr(precision,"inverse") <- TRUE
-  fit <- mmes(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
     Gu=precision,sigma2=.2,fixedSigma2=TRUE),
     data=data,family=poisson(),control=latentProcessControl())
   expect_true(fit$convergence)
@@ -301,7 +301,7 @@ test_that("relationship precision and random slopes contribute to population mea
   unknown$id <- factor("new")
   expect_error(predict(fit,newdata=unknown,re.form="population",type="response"),
     "relationship levels")
-  slope <- mmes(y~x,random=~vsm(ism(id),sigma2=.2,fixedSigma2=TRUE)+
+  slope <- sommer:::.mmes_dispatch(y~x,random=~vsm(ism(id),sigma2=.2,fixedSigma2=TRUE)+
     vsm(ism(x),ism(id),sigma2=.1,fixedSigma2=TRUE),data=data,family=poisson(),
     control=latentProcessControl())
   expect_true(slope$convergence)
@@ -314,7 +314,7 @@ test_that("relationship precision and random slopes contribute to population mea
   expect_true(all(is.finite(predict(slope,newdata=unknown,
     re.form="population",type="response",se.fit=TRUE)$se.fit)))
   data$replicate <- factor(data$replicate)
-  combined <- mmes(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
+  combined <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
     Gu=precision,sigma2=.2,fixedSigma2=TRUE)+
     vsm(ism(replicate),sigma2=.1,fixedSigma2=TRUE),
     data=data,family=poisson(),control=latentProcessControl())
@@ -328,9 +328,9 @@ test_that("relationship precision and random slopes contribute to population mea
 
 test_that("PQL retains its existing structured latent-process workflow", {
   data <- latentProcessData()
-  fit <- mmes(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
     sigma2=.4,fixedSigma2=TRUE),data=data,family=poisson(),
-    control=mmes_control(task=list(objective="ml",pql=list(maxit=100L,tol=1e-7)),
+    control=sommer:::.mmes_control_internal(task=list(objective="ml",pql=list(maxit=100L,tol=1e-7)),
       diagnostics=list(verbose=FALSE,dateWarning=FALSE)))
   expect_true(fit$convergence)
   expect_true(all(is.finite(fitted(fit))))
@@ -350,7 +350,7 @@ test_that("other log-linked families preserve their marginal mean and post-fit c
     zip=list(zeroInflation=.25,estimate=FALSE))
   for(name in names(responses)){
     data$y <- responses[[name]]
-    fit <- mmes(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
+    fit <- sommer:::.mmes_dispatch(y~x,random=~vsm(ar1m(time,rho=.55,fixed=TRUE),ism(id),
       sigma2=.2,fixedSigma2=TRUE),data=data,family=families[[name]],
       control=latentProcessControl(parameters=settings[[name]]))
     expect_true(fit$convergence)

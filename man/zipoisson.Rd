@@ -28,7 +28,7 @@ probability \eqn{(1-\pi_i)\operatorname{Poisson}(y_i;\mu_i)}.
 
 For \code{zero=~1}, use
 \code{familyParameters = list(zeroInflation = value, estimate = FALSE)} in
-\code{task$glmm} to fix its probability. For a nontrivial formula,
+\code{likelihood} to fix its probability. For a nontrivial formula,
 \eqn{\operatorname{logit}(\pi_i)=w_i'\gamma+a_i}, with fixed design row
 \eqn{w_i} and optional zero-component offset \eqn{a_i}. The intercept starts
 at \code{qlogis(pi)} and other coefficients at zero; without an intercept,

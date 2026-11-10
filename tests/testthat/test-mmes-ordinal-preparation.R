@@ -10,7 +10,7 @@ prepareOrdinalFixture <- function(data=ordinalPreparationData(), fixed=y~x,
                                    family=ordinal(), settings=list(),
                                    naMethodY="exclude", naMethodX="exclude",
                                    naMethodRandom="exclude", contrasts=NULL){
-  control <- mmes_control(task=list(objective="ml", glmm=list(method="laplace",
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml", glmm=list(method="laplace",
     familyParameters=settings)),
     diagnostics=list(verbose=FALSE, dateWarning=FALSE))
   random <- as.formula("~group", env=environment(fixed))

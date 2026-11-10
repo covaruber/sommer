@@ -61,7 +61,7 @@ problems in observation space instead, select `formulation="direct"`:
 fit_direct <- mmes(outcome ~ treatment,
   random = ~ subject, data = dat, family = poisson(),
   control = mmes_control(formulation = "direct",
-    task = list(pql = list(maxit = 30, tol = 1e-6))))
+    working = list(maxit = 30, tol = 1e-6)))
 summary(fit_direct)
 fitted(fit_direct, type = "link")
 ```
@@ -109,9 +109,7 @@ fit_laplace <- mmes(
   random = ~ subject,
   data = dat,
   family = binomial(),
-  control = mmes_control(
-    task = list(objective = "ml", glmm = list(method = "laplace"))
-  )
+  method = mmes_method(objective = "ml", integration = "laplace")
 )
 summary(fit_laplace)
 fit_laplace$covParNative
@@ -124,7 +122,7 @@ random covariance shapes and relationship precision matrices. Covariance
 parameters and fixed effects are optimized against the Laplace likelihood using
 `nlminb`, with native first derivatives of the full marginal Laplace objective
 (including mode dependence and the random Hessian determinant).
-`task$glmm$maxit` controls this outer optimization and
+`optimizer$maxit` controls this outer optimization and
 `modeMaxit`/`modeTol` control the inner random-effect mode solve.
 `ai_mme_sp2()` and `ai_reml_direct_sp2()` retain their Gaussian objective and
 are not called as if they optimized the GLMM likelihood. This creates a shared
@@ -145,7 +143,7 @@ The fitting-local context is not stored in the fitted object.
 
 The native likelihood supports binary and grouped-binomial responses,
 formula offsets, and random covariance structures accepted by the
-Henderson setup. It requires `task$objective = "ml"`. Structured residual
+Henderson setup. It requires `method$objective = "ml"`. Structured residual
 covariance, `W` and `weights` metadata are supported for Gaussian observation
 blocks (see below), not for discrete observation errors.
 Direct formulation and known-covariance solve mode are not yet supported.
@@ -177,11 +175,11 @@ The same Laplace likelihood can be evaluated from two sides:
 
 ```{r laplace-backend, eval=FALSE}
 control <- mmes_control(
-  task = list(objective = "ml",
-    glmm = list(method = "laplace", backend = "auto")),
+  likelihood = list(backend = "auto"),
   execution = list(denseMemoryMB = 1000))
 fit <- mmes(count ~ treatment, random = ~ plant,
-  data = dat, family = poisson(), control = control)
+  data = dat, family = poisson(), control = control,
+  method = mmes_method(objective = "ml", integration = "laplace"))
 fit$executionPlan$glmm$backend
 ```
 
@@ -201,7 +199,7 @@ criterion, outer optimizer, determinant correction and constraints, including
 signed ZIP curvature and nominal/Gaussian blocks. This is **not** direct PQL
 and does not improve the statistical accuracy of the Laplace approximation.
 Keep `formulation="henderson"` at the public Laplace preparation interface;
-select its algebra with `task$glmm$backend`, not Gaussian `solve$backend`.
+select its algebra with `likelihood$backend`, not Gaussian `solve$backend`.
 
 The observation route forms the dense covariance among predictor rows,
 but never a full random covariance or random-effect Hessian. Its covariance
@@ -246,14 +244,14 @@ not a universal timing claim; rerun them on the intended data and hardware.
 The outer optimizer remains `nlminb`, supplied with first derivatives;
 the conditional mode still uses Newton steps and the existing line search.
 No outer AI algorithm, relaxed inner accuracy, whitening or approximate
-integration is introduced. The controls are nested under `task$glmm`:
+integration is introduced. Controls retain distinct mathematical owners:
 
 | Control | Default | Alternative and meaning |
 |---|---|---|
-| `warmStart` | `"auto"` | `"off"` restores zero starts; `"on"` explicitly requests successful-mode reuse. |
-| `gradient` | `"analytic"` | `"numeric"` uses central differences of the same marginal likelihood. |
-| `trace` | `"panels"` | `"selected"` contracts an exact Cholesky inverse subset. |
-| `blocks` | `"off"` | `"on"` factors exact independent mode-Hessian components. |
+| `mode$warmStart` | `"auto"` | `"off"` restores zero starts; `"on"` explicitly requests successful-mode reuse. |
+| `optimizer$gradient` | `"analytic"` | `"central"` uses central differences of the same marginal likelihood. |
+| `likelihood$trace` | `"panels"` | `"selected"` contracts an exact Cholesky inverse subset. |
+| `likelihood$blocks` | `"off"` | `"on"` factors exact independent mode-Hessian components. |
 
 Warm starts reuse the last **successful** mode for nearby changed outer
 proposals, separately from the exact-parameter likelihood/score cache.
@@ -280,10 +278,10 @@ likelihood, but overhead and fill can make them slower.
 
 ```{r laplace-acceleration, eval=FALSE}
 control <- mmes_control(
-  task = list(objective = "ml",
-    glmm = list(method = "laplace", backend = "random",
-      warmStart = "auto", gradient = "analytic",
-      trace = "selected", blocks = "on")))
+  optimizer = list(gradient = "analytic"),
+  mode = list(warmStart = "auto"),
+  likelihood = list(backend = "random",
+    trace = "selected", blocks = "on"))
 fit$laplaceDiagnostics$nativeWork
 ```
 
@@ -335,15 +333,15 @@ the fit:
 
 ```{r laplace-vcc, eval=FALSE}
 laplace_control <- mmes_control(
-  task = list(objective = "ml", glmm = list(method = "laplace")),
   diagnostics = list(verbose = FALSE, dateWarning = FALSE))
 setup_control <- laplace_control
 setup_control$output$setup <- TRUE
 setup <- mmes(y ~ x, random = ~ group + block, data = dat,
-  family = poisson(), control = setup_control)
+  family = poisson(), control = setup_control,
+  method = mmes_method(objective = "ml", integration = "laplace"))
 setup$vcParams
 fit <- mmes(y ~ x, random = ~ group + block, data = dat,
-  family = poisson(), control = laplace_control,
+  family = poisson(), method=mmes_method(objective="ml", integration="laplace"), control=laplace_control,
   vcc = data.frame(parameter = c(1, 2), group = 1, scale = c(2, 1)))
 ```
 
@@ -373,20 +371,20 @@ the exact Gaussian ML likelihood, not an approximation.
 ```{r gaussian-residual-blocks, eval=FALSE}
 fit <- mmes(y ~ time + x, random = ~ group,
   rcov = ~ vsm(ar1m(time), ism(record)),
-  data = dat, family = gaussian(), control = laplace_control)
+  data = dat, family = gaussian(), method=mmes_method(objective="ml", integration="laplace"), control=laplace_control)
 
 # Covariance between Gaussian traits paired within a record:
 mixed <- mmes(y ~ trait + trait:x - 1, random = ~ group,
   rcov = ~ vsm(usm(trait), ism(record)),
   data = dat_long,
   family = familym("trait", height = gaussian(), weight = gaussian(),
-    count = poisson()), control = laplace_control)
+    count = poisson()), method=mmes_method(objective="ml", integration="laplace"), control=laplace_control)
 ```
 
 `rcov` is evaluated on the Gaussian subset only. Use explicit pairing keys,
 especially for incomplete or unbalanced repeated measurements.
 The residual descriptor owns Gaussian variances; do not additionally configure
-Gaussian `task$glmm$familyParameters`. Omitting structured `rcov`, `W` and
+Gaussian `familyParameters`. Omitting structured `rcov`, `W` and
 `weights` preserves the previous independent family-dispersion model.
 
 `W` uses the existing sommer residual transformation. It may cover the original
@@ -418,11 +416,11 @@ Binomial logit, probit and complementary log-log links are supported.
 `nbinom2(theta=2)` is sommer's native NB2 family constructor:
 `Var(Y|u) = mu + mu^2/theta`, with a log link. Shape is jointly estimated
 by default. To fix it, use
-`task$glmm$familyParameters=list(theta=2, estimate=FALSE)`.
+`familyParameters=list(theta=2, estimate=FALSE)`.
 `zipoisson(pi=0.1)` adds a structural-zero mixture to a Poisson count
 component. It estimates a separate intercept-only logit probability by
 default; fix it with
-`task$glmm$familyParameters=list(zeroInflation=0.2, estimate=FALSE)`.
+`familyParameters=list(zeroInflation=0.2, estimate=FALSE)`.
 The count linear predictor models the underlying Poisson mean, while fitted
 and response-scale predictions report `(1-pi)*mu`. A fixed-effects zero formula
 is available with `zipoisson(zero=~covariates)` as described below; zero-component
@@ -434,11 +432,8 @@ fit_zip <- mmes(
   random = ~ subject,
   data = dat,
   family = zipoisson(pi = 0.1),
-  control = mmes_control(task = list(
-    objective = "ml",
-    glmm = list(method = "laplace",
-      familyParameters = list(zeroInflation = 0.1, estimate = TRUE))
-  ))
+  method = mmes_method(objective = "ml", integration = "laplace"),
+  familyParameters = list(zeroInflation = 0.1, estimate = TRUE)
 )
 fit_zip$familyParameters
 ```
@@ -452,8 +447,7 @@ fit_zip_formula <- mmes(
   random = ~ subject,
   data = dat,
   family = zipoisson(pi=0.1, zero=~treatment),
-  control = mmes_control(task=list(objective="ml",
-    glmm=list(method="laplace")))
+  method = mmes_method(objective = "ml", integration = "laplace")
 )
 fit_zip_formula$zeroCoefficients
 summary(fit_zip_formula)$zeroCoefficients
@@ -521,15 +515,11 @@ fit_mixed <- mmes(
     "trait", binary = binomial("probit"), counts = nbinom2(theta=2),
     positive = Gamma("log"), continuous = gaussian()
   ),
-  control = mmes_control(
-    task = list(objective="ml", glmm=list(
-      method="laplace",
-      familyParameters=list(
-        counts=list(theta=2, estimate=TRUE),
-        positive=list(dispersion=0.3, estimate=TRUE),
-        continuous=list(dispersion=1, estimate=FALSE)
-      )
-    ))
+  method = mmes_method(objective="ml", integration="laplace"),
+  familyParameters=list(
+    counts=list(theta=2, estimate=TRUE),
+    positive=list(dispersion=0.3, estimate=TRUE),
+    continuous=list(dispersion=1, estimate=FALSE)
   )
 )
 fit_mixed$familyParameters
@@ -575,10 +565,10 @@ Use an explicitly ordered factor or contiguous numeric category codes
 `1,...,K`; labels and declared factor levels are preserved.
 
 ```{r ordinal-interface, eval=FALSE}
-ctrl <- mmes_control(task = list(objective = "ml",
-  glmm = list(method = "laplace")))
+ctrl <- mmes_control()
 fit_ord <- mmes(rating ~ treatment + offset(exposure),
-  random = ~ group, data = dat, family = ordinal(), control = ctrl)
+  random = ~ group, data = dat, family = ordinal(), control = ctrl,
+  method = mmes_method(objective = "ml", integration = "laplace"))
 fitted(fit_ord)                       # n by K labelled probability matrix
 predict(fit_ord, newdata = newdat)
 predict(fit_ord, re.form = NA)         # zero random effects
@@ -594,7 +584,7 @@ By default all cutpoints are estimated, starting from retained cumulative
 frequencies. Preparation removes only the existing intercept column,
 preserving factor contrasts, and rejects any remaining location confounding.
 All categories must remain observed after filtering. Set
-`task$glmm$familyParameters=list(thresholds=c(-1,1), estimate=FALSE)` to fix
+`familyParameters=list(thresholds=c(-1,1), estimate=FALSE)` to fix
 cutpoints instead; the formula intercept is then retained, and declared
 ordered-factor levels without retained observations are allowed.
 
@@ -619,7 +609,7 @@ fit_mix <- mmes(response ~ trait + trait:x - 1,
   data = longdata,
   family = familym("trait", rating = ordinal(),
     choice = multinomial(reference = "3"), count = poisson()),
-  control = ctrl)
+  control = ctrl, method=mmes_method(objective="ml", integration="laplace"))
 fitted(fit_mix)                         # named list: probability matrices/vectors
 predict(fit_mix, newdata = newlongdata, type = "response")
 predict(fit_mix, re.form = NA)           # same list, zero random effects
@@ -656,7 +646,7 @@ future response. Nominal integration supports up to four categories with the
 deterministic accuracy check below. Classify aggregation remains unsupported.
 
 Mixed nominal outer gradients are native analytic, including mode and
-determinant dependence. `task$glmm$gradient="numeric"` retains the
+determinant dependence. `optimizer$gradient="numeric"` retains the
 central-difference reference alternative. Scalar/ordinal gradients remain
 native analytic. Gaussian and PQL routes
 are unchanged. All SE, parameter covariance, prediction uncertainty and PEV
@@ -705,7 +695,7 @@ intervals or joint probability regions.
 
 ## Native Laplace validation and diagnostics
 
-Use `task$glmm$maxit`, `modeMaxit` and `modeTol` to control this route.
+Use `optimizer$maxit`, `mode$maxit` and `mode$tol` to control this route.
 Non-default Gaussian solver, convergence, proposal, update, output and resource
 controls are rejected, not treated as Laplace controls. The derivative panel
 memory budget, BLAS thread selection and ordinary verbose/date-warning settings
@@ -817,7 +807,6 @@ covariance. No new family or solver option is needed:
 
 ```{r latent-process-recipes, eval=FALSE}
 laplace_control <- mmes_control(
-  task = list(objective = "ml", glmm = list(method = "laplace")),
   diagnostics = list(verbose = FALSE, dateWarning = FALSE))
 
 # Each plant has its own temporally correlated hidden process.
@@ -825,19 +814,19 @@ laplace_control <- mmes_control(
 dat$week <- factor(dat$week, levels = sort(unique(dat$week)))
 temporal <- mmes(count ~ treatment,
   random = ~ vsm(ar1m(week), ism(plant)),
-  data = dat, family = poisson(), control = laplace_control)
+  data = dat, family = poisson(), method=mmes_method(objective="ml", integration="laplace"), control=laplace_control)
 
 # Independent fields, with a separable hidden spatial process in each field.
 spatial <- mmes(diseased ~ treatment,
   random = ~ vsm(ar1m(row), ar1m(column), ism(field)),
-  data = plots, family = binomial(), control = laplace_control)
+  data = plots, family = binomial(), method=mmes_method(objective="ml", integration="laplace"), control=laplace_control)
 
 # In long data, this one process is shared across response types.
 shared <- mmes(y ~ trait + trait:treatment - 1,
   random = ~ vsm(ar1m(week), ism(plant)),
   data = long,
   family = familym("trait", count = poisson(), diseased = binomial()),
-  control = laplace_control)
+  method=mmes_method(objective="ml", integration="laplace"), control=laplace_control)
 
 # These are different scientific targets:
 predict(temporal, newdata = visits, type = "response") # fitted plant process
@@ -1118,7 +1107,7 @@ fit_poisson$pqlConverged
 fit_poisson$family
 ```
 
-Use `task$pql` to set outer PQL iterations and relative deviance tolerance.
+Use `working` to set outer PQL iterations and relative deviance tolerance.
 Set `update$blendWeight = 0` to retain pure-AI covariance updates in PQL;
 positive EM-direction blending is not supported. `convergence$maxIters`,
 `convergence$likelihoodTol`, and `proposal$stepWeight` control
@@ -1133,7 +1122,7 @@ fit <- mmes(y_poisson ~ x + offset(log(exposure)),
   family = poisson(),
   control = mmes_control(
     update = list(blendWeight = 0),
-    task = list(pql = list(maxit = 30, tol = 1e-6)),
+    working = list(maxit = 30, tol = 1e-6),
     convergence = list(maxIters = 20),
     solve = list(method = "auto")
   ))
@@ -1144,7 +1133,7 @@ fit <- mmes(y_poisson ~ x + offset(log(exposure)),
 - Begin with a simple random-intercept GLMM and inspect `pqlMonitor` before
   adding complex covariance structures.
 - Check `pqlConverged`; `FALSE` means the outer PQL criterion was not met within
-  `task$pql$maxit` iterations. Convergence on the last allowed iteration is
+  `working$maxit` iterations. Convergence on the last allowed iteration is
   still reported as converged. For direct PQL, a failed final inner fit also
   prevents convergence; inspect `pqlMonitor[,"innerConverged"]` and
   `engineDiagnostics$direct` for the working-model stop reason.

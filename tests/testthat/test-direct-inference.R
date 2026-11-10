@@ -1,5 +1,5 @@
 .direct_inference_control <- function(formulation="direct", ...){
-  mmes_control(formulation=formulation, ...,
+  sommer:::.mmes_control_internal(formulation=formulation, ...,
     diagnostics=list(verbose=FALSE, dateWarning=FALSE),
     convergence=list(maxIters=100L, likelihoodTol=1e-8, parameterTol=1e-8))
 }
@@ -36,7 +36,7 @@ test_that("direct post-fit covariance matches independent joint error algebra", 
   A <- solve(K)
   dimnames(A) <- list(levels(data$group), levels(data$group))
   attr(A, "inverse") <- TRUE
-  fit <- mmes(y~x, random=~vsm(ism(group), Gu=A, sigma2=0.7, fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~vsm(ism(group), Gu=A, sigma2=0.7, fixedSigma2=TRUE),
     rcov=~vsm(ism(units), sigma2=0.4, fixedSigma2=TRUE), data=data,
     control=.direct_inference_control())
   X <- as.matrix(fit$W[, 1:2])
@@ -85,7 +85,7 @@ test_that("direct predictions match Henderson with weighted structured residuals
     diagonals=list(rep(-0.15, nrow(data)-1L), rep(1.4, nrow(data)),
       rep(-0.15, nrow(data)-1L)))
   fits <- lapply(c("direct", "henderson"), function(formulation)
-    mmes(y~x, random=~vsm(ism(group), sigma2=0.7, fixedSigma2=TRUE),
+    sommer:::.mmes_dispatch(y~x, random=~vsm(ism(group), sigma2=0.7, fixedSigma2=TRUE),
       rcov=~vsm(ar1m(visit, rho=0.2, fixed=TRUE), ism(group), ism(rep),
         sigma2=0.4, fixedSigma2=TRUE), W=W, data=data,
       control=.direct_inference_control(formulation)))
@@ -110,7 +110,7 @@ test_that("direct predictions match Henderson with weighted structured residuals
 test_that("direct inference covers structured random effects and cross-term error covariance", {
   data <- .direct_inference_data()
   fits <- lapply(c("direct", "henderson"), function(formulation)
-    mmes(y~visit, random=~vsm(usm(visit, theta=0.3^abs(outer(1:4, 1:4, "-")),
+    sommer:::.mmes_dispatch(y~visit, random=~vsm(usm(visit, theta=0.3^abs(outer(1:4, 1:4, "-")),
       fixed=rep.int(TRUE, 9L)),
       ism(group), sigma2=0.5, fixedSigma2=TRUE) +
       vsm(ism(rep), sigma2=0.2, fixedSigma2=TRUE), data=data,
@@ -130,7 +130,7 @@ test_that("direct inference covers structured random effects and cross-term erro
 
 test_that("direct fixed-only and reduced-rank fits preserve public estimability", {
   data <- .direct_inference_data()
-  fit <- mmes(y~x, data=data, control=.direct_inference_control())
+  fit <- sommer:::.mmes_dispatch(y~x, data=data, control=.direct_inference_control())
   reference <- lm(y~x, data=data)
   expect_equal(postPEV(fit, 2L)$Ci, unname(vcov(reference)), tolerance=1e-8)
   expect_length(postPEV(fit)$uPevList, 0L)
@@ -139,7 +139,7 @@ test_that("direct fixed-only and reduced-rank fits preserve public estimability"
 
   data$duplicate <- data$x
   fits <- lapply(c("direct", "henderson"), function(formulation){
-    expect_warning(result <- mmes(y~x+duplicate,
+    expect_warning(result <- sommer:::.mmes_dispatch(y~x+duplicate,
       random=~vsm(ism(group), sigma2=0.5, fixedSigma2=TRUE), data=data,
       control=.direct_inference_control(formulation,
         representation=list(fixedRank="drop"))), "rank reduction")
@@ -159,7 +159,7 @@ test_that("direct PQL inference uses the final working covariance without refitt
   data$exposure <- seq(0.8, 1.2, length.out=nrow(data))
   data$count <- rpois(nrow(data), data$exposure * exp(0.4+0.2*data$x))
   fits <- lapply(c("direct", "henderson"), function(formulation)
-    mmes(count~x+offset(log(exposure)),
+    sommer:::.mmes_dispatch(count~x+offset(log(exposure)),
       random=~vsm(ism(group), sigma2=0.2, fixedSigma2=TRUE),
       data=data, family=poisson(),
       control=.direct_inference_control(formulation,
@@ -185,7 +185,7 @@ test_that("direct PQL inference uses the final working covariance without refitt
 
 test_that("direct post-fit operations honor memory controls and serialize without native state", {
   data <- .direct_inference_data()
-  fit <- mmes(y~x, random=~group, data=data, control=.direct_inference_control())
+  fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, control=.direct_inference_control())
   D <- cbind(Matrix::Diagonal(2L), Matrix::Matrix(0, 2L, nrow(fit$u), sparse=TRUE))
   result <- predict(fit, D=D, VarU=FALSE)
   restored <- unserialize(serialize(fit, NULL))
@@ -200,7 +200,7 @@ test_that("direct post-fit operations honor memory controls and serialize withou
   expect_error(postPEV(fit, 2L), "exceeds execution")
   expect_equal(dim(postPEV(fit, 0L)$Ci), c(0L, 0L))
   expect_error(postPEV(fit, NA_integer_), "mode")
-  omitted <- mmes(y~x, data=data, control=.direct_inference_control(
+  omitted <- sommer:::.mmes_dispatch(y~x, data=data, control=.direct_inference_control(
     output=list(coefficientMatrix=FALSE)))
   expect_null(omitted$directInference)
   expect_error(predict(omitted, D=matrix(c(1,0), 1L)), "not retained")
@@ -223,7 +223,7 @@ test_that("direct diagonal PEV is panelled when coefficients outnumber observati
   A <- Matrix::Diagonal(120L)
   dimnames(A) <- list(labels, labels)
   attr(A, "inverse") <- TRUE
-  fit <- mmes(y~x, random=~vsm(ism(group), Gu=A, sigma2=0.7, fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~vsm(ism(group), Gu=A, sigma2=0.7, fixedSigma2=TRUE),
     rcov=~vsm(ism(units), sigma2=0.4, fixedSigma2=TRUE), data=data,
     control=.direct_inference_control(output=list(panelSize=4L),
       execution=list(denseMemoryMB=0.7)))
@@ -246,7 +246,7 @@ test_that("direct diagonal PEV is panelled when coefficients outnumber observati
 test_that("direct post-fit inference supports singular reduced-rank random covariance", {
   data <- .direct_inference_data()
   fits <- lapply(c("direct", "henderson"), function(formulation)
-    mmes(y~visit, random=~vsm(rrm(visit, 1L,
+    sommer:::.mmes_dispatch(y~visit, random=~vsm(rrm(visit, 1L,
       loadings=matrix(c(1, 0.7, -0.5, 1.2), 4L), fixed=rep.int(TRUE, 4L)),
       ism(group), sigma2=0.6, fixedSigma2=TRUE),
       rcov=~vsm(ism(units), sigma2=0.4, fixedSigma2=TRUE), data=data,
@@ -265,7 +265,7 @@ test_that("direct observed classify predictions preserve retained-cell weighting
   data <- .direct_inference_data()
   data <- data[!(data$group == "a" & data$visit == "4"), ]
   fits <- lapply(c("direct", "henderson"), function(formulation){
-    expect_warning(fit <- mmes(y~visit+visit:group, data=data,
+    expect_warning(fit <- sommer:::.mmes_dispatch(y~visit+visit:group, data=data,
       control=.direct_inference_control(formulation,
         representation=list(fixedRank="drop"))), "rank reduction")
     fit
@@ -286,7 +286,7 @@ test_that("direct mixed scalar PQL PEV respects final trait-specific dispersion"
     transform(data, trait="positive", response=positive))
   data$trait <- factor(data$trait, levels=c("count", "positive"))
   fits <- lapply(c("direct", "henderson"), function(formulation)
-    mmes(response~trait+trait:x-1,
+    sommer:::.mmes_dispatch(response~trait+trait:x-1,
       random=~vsm(ism(group), sigma2=0.1, fixedSigma2=TRUE),
       rcov=~vsm(dsm(trait), ism(units)), data=data,
       family=familym("trait", count=poisson(), positive=Gamma("log")),
@@ -302,7 +302,7 @@ test_that("direct mixed scalar PQL PEV respects final trait-specific dispersion"
 test_that("direct fixed-effect comparisons support small-sample degrees of freedom", {
   data <- .direct_inference_data()
   fits <- lapply(c("direct", "henderson"), function(formulation)
-    mmes(y~visit, random=~group, data=data,
+    sommer:::.mmes_dispatch(y~visit, random=~group, data=data,
       control=.direct_inference_control(formulation)))
   for(df in c("satterthwaite", "kr")){
     direct <- predict(fits[[1]], D="visit", pairwise=TRUE, df=df)
@@ -318,7 +318,7 @@ test_that("deferred direct PEV is not limited to 5000 random coefficients", {
   A <- Matrix::Diagonal(length(labels))
   dimnames(A) <- list(labels, labels)
   attr(A, "inverse") <- TRUE
-  fit <- mmes(y~x, random=~vsm(ism(group), Gu=A, sigma2=0.7, fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~x, random=~vsm(ism(group), Gu=A, sigma2=0.7, fixedSigma2=TRUE),
     rcov=~vsm(ism(units), sigma2=0.4, fixedSigma2=TRUE), data=data,
     control=.direct_inference_control(output=list(panelSize=16L),
       execution=list(denseMemoryMB=50)))

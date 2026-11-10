@@ -4,7 +4,7 @@ nonlinearFamilyFixture <- function(family, response, randomCurve = TRUE, specifi
   if (is.null(data))
     data <- data.frame(x = seq(0.1, 3, length.out = n), group = factor(rep(1:2, length.out = n)))
   data$y <- as.numeric(response)
-  control <- mmes_control(task = list(objective = "ml"), diagnostics = list(verbose = FALSE, dateWarning = FALSE))
+  control <- sommer:::.mmes_control_internal(task = list(objective = "ml"), diagnostics = list(verbose = FALSE, dateWarning = FALSE))
   prepared <- sommer:::.nonlinear_prepare(y ~ 0, random, data, control, "exclude", "exclude", "exclude",
     "exclude", NULL, data$x)
   if (is.null(specifications))
@@ -61,14 +61,14 @@ nonlinearFamilyData <- function(family, curveRandom = FALSE) {
 }
 
 nonlinearFamilyControl <- function(...) {
-  mmes_control(task = list(objective = "ml", nonlinear = list(start = c(asymptote = 1.4, rate = 0.65),
+  sommer:::.mmes_control_internal(task = list(objective = "ml", nonlinear = list(start = c(asymptote = 1.4, rate = 0.65),
     population = list(order = 8L, maxOrder = 64L, tol = 1e-06))), convergence = list(maxIters = 250L),
     diagnostics = list(verbose = FALSE, dateWarning = FALSE), ...)
 }
 
 test_that("categorical labels, references and explicit covariance coordinates survive prediction", {
   data <- nonlinearFamilyData(multinomial())
-  fit <- mmes(y ~ 1, data = data, family = multinomial(reference = "red"), nonlinear = nonlinear_curve("x",
+  fit <- sommer:::.mmes_dispatch(y ~ 1, data = data, family = multinomial(reference = "red"), nonlinear = nonlinear_curve("x",
     random = list(rate = ~vsm(ism(.nominalCategory), ism(group), sigma2 = 0.04, fixedSigma2 = TRUE))),
     control = nonlinearFamilyControl())
   expect_true(fit$convergence)
@@ -77,13 +77,13 @@ test_that("categorical labels, references and explicit covariance coordinates su
   expect_equal(unname(predict(fit, newdata = data)), unname(fitted(fit)), tolerance = 1e-08)
   expect_true(all(is.finite(predict(fit, newdata = data[1:4, ], re.form = "population"))))
   expect_identical(levels(simulate(fit, seed = 12)[, 1]), levels(data$y))
-  expect_error(mmes(y ~ 0, random = ~group, data = transform(data, y = ordered(y)), family = multinomial(),
+  expect_error(sommer:::.mmes_dispatch(y ~ 0, random = ~group, data = transform(data, y = ordered(y)), family = multinomial(),
     nonlinear = nonlinear_curve("x"), control = nonlinearFamilyControl()), "unordered")
-  expect_error(mmes(y ~ 0, random = ~group, data = data, family = ordinal(), nonlinear = nonlinear_curve("x"),
+  expect_error(sommer:::.mmes_dispatch(y ~ 0, random = ~group, data = data, family = ordinal(), nonlinear = nonlinear_curve("x"),
     control = nonlinearFamilyControl()), "ordered factors")
   data <- nonlinearFamilyData(ordinal())
   data$x[c(3, 8)] <- NA
-  fit <- mmes(y ~ 1, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data, family = ordinal(),
+  fit <- sommer:::.mmes_dispatch(y ~ 1, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data, family = ordinal(),
     nonlinear = nonlinear_curve("x"), control = nonlinearFamilyControl())
   expect_equal(nobs(fit), nrow(data) - 2L)
   expect_equal(colnames(fitted(fit)), levels(data$y))
@@ -91,12 +91,12 @@ test_that("categorical labels, references and explicit covariance coordinates su
   data$y[data$y == "middle"] <- "high"
   control <- nonlinearFamilyControl()
   control$task$glmm$familyParameters <- list(thresholds = c(-0.6, 0.7), estimate = FALSE)
-  fixedThreshold <- mmes(y ~ 0, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data,
+  fixedThreshold <- sommer:::.mmes_dispatch(y ~ 0, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data,
     family = ordinal(), nonlinear = nonlinear_curve("x"), control = control)
   expect_equal(colnames(fitted(fixedThreshold)), levels(data$y))
   expect_equal(fixedThreshold$familySpecifications[[1]]$thresholds, c(-0.6, 0.7))
   data$y <- factor(data$y, levels = levels(data$y), ordered=FALSE)
-  expect_error(mmes(y ~ 0, random = ~group, data = data, family = multinomial(), nonlinear = nonlinear_curve("x"),
+  expect_error(sommer:::.mmes_dispatch(y ~ 0, random = ~group, data = data, family = multinomial(), nonlinear = nonlinear_curve("x"),
     control = nonlinearFamilyControl()), "every category")
 })
 
@@ -113,7 +113,7 @@ test_that("family covariance estimates, RR priors and relationships persist in p
       3L)), ism(group), Gu = precision, sigma2 = 0.04)
     model <- nonlinear_curve("x", random = if (curveRandom)
       list(rate = formula) else list())
-    fit <- mmes(y ~ 0, random = if (curveRandom)
+    fit <- sommer:::.mmes_dispatch(y ~ 0, random = if (curveRandom)
       NULL else formula, data = data, family = poisson(), nonlinear = model, control = nonlinearFamilyControl())
     expect_true(fit$convergence)
     expect_equal(unname(fit$covStruct[[1]]$par[fit$covStruct[[1]]$free]), unname(fit$optimizer$par[3]),
@@ -130,7 +130,7 @@ test_that("family covariance estimates, RR priors and relationships persist in p
 
 test_that("generative population simulation matches nonlinear prior integration", {
   data <- nonlinearFamilyData(multinomial(), TRUE)
-  fit <- mmes(y ~ 0, data = data, family = multinomial(reference = "red"), nonlinear = nonlinear_curve("x",
+  fit <- sommer:::.mmes_dispatch(y ~ 0, data = data, family = multinomial(reference = "red"), nonlinear = nonlinear_curve("x",
     random = list(rate = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE))), control = nonlinearFamilyControl())
   population <- predict(fit, re.form = "population")
   draws <- simulate(fit, nsim = 1000, seed = 711, re.form = "population")
@@ -149,7 +149,7 @@ test_that("grouped trials, nuisance choices and missingness retain existing cont
   data$trials <- rep(c(3L, 5L), length.out = nrow(data))
   data$success <- rbinom(nrow(data), data$trials, plogis(1.4 * exp(-0.65 * data$x)))
   training <- data
-  fit <- function(fixed = binm(success, trials = trials) ~ 0, data = training, control = nonlinearFamilyControl()) mmes(fixed,
+  fit <- function(fixed = binm(success, trials = trials) ~ 0, data = training, control = nonlinearFamilyControl()) sommer:::.mmes_dispatch(fixed,
     random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data, family = binomial(),
     nonlinear = nonlinear_curve("x"), control = control)
   grouped <- fit()
@@ -165,12 +165,12 @@ test_that("grouped trials, nuisance choices and missingness retain existing cont
   filtered <- fit(data = missing)
   expect_equal(nobs(filtered), nrow(data) - 2L)
   expect_false(any(filtered$obsInfo$included[c(3, 8)]))
-  expect_error(mmes(binm(success, trials = trials) ~ 0, random = ~group, data = missing, family = binomial(),
+  expect_error(sommer:::.mmes_dispatch(binm(success, trials = trials) ~ 0, random = ~group, data = missing, family = binomial(),
     nonlinear = nonlinear_curve("x"), control = nonlinearFamilyControl(), naMethodX = "fail"), "Missing nonlinear")
   data <- nonlinearFamilyData(nbinom2(theta = 3))
   control <- nonlinearFamilyControl()
   control$task$glmm$familyParameters <- list(theta = 3, estimate = FALSE)
-  fixedShape <- mmes(y ~ 0, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data,
+  fixedShape <- sommer:::.mmes_dispatch(y ~ 0, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data,
     family = nbinom2(theta = 1), nonlinear = nonlinear_curve("x"), control = control)
   expect_equal(fixedShape$family$theta, 3)
   expect_false(fixedShape$familySpecifications[[1]]$free)
@@ -223,7 +223,7 @@ test_that("mixed-family models expose complete categorical and scalar outputs", 
   })
   data <- do.call(rbind, pieces)
   family <- do.call(familym, c(list(by = "trait"), families))
-  fit <- mmes(y ~ 0, data = data, family = family, nonlinear = nonlinear_curve("x", random = list(rate = ~vsm(ism(.familyCoordinate),
+  fit <- sommer:::.mmes_dispatch(y ~ 0, data = data, family = family, nonlinear = nonlinear_curve("x", random = list(rate = ~vsm(ism(.familyCoordinate),
     ism(group), sigma2 = 0.04, fixedSigma2 = TRUE))), control = nonlinearFamilyControl())
   expect_true(fit$convergence)
   expect_equal(nobs(fit), nrow(data))
@@ -248,12 +248,12 @@ test_that("mixed-family models expose complete categorical and scalar outputs", 
 test_that("population outputs integrate priors, not conditional uncertainty", {
   data <- nonlinearFamilyData(poisson())
   data$groupCurve <- data$group
-  fit <- mmes(y ~ 0, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data, family = poisson(),
+  fit <- sommer:::.mmes_dispatch(y ~ 0, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data, family = poisson(),
     nonlinear = nonlinear_curve("x"), control = nonlinearFamilyControl())
   expect_equal(predict(fit, re.form = "population"), predict(fit, re.form = NA) * exp(0.04/2), tolerance = 1e-09)
   expect_equal(predict(fit, re.form = "population", type = "link"), predict(fit, re.form = NA, type = "link"),
     tolerance = 1e-10)
-  fit <- mmes(y ~ 0, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data, family = poisson(),
+  fit <- sommer:::.mmes_dispatch(y ~ 0, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data, family = poisson(),
     nonlinear = nonlinear_curve("x", random = list(rate = ~vsm(ism(groupCurve), sigma2 = 0.04, fixedSigma2 = TRUE))),
     control = nonlinearFamilyControl())
   population <- predict(fit, newdata = data[1:4, ], re.form = "population")
@@ -397,7 +397,7 @@ for (family in list(binomial(), binomial("probit"), binomial("cloglog"), poisson
   zipoisson(), Gamma("log"), ordinal(), ordinal("probit"), multinomial())) {
   test_that(paste("public nonlinear surfaces work for", family$family, family$link), {
     data <- nonlinearFamilyData(family)
-    fit <- mmes(y ~ 0, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data,
+    fit <- sommer:::.mmes_dispatch(y ~ 0, random = ~vsm(ism(group), sigma2 = 0.04, fixedSigma2 = TRUE), data = data,
       family = family, nonlinear = nonlinear_curve("x"), control = nonlinearFamilyControl())
     expect_true(fit$convergence, info = family$family)
     expect_identical(fit$executionPlan$objective, "ml (Laplace family)")
@@ -498,7 +498,7 @@ for (family in list(binomial(), poisson(), nbinom2(theta = 3), zipoisson(), Gamm
   multinomial())) {
   test_that(paste("random curve family methods work for", family$family), {
     data <- nonlinearFamilyData(family, TRUE)
-    fit <- mmes(y ~ 0, data = data, family = family, nonlinear = nonlinear_curve("x", random = list(rate = ~vsm(ism(group),
+    fit <- sommer:::.mmes_dispatch(y ~ 0, data = data, family = family, nonlinear = nonlinear_curve("x", random = list(rate = ~vsm(ism(group),
       sigma2 = 0.04, fixedSigma2 = TRUE))), control = nonlinearFamilyControl())
     expect_true(fit$convergence)
     expect_lt(fit$nonlinearDiagnostics$modeScore, 1e-06)

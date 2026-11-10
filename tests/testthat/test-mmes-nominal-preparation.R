@@ -8,7 +8,7 @@ nominalPreparationData <- function(){
 }
 
 nominalPreparationControl <- function(...){
-  mmes_control(task=list(objective="ml",glmm=list(method="laplace",modeTol=1e-10)),
+  sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace",modeTol=1e-10)),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE),...)
 }
 
@@ -62,7 +62,7 @@ test_that("nominal covariance scores remain stable near a singular US factor", {
     }
   }
   warningMessages <- capture_warnings(
-    fit <- mmes(y~x, random=~vsm(usm(.nominalCategory),ism(group)),
+    fit <- sommer:::.mmes_dispatch(y~x, random=~vsm(usm(.nominalCategory),ism(group)),
       data=data, family=multinomial(reference="high"), control=control))
   expect_identical(fit$convergence, identical(fit$optimizer$convergence, 0L))
   if(fit$convergence){
@@ -235,20 +235,20 @@ test_that("nominal random designs explicitly distinguish shared and category-spe
 
 test_that("nominal preparation uses existing controls and protects unsupported public surfaces", {
   data <- nominalPreparationData()
-  for(control in list(mmes_control(),
-    mmes_control(formulation="direct"),
-    mmes_control(task=list(objective="ml",glmm=list(method="laplace")),
+  for(control in list(sommer:::.mmes_control_internal(),
+    sommer:::.mmes_control_internal(formulation="direct"),
+    sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace")),
       output=list(inverse=1L)))){
     expect_error(prepareNominalFixture(data,control=control),"Nominal|nominal|Laplace")
   }
   expect_error(prepareNominalFixture(data,
-    control=mmes_control(task=list(objective="ml",glmm=list(method="laplace")),
+    control=sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace")),
       score=list(denseCrossproduct="force"))),"Gaussian engine controls")
   expect_error(prepareNominalFixture(data,
-    control=mmes_control(task=list(objective="ml",glmm=list(method="laplace",
+    control=sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace",
       familyParameters=list(estimate=FALSE))))),"familyParameters")
   expect_error(prepareNominalFixture(data,
-    control=mmes_control(task=list(objective="ml",glmm=list(method="laplace")),
+    control=sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace")),
       execution=list(denseMemoryMB=1e-6))),"denseMemoryMB")
   data$.nominalCategory <- "reserved"
   expect_error(prepareNominalFixture(data),"reserves")

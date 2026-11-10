@@ -98,7 +98,7 @@ include conditional observation variability and, for population prediction,
 the variance across the joint prior. Probability confidence intervals
 retain categorical shapes; numeric future-category intervals are rejected.
 
-Checked numerical choices use `task$nonlinear$inference` in
+Checked numerical choices use `inference` in
 `mmes_control()`. Invalid curvature, weak identification, nonstationarity
 and estimated boundaries reject inference explicitly. Ordinary
 chi-square references are not supplied for random-variance boundaries.
@@ -451,10 +451,7 @@ fit <- mmes(
   random = ~ site,
   data = dat,
   family = poisson(),
-  control = mmes_control(
-    task = list(objective = "ml",
-      glmm = list(method = "laplace"))
-  )
+  method = mmes_method(objective = "ml", integration = "laplace")
 )
 ```
 
@@ -550,7 +547,7 @@ grows with the size of its mean rather than staying constant.
 The NB2 parameter $\theta$ is a positive shape parameter. Large $\theta$
 approaches the Poisson variance; smaller $\theta$ allows greater
 overdispersion. On the native Laplace route, it may be estimated jointly or
-fixed with `task$glmm$familyParameters`. Gaussian dispersion is residual
+fixed with `familyParameters`. Gaussian dispersion is residual
 variance $\phi$. Gamma dispersion satisfies
 $\operatorname{Var}(Y\mid u)=\phi\mu^2$, so the Gamma shape is $1/\phi$.
 Family-specific parameter estimates are reported on their natural scale.
@@ -627,7 +624,7 @@ $\pi(1-\pi)\lambda_i^2$. Adding them gives the formula above.
 `zipoisson()` estimates one common intercept-only structural-zero probability
 by default. The count component's linear predictor models $\log(\lambda_i)$;
 the fitted response mean is $(1-\pi)\lambda_i$. The probability can be fixed
-or estimated using `task$glmm$familyParameters`. A separate fixed-effects
+or estimated using `familyParameters`. A separate fixed-effects
 formula, `zipoisson(zero=~covariates)`, extends this to
 $\operatorname{logit}(\pi_i)=a_i+w_i^\mathsf{T}\gamma$, with its own offset
 $a_i$ and fixed design $w_i$. Its logit coefficients are jointly optimized
@@ -717,14 +714,11 @@ fit <- mmes(
     biomass = Gamma("log"),
     yield = gaussian()
   ),
-  control = mmes_control(
-    task = list(objective = "ml",
-      glmm = list(method = "laplace",
-        familyParameters = list(
-          count = list(theta = 2, estimate = TRUE),
-          biomass = list(dispersion = 0.4, estimate = TRUE),
-          yield = list(dispersion = 1, estimate = FALSE)
-        )))
+  method = mmes_method(objective = "ml", integration = "laplace"),
+  familyParameters = list(
+    count = list(theta = 2, estimate = TRUE),
+    biomass = list(dispersion = 0.4, estimate = TRUE),
+    yield = list(dispersion = 1, estimate = FALSE)
   )
 )
 ```
@@ -828,8 +822,8 @@ just because the iterations stop changing.
 
 ## 4.2 PQL usage and controls
 
-PQL remains the default non-Gaussian route. `task$pql$maxit`,
-`task$pql$tol`, and the warm-start option govern the outer procedure. Other
+PQL remains the default non-Gaussian route. `working$maxit`,
+`working$tol`, and the warm-start option govern the outer procedure. Other
 `mmes_control()` settings configure the Gaussian inner fit and therefore
 depend on the selected Gaussian engine and covariance model.
 
@@ -841,7 +835,7 @@ fit_pql <- mmes(
   data = dat,
   family = binomial(),
   control = mmes_control(
-    task = list(pql = list(maxit = 30L, tol = 1e-5))
+    working = list(maxit = 30L, tol = 1e-5)
   )
 )
 ```
@@ -1000,7 +994,7 @@ nevertheless differ. Existing mode line searches, analytic score contractions,
 constraints and outer optimization use the shared solve interface. Standalone
 nominal and mixed nominal analytic scores also use it.
 
-`task$glmm$backend` is `"auto"`, `"random"` or `"observation"`. Automatic
+`likelihood$backend` is `"auto"`, `"random"` or `"observation"`. Automatic
 selection uses predictor/random dimensions, a structural coupling estimate
 and memory admission, not elapsed-time measurements or estimator fallback.
 Observation covariance/root construction is reused until prior precision
@@ -1083,19 +1077,18 @@ fit_laplace <- mmes(
   random = ~ subject,
   data = dat,
   family = binomial(),
+  method = mmes_method(objective = "ml", integration = "laplace"),
   control = mmes_control(
-    task = list(objective = "ml",
-      glmm = list(method = "laplace",
-        maxit = 1000L, modeMaxit = 100L, modeTol = 1e-8))
-  )
+    optimizer = list(maxit = 1000L),
+    mode = list(maxit = 100L, tol = 1e-8))
 )
 logLik(fit_laplace)
 AIC(fit_laplace)
 fit_laplace$laplaceDiagnostics
 ```
 
-`maxit` controls the outer optimizer. `modeMaxit` and `modeTol` control the
-inner conditional-mode solve. These are GLMM-specific controls; Gaussian
+`optimizer$maxit` controls the outer optimizer. `mode$maxit` and `mode$tol` control the
+inner conditional-mode solve. Gaussian
 AI-REML iteration and proposal settings do not control the Laplace optimizer.
 Inspect the optimizer result, `convergence`, `gradient`,
 `laplaceDiagnostics`, and `executionPlan`, rather than treating a returned
@@ -1613,11 +1606,11 @@ or dropped.
 For example:
 
 ```r
-ctrl <- mmes_control(task=list(objective="ml",
-  glmm=list(method="laplace")))
+ctrl <- mmes_control()
 fit <- mmes(color ~ temperature,
   random=~vsm(ism(.nominalCategory), ism(group)),
-  data=dat, family=multinomial(reference="green"), control=ctrl)
+  data=dat, family=multinomial(reference="green"), control=ctrl,
+  method=mmes_method(objective="ml", integration="laplace"))
 ```
 
 The fitter creates `.nominalCategory` internally; it is not a column the user
@@ -1681,7 +1674,7 @@ panels supply these derivatives without building a full inverse or PEV.
 Invalid proposals and unsuccessful modes remain explicit.
 
 Controls stay in the existing `mmes_options`/`mmes_control()` system:
-`task$glmm` supplies mode iteration limits and tolerance,
+`likelihood` supplies mode iteration limits and tolerance,
 `execution$denseMemoryMB` limits admitted workspace, and
 `execution$blasThreads` controls evaluation threads. The fit
 requires Henderson Laplace ML in fit mode and `output$inverse=0`; it rejects

@@ -3,9 +3,9 @@
                             parameterTol=1e-4){
   data(DT_mohring, envir=environment())
   dataset <- add.diallel.vars(DT_mohring, par1="Par1", par2="Par2")
-  mmes(Ftime~1, random=~Block+vsm(ism(overlay(Par1, Par2)))+cross.id+
+  sommer:::.mmes_dispatch(Ftime~1, random=~Block+vsm(ism(overlay(Par1, Par2)))+cross.id+
     vsm(dsm(cross.type), ism(cross.id)), data=dataset,
-    control=mmes_control(formulation="direct",
+    control=sommer:::.mmes_control_internal(formulation="direct",
       update=list(blendWeight=blendWeight),
       proposal=list(stepWeight=stepWeight),
       convergence=list(maxIters=maxIters, likelihoodTol=likelihoodTol,
@@ -84,7 +84,7 @@ test_that("direct likelihood line search rejects decreasing covariance updates",
     c(1276.7585, 1111.0853, 66.02665, 418.46485))), 0.02)
 
   dataset <- data.frame(y=sin(seq_len(24L)))
-  backtracked <- mmes(y~1, rcov=~vsm(ism(units), sigma2=0.4), data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", proposal=list(stepWeight=100), convergence=list(maxIters=100L, likelihoodTol=1e-8, parameterTol=1e-8), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  backtracked <- sommer:::.mmes_dispatch(y~1, rcov=~vsm(ism(units), sigma2=0.4), data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", proposal=list(stepWeight=100), convergence=list(maxIters=100L, likelihoodTol=1e-8, parameterTol=1e-8), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_true(backtracked$convergence)
   expect_gt(backtracked$engineDiagnostics$direct$lineSearchHalvings, 0L)
   expect_true(all(diff(as.numeric(backtracked$llik)) > 0))
@@ -93,14 +93,14 @@ test_that("direct likelihood line search rejects decreasing covariance updates",
 
 test_that("direct active-set updates retain fixed and tied covariance coordinates", {
   data(DT_example)
-  fixed <- mmes(Yield~Env, random=~vsm(ism(Name), sigma2=2, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=1, fixedSigma2=TRUE), data=DT_example, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  fixed <- sommer:::.mmes_dispatch(Yield~Env, random=~vsm(ism(Name), sigma2=2, fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=1, fixedSigma2=TRUE), data=DT_example, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_true(fixed$convergence)
   expect_equal(unname(unlist(fixed$covPar)), c(2, 1))
   expect_equal(fixed$theta_se, matrix(0, 2L, 2L))
 
   dataset <- DT_example
   dataset$Name2 <- dataset$Name
-  tied <- mmes(Yield~Env, random=~Name+Name2, data=dataset, vcc=data.frame(parameter=1:2, group=1L, scale=c(2, 1)), control=mmes_control(formulation=if(FALSE) "henderson" else "direct", convergence=list(maxIters=100L, likelihoodTol=1e-8, parameterTol=1e-8), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  tied <- sommer:::.mmes_dispatch(Yield~Env, random=~Name+Name2, data=dataset, vcc=data.frame(parameter=1:2, group=1L, scale=c(2, 1)), control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", convergence=list(maxIters=100L, likelihoodTol=1e-8, parameterTol=1e-8), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_true(tied$convergence)
   expect_equal(tied$covPar[[1L]], 2*tied$covPar[[2L]], tolerance=1e-8, ignore_attr=TRUE)
   expect_equal(tied$monitor[1L, ], 2*tied$monitor[2L, ], tolerance=1e-8)

@@ -9,7 +9,7 @@ local({
     rm(".Random.seed",envir=.GlobalEnv),add=TRUE)
   set.seed(184)
   control <- function(warmStart="off",gradient="analytic",trace="panels",blocks="off")
-    mmes_control(task=list(objective="ml",
+    sommer:::.mmes_control_internal(task=list(objective="ml",
       glmm=list(method="laplace",backend="random",warmStart=warmStart,
         gradient=gradient,trace=trace,blocks=blocks,maxit=1000L,modeTol=1e-10)),
       execution=list(blasThreads=1L),diagnostics=list(verbose=FALSE,dateWarning=FALSE))
@@ -20,7 +20,7 @@ local({
     data <- data.frame(y=1,id=factor(seq_len(case$q)))
     settings <- control()
     settings$output$setup <- TRUE
-    prepared <- mmes(y~1,random=~vsm(ism(id),sigma2=.4),data=data,
+    prepared <- sommer:::.mmes_dispatch(y~1,random=~vsm(ism(id),sigma2=.4),data=data,
       family=poisson(),control=settings)
     fixed <- Matrix::Matrix(cbind(1,rnorm(case$n)),sparse=TRUE)
     z <- if(case$case=="dense-small")
@@ -70,7 +70,7 @@ local({
   data$x <- rnorm(nrow(data))
   eta <- .3+.25*data$x+rnorm(40,sd=.5)[data$id]
   data$y <- rpois(nrow(data),exp(eta))
-  full <- function(settings) mmes(y~x,random=~vsm(ism(id),sigma2=.3),
+  full <- function(settings) sommer:::.mmes_dispatch(y~x,random=~vsm(ism(id),sigma2=.3),
     data=data,family=poisson(),control=settings)
   choices <- list(cold=control(),warm=control(warmStart="auto"),
     selected=control(trace="selected"),blocks=control(blocks="on"))
@@ -99,7 +99,7 @@ local({
     out
   }))
   mixed$trait <- factor(mixed$trait,levels=c("count","ord","nom"))
-  fitMixed <- function(gradient) mmes(y~trait+trait:x-1,
+  fitMixed <- function(gradient) sommer:::.mmes_dispatch(y~trait+trait:x-1,
     random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),data=mixed,
     family=familym("trait",count=poisson(),ord=ordinal(),nom=multinomial()),
     control=control(gradient=gradient))

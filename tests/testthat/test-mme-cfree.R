@@ -3,19 +3,19 @@
     replicate=seq_len(3L))
   dataset$y <- sin(seq_len(nrow(dataset)) * 0.7) +
     as.integer(dataset$id) / 4 + as.integer(dataset$group) / 3
-  suppressMessages(mmes(y~group, random=~id, data=dataset, control=do.call(mmes_control, utils::modifyList(unclass(mmes_control(representation=list(equations="saddle-point"), output=list(coefficientMatrix=retain, covariance=information))), list(convergence=list(maxIters=3L), update=list(blendWeight=0), task=list(objective=if(REML) "reml" else "ml"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))))
+  suppressMessages(sommer:::.mmes_dispatch(y~group, random=~id, data=dataset, control=do.call(sommer:::.mmes_control_internal, utils::modifyList(unclass(sommer:::.mmes_control_internal(representation=list(equations="saddle-point"), output=list(coefficientMatrix=retain, covariance=information))), list(convergence=list(maxIters=3L), update=list(blendWeight=0), task=list(objective=if(REML) "reml" else "ml"), diagnostics=list(verbose=FALSE, dateWarning=FALSE)), keep.null=TRUE))))
 }
 
 test_that("coefficient-matrix retention defaults and controls validate", {
-  expect_true(mmes_control()$output$coefficientMatrix)
-  expect_error(mmes_control(output=list(coefficientMatrix=1)),
+  expect_true(sommer:::.mmes_control_internal()$output$coefficientMatrix)
+  expect_error(sommer:::.mmes_control_internal(output=list(coefficientMatrix=1)),
     "output\\$coefficientMatrix")
   dataset <- data.frame(y=seq_len(6L), id=factor(rep(seq_len(3L), 2L)))
-  expect_error(mmes(y~1, random=~id, data=dataset, control=mmes_control(
+  expect_error(sommer:::.mmes_dispatch(y~1, random=~id, data=dataset, control=sommer:::.mmes_control_internal(
     output=list(coefficientMatrix=FALSE, setup=TRUE),
     diagnostics=list(verbose=FALSE))),
     "saddle-point")
-  expect_error(mmes(y~1, random=~id, data=dataset, control=mmes_control(
+  expect_error(sommer:::.mmes_dispatch(y~1, random=~id, data=dataset, control=sommer:::.mmes_control_internal(
     representation=list(equations="saddle-point"),
     output=list(coefficientMatrix=FALSE, setup=TRUE, inverse=2L),
     diagnostics=list(verbose=FALSE))), "output\\$inverse=0")

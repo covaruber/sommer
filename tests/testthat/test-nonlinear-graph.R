@@ -138,8 +138,8 @@ test_that("graph validation, group maps and memory guards reject invalid request
     y=list(op="affine",inputs="x",weights=matrix(2L),bias=0L)),
     output="y",parameters="p"),"parameter indices")
   modified <- graph
-  modified$version <- 2L
+  modified$version <- 99L
   expect_error(nonlinear_graph_eval(modified,data,values),"versioned object")
   expect_error(nonlinear_graph_eval(graph,data,values,
-    control=mmes_control(execution=list(denseMemoryMB=.00001))),"workspace")
+    control=sommer:::.mmes_control_internal(execution=list(denseMemoryMB=.00001))),"workspace")
 })

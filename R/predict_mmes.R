@@ -445,7 +445,10 @@
 "predict.mmes" <- function(object, Dtable=NULL, D, levels=NULL, sed=FALSE,
                            pairwise=FALSE, adjust="none", df=Inf,
                            PEV=TRUE, VarU=TRUE, observed=FALSE,
-                           maxMemoryMB=NULL, ...){
+                           maxMemoryMB=NULL, target=NULL, ...){
+  if(!is.null(target) && !inherits(object,"mmes.glmm.laplace"))
+    stop("target currently applies to likelihood and nonlinear predictions; use the existing D/classify interface for Gaussian/PQL mixed models.",
+      call.=FALSE)
   if(inherits(object, "mmes.glmm.laplace")){
     scope <- .mmes_blas_scope(object$control$execution$blasThreads)
     on.exit(scope$restore(),add=TRUE)
@@ -458,7 +461,8 @@
         stop("Categorical familym() prediction does not support classify aggregation or Gaussian PEV/VarU flags; use post-fit se.fit/cov.fit or postPEV().",
           call.=FALSE)
       }
-      return(.laplace_mixed_predict(object, list(...)))
+      return(.laplace_mixed_predict(object,
+        .mmes_prediction_arguments(list(...),target)))
     }
     if(.laplace_is_nominal(object)){
       if(!missing(Dtable) || !missing(D) || !missing(levels) ||
@@ -469,7 +473,7 @@
         stop("Native multinomial predict() supports newdata, type, re.form, se.fit, cov.fit, uncertainty, PEV=FALSE and VarU=FALSE; classify-table aggregation is not supported.",
           call.=FALSE)
       }
-      predictionArgs <- list(...)
+      predictionArgs <- .mmes_prediction_arguments(list(...),target)
       if(length(predictionArgs) && (is.null(names(predictionArgs)) ||
          anyNA(names(predictionArgs)) || any(!nzchar(names(predictionArgs))) ||
          anyDuplicated(names(predictionArgs)) ||
@@ -612,7 +616,7 @@
       stop("Native Laplace predict() supports newdata, type, re.form, se.fit, cov.fit, PEV=FALSE and VarU=FALSE; aggregation and prediction uncertainty flags based on fitted PEV output are not implemented.",
         call.=FALSE)
     }
-    predictionArgs <- list(...)
+    predictionArgs <- .mmes_prediction_arguments(list(...),target)
     if(length(predictionArgs) && (is.null(names(predictionArgs)) ||
        anyNA(names(predictionArgs)) || any(!nzchar(names(predictionArgs))) ||
        anyDuplicated(names(predictionArgs)) ||

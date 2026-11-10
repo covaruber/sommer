@@ -9,8 +9,8 @@ gridAugmentData <- function(seed=11, drop=25, na=20){
 
 gridAugmentFit <- function(dat, mode, ..., rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
                            representation=list(), solve=list()){
-  mmes(y ~ trial, random=~geno, rcov=rcov, data=dat,
-       control=mmes_control(representation=utils::modifyList(list(gridAugment=mode), representation),
+  sommer:::.mmes_dispatch(y ~ trial, random=~geno, rcov=rcov, data=dat,
+       control=sommer:::.mmes_control_internal(representation=utils::modifyList(list(gridAugment=mode), representation),
                             solve=solve, convergence=list(maxIters=25),
                             diagnostics=list(verbose=FALSE, dateWarning=FALSE)), ...)
 }
@@ -68,8 +68,8 @@ test_that("grid augmentation keeps a single symbolic analysis and sparse grid bl
 test_that("grid augmentation matches with the ldlt solver and a single-trial residual", {
   dat <- droplevels(gridAugmentData(seed=13)[gridAugmentData(seed=13)$trial == "A", ])
   rcov <- ~vsm(ar1m(range), ar1m(row), ism(units))
-  fit <- function(mode) mmes(y ~ 1, random=~geno, rcov=rcov, data=dat,
-    control=mmes_control(representation=list(gridAugment=mode), solve=list(method="ldlt"),
+  fit <- function(mode) sommer:::.mmes_dispatch(y ~ 1, random=~geno, rcov=rcov, data=dat,
+    control=sommer:::.mmes_control_internal(representation=list(gridAugment=mode), solve=list(method="ldlt"),
                          convergence=list(maxIters=25), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   off <- fit("off")
   auto <- fit("auto")
@@ -93,13 +93,13 @@ test_that("banded sparse grid blocks match the dense grid path", {
 
 test_that("grid augmentation is skipped quietly or errors when forced on ineligible models", {
   dat <- gridAugmentData(seed=15)
-  ml <- mmes(y ~ trial, random=~geno, rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
-             data=dat, control=mmes_control(task=list(objective="ml"), convergence=list(maxIters=10),
+  ml <- sommer:::.mmes_dispatch(y ~ trial, random=~geno, rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
+             data=dat, control=sommer:::.mmes_control_internal(task=list(objective="ml"), convergence=list(maxIters=10),
                                             diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_false(isTRUE(ml$engineDiagnostics$gridAugmentation$active))
   expect_error(
-    mmes(y ~ trial, random=~geno, rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
-         data=dat, control=mmes_control(task=list(objective="ml"), representation=list(gridAugment="force"),
+    sommer:::.mmes_dispatch(y ~ trial, random=~geno, rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
+         data=dat, control=sommer:::.mmes_control_internal(task=list(objective="ml"), representation=list(gridAugment="force"),
                                         convergence=list(maxIters=10), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "gridAugment='force'")
 
@@ -112,8 +112,8 @@ test_that("the gridAugment option sets the default mode", {
   dat <- gridAugmentData(seed=16)
   old <- options(sommer.mme.gridAugment="off")
   on.exit(options(old), add=TRUE)
-  fit <- mmes(y ~ trial, random=~geno, rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
-              data=dat, control=mmes_control(convergence=list(maxIters=10), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  fit <- sommer:::.mmes_dispatch(y ~ trial, random=~geno, rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
+              data=dat, control=sommer:::.mmes_control_internal(convergence=list(maxIters=10), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_false(isTRUE(fit$engineDiagnostics$gridAugmentation$active))
 })
 
@@ -124,9 +124,9 @@ test_that("reduced-rank AI uses direct residual traces on augmented grids", {
   gEff <- rnorm(15)
   dat$y <- as.numeric(dat$trial) + gEff[as.integer(dat$geno)] * c(1, 0.8, 1.2)[as.integer(dat$trial)] + rnorm(nrow(dat))
   dat <- dat[-sample(nrow(dat), 15), ]
-  fit <- function(mode) mmes(y ~ trial, random=~vsm(rrm(trial, 1), ism(geno)) + vsm(dsm(trial), ism(geno)),
+  fit <- function(mode) sommer:::.mmes_dispatch(y ~ trial, random=~vsm(rrm(trial, 1), ism(geno)) + vsm(dsm(trial), ism(geno)),
     rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial), data=dat,
-    control=mmes_control(representation=list(gridAugment=mode), convergence=list(maxIters=6),
+    control=sommer:::.mmes_control_internal(representation=list(gridAugment=mode), convergence=list(maxIters=6),
                          diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   off <- suppressWarnings(fit("off"))
   auto <- suppressWarnings(fit("auto"))
@@ -150,9 +150,9 @@ test_that("FA grid traces prefer the selected inverse at ranks one to three", {
   for(rank in 1:3){
     shape <- fam(dat$trial, rank)
     fit <- function(mode, solver="cholmod", inverse=0L, budget=1000){
-      mmes(y ~ trial, random=~vsm(shape, ism(geno), Gu=precision),
+      sommer:::.mmes_dispatch(y ~ trial, random=~vsm(shape, ism(geno), Gu=precision),
         rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial), data=dat,
-        control=mmes_control(representation=list(gridAugment=mode),
+        control=sommer:::.mmes_control_internal(representation=list(gridAugment=mode),
           solve=list(method=solver, blockSchur="off"), output=list(inverse=inverse),
           execution=list(denseMemoryMB=budget,
                          memoryPolicy=if(budget < 1000) "limit" else "speed"),
@@ -202,10 +202,10 @@ test_that("augmented RR grids retain exact lookup fallbacks at higher ranks", {
   for(rank in 2:3){
     shape <- rrm(dat$trial, rank)
     fit <- function(mode){
-      mmes(y ~ trial, random=~vsm(shape, ism(geno), Gu=precision) +
+      sommer:::.mmes_dispatch(y ~ trial, random=~vsm(shape, ism(geno), Gu=precision) +
           vsm(dsm(trial), ism(geno), Gu=precision),
         rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial), data=dat,
-        control=mmes_control(representation=list(gridAugment=mode),
+        control=sommer:::.mmes_control_internal(representation=list(gridAugment=mode),
           solve=list(method="cholmod", blockSchur="off"),
           convergence=list(maxIters=4),
           diagnostics=list(verbose=FALSE, dateWarning=FALSE, profile="force")))

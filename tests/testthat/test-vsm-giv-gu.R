@@ -26,8 +26,8 @@ as_giv <- function(x, rowNames, df=FALSE){
 
 fit_giv <- function(Gu, data, maxIters=30L, formulation="henderson",
                     solver="auto"){
-  suppressMessages(mmes(y~1, random=~vsm(ism(id), Gu=Gu), rcov=~units,
-    data=data, control=mmes_control(formulation=formulation,
+  suppressMessages(sommer:::.mmes_dispatch(y~1, random=~vsm(ism(id), Gu=Gu), rcov=~units,
+    data=data, control=sommer:::.mmes_control_internal(formulation=formulation,
       convergence=list(maxIters=maxIters), solve=list(method=solver),
       diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
 }
@@ -71,7 +71,7 @@ test_that("3-column Gu works with multi-trait, direct engine and covm", {
   giv <- as_giv(fx$lower, fx$ids)
   DL <- rbind(data.frame(id=fx$data$id, trait="y", v=fx$data$y),
               data.frame(id=fx$data$id, trait="y2", v=fx$data$y2))
-  fm <- function(Gu) suppressMessages(mmes(v~trait, random=~vsm(usm(trait), ism(id), Gu=Gu), rcov=~vsm(dsm(trait), ism(units)), data=DL, control=mmes_control(convergence=list(maxIters=10), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
+  fm <- function(Gu) suppressMessages(sommer:::.mmes_dispatch(v~trait, random=~vsm(usm(trait), ism(id), Gu=Gu), rcov=~vsm(dsm(trait), ism(units)), data=DL, control=sommer:::.mmes_control_internal(convergence=list(maxIters=10), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
   expect_equal(unlist(fm(giv)$theta), unlist(fm(fx$Ginv)$theta), tolerance=1e-10)
 
   ref <- fit_giv(fx$Ginv, fx$data, maxIters=10L, formulation="direct")
@@ -80,7 +80,7 @@ test_that("3-column Gu works with multi-trait, direct engine and covm", {
 
   DT <- fx$data
   DT$id2 <- DT$id
-  fc <- function(Gu) suppressMessages(mmes(y~1, random=~covm(vsm(ism(id), Gu=Gu), vsm(ism(id2), Gu=Gu)), rcov=~units, data=DT, control=mmes_control(convergence=list(maxIters=5), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
+  fc <- function(Gu) suppressMessages(sommer:::.mmes_dispatch(y~1, random=~covm(vsm(ism(id), Gu=Gu), vsm(ism(id2), Gu=Gu)), rcov=~units, data=DT, control=sommer:::.mmes_control_internal(convergence=list(maxIters=5), diagnostics=list(verbose=FALSE, dateWarning=FALSE))))
   expect_equal(unlist(fc(giv)$theta), unlist(fc(fx$Ginv)$theta), tolerance=1e-10)
 })
 

@@ -1,6 +1,6 @@
 .direct_pql_control <- function(formulation="direct", warmStart=TRUE,
                                 objective="reml", inverse=0L, estimateTheta=FALSE){
-  mmes_control(formulation=formulation, task=list(objective=objective,
+  sommer:::.mmes_control_internal(formulation=formulation, task=list(objective=objective,
     pql=list(maxit=40L, tol=1e-8, warmStart=warmStart, estimateTheta=estimateTheta)),
     convergence=list(maxIters=80L, likelihoodTol=1e-7, parameterTol=1e-7),
     output=list(inverse=inverse),
@@ -31,7 +31,7 @@ test_that("direct PQL retains the sparse predictor without a Henderson fit", {
     original(...)
   }, .package="sommer")
   data <- .direct_pql_data()
-  fit <- mmes(count~x+offset(log(exposure)),
+  fit <- sommer:::.mmes_dispatch(count~x+offset(log(exposure)),
     random=~vsm(ism(group), sigma2=0.1, fixedSigma2=TRUE),
     data=data, family=poisson(), control=.direct_pql_control())
   expect_s3_class(fit, "mmes.glmm")
@@ -68,7 +68,7 @@ test_that("direct PQL without random effects reproduces independent GLMs", {
   for(case in cases){
     formula <- case[[1L]]
     family <- case[[2L]]
-    fit <- mmes(formula, data=data, family=family,
+    fit <- sommer:::.mmes_dispatch(formula, data=data, family=family,
       control=.direct_pql_control())
     frame <- model.frame(formula, data)
     response <- model.response(frame)
@@ -107,7 +107,7 @@ test_that("direct and Henderson PQL agree with structured covariance and missing
   attr(relationship, "inverse") <- TRUE
   for(objective in c("ml", "reml")){
     fits <- lapply(c("direct", "henderson"), function(formulation)
-      mmes(count~x+offset(log(exposure)),
+      sommer:::.mmes_dispatch(count~x+offset(log(exposure)),
         random=~vsm(ism(group), Gu=relationship, sigma2=0.1, fixedSigma2=TRUE),
         rcov=~vsm(ar1m(visit, rho=0.2, fixed=TRUE), ism(group)),
         W=precision, weights=~group, data=data, family=poisson(),
@@ -134,7 +134,7 @@ test_that("direct PQL estimates tied covariance parameters and warm starts consi
   data$count <- rpois(nrow(data), exp(0.5 + 0.1*data$x +
     rnorm(12L, sd=0.6)[data$group] + rnorm(8L, sd=0.4)[data$other]))
   fit <- function(formulation="direct", warmStart=TRUE)
-    mmes(count~x, random=~group+other, data=data, family=poisson(),
+    sommer:::.mmes_dispatch(count~x, random=~group+other, data=data, family=poisson(),
       vcc=data.frame(parameter=1:2, group=1L, scale=c(2, 1)),
       control=.direct_pql_control(formulation, warmStart))
   warm <- fit()
@@ -162,7 +162,7 @@ test_that("direct PQL supports mixed scalar traits and trait-specific dispersion
     transform(data, trait="positive", y=positive))
   long$trait <- factor(long$trait, levels=c("count", "positive"))
   fits <- lapply(c("direct", "henderson"), function(formulation)
-    mmes(y~trait+trait:x-1,
+    sommer:::.mmes_dispatch(y~trait+trait:x-1,
       random=~vsm(ism(group), sigma2=0.1, fixedSigma2=TRUE),
       rcov=~vsm(dsm(trait), ism(units)), data=long,
       family=familym("trait", count=poisson(), positive=Gamma("log")),
@@ -179,7 +179,7 @@ test_that("direct PQL estimates negative-binomial shape as well as GLM coefficie
   data <- data.frame(x=rnorm(200L))
   data$y <- rnbinom(nrow(data), size=1.5, mu=exp(0.4+0.3*data$x))
   reference <- MASS::glm.nb(y~x, data=data)
-  fit <- mmes(y~x, data=data, family=MASS::negative.binomial(1),
+  fit <- sommer:::.mmes_dispatch(y~x, data=data, family=MASS::negative.binomial(1),
     control=.direct_pql_control(estimateTheta=TRUE))
   expect_true(fit$pqlConverged)
   expect_equal(as.numeric(fit$b), unname(coef(reference)), tolerance=2e-6)
@@ -190,7 +190,7 @@ test_that("direct PQL estimates negative-binomial shape as well as GLM coefficie
 
 test_that("direct PQL exposes working-model inference without likelihood claims", {
   data <- .direct_pql_data()
-  fit <- mmes(count~x, random=~vsm(ism(group), sigma2=0.1, fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(count~x, random=~vsm(ism(group), sigma2=0.1, fixedSigma2=TRUE),
     data=data, family=poisson(), control=.direct_pql_control(inverse=2L))
   standardErrors <- summary(fit)$betas$Std.Error
   expect_length(standardErrors, nrow(fit$b))
@@ -212,7 +212,7 @@ test_that("direct PQL exposes working-model inference without likelihood claims"
 
 test_that("direct PQL coefficients and PEV agree with independent working-model algebra", {
   data <- .direct_pql_data()
-  fit <- mmes(count~x+offset(log(exposure)),
+  fit <- sommer:::.mmes_dispatch(count~x+offset(log(exposure)),
     random=~vsm(ism(group), sigma2=0.1, fixedSigma2=TRUE),
     data=data, family=poisson(), control=.direct_pql_control(inverse=2L))
   X <- as.matrix(fit$W[, seq_len(nrow(fit$b)), drop=FALSE])
@@ -236,7 +236,7 @@ test_that("direct PQL does not certify failed inner or unfinished outer iteratio
   innerControl <- .direct_pql_control()
   innerControl$convergence$maxIters <- 1L
   innerControl$task$pql$maxit <- 3L
-  expect_warning(inner <- mmes(count~x, random=~group, data=data,
+  expect_warning(inner <- sommer:::.mmes_dispatch(count~x, random=~group, data=data,
     family=poisson(), control=innerControl), "Direct PQL convergence was not certified")
   expect_false(inner$convergence)
   expect_false(inner$pqlConverged)
@@ -247,7 +247,7 @@ test_that("direct PQL does not certify failed inner or unfinished outer iteratio
 
   outerControl <- .direct_pql_control()
   outerControl$task$pql$maxit <- 1L
-  expect_warning(outer <- mmes(count~x,
+  expect_warning(outer <- sommer:::.mmes_dispatch(count~x,
     random=~vsm(ism(group), sigma2=0.1, fixedSigma2=TRUE),
     data=data, family=poisson(), control=outerControl),
     "Direct PQL convergence was not certified")
@@ -261,17 +261,17 @@ test_that("direct PQL does not certify failed inner or unfinished outer iteratio
 test_that("direct PQL validates weights and supports deferred inference", {
   data <- .direct_pql_data()
   control <- .direct_pql_control()
-  expect_error(mmes(count~x, data=data, family=poisson(),
+  expect_error(sommer:::.mmes_dispatch(count~x, data=data, family=poisson(),
     weights=~group, W=Matrix::Matrix(1, nrow(data), nrow(data), sparse=TRUE) +
       Matrix::Diagonal(nrow(data)), control=control),
     "nonzero entries across groups")
-  expect_warning(expect_error(mmes(count~x, data=data, family=poisson(),
+  expect_warning(expect_error(sommer:::.mmes_dispatch(count~x, data=data, family=poisson(),
     W=Matrix::Diagonal(nrow(data), x=-1), control=control),
     "positive definite"), "not positive definite")
-  expect_error(mmes(count~x, data=data, family=poisson(),
-    control=mmes_control(formulation="direct", output=list(inverse=1L))),
+  expect_error(sommer:::.mmes_dispatch(count~x, data=data, family=poisson(),
+    control=sommer:::.mmes_control_internal(formulation="direct", output=list(inverse=1L))),
     "inverse")
-  fit <- mmes(count~x, data=data, family=poisson(), control=control)
+  fit <- sommer:::.mmes_dispatch(count~x, data=data, family=poisson(), control=control)
   prediction <- predict(fit, D=matrix(c(1, 0), 1L), VarU=FALSE)
   expect_equal(as.numeric(prediction$vcov), fit$VarBeta[1L, 1L], tolerance=1e-8)
   expect_equal(as.matrix(postPEV(fit, mode=2L)$Ci), fit$VarBeta,

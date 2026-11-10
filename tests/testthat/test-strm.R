@@ -25,7 +25,7 @@ strmData <- function(){
 }
 
 strmFit <- function(random, d){
-  mmes(y~1, random=random, data=d, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(likelihoodTol=1e-10, parameterTol=1e-10, maxIters=100)))
+  sommer:::.mmes_dispatch(y~1, random=random, data=d, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE), convergence=list(likelihoodTol=1e-10, parameterTol=1e-10, maxIters=100)))
 }
 
 test_that("strm() with two terms reproduces covm()", {

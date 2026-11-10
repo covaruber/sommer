@@ -81,7 +81,7 @@ test_that("direct one-step EM matches independent ML and REML posterior moments"
       weighted=~vsm(ism(id), Gu=relationship, sigma2=0.8))
     arguments <- list(fixed=y~trait, random=random,
       rcov=~vsm(ism(units), sigma2=0.6), data=dataset,
-      control=mmes_control(formulation="direct",
+      control=sommer:::.mmes_control_internal(formulation="direct",
         task=list(objective=if(reml) "reml" else "ml"),
         update=list(blendWeight=1), proposal=list(stepWeight=1),
         convergence=list(maxIters=2L),
@@ -90,15 +90,15 @@ test_that("direct one-step EM matches independent ML and REML posterior moments"
       arguments$W <- Matrix::Matrix(
         0.2^abs(outer(seq_len(nrow(dataset)), seq_len(nrow(dataset)), "-")), sparse=TRUE)
     }
-    setupControl <- do.call(mmes_control, utils::modifyList(
+    setupControl <- do.call(sommer:::.mmes_control_internal, utils::modifyList(
       unclass(arguments$control), list(output=list(setup=TRUE)),
       keep.null=TRUE))
     setupArguments <- arguments
     setupArguments$control <- setupControl
-    setup <- do.call(mmes, setupArguments)
+    setup <- do.call(sommer:::.mmes_dispatch, setupArguments)
     reference <- .direct_em_reference(setup, dataset$y)
     if(shape == "diagonal") reference[[1L]] <- diag(diag(reference[[1L]]))
-    fit <- do.call(mmes, arguments)
+    fit <- do.call(sommer:::.mmes_dispatch, arguments)
     for(term in seq_along(reference)){
       expect_equal(unname(fit$theta[[term]]), reference[[term]], tolerance=1e-8,
         info=paste(reml, shape, term))
@@ -114,9 +114,9 @@ test_that("direct EM preserves fixed parameters and covariance ties", {
   dataset <- .direct_em_data()
   dataset$id2 <- dataset$id
   for(reml in c(TRUE, FALSE)){
-    fit <- mmes(y~trait, random=~vsm(ism(id), sigma2=0.8, fixedSigma2=TRUE), data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    fit <- sommer:::.mmes_dispatch(y~trait, random=~vsm(ism(id), sigma2=0.8, fixedSigma2=TRUE), data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_equal(unname(fit$covPar[[1L]]), 0.8, ignore_attr=TRUE)
-    tied <- mmes(y~trait, random=~id+id2, data=dataset, vcc=data.frame(parameter=1:2, group=1L, scale=c(2, 1)), control=mmes_control(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    tied <- sommer:::.mmes_dispatch(y~trait, random=~id+id2, data=dataset, vcc=data.frame(parameter=1:2, group=1L, scale=c(2, 1)), control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_equal(tied$monitor[1L, ], 2*tied$monitor[2L, ], tolerance=1e-8)
     expect_true(all(diff(as.numeric(tied$llik)) >= -1e-8))
   }
@@ -125,7 +125,7 @@ test_that("direct EM preserves fixed parameters and covariance ties", {
 test_that("direct EM retains fixed tiny variances and admits starts below the free scale floor", {
   dataset <- .direct_em_data()
   for(reml in c(TRUE, FALSE)) for(fixed in c(TRUE, FALSE)){
-    fit <- mmes(y~trait, random=~vsm(ism(id), sigma2=1e-10, fixedSigma2=fixed), data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    fit <- sommer:::.mmes_dispatch(y~trait, random=~vsm(ism(id), sigma2=1e-10, fixedSigma2=fixed), data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=1), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_true(all(diff(as.numeric(fit$llik)) >= -1e-8))
     if(fixed){
       expect_equal(as.numeric(fit$covPar[[1L]]) / 1e-10, 1, tolerance=1e-14)
@@ -139,7 +139,7 @@ test_that("direct blending and PX-GEM use true EM proposals", {
   dataset <- .direct_em_data()
   for(reml in c(TRUE, FALSE)) for(method in c("em", "pxem")){
     for(weight in list(0, 1, 0.4, c(1, 0.4, 0), 3)){
-      fit <- mmes(y~trait, random=~id, data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(recovery=method, blendWeight=weight), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+      fit <- sommer:::.mmes_dispatch(y~trait, random=~id, data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(recovery=method, blendWeight=weight), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
       expect_true(all(diff(as.numeric(fit$llik)) >= -1e-8))
       if(identical(weight, 0)){
         expect_equal(fit$engineDiagnostics$blend$eStepEvaluations, 0L)
@@ -157,11 +157,11 @@ test_that("direct blending and PX-GEM use true EM proposals", {
 
 test_that("direct AI-first recovery is lazy, resumes AI, and reports its trigger", {
   dataset <- .direct_em_data()
-  healthy <- mmes(y~trait, random=~id, data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  healthy <- sommer:::.mmes_dispatch(y~trait, random=~id, data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_equal(healthy$engineDiagnostics$blend$eStepEvaluations, 0L)
   expect_equal(healthy$engineDiagnostics$blend$qEvaluations, 0L)
   for(reml in c(TRUE, FALSE)) for(method in c("em", "pxem")){
-    fit <- mmes(y~trait, random=~id, data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(recovery=method), proposal=list(stepWeight=1e-7), convergence=list(maxIters=6L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    fit <- sommer:::.mmes_dispatch(y~trait, random=~id, data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(recovery=method), proposal=list(stepWeight=1e-7), convergence=list(maxIters=6L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     recovery <- fit$engineDiagnostics$recovery
     expect_identical(recovery$automatic, TRUE)
     expect_equal(recovery$iterations, 4L)
@@ -170,7 +170,7 @@ test_that("direct AI-first recovery is lazy, resumes AI, and reports its trigger
     expect_equal(fit$engineDiagnostics$blend$eStepEvaluations, 1L)
     expect_equal(fit$engineDiagnostics$blend$weights, c(0, 0, 0, 1, 0, 0))
     expect_false(fit$convergence)
-    setup <- mmes(y~trait, random=~id, data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    setup <- sommer:::.mmes_dispatch(y~trait, random=~id, data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", output=list(setup=TRUE), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_true(isTRUE(attr(setup$covStruct, "adaptiveRecovery")))
   }
 })
@@ -178,14 +178,14 @@ test_that("direct AI-first recovery is lazy, resumes AI, and reports its trigger
 test_that("direct exhausted AI searches and unreliable information recover explicitly", {
   dataset <- .direct_em_data()
   for(method in c("em", "pxem")){
-    recovered <- mmes(y~trait, random=~id, data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", update=list(recovery=method), proposal=list(stepWeight=1e-20), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    recovered <- sommer:::.mmes_dispatch(y~trait, random=~id, data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", update=list(recovery=method), proposal=list(stepWeight=1e-20), convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expect_equal(recovered$engineDiagnostics$recovery$iterations, c(1L, 2L))
     expect_true(all(recovered$engineDiagnostics$recovery$reasons == "line-search"))
     expect_equal(recovered$engineDiagnostics$recovery$accepted, 2L)
     expect_true(all(diff(as.numeric(recovered$llik)) > 0))
   }
   dataset$id2 <- dataset$id
-  regularized <- mmes(y~trait, random=~id+id2, data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  regularized <- sommer:::.mmes_dispatch(y~trait, random=~id+id2, data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", convergence=list(maxIters=3L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_gt(regularized$engineDiagnostics$recovery$regularizedAttempts, 0L)
   expect_gt(regularized$engineDiagnostics$recovery$regularizedAcceptedSteps, 0L)
   expect_true(all(diff(as.numeric(regularized$llik)) > 0))
@@ -196,7 +196,7 @@ test_that("direct residual-only EM returns analytical ML and REML estimates", {
   dataset$y <- 3 + 2*dataset$x + sin(seq_len(nrow(dataset)))
   errors <- residuals(lm(y~x, data=dataset))
   for(reml in c(TRUE, FALSE)){
-    fit <- mmes(y~x, data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=1), convergence=list(maxIters=100L, likelihoodTol=1e-10, parameterTol=1e-10), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+    fit <- sommer:::.mmes_dispatch(y~x, data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", task=list(objective=if(reml) "reml" else "ml"), update=list(blendWeight=1), convergence=list(maxIters=100L, likelihoodTol=1e-10, parameterTol=1e-10), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
     expected <- sum(errors^2) / (nrow(dataset)-if(reml) 2L else 0L)
     expect_true(fit$convergence)
     expect_equal(as.numeric(fit$covPar[[1L]]), expected, tolerance=1e-7)
@@ -209,9 +209,9 @@ test_that("direct EM keeps evaluated states, PEV, and original-scale inference c
   fitModel <- function(iterations=1L, inverse=0L, setup=FALSE, denseMemoryMB=NULL){
     execution <- if(is.null(denseMemoryMB)) list() else
       list(denseMemoryMB=denseMemoryMB)
-    mmes(y~trait, random=~vsm(ism(id), sigma2=0.8),
+    sommer:::.mmes_dispatch(y~trait, random=~vsm(ism(id), sigma2=0.8),
       rcov=~vsm(ism(units), sigma2=0.6), data=dataset,
-      control=mmes_control(formulation="direct", execution=execution,
+      control=sommer:::.mmes_control_internal(formulation="direct", execution=execution,
         update=list(blendWeight=1),
         convergence=list(maxIters=iterations), output=list(inverse=inverse,
           setup=setup), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -224,7 +224,7 @@ test_that("direct EM keeps evaluated states, PEV, and original-scale inference c
   expect_equal(length(initial$llik), 1L)
   expect_equal(initial$engineDiagnostics$blend$eStepEvaluations, 0L)
   fitted <- fitModel(iterations=4L, inverse=2L)
-  known <- mmes(y~trait, random=~vsm(ism(id), sigma2=as.numeric(fitted$covPar[[1L]]), fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=as.numeric(fitted$covPar[[2L]]), fixedSigma2=TRUE), data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", update=list(blendWeight=0), convergence=list(maxIters=1L), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+  known <- sommer:::.mmes_dispatch(y~trait, random=~vsm(ism(id), sigma2=as.numeric(fitted$covPar[[1L]]), fixedSigma2=TRUE), rcov=~vsm(ism(units), sigma2=as.numeric(fitted$covPar[[2L]]), fixedSigma2=TRUE), data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", update=list(blendWeight=0), convergence=list(maxIters=1L), output=list(inverse=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
   expect_equal(tail(as.numeric(fitted$llik), 1L), as.numeric(known$llik), tolerance=1e-9)
   expect_equal(fitted$bu, known$bu, tolerance=1e-9)
   expect_equal(fitted$VarBeta, known$VarBeta, tolerance=1e-9)
@@ -241,6 +241,6 @@ test_that("direct EM keeps evaluated states, PEV, and original-scale inference c
 test_that("direct EM evaluates residual callback failures explicitly", {
   dataset <- .direct_em_data()
   broken <- function(par) stop("intentional covariance callback failure")
-  expect_error(mmes(y~trait, random=~vsm(ownm(trait, fun=broken, par=0.2), ism(id)), data=dataset, control=mmes_control(formulation=if(FALSE) "henderson" else "direct", update=list(blendWeight=1), convergence=list(maxIters=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
+  expect_error(sommer:::.mmes_dispatch(y~trait, random=~vsm(ownm(trait, fun=broken, par=0.2), ism(id)), data=dataset, control=sommer:::.mmes_control_internal(formulation=if(FALSE) "henderson" else "direct", update=list(blendWeight=1), convergence=list(maxIters=2L), diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "intentional covariance callback failure")
 })

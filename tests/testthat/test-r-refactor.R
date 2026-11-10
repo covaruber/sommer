@@ -3,8 +3,8 @@ refactor_fit <- function(){
   data <- expand.grid(id=factor(paste0("g", seq_len(8))),
                       env=factor(c("a", "b")), rep=seq_len(2))
   data$y <- 2 + as.integer(data$env) + rnorm(nrow(data))
-  mmes(y~env, random=~id, data=data,
-       control=mmes_control(convergence=list(maxIters=4),
+  sommer:::.mmes_dispatch(y~env, random=~id, data=data,
+       control=sommer:::.mmes_control_internal(convergence=list(maxIters=4),
                             diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
 }
 
@@ -36,7 +36,7 @@ test_that("operation-local covariance solves agree with independent solves", {
 
 test_that("benchmark rows retain failures and actual convergence status", {
   calls <- 0L
-  local_mocked_bindings(mmes=function(..., control){
+  local_mocked_bindings(.mmes_dispatch=function(..., control){
     if(control$diagnostics$dateWarning) stop("unexpected date warning")
     if(isTRUE(control$diagnostics$fail)) stop("deliberate benchmark failure")
     calls <<- calls + 1L
@@ -45,7 +45,7 @@ test_that("benchmark rows retain failures and actual convergence status", {
          engineDiagnostics=list())
   }, .package="sommer")
   workload <- generate_mme_workload(n_ind=4L, n_levels=2L)
-  baseline <- mmes_control()
+  baseline <- sommer:::.mmes_control_internal()
   failed <- baseline
   failed$diagnostics$fail <- TRUE
   result <- run_mme_benchmark(workload,
@@ -74,7 +74,7 @@ test_that("benchmark parity compares final finite estimates, not histories", {
 
 test_that("timed benchmark failures retain a complete result row", {
   calls <- 0L
-  local_mocked_bindings(mmes=function(..., control){
+  local_mocked_bindings(.mmes_dispatch=function(..., control){
     calls <<- calls + 1L
     if(calls == 2L) stop("timed run failed")
     list(llik=-2, theta=list(1), bu=matrix(1), monitor=matrix(1),
@@ -83,7 +83,7 @@ test_that("timed benchmark failures retain a complete result row", {
   }, .package="sommer")
   workload <- generate_mme_workload(n_ind=4L, n_levels=2L)
   result <- run_mme_benchmark(workload,
-    engines=list(baseline=mmes_control(), candidate=mmes_control()),
+    engines=list(baseline=sommer:::.mmes_control_internal(), candidate=sommer:::.mmes_control_internal()),
     replications=1L, verbose=FALSE)$results
   expect_equal(nrow(result), 2L)
   expect_match(result$error[1L], "timed run failed")

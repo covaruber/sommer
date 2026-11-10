@@ -22,8 +22,8 @@ test_that("stackTraits builds stable trait and record coordinates", {
 test_that("multi-trait residual pairing is explicit or warns when implicit", {
   wide <- multivariateFixture()
   long <- stackTraits(wide, c("trait_a", "trait_b"), keep="id")
-  fitExplicit <- mmes(value~trait, random=~vsm(usm(trait), ism(id)), rcov=~vsm(usm(trait), ism(record)), data=long, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=20)))
-  fitImplicit <- mmes(value~trait, random=~vsm(usm(trait), ism(id)), rcov=~vsm(usm(trait), ism(units)), data=long, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=20)))
+  fitExplicit <- sommer:::.mmes_dispatch(value~trait, random=~vsm(usm(trait), ism(id)), rcov=~vsm(usm(trait), ism(record)), data=long, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE), convergence=list(maxIters=20)))
+  fitImplicit <- sommer:::.mmes_dispatch(value~trait, random=~vsm(usm(trait), ism(id)), rcov=~vsm(usm(trait), ism(units)), data=long, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE), convergence=list(maxIters=20)))
   expect_equal(unname(unlist(fitExplicit$covPar)),
                unname(unlist(fitImplicit$covPar)), tolerance=1e-8)
 
@@ -49,21 +49,21 @@ test_that("heterogeneous corgm and mixed-family PQL use trait dispersions", {
   expect_equal(length(descriptor$par), length(descriptor$free))
   expect_equal(length(descriptor$par), length(descriptor$par_names))
 
-  fit <- mmes(value~trait, random=~vsm(usm(trait), ism(id)), rcov=~vsm(corgm(trait, variance="heterogeneous"), ism(record)), family=familym("trait", disease=binomial(), yield=gaussian()), data=long, control=mmes_control(diagnostics=list(verbose=FALSE), convergence=list(maxIters=20), task=list(pql=list(maxit=6L))))
+  fit <- sommer:::.mmes_dispatch(value~trait, random=~vsm(usm(trait), ism(id)), rcov=~vsm(corgm(trait, variance="heterogeneous"), ism(record)), family=familym("trait", disease=binomial(), yield=gaussian()), data=long, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE), convergence=list(maxIters=20), task=list(pql=list(maxit=6L))))
   expect_s3_class(fit, "mmes.glmm")
   expect_equal(unname(fit$dispersion["disease"]), 1)
   expect_true(is.finite(fit$dispersion["yield"]))
   expect_true(all(is.finite(covmatrix_mmes(fit, 1L, se=FALSE)$correlation)))
   expect_match(
     tryCatch({
-      mmes(value~trait, random=~id, rcov=~vsm(usm(trait), ism(record)), family=familym("trait", disease=binomial(), yield=gaussian()), data=long, control=mmes_control(diagnostics=list(verbose=FALSE)))
+      sommer:::.mmes_dispatch(value~trait, random=~id, rcov=~vsm(usm(trait), ism(record)), family=familym("trait", disease=binomial(), yield=gaussian()), data=long, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE)))
       ""
     }, error=conditionMessage),
     "trait-specific variances"
   )
   long$trait <- factor(long$trait, levels=c("yield", "disease"))
   expect_error(
-    mmes(value~trait, random=~vsm(usm(trait), ism(id)), rcov=~vsm(corgm(trait, variance="heterogeneous"), ism(record)), family=familym("trait", disease=binomial(), yield=gaussian()), data=long, control=mmes_control(diagnostics=list(verbose=FALSE))),
+    sommer:::.mmes_dispatch(value~trait, random=~vsm(usm(trait), ism(id)), rcov=~vsm(corgm(trait, variance="heterogeneous"), ism(record)), family=familym("trait", disease=binomial(), yield=gaussian()), data=long, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE))),
     "first level of 'trait'"
   )
 })
@@ -78,13 +78,13 @@ test_that("weighted complete-block Kronecker residual agrees across engines", {
       random=~vsm(usm(trait), ism(id)),
       rcov=~vsm(usm(trait), ism(record)),
       data=long,
-      control=mmes_control(formulation=if(henderson) "henderson" else "direct",
+      control=sommer:::.mmes_control_internal(formulation=if(henderson) "henderson" else "direct",
         convergence=list(maxIters=25L, likelihoodTol=1e-10,
           parameterTol=1e-9),
         diagnostics=list(verbose=FALSE))
     )
     if(!missing(W) && !is.null(W)) args$W <- W
-    do.call(mmes, args)
+    do.call(sommer:::.mmes_dispatch, args)
   }
   henderson <- fit(TRUE)
   direct <- fit(FALSE)

@@ -1,5 +1,5 @@
 nonlinearGraphFitControl <- function(start=NULL){
-  mmes_control(task=list(objective="ml",nonlinear=list(start=start)),
+  sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(start=start)),
     convergence=list(maxIters=500L,likelihoodTol=1e-10,parameterTol=1e-8),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
 }
@@ -108,7 +108,7 @@ test_that("fixed graph fits preserve linear parity and expose fitted-model metho
   starts <- c(slope=0.65,intercept=1)
   set.seed(1001)
   rng <- .Random.seed
-  graphFit <- mmes(y~0,random=~group,data=linearData,nonlinear=graph,
+  graphFit <- sommer:::.mmes_dispatch(y~0,random=~group,data=linearData,nonlinear=graph,
     control=nonlinearGraphFitControl(starts))
   expect_identical(.Random.seed,rng)
   expect_true(graphFit$convergence)
@@ -138,7 +138,7 @@ test_that("fixed graph fits preserve linear parity and expose fitted-model metho
   populationSimulation <- simulate(graphFit,nsim=2L,seed=511L,
     re.form="population")
   expect_equal(dim(populationSimulation),c(nrow(linearData),2L))
-  repeatedFit <- mmes(y~0,random=~group,data=linearData,nonlinear=graph,
+  repeatedFit <- sommer:::.mmes_dispatch(y~0,random=~group,data=linearData,nonlinear=graph,
     control=nonlinearGraphFitControl(starts))
   expect_equal(repeatedFit$optimizer$par,graphFit$optimizer$par,tolerance=1e-10)
   profiled <- profile_nonlinear(graphFit,replications=1L)
@@ -151,9 +151,9 @@ test_that("fixed graph fits preserve linear parity and expose fitted-model metho
   missingPrediction <- linearData[1L,,drop=FALSE]
   missingPrediction$x <- NA_real_
   expect_error(predict(graphFit,newdata=missingPrediction),"finite numeric values")
-  expect_error(mmes(y~0,random=~group,data=linearData,nonlinear=graph,
+  expect_error(sommer:::.mmes_dispatch(y~0,random=~group,data=linearData,nonlinear=graph,
     control=nonlinearGraphFitControl()),"requires a complete named")
-  expect_error(mmes(y~0,random=~group,data=linearData,nonlinear=graph,
+  expect_error(sommer:::.mmes_dispatch(y~0,random=~group,data=linearData,nonlinear=graph,
     family=poisson(),control=nonlinearGraphFitControl(starts)),
     "requires Gaussian identity-link")
   boundedOutput <- nonlinear_graph(list(
@@ -161,23 +161,24 @@ test_that("fixed graph fits preserve linear parity and expose fitted-model metho
     hidden=list(op="affine",inputs="x",weights=matrix(1L),bias=2L),
     output=list(op="tanh",input="hidden")),output="output",
     parameters=c("slope","intercept"))
-  expect_error(mmes(y~0,random=~group,data=linearData,nonlinear=boundedOutput,
+  expect_error(sommer:::.mmes_dispatch(y~0,random=~group,data=linearData,nonlinear=boundedOutput,
     control=nonlinearGraphFitControl(c(slope=0.1,intercept=0.1))),
     "requires an identity output")
   randomGraph <- nonlinear_graph(graph$nodes,graph$output,graph$parameters,
     parameterMap=list(slope=list(type="random",group="group"),
       intercept=list(type="fixed")))
-  expect_error(mmes(y~0,random=~group,data=linearData,nonlinear=randomGraph,
-    control=nonlinearGraphFitControl(starts)),"requires fixed graph parameters")
+  expect_error(sommer:::.mmes_dispatch(y~0,random=~group,data=linearData,nonlinear=randomGraph,
+    control=nonlinearGraphFitControl(starts)),
+    "explicit random or joint covariance formulas")
   smallMemory <- nonlinearGraphFitControl(starts)
   smallMemory$execution$denseMemoryMB <- 0.0001
-  expect_error(mmes(y~0,random=~group,data=linearData,nonlinear=graph,
+  expect_error(sommer:::.mmes_dispatch(y~0,random=~group,data=linearData,nonlinear=graph,
     control=smallMemory),"workspace")
-  expect_error(mmes(y~1,random=~group,data=linearData,nonlinear=graph,
+  expect_error(sommer:::.mmes_dispatch(y~1,random=~group,data=linearData,nonlinear=graph,
     control=nonlinearGraphFitControl(starts)),"rank deficient")
   incomplete <- linearData
   incomplete$x[1L] <- NA_real_
-  filteredFit <- mmes(y~0,random=~group,data=incomplete,nonlinear=graph,
+  filteredFit <- sommer:::.mmes_dispatch(y~0,random=~group,data=incomplete,nonlinear=graph,
     control=nonlinearGraphFitControl(starts))
   expect_equal(nobs(filteredFit),nrow(incomplete)-1L)
   restored <- unserialize(serialize(graphFit,NULL))
@@ -204,9 +205,9 @@ test_that("graph composition matches a classical logistic fit",{
       shift=list(type="fixed"),
       halfAsymptote=list(type="fixed",transform="log")))
   graphStart <- c(halfRate=0.6,shift=-0.42,halfAsymptote=log(2))
-  graphFit <- mmes(y~0,random=~group,data=data,nonlinear=graph,
+  graphFit <- sommer:::.mmes_dispatch(y~0,random=~group,data=data,nonlinear=graph,
     control=nonlinearGraphFitControl(graphStart))
-  curveFit <- mmes(y~0,random=~group,data=data,
+  curveFit <- sommer:::.mmes_dispatch(y~0,random=~group,data=data,
     nonlinear=nonlinear_curve("x","logistic"),
     control=nonlinearGraphFitControl(c(asymptote=4,rate=1.2,midpoint=0.7)))
   expect_true(graphFit$convergence)
@@ -221,7 +222,7 @@ test_that("one- and two-hidden-layer graph fits recover predictions",{
   for(depth in 1:2){
     fixture <- nonlinearGraphFitFixture(depth,240L)
     start <- fixture$parameters+c(rep(0.01,length(fixture$parameters)))
-    fit <- mmes(y~0,random=~group,data=fixture$data,nonlinear=fixture$graph,
+    fit <- sommer:::.mmes_dispatch(y~0,random=~group,data=fixture$data,nonlinear=fixture$graph,
       control=nonlinearGraphFitControl(start))
     expect_true(fit$convergence)
     expect_true(fit$nonlinearDiagnostics$identified)

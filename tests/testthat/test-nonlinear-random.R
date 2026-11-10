@@ -17,7 +17,7 @@ nonlinearRandomData <- function(curve="exponential", parameter="rate", groups=16
 nonlinearRandomContext <- function(data, curve="exponential", parameter="rate",
     additive=NULL, random=~vsm(ism(group),sigma2=0.04), fixed=y~0, ...){
   model <- nonlinear_curve("x",curve,random=stats::setNames(list(random),parameter))
-  control <- mmes_control(task=list(objective="ml"),
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml"),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
   joint <- sommer:::.nonlinear_joint_formula(additive,model,data)
   prepared <- sommer:::.nonlinear_prepare(fixed,joint,data,control,
@@ -137,12 +137,12 @@ test_that("Laplace integration agrees with numerical integration and its Gaussia
 test_that("random curve fitting separates conditional, zero and population predictions",{
   data <- nonlinearRandomData()
   model <- nonlinear_curve("x",random=list(rate=~vsm(ism(group),sigma2=0.04)))
-  control <- mmes_control(task=list(objective="ml",nonlinear=list(
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(
     start=c(asymptote=4,rate=0.6))),
     convergence=list(maxIters=300L,likelihoodTol=1e-9,parameterTol=1e-7),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
   seed <- .Random.seed
-  fit <- mmes(y~0,data=data,nonlinear=model,control=control)
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=model,control=control)
   expect_true(fit$convergence)
   expect_identical(.Random.seed,seed)
   expect_equal(unname(coef(fit)),c(4,0.6),tolerance=0.1)
@@ -201,9 +201,9 @@ test_that("random curve contracts and failure diagnostics are explicit",{
     random=list(rate=~group,asymptote=~group))$version,3L)
   expect_error(nonlinear_curve("x",random=list(typo=~group)),"parameter-named")
   expect_error(nonlinear_curve("x",random=list(rate=~group+other)),"one-term")
-  expect_error(mmes_control(task=list(nonlinear=list(mode=list(warmStart="on")))),
+  expect_error(sommer:::.mmes_control_internal(task=list(nonlinear=list(mode=list(warmStart="on")))),
     "off")
-  expect_error(mmes_control(task=list(nonlinear=list(population=list(order=1)))),
+  expect_error(sommer:::.mmes_control_internal(task=list(nonlinear=list(population=list(order=1)))),
     "order>=2")
   data <- nonlinearRandomData(groups=3L)
   fixture <- nonlinearRandomContext(data,maxIters=1L)
@@ -212,8 +212,8 @@ test_that("random curve contracts and failure diagnostics are explicit",{
   expect_false(value$valid)
   expect_match(value$reason,"all deterministic mode starts failed")
   expect_error(nonlinearRandomContext(data,memoryMB=0.001),"workspace")
-  expect_error(mmes(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x"),
-    control=mmes_control(task=list(objective="ml",nonlinear=list(
+  expect_error(sommer:::.mmes_dispatch(y~0,random=~group,data=data,nonlinear=nonlinear_curve("x"),
+    control=sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(
       population=list(order=4L))))),"population controls require random curve")
 })
 
@@ -244,11 +244,11 @@ test_that("additive effects, fixed covariance and missingness survive random cur
   data$y <- data$y+c(-0.2,0,0.2)[data$cluster]
   data$x[3] <- NA
   data$y[7] <- NA
-  control <- mmes_control(task=list(objective="ml",nonlinear=list(
+  control <- sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(
     start=c(asymptote=4,rate=0.6))),
     convergence=list(maxIters=300L),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-  fit <- mmes(y~0,random=~vsm(ism(cluster),sigma2=0.04,fixedSigma2=TRUE),
+  fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(cluster),sigma2=0.04,fixedSigma2=TRUE),
     nonlinear=nonlinear_curve("x",random=list(rate=~vsm(ism(group),sigma2=0.04))),
     data=data,control=control)
   expect_true(fit$convergence)
@@ -266,7 +266,7 @@ test_that("additive effects, fixed covariance and missingness survive random cur
   expect_error(predict(fit,newdata=bad),"unseen")
   expect_error(predict(fit,newdata=bad,re.form="population"),"unseen")
   expect_length(predict(fit,newdata=bad,re.form=NA),1L)
-  expect_error(mmes(y~0,data=retained,nonlinear=nonlinear_curve("x",
+  expect_error(sommer:::.mmes_dispatch(y~0,data=retained,nonlinear=nonlinear_curve("x",
     random=list(rate=~vsm(ism(group),sigma2=0,fixedSigma2=TRUE))),
     control=control),"positive")
 })
@@ -282,10 +282,10 @@ test_that("other traditional curves and relationship predictions are serializabl
       ~vsm(ism(group),Gu=precision,sigma2=0.04,fixedSigma2=TRUE)),case[2]))
     start <- if(case[1]=="logistic") c(asymptote=4,rate=1.2,midpoint=3) else
       c(asymptote=4,half=0.6)
-    control <- mmes_control(task=list(objective="ml",nonlinear=list(start=start)),
+    control <- sommer:::.mmes_control_internal(task=list(objective="ml",nonlinear=list(start=start)),
       convergence=list(maxIters=300L),
       diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-    fit <- mmes(y~0,data=data,nonlinear=model,control=control)
+    fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=model,control=control)
     expect_true(fit$convergence)
     expect_equal(unname(coef(fit)),unname(start),tolerance=0.15)
     conditional <- predict(fit,newdata=data[1:4,])
@@ -306,7 +306,7 @@ test_that("population quadrature rejects unverified accuracy",{
     covStruct=fixture$prepared$covStruct[1],
     randomRelationships=fixture$prepared$Ai,nonlinear=fixture$model,
     nonlinearCoordinates=c(log(4),log(0.6)),
-    control=mmes_control(task=list(nonlinear=list(
+    control=sommer:::.mmes_control_internal(task=list(nonlinear=list(
       population=list(order=2L,maxOrder=4L,tol=1e-14)))))
   expect_error(sommer:::.nonlinear_population_prediction(object,data$x,
     fixture$layout$design),"did not meet")

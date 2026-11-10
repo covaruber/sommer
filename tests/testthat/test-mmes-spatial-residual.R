@@ -7,7 +7,7 @@ test_that("complete separable spatial residuals stay descriptor-only", {
   )
   dat$y <- rnorm(nrow(dat))
 
-  fit <- mmes(y ~ trial, rcov=~vsm(ar1m(range), ar1m(row), ism(units)), data=dat, control=mmes_control(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE)))
+  fit <- sommer:::.mmes_dispatch(y ~ trial, rcov=~vsm(ar1m(range), ar1m(row), ism(units)), data=dat, control=sommer:::.mmes_control_internal(convergence=list(maxIters=3), diagnostics=list(verbose=FALSE)))
 
   expect_true(fit$residualCovarianceCompact)
   expect_equal(dim(fit$theta[[1L]]), c(0L, 0L))
@@ -27,7 +27,7 @@ test_that("ragged spatial residual blocks stay compact and match the dense engin
   dat$y <- rnorm(nrow(dat))
 
   fitFor <- function(henderson){
-    mmes(y ~ trial, rcov=~vsm(dsm(trial), ar1m(range), ar1m(row), ism(units)), data=dat, control=mmes_control(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=15), diagnostics=list(verbose=FALSE)))
+    sommer:::.mmes_dispatch(y ~ trial, rcov=~vsm(dsm(trial), ar1m(range), ar1m(row), ism(units)), data=dat, control=sommer:::.mmes_control_internal(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=15), diagnostics=list(verbose=FALSE)))
   }
   compact <- fitFor(TRUE)
   dense <- fitFor(FALSE)
@@ -36,7 +36,7 @@ test_that("ragged spatial residual blocks stay compact and match the dense engin
   expect_equal(dim(compact$theta[[1L]]), c(0L, 0L))
   expect_equal(unlist(compact$covPar), unlist(dense$covPar), tolerance=1e-4)
 
-  layout <- mmes(y ~ trial, rcov=~vsm(dsm(trial), ar1m(range), ar1m(row), ism(units)), data=dat, control=mmes_control(output=list(setup=TRUE), diagnostics=list(verbose=FALSE)))
+  layout <- sommer:::.mmes_dispatch(y ~ trial, rcov=~vsm(dsm(trial), ar1m(range), ar1m(row), ism(units)), data=dat, control=sommer:::.mmes_control_internal(output=list(setup=TRUE), diagnostics=list(verbose=FALSE)))
   # A unique plot column must not split residual blocks.
   expect_equal(length(unique(layout$residualBlock)), 2L)
 })
@@ -65,7 +65,7 @@ spatial_dsumm <- ~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial)
 test_that("dsumm() estimates section-specific parameters exactly", {
   dat <- sectioned_trials(7)
   fitFor <- function(henderson){
-    mmes(y ~ trial, rcov=spatial_dsumm, data=dat, control=mmes_control(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=80, likelihoodTol=1e-10, parameterTol=1e-10), update=list(blendWeight=0), diagnostics=list(verbose=FALSE)))
+    sommer:::.mmes_dispatch(y ~ trial, rcov=spatial_dsumm, data=dat, control=sommer:::.mmes_control_internal(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=80, likelihoodTol=1e-10, parameterTol=1e-10), update=list(blendWeight=0), diagnostics=list(verbose=FALSE)))
   }
   grid <- fitFor(TRUE)
   dense <- fitFor(FALSE)
@@ -86,12 +86,12 @@ test_that("dsumm() estimates section-specific parameters exactly", {
 
 test_that("dsumm() separates into independent per-section fits", {
   dat <- sectioned_trials(8)
-  joint <- mmes(y ~ trial, rcov=spatial_dsumm, data=dat, control=mmes_control(convergence=list(maxIters=60, likelihoodTol=1e-9), diagnostics=list(verbose=FALSE)))
+  joint <- sommer:::.mmes_dispatch(y ~ trial, rcov=spatial_dsumm, data=dat, control=sommer:::.mmes_control_internal(convergence=list(maxIters=60, likelihoodTol=1e-9), diagnostics=list(verbose=FALSE)))
   native <- covparams_mmes(joint)
 
   for(section in levels(dat$trial)){
     sub <- droplevels(dat[dat$trial == section, ])
-    alone <- mmes(y ~ 1, rcov=~vsm(ar1m(range), ar1m(row), ism(units)), data=sub, control=mmes_control(convergence=list(maxIters=60, likelihoodTol=1e-9), diagnostics=list(verbose=FALSE)))
+    alone <- sommer:::.mmes_dispatch(y ~ 1, rcov=~vsm(ar1m(range), ar1m(row), ism(units)), data=sub, control=sommer:::.mmes_control_internal(convergence=list(maxIters=60, likelihoodTol=1e-9), diagnostics=list(verbose=FALSE)))
     expect_equal(native$estimate[native$section %in% section],
                  covparams_mmes(alone)$estimate, tolerance=1e-3)
   }
@@ -104,7 +104,7 @@ test_that("dsumm(levels=) gives unlisted sections an iid residual", {
   dat$row[dat$trial == "C"] <- NA
 
   fitFor <- function(henderson){
-    mmes(y ~ trial, rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial, levels=c("A", "B")), data=dat, control=mmes_control(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=80, likelihoodTol=1e-12, parameterTol=1e-12), diagnostics=list(verbose=FALSE)))
+    sommer:::.mmes_dispatch(y ~ trial, rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial, levels=c("A", "B")), data=dat, control=sommer:::.mmes_control_internal(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=80, likelihoodTol=1e-12, parameterTol=1e-12), diagnostics=list(verbose=FALSE)))
   }
   grid <- fitFor(TRUE)
   dense <- fitFor(FALSE)
@@ -123,7 +123,7 @@ test_that("dsumm() supports multi-parameter inner structures", {
                      id=factor(seq_len(15)))
   dat$y <- rnorm(nrow(dat))
   fitFor <- function(henderson){
-    mmes(y ~ site, rcov=~dsumm(vsm(usm(env), ism(units)), by=site), data=dat, control=mmes_control(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=80, likelihoodTol=1e-10, parameterTol=1e-10), diagnostics=list(verbose=FALSE)))
+    sommer:::.mmes_dispatch(y ~ site, rcov=~dsumm(vsm(usm(env), ism(units)), by=site), data=dat, control=sommer:::.mmes_control_internal(formulation=if(henderson) "henderson" else "direct", convergence=list(maxIters=80, likelihoodTol=1e-10, parameterTol=1e-10), diagnostics=list(verbose=FALSE)))
   }
   grid <- fitFor(TRUE)
   dense <- fitFor(FALSE)
@@ -134,16 +134,16 @@ test_that("dsumm() supports multi-parameter inner structures", {
 test_that("dsumm() validates its input", {
   dat <- sectioned_trials(9)
   expect_error(
-    mmes(y ~ trial, rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial,
-                                levels="Z"), data=dat, control=mmes_control(diagnostics=list(verbose=FALSE))),
+    sommer:::.mmes_dispatch(y ~ trial, rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial,
+                                levels="Z"), data=dat, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE))),
     "Unknown levels"
   )
   expect_error(
-    mmes(y ~ trial, random=~dsumm(vsm(ar1m(range), ism(row)), by=trial), data=dat, control=mmes_control(diagnostics=list(verbose=FALSE))),
+    sommer:::.mmes_dispatch(y ~ trial, random=~dsumm(vsm(ar1m(range), ism(row)), by=trial), data=dat, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE))),
     "residual vsm"
   )
   expect_error(
-    mmes(y ~ trial, rcov=~dsumm(vsm(ar1m(range), ism(units)), by=trial[-1]), data=dat, control=mmes_control(diagnostics=list(verbose=FALSE))),
+    sommer:::.mmes_dispatch(y ~ trial, rcov=~dsumm(vsm(ar1m(range), ism(units)), by=trial[-1]), data=dat, control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE))),
     "one value per observation"
   )
 })

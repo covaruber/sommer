@@ -1,5 +1,5 @@
 gaussianBlockControl <- function(setup=FALSE){
-  mmes_control(task=list(objective="ml",glmm=list(method="laplace",
+  sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace",
     modeTol=1e-10,maxit=1000L)),output=list(setup=setup),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
 }
@@ -32,7 +32,7 @@ gaussianBlockObjective <- function(fit,memoryMB=1000){
 
 test_that("structured Gaussian Laplace matches exact ML and joint coefficient covariance", {
   data <- gaussianBlockData()
-  fit <- mmes(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),
     data=data,family=gaussian(),control=gaussianBlockControl())
   expect_true(fit$convergence)
   expect_equal(fit$npar,5L)
@@ -73,8 +73,8 @@ test_that("structured Gaussian Laplace matches exact ML and joint coefficient co
   }
   expect_equal(fit$llik,independent(fit$optimizer$par),tolerance=1e-10)
   expect_lt(max(abs(objective(fit$optimizer$par)$gradient)),.01)
-  reference <- mmes(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),data=data,
-    control=mmes_control(task=list(objective="ml"),
+  reference <- sommer:::.mmes_dispatch(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),data=data,
+    control=sommer:::.mmes_control_internal(task=list(objective="ml"),
       diagnostics=list(verbose=FALSE,dateWarning=FALSE)))
   expect_true(reference$convergence)
   expect_equal(as.numeric(fit$b),as.numeric(reference$b),tolerance=1e-4)
@@ -116,14 +116,14 @@ test_that("Gaussian W and block metadata preserve filtering and covariance seman
   W <- Matrix::bdiag(replicate(24,matrix(c(2,.1,0,.1,1,.1,0,.1,1.5),3),simplify=FALSE))
   data$y[2] <- NA
   data$x[8] <- NA
-  fit <- mmes(y~x,random=~id,rcov=~vsm(ar1m(time,rho=.3),ism(id)),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~id,rcov=~vsm(ar1m(time,rho=.3),ism(id)),
     W=W,weights=~id,data=data,family=gaussian(),control=gaussianBlockControl())
   expect_true(fit$convergence)
   expect_identical(which(!fit$obsInfo$included),c(2L,8L))
   expect_equal(fit$laplaceResidual$originalRows,which(fit$obsInfo$included))
   expect_equal(nrow(fit$laplaceResidual$W),nrow(data)-2L)
   retained <- data[fit$obsInfo$included,,drop=FALSE]
-  explicit <- mmes(y~x,random=~id,rcov=~vsm(ar1m(time,rho=.3),ism(id)),
+  explicit <- sommer:::.mmes_dispatch(y~x,random=~id,rcov=~vsm(ar1m(time,rho=.3),ism(id)),
     W=W[fit$obsInfo$included,fit$obsInfo$included],weights=~id,
     data=retained,family=gaussian(),control=gaussianBlockControl())
   expect_equal(fit$llik,explicit$llik,tolerance=1e-8)
@@ -148,15 +148,15 @@ test_that("Gaussian W and block metadata preserve filtering and covariance seman
   }
   bad <- W
   bad[1,4] <- bad[4,1] <- .1
-  expect_error(mmes(y~x,random=~id,W=bad,weights=~id,data=data,
+  expect_error(sommer:::.mmes_dispatch(y~x,random=~id,W=bad,weights=~id,data=data,
     family=gaussian(),control=gaussianBlockControl()),"across groups")
 })
 
 test_that("W alone activates a Gaussian residual descriptor without changing the model scale", {
   data <- gaussianBlockData()
-  independent <- mmes(y~x,random=~id,data=data,family=gaussian(),
+  independent <- sommer:::.mmes_dispatch(y~x,random=~id,data=data,family=gaussian(),
     control=gaussianBlockControl())
-  weighted <- mmes(y~x,random=~id,data=data,family=gaussian(),
+  weighted <- sommer:::.mmes_dispatch(y~x,random=~id,data=data,family=gaussian(),
     W=2*Matrix::Diagonal(nrow(data)),weights=~id,control=gaussianBlockControl())
   expect_true(weighted$convergence)
   expect_null(independent$laplaceResidual)
@@ -172,7 +172,7 @@ test_that("W alone activates a Gaussian residual descriptor without changing the
 
 test_that("Gaussian block simulation and residual diagnostics use the fitted joint covariance", {
   data <- gaussianBlockData()
-  fit <- mmes(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),
     data=data,family=gaussian(),control=gaussianBlockControl())
   R <- sommer:::.laplace_residual_matrix(fit)
   expect_equal(residuals(fit,"pearson"),(fit$y-fitted(fit))/sqrt(diag(R)))
@@ -211,7 +211,7 @@ test_that("Gaussian trait blocks estimate cross-trait residual covariance withou
     trait=factor(rep(c("first","second"),each=records)),
     record=factor(rep(seq_len(records),2)),
     group=factor(rep(rep(1:10,each=3),2)))
-  fit <- mmes(y~trait-1,random=~group,
+  fit <- sommer:::.mmes_dispatch(y~trait-1,random=~group,
     rcov=~vsm(usm(trait),ism(record)),data=data,
     family=familym("trait",first=gaussian(),second=gaussian()),
     control=gaussianBlockControl())
@@ -261,7 +261,7 @@ test_that("Gaussian residual blocks coexist with scalar, ordinal and nominal lik
   data$trait <- factor(data$trait,levels=c("gauss","count","ord","nom"))
   family <- familym("trait",gauss=gaussian(),count=poisson(),ord=ordinal(),
     nom=multinomial(reference="3"))
-  fit <- mmes(y~trait+trait:x-1,
+  fit <- sommer:::.mmes_dispatch(y~trait+trait:x-1,
     random=~vsm(ism(group),sigma2=.25,fixedSigma2=TRUE),
     rcov=~vsm(ar1m(time),ism(group)),family=family,data=data,
     control=gaussianBlockControl())
@@ -292,7 +292,7 @@ test_that("Gaussian residual blocks coexist with scalar, ordinal and nominal lik
   analyticData$y[countRows] <- rnbinom(sum(countRows),size=.8,
     mu=exp(.5+.2*analyticData$x[countRows]+random))
   analyticFamily <- familym("trait",gauss=gaussian(),count=nbinom2(2),ord=ordinal())
-  analytic <- mmes(y~trait+trait:x-1,
+  analytic <- sommer:::.mmes_dispatch(y~trait+trait:x-1,
     random=~vsm(ism(group),sigma2=.25,fixedSigma2=TRUE),
     rcov=~vsm(ar1m(time),ism(group)),family=analyticFamily,data=analyticData,
     control=gaussianBlockControl())
@@ -314,7 +314,7 @@ test_that("Gaussian residual blocks coexist with scalar, ordinal and nominal lik
   W <- Matrix::Diagonal(nrow(incomplete))
   W[gaussianRows,gaussianRows] <- 2*Matrix::Diagonal(length(gaussianRows))
   prepare <- function(weight)
-    mmes(y~trait+trait:x-1,random=~group,
+    sommer:::.mmes_dispatch(y~trait+trait:x-1,random=~group,
       rcov=~vsm(ar1m(time),ism(group)),family=family,data=incomplete,
       W=weight,weights=~group,control=gaussianBlockControl(TRUE))
   setup <- prepare(W)
@@ -336,9 +336,9 @@ test_that("fixed Gaussian residual descriptors give exact GLS uncertainty and ne
   random <- ~vsm(ism(id),sigma2=.8,fixedSigma2=TRUE)
   residual <- ~vsm(ar1m(time,rho=.35,fixed=TRUE),ism(id),
     sigma2=.6,fixedSigma2=TRUE)
-  fit <- mmes(y~x,random=random,rcov=residual,family=gaussian(),data=data,
+  fit <- sommer:::.mmes_dispatch(y~x,random=random,rcov=residual,family=gaussian(),data=data,
     control=gaussianBlockControl())
-  smaller <- mmes(y~1,random=random,rcov=residual,family=gaussian(),data=data,
+  smaller <- sommer:::.mmes_dispatch(y~1,random=random,rcov=residual,family=gaussian(),data=data,
     control=gaussianBlockControl())
   expect_true(fit$convergence)
   expect_equal(fit$npar,2L)
@@ -358,11 +358,11 @@ test_that("fixed Gaussian residual descriptors give exact GLS uncertainty and ne
   expect_equal(ncol(bootstrap$draws),2L)
   expect_equal(sommer:::.boot_mmes_refit(fit,fit$y,1000L)$logLik,fit$llik,
     tolerance=1e-8)
-  section <- mmes(y~x,random=random,
+  section <- sommer:::.mmes_dispatch(y~x,random=random,
     rcov=~dsumm(vsm(ar1m(time,rho=.35,fixed=TRUE),ism(id),
       sigma2=.6,fixedSigma2=TRUE),by=trial),
     data=data,family=gaussian(),control=gaussianBlockControl())
-  heterogeneous <- mmes(y~x,random=random,
+  heterogeneous <- sommer:::.mmes_dispatch(y~x,random=random,
     rcov=~vsm(dsm(trial),ar1m(time,rho=.35,fixed=TRUE),ism(id),
       sigma2=.6,fixedSigma2=TRUE),
     data=data,family=gaussian(),control=gaussianBlockControl())
@@ -372,7 +372,7 @@ test_that("fixed Gaussian residual descriptors give exact GLS uncertainty and ne
     sommer:::.laplace_residual_matrix(section),tolerance=1e-10)
   expect_equal(sommer:::.boot_mmes_refit(section,section$y,1000L)$logLik,
     section$llik,tolerance=1e-8)
-  estimated <- mmes(y~x,random=random,
+  estimated <- sommer:::.mmes_dispatch(y~x,random=random,
     rcov=~dsumm(vsm(ar1m(time,rho=.35,fixed=TRUE),ism(id),
       sigma2=.6),by=trial),data=data,family=gaussian(),
     control=gaussianBlockControl())
@@ -396,31 +396,31 @@ test_that("fixed Gaussian residual descriptors give exact GLS uncertainty and ne
 test_that("Gaussian residual blocks reject incompatible inputs and retain random vcc constraints", {
   data <- gaussianBlockData()
   data$block <- factor(rep(1:6,length.out=nrow(data)))
-  fit <- mmes(y~x,random=~id+block,rcov=~vsm(ar1m(time),ism(id)),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~id+block,rcov=~vsm(ar1m(time),ism(id)),
     vcc=data.frame(parameter=1:2,group=1,scale=c(2,1)),
     family=gaussian(),data=data,control=gaussianBlockControl())
   expect_equal(fit$covPar[[1]],2*fit$covPar[[2]],tolerance=1e-10)
   expect_equal(fit$laplaceParameterLayout$covarianceCount,3L)
   evaluate <- gaussianBlockObjective(fit)
   expect_equal(evaluate(fit$optimizer$par)$logLik,fit$llik)
-  setup <- mmes(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),
+  setup <- sommer:::.mmes_dispatch(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),
     family=gaussian(),data=data,control=gaussianBlockControl(TRUE))
   expect_equal(setup$vcParams$term[2:3],rep("residual",2))
-  expect_error(mmes(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),
+  expect_error(sommer:::.mmes_dispatch(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),
     family=gaussian(),data=data,
-    control=mmes_control(task=list(objective="ml",glmm=list(method="laplace",
+    control=sommer:::.mmes_control_internal(task=list(objective="ml",glmm=list(method="laplace",
       familyParameters=list(dispersion=1,estimate=FALSE))),
       diagnostics=list(verbose=FALSE,dateWarning=FALSE))),"own their dispersion")
   asymmetric <- diag(nrow(data))
   asymmetric[1,2] <- .1
-  expect_error(mmes(y~x,random=~id,W=asymmetric,data=data,family=gaussian(),
+  expect_error(sommer:::.mmes_dispatch(y~x,random=~id,W=asymmetric,data=data,family=gaussian(),
     control=gaussianBlockControl()),"symmetric")
-  expect_error(mmes(y~x,random=~id,W=-diag(nrow(data)),data=data,family=gaussian(),
+  expect_error(sommer:::.mmes_dispatch(y~x,random=~id,W=-diag(nrow(data)),data=data,family=gaussian(),
     control=gaussianBlockControl()),"positive definite")
-  expect_error(mmes(y~x,random=~id,weights=~id,data=data,family=gaussian(),
+  expect_error(sommer:::.mmes_dispatch(y~x,random=~id,weights=~id,data=data,family=gaussian(),
     control=gaussianBlockControl()),"provide W")
   data$time[2] <- NA
-  filtered <- mmes(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),data=data,
+  filtered <- sommer:::.mmes_dispatch(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),data=data,
     family=gaussian(),control=gaussianBlockControl())
   expect_equal(which(!filtered$obsInfo$included),2L)
   expect_equal(filtered$obsInfo$reason[2],"missing residual coordinate")
@@ -431,7 +431,7 @@ test_that("ambiguous W subset dimensions cannot silently change observation alig
   data$trait <- factor(rep(c("gauss","count"),each=36))
   data$y[data$trait=="count"] <- round(abs(data$y[data$trait=="count"]))+1
   data$x[-c(1:33,37:39)] <- NA
-  prepare <- function(W) mmes(y~trait+x,random=~id,
+  prepare <- function(W) sommer:::.mmes_dispatch(y~trait+x,random=~id,
     rcov=~vsm(ar1m(time),ism(id)),data=data,W=W,
     family=familym("trait",gauss=gaussian(),count=poisson()),
     control=gaussianBlockControl(TRUE))
@@ -447,7 +447,7 @@ test_that("Gaussian residual post-fit operations scope and restore saved BLAS co
   local_mocked_bindings(.mmes_blas_controller=function() controller,.package="sommer")
   control <- gaussianBlockControl()
   control$execution$blasThreads <- 1L
-  fit <- mmes(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),
+  fit <- sommer:::.mmes_dispatch(y~x,random=~id,rcov=~vsm(ar1m(time),ism(id)),
     data=gaussianBlockData(),family=gaussian(),control=control)
   expect_identical(configured,4L)
   operations <- list(vcov,postPEV,function(object) simulate(object,nsim=2,seed=1),

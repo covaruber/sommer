@@ -5,8 +5,8 @@
     cultivar=factor(c("early", "early", "late", "late", "late", "late", "late", "early"))
   )
   expect_warning(
-    fittedModel <- mmes(response ~ locale + locale:cultivar, data=records,
-      control=mmes_control(representation=list(fixedRank="drop"),
+    fittedModel <- sommer:::.mmes_dispatch(response ~ locale + locale:cultivar, data=records,
+      control=sommer:::.mmes_control_internal(representation=list(fixedRank="drop"),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "rank reduction"
   )
@@ -115,9 +115,9 @@ test_that("observed prediction does not silently reinterpret custom rules", {
   records$response <- 10 + as.integer(records$locale) +
     c(-2, 1, 3)[as.integer(records$block)] + rnorm(nrow(records), sd=0.4)
   expect_warning(
-    fittedModel <- mmes(response ~ locale + locale:cultivar,
+    fittedModel <- sommer:::.mmes_dispatch(response ~ locale + locale:cultivar,
       random=if(structured) ~vsm(dsm(locale), ism(block)) else ~block,
-      data=records, control=mmes_control(representation=list(fixedRank="drop"),
+      data=records, control=sommer:::.mmes_control_internal(representation=list(fixedRank="drop"),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "rank reduction")
   fittedModel
@@ -265,9 +265,9 @@ test_that("observed fixed predictions exclude random effects and retain numeric 
     2 * records$temperature + rep(rnorm(6L), length.out=nrow(records)) +
     rnorm(nrow(records))
   expect_warning(
-    fittedModel <- mmes(response ~ locale + locale:cultivar + temperature,
+    fittedModel <- sommer:::.mmes_dispatch(response ~ locale + locale:cultivar + temperature,
       random=~lineage, data=records,
-      control=mmes_control(representation=list(fixedRank="drop"),
+      control=sommer:::.mmes_control_internal(representation=list(fixedRank="drop"),
         diagnostics=list(verbose=FALSE, dateWarning=FALSE))),
     "rank reduction"
   )

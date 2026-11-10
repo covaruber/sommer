@@ -7,7 +7,7 @@
 }
 
 .crossfit_fit <- function(dataset, state=NULL, export=FALSE, iterations=2L){
-  suppressMessages(mmes(y~x, random=~id, data=dataset, control=mmes_control(
+  suppressMessages(sommer:::.mmes_dispatch(y~x, random=~id, data=dataset, control=sommer:::.mmes_control_internal(
     score=list(traceProbes=12L), logdet=list(lanczosSteps=40L),
     solve=list(method="pcg", recycleRank=4L, recycleMethod="krylov",
       recycleState=state, exportRecycle=export),
@@ -16,22 +16,22 @@
 }
 
 test_that("cross-fit recycle controls reject invalid or incompatible requests", {
-  expect_null(mmes_control()$solve$recycleState)
-  expect_false(mmes_control()$solve$exportRecycle)
+  expect_null(sommer:::.mmes_control_internal()$solve$recycleState)
+  expect_false(sommer:::.mmes_control_internal()$solve$exportRecycle)
   for(value in list(NA, 1, logical(), c(TRUE, FALSE))){
-    expect_error(mmes_control(solve=list(exportRecycle=value)), "exportRecycle")
+    expect_error(sommer:::.mmes_control_internal(solve=list(exportRecycle=value)), "exportRecycle")
   }
-  expect_error(mmes_control(solve=list(exportRecycle=TRUE)), "positive solve\\$recycleRank")
-  expect_error(mmes_control(solve=list(recycleState=list())), "valid exported")
+  expect_error(sommer:::.mmes_control_internal(solve=list(exportRecycle=TRUE)), "positive solve\\$recycleRank")
+  expect_error(sommer:::.mmes_control_internal(solve=list(recycleState=list())), "valid exported")
   pcg <- list(recycleRank=4L, recycleMethod="krylov", exportRecycle=TRUE)
   for(solver in c("auto", "ldlt", "cholmod")){
-    expect_error(suppressMessages(mmes(y~x, random=~id, data=.crossfit_data(),
-      control=mmes_control(solve=c(list(method=solver), pcg),
+    expect_error(suppressMessages(sommer:::.mmes_dispatch(y~x, random=~id, data=.crossfit_data(),
+      control=sommer:::.mmes_control_internal(solve=c(list(method=solver), pcg),
         output=list(setup=TRUE), diagnostics=list(verbose=FALSE)))),
       "solve\\$method='pcg'")
   }
-  expect_error(suppressMessages(mmes(y~x, random=~id, data=.crossfit_data(),
-    control=mmes_control(solve=c(list(method="pcg"), pcg),
+  expect_error(suppressMessages(sommer:::.mmes_dispatch(y~x, random=~id, data=.crossfit_data(),
+    control=sommer:::.mmes_control_internal(solve=c(list(method="pcg"), pcg),
       task=list(mode="solve"), diagnostics=list(verbose=FALSE)))),
     "task\\$mode='solve'")
 })
@@ -83,6 +83,6 @@ test_that("cross-fit states reject changed coefficient coordinates and malformed
   malformed <- state
   malformed$basis[,] <- 0
   expect_error(.crossfit_fit(dataset, malformed), "no independent directions")
-  expect_error(mmes_control(solve=list(recycleState=state,
+  expect_error(sommer:::.mmes_control_internal(solve=list(recycleState=state,
     recycleMethod="krylov", recycleRank=1L)), "rank exceeds")
 })

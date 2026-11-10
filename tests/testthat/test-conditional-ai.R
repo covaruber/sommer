@@ -15,10 +15,10 @@
     shared=shared,variance=variance)
   se <- fam(data$trait,2,loadings=L*.7,specific=rep(.8,4),
     shared=shared,variance=variance)
-  control <- mmes_control(representation=list(equations="conditional"),
+  control <- sommer:::.mmes_control_internal(representation=list(equations="conditional"),
     output=list(inverse=0,covariance="none",coefficientMatrix=FALSE,setup=TRUE),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-  setup <- mmes(y~trait+x,random=~vsm(sg,ism(id),Gu=precision),
+  setup <- sommer:::.mmes_dispatch(y~trait+x,random=~vsm(sg,ism(id),Gu=precision),
     rcov=~vsm(se,ism(record)),data=data,control=control)
   model <- sommer:::.conditional_fa_prepare(setup$X,setup$Z,setup$Ai,setup$yvar,
     setup$residualBlock,setup$residualIndex,setup$covStruct)
@@ -88,11 +88,11 @@ test_that("conditional factor solves reuse the current numeric factorization",{
 
 test_that("conditional representation selects AI independently of legacy EM",{
   fixture <- .conditional_ai_fixture("axes")
-  control <- mmes_control(representation=list(equations="conditional"),
+  control <- sommer:::.mmes_control_internal(representation=list(equations="conditional"),
     convergence=list(maxIters=8L),
     output=list(covariance="none",coefficientMatrix=FALSE),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-  expect_warning(fit <- mmes(y~trait+x,
+  expect_warning(fit <- sommer:::.mmes_dispatch(y~trait+x,
     random=~vsm(fam(trait,1,shared="axes"),ism(id)),
     rcov=~vsm(fam(trait,1,shared="axes"),ism(record)),
     data=fixture$data,control=control),"did not converge")
@@ -104,8 +104,8 @@ test_that("conditional representation selects AI independently of legacy EM",{
   expect_identical(fit$executionPlan$representation$equations,"conditional")
   expect_equal(fit$conditionalFA$state$weightG+fit$conditionalFA$state$weightE,
     rep(1,1))
-  expect_error(mmes_control(update=list(method="em")),"requires representation")
-  expect_error(mmes_control(representation=list(equations="conditional"),
+  expect_error(sommer:::.mmes_control_internal(update=list(method="em")),"requires representation")
+  expect_error(sommer:::.mmes_control_internal(representation=list(equations="conditional"),
     proposal=list(extrapolation="aitken")),"Incompatible")
 })
 
@@ -114,10 +114,10 @@ test_that("conditional AI enforces numerical bounds with projected-score converg
   data <- fixture$data
   data$y <- as.integer(data$trait)+.2*data$x
   sg <- fam(data$trait,1,fixed=rep(TRUE,7L))
-  fit <- mmes(y~trait+x,
+  fit <- sommer:::.mmes_dispatch(y~trait+x,
     random=~vsm(sg,ism(id),sigma2=1,fixedSigma2=TRUE),
     rcov=~vsm(ism(units),sigma2=.5),data=data,
-    control=mmes_control(representation=list(equations="conditional"),
+    control=sommer:::.mmes_control_internal(representation=list(equations="conditional"),
       convergence=list(maxIters=80L,parameterTol=1e-8),
       output=list(covariance="none",coefficientMatrix=FALSE),
       execution=list(inverseTol=1e-4),
@@ -138,15 +138,15 @@ test_that("conditional AI enforces numerical bounds with projected-score converg
 
 test_that("explicit conditional EM preserves the earlier selector exactly",{
   fixture <- .conditional_ai_fixture("axes")
-  run <- function(control) suppressWarnings(mmes(y~trait+x,
+  run <- function(control) suppressWarnings(sommer:::.mmes_dispatch(y~trait+x,
     random=~vsm(fam(trait,1,shared="axes"),ism(id)),
     rcov=~vsm(fam(trait,1,shared="axes"),ism(record)),
     data=fixture$data,control=control))
   modules <- list(convergence=list(maxIters=2L),
     output=list(covariance="none",coefficientMatrix=FALSE),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-  old <- run(do.call(mmes_control,c(list(update=list(method="conditional-fa")),modules)))
-  new <- run(do.call(mmes_control,c(list(representation=list(equations="conditional"),
+  old <- run(do.call(sommer:::.mmes_control_internal,c(list(update=list(method="conditional-fa")),modules)))
+  new <- run(do.call(sommer:::.mmes_control_internal,c(list(representation=list(equations="conditional"),
     update=list(method="em")),modules)))
   expect_identical(old$llik,new$llik)
   expect_identical(old$covPar,new$covPar)
@@ -160,10 +160,10 @@ test_that("conditional AI records EM recovery when proposals are unavailable",{
     engine,parameterTol) list(accepted=FALSE,stationary=FALSE,scoreNorm=1,
       rank=0L,evaluations=0L,workspaceBytes=0,activeBounds=integer(),
       varianceFloor=1e-6,allocationFloor=1e-6),.package="sommer")
-  expect_warning(fit <- mmes(y~trait+x,
+  expect_warning(fit <- sommer:::.mmes_dispatch(y~trait+x,
     random=~vsm(fam(trait,1),ism(id)),
     rcov=~vsm(dsm(trait),ism(record)),data=fixture$data,
-    control=mmes_control(representation=list(equations="conditional"),
+    control=sommer:::.mmes_control_internal(representation=list(equations="conditional"),
       convergence=list(maxIters=2L),
       output=list(covariance="none",coefficientMatrix=FALSE),
       diagnostics=list(verbose=FALSE,dateWarning=FALSE))),"did not converge")

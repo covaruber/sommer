@@ -47,7 +47,7 @@ parameters with a delta method. It keeps inverse conditional mode curvature
 separate from the empirical Bayes approximate PEV that adds estimated-parameter
 mode sensitivity. Reduced-rank uncertainty is restored from the proper latent
 coordinates; singular full covariance is never inverted. Numerical choices
-use `task$nonlinear$inference` in `mmes_control()`. No Hessian inverse or PEV
+use `inference` in `mmes_control()`. No Hessian inverse or PEV
 is computed during fitting. See `?post_nonlinear` and the
 [GLMM theory vignette](sommer.glmm.theory.Rmd) for prediction estimands and
 limitations of local approximations.

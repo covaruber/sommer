@@ -129,6 +129,10 @@ sommer_nonlinear_graph_first_cpp <- function(graph, output, data, parameters, tr
     .Call(`_sommer_sommer_nonlinear_graph_first_cpp`, graph, output, data, parameters, transformed, memoryMB)
 }
 
+sommer_nonlinear_graph_values_cpp <- function(graph, output, data, parameters, transformed, memoryMB) {
+    .Call(`_sommer_sommer_nonlinear_graph_values_cpp`, graph, output, data, parameters, transformed, memoryMB)
+}
+
 sommer_nonlinear_curve_eval <- function(curve, input, parameters, gradient = TRUE) {
     .Call(`_sommer_sommer_nonlinear_curve_eval`, curve, input, parameters, gradient)
 }
@@ -143,6 +147,18 @@ sommer_nonlinear_graph_gaussian_create <- function(fixed, random, response, offs
 
 sommer_nonlinear_gaussian_eval <- function(context, parameters, gradient = TRUE) {
     .Call(`_sommer_sommer_nonlinear_gaussian_eval`, context, parameters, gradient)
+}
+
+sommer_nonlinear_graph_laplace_create <- function(fixed, random, response, offset, graphData, graph, output, transformed, coordinateMap, descriptors, relationships, memoryMB = 1000, maxIters = 100L, scoreTol = 1e-8, stepTol = 1e-8) {
+    .Call(`_sommer_sommer_nonlinear_graph_laplace_create`, fixed, random, response, offset, graphData, graph, output, transformed, coordinateMap, descriptors, relationships, memoryMB, maxIters, scoreTol, stepTol)
+}
+
+sommer_nonlinear_graph_laplace_eval <- function(context, parameters, gradient = TRUE) {
+    .Call(`_sommer_sommer_nonlinear_graph_laplace_eval`, context, parameters, gradient)
+}
+
+sommer_nonlinear_graph_laplace_conditional <- function(context, parameters, mode) {
+    .Call(`_sommer_sommer_nonlinear_graph_laplace_conditional`, context, parameters, mode)
 }
 
 sommer_nonlinear_curve_derivatives <- function(curve, input, parameters) {

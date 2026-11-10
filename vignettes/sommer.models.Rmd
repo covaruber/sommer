@@ -1,0 +1,807 @@
+---
+title: "Model specification in sommer"
+author: "sommer development team"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Model specification in sommer}
+  %\VignetteEngine{knitr::knitr}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse=TRUE, comment="#>")
+```
+
+# Purpose
+
+This vignette explains the formula-based model specification interface.
+Model-fitting and prediction calls are illustrative and deliberately not
+evaluated: no fitted results or convergence claims are reported.
+Only data preparation and descriptive checks are executed.
+
+We compare six model classes on the same `DT_example` observation
+layout, changing one modeling decision at a time:
+
+1. Is the covariate effect linear in its unknown coefficients or nonlinear?
+2. Is the observation model Gaussian identity or a family with another link?
+3. Are genetic effects absent, additive in the predictor, or inside a nonlinear
+   parameter?
+
+| Model | Predictor | Family | Random effects |
+|:--|:--|:--|:--|
+| Linear | Ordinary formula | Gaussian identity | None |
+| Linear mixed | Ordinary formula | Gaussian identity | Additive |
+| Generalized linear | Ordinary formula | Explicit response family/link | None |
+| Generalized linear mixed | Ordinary formula | Explicit response family/link | Additive |
+| Nonlinear | Expression with declared parameters | Usually Gaussian; others allowed | None |
+| Nonlinear mixed | Expression with parameter models | Explicit response family/link | Additive and/or within parameters |
+
+There is an unavoidable distinction: **a model with a random genetic covariance
+is a mixed model**. The three fixed-only examples cannot also have random
+GxE effects with a relationship matrix. They provide the no-random-effect
+baseline; their mixed counterparts introduce the same diagonal GxE covariance.
+Treating `Name` and `Env:Name` as fixed effects would be another baseline, but
+would not impose genetic covariance, shrinkage, or borrowing through relationships.
+
+# 1. One dataset and one genetic covariance
+
+## Data preparation
+
+`DT_example` contains 185 observations on 41 potato lines in three environments
+in the installed example data. We retain `Yield`, `Weight`, `Env`, `Name`, and
+the original observation layout.
+
+For the linear-versus-nonlinear comparison, use centered `Weight` as a
+descriptive covariate `x`. It is another measured trait, not an experimentally
+assigned dose or a time axis. The association must not be interpreted as a
+causal response curve. In particular, do not use it as a predictor in an
+application if it is derived from the response or unavailable at prediction
+time. Its strong association with `Yield` makes these examples an interface
+illustration, not an independent validation of predictive performance.
+
+```{r proposed-data}
+library(sommer)
+library(Matrix)
+data(DT_example, package="enhancer")
+DT <- DT_example
+DT$Env <- droplevels(factor(DT$Env))
+DT$Name <- droplevels(factor(DT$Name))
+
+weight_center <- mean(DT$Weight)
+DT$x <- DT$Weight - weight_center
+
+yield_target <- 12
+DT$HighYield <- as.integer(DT$Yield >= yield_target)
+
+data.frame(
+  observations=nrow(DT),
+  individuals=nlevels(DT$Name),
+  environments=nlevels(DT$Env),
+  yield_weight_correlation=cor(DT$Yield, DT$Weight)
+)
+with(DT, table(Env, HighYield))
+```
+
+`HighYield` is an illustrative binary endpoint: whether the observed yield
+reaches a prespecified target of 12. It is not a new independent measurement.
+The binomial examples model the probability of reaching that target, **not**
+the expected value of `Yield`. A real analysis would choose a scientifically
+meaningful target before examining results.
+
+No Poisson interpretation is inferred merely because `Yield` is integer-valued:
+an integer-valued quality or yield measurement is not automatically an event
+count. The design also has blocks; block effects are omitted here to isolate
+the interface comparison, not because they are necessarily negligible.
+
+## Relationship matrix and its precision
+
+Keep the existing sommer convention: `A` is the known relationship covariance
+shape and `Ai` is its precision, passed through `Gu`.
+
+```{r proposed-relationship}
+A <- A_example
+name_levels <- levels(DT$Name)
+stopifnot(
+  !is.null(rownames(A)),
+  !is.null(colnames(A)),
+  all(name_levels %in% rownames(A)),
+  all(name_levels %in% colnames(A))
+)
+A <- A[name_levels, name_levels, drop=FALSE]
+stopifnot(isSymmetric(A), all(is.finite(A)))
+invisible(chol(A))
+
+Ai <- solve(A)
+Ai <- as(as(as(Ai, "dMatrix"), "generalMatrix"), "CsparseMatrix")
+attr(Ai, "inverse") <- TRUE
+
+data.frame(
+  min_diagonal=min(diag(A)),
+  max_diagonal=max(diag(A)),
+  max_absolute_off_diagonal=max(abs(A[row(A) != col(A)]))
+)
+```
+
+**In the installed example, `A_example` is an identity matrix.** It illustrates
+the relationship-matrix interface, but does not demonstrate borrowing between
+related individuals. To demonstrate that behavior, replace `A` with a genuine
+positive-definite pedigree or genomic relationship matrix with matching `Name`
+labels, then rebuild `Ai`. We do not invent relationships for these potato lines
+or silently regularize a singular matrix.
+
+## The diagonal GxE model used throughout
+
+In each mixed example, the covariance declaration is:
+
+```{r proposed-dg-declaration, eval=FALSE}
+~ vsm(dsm(Env), ism(Name), Gu=Ai)
+```
+
+For an environment-major ordering, its statistical meaning is
+
+$$
+b \sim N(0,D\otimes A), \qquad
+D=\operatorname{diag}(\tau_1^2,\ldots,\tau_E^2).
+$$
+
+Equivalently,
+
+$$
+\operatorname{Cov}(b_{eg},b_{e'g'})
+=
+\begin{cases}
+\tau_e^2 A_{gg'}, & e=e',\\
+0, & e\ne e'.
+\end{cases}
+$$
+
+Thus environments have different genetic variances and zero genetic
+cross-environment covariance. Within an environment, relationships among
+individuals follow `A`. sommer's normalized `dsm()` shape and product-level
+`vsm()` scale together represent these environment-specific variances;
+`dsm()` alone is not a list of absolute variances.
+
+This is the diagonal multienvironment genetic model. We do **not** also add a
+shared `Name` main effect in the primary examples. Adding
+`vsm(ism(Name), Gu=Ai)` would contribute covariance across environments, so the
+total genetic covariance would no longer be diagonal across environments.
+
+# 2. Common syntax
+
+The interface separates these responsibilities:
+
+| Component | Meaning |
+|:--|:--|
+| Main formula | The complete link-scale predictor, including nonlinear expressions |
+| `parameters` | Regression and random-effect models for named nonlinear parameters |
+| `predictors` | Named graph predictors referenced by `graph_term()` |
+| `family`, `random`, `rcov` | Observation distribution and covariance declarations |
+| `method`, `control`, `start` | Statistical fitting method, numerical settings, initialization |
+
+Unless stated otherwise, every main formula below describes
+
+$$
+g(\mu_i)=\eta_i,\qquad \mu_i=E(Y_i\mid\text{random effects}).
+$$
+
+An identity link is still a link; it simply makes $\eta_i=\mu_i$.
+Parameter links are separate: `parameter(link="log")` means that the
+parameter, not the response mean, is exponentiated from its working predictor.
+
+The public `mmes()` arguments include `parameters=list()`,
+`predictors=list()`, `start=NULL`, and `method=mmes_method()`.
+Ordinary linear models need neither parameter nor graph declarations.
+Gaussian identity-link linear models, with or without random effects, use
+the established Gaussian engines and retain their numerical controls and
+variance-component output. For example,
+`representation=list(fixedRank="drop")` permits a reduced fixed-effect basis
+when the ordinary fixed design is rank deficient.
+
+The method defaults are
+`mmes_method(objective="reml", integration="auto", approximation="auto")`.
+Gaussian linear mixed models therefore retain REML by default. For generalized
+mixed models, PQL uses a REML working fit; this is **not exact GLMM REML**.
+`integration="auto"` selects an eligible route rather than promising exact
+integration for every model. An unavailable objective, approximation, or
+integration combination is an error, not permission to change the requested
+model silently.
+
+For comparability, the examples below explicitly request ML. This does not
+change the REML/PQL defaults or imply that a generic REML likelihood exists for
+all generalized and nonlinear models.
+Fixed-only generalized and nonlinear likelihood calls require explicit ML;
+they reject an ineligible REML request rather than silently changing it.
+
+```{r proposed-methods, eval=FALSE}
+library(sommer)
+
+exact_ml <- mmes_method(objective="ml", integration="exact")
+laplace_ml <- mmes_method(objective="ml", integration="laplace")
+
+fit_control <- mmes_control(
+  optimizer=list(maxit=1000L),
+  mode=list(maxit=100L, tol=1e-8)
+)
+```
+
+`integration="exact"` means no random-effect integration for fixed-only
+models, and exact Gaussian integration where available for mixed models.
+`mode` controls apply when a conditional mode solve is needed.
+`optimizer` controls outer optimization; these iteration budgets are not
+evidence of convergence. `mmes_control()` retains its existing numerical
+modules, except for the removed `task` module, and adds the `optimizer` and
+`mode` modules shown above. Statistical method selection belongs in `method`;
+initial values belong in `start`.
+
+The default `optimizer$gradient="auto"` uses native analytic derivatives
+where available. The expression reference route uses numerical derivatives
+and reports that choice in its diagnostics; requesting an unavailable
+`gradient="analytic"` is an error. Numerical differentiation and an exact
+Gaussian integral are separate issues.
+
+Conditional mode settings, including `mode$maxit`, `mode$tol`, and
+`mode$stepTol`, govern the inner solve, not the outer optimizer.
+`mode$warmStart` is the sole warm-start setting: its default `"auto"` permits
+native GLMM mode reuse but selects deterministic cold starts (`"off"`) for
+nonlinear fits. The `likelihood` module contains only `backend`, `trace`, and
+`blocks`; it does not own mode initialization. Coefficient covariance and
+other post-fit inference are separate from optimization: fitting does not
+silently request an additional coefficient-covariance calculation.
+
+# 3. Linear: Gaussian response, linear covariate effect
+
+$$
+Y_i\sim N(\mu_i,\sigma^2),\qquad
+\mu_i=\beta_0+\beta_{\operatorname{Env}(i)}+\beta_x x_i.
+$$
+
+```{r proposed-linear, eval=FALSE}
+fit_lm <- mmes(
+  Yield ~ Env + x,
+  family=gaussian(link="identity"),
+  data=DT,
+  method=exact_ml,
+  control=fit_control
+)
+```
+
+This estimates environment means and one common slope. There is no random
+genetic term, no relationship covariance in the fitted model, and no genetic
+shrinkage. The formula is linear in its unknown coefficients.
+
+# 4. Linear mixed: the same mean plus diagonal GxE
+
+$$
+Y_i\mid b\sim N(\mu_i,\sigma^2),\qquad
+\mu_i=\beta_0+\beta_{\operatorname{Env}(i)}+\beta_x x_i+b_{eg},
+\qquad b\sim N(0,D_b\otimes A).
+$$
+
+```{r proposed-linear-mixed, eval=FALSE}
+fit_lmm <- mmes(
+  Yield ~ Env + x,
+  random=~ vsm(dsm(Env), ism(Name), Gu=Ai),
+  rcov=~ units,
+  family=gaussian(link="identity"),
+  data=DT,
+  method=exact_ml,
+  control=fit_control
+)
+```
+
+The only statistical change from the linear model is the addition of the
+environment-specific genetic deviations. They shift the conditional mean
+vertically. The relationship matrix operates on those deviations.
+
+# 5. Generalized linear: binary response, linear predictor
+
+$$
+H_i\sim\operatorname{Bernoulli}(p_i),\qquad
+\operatorname{logit}(p_i)
+=\beta_0+\beta_{\operatorname{Env}(i)}+\beta_x x_i,
+$$
+
+where $H_i=1$ when `Yield >= 12`.
+
+```{r proposed-generalized-linear, eval=FALSE}
+fit_glm <- mmes(
+  HighYield ~ Env + x,
+  family=binomial(link="logit"),
+  data=DT,
+  method=exact_ml,
+  control=fit_control
+)
+```
+
+The probability curve is nonlinear in `x` after applying the inverse-logit,
+but the predictor is linear in its unknown coefficients. This is a GLM,
+not a nonlinear regression model. There is still no random covariance.
+No artificial random effect is needed to specify this fixed-only model.
+
+# 6. Generalized linear mixed: binary response plus diagonal GxE
+
+$$
+H_i\mid b\sim\operatorname{Bernoulli}(p_i),\qquad
+\operatorname{logit}(p_i)
+=\beta_0+\beta_{\operatorname{Env}(i)}+\beta_x x_i+b_{eg},
+\qquad b\sim N(0,D_b\otimes A).
+$$
+
+```{r proposed-generalized-linear-mixed, eval=FALSE}
+fit_glmm <- mmes(
+  HighYield ~ Env + x,
+  random=~ vsm(dsm(Env), ism(Name), Gu=Ai),
+  family=binomial(link="logit"),
+  data=DT,
+  method=laplace_ml,
+  control=fit_control
+)
+```
+
+The covariance formula is unchanged from the Gaussian mixed model, but its
+variance is now on the **log-odds scale**, not the yield scale. It does not imply
+a diagonal covariance matrix for observed binary outcomes.
+
+The binomial likelihood determines conditional observation variance
+$p_i(1-p_i)$; an independent Gaussian `rcov=~units` error is not added to it.
+Laplace approximates integration over the Gaussian genetic effects.
+
+# 7. Nonlinear: Gaussian response, nonlinear covariate effect
+
+Replace the linear contribution $\beta_x x_i$ with a smooth saturating
+association $a\tanh(kx_i)$:
+
+$$
+Y_i\sim N(\mu_i,\sigma^2),\qquad
+\mu_i=\beta_0+\beta_{\operatorname{Env}(i)}
++a\tanh(kx_i),\qquad k>0.
+$$
+
+Unlike a growth curve requiring nonnegative time, `tanh()` accepts the
+negative and positive values of centered `Weight`. It is used here as a
+simple shape comparison, not as a biological model of potato development.
+
+```{r proposed-nonlinear, eval=FALSE}
+fit_nlm <- mmes(
+  Yield ~ Env + a * tanh(k * x),
+  parameters=list(
+    a=parameter(fixed=~ 1, random=NULL, link="identity"),
+    k=parameter(fixed=~ 1, random=NULL, link="log")
+  ),
+  family=gaussian(link="identity"),
+  data=DT,
+  start=c(a=3, k=1),
+  method=exact_ml,
+  control=fit_control
+)
+```
+
+Declared symbols `a` and `k` are nonlinear parameters; their enclosing
+expression contributes to the predictor, while `Env` remains an ordinary
+fixed effect. Unresolved or ambiguous symbols are rejected rather than
+guessed. Use the supported expression grammar, not arbitrary R code, in
+nonlinear formula contributions.
+
+Here `a` is unconstrained and $\log(k)=\alpha_k$. Restricting $k>0$ avoids the
+equivalent sign reversal $(a,k)\leftrightarrow(-a,-k)$. The start supplies
+natural-scale parameter values, so `k=1` means a working intercept of zero.
+The same public natural-scale convention applies to graph starts, even when
+their internal coordinates are logarithmic.
+
+The model is nonlinear in the unknown $k$, even though observations have an
+identity link. It has no random effects and needs no artificial random term.
+
+For small $kx$, $a\tanh(kx)\approx akx$: nearly linear data can identify the
+product more strongly than its individual factors. A pleasant formula does
+not remove weak identification, local optima, or the need for sensible starts.
+
+# 8. Nonlinear mixed: where should GxE act?
+
+## 8.1 Additive GxE: change the level, not the nonlinear shape
+
+$$
+\mu_i=\beta_0+\beta_{\operatorname{Env}(i)}
++a\tanh(kx_i)+b_{eg},\qquad b\sim N(0,D_b\otimes A).
+$$
+
+```{r proposed-nonlinear-mixed-additive, eval=FALSE}
+fit_nlmm_additive <- mmes(
+  Yield ~ Env + a * tanh(k * x),
+  parameters=list(
+    a=parameter(fixed=~ 1, link="identity"),
+    k=parameter(fixed=~ 1, link="log")
+  ),
+  random=~ vsm(dsm(Env), ism(Name), Gu=Ai),
+  rcov=~ units,
+  family=gaussian(link="identity"),
+  data=DT,
+  start=c(a=3, k=1),
+  method=exact_ml,
+  control=fit_control
+)
+```
+
+This is nonlinear in its fixed parameters, but Gaussian and linear in its
+random effects. Integration over `b` remains exact Gaussian integration;
+estimating `a` and `k` still needs nonlinear optimization.
+
+## 8.2 GxE inside the rate: change the nonlinear shape
+
+$$
+\begin{aligned}
+\mu_i&=\beta_0+\beta_{\operatorname{Env}(i)}
++a\tanh(k_{eg}x_i),\\
+\log(k_{eg})&=\alpha_k+u_{eg},\qquad
+u\sim N(0,D_k\otimes A).
+\end{aligned}
+$$
+
+```{r proposed-nonlinear-mixed-rate, eval=FALSE}
+fit_nlmm_rate <- mmes(
+  Yield ~ Env + a * tanh(k * x),
+  parameters=list(
+    a=parameter(fixed=~ 1, link="identity"),
+    k=parameter(
+      fixed=~ 1,
+      random=~ vsm(dsm(Env), ism(Name), Gu=Ai),
+      link="log"
+    )
+  ),
+  rcov=~ units,
+  family=gaussian(link="identity"),
+  data=DT,
+  start=c(a=3, k=1),
+  method=laplace_ml,
+  control=fit_control
+)
+```
+
+Moving the same covariance declaration into `k` changes its meaning:
+
+- Genetic deviations act on **log-rate**, not directly on yield.
+- Individuals can have different curvature within each environment.
+- $D_k$ contains log-rate variances, not yield variances.
+- Integration is generally no longer Gaussian-exact; use Laplace.
+- $\exp(\alpha_k)$ is the zero-deviation rate and marginal median rate,
+  not the arithmetic mean of the lognormal rate distribution.
+
+There is no top-level `random` term here: the parameter random effect already
+makes the model mixed.
+
+## 8.3 Both additive and shape GxE
+
+```{r proposed-nonlinear-mixed-both, eval=FALSE}
+fit_nlmm_both <- mmes(
+  Yield ~ Env + a * tanh(k * x),
+  parameters=list(
+    a=parameter(fixed=~ 1, link="identity"),
+    k=parameter(
+      fixed=~ 1,
+      random=~ vsm(dsm(Env), ism(Name), Gu=Ai),
+      link="log"
+    )
+  ),
+  random=~ vsm(dsm(Env), ism(Name), Gu=Ai),
+  rcov=~ units,
+  family=gaussian(link="identity"),
+  data=DT,
+  start=c(a=3, k=1),
+  method=laplace_ml,
+  control=fit_control
+)
+```
+
+These declarations specify **independent random blocks**: the top-level additive
+effect and the log-rate effect have separate covariance parameters, even
+though they use the same formula and relationship matrix. Repeated formulas
+do not silently share effects or create cross-covariance. Repeating a formula
+does not declare a joint additive/parameter covariance.
+
+These are syntax examples, not evidence that this small, unbalanced dataset
+supports estimating both genetic mechanisms. Shape variation requires suitable
+within-group covariate information; sparse replication may make this model
+weakly identified.
+
+## 8.4 An environment effect inside the rate
+
+To ask whether environments change the common curvature, rather than only
+the vertical level, change the parameter model:
+
+```{r proposed-nonlinear-environment-rate, eval=FALSE}
+k=parameter(
+  fixed=~ Env,
+  random=~ vsm(dsm(Env), ism(Name), Gu=Ai),
+  link="log"
+)
+```
+
+This specifies $\log(k_{eg})=\alpha_0+\alpha_e+u_{eg}$.
+Keeping `Env` in the main formula also permits environment-level shifts;
+removing it there imposes a different scientific restriction.
+Natural parameter starts such as `start=c(a=3, k=1)` initialize parameter
+intercepts and set their other regression coefficients to zero. Thus `k=1`
+also initializes a constant rate when `fixed=~ Env`; it does not supply
+different environment-specific rates.
+
+For explicit regression starts, use `start=list(coefficients=...)` with a
+complete named vector of mean coefficients on their **working/link scale**.
+Names have the form `fixed:(Intercept)`, `fixed:Env2`, `a:(Intercept)`,
+`k:(Intercept)`, or `k:Env2`, following the actual model-matrix column names.
+For example, `k:(Intercept)=0` means the natural rate starts at one, and
+`k:Env2=log(2)` doubles that rate in environment 2. Include every mean
+coefficient, not just the changed contrast. These are coefficient starts,
+not random-effect modes or covariance starts.
+
+# 9. Cross the last axis: nonlinear predictors with nonidentity links
+
+The six familiar labels are not six separate engines. Nonlinear predictors
+can also have non-Gaussian observations.
+
+## 9.1 Binary response, nonlinear fixed predictor
+
+$$
+\operatorname{logit}(p_i)
+=\beta_0+\beta_{\operatorname{Env}(i)}+a\tanh(kx_i).
+$$
+
+```{r proposed-generalized-nonlinear, eval=FALSE}
+fit_gnlm <- mmes(
+  HighYield ~ Env + a * tanh(k * x),
+  parameters=list(
+    a=parameter(fixed=~ 1, link="identity"),
+    k=parameter(fixed=~ 1, link="log")
+  ),
+  family=binomial(link="logit"),
+  data=DT,
+  start=c(a=3, k=1),
+  method=exact_ml,
+  control=fit_control
+)
+```
+
+This is not an ordinary GLM: the link predictor is nonlinear in unknown `k`.
+There are no random effects to integrate; `exact_ml` does not mean that
+nonlinear optimization has a closed-form solution or a guaranteed global optimum.
+
+## 9.2 Binary response with genetic shape variation
+
+$$
+\begin{aligned}
+\operatorname{logit}(p_i)
+&=\beta_0+\beta_{\operatorname{Env}(i)}
++a\tanh(k_{eg}x_i),\\
+\log(k_{eg})&=\alpha_k+u_{eg},\qquad
+u\sim N(0,D_k\otimes A).
+\end{aligned}
+$$
+
+```{r proposed-generalized-nonlinear-mixed, eval=FALSE}
+fit_gnlmm <- mmes(
+  HighYield ~ Env + a * tanh(k * x),
+  parameters=list(
+    a=parameter(fixed=~ 1, link="identity"),
+    k=parameter(
+      fixed=~ 1,
+      random=~ vsm(dsm(Env), ism(Name), Gu=Ai),
+      link="log"
+    )
+  ),
+  family=binomial(link="logit"),
+  data=DT,
+  start=c(a=3, k=1),
+  method=laplace_ml,
+  control=fit_control
+)
+```
+
+Two links now coexist without being confused:
+
+1. The **parameter log link** ensures $k_{eg}>0$.
+2. The **response logit link** ensures $0<p_i<1$.
+
+The family has not changed its responsibility. The nonlinear expression and
+its parameter models have changed how the link predictor is constructed.
+
+## 9.3 Keep the original positive response, change its likelihood
+
+If a continuous positive-response model were scientifically justified,
+`Yield` could instead be modeled with a Gamma-log likelihood:
+
+```{r proposed-gamma-nonlinear-mixed, eval=FALSE}
+fit_gamma_nlmm <- mmes(
+  Yield ~ Env + a * tanh(k * x),
+  parameters=list(
+    a=parameter(fixed=~ 1, link="identity"),
+    k=parameter(fixed=~ 1, link="log")
+  ),
+  random=~ vsm(dsm(Env), ism(Name), Gu=Ai),
+  family=Gamma(link="log"),
+  data=DT,
+  start=c(a=3, k=1),
+  method=laplace_ml,
+  control=fit_control
+)
+```
+
+This is a distributional **what-if**, not a recommendation for the recorded
+integer-valued quality measurements. It assumes
+
+$$
+\log(\mu_i)=\beta_0+\beta_{\operatorname{Env}(i)}
++a\tanh(kx_i)+b_{eg}.
+$$
+
+Consequently, $\mu_i=\exp\{\beta_0+\beta_e+a\tanh(kx_i)+b_{eg}\}$.
+The displayed nonlinear expression is **not** directly the response mean.
+The same Gamma family could accompany the ordinary `Yield ~ Env + x`
+predictor, with or without the additive random term.
+
+# 10. Side-by-side interpretation
+
+Let $B_i=\beta_0+\beta_{\operatorname{Env}(i)}$,
+$b\sim N(0,D_b\otimes A)$, and
+$u\sim N(0,D_k\otimes A)$.
+
+| Example | Conditional predictor | Genetic covariance acts on | Integration |
+|:--|:--|:--|:--|
+| Linear | $\mu_i=B_i+\beta_xx_i$ | None | None |
+| Linear mixed | $\mu_i=B_i+\beta_xx_i+b_{eg}$ | Additive yield deviation | Exact Gaussian |
+| Generalized linear | $\operatorname{logit}(p_i)=B_i+\beta_xx_i$ | None | None |
+| Generalized linear mixed | $\operatorname{logit}(p_i)=B_i+\beta_xx_i+b_{eg}$ | Additive log-odds deviation | Laplace |
+| Nonlinear | $\mu_i=B_i+a\tanh(kx_i)$ | None | None |
+| Nonlinear mixed, additive | $\mu_i=B_i+a\tanh(kx_i)+b_{eg}$ | Additive yield deviation | Exact Gaussian |
+| Nonlinear mixed, shape | $\mu_i=B_i+a\tanh(\exp(\alpha_k+u_{eg})x_i)$ | Log-rate deviation | Laplace |
+| Generalized nonlinear mixed | $\operatorname{logit}(p_i)=B_i+a\tanh(\exp(\alpha_k+u_{eg})x_i)$ | Log-rate deviation | Laplace |
+
+The repeated `dsm(Env)` and relationship matrix preserve the **covariance
+pattern**, not the units or interpretation of its estimated variance.
+Also, diagonal latent GxE covariance need not translate to a simple
+Kronecker covariance for nonlinear response means or observed responses.
+
+Do not compare Gaussian `Yield` likelihoods or AIC values directly with
+binomial `HighYield` likelihoods: they describe different responses.
+Gaussian and continuous Gamma likelihoods should likewise not be used to
+settle how an intrinsically discrete measurement was generated.
+Within a common response and justified likelihood, model comparisons still
+need convergence, identification, and appropriate validation checks.
+
+For the expression reference route, independent residuals are specified by
+`rcov=NULL` or `rcov=~ units`; structured residual covariance is not supported
+there. The Gamma-log example estimates a dispersion parameter rather than
+adding an independent Gaussian error to the Gamma response.
+
+# 11. Prediction targets
+
+Name the prediction estimand explicitly:
+
+```{r proposed-prediction, eval=FALSE}
+predict(fit_gnlmm, newdata=DT, type="response", target="conditional")
+predict(fit_gnlmm, newdata=DT, type="response", target="zero")
+predict(fit_gnlmm, newdata=DT, type="response", target="population")
+```
+
+- `conditional`: evaluate at fitted random-effect modes.
+- `zero`: set all random deviations to zero, including deviations inside `k`.
+- `population`: integrate over the fitted joint Gaussian random-effect prior.
+
+These are distinct requests, not aliases. A target that is unavailable for a
+particular fitting route must raise an explicit error; it must not return a
+conditional or zero-deviation prediction labeled as population-averaged.
+In particular, the target vocabulary does not promise population integration
+for every formula, likelihood, and covariance combination.
+
+Native nonlinear and native Laplace fits support the explicit `target`
+interface. The established Gaussian and PQL engines retain their
+`D`/`classify` prediction interface and reject explicit `target` requests.
+For expression-reference population prediction, quadrature is bounded to
+at most two active random predictor coordinates; unsupported cases error.
+Choose prediction arguments for the fitted route rather than assuming that
+the calls above apply unchanged to every `mmes()` result.
+
+These targets generally differ for nonidentity links and random nonlinear
+parameters. For example, averaging rates before evaluating `tanh()` is not
+the same as integrating the resulting response means. Population prediction
+is not an uncertainty interval or integration over parameter-estimation error.
+For new observations, `x` must use the saved training `weight_center`, not a
+center recomputed from the prediction batch.
+
+# 12. Explicit graph predictors
+
+For an explicit graph, reference its name in the main formula with
+`graph_term("net")` and supply the existing `nonlinear_graph()` object through
+`predictors=list(net=...)`. The graph is a bounded, serializable directed
+acyclic graph, not an arbitrary R function or an unrestricted neural-network
+builder.
+
+The constructor accepts ordered `input`, `affine`, `identity`, and `tanh`
+nodes. Inputs can be centered and scaled; affine nodes use indexed weights
+and biases, and repeated parameter indices share coordinates. A scalar
+identity output is required for Gaussian graph fitting; `tanh` belongs in
+hidden layers. For example, the following declares the same scalar shape
+using two affine nodes around one hidden activation:
+
+```{r graph-declaration, eval=FALSE}
+net <- nonlinear_graph(
+  nodes=list(
+    x=list(op="input", column="x"),
+    rate=list(op="affine", inputs="x", weights=matrix(1L), bias=0L),
+    hidden=list(op="tanh", input="rate"),
+    amplitude=list(op="affine", inputs="hidden",
+                   weights=matrix(2L), bias=0L),
+    output=list(op="identity", input="amplitude")
+  ),
+  output="output",
+  parameters=c("k", "a")
+)
+
+fit_graph <- mmes(
+  Yield ~ Env + graph_term("net"),
+  predictors=list(net=net),
+  parameters=list(
+    "net::k"=parameter(fixed=~ 1, random=NULL, link="log"),
+    "net::a"=parameter(fixed=~ 1, random=NULL, link="identity")
+  ),
+  family=gaussian(link="identity"),
+  data=DT,
+  start=c("net::k"=1, "net::a"=3),
+  method=exact_ml,
+  control=fit_control
+)
+```
+
+There are two graph routes:
+
+- **Native component, without parameter overrides:** supply one graph as an
+  additive `graph_term("net")` and omit `parameters`. This route accepts the
+  existing constructor's random `parameterMap`, independent `random`
+  formulas, and explicit `joint` covariance declarations.
+- **Namespaced parameter overrides, as above:** coordinates are named
+  `graph-name::coordinate`, for example `"net::k"`. Omitted coordinates
+  default to fixed intercepts with identity links. Use `parameter()` for
+  regression, links, and supported coordinate random effects. This route
+  requires a graph without internal random maps, `random`, or `joint`
+  declarations.
+
+Do not mix the two random-effect declaration conventions. Public starts use
+natural parameter values, including positive values for log-transformed graph
+coordinates; native graph starts must name every coordinate.
+
+Random effects act on declared working coordinates, not automatically on an
+interpretable amplitude or rate. Random-coordinate graph fits require
+approximate integration. The bounded graph engine and formula-fitting route
+use their documented derivative strategies, including numerical derivatives;
+derivative availability does not make a Laplace integral exact.
+
+The supported graph fitting scope is **Gaussian**, with an identity output.
+Non-Gaussian graph fitting and native graph post-fit parameter uncertainty are
+not provided. Conditional and zero-deviation prediction, supported prior-integrated
+population prediction, and simulation retain their route-specific limits.
+There are no `network()` or `dense()` convenience builders; the explicit node
+representation is the available interface. Do not infer arbitrary multilayer
+convenience construction from the ability to declare a bounded graph.
+Hidden-unit permutations and scaling can make raw weights non-unique;
+convergence does not establish a global optimum.
+
+# 13. Scope and migration
+
+This is a breaking replacement of the earlier specification interface, not a
+compatibility layer. Put nonlinear scientific expressions in the main formula,
+declare named parameter models in `parameters`, and register explicit graphs
+in `predictors`. There is no separate `nonlinear=` argument. Put statistical
+choices in `mmes_method()`, starts in `start`, and numerical settings in
+`mmes_control()`; the former `task` control module is not part of this API.
+Old calls must be rewritten rather than relying on compatibility mapping.
+
+The syntax does not remove capability checks: unsupported expressions,
+families, covariance structures, methods, or prediction targets are errors.
+The general expression route is a dense numerical reference implementation,
+currently limited to 60 mean coefficients and 512 random coefficients, with
+an additional workspace check against `execution$denseMemoryMB`.
+It does not promise the scalability of the specialized native engines;
+see `?parameter` for supported expressions and route-specific limits.
+Use convergence diagnostics, scientifically defensible response models,
+identifiability checks, and validation appropriate to the target population.
+In particular, syntax alone cannot make the identity `A_example` demonstrate
+relationship borrowing, make a measured `Weight` association causal, or make
+a fixed-only fit contain random GxE.
