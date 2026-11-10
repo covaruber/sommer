@@ -74,6 +74,22 @@
   layout <- object$nonlinearParameterLayout$covariance
   model <- object$nonlinear
   random <- object$nonlinearRandom
+  if(isTRUE(object$nonlinearGraph)){
+    context <- sommer_nonlinear_graph_gaussian_create(object$fixedDesign,
+      object$randomDesign,object$y,object$offset,object$graphData,
+      object$graphNative$nodes,object$graphNative$output,
+      object$graphNative$transformed,object$covStruct,
+      object$randomRelationships,memory)
+    evaluate <- function(parameters,gradient=TRUE){
+      value <- .laplace_constrained_evaluate(parameters,layout,function(expanded)
+        sommer_nonlinear_gaussian_eval(context,expanded,gradient))
+      if(!isTRUE(value$valid))
+        stop("Nonlinear graph likelihood evaluation failed: ",value$reason,".",
+          call.=FALSE)
+      value
+    }
+    return(list(evaluate=evaluate))
+  }
   mode <- object$control$task$nonlinear$mode
   specifications <- if(isTRUE(object$nonlinearFamily)) object$familySpecifications else
     .laplace_family_specs(stats::gaussian(),list())$specifications
@@ -126,7 +142,13 @@
   layout <- object$nonlinearParameterLayout$covariance
   object$b[] <- parameters[seq_len(p)]
   object$nonlinearCoordinates[] <- parameters[p+seq_len(k)]
-  object$nonlinearParameters <- .nonlinear_natural(object$nonlinear,object$nonlinearCoordinates)
+  object$nonlinearParameters <- if(isTRUE(object$nonlinearGraph)){
+    natural <- object$nonlinearCoordinates
+    transformed <- which(vapply(object$nonlinear$parameterMap,function(map)
+      identical(map$transform,"log"),logical(1)))
+    if(length(transformed)) natural[transformed] <- exp(natural[transformed])
+    natural
+  }else .nonlinear_natural(object$nonlinear,object$nonlinearCoordinates)
   object$covStruct <- .laplace_proposal_structures(object$covStruct,parameters,layout)
   object$covPar <- .nonlinear_covariance_parameters(object$covStruct)
   if(isTRUE(object$nonlinearFamily)){
@@ -175,6 +197,9 @@
 .nonlinear_inference_ready <- function(object){
   if(!inherits(object,"mmes.nonlinear"))
     stop("post_nonlinear() requires a nonlinear mmes fit.",call.=FALSE)
+  if(isTRUE(object$nonlinearGraph))
+    stop("Post-fit parameter uncertainty is not supported for nonlinear graph fits.",
+      call.=FALSE)
   if(!isTRUE(object$convergence) || !isTRUE(object$nonlinearDiagnostics$identified))
     stop("Nonlinear post-fit inference requires a converged, locally identifiable fit.",call.=FALSE)
   boundary <- object$nonlinearDiagnostics$boundaryParameters

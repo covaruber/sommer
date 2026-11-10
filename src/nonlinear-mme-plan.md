@@ -12,16 +12,17 @@
 | 4: Post-fit inference | Implemented and validated for stated scope | Observed parameter curvature, natural/group covariance, conditional-mode covariance versus empirical Bayes approximate PEV, prediction intervals and regular comparisons. All calculations remain explicitly post-fit. |
 | 5: Scalability and release qualification | Implemented and locally validated; external release gates pending | Profiling, sparse-component admission, independent numerical references, scaling, full regressions and package/vignette checks pass locally. Cross-platform CI and PDF-toolchain qualification remain unexecuted. |
 | 6: Multiple random curve parameters | Implemented and locally validated | Independent named formulas and a separate joint parameter-axis covariance block; existing vsm syntax, complete cross-parameter derivatives and post-fit-only uncertainty. |
-| 7: Classical-model consolidation and release gate | Planned; next priority | Close portability gates, extend independent numerical/statistical qualification and freeze the supported classical contract before graph work. |
-| 8: Declarative graph and derivative foundation | Proposed; blocked by Phase 7 | Modular smooth graph evaluator and native backpropagation prototype; no public network fitting until derivative and API gates pass. |
-| 9: Fixed multi-layer predictors | Proposed; blocked by Phase 8 | Small smooth fixed networks plus ordinary additive random effects; Gaussian ML first. |
-| 10: Random multi-layer parameters | Proposed; blocked by Phase 9 | Small declared Gaussian parameter deviations, exact conditional curvature and complete Laplace derivatives. |
+| 7: Classical-model consolidation and release gate | Skipped by user direction; exit gate remains open | Portability, full-suite, numerical/statistical and release qualification are not claimed. |
+| 8: Declarative graph and derivative foundation | Implemented as bounded standalone prototype by explicit user direction | Versioned serializable graph evaluator, fixed/random parameter maps, native reverse gradients, Hessian-vector products and third-order directional contractions; no network fitting. |
+| 9: Fixed multi-layer predictors | Implemented and locally validated; Phase 7 remains skipped and unqualified | Fixed smooth graphs, exact Gaussian ML, conventional additive Gaussian random effects, prediction and simulation. |
+| 10: Random multi-layer parameters | Proposed; awaits separate approval | Small declared Gaussian parameter deviations, exact conditional curvature and complete Laplace derivatives. |
 | 11: Graph families, post-fit inference and release | Proposed; blocked by Phase 10 | Qualify native families, identifiable uncertainty products, all output surfaces and resource/portability gates. |
 
-Phases 7--11 are roadmap updates, not implementation claims or authorization
-to begin network development. The next implementation priority is Phase 7.
-Layers and backpropagation remain unavailable until the classical stability
-gate is met and the graph API/implementation scope receives separate approval.
+Phases 7--11 are roadmap updates, not automatic authorization for later phases.
+On 2026-11-09, the user directed that Phase 7 be skipped and Phase 8 proceed.
+The user later authorized full Phase 9 implementation and acknowledged that
+Phase 7 remains skipped and unqualified. Neither change closes Phase 7 release
+gates or authorizes Phase 10.
 
 Latest Phase 3 validation checkpoint: **5,163 regression assertions passed,
 zero failures**, with one existing linear-Laplace optimizer warning at
@@ -902,8 +903,28 @@ place until their respective support gates pass.
 ### Phase 8 — declarative graph and backpropagation foundation
 
 **Prerequisites:** Phase 7 exit gate and explicit approval of this scope.
+The Phase 7 prerequisite was explicitly waived for this bounded prototype;
+the open classical stability risks remain and do not transfer to Phase 9.
 **Deliverable:** a bounded native graph/derivative prototype, not a new
 production estimator.
+
+Implementation and local qualification:
+
+- Added public `nonlinear_graph()` and `nonlinear_graph_eval()` functions.
+  Graphs are versioned, serializable DAGs with declared input transforms,
+  affine nodes, identity/tanh activations, shared parameter coordinates, and
+  fixed/group-random maps. Evaluation does not fit parameters.
+- Native evaluation uses bounded workspace admission, reverse-mode gradients,
+  Jacobian-vector products, Hessian-vector products, third-order directional
+  gradients and directional derivatives. Directional operations avoid dense
+  third-order parameter tensors.
+- Identity-graph/linear and tanh-composed logistic parity passed. Analytic
+  finite-difference checks cover multilayer paths, shared/transformed
+  coordinates, group-specific directions and third-order contractions.
+  Serialization passed a fresh-process check.
+- The dedicated graph tests passed 32 assertions. All nonlinear regression
+  tests passed 2,626 assertions with no failures, warnings or skips on the
+  local configuration. This does not qualify other platforms.
 
 1. Prototype a serializable, versioned graph with named input transforms,
    affine blocks, smooth activations, dimensions and fixed/random parameter
@@ -935,38 +956,101 @@ production estimator.
 
 **Exit gate:** approved graph API; exact dimensions/ordering; independently
 verified first/higher derivative products; serialization/new-data parity;
-bounded memory; unchanged classical regression suite. No network fitting is
-advertised until Phase 9 passes.
+bounded memory; unchanged classical regression suite. **Prototype exit gate
+passes locally.** Phase 7 remains skipped and unqualified. No network fitting
+is advertised until Phase 9 passes.
 
 ### Phase 9 — smooth fixed multi-layer predictors
 
-**Prerequisite:** Phase 8. **Deliverable:** opt-in Gaussian ML with a small
-smooth fixed network and conventional additive Gaussian random effects.
+**Status:** implemented and locally validated within the bounded fixed-network
+scope below. Phase 7 remains skipped and unqualified; Phase 9 does not close
+its release gates.
 
-1. Begin with one hidden layer, then require a two-hidden-layer acceptance
-   fixture to prove true composition rather than a hard-coded network shape.
-   Keep initial widths/depth bounded by demonstrated resource behavior.
-2. Reuse exact Gaussian integration over additive random effects. Optimize
-   network and covariance parameters jointly with verified likelihood scores;
-   do not replace ML with a squared-error training loss or silently add PQL.
-   Keep the established `nlminb` route unless a separate optimizer is approved.
-3. Define reproducible scaled starts, optional seeded initialization and any
-   explicit multistart policy through the controls contract. Report chosen
-   start, objective, convergence, gradient and competing-start outcomes.
-   Preserve the caller's RNG state and never promise a global optimum.
-4. Address hidden-unit permutations, scaling symmetries and confounding with
-   ordinary fixed terms. Reject structurally redundant layouts where feasible;
-   otherwise diagnose nonidentification. Recovery tests compare predictions
-   or identifiable functionals, not arbitrary equivalent weight vectors.
-5. Wire preparation, coefficient names, likelihood, diagnostics, prediction,
-   residuals, simulation and profiling. Save all graph/preprocessing metadata,
-   never operation-local pointers. No fit-time PEV or parameter covariance.
+**Prerequisite:** Phase 8 graph evaluator. **Deliverable:** opt-in exact Gaussian
+ML fitting for a small smooth fixed network plus conventional additive Gaussian
+random effects. Existing nonlinear-curve routes and optimizer are preserved.
 
-**Exit gate:** linear/curve special-case parity, independent Gaussian objective
-and score references, identifiable simulated recovery, deterministic repeats,
-training/new-data and serialization agreement, memory guards and full classical
-regressions. ReLU, dropout, batch normalization, stochastic/minibatch training
-and GPU execution are not implied by this phase.
+#### Implemented public and statistical contract
+
+- Accept a `sommer_nonlinear_graph` through existing nonlinear-model fitting
+  dispatch. Keep `nonlinear_curve()` behavior and dispatch unchanged.
+- In this phase, require every graph parameter coordinate to be fixed.
+  Reject random graph coordinates explicitly; defer random network parameters
+  to Phase 10.
+- Start with `tanh` hidden activations and identity output, one hidden layer,
+  and a bounded two-hidden-layer acceptance graph. Reuse current declared
+  graph operations only; do not add arbitrary callbacks or operations.
+- Combine graph output with the ordinary fixed design, offset, and additive
+  Gaussian random effects. Integrate additive random effects exactly and
+  optimize fixed network, conventional fixed-effect, covariance, and residual
+  variance parameters under Gaussian ML.
+- Require a complete named initial vector for graph parameters in this first
+  fitting version. Keep initialization deterministic; defer random
+  initialization, multistart, and new control fields unless implementation
+  evidence shows they are required.
+- Use graph-declared input transforms unchanged at fit and prediction time.
+  Do not learn preprocessing parameters implicitly.
+- Do not compute fit-time PEV or parameter covariance. Do not claim global
+  optimum, unique network weights, or inference validity from convergence.
+
+#### Implemented components
+
+1. **Graph fitting preparation.** Extended the current nonlinear fit
+   dispatcher to distinguish curve models from graph objects. Reuse existing
+   formula preparation, missing-data handling, fixed/random design creation,
+   covariance descriptors, and workspace admission. Validate graph input
+   columns, fixed-only parameter maps, finite named starts, response shape,
+   and graph/fixed-design identifiability before optimization.
+2. **Exact Gaussian ML.** Connected graph output and analytic Jacobians to the
+   existing native Gaussian objective. Reused existing Gaussian
+   covariance integration and covariance/residual scores; do not duplicate
+   likelihood algebra or substitute squared-error training, PQL, or Laplace
+   integration for the exact Gaussian route. Kept `.nonlinear_optimize()` and
+   `nlminb`.
+3. **Independent objective and score proof.** Added tiny dense reference
+   calculations for the marginalized Gaussian objective, including a
+   conventional random intercept and nontrivial covariance. Verified native
+   scores against independent finite differences for fixed, graph, covariance
+   and residual-variance coordinates, including cross-layer paths and transforms.
+4. **Special-case and fit acceptance.** Verified identity-graph semantics and
+   fit parity for a graph-composed classical logistic curve. Added one- and
+   two-hidden-layer simulated fixtures; assess recovery by predictions or
+   identifiable functionals, not raw weights.
+5. **Identifiability and convergence.** Check the augmented fixed
+   design/graph Jacobian at initialization and final fit. Detect local rank
+   deficiency and confounding with ordinary fixed terms. Document hidden-unit
+   permutation and scaling symmetries; do not canonicalize equivalent
+   networks or reject them using arbitrary weight ordering. Report optimizer
+   convergence, objective, gradient, starting values, and existing rejected
+   evaluation diagnostics.
+6. **Fitted-object behavior.** Persist the serializable graph,
+   fitted parameter coordinates, input-transform metadata, formulas/design
+   metadata, and standard fit diagnostics; never persist native pointers.
+   Implemented coefficients, summary/print, fitted values, residuals,
+   likelihood, new-data prediction, simulation, and profiling through existing
+   nonlinear methods. Graph-parameter uncertainty requests fail explicitly.
+7. **Resource and regression gates.** Bound graph, observation,
+   parameter, tape, derivative, and prediction workspace against
+   `execution$denseMemoryMB`; excess fails explicitly. Tested deterministic
+   repeated fits and unchanged caller RNG state. The complete nonlinear
+   regression suite passes without changing classical curve behavior.
+
+**Exit gate:** linear and classical-curve parity; independently verified
+marginal Gaussian objective and all score blocks; one- and two-hidden-layer
+fit acceptance; identifiable prediction/function recovery; deterministic
+repeat and RNG preservation; serialization and new-data prediction parity;
+complete fitted-object surface; memory rejection; and unchanged nonlinear
+regressions. Local Phase 9 success would not close Phase 7 release gates.
+
+**Local validation:** graph evaluator and fitting acceptance passed 79
+assertions. The complete nonlinear regression suite passed 2,673 assertions
+with no failures, warnings, or skips on the local configuration. Cross-platform
+qualification remains open with Phase 7.
+
+**Explicit non-goals:** random network parameters, Phase 10 curvature and
+Laplace derivatives, non-Gaussian families, ReLU, dropout, batch normalization,
+stochastic/minibatch training, GPU execution, automatic multistart, global
+optimality, and fit-time parameter uncertainty.
 
 ### Phase 10 — small random multi-layer parameter blocks
 
@@ -1056,14 +1140,9 @@ separate research decisions; none bypasses the classical or graph gates.
 
 ## Recommended next implementation step
 
-Complete Phase 7 classical-model consolidation, starting with the outstanding
-external release gates and a full regression run against Phase 6. Agree the
-support matrix and numerical/statistical thresholds before extending tests.
-Resolve supported-scope defects before broadening model classes.
-
-Only after that gate and explicit approval, proceed through the graph and
-backpropagation foundation (Phase 8), fixed smooth multi-layer models (Phase 9),
-small random network blocks (Phase 10), and qualified families/post-fit
-inference/release (Phase 11). The optional classical backlog is prioritized
-separately. This ordering preserves modularity, existing formulas, validated
-control options and strictly post-fit PEV/uncertainty throughout.
+Phase 8 now provides a standalone, versioned graph evaluator and derivative
+products. Do not start Phase 9 fitting until the user separately approves
+network fitting and acknowledges the still-open Phase 7 stability risks.
+The optional classical backlog remains separate. Existing nonlinear fits,
+formulas, validated control options and strictly post-fit PEV/uncertainty stay
+unchanged.

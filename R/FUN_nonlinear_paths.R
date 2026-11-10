@@ -63,23 +63,53 @@
 
 .nonlinear_path_plan <- function(model, control, family, random, rcov, W,
     weights, covPar, internal){
-  .nonlinear_validate(model)
+  graph <- inherits(model,"sommer_nonlinear_graph")
+  if(graph) .nonlinear_graph_validate(model) else .nonlinear_validate(model)
   .laplace_family_specs(family, control$task$glmm$familyParameters)
   gaussian <- .nonlinear_exact_gaussian(family, control)
+  if(graph && !gaussian)
+    stop("Nonlinear graph fitting currently requires Gaussian identity-link ML.",
+      call.=FALSE)
+  if(graph){
+    outputNode <- model$nodes[[model$output]]
+    while(identical(outputNode$op,"identity"))
+      outputNode <- model$nodes[[outputNode$inputs[[1L]]]]
+    if(identical(outputNode$op,"tanh"))
+      stop("Nonlinear graph fitting requires an identity output; use tanh only in hidden layers.",
+        call.=FALSE)
+  }
   if(control$task$objective != "ml" || control$task$mode != "fit" ||
      control$formulation != "henderson"){
     stop("Nonlinear fitting requires task$objective='ml', task$mode='fit' and formulation='henderson'.",
       call.=FALSE)
   }
-  if(is.null(random) && !length(model$random) && is.null(model$joint)){
+  if(graph && any(!vapply(model$parameterMap,function(map)
+      identical(map$type,"fixed"),logical(1)))){
+    stop("Nonlinear graph fitting currently requires fixed graph parameters; random graph parameters are reserved for a later phase.",
+      call.=FALSE)
+  }
+  if(graph && is.null(control$task$nonlinear$start)){
+    stop("Nonlinear graph fitting requires a complete named task$nonlinear$start vector.",
+      call.=FALSE)
+  }
+  if(graph && !identical(control$task$nonlinear$mode,.mme_nonlinear_mode_defaults)){
+    stop("Nonlinear mode controls require random curve parameters and do not apply to fixed graph fits.",
+      call.=FALSE)
+  }
+  if(graph && !identical(control$task$nonlinear$population,
+      .mme_nonlinear_prediction_defaults)){
+    stop("Nonlinear population controls require random curve parameters and do not apply to fixed graph fits.",
+      call.=FALSE)
+  }
+  if(is.null(random) && (graph || !length(model$random) && is.null(model$joint))){
     stop("Nonlinear mixed models require at least one additive Gaussian random term.",
       call.=FALSE)
   }
-  if(gaussian && !length(model$random) && is.null(model$joint) &&
+  if(!graph && gaussian && !length(model$random) && is.null(model$joint) &&
      !identical(control$task$nonlinear$mode, .mme_nonlinear_mode_defaults)){
     stop("Nonlinear mode controls require random curve parameters.", call.=FALSE)
   }
-  if(gaussian && !length(model$random) && is.null(model$joint) &&
+  if(!graph && gaussian && !length(model$random) && is.null(model$joint) &&
      !identical(control$task$nonlinear$population, .mme_nonlinear_prediction_defaults)){
     stop("Nonlinear population controls require random curve parameters.", call.=FALSE)
   }
@@ -119,12 +149,15 @@
     stop("Nonlinear fitting does not use these controls: ",
       paste(changed, collapse=", "), ".", call.=FALSE)
   }
-  list(requested="traditional nonlinear ML", eligible=TRUE,
-    selected=if(!gaussian) "Laplace family ML" else
+  list(requested=if(graph) "fixed nonlinear graph Gaussian ML" else
+      "traditional nonlinear ML", eligible=TRUE,
+    selected=if(graph) "exact Gaussian ML" else if(!gaussian) "Laplace family ML" else
       if(length(model$random) || !is.null(model$joint)) "Laplace Gaussian ML" else "exact Gaussian ML",
-    curve=model$curve,
-    random=if(length(model$random) || !is.null(model$joint)) "Gaussian curve-coordinate deviations" else
-      "additive linear Gaussian", backend="random",
+    curve=if(graph) NULL else model$curve,
+    graph=graph,
+    random=if(graph) "additive linear Gaussian" else
+      if(length(model$random) || !is.null(model$joint)) "Gaussian curve-coordinate deviations" else
+        "additive linear Gaussian", backend="random",
     optimizer=control$task$nonlinear$optimizer,
     gradient=control$task$nonlinear$gradient,
     initialization=if(is.null(control$task$nonlinear$start)) "auto" else "supplied",

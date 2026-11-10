@@ -11,7 +11,8 @@ coef.mmes.nonlinear <- function(object, ..., type=c("mean","working","all")){
   if(type=="all") return(.nonlinear_parameter_values(object,object$optimizer$par))
   c(if(length(object$b)) stats::setNames(object$b, paste0("fixed:", names(object$b))),
     stats::setNames(object$nonlinearParameters,
-      paste0("curve:", names(object$nonlinearParameters))))
+      paste0(if(isTRUE(object$nonlinearGraph)) "graph:" else "curve:",
+        names(object$nonlinearParameters))))
 }
 
 fitted.mmes.nonlinear <- function(object, type=c("response", "link"), ...){
@@ -50,7 +51,8 @@ summary.mmes.nonlinear <- function(object, ..., inference=FALSE){
   .nonlinear_check_dots(...)
   .mme_flag(inference,"inference")
   uncertainty <- if(inference) .nonlinear_uncertainty(object) else object$nonlinearInference
-  structure(list(curve=object$nonlinear$curve, coefficients=stats::coef(object),
+  structure(list(curve=if(isTRUE(object$nonlinearGraph)) "fixed nonlinear graph" else
+      object$nonlinear$curve, coefficients=stats::coef(object),
     parameterTable=if(!is.null(uncertainty)) data.frame(
       Estimate=uncertainty$parameters,
       StdError=sqrt(pmax(0,diag(uncertainty$parameterCovariance)))) else NULL,
@@ -76,7 +78,8 @@ summary.mmes.nonlinear <- function(object, ..., inference=FALSE){
 
 print.summary.mmes.nonlinear <- function(x, ...){
   cat("Nonlinear mixed model:", x$likelihoodMethod, "\n")
-  cat("Curve:", x$curve, "| Converged:", x$convergence, "\n")
+  cat(if(identical(x$curve,"fixed nonlinear graph")) "Predictor:" else "Curve:",
+    x$curve, "| Converged:", x$convergence, "\n")
   cat("logLik:", format(x$logLik), "\n")
   if(is.null(x$parameterTable)) print(x$coefficients) else print(x$parameterTable)
   if(!is.null(x$residualVariance)) cat("Residual variance:", format(x$residualVariance), "\n")
@@ -199,7 +202,8 @@ predict.mmes.nonlinear <- function(object, newdata=NULL, re.form=NULL,
     }
     return(if(includeRandom) object$fitted.values else object$fixedMean)
   }
-  input <- .nonlinear_input(object$nonlinear, newdata)
+  input <- if(isTRUE(object$nonlinearGraph)) NULL else
+    .nonlinear_input(object$nonlinear, newdata)
   if(!all(object$fixedVariables %in% names(newdata))){
     stop("Prediction requires fixed-effect columns: ",
       paste(setdiff(object$fixedVariables, names(newdata)), collapse=", "), ".",
@@ -233,6 +237,9 @@ predict.mmes.nonlinear <- function(object, newdata=NULL, re.form=NULL,
       mean <- sommer_nonlinear_curve_random_eval(object$nonlinear$curve, input,
         object$nonlinearCoordinates, curveRandom$coordinate, deviations)
     }else mean <- .nonlinear_population_prediction(object, input, curveDesign)
+  }else if(isTRUE(object$nonlinearGraph)){
+    mean <- .nonlinear_graph_first(object$nonlinear,newdata,
+      object$nonlinearCoordinates,object$control)$output
   }else{
     mean <- sommer_nonlinear_curve_eval(object$nonlinear$curve, input,
       object$nonlinearCoordinates, gradient=FALSE)$mean
@@ -285,7 +292,11 @@ confint.mmes.nonlinear <- function(object, parm, level=0.95, ...,
   error <- stats::qnorm((1+level)/2)*sqrt(diag(covariance)[parm])
   result <- cbind(center-error,center+error)
   if(type!="working"){
-    positive <- paste0("curve:",object$nonlinear$parameters[object$nonlinear$positive])
+    positive <- if(isTRUE(object$nonlinearGraph)){
+      indices <- which(vapply(object$nonlinear$parameterMap,function(map)
+        identical(map$transform,"log"),logical(1)))
+      paste0("graph:",object$nonlinear$parameters[indices])
+    }else paste0("curve:",object$nonlinear$parameters[object$nonlinear$positive])
     rows <- which(parm %in% positive)
     working <- uncertainty$workingCovariance
     center <- object$optimizer$par[parm[rows]]

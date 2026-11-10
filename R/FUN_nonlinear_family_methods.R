@@ -232,6 +232,20 @@
   factors <- if(re.form=="population")
     .laplace_random_effect_sampling_factors(object,maxMemoryMB,
       allowSingular=.nonlinear_has_reduced_rank(object$covStruct)) else NULL
+  if(isTRUE(object$nonlinearGraph)){
+    simulations <- matrix(0,object$nobs,nsim)
+    for(i in seq_len(nsim)){
+      mean <- if(re.form=="conditional") object$fitted.values else{
+        mode <- .laplace_draw_random_effects(factors)
+        object$fixedMean+as.numeric(object$randomDesign%*%mode)
+      }
+      simulations[,i] <- stats::rnorm(object$nobs,mean,
+        sqrt(object$dispersion))
+    }
+    result <- as.data.frame(simulations)
+    names(result) <- paste0("sim_",seq_len(nsim))
+    return(result)
+  }
   if(!isTRUE(object$nonlinearFamily)){
     object$linear.predictors <- object$fitted.values
     object$laplaceFamilies <- list(stats::gaussian())

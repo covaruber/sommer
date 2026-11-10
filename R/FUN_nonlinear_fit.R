@@ -26,6 +26,21 @@
   })
 }
 
+.nonlinear_graph_start <- function(graph,settings){
+  start <- settings$start
+  if(is.null(start))
+    stop("Nonlinear graph fitting requires a complete named task$nonlinear$start vector.",
+      call.=FALSE)
+  if(!is.numeric(start) || is.complex(start) || !is.null(dim(start)) ||
+     length(start)!=length(graph$parameters) || is.null(names(start)) ||
+     anyNA(names(start)) || anyDuplicated(names(start)) ||
+     !setequal(names(start),graph$parameters) || any(!is.finite(start))){
+    stop("task$nonlinear$start must be a finite named vector containing exactly: ",
+      paste(graph$parameters,collapse=", "),".",call.=FALSE)
+  }
+  stats::setNames(as.numeric(start[graph$parameters]),graph$parameters)
+}
+
 .mmes_nonlinear_fit <- function(fixed, random=NULL, data, nonlinear, control,
     rcov=NULL, W=NULL, weights=NULL, family=stats::gaussian(), vcc=NULL,
     covPar=NULL, naMethodX="exclude", naMethodY="exclude",
@@ -35,9 +50,14 @@
       family, vcc, naMethodX, naMethodY, naMethodRandom, naMethodR, contrasts))
   }
   profileStart <- if(identical(control$diagnostics$profile,"force")) proc.time()[["elapsed"]] else NULL
-  model <- .nonlinear_validate(nonlinear)
-  random <- .nonlinear_joint_formula(random, model, data)
-  input <- .nonlinear_input(model, data, missingOK=TRUE)
+  graphFit <- inherits(nonlinear,"sommer_nonlinear_graph")
+  model <- if(graphFit) .nonlinear_graph_validate(nonlinear) else
+    .nonlinear_validate(nonlinear)
+  if(!graphFit) random <- .nonlinear_joint_formula(random, model, data)
+  graphLayout <- if(graphFit) .nonlinear_graph_native_layout(model,data,
+    allowMissing=TRUE) else NULL
+  input <- if(graphFit) graphLayout$inputs else
+    .nonlinear_input(model, data, missingOK=TRUE)
   scope <- .mmes_blas_scope(control$execution$blasThreads)
   on.exit(scope$restore(), add=TRUE)
   prepared <- .nonlinear_prepare(fixed, random, data, control, naMethodX,
@@ -45,7 +65,7 @@
   included <- prepared$obsInfo$included
   x <- prepared$X
   z <- Matrix::Matrix(do.call(cbind, prepared$Z), sparse=TRUE)
-  curveRandom <- .nonlinear_random_layout(model, prepared)
+  curveRandom <- if(graphFit) NULL else .nonlinear_random_layout(model, prepared)
   prepared$rtermss <- .nonlinear_term_labels(model,prepared$rtermss)
   y <- stats::model.response(prepared$modelFrame)
   if(!is.numeric(y) || !is.null(dim(y))){
@@ -54,15 +74,17 @@
   y <- as.numeric(y[included])
   offset <- stats::model.offset(prepared$modelFrame)
   offset <- if(is.null(offset)) numeric(length(y)) else offset[included]
-  input <- input[included]
-  if(any(!is.finite(y)) || any(!is.finite(offset)) || any(!is.finite(input)) ||
+  if(!graphFit) input <- input[included]
+  retainedInput <- if(graphFit) input[included,,drop=FALSE] else input
+  if(any(!is.finite(y)) || any(!is.finite(offset)) ||
+     any(!is.finite(retainedInput)) ||
      any(!is.finite(x)) || any(!is.finite(z))){
     stop("Nonlinear fitting requires finite retained responses, inputs, offsets and designs.",
       call.=FALSE)
   }
   k <- length(model$parameters)
   p <- ncol(x)
-  if(length(y) <= p+k || length(unique(input)) < k){
+  if(length(y) <= p+k || (!graphFit && length(unique(input)) < k)){
     stop("Too few distinct inputs or observations to identify the nonlinear mean and residual variance.",
       call.=FALSE)
   }
@@ -70,15 +92,20 @@
         as.double(length(y))*(p+k)) > control$execution$denseMemoryMB*1048576){
     stop("Nonlinear preparation workspace exceeds execution$denseMemoryMB.", call.=FALSE)
   }
-  theta <- .nonlinear_start(model, input, y-offset, control$task$nonlinear)
-  initialCurve <- sommer_nonlinear_curve_eval(model$curve, input, theta)
-  if(!.nonlinear_identification(x, initialCurve$jacobian)){
-    stop("The combined fixed/nonlinear mean is locally rank deficient at the start; revise the fixed formula or supply identifiable curve starts.",
+  theta <- if(graphFit) .nonlinear_graph_start(model,control$task$nonlinear) else
+    .nonlinear_start(model, input, y-offset, control$task$nonlinear)
+  initialPredictor <- if(graphFit){
+    .nonlinear_graph_first(model,data[included,,drop=FALSE],theta,control)
+  }else sommer_nonlinear_curve_eval(model$curve,input,theta)
+  initialMean <- if(graphFit) initialPredictor$output else initialPredictor$mean
+  initialJacobian <- initialPredictor$jacobian
+  if(!.nonlinear_identification(x, initialJacobian)){
+    stop("The combined fixed/nonlinear mean is locally rank deficient at the start; revise the fixed formula or supply identifiable nonlinear starts.",
       call.=FALSE)
   }
   beta <- if(p) stats::lm.fit(as.matrix(x),
-    y-offset-as.numeric(initialCurve$mean))$coefficients else numeric()
-  initialResidual <- y-offset-as.numeric(initialCurve$mean)-as.numeric(x %*% beta)
+    y-offset-as.numeric(initialMean))$coefficients else numeric()
+  initialResidual <- y-offset-as.numeric(initialMean)-as.numeric(x %*% beta)
   variance <- mean(initialResidual^2)
   if(!is.finite(variance) || variance <= 0){
     stop("Nonlinear initialization produced non-positive residual variance.", call.=FALSE)
@@ -87,16 +114,23 @@
   mapping <- .laplace_covariance_map(prepared$covStruct[seq_len(count)],
     prepared$rtermss, vcc)
   .nonlinear_covariance_eligibility(mapping$structures, prepared$rtermss)
-  # Native curve coordinates are part of the fixed-mean block, not covariance.
+  # Nonlinear predictor coordinates are part of the fixed-mean block, not covariance.
   layout <- list(fixedCount=p+k, covarianceCount=length(mapping$map$initial),
     freePositions=lapply(mapping$structures, function(s) which(s$free)),
     parameterStarts=cumsum(c(0L, head(vapply(mapping$structures,
       function(s) sum(s$free), integer(1)), -1L))),
     covarianceMap=mapping$map)
   parameters <- c(if(p) stats::setNames(beta, paste0("fixed:", colnames(x))),
-    stats::setNames(theta, paste0("curve:", model$parameters)),
+    stats::setNames(theta,paste0(if(graphFit) "graph:" else "curve:",
+      model$parameters)),
     mapping$map$initial, `residual:logVariance`=log(variance))
-  if(is.null(curveRandom)){
+  if(graphFit){
+    context <- sommer_nonlinear_graph_gaussian_create(x,z,y,offset,
+      graphLayout$inputs[included,,drop=FALSE],graphLayout$nodes,
+      graphLayout$output,graphLayout$transformed,mapping$structures,
+      prepared$Ai,control$execution$denseMemoryMB)
+    nativeEvaluate <- sommer_nonlinear_gaussian_eval
+  }else if(is.null(curveRandom)){
     context <- sommer_nonlinear_gaussian_create(x, z, y, offset, input,
       model$curve, mapping$structures, prepared$Ai, control$execution$denseMemoryMB)
     nativeEvaluate <- sommer_nonlinear_gaussian_eval
@@ -127,8 +161,12 @@
   rejected <- optimized$rejected
   converged <- identical(optimization$convergence, 0L)
   theta <- optimization$par[p+seq_len(k)]
-  curve <- sommer_nonlinear_curve_eval(model$curve, input, theta)
-  identified <- .nonlinear_identification(x, curve$jacobian)
+  names(theta) <- model$parameters
+  curve <- if(graphFit) NULL else sommer_nonlinear_curve_eval(model$curve,input,theta)
+  finalJacobian <- if(graphFit)
+    .nonlinear_graph_first(model,data[included,,drop=FALSE],theta,control)$jacobian else
+      curve$jacobian
+  identified <- .nonlinear_identification(x,finalJacobian)
   if(!identified){
     warning("The fitted nonlinear mean is locally rank deficient; curve parameters may not be identifiable.",
       call.=FALSE)
@@ -153,14 +191,25 @@
   })
   randomLevels <- Filter(Negate(is.null), randomLevels)
   boundary <- .mmes_laplace_boundary(structures, mapping$structures)
+  nonlinearParameters <- if(graphFit){
+    natural <- theta
+    logCoordinates <- which(vapply(model$parameterMap,function(map)
+      identical(map$transform,"log"),logical(1)))
+    if(length(logCoordinates)) natural[logCoordinates] <- exp(natural[logCoordinates])
+    natural
+  }else .nonlinear_natural(model,theta)
   result <- list(
-    nonlinear=model, nonlinearParameters=.nonlinear_natural(model, theta),
+    nonlinear=model, nonlinearGraph=graphFit,
+    nonlinearParameters=nonlinearParameters,
     nonlinearCoordinates=stats::setNames(theta, model$parameters),
     nonlinearRandom=curveRandom,
     groupParameters=.nonlinear_random_parameters(model, theta, curveRandom, final$mode),
     likelihoodMethod=if(is.null(curveRandom)) "exact Gaussian ML" else "Laplace Gaussian ML",
     nonlinearParameterLayout=list(version=1L, fixed=names(beta),
-      curve=model$parameters, positive=model$positive,
+      curve=if(graphFit) character() else model$parameters,
+      graph=if(graphFit) model$parameters else character(),
+      positive=if(graphFit) which(vapply(model$parameterMap,function(map)
+        identical(map$transform,"log"),logical(1))) else model$positive,
       optimizer=names(parameters), covariance=layout),
     b=beta, u=as.numeric(final$mode), randomMode=as.numeric(final$mode),
     latentRandomMode=as.numeric(final$latentMode),
@@ -186,7 +235,11 @@
       sum(vapply(prepared$Z[prepared$Zind==term],ncol,integer(1))),integer(1)),
     randomDesignBlockWidths=vapply(prepared$Z,ncol,integer(1)),
     randomFactorLevels=randomLevels, predictionData=training[randomVariables],
-    input=input, obsInfo=prepared$obsInfo, vcc=vcc,
+    input=if(graphFit) input[included,,drop=FALSE] else input,
+    graphNative=if(graphFit) graphLayout[c("nodes","output","transformed")] else NULL,
+    graphData=if(graphFit) graphLayout$inputs[included,,drop=FALSE] else NULL,
+    trainingData=if(graphFit) training else NULL,
+    obsInfo=prepared$obsInfo, vcc=vcc,
     predictionSettings=list(naMethodX=naMethodX, naMethodY=naMethodY,
       naMethodRandom=naMethodRandom, naMethodR=naMethodR, contrasts=contrasts),
     nonlinearDiagnostics=list(gradient=stats::setNames(as.numeric(final$gradient),

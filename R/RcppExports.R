@@ -121,12 +121,24 @@ mmes_vcov_solve_cpp <- function(pointer, Dmat) {
     .Call(`_sommer_mmes_vcov_solve_cpp`, pointer, Dmat)
 }
 
+sommer_nonlinear_graph_eval_cpp <- function(graph, output, data, parameters, transformed, directions, memoryMB) {
+    .Call(`_sommer_sommer_nonlinear_graph_eval_cpp`, graph, output, data, parameters, transformed, directions, memoryMB)
+}
+
+sommer_nonlinear_graph_first_cpp <- function(graph, output, data, parameters, transformed, memoryMB) {
+    .Call(`_sommer_sommer_nonlinear_graph_first_cpp`, graph, output, data, parameters, transformed, memoryMB)
+}
+
 sommer_nonlinear_curve_eval <- function(curve, input, parameters, gradient = TRUE) {
     .Call(`_sommer_sommer_nonlinear_curve_eval`, curve, input, parameters, gradient)
 }
 
 sommer_nonlinear_gaussian_create <- function(fixed, random, response, offset, input, curve, descriptors, relationships, memoryMB = 1000) {
     .Call(`_sommer_sommer_nonlinear_gaussian_create`, fixed, random, response, offset, input, curve, descriptors, relationships, memoryMB)
+}
+
+sommer_nonlinear_graph_gaussian_create <- function(fixed, random, response, offset, graphData, graph, output, transformed, descriptors, relationships, memoryMB = 1000) {
+    .Call(`_sommer_sommer_nonlinear_graph_gaussian_create`, fixed, random, response, offset, graphData, graph, output, transformed, descriptors, relationships, memoryMB)
 }
 
 sommer_nonlinear_gaussian_eval <- function(context, parameters, gradient = TRUE) {

@@ -1,6 +1,28 @@
 #include <RcppArmadillo.h>
 #include "mme_nonlinear_gaussian.h"
 #include "mme_nonlinear_laplace.h"
+#include "mme_nonlinear_graph.h"
+
+// [[Rcpp::export]]
+Rcpp::List sommer_nonlinear_graph_eval_cpp(const Rcpp::List & graph,
+    const int output,const arma::mat & data,const arma::mat & parameters,
+    const Rcpp::IntegerVector & transformed,const arma::mat & directions,
+    const double memoryMB){
+  if(output<0) Rcpp::stop("Invalid nonlinear graph output index.");
+  sommer::NonlinearGraph evaluator(graph,static_cast<arma::uword>(output),
+    data.n_cols,parameters.n_cols,transformed);
+  return evaluator.evaluate(data,parameters,directions,memoryMB);
+}
+
+// [[Rcpp::export]]
+Rcpp::List sommer_nonlinear_graph_first_cpp(const Rcpp::List & graph,
+    const int output,const arma::mat & data,const arma::vec & parameters,
+    const Rcpp::IntegerVector & transformed,const double memoryMB){
+  if(output<0) Rcpp::stop("Invalid nonlinear graph output index.");
+  sommer::NonlinearGraph evaluator(graph,static_cast<arma::uword>(output),
+    data.n_cols,parameters.n_elem,transformed);
+  return evaluator.evaluateFirst(data,parameters,memoryMB);
+}
 
 // [[Rcpp::export]]
 Rcpp::List sommer_nonlinear_curve_eval(const std::string & curve,
@@ -21,6 +43,18 @@ SEXP sommer_nonlinear_gaussian_create(const arma::sp_mat & fixed,
   return Rcpp::XPtr<sommer::NonlinearGaussianObjective>(
     new sommer::NonlinearGaussianObjective(fixed,random,response,offset,input,
       curve,descriptors,relationships,memoryMB), true);
+}
+
+// [[Rcpp::export]]
+SEXP sommer_nonlinear_graph_gaussian_create(const arma::sp_mat & fixed,
+    const arma::sp_mat & random, const arma::vec & response,
+    const arma::vec & offset, const arma::mat & graphData,
+    const Rcpp::List & graph, const int output,
+    const Rcpp::IntegerVector & transformed, const Rcpp::List & descriptors,
+    const Rcpp::List & relationships, const double memoryMB=1000){
+  return Rcpp::XPtr<sommer::NonlinearGaussianObjective>(
+    new sommer::NonlinearGaussianObjective(fixed,random,response,offset,
+      graphData,graph,output,transformed,descriptors,relationships,memoryMB),true);
 }
 
 // [[Rcpp::export]]
