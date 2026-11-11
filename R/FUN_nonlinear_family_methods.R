@@ -15,11 +15,14 @@
 
 .nonlinear_family_design <- function(object,newdata,random){
   if(is.null(newdata)){
+    n <- if(isTRUE(object$nonlinearGraph)) nrow(object$input) else
+      length(object$input)
     return(list(fixed=object$fixedDesign,random=object$randomDesign,
       offset=object$offset,input=object$input,index=object$laplaceFamilyIndex,
-      rowMap=if(is.null(object$categorical)) seq_along(object$input) else object$categorical$rowMap,
-      coordinate=if(is.null(object$categorical)) rep(1L,length(object$input)) else
-        object$categorical$coordinate,data=NULL))
+      rowMap=if(is.null(object$categorical)) seq_len(n) else object$categorical$rowMap,
+      coordinate=if(is.null(object$categorical)) rep(1L,n) else
+        object$categorical$coordinate,data=if(isTRUE(object$nonlinearGraph))
+          object$trainingData else NULL))
   }
   if(!is.data.frame(newdata) || !nrow(newdata))
     stop("Nonlinear prediction requires nonempty newdata in a data frame.",call.=FALSE)
@@ -36,11 +39,15 @@
     design <- .laplace_mixed_prediction_design(local,newdata,
       includeRandom=random,population=FALSE)
     expanded <- .laplace_mixed_expand(newdata,object$predictionFamily,object$familySpecifications)$data
-    design$input <- .nonlinear_input(object$nonlinear,expanded)
+    design$input <- if(isTRUE(object$nonlinearGraph))
+      .nonlinear_graph_native_layout(object$nonlinear,expanded)$inputs else
+        .nonlinear_input(object$nonlinear,expanded)
     design$data <- expanded
     return(design)
   }
-  input <- .nonlinear_input(object$nonlinear,newdata)
+  input <- if(isTRUE(object$nonlinearGraph))
+    .nonlinear_graph_native_layout(object$nonlinear,newdata)$inputs else
+      .nonlinear_input(object$nonlinear,newdata)
   frame <- stats::model.frame(object$fixedTerms,data=newdata,
     xlev=object$fixedXlevels,na.action=stats::na.pass)
   fixed <- stats::model.matrix(object$fixedTerms,frame,contrasts.arg=object$contrasts)
@@ -61,8 +68,14 @@
 
 .nonlinear_family_eta <- function(object,prediction,mode=NULL){
   layout <- object$nonlinearRandom
-  n <- length(prediction$input)
-  curve <- if(is.null(layout) || is.null(mode)){
+  graph <- isTRUE(object$nonlinearGraph)
+  n <- if(graph) nrow(prediction$input) else length(prediction$input)
+  curve <- if(graph){
+    parameters <- .nonlinear_graph_parameters(object,prediction$data,
+      prediction$random,mode)
+    .nonlinear_graph_values(object$nonlinear,prediction$data,parameters,
+      object$control)
+  }else if(is.null(layout) || is.null(mode)){
     sommer_nonlinear_curve_eval(object$nonlinear$curve,prediction$input,
       object$nonlinearCoordinates,gradient=FALSE)$mean
   }else if(identical(layout$version,2L)){
@@ -146,7 +159,9 @@
   layout <- object$nonlinearRandom
   additive <- design$random
   coordinates <- if(is.null(layout)) integer() else layout$coordinate
-  bases <- .nonlinear_curve_bases(object,design$random)
+  graph <- isTRUE(object$nonlinearGraph)
+  bases <- if(graph) .nonlinear_graph_bases(object,design$random) else
+    .nonlinear_curve_bases(object,design$random)
   if(!is.null(layout)){
     columns <- layout$start+seq_len(layout$count)
     additive[,columns] <- 0
@@ -173,15 +188,32 @@
         count <- nrow(deviations)
         eta <- matrix(rep(zero[current],each=count),count,d)+deviations[,seq_len(d),drop=FALSE]
         if(!is.null(layout)){
-          shifts <- matrix(0,count*d,length(object$nonlinearCoordinates))
-          for(j in seq_along(coordinates))
-            shifts[,coordinates[j]] <- as.numeric(
-              deviations[,j*d+seq_len(d),drop=FALSE])
-          curve <- sommer_nonlinear_curve_joint_eval(object$nonlinear$curve,
-            rep(design$input[current],each=count),object$nonlinearCoordinates,shifts)
-          base <- sommer_nonlinear_curve_eval(object$nonlinear$curve,
-            design$input[current],object$nonlinearCoordinates,gradient=FALSE)$mean
-          eta <- eta+matrix(as.numeric(curve)-rep(as.numeric(base),each=count),count,d)
+          if(graph){
+            rows <- rep(current,each=count)
+            parameters <- .nonlinear_graph_parameters(object,
+              design$data[rows,,drop=FALSE])
+            baseParameters <- .nonlinear_graph_parameters(object,
+              design$data[current,,drop=FALSE])
+            for(j in seq_along(coordinates))
+              parameters[,coordinates[j]] <- parameters[,coordinates[j]]+
+                as.numeric(deviations[,j*d+seq_len(d),drop=FALSE])
+            graphValue <- .nonlinear_graph_values(object$nonlinear,
+              design$data[rows,,drop=FALSE],parameters,object$control)
+            base <- .nonlinear_graph_values(object$nonlinear,
+              design$data[current,,drop=FALSE],baseParameters,object$control)
+            eta <- eta+matrix(as.numeric(graphValue)-rep(as.numeric(base),
+              each=count),count,d)
+          }else{
+            shifts <- matrix(0,count*d,length(object$nonlinearCoordinates))
+            for(j in seq_along(coordinates))
+              shifts[,coordinates[j]] <- as.numeric(
+                deviations[,j*d+seq_len(d),drop=FALSE])
+            curve <- sommer_nonlinear_curve_joint_eval(object$nonlinear$curve,
+              rep(design$input[current],each=count),object$nonlinearCoordinates,shifts)
+            base <- sommer_nonlinear_curve_eval(object$nonlinear$curve,
+              design$input[current],object$nonlinearCoordinates,gradient=FALSE)$mean
+            eta <- eta+matrix(as.numeric(curve)-rep(as.numeric(base),each=count),count,d)
+          }
         }
         if(type=="link") return(eta)
         if(specification$family=="multinomial")
@@ -232,7 +264,7 @@
   factors <- if(re.form=="population")
     .laplace_random_effect_sampling_factors(object,maxMemoryMB,
       allowSingular=.nonlinear_has_reduced_rank(object$covStruct)) else NULL
-  if(isTRUE(object$nonlinearGraph)){
+  if(isTRUE(object$nonlinearGraph) && !isTRUE(object$nonlinearFamily)){
     simulations <- matrix(0,object$nobs,nsim)
     for(i in seq_len(nsim)){
       mean <- if(re.form=="conditional") object$fitted.values else{

@@ -50,7 +50,7 @@ test_that("ordinary fixed-only models match lm and glm exactly",{
   expect_equal(as.numeric(logLik(fit)),as.numeric(logLik(oracle)))
   expect_equal(vcov(fit),vcov(oracle))
   expect_equal(residuals(fit,type="pearson"),residuals(oracle,type="pearson"))
-  expect_error(simulate(fit),"not implemented")
+  expect_equal(dim(simulate(fit,nsim=2,seed=91)),c(nrow(data),2L))
 })
 
 test_that("nonlinear parameter regressions agree with an independent nls oracle",{
@@ -198,7 +198,7 @@ test_that("Gamma log likelihood and fitted dispersion match independent ML",{
   expect_equal(as.numeric(logLik(ordinary)),-phi$objective,tolerance=1e-7)
   expect_error(.mmes_specification_fit(positive~a*x,data=data,
     family=Gamma("identity"),parameters=list(a=parameter()),
-    start=c(a=.3),control=control),"Gamma-log")
+    start=c(a=.3),control=control),"Unsupported native Laplace family/link")
   mixed <- .mmes_specification_fit(positive~a*x,data=data,family=Gamma("log"),
     random=~vsm(ism(Name),sigma2=.025,fixedSigma2=TRUE),
     parameters=list(a=parameter()),start=c(a=.3),control=control,rcov=~units)
@@ -307,7 +307,7 @@ test_that("named graphs share the expression route with namespaced declarations"
     family=binomial(),predictors=list(net=graph),
     parameters=list("net::k"=parameter(link="log")),
     start=c("net::k"=1,"net::a"=1.5),control=specification_control()),
-    "Gaussian identity")
+    "Binomial responses")
 })
 
 test_that("invalid options, starts, expressions, and prediction levels fail explicitly",{

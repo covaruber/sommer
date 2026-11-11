@@ -1,7 +1,15 @@
 postPEV <- function(object, mode = 1L){
-  if(inherits(object,"mmes.specification"))
-    stop("Random-effect PEV is not implemented for formula specification fits; use vcov() for coefficient covariance.",
-      call.=FALSE)
+  if(inherits(object,"mmes.specification")){
+    if(length(mode)!=1L || is.na(mode) || !mode %in% 0:2)
+      stop("mode must be 0, 1 or 2.",call.=FALSE)
+    if(mode==0L){
+      object$nonlinearInference <- NULL
+      object$uPevList <- NULL
+      object$uPevMode <- 0L
+      return(object)
+    }
+    return(post_nonlinear(object,mode=mode))
+  }
   if(inherits(object,"mmes.nonlinear")){
     if(length(mode)!=1L || is.na(mode) || !mode %in% 0:2)
       stop("mode must be 0, 1 or 2.",call.=FALSE)

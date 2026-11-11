@@ -271,11 +271,13 @@ mmes <- function(fixed,random=NULL,rcov=NULL,data,W,weights=NULL,
     args$fixed <- native$fixed
     args$nonlinear <- native$model
     requestedGradient <- control$optimizer$gradient
-    numericalGraph <- inherits(native$model,"sommer_nonlinear_graph") &&
-      (length(native$model$random)>0L || !is.null(native$model$joint))
+    graphPredictor <- inherits(native$model,"sommer_nonlinear_graph")
+    numericalGraph <- graphPredictor &&
+      (!.nonlinear_exact_gaussian(family,internal) ||
+       length(native$model$random)>0L || !is.null(native$model$joint))
     if((requestedGradient=="analytic" && numericalGraph) ||
        (requestedGradient=="central" && !numericalGraph))
-      stop("Requested optimizer gradient is unavailable for this native predictor; use gradient='auto' or its supported derivative method.",
+      stop("Requested optimizer gradient is unavailable for this native predictor; use gradient='auto' or the supported central/analytic method.",
         call.=FALSE)
     if(!is.null(internal$task$nonlinear$start)){
       coordinates <- internal$task$nonlinear$start
@@ -312,6 +314,7 @@ mmes <- function(fixed,random=NULL,rcov=NULL,data,W,weights=NULL,
     args$predictors <- predictors
     args$start <- start
     args$specificationMethod <- unclass(method)
+    args$familyParameters <- familyParameters
     result <- do.call(.mmes_specification_fit,args)
   }else{
     result <- do.call(.mmes_dispatch,args)

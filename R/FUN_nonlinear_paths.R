@@ -68,12 +68,11 @@
   .laplace_family_specs(family, control$task$glmm$familyParameters)
   gaussian <- .nonlinear_exact_gaussian(family, control)
   graphRandom <- graph && (length(model$random) || !is.null(model$joint))
-  if(graph && any(vapply(model$parameterMap,function(map)
-      identical(map$type,"random"),logical(1))) && !graphRandom)
+  graphFamily <- graph && !gaussian
+  graphRandomCoordinates <- any(vapply(model$parameterMap,function(map)
+    identical(map$type,"random"),logical(1)))
+  if(graph && graphRandomCoordinates && !graphRandom)
     stop("Random graph coordinates require explicit random or joint covariance formulas.",
-      call.=FALSE)
-  if(graph && !gaussian)
-    stop("Nonlinear graph fitting currently requires Gaussian identity-link ML.",
       call.=FALSE)
   if(graph){
     outputNode <- model$nodes[[model$output]]
@@ -92,14 +91,15 @@
     stop("Nonlinear graph fitting requires a complete named task$nonlinear$start vector.",
       call.=FALSE)
   }
-  if(graph && !graphRandom &&
+  graphConditional <- graphRandom || (graphFamily && !is.null(random))
+  if(graph && !graphConditional &&
      !identical(control$task$nonlinear$mode,.mme_nonlinear_mode_defaults)){
-    stop("Nonlinear mode controls require random graph parameters and do not apply to fixed graph fits.",
+    stop("Nonlinear mode controls require conditional graph random effects.",
       call.=FALSE)
   }
-  if(graph && !graphRandom && !identical(control$task$nonlinear$population,
+  if(graph && !graphConditional && !identical(control$task$nonlinear$population,
       .mme_nonlinear_prediction_defaults)){
-    stop("Nonlinear population controls require random graph parameters and do not apply to fixed graph fits.",
+    stop("Nonlinear population controls require conditional graph random effects.",
       call.=FALSE)
   }
   if(is.null(random) && ((graph && !graphRandom) ||
@@ -151,15 +151,17 @@
     stop("Nonlinear fitting does not use these controls: ",
       paste(changed, collapse=", "), ".", call.=FALSE)
   }
-  list(requested=if(graph) "nonlinear graph Gaussian ML" else
+  list(requested=if(graphFamily) "nonlinear graph family ML" else
+      if(graph) "nonlinear graph Gaussian ML" else
       "traditional nonlinear ML", eligible=TRUE,
-    selected=if(graph && graphRandom) "Laplace Gaussian ML" else
+    selected=if(graphFamily) "Laplace family ML" else
+      if(graph && graphRandom) "Laplace Gaussian ML" else
       if(graph) "exact Gaussian ML" else if(!gaussian) "Laplace family ML" else
       if(length(model$random) || !is.null(model$joint)) "Laplace Gaussian ML" else "exact Gaussian ML",
     curve=if(graph) NULL else model$curve,
     graph=graph,
     random=if(graphRandom) "additive and graph-parameter Gaussian effects" else
-      if(graph) "additive linear Gaussian" else
+      if(graph) "additive Gaussian effects" else
       if(length(model$random) || !is.null(model$joint)) "Gaussian curve-coordinate deviations" else
         "additive linear Gaussian", backend="random",
     optimizer=control$task$nonlinear$optimizer,

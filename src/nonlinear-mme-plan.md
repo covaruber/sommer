@@ -1,6 +1,6 @@
 # Nonlinear mixed-model effects: phased implementation plan
 
-## Progress checkpoint (2026-11-09)
+## Progress checkpoint (2026-11-11)
 
 | Phase | Status | Current position |
 |---|---|---|
@@ -16,13 +16,31 @@
 | 8: Declarative graph and derivative foundation | Implemented as bounded standalone prototype by explicit user direction | Versioned serializable graph evaluator, fixed/random parameter maps, native reverse gradients, Hessian-vector products and third-order directional contractions; no network fitting. |
 | 9: Fixed multi-layer predictors | Implemented and locally validated; Phase 7 remains skipped and unqualified | Fixed smooth graphs, exact Gaussian ML, conventional additive Gaussian random effects, prediction and simulation. |
 | 10: Random multi-layer parameters | Implemented and locally validated for the stated Gaussian scope | Independent and joint graph-coordinate covariance blocks, exact conditional curvature, numerical outer Laplace scores, prediction, simulation and reduced-rank maps. |
-| 11: Graph families, post-fit inference and release | Proposed; awaits separate approval | Qualify native families, identifiable uncertainty products, all output surfaces and resource/portability gates. |
+| 11: Unified specifications, graph families, post-fit inference and release | Implemented and locally qualified within the stated envelope | Native/reference scalar, categorical and mixed families, outputs, checked local inference and resource admission; external release gates remain open. |
+| 12: Release baseline and classical stability closure | Planned; not implemented | Close Phase 7 and outstanding platform/manual gates before expanding the advertised release envelope. |
+| 13: ReLU and other nonsmooth activations | Planned; not implemented | Explicit knot semantics, smooth comparators, and separate fitting/integration/inference gates. |
+| 14: Wider networks and scalable graph execution | Planned; not implemented | Extend measured capacity beyond current bounds through derivative/solve improvements, not by raising limits alone. |
+| 15: Penalized multi-layer mixed models | Planned; not implemented | Explicit fixed-weight penalties, tuning, optimizer and uncertainty semantics distinct from ML and random-effect priors. |
+| 16: Stochastic training | Planned; not implemented | Statistically justified sampling units, reproducible stochastic optimization and full-target certification. |
+| 17: Graph accelerators | Planned; not implemented | Optional operation-local device kernels with CPU parity, precision and memory admission. |
+| 18: Extended-model qualification and publication | Planned; not implemented | Cross-feature statistical, numerical, resource and platform evidence before advertising combined support. |
 
-Phases 7--11 are roadmap updates, not automatic authorization for later phases.
+Roadmap entries are not automatic authorization for later implementations.
 On 2026-11-09, the user directed that Phase 7 be skipped and Phase 8 proceed.
 The user later authorized full Phase 9 and Phase 10 implementations and
-acknowledged that Phase 7 remains skipped and unqualified. Phase 10 does not
-close Phase 7 release gates or authorize Phase 11.
+acknowledged that Phase 7 remains skipped and unqualified. Phase 11 was
+subsequently authorized and implemented; it does not close Phase 7's gates.
+On 2026-11-11 the user requested the roadmap for Phases 12--18 and explanatory
+multi-layer vignettes, not implementation of those new engine features.
+
+Phase 11 was revised and implemented against the unified public interface.
+Earlier phase examples and validation counts describe their
+historical engine contracts; they are not current public call syntax or
+evidence that the newer specification route has the same qualifications.
+Current calls use formula expressions or `graph_term()` with `parameters`
+and `predictors`, `method=mmes_method()`, top-level natural-scale `start`,
+and `control=mmes_control()`. The former public `nonlinear=` argument and
+`control$task` module have been replaced, not retained as aliases.
 
 Latest Phase 3 validation checkpoint: **5,163 regression assertions passed,
 zero failures**, with one existing linear-Laplace optimizer warning at
@@ -1084,47 +1102,595 @@ locally (2,705 assertions). Phase 7 portability, full-package-suite and
 external release qualification remain open; successful Phase 10 fitting is
 not evidence of general inference validity.
 
-### Phase 11 — graph families, post-fit inference and release
+### Phase 11 — unified specifications, graph families, post-fit inference and release
 
-**Prerequisite:** Phase 10. **Deliverable:** a documented graph support matrix
-and only the statistically justified full user-facing surface.
+**Status:** Implemented within the supported envelope below. Local statistical
+and regression evidence is recorded here; broader release/platform gates
+remain explicitly unqualified. The deliverable is one documented statistical
+contract with explicit support by fitting route, family, covariance and output.
 
-1. Enable existing native scalar families, then categorical/mixed families,
-   only after each passes complete objective/score/Hessian, nuisance-parameter,
-   prediction and simulation checks. Preserve block likelihood curvature and
-   existing trait/category conventions; do not claim automatic family coverage
-   merely because forward evaluation works.
-2. Reuse explicit post-fit uncertainty operations for identifiable parameter
-   coordinates and prediction functionals. Propagate mode sensitivity,
-   covariance/RR maps and preprocessing. Reject singular or symmetry-dependent
-   weight covariance, unsupported intervals and uncalibrated comparisons;
-   prediction uncertainty also requires its own estimability check.
-3. Keep PEV, observed parameter curvature, delta-method covariance and intervals
-   outside fitting. Distinguish conditional covariance from approximate PEV and
-   report Laplace/delta-method limitations. Do not advertise ordinary Wald/LRT
-   calibration for hidden-unit counts, boundary variances or unidentified weights.
-4. Qualify scaling by depth, width, observations, groups and random parameter
-   count; report derivative, mode, optimization and explicit post-fit costs
-   separately. Full-batch likelihood, sparse random algebra and memory guards
-   remain the baseline. Alternative optimizers, accelerators or approximations
-   need separate approval and reference gates.
-5. Run repeated-simulation recovery/coverage studies as standalone workloads,
-   all classical/graph regressions, platform CI, package/manual/vignette checks,
-   fresh-process serialization and API/capability documentation. Every automated
-   case remains below 30 seconds.
+#### Implemented scope
 
-**Exit gate:** all enabled graph/family combinations meet declared numerical,
-statistical, output, resource and portability criteria. Unsupported surfaces
-fail explicitly. Multi-layer support is complete only for this qualified
-envelope, not arbitrary neural architectures.
+| Workstream | Implementation |
+|---|---|
+| 11A: public contract | Preserved ML/REML/PQL routing and numerical-control ownership; transported public family nuisance declarations through both routes; retained ordinary Gaussian `fixedRank="drop"`. |
+| 11B: representation | Serializable parameter/graph layouts, natural versus coefficient starts, declared transforms, retained-row/category mappings and route parity; reference RR remains explicitly rejected. |
+| 11C: scalar families | Shared Gaussian, three binomial links with grouped trials, Poisson, Gamma, NB2 and ZIP kernels; exact nonlinear conditional curvature and reported central outer scores. |
+| 11D: categorical/mixed families | Ordered ordinal thresholds, reference-category nominal expansion, full cross-logit curvature and mixed-family output layouts. |
+| 11E: outputs | Conditional/zero/population prediction and simulation, joint predictor-prior quadrature without a two-record cutoff, coefficient/residual adapters and seed restoration. |
+| 11F: uncertainty | Reconstructed and checked observed information, coefficient/natural/group covariance, mode sensitivity, approximate empirical Bayes PEV, intervals and guarded regular comparisons; no pseudoinverse repair for unidentified weights. |
+| 11G: resources/documentation | Route-aware performance profiling, admission before dense/quad allocations, persistent Unix/Windows header dependencies, help, articles, capability metadata and generated decision guide. |
+| 11H: qualification | Public-route, independent curvature/root/quadrature, serialization and recovery/coverage workloads; local evidence and outstanding release gates are distinguished below. |
 
-#### Later research — not a committed phase
+Reference conditional derivatives now compose symbolic expression derivatives,
+native graph derivatives and full native family curvature. Predictor second
+derivatives and parameter-link second derivatives are retained. The outer
+score remains numerical; this does not make a Laplace integral exact.
+Legacy noncanonical scalar links retain a separately identified numerical
+inverse-link second derivative.
 
-ReLU and other nonsmooth operations need a separate policy for knots and
-curvature before random-parameter Laplace or uncertainty can be supported.
-First-order subgradients alone do not supply that policy. Wider/deeper models,
-penalization, stochastic training, accelerators and richer architectures are
-separate research decisions; none bypasses the classical or graph gates.
+Post-fit differentiation reconstructs conditional modes at tighter precision
+than ordinary fitting, retaining the saved fitting controls and statistical
+model. This fixes observed-information instability from differencing
+insufficiently precise modes without relaxing derivative-agreement checks.
+No uncertainty is computed during fitting.
+
+Local evidence on Linux/R 4.2.2/FlexiBLAS includes:
+
+- 182 working-tree nonlinear/public/specification cases: 3,131 expectations,
+  no failures, errors, warnings or skips.
+- Full working-tree suite: 836 cases, 17,198 expectations, no failures or
+  errors. One existing native-Laplace false-convergence warning remains.
+  The two skips are GPU qualification and the installed-namespace-only gate;
+  that namespace gate subsequently passed separately against the freshly
+  checked installation. Numerical validation used process-local single-thread
+  BLAS/OpenMP settings rather than changing shared-system configuration.
+- The RR acceptance fixture retains four groups, independent/joint mapping
+  and restored-versus-latent checks; its measured case is 16.952 seconds.
+  The complete graph-random file remains below 30 seconds per case.
+- Independent scalar-root binomial Laplace information references at seeds
+  75110 and 75123, nonlinear graph conditional derivatives checked against
+  finite differences, and a one-dimensional quadrature bound on Laplace error.
+- Fresh-process native/reference prediction, covariance, confidence intervals
+  and seeded simulation reconstruction.
+- Source-package installation, help, S3 consistency, compiled-code checks and
+  examples passed. The full vignette build, execution and output rebuild
+  passed separately. After qualifying `stats::deriv3`/`stats::vcov`, the final
+  source check (`--no-manual --no-tests --ignore-vignettes`) has no errors or
+  warnings and one installed-size NOTE; its R-code usage check is clean.
+  Tests and vignettes are qualified by the separate runs above, not by those
+  skip flags.
+- Generated guide checks passed: 115 options, 18 nodes, 15 rules, 147 fit-time
+  checks, 18 structure paths and 12 tips. Both affected articles and all changed
+  help sources were rebuilt/checked.
+- `inst/benchmarks/nonlinear-phase11-qualification.R`: 30 replications for
+  Gaussian, binomial and Poisson on each route, 180 successful fits/inference
+  requests with no failures. The estimand is the zero-deviation link predictor
+  at `x=0`, with prior random-intercept variance `.09` known.
+
+| Family | Native/reference bias | Native/reference 95% coverage |
+|---|---:|---:|
+| Gaussian | -0.01819079 | 0.9666667 |
+| Binomial | 0.11059059 / 0.11059058 | 0.9333333 |
+| Poisson | -0.03486263 | 0.9333333 |
+
+These are finite Monte Carlo checks for regular identified estimands with
+known covariance, not general coverage claims for arbitrary network weights,
+estimated boundary variances or all categorical interval functionals.
+Object sizes in the workload are not peak resident memory.
+Eight unmodified legacy full-suite cases still exceed 30 seconds; the new and
+edited Phase 11 cases meet the measured per-case limit. These local runs do not
+close older global runtime or platform gates.
+
+The PDF manual is not qualified locally: `pdflatex` is absent, and a private
+TinyTeX installation attempt failed at the HTTPS download. Windows, macOS,
+R-devel, sanitizers and other external/platform release gates remain unexecuted.
+Phase 7 remains skipped and unqualified.
+
+#### Pre-implementation baseline and changes to the earlier plan
+
+The public entry point is `R/FUN_model_interface.R`. It selects native
+components or the bounded reference engine in `R/FUN_model_specification.R`.
+These are not interchangeable implementations of every model:
+
+| Route | Behavior before Phase 11 |
+|---|---|
+| Ordinary Gaussian models, including fixed-only | Baseline engine; fixed-rank handling and covariance output are retained. The earlier fixed-only Gaussian dispatch regression has a dedicated public-interface regression test. |
+| One additive native component with no parameter overrides | `graph_term("net")` and `predictors=list(net=net)` can select the existing native curve/graph engine. Native graph internal random maps, independent formulas and `joint` blocks remain available on this route. |
+| Fixed-only native component without random effects | Redirected to the reference specification route; a native graph declaration alone does not guarantee a native fitting engine. |
+| Expressions, parameter overrides, or other graph compositions | Reference specification route, with namespaced coordinates such as `"net::k"=parameter(fixed=~Env, random=~group, link="log")`. Graphs must have no internal random maps or `random`/`joint` declarations. |
+| Reference engine limits | Numerical outer/mode scores and conditional Hessians, dense bounded workspaces, scalar Gaussian/Bernoulli/Poisson/Gamma likelihoods; graph fitting remains Gaussian identity only. Nonempty `familyParameters` and many non-default controls are rejected. |
+| Result methods | Native nonlinear and specification results have different classes and adapters. Reference population prediction currently admits at most two random predictor records; simulation is explicitly unavailable. Reference `vcov()` computes post-fit numerical curvature but is not a qualification of general graph inference. |
+
+Consequently, enabling a native graph family alone would have left common
+`parameter()` calls unsupported. Conversely, removing the reference engine's
+Gaussian graph guard would not establish native derivative, covariance,
+resource or inference parity. Both routes require explicit gates.
+
+The statistical target is
+`g(E[Y_i | b]) = X_i beta + h_i({T_j(A_ij alpha_j + Z_ij b_j)}) + Z_0i b_0`,
+where `h_i` can include supported expressions and graph components, `T_j`
+is the declared identity or log parameter link, and the latent effects have
+their declared Gaussian covariance. Parameter links and the response link
+are distinct. Separate parameter random records are not implicitly a joint
+cross-parameter covariance block merely because they share a grouping factor.
+
+#### 11A. Freeze public semantics, dispatch and control ownership
+
+1. Build a support matrix indexed by ordinary/native/reference route,
+   expression versus graph, fixed-only/additive/parameter-random structure,
+   family/link, covariance/RR map, and requested output. Include execution
+   limits and whether scores/conditional curvature are analytic or numerical.
+2. Keep statistical choices in `mmes_method()`, nuisance declarations in
+   `familyParameters`, starts in `start`, and numerical choices in the public
+   optimizer/mode/likelihood/population/inference control modules. Do not add
+   another public fitter or resurrect `nonlinear=` or `control$task`.
+3. Preserve Gaussian REML and mixed non-Gaussian PQL defaults. Nonlinear
+   likelihood fits require explicit ML; non-Gaussian random models cannot
+   request exact integration. Fixed-only likelihoods have no random integral;
+   Gaussian identity models linear in their Gaussian effects retain exact
+   integration even when their fixed mean is nonlinear.
+4. Report the selected route, actual integration and derivative methods,
+   dimensions and admission reason. Equivalent supported declarations must
+   not silently change the statistical model or likelihood normalization.
+5. Test controls at the selected route, not merely at construction. Preserve
+   `representation$fixedRank="drop"` for ordinary Gaussian models. For
+   nonlinear models, distinguish redundant linear columns from genuine
+   nonlinear non-identifiability; do not drop arbitrary network coordinates
+   or remove blanket control guards without implementing their semantics.
+6. Preserve both existing random-declaration conventions without permitting
+   double specification. Decide any new reference-route joint-parameter API
+   before implementation; do not invent shared covariance from matching names.
+
+**Gate:** public dispatch/control tests cover each row of the support matrix,
+explicit unsupported requests, and unchanged ordinary Gaussian/PQL behavior.
+
+#### 11B. Qualify preparation, parameter maps and Gaussian route parity
+
+1. Record a serializable model layout containing graph namespaces, repeated
+   coordinates, parameter fixed regressions, random design records, offsets,
+   covariance coordinates, transforms and free family coordinates. Reuse
+   existing layouts where possible rather than introducing a new general IR.
+2. Preserve formula environments, contrasts, levels, relationship precision
+   ordering, one retained-observation mask, preprocessing and prediction
+   templates. Apply parameter links exactly once: for log parameters,
+   `theta_i=exp(A_i alpha+Z_i b)`, with Gaussian priors on the working scale.
+3. Validate natural parameter starts separately from named coefficient starts,
+   including non-intercept regressions and qualified graph names. A regression
+   coefficient start is not a vector of natural graph parameter values.
+4. Compare native and reference formulations only where they describe the
+   same model: fixed-only, exact Gaussian additive effects, and small
+   independent random-coordinate Laplace models. Check means, covariance,
+   likelihood constants, modes and target predictions, not just convergence.
+5. Qualify relationship and reduced-rank maps per route. The dense reference
+   covariance/precision path is not automatically suitable for a singular RR
+   covariance; reuse proper latent coordinates or reject that combination.
+   Do not add a ridge to manufacture an invertible prior.
+
+**Gate:** Gaussian public-interface parity and transform/namespace tests pass,
+with route-specific unsupported covariance cases stated explicitly.
+
+#### 11C. Enable scalar graph families through both public routes
+
+1. First qualify fixed-only binomial-logit and Poisson-log graphs on the
+   reference route. Then qualify additive Gaussian random effects on native
+   and reference routes, followed by random graph coordinates and parameter
+   regressions. Use the same small scientific predictor wherever routes overlap.
+2. Reuse native family response validation, likelihood constants, score,
+   curvature and nuisance contracts rather than maintaining a second family
+   registry. Adapt reference preparation and result assembly as well as native
+   graph dispatch; do not only remove the Gaussian eligibility guards.
+3. Add binomial probit/cloglog, Gamma-log, NB2-log and ZIP-log in individually
+   gated increments. Grouped binomial trials are separate from the reference
+   engine's current Bernoulli-only contract. Fixed/estimated dispersion,
+   NB2 shape and ZIP structural-zero predictors need explicit layout tests.
+4. Native conditional curvature must include the full observation curvature
+   and score-weighted predictor second derivatives. Check parameter-regression
+   and graph-transform chain rules, mixed derivatives, mode motion and moving
+   covariance/RR maps. Require positive undamped curvature at the accepted mode.
+5. Retain central finite differences as a clearly reported outer-score method
+   where necessary. Reference conditional Hessians compose symbolic/native
+   chain rules and are checked against numerical mode-score derivatives.
+   The legacy scalar-link numerical exception is identified separately. Analytic/native
+   scores are a separate deliverable requiring third-order and nuisance
+   references; never substitute Gauss-Newton for the exact conditional target.
+6. Validate likelihood, score and Hessian against independent tiny references,
+   including nonconcave ZIP starts. Use low-dimensional numerical integration
+   to characterize Laplace error separately from derivative error.
+
+**Gate per family:** fixed-only, additive and parameter-random cases pass
+their declared numerical, output and resource checks before being advertised.
+Native success does not enable reference support, or vice versa.
+
+#### 11D. Qualify categorical and mixed-family representations
+
+1. Add ordinal logit/probit only with explicit threshold ordering, free-location
+   identifiability checks, response coding and nuisance derivatives.
+2. Design nominal category-specific predictor rows before enabling multinomial
+   graphs. A scalar graph can supply a scalar value per expanded logit row;
+   category-specific fixed/random mappings, shared parameters, reference
+   category and cross-logit curvature still need an explicit design.
+3. Generalize the reference scalar-response contract only after specifying
+   categorical/mixed response layout and outputs. Reuse existing native
+   `familym` trait/category indexing; do not infer support from forward graphs.
+4. Preserve full multinomial block curvature and cross-category random
+   covariance in mode fitting, scores, population integration and simulation.
+
+**Gate:** probability sums, category/reference ordering, thresholds, missing
+cells and mixed-family parameter mappings pass independent references.
+Categorical support remains a Phase 11 deliverable, not silently removed from
+scope; unsupported combinations remain disabled until these gates pass.
+
+#### 11E. Complete route-aware prediction, simulation and result adapters
+
+1. Preserve public `target="conditional"`, `"zero"` and `"population"` and
+   link/response output semantics for both result classes. Population link
+   output means the prior expectation of the nonlinear link-scale predictor,
+   not necessarily its zero-deviation value.
+2. Integrate the actual joint prior of the low-dimensional predictor coordinates,
+   including graph parameters, additive effects, correlated parameter blocks
+   and categorical logits. Reuse covariance/design maps and numerical error
+   checks. Replace the reference two-record limit only with validated
+   dimension/cost admission; do not integrate a high-dimensional group vector.
+3. Implement reference-route conditional and population simulation, currently
+   rejected. Draw the fitted prior covariance, apply parameter links and graph
+   transforms once, then simulate the family response. Check seed restoration,
+   category/trial conventions and empirical moments.
+4. Make coefficient labels, fitted values, residuals, summaries, likelihood
+   degrees of freedom and profiling consistent without forcing incompatible
+   result classes into curve-only fields. Test fresh-process serialization;
+   never persist native pointers or factors.
+
+**Gate:** each enabled route/family has complete point outputs and checked
+population integration; unsupported targets fail rather than returning modes
+or zero effects as a success-shaped substitute.
+
+#### 11F. Add explicitly post-fit inference for identified estimands
+
+1. Reconstruct either route's saved likelihood and verify its value before
+   inference. Extend shared post-fit evaluation adapters to specification
+   results; do not simply remove native graph rejection checks.
+2. Qualify the existing reference `vcov()` path against the same convergence,
+   score, boundary, competing-mode, derivative-stability and positive-curvature
+   checks as other inference. Do not invert a raw numerical Hessian and infer
+   statistical validity solely from successful factorization.
+3. First support regular, locally identified fixed/parameter-regression
+   coordinates and prediction functionals. Include parameter and response-link
+   transforms, estimated nuisance parameters, preprocessing and covariance maps.
+   Reject singular or symmetry-dependent raw network-weight covariance.
+4. Prediction inference requires an estimability check for the requested
+   functional. Do not use a generic pseudoinverse to disguise unidentified
+   nuisance directions; any estimable-subspace method needs its own reference
+   and parameterization-invariance tests before admission.
+5. Add conditional random-mode covariance and approximate empirical Bayes PEV
+   with mode sensitivity, cross-covariance, RR restoration and group-parameter
+   regression derivatives. Distinguish inverse conditional curvature from
+   parameter-adjusted PEV and from exact frequentist prediction-error variance.
+6. Propagate population integration and estimated-parameter uncertainty for
+   each interval target. Keep all SE/PEV/interval computations outside fitting.
+   Restrict comparisons to justified regular cases; no ordinary Wald/LRT
+   calibration for graph width, boundary variances or unidentified weights.
+
+**Gate:** dense curvature/mode-sensitivity/delta references and standalone
+coverage studies pass for each advertised estimand. Unsupported uncertainty
+fails explicitly in both result classes.
+
+#### 11G. Qualify resources and publish the route-specific contract
+
+1. Measure preparation, graph derivatives, modes, outer scores and post-fit
+   work separately by observations, groups, depth/width, parameter-regression
+   coefficient count, latent rank and family. Include the reference engine's
+   current dense limits (30 declared parameters, 60 mean coefficients and
+   512 modes for non-exact models) rather than claiming native sparse scaling.
+2. Keep admission before dense allocations and quadrature expansion. Native
+   sparse factor/solve machinery remains the scalable baseline; retain a bounded
+   reference path for verification. Do not raise limits to imply scalability.
+   Any native backend extension must respect signed/block curvature and
+   operation-local solve adapters, not assume a stored random-effect Hessian.
+3. Update `R/FUN_mme_capabilities.R`, the numerical controls reference/vignette,
+   `vignettes/sommer.models.Rmd`, graph/parameter/method help, and the generated
+   options guide together. Show accepted values separately from availability
+   by route, including fixed-rank and likelihood-backend controls.
+4. Keep alternative optimizers, stochastic training, GPU execution, new graph
+   builders and nonsmooth activations outside this implementation scope.
+
+**Gate:** measured resource limits and runtime checks agree with all published
+support tables; no ignored non-default controls or undocumented fallbacks.
+
+#### 11H. Regression, statistical and release qualification
+
+1. Extend existing `test-model-interface.R`, `test-model-specification.R` and
+   graph/family/inference tests with a small public-route acceptance matrix.
+   Keep private numerical-engine fixtures: they test different boundaries.
+2. Use independent numerical oracles and simulated truth without adding
+   `lme4`/`nlme` dependencies. Require mode/outer-score certificates, objective
+   parity and declared error tolerances rather than optimizer return codes alone.
+3. Keep every automated case below 30 seconds. Put repeated-simulation
+   recovery/coverage and scaling in standalone `inst/benchmarks/` workloads,
+   recording seeds, failures, approximation error and interval targets.
+4. Run working-tree focused tests, all nonlinear/public-interface regressions,
+   then the full package suite, source-package/manual/vignette checks,
+   fresh-process serialization and supported-platform CI. Re-establish current
+   evidence; historical Phase 10 assertion counts do not validate new dispatch.
+
+**Dependency order:** 11A -> 11B -> 11C -> 11D; 11E follows each enabled family,
+11F follows its validated likelihood and point outputs, and 11G runs alongside
+each increment. 11H release qualification depends on all enabled combinations.
+Do not defer basic output or documentation gates until the final family.
+
+**Exit gate:** all advertised route/family/covariance/output combinations meet
+their declared numerical, statistical and resource criteria. Record unexecuted
+platform gates explicitly. Phase 7 remains skipped and unqualified: local
+Phase 11 success does not retroactively close its release requirements.
+Multi-layer support is complete only within the qualified envelope, not for
+arbitrary neural architectures or arbitrary formula callbacks.
+
+### Extension terminology and scope
+
+Use **multi-layer nonlinear mixed model** as the umbrella term when a
+multi-layer predictor has random effects. For non-Gaussian families, use
+**generalized nonlinear mixed model with a multi-layer predictor**. Without
+random effects these are nonlinear/generalized nonlinear regressions, not
+mixed models. Layers themselves are deterministic; a Gaussian random-weight
+model requires an explicit covariance declaration.
+
+Smooth multi-layer graphs already exist. The phases below extend their
+activation, capacity, objective or execution envelope rather than introduce
+multi-layer models for the first time. They preserve the formula,
+`parameters`/`predictors`, `method`, `start` and `control` separation.
+New syntax must be designed and approved at its phase boundary; the roadmap
+does not promise currently nonexistent controls or convenience builders.
+
+### Phase 12 — release baseline and classical stability closure
+
+**Status:** planned, not implemented. **Prerequisite:** the Phase 11 local
+baseline. **Deliverable:** a reproducible release-qualified reference
+envelope against which the new extensions are compared.
+
+1. Reopen and complete the skipped Phase 7 checklist against current sources,
+   retaining historical validation rather than relabeling skipped work complete.
+2. Run supported Windows/macOS/Linux and R-release/R-devel checks, sanitizer
+   builds where supported, installed-namespace checks, fresh-process outputs,
+   package/vignette builds and the PDF manual on a TeX-equipped host.
+3. Inventory the existing warning/skips and legacy tests exceeding 30 seconds.
+   Resolve defects or document justified qualifications; preserve their
+   numerical coverage when moving scaling work to standalone benchmarks.
+4. Publish one support/evidence matrix crossing route, graph depth/width,
+   family/link, random-coordinate structure, covariance/relationship map,
+   output, derivative method and platform. Untested intersections stay unqualified.
+5. Capture deterministic CPU likelihood/score/mode/inference references,
+   timings, peak memory and toolchain metadata for use by later phases.
+
+**Gate:** reproducible release evidence and an explicit disposition for every
+Phase 7/platform/manual item. Local successes alone do not close this gate.
+
+### Phase 13 — ReLU and other nonsmooth activations
+
+**Status:** planned, not implemented. **Prerequisite:** Phase 12.
+**Deliverable:** individually admitted activation/model combinations with
+honest differentiability, integration and uncertainty semantics.
+
+1. Define versioned node contracts for ReLU, then selected additional
+   activations only after separate validation. Specify forward values,
+   derivative/subgradient conventions at zero, parameter domains and
+   serialization. A smooth comparator such as softplus must be named and
+   parameterized as a different model, never substituted silently for ReLU.
+2. Start with fixed graph coordinates and no random effects or additive
+   Gaussian effects, where observation-space activation regions can be
+   examined independently. Implement an optimizer suitable for piecewise
+   smooth objectives, with one-sided checks and an explicit generalized
+   stationarity certificate at knots; ordinary smooth-gradient stopping is
+   insufficient there.
+3. Treat random coordinates crossing activation boundaries as a separate
+   integration problem. Study both interior-region and knot modes against
+   one-dimensional adaptive quadrature and partitioned tiny references,
+   including multiple activation regions. A piecewise Hessian away from a
+   knot does not by itself validate a Laplace integral across regions.
+4. Decide and document the admitted treatment of knot modes: justified
+   region-aware integration or an explicit unsupported request. Ordinary
+   smooth Laplace, damped positive curvature and first-order subgradients
+   are not interchangeable solutions. Keep response-family signed/block
+   curvature and proper latent covariance coordinates intact.
+5. Gate uncertainty independently from point fitting. Smooth local
+   information is available only under justified stable-active-region
+   assumptions. At knots or active-set changes, reject ordinary Wald
+   inference unless a separately validated nonregular procedure is provided.
+6. Propagate activation semantics through prediction, population quadrature,
+   simulation, profiling and save/reload; add knot-adjacent and boundary
+   fixtures that fail if an activation or its derivative is silently smoothed.
+
+**Gate:** each advertised activation has independent value/derivative,
+optimization, integration and output references. Unsupported random-knot or
+uncertainty cases remain explicit errors, not a phase-wide claim of arbitrary
+nonsmooth mixed-model support.
+
+### Phase 14 — wider networks and scalable graph execution
+
+**Status:** planned, not implemented. **Prerequisite:** Phase 12; Phase 13
+only for nonsmooth variants. **Deliverable:** a measured larger smooth-graph
+envelope with unchanged statistical targets.
+
+1. Benchmark observation count, layer depth, layer width, tied/free
+   coordinates, random-coordinate groups, relationship connectivity and
+   categorical expansion separately. Record peak resident memory, derivative
+   workspace, factorizations/solves, score/mode accuracy and whole-fit time.
+2. Replace avoidable full derivative tensors with blocked/Jacobian-vector,
+   Hessian-vector and directional contractions where the algorithm permits.
+   Specify operator requirements before choosing dense versus sparse
+   storage; retain predictor second derivatives and multinomial blocks.
+3. Extend native operation-local factor/solve and latent RR mappings rather
+   than assuming a stored random-effect Hessian or inverse. Preserve the
+   bounded dense reference route as an oracle; increasing its numeric caps
+   alone is not a scaling implementation.
+4. Validate whole-objective outer derivatives, including mode and determinant
+   dependence. If analytic/automatic derivatives replace central differences,
+   qualify higher-order contractions, family nuisance terms and moving
+   covariance maps against independent tiny references before switching defaults.
+5. Add explicit initialization/scaling diagnostics for saturation and weak
+   identification. If multi-start is added, expose starts, budget, selection
+   criterion and every failed attempt; no opaque random restarts. A higher
+   parameter count is not evidence that raw weights are identifiable.
+6. Re-admit dense post-fit covariance, predictor-prior quadrature and
+   simulation by their own dimensions/costs. Wider fitting support must not
+   implicitly promise full weight covariance or high-dimensional population
+   integration. Publish measured thresholds and fail before oversized allocation.
+
+**Gate:** small-model likelihood/mode/output parity plus reproducible scaling
+and memory evidence beyond the former envelope. Every raised limit is backed
+by successful measurements and failure/admission tests.
+
+### Phase 15 — penalized multi-layer mixed models
+
+**Status:** planned, not implemented. **Prerequisite:** Phase 12 and a
+declared resource envelope from Phase 14; Phase 13's nonregular policy for
+activation/penalty combinations needing it. **Deliverable:** an explicit
+penalized objective, not penalties disguised as Gaussian ML.
+
+1. Specify the target
+   `Q(lambda; rho) = -log L(lambda) + P_rho(alpha)` with the marginal likelihood
+   and its constants intact. Define whether coefficients are penalized on
+   natural or working scales, how tied coordinates are counted, which
+   weights/biases are exempt and whether loss is summed or averaged.
+2. Start with fixed-coordinate L2 penalties and fixed tuning values;
+   include zero-penalty parity with current ML. Add L1/elastic-net or grouped
+   penalties only with proximal/active-set methods and appropriate KKT
+   certificates. Generic smooth BFGS at an L1 kink is not sufficient.
+3. Keep fixed-weight regularization distinct from the existing Gaussian
+   random-effect density and its normalization. Do not double-penalize
+   random modes, conflate a tuning parameter with an estimated variance,
+   or penalize covariance/nuisance coordinates without a separate contract.
+4. Design grouped/nested cross-validation or a justified alternative for
+   tuning. Fit preprocessing and select starts/architecture inside training
+   folds. Hold out groups or connected units appropriate to the target;
+   row-wise splits do not validate new-group prediction under dependence.
+5. Report unpenalized likelihood, penalty, optimized criterion, tuning rule,
+   active set and convergence separately. Do not label the criterion REML,
+   ordinary `logLik`, AIC or a calibrated LRT without a justified definition
+   of likelihood degrees of freedom and model-selection uncertainty.
+6. Define uncertainty by estimand and interpretation. Penalized inverse
+   curvature, frequentist sampling covariance and a MAP/posterior
+   approximation are different objects. Qualify any sandwich/bootstrap or
+   selection-aware procedure independently; otherwise reject unsupported
+   interval requests rather than reusing unpenalized Wald calculations.
+
+**Gate:** independent penalized tiny-model oracles, KKT/gradient checks,
+zero-penalty regression parity, fold-leakage tests, serialized penalty/tuning
+metadata and recovery/prediction studies reporting regularization bias.
+
+### Phase 16 — stochastic training
+
+**Status:** planned, not implemented. **Prerequisite:** Phase 14, plus
+Phase 15 for penalized targets and Phase 13 for nonsmooth targets.
+**Deliverable:** opt-in stochastic optimization with a stated statistical
+target and reproducible approximation/certification policy.
+
+1. Decide the sampling unit before choosing an optimizer. Row-wise unbiased
+   gradients can be justified for factorized fixed-only likelihoods, but
+   not generally for integrated mixed-model likelihoods. Start with
+   independent complete groups/components when their marginal contributions
+   factorize. Known relationships or shared latent effects can connect
+   groups and invalidate that decomposition.
+2. Derive and check gradient scaling for each admitted sampler/target.
+   Re-solving a mode on an arbitrary subset and taking its log determinant
+   is not an unbiased full Laplace score. Any approximate variational,
+   subsampled or other objective must be named separately and never returned
+   as exact ML/REML or the existing Laplace likelihood.
+3. Introduce explicit optimizer, batch/sampler, learning-rate schedule,
+   RNG stream and work budgets only after the target is defined. Preserve
+   full-batch deterministic fitting as the default. Distinguish stochastic
+   optimization from stochastic trace/linear-solve approximations already
+   used by other engines.
+4. Checkpoint coordinates, optimizer moments, sampler/RNG state, preprocessing,
+   graph/family layouts and data-order compatibility, not native pointers.
+   Test interrupted/resumed equivalence and avoid changes to the caller's RNG.
+5. Monitor a reproducible full-data or independently justified diagnostic
+   objective, score/KKT residual, mode feasibility and approximation error.
+   A noisy training-loss plateau is not a convergence certificate. Where
+   feasible, finish with full-objective deterministic refinement; if full
+   certification cannot be computed, report training/approximation status,
+   not certified marginal convergence.
+6. Keep post-fit inference tied to a reconstructed, validated target.
+   Optimizer moments, mini-batch gradient variance and parameter covariance
+   are not interchangeable. Qualify population output and uncertainty
+   separately for any new approximate model.
+
+**Gate:** sampling/gradient oracles where unbiasedness is claimed,
+full-target comparisons to deterministic fits, seed/resume tests and repeated
+training studies recording failures, bias, variance, time and memory.
+Unsupported dependence/sampler combinations fail explicitly.
+
+### Phase 17 — graph accelerators
+
+**Status:** planned, not implemented. **Prerequisite:** Phase 14 and the
+specific activation/penalty/training phases being accelerated.
+**Deliverable:** optional graph-likelihood acceleration with the same
+qualified statistical target as CPU execution.
+
+1. Profile before offloading. Select graph forward/derivative contractions,
+   batched evaluations and eligible solves by measured total cost, including
+   host/device transfers and mode/outer iterations. Existing Henderson CUDA
+   kernels do not establish graph-family backend support.
+2. Define operation-local device ownership, explicit device selection,
+   precision and CPU/backend eligibility. Preserve signed/block family
+   curvature, relationship precision order and proper latent RR semantics.
+   Reuse factor/solve interfaces instead of requiring a device dense inverse.
+3. Admit device memory before transfer/allocation, accounting for graph,
+   derivative, solver and temporary buffers. Support bounded batching only
+   where it preserves the statistical objective. Errors and requested-backend
+   unavailability must be visible; any automatic CPU fallback needs an
+   explicit policy and recorded reason, not silent success.
+4. Establish FP64 parity first. Gate mixed precision through score residuals,
+   conditional curvature, log-determinant error and refinement bounds.
+   Faster arithmetic with materially different likelihood or convergence
+   is not a qualified implementation.
+5. Specify deterministic/reproducibility guarantees for reductions and RNG.
+   Retain portable serializable fit objects; reconstruct device state for
+   post-fit operations rather than saving device pointers/handles.
+6. Test supported device/toolchain combinations, absence of hardware,
+   insufficient memory, precision failures, cancellation and repeated
+   operation cleanup. Report synchronized end-to-end times, peak device/host
+   memory and crossover sizes; do not infer speedup from asynchronous launch time.
+
+**Gate:** CPU/device objective, derivative, mode, accepted-update and output
+parity for all advertised combinations, plus real hardware evidence.
+Unsupported devices/platforms remain unqualified; CPU defaults are unchanged.
+
+### Phase 18 — extended-model qualification and publication
+
+**Status:** planned, not implemented. **Prerequisite:** all preceding
+extensions included in the proposed release envelope.
+**Deliverable:** an evidence-backed cross-feature support contract.
+
+1. Cross the new axes with family/link, fixed/additive/random coordinates,
+   joint/relationship/RR maps, inference target and route/backend. Test
+   representative interactions, not only one successful example per phase.
+2. Separate numerical derivative error, nonsmooth-region error, Laplace
+   approximation, stochastic optimization error and accelerator precision.
+   Use dense/root/quadrature/penalized references appropriate to each claim.
+3. Run standalone recovery, coverage where justified, held-out-group
+   prediction and scaling studies. Record seeds, selection rules, every
+   failed fit and Monte Carlo uncertainty. Do not generalize smooth
+   unpenalized coverage to selected/penalized/nonsmooth network weights.
+4. Run full regressions, per-case runtime gates, installed-source/package/
+   manual/vignette checks, fresh-process/checkpoint reconstruction and
+   supported-platform/device CI. No mandatory `lme4`/`nlme` or accelerator
+   runtime is introduced into ordinary CPU tests.
+5. Publish current versus planned capability tables, model/optimizer/
+   approximation labels, migration examples, executable vignettes,
+   numerical options and benchmark evidence together. A dependency-complete
+   feature is not automatically release-qualified.
+
+**Dependency order:** Phase 12 establishes the baseline. Phase 13 and smooth
+Phase 14 can proceed independently after it. Phase 15 uses the admitted
+Phase 14 envelope; Phase 16 depends on Phase 14 and the objective/activation
+features it uses. Phase 17 can follow deterministic Phase 14 without waiting
+for stochastic training, but must qualify any Phase 15/16 combinations it
+later advertises. Phase 18 qualifies the selected combined envelope.
+
+**Exit gate:** each advertised combination meets its statistical, numerical,
+resource and platform criteria, with explicit rejection of other requests.
+No phase bypasses classical-model stability or silently changes ordinary
+Gaussian/PQL defaults.
 
 ## Main technical risks and mitigations
 
@@ -1141,9 +1707,11 @@ separate research decisions; none bypasses the classical or graph gates.
 
 ## Recommended next implementation step
 
-Phase 10 is implemented within its documented Gaussian scope. The next
-proposed work is Phase 11: qualify additional graph response families and
-post-fit inference, then complete portability and release gates. Phase 11
-requires separate user approval; Phase 7 remains skipped and unqualified.
-The optional classical backlog remains separate, and existing nonlinear
-formulas and validated control options remain unchanged.
+Begin Phase 12 by closing the outstanding platform/manual and classical
+stability gates against the Phase 11 baseline. Then design and implement
+Phase 13's activation contract and Phase 14's larger smooth-graph envelope,
+followed by the explicitly dependent penalty, stochastic and accelerator
+work. The Phase 13--18 entries are plans, not currently supported features.
+Phase 7 remains skipped and unqualified until its Phase 12 closure evidence
+is obtained. Preserve the public formula/method/start/control separation and
+ordinary Gaussian/PQL behavior throughout.

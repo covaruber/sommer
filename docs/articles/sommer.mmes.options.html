@@ -29,7 +29,7 @@
 
     <a class="navbar-brand me-2" href="../index.html">sommer</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.16</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.24</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -56,6 +56,7 @@
     <a class="dropdown-item" href="../articles/sommer.gxe.html">Fitting genotype by environment models in sommer</a>
     <a class="dropdown-item" href="../articles/sommer.machinery.html">Inside sommer: the ai_mme_sp2 engine</a>
     <a class="dropdown-item" href="../articles/sommer.mmes.options.html">Modular numerical controls for sommer::mmes</a>
+    <a class="dropdown-item" href="../articles/sommer.models.html">Model specification in sommer</a>
     <a class="dropdown-item" href="../articles/sommer.qg.html">Quantitative genetics using the sommer package</a>
     <a class="dropdown-item" href="../articles/sommer.spatial.html">Spatial modeling using the sommer package</a>
     <a class="dropdown-item" href="../articles/sommer.theory.html">Theory: how sommer parameterizes and optimizes covariance structures</a>
@@ -130,10 +131,17 @@ hardware settings.</p>
 <span>     naMethodX <span class="op">=</span> <span class="st">"exclude"</span>, naMethodY <span class="op">=</span> <span class="st">"exclude"</span>,</span>
 <span>     naMethodRandom <span class="op">=</span> <span class="st">"exclude"</span>, naMethodR <span class="op">=</span> <span class="st">"exclude"</span>,</span>
 <span>     contrasts <span class="op">=</span> <span class="cn">NULL</span>, family <span class="op">=</span> <span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">gaussian</a></span><span class="op">(</span><span class="op">)</span>, vcc <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>     covPar <span class="op">=</span> <span class="cn">NULL</span>, control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span><span class="op">)</span>, .internal <span class="op">=</span> <span class="cn">NULL</span><span class="op">)</span></span>
+<span>     covPar <span class="op">=</span> <span class="cn">NULL</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, predictors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, start <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>     method <span class="op">=</span> <span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span><span class="op">)</span>, control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>     familyParameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
+<span></span>
+<span><span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"reml"</span>, integration <span class="op">=</span> <span class="st">"auto"</span>,</span>
+<span>            approximation <span class="op">=</span> <span class="st">"auto"</span>, task <span class="op">=</span> <span class="st">"fit"</span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
-<span>  formulation <span class="op">=</span> <span class="st">"henderson"</span>, task <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, representation <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  formulation <span class="op">=</span> <span class="st">"henderson"</span>, optimizer <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  working <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, likelihood <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, population <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
+<span>  inference <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, representation <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  solve <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, logdet <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, score <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, curvature <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  update <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, proposal <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, convergence <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>  output <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, execution <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, diagnostics <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span></span>
@@ -144,14 +152,323 @@ hardware settings.</p>
 <code>W</code>; it does not create weights. <code>family</code>,
 <code>vcc</code>, <code>covPar</code>, missing-data policies, and
 <code>contrasts</code> retain their statistical or data-preparation
-roles. <code>.internal</code> is reserved for package recursion and is
-not a user control.</p>
+roles. <code>parameters</code> declares unknown quantities with
+<code><a href="../reference/parameter.html">parameter()</a></code>; <code>predictors</code> declares named native
+curves or bounded graphs referenced by <code>graph_term("name")</code>
+in the formula. <code>start</code> supplies natural-scale model starts;
+<code>familyParameters</code> configures fixed/estimated family nuisance
+parameters. These are model inputs, not numerical controls.</p>
+<p><code><a href="../reference/mmes_method.html">mmes_method()</a></code> declares objective, integration,
+approximation, and fit/solve task. Its defaults preserve Gaussian REML
+and historical PQL for ordinary non-Gaussian mixed models, with REML
+Gaussian working fits. This is <strong>not</strong> an exact
+non-Gaussian REML likelihood. Explicit native Laplace requires
+<code>mmes_method(objective="ml", integration="laplace")</code> and an
+eligible model. Non-Gaussian mixed exact integration, PQL with explicit
+exact/Laplace integration, and nonlinear PQL are rejected rather than
+silently substituted.</p>
 <p><code><a href="../reference/mmes_control.html">mmes_control()</a></code> validates top-level and nested module
 names. Unknown fields, duplicate names, and malformed named lists error.
 Removed options are not accepted through <code>...</code>, aliases, or a
 legacy <code>engine</code> argument. Controls record requests; they do
 not fit a model or establish model-specific eligibility. Fitting
 validation remains authoritative.</p>
+</div>
+<div class="section level2">
+<h2 id="traditional-nonlinear-fixed-means">Traditional nonlinear fixed means<a class="anchor" aria-label="anchor" href="#traditional-nonlinear-fixed-means"></a>
+</h2>
+<p><code>predictors=list(curve=nonlinear_curve("time", "exponential"))</code>,
+referenced as <code>graph_term("curve")</code> in the formula, adds the
+fixed mean <code>asymptote * exp(-rate * time)</code> to ordinary
+formula contributions. <code>"logistic"</code> and
+<code>"saturation"</code> provide logistic growth and Michaelis-Menten
+saturation, respectively. These are traditional parametric curves: there
+are no layers, backpropagation, or arbitrary R callbacks.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
+<span>  fixed <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="fu"><a href="../reference/graph_term.html">graph_term</a></span><span class="op">(</span><span class="st">"curve"</span><span class="op">)</span>,</span>
+<span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>,</span>
+<span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  predictors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>curve <span class="op">=</span> <span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span>, <span class="st">"exponential"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  start <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>asymptote <span class="op">=</span> <span class="fl">4</span>, rate <span class="op">=</span> <span class="fl">0.6</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  method <span class="op">=</span> <span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"ml"</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
+<span>    optimizer <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>algorithm <span class="op">=</span> <span class="st">"nlminb"</span>, gradient <span class="op">=</span> <span class="st">"analytic"</span><span class="op">)</span>,</span>
+<span>    convergence <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>maxIters <span class="op">=</span> <span class="fl">500L</span>,</span>
+<span>                       likelihoodTol <span class="op">=</span> <span class="fl">1e-8</span>, parameterTol <span class="op">=</span> <span class="fl">1e-6</span><span class="op">)</span>,</span>
+<span>    output <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>inverse <span class="op">=</span> <span class="fl">0L</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">fit</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit</span>, newdata <span class="op">=</span> <span class="va">dat</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit</span>, newdata <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>time <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span>, re.form <span class="op">=</span> <span class="cn">NA</span><span class="op">)</span></span></code></pre></div>
+<p>The curve parameters are fixed; random terms remain additive Gaussian
+effects. Gaussian integration is exact. The residual variance and random
+covariance parameters are estimated jointly with the fixed mean.
+Positive curve parameters use log coordinates; starts and coefficients
+use natural coordinates. Automatic starts are deterministic, with no RNG
+use or automatic input scaling. Nonlinear input missingness follows
+<code>naMethodX</code> and shares the ordinary observation mask.</p>
+<p>The exact Gaussian path requires univariate Gaussian identity ML,
+Henderson, at least one random term, and independent homogeneous
+residuals. Unsupported controls error rather than selecting a different
+model. REML, direct/PQL fitting, structured residuals, weights, and
+fixed-only native-curve models are not supported. Multiple independent
+or jointly correlated random curve parameters are supported as described
+below.</p>
+<p>All existing native response families are also available, including
+ordinal, nominal, zero-inflated and <code><a href="../reference/familym.html">familym()</a></code> mixtures.
+These use complete analytic Laplace ML. The traditional curve
+contributes to the <strong>link predictor</strong>; it is shared across
+traits and every nonreference nominal logit. Family nuisance choices use
+the <code>mmes(familyParameters=)</code> argument; outer/mode/quadrature
+choices use <code>optimizer</code>, <code>mode</code>, and
+<code>population</code>. For example,
+<code>family=nbinom2(theta=3)</code> with
+<code>method=mmes_method(objective="ml"), familyParameters=list(theta=3, estimate=FALSE)</code>
+fixes the NB2 shape. A zero-component regression uses
+<code>family=zipoisson(zero=~treatment)</code>.</p>
+<p>For these families <code>type="response"</code> returns response
+means or category probabilities and <code>type="link"</code> returns
+predictors. Categorical mixtures return trait-named lists. Population
+prediction integrates additive and curve deviations jointly, including
+covariance between nominal logits; it is not inverse-link at zero random
+effects. Accuracy and workspace failures are explicit.
+<code>simulate(re.form="conditional")</code> draws observations at
+fitted modes; <code>simulate(re.form="population")</code> draws fresh
+prior random effects before evaluating the nonlinear predictor. A
+supplied <code>seed</code> is local to simulation. Neither operation
+computes uncertainty.</p>
+<p>Fitting computes no SE, PEV, parameter covariance, or outer observed
+Hessian. Uncertainty remains strictly post-fit:</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">post</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/post_nonlinear.html">post_nonlinear</a></span><span class="op">(</span><span class="va">fit</span>, mode<span class="op">=</span><span class="fl">2</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov</a></span><span class="op">(</span><span class="va">post</span><span class="op">)</span>                         <span class="co"># Natural fixed/curve covariance</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov</a></span><span class="op">(</span><span class="va">post</span>, type<span class="op">=</span><span class="st">"conditional"</span><span class="op">)</span>     <span class="co"># Conditional mode covariance</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/vcov.html" class="external-link">vcov</a></span><span class="op">(</span><span class="va">post</span>, type<span class="op">=</span><span class="st">"random"</span><span class="op">)</span>          <span class="co"># Empirical Bayes approximate PEV</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/confint.html" class="external-link">confint</a></span><span class="op">(</span><span class="va">post</span><span class="op">)</span>                      <span class="co"># Working-normal, positive curves transformed</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">post</span>, newdata<span class="op">=</span><span class="va">dat</span>, interval<span class="op">=</span><span class="st">"confidence"</span>, cov.fit<span class="op">=</span><span class="cn">TRUE</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">post</span>, newdata<span class="op">=</span><span class="va">dat</span>, re.form<span class="op">=</span><span class="st">"population"</span>, interval<span class="op">=</span><span class="st">"prediction"</span><span class="op">)</span></span></code></pre></div>
+<p><code><a href="../reference/postPEV.html">postPEV()</a></code> dispatches to the same nonlinear
+implementation. Conditional mode covariance and estimated-parameter
+approximate PEV are distinct; neither is an exact unconditional
+frequentist PEV. Numerical choices use <code>inference</code> in
+<code><a href="../reference/mmes_control.html">mmes_control()</a></code>. Prediction intervals are normal
+approximations for scalar response-scale outputs, while categorical
+probabilities support confidence intervals. <code><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary()</a></code>
+displays saved uncertainty without computing it;
+<code>summary(inference=TRUE)</code> requests it.
+<code><a href="https://rdrr.io/r/stats/AIC.html" class="external-link">AIC()</a></code>/<code><a href="https://rdrr.io/r/stats/AIC.html" class="external-link">BIC()</a></code> count all free coordinates. Model
+comparisons require regular nested ordinary fixed terms with the same
+nonlinear architecture; automatic nonlinear or variance-boundary tests
+are rejected. New conditional predictions must use represented random
+levels and the fitted covariance basis. For these additive Gaussian
+models, the population mean equals the zero-random-effect mean. See
+<code><a href="../reference/nonlinear_curve.html">?nonlinear_curve</a></code> for curve equations, parameter names,
+restrictions, and identification diagnostics.</p>
+<p>Nonlinear scalability can be inspected without changing the
+model:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">ctrl</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>diagnostics<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>profile<span class="op">=</span><span class="st">"force"</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span><span class="op">~</span><span class="fl">0</span><span class="op">+</span><span class="fu"><a href="../reference/graph_term.html">graph_term</a></span><span class="op">(</span><span class="st">"curve"</span><span class="op">)</span>, random<span class="op">=</span><span class="op">~</span><span class="va">group</span>, data<span class="op">=</span><span class="va">dat</span>,</span>
+<span>  predictors<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>curve<span class="op">=</span><span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  method<span class="op">=</span><span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span>objective<span class="op">=</span><span class="st">"ml"</span><span class="op">)</span>, control<span class="op">=</span><span class="va">ctrl</span><span class="op">)</span></span>
+<span><span class="va">profile</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/profile_nonlinear.html">profile_nonlinear</a></span><span class="op">(</span><span class="va">fit</span>, replications<span class="op">=</span><span class="fl">3L</span><span class="op">)</span></span>
+<span><span class="va">profile</span><span class="op">$</span><span class="va">table</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">executionPlan</span><span class="op">$</span><span class="va">dimensions</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">executionPlan</span><span class="op">$</span><span class="va">memory</span></span></code></pre></div>
+<p>Preparation, outer optimization, mode work, initialization and
+convergence diagnostics are recorded separately. Kernel times are
+inclusive, overlapping, and not additive. Memory reports retained R
+object sizes and the declared admission policy, not native peak RSS. The
+nonlinear sparse workspace guard bounds factor fill by connected random
+components before Hessian assembly: independent groups retain linear
+admission, whereas a large connected relationship graph may be rejected
+conservatively. Prediction and post-fit inference keep their separate
+memory checks. The reproducible installed benchmark is
+<code>system.file("benchmarks", "nonlinear-qualification.R", package="sommer")</code>;
+it varies observations and groups across exact Gaussian and
+Gaussian/Poisson random-curve paths. Timings are descriptive, never
+portable performance guarantees.</p>
+<div class="section level3">
+<h3 id="random-curve-parameters-laplace-ml">Random curve parameters (Laplace ML)<a class="anchor" aria-label="anchor" href="#random-curve-parameters-laplace-ml"></a>
+</h3>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span>, <span class="st">"exponential"</span>,</span>
+<span>  random <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>rate <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">subject</span><span class="op">)</span>, sigma2 <span class="op">=</span> <span class="fl">0.04</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="fu"><a href="../reference/graph_term.html">graph_term</a></span><span class="op">(</span><span class="st">"curve"</span><span class="op">)</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  predictors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>curve <span class="op">=</span> <span class="va">model</span><span class="op">)</span>,</span>
+<span>  method <span class="op">=</span> <span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"ml"</span><span class="op">)</span>,</span>
+<span>  start <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>asymptote <span class="op">=</span> <span class="fl">4</span>, rate <span class="op">=</span> <span class="fl">0.6</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
+<span>      mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>maxit <span class="op">=</span> <span class="fl">100L</span>, tol <span class="op">=</span> <span class="fl">1e-8</span>, stepTol <span class="op">=</span> <span class="fl">1e-8</span>,</span>
+<span>                  warmStart <span class="op">=</span> <span class="st">"off"</span>, starts <span class="op">=</span> <span class="st">"deterministic"</span><span class="op">)</span>,</span>
+<span>      population <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>order <span class="op">=</span> <span class="fl">20L</span>, maxOrder <span class="op">=</span> <span class="fl">160L</span>, tol <span class="op">=</span> <span class="fl">1e-7</span><span class="op">)</span>,</span>
+<span>    convergence <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>maxIters <span class="op">=</span> <span class="fl">500L</span><span class="op">)</span>,</span>
+<span>    diagnostics <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>verbose <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>Here <code>log(rate_j) = log(rate) + b_j</code>. Any one parameter of
+the three traditional curves can vary; positive parameters use log
+coordinates, and logistic midpoint uses identity coordinates. An
+optional ordinary <code>random=~subject</code> adds independent additive
+effects. Supported covariance descriptors and known relationship
+precision retain their existing conventions. One unit-incidence curve
+coordinate per row is required. Exact zero random variance is
+unsupported; with additive effects retained, remove its declaration for
+the zero-curve-variance model. Fixed-only fits remain unsupported.</p>
+<p>The mode solver uses exact conditional curvature, safeguards Newton
+steps, and compares deterministic starts. Laplace scores include mode
+motion and third curve derivatives. No layers, backpropagation,
+uncertainty, or PEV are introduced. Mode diagnostics report failures and
+competing candidates; they do not certify a global optimum.</p>
+<p>Conditional predictions use fitted curve modes
+(<code>re.form=NULL</code>); <code>re.form=NA</code> uses shared,
+zero-deviation parameters. <code>re.form="population"</code> integrates
+against the fitted prior variance with increasing-order Gaussian
+quadrature, and errors if the requested agreement is not reached. This
+is a population mean, not an uncertainty calculation. New-data
+conditional/population predictions currently require represented groups
+and the fitted covariance basis. The fitted object retains
+<code>groupParameters</code> and <code>curveRandomMode</code>.</p>
+</div>
+<div class="section level3">
+<h3 id="structured-and-reduced-rank-random-covariance">Structured and reduced-rank random covariance<a class="anchor" aria-label="anchor" href="#structured-and-reduced-rank-random-covariance"></a>
+</h3>
+<p>The nonlinear paths have dedicated numerical checks for
+<code><a href="../reference/ism.html">ism()</a></code>, <code><a href="../reference/dsm.html">dsm()</a></code>, <code><a href="../reference/usm.html">usm()</a></code>,
+<code><a href="../reference/ar1m.html">ar1m()</a></code>, <code><a href="../reference/csm.html">csm()</a></code>, <code><a href="../reference/fam.html">fam()</a></code>
+(heterogeneous or homogeneous specifics), and representative Kronecker
+combinations. <code><a href="../reference/fam.html">fam()</a></code> requires positive specific variances.
+Known positive-definite relationship precision keeps the usual
+<code>Gu</code> convention. Other constructors are eligible only when
+their evaluator and derivative contracts match; eligibility alone is not
+comprehensive validation.</p>
+<p>Pure <code><a href="../reference/rrm.html">rrm()</a></code> factors are supported in both ordinary
+additive effects and random curve parameters:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span>, <span class="st">"exponential"</span>,</span>
+<span>  random <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>rate <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/rrm.html">rrm</a></span><span class="op">(</span><span class="va">environment</span>, k <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">subject</span><span class="op">)</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>Reduced-rank effects use <code>b = L v</code>, with a nonsingular
+Gaussian latent prior. The existing normalized loading convention is
+retained; there is no singular inverse, added ridge, or artificial
+specific variance. Loading-dependent designs and their analytic
+derivatives enter the exact Gaussian or full Laplace score. The declared
+curve incidence is still one unit per observation; weighted latent
+loadings are internal, not a new random-slope API.</p>
+<p><code>randomMode</code>, <code>curveRandomMode</code> and
+<code>groupParameters</code> use restored original coordinates.
+<code>latentRandomMode</code> and <code>randomCoordinates</code> retain
+the latent point mode and dimensions. Predictions rebuild the saved
+basis; population means use the implied marginal prior variance. Neither
+latent modes nor these population integrals are PEV or parameter
+uncertainty. Existing post-fit inference guards remain in force. No new
+numerical controls are needed for this parameterization.</p>
+</div>
+<div class="section level3">
+<h3 id="multiple-random-curve-parameters">Multiple random curve parameters<a class="anchor" aria-label="anchor" href="#multiple-random-curve-parameters"></a>
+</h3>
+<p>Existing named formulas and all <code><a href="../reference/vsm.html">vsm()</a></code> arguments keep
+their syntax and meaning. Separate named formulas specify independent
+Gaussian parameter blocks:</p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span>, random<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  asymptote<span class="op">=</span><span class="op">~</span><span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">subject</span><span class="op">)</span>, sigma2<span class="op">=</span><span class="fl">0.04</span><span class="op">)</span>,</span>
+<span>  rate<span class="op">=</span><span class="op">~</span><span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">subject</span><span class="op">)</span>, sigma2<span class="op">=</span><span class="fl">0.01</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>For correlated deviations, use the separate <code>joint</code>
+argument:</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span>, joint<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>  parameters<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"asymptote"</span>,<span class="st">"rate"</span><span class="op">)</span>,</span>
+<span>  random<span class="op">=</span><span class="op">~</span><span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/usm.html">usm</a></span><span class="op">(</span><span class="va">.parameter</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">subject</span><span class="op">)</span>, sigma2<span class="op">=</span><span class="fl">0.04</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>The internal <code>.parameter</code> axis follows
+<code>joint$parameters</code> in that exact order. It is a
+covariance-shaping factor, not a user data column or the final grouping
+term. <code><a href="../reference/usm.html">usm()</a></code> models cross-parameter covariance;
+<code><a href="../reference/dsm.html">dsm()</a></code>, <code><a href="../reference/fam.html">fam()</a></code>, <code><a href="../reference/rrm.html">rrm()</a></code> and other
+eligible native descriptors retain their existing semantics. Known
+relationships remain <code>Gu</code> precisions. No response replication
+or user-data reshaping is needed. A joint block can coexist with
+independent formulas for other parameters, but the parameter names
+cannot overlap. Ordinary additive effects remain separate independent
+<code>mmes(random=~...)</code> terms; their cross-covariance with curve
+parameters is not supported. Reports qualify covariance terms by
+<code>curve[parameter]</code> or the joint parameter names, avoiding
+ambiguous names when grouping formulas coincide. <code>vcc</code>
+retains its existing indexed/named constraint semantics.</p>
+<p>Positive parameters vary on their log coordinates; logistic midpoint
+varies on its identity coordinate. All cross-parameter second and third
+derivatives enter exact conditional curvature and complete analytic
+Laplace scores. Population predictions integrate the <em>joint
+prior</em>, rather than integrating each parameter separately.
+Quadrature cost grows with its effective rank; existing
+<code>population</code> and <code>execution$denseMemoryMB</code>
+controls apply and failure is explicit. Conditional prediction,
+generative simulation and serialization retain the joint basis. PEV,
+group-parameter standard errors and prediction uncertainty remain
+explicitly post-fit. <code>vcov(fit, type="group")</code> explicitly
+requests natural-scale group-parameter covariance, including
+cross-parameter terms; it is not computed during fitting.</p>
+</div>
+<div class="section level3">
+<h3 id="bounded-graph-and-parameter-declarations">Bounded graph and parameter declarations<a class="anchor" aria-label="anchor" href="#bounded-graph-and-parameter-declarations"></a>
+</h3>
+<p>These are distinct random-effect locations:</p>
+<ul>
+<li>
+<code>mmes(random=~group)</code> declares ordinary additive
+response-predictor effects.</li>
+<li>
+<code>parameters=list(rate=parameter(fixed=~treatment, random=~group, link="log"))</code>
+declares a regression for an unknown parameter used in a nonlinear
+formula.</li>
+<li>A native <code>nonlinear_curve(random=list(rate=~group))</code>
+declares curve-coordinate deviations; <code>joint</code> supplies an
+admitted correlated block.</li>
+<li>A bounded <code><a href="../reference/nonlinear_graph.html">nonlinear_graph()</a></code> declares explicit
+graph-coordinate maps and independent/joint deviations. These are not
+ordinary additive random terms.</li>
+</ul>
+<p>The bounded graph API uses an ordered node list of input, affine,
+identity, and tanh operations with an explicit scalar output and named
+coordinates. No multilayer convenience builders or arbitrary callbacks
+are available. Graph fitting requires ML and an identity output
+representing the response link predictor. Gaussian fixed coordinates
+with additive effects retain exact integration; random graph coordinates
+and non-Gaussian random models use Laplace with reported
+central-difference outer scores. Both graph routes reuse the native
+scalar, ordinal, multinomial and <code><a href="../reference/familym.html">familym()</a></code> likelihood
+contracts. Post-fit uncertainty is explicitly requested and requires
+stationary, identified, interior fits and checked curvature; symmetric
+network weights do not acquire valid SEs merely because optimization
+converges.</p>
+<p><code>optimizer$gradient="auto"</code> preserves native analytic
+scores and selects the reported numerical method for reference
+expression models. An explicit <code>"analytic"</code> request is
+rejected for reference expressions and native random graphs and family
+graph objectives rather than silently replaced by numerical derivatives.
+These native graphs support <code>"central"</code>; native curves reject
+explicit <code>"central"</code>.</p>
+<p>Both named native components use the same public formula bridge:</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="fu"><a href="../reference/graph_term.html">graph_term</a></span><span class="op">(</span><span class="st">"component"</span><span class="op">)</span>, random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  predictors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>component <span class="op">=</span> <span class="va">model</span><span class="op">)</span>,</span>
+<span>  start <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>parameters <span class="op">=</span> <span class="va">natural_starts</span><span class="op">)</span>,</span>
+<span>  method <span class="op">=</span> <span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"ml"</span><span class="op">)</span>,</span>
+<span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>maxit <span class="op">=</span> <span class="fl">100L</span>, tol <span class="op">=</span> <span class="fl">1e-8</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p>Declared <code><a href="../reference/parameter.html">parameter()</a></code> regression models have their own
+supported family, expression, and numerical workspace limits (30
+declarations, 60 mean coefficients, 512 modes for nonexact integration).
+The dense reference route supports nuisance
+<code>familyParameters</code>, checked inference controls, simulation,
+and bounded joint predictor quadrature. It rejects internal graph random
+maps, RR covariance, weights, <code>W</code>, <code>vcc</code>, custom
+contrasts and nondefault representation/solver/update controls. Ordinary
+Gaussian models retain
+<code>representation=list(fixedRank="drop")</code>; this is not a
+license to drop unidentified nonlinear weights. Consult the model
+specification vignette rather than assuming every native curve/graph
+layout is interchangeable. Unsupported combinations error; they do not
+enable a different estimator.</p>
+</div>
 </div>
 <div class="section level2">
 <h2 id="ownership-and-defaults">Ownership and defaults<a class="anchor" aria-label="anchor" href="#ownership-and-defaults"></a>
@@ -182,17 +499,68 @@ authorize new combinations.</p>
 <code>"direct"</code>.</td>
 </tr>
 <tr class="even">
-<td align="left"><code>task</code></td>
-<td align="left">Fit versus known-covariance solve; objective; GLMM
-estimator and controls</td>
 <td align="left">
-<code>mode="fit"</code>, <code>objective="reml"</code>,
-<code>pql=list(maxit=20L, tol=1e-5, estimateTheta=FALSE, warmStart=TRUE)</code>,
-<code>glmm=list(method="pql", maxit=1000L, modeMaxit=100L, modeTol=1e-8, backend="auto")</code>.
-Laplace requires <code>objective="ml"</code> and the supported native
-model scope in the GLMM vignette. Its <code>backend</code> selects
-interchangeable random/observation linear algebra, independently of
-Gaussian/PQL formulation and solver choices.</td>
+<code>method</code> (not a control module)</td>
+<td align="left">Objective, integration, approximation and task</td>
+<td align="left">
+<code>mmes_method(objective="reml", integration="auto", approximation="auto", task="fit")</code>.
+Ordinary non-Gaussian mixed auto fits preserve PQL/REML working fits.
+Laplace requires ML.</td>
+</tr>
+<tr class="odd">
+<td align="left"><code>optimizer</code></td>
+<td align="left">Outer optimizer policy</td>
+<td align="left">
+<code>maxit=NULL</code>, <code>gradient="auto"</code>,
+<code>algorithm="nlminb"</code>; gradient choices are
+<code>"auto"</code>, <code>"analytic"</code>, <code>"central"</code>.
+Auto preserves native analytic defaults and selects reported numerical
+derivatives for reference expressions; unsupported explicit requests
+error. NULL retains engine defaults; Gaussian AI/update modules retain
+their role. Do not duplicate conflicting
+<code>convergence$maxIters</code>.</td>
+</tr>
+<tr class="even">
+<td align="left"><code>mode</code></td>
+<td align="left">Conditional random-effect mode</td>
+<td align="left">
+<code>maxit=100L</code>, <code>tol=1e-8</code>,
+<code>stepTol=1e-8</code>, <code>warmStart="auto"</code>,
+<code>starts="deterministic"</code>. Auto preserves native GLMM auto
+reuse and deterministic cold nonlinear modes; nonlinear explicit
+<code>"on"</code> errors. Non-default <code>stepTol</code> is supported
+only by nonlinear modes; native GLMM modes use <code>tol</code>.</td>
+</tr>
+<tr class="odd">
+<td align="left"><code>working</code></td>
+<td align="left">Outer PQL working fits</td>
+<td align="left">
+<code>maxit=20L</code>, <code>tol=1e-5</code>,
+<code>estimateTheta=FALSE</code>, <code>warmStart=TRUE</code>.
+<code>convergence</code> controls inner Gaussian fits.</td>
+</tr>
+<tr class="even">
+<td align="left"><code>likelihood</code></td>
+<td align="left">Native likelihood algebra</td>
+<td align="left">
+<code>backend="auto"</code>,
+<code>trace="panels"</code>, <code>blocks="off"</code>; backend selects
+random/observation algebra, not the Gaussian solver. Conditional-mode
+reuse belongs only to <code>mode$warmStart</code>.</td>
+</tr>
+<tr class="odd">
+<td align="left"><code>population</code></td>
+<td align="left">Nonlinear population quadrature</td>
+<td align="left">
+<code>order=20L</code>, <code>maxOrder=160L</code>,
+<code>tol=1e-7</code>; failure to meet accuracy/workspace limits
+errors.</td>
+</tr>
+<tr class="even">
+<td align="left"><code>inference</code></td>
+<td align="left">Strictly post-fit nonlinear uncertainty</td>
+<td align="left">Native inference tolerances and conditioning
+safeguards; see the generated catalog for constructor defaults.</td>
 </tr>
 <tr class="odd">
 <td align="left"><code>representation</code></td>
@@ -200,10 +568,10 @@ Gaussian/PQL formulation and solver choices.</td>
 <td align="left">
 <code>compression="off"</code>,
 <code>factorScores="none"</code>, <code>fixedRank="error"</code>,
-<code>equations="normal"</code>, <code>sparseFactors="off"</code>,
-<code>matrixFree="auto"</code>; modes can inherit global options, and
-<code>equations</code> defaults to <code>"saddle-point"</code> if that
-mode is globally forced.</td>
+<code>equations="normal"</code>, <code>sparseFactors="auto"</code>,
+<code>gridAugment="auto"</code>, <code>matrixFree="auto"</code>; modes
+can inherit global options, and <code>equations</code> defaults to
+<code>"saddle-point"</code> if that mode is globally forced.</td>
 </tr>
 <tr class="even">
 <td align="left"><code>solve</code></td>
@@ -235,7 +603,7 @@ to <code>"auto"</code>.</td>
 <td align="left">AI metric and reduced-direction assembly</td>
 <td align="left">
 <code>method="exact-ai"</code>,
-<code>reduced="off"</code>.</td>
+<code>assembly="sensitivity"</code>, <code>reduced="off"</code>.</td>
 </tr>
 <tr class="even">
 <td align="left"><code>update</code></td>
@@ -353,6 +721,9 @@ and library availability can still affect execution.</p>
 <code>curvature$method</code>: <code>"exact-ai"</code> or
 <code>"hybrid-ai"</code>.</li>
 <li>
+<code>curvature$assembly</code>: <code>"sensitivity"</code>
+(default) or <code>"augmented-working"</code>.</li>
+<li>
 <code>update$method</code>: <code>"ai"</code>, conditional
 <code>"em"</code>, or the earlier <code>"conditional-fa"</code> EM
 selector.</li>
@@ -384,6 +755,48 @@ mathematical, structural, and memory checks.</li>
 <h2 id="decision-graph-and-constraints">Decision graph and constraints<a class="anchor" aria-label="anchor" href="#decision-graph-and-constraints"></a>
 </h2>
 <div class="section level3">
+<h3 id="coefficient-space-augmented-working-variate-ai">Coefficient-space augmented working-variate AI<a class="anchor" aria-label="anchor" href="#coefficient-space-augmented-working-variate-ai"></a>
+</h3>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">control</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
+<span>  solve <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>method <span class="op">=</span> <span class="st">"cholmod"</span><span class="op">)</span>,</span>
+<span>  curvature <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>assembly <span class="op">=</span> <span class="st">"augmented-working"</span><span class="op">)</span>,</span>
+<span>  diagnostics <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>profile <span class="op">=</span> <span class="st">"force"</span><span class="op">)</span></span>
+<span><span class="op">)</span></span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="va">environment</span>, random <span class="op">=</span> <span class="op">~</span> <span class="va">id</span>, data <span class="op">=</span> <span class="va">dat</span>, control <span class="op">=</span> <span class="va">control</span><span class="op">)</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">engineDiagnostics</span><span class="op">$</span><span class="va">aiAssembly</span></span>
+<span><span class="va">fit</span><span class="op">$</span><span class="va">executionPlan</span><span class="op">$</span><span class="va">admission</span><span class="op">$</span><span class="va">aiAssembly</span></span></code></pre></div>
+<p>Both AI assemblies process directions together through the existing
+joint coefficient solver. The augmented route uses a prior-shifted
+border and its Schur complement, not a second factorization of enlarged
+equations. Random working directions remain in coefficient space: no
+observation-by-random- parameter matrix or observation covariance is
+formed. Structured residual derivatives retain their existing diagonal,
+block, grid or sparse operators. Compression retains within-group
+residual variation.</p>
+<p>The option changes assembly, not the likelihood, score, optimizer or
+coefficient/inverse output coordinates. It supports deterministic
+Gaussian Henderson REML/ML, including admitted specialized coefficient
+solve paths, weights, positive-specific FA, tied/reduced directions,
+EM/PXEM recovery, hybrid exact refreshes and common-scale profiling.
+Existing restrictions on combinations of those methods continue to
+apply. PCG, PQL/Laplace, conditional FA, factor-score augmentation and
+zero-specific latent reduced rank are explicitly rejected. The option is
+preserved in stored controls and refits. Existing residual-engine
+limitations remain: weighted incomplete serial blocks can fail
+selected-inverse demand closure with either AI assembly. Choosing
+augmented assembly does not bypass that trace preparation.</p>
+<p>Workspace admission uses <code>execution$denseMemoryMB</code>.
+Multi-column tiles, where required, preserve every off-diagonal AI
+block. No approximate diagonal AI or silent sensitivity substitution is
+used. Numerical products are rebuilt for each coefficient/covariance
+evaluation; structural maps and scratch allocations are reused where
+valid. Neither formulation is universally faster or more stable. Use
+matched backends, starts, tolerances and output settings when comparing
+them; the benchmark runner reports separate frozen-parameter AI parity
+as well as complete-fit timings.</p>
+</div>
+<div class="section level3">
 <h3 id="rank-deficient-fixed-effects">Rank-deficient fixed effects<a class="anchor" aria-label="anchor" href="#rank-deficient-fixed-effects"></a>
 </h3>
 <p>By default, <code><a href="../reference/mmes.html">mmes()</a></code> stops with diagnostics when the fixed
@@ -391,7 +804,7 @@ design contains zero columns or linear dependencies. For Gaussian
 identity-link fits, both the Henderson and direct engines can instead
 use a shared sparse C++ QR basis selected once after observation
 filtering:</p>
-<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
 <span>  <span class="va">response</span> <span class="op">~</span> <span class="va">locale</span> <span class="op">+</span> <span class="va">cell</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">observations</span>,</span>
@@ -417,7 +830,7 @@ limitations are unchanged.</p>
 <p>Character classify predictions for rank-reduced fits stop before a
 Cartesian level grid is constructed. To explicitly request observed
 combinations:</p>
-<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">cells</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit</span>, D <span class="op">=</span> <span class="st">"locale:cell"</span>, observed <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span>
 <span><span class="va">cells</span><span class="op">$</span><span class="va">observed</span></span></code></pre></div>
 <p>This path averages the fixed predictor over retained records within
@@ -425,7 +838,7 @@ each observed group and excludes random contributions by default. It is
 not an equally weighted balanced-grid marginal mean. Random
 contributions can be requested explicitly through <code>Dtable</code>,
 without changing its fixed rows:</p>
-<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">rules</span> <span class="op">&lt;-</span> <span class="va">fit</span><span class="op">$</span><span class="va">Dtable</span></span>
 <span><span class="va">rules</span><span class="op">$</span><span class="va">include</span><span class="op">[</span><span class="va">rules</span><span class="op">$</span><span class="va">type</span> <span class="op">==</span> <span class="st">"random"</span><span class="op">]</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
 <span><span class="va">conditional</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/predict.html" class="external-link">predict</a></span><span class="op">(</span><span class="va">fit</span>, D <span class="op">=</span> <span class="st">"locale:cell"</span>, observed <span class="op">=</span> <span class="cn">TRUE</span>, Dtable <span class="op">=</span> <span class="va">rules</span><span class="op">)</span></span></code></pre></div>
@@ -465,7 +878,7 @@ average-information curvature on these equations;
 <code>update$method="em"</code> uses conditional-moment EM. The earlier
 <code>update$method="conditional-fa"</code> API retains its EM behavior
 even without an explicit representation request.</p>
-<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">long</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/stackTraits.html">stackTraits</a></span><span class="op">(</span><span class="va">wide</span>, traits <span class="op">=</span> <span class="va">trait_names</span>, keep <span class="op">=</span> <span class="st">"id"</span><span class="op">)</span></span>
 <span><span class="va">Ainv</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/Matrix/man/solve-methods.html" class="external-link">solve</a></span><span class="op">(</span><span class="va">A</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">Ainv</span>, <span class="st">"inverse"</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
@@ -620,7 +1033,7 @@ counts.</p>
 <h4 id="shared-loading-covariance-model">Shared-loading covariance model<a class="anchor" aria-label="anchor" href="#shared-loading-covariance-model"></a>
 </h4>
 <p>For common trait axes, use matching tags:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">random</span> <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/fam.html">fam</a></span><span class="op">(</span><span class="va">trait</span>, k <span class="op">=</span> <span class="fl">2</span>, shared <span class="op">=</span> <span class="st">"axes"</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">id</span><span class="op">)</span>, Gu <span class="op">=</span> <span class="va">Ainv</span><span class="op">)</span></span>
 <span><span class="va">rcov</span>   <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/fam.html">fam</a></span><span class="op">(</span><span class="va">trait</span>, k <span class="op">=</span> <span class="fl">2</span>, shared <span class="op">=</span> <span class="st">"axes"</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">record</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
 <p>This changes the covariance family to <span class="math inline">\(G=L
@@ -720,14 +1133,14 @@ method switches. Several paths dispatch early, and later choices remain
 gated by the model, task, solver, and output request.</p>
 <pre class="text"><code>Model formulas, covariance descriptors, data and weights
 |
-+-- task$mode = "solve"
++-- method$task = "solve"
 |   +-- Known covariance parameters; no covariance estimation
 |   +-- Gaussian identity and restricted solve/output requests
 |
-+-- task$mode = "fit"
++-- method$task = "fit"
     |
     +-- Non-Gaussian family
-    |   +-- Outer PQL uses task$pql
+    |   +-- Outer PQL uses working; method defaults preserve REML working fits
     |   +-- Inner fits remain subject to Gaussian-path restrictions
     |
     +-- Gaussian identity / inner Gaussian fit
@@ -755,7 +1168,7 @@ every offending setting and suggests a fix. Restating a default is
 always accepted. Rules that depend on the data, family, <code>vcc</code>
 or rotation are checked at fit time. See <code><a href="../reference/mmes_control.html">?mmes_control</a></code>
 (section Compatibility) for the rule list.</p>
-<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>solve <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>method <span class="op">=</span> <span class="st">"ldlt"</span><span class="op">)</span>, score <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>traceProbes <span class="op">=</span> <span class="fl">32L</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="co">#&gt; Error: Incompatible mmes_control() settings:</span></span>
 <span><span class="co">#&gt; * PCG preconditioning, recycling, stochastic log-determinant and</span></span>
@@ -798,23 +1211,35 @@ rank.</li>
 <li>
 <code>representation$sparseFactors</code> applies only to eligible
 supported structured factors, including selected AR, ANTE, SAR, and CAR
-structures. It does not introduce new covariance models.
-<code>representation$matrixFree</code> avoids eligible tensor-prior
-assembly for PCG; it does not make every model operation
+structures. It does not introduce new covariance models. On complete
+grid residual blocks it also keeps banded AR/ANTE precisions sparse in
+the coefficient matrix.</li>
+<li>
+<code>representation$gridAugment</code> completes grid residual
+blocks such as
+<code>dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial)</code> by
+adding missing cells as pseudo-observations with dummy fixed effects
+(exact for REML). It requires a Gaussian identity REML Henderson fit
+with the <code>ldlt</code> or <code>cholmod</code> solver and no
+weights, rotation, factor scores, saddle-point equations or
+known-covariance solving; <code>"force"</code> reports why a model is
+ineligible. <code>representation$matrixFree</code> avoids eligible
+tensor-prior assembly for PCG; it does not make every model operation
 matrix-free.</li>
-<li>Native Laplace <code>task$glmm</code> acceleration controls are
-distinct from Gaussian solver controls: <code>warmStart="auto"</code>
-and <code>gradient="analytic"</code> are defaults;
-<code>warmStart="off"</code> restores zero starts and
-<code>gradient="numeric"</code> selects central differences.
-<code>trace="panels"</code> and <code>blocks="off"</code> remain
-defaults; exact <code>trace="selected"</code> and
-<code>blocks="on"</code> are opt-in random-backend paths. Failed warm
-modes retry zero. ZIP auto does not reuse modes; explicit on
-cold-verifies the historical root. Missing inverse-subset entries use
-exact solve panels. Work/choices persist through refits and saved
-models, and all public SE/PEV remain post-fit. Non-default settings are
-rejected for PQL.</li>
+<li>Native Laplace <code>likelihood</code> execution controls are
+distinct from Gaussian solver controls:
+<code>mode$warmStart="auto"</code> and
+<code>optimizer$gradient="auto"</code> are defaults (auto retains native
+analytic scores); <code>mode$warmStart="off"</code> restores zero starts
+and <code>optimizer$gradient="central"</code> selects reference central
+differences. <code>likelihood$trace="panels"</code> and
+<code>likelihood$blocks="off"</code> remain defaults; exact
+<code>trace="selected"</code> and <code>blocks="on"</code> are opt-in
+random-backend paths. Failed warm modes retry zero. ZIP auto does not
+reuse modes; explicit on cold-verifies the historical root. Missing
+inverse-subset entries use exact solve panels. Work/choices persist
+through refits and saved models, and all public SE/PEV remain post-fit.
+Non-default settings are rejected for PQL.</li>
 <li>
 <code>solve$blockSchur</code>, <code>blockBanded</code>,
 <code>factorSchurMultiFactor</code>, and <code>dFirstML</code> request
@@ -864,12 +1289,9 @@ restrictions.</li>
 </ul>
 <p>For the descriptive capability inventory and conceptual decision
 graph, inspect the internal catalog:</p>
-<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">capabilities</span> <span class="op">&lt;-</span> <span class="fu">sommer</span><span class="fu">:::</span><span class="fu">.mmes_capabilities</span><span class="op">(</span><span class="op">)</span></span>
-<span><span class="va">capabilities</span><span class="op">$</span><span class="va">modules</span></span>
-<span><span class="va">capabilities</span><span class="op">$</span><span class="va">controls</span></span>
-<span><span class="va">capabilities</span><span class="op">$</span><span class="va">decisions</span></span>
-<span><span class="va">capabilities</span><span class="op">$</span><span class="va">edges</span></span></code></pre></div>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">capabilities</span> <span class="op">&lt;-</span> <span class="fu">sommer</span><span class="fu">:::</span><span class="fu">.mmes_public_catalog</span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">capabilities</span><span class="op">$</span><span class="va">controls</span></span></code></pre></div>
 <p>This inventory does not inspect a fitted model, resolve eligibility,
 or predict the selected execution path. It complements, but does not
 replace, control validation and fit-time diagnostics.</p>
@@ -878,9 +1300,10 @@ replace, control validation and fit-time diagnostics.</p>
 <div class="section level2">
 <h2 id="migration-from-removed-numerical-formals">Migration from removed numerical formals<a class="anchor" aria-label="anchor" href="#migration-from-removed-numerical-formals"></a>
 </h2>
-<p>Move every numerical choice into <code>control</code>; do not pass
-old formals to <code><a href="../reference/mmes.html">mmes()</a></code>. Use one control object rather than
-conflicting duplicated values.</p>
+<p>Move numerical policy into <code>control</code>, statistical choices
+into <code>method</code>, and model starts/family nuisance choices into
+their <code><a href="../reference/mmes.html">mmes()</a></code> arguments. Removed <code>task</code> control
+paths and <code>nonlinear=</code> are not compatibility aliases.</p>
 <table class="table">
 <colgroup>
 <col width="50%">
@@ -916,33 +1339,67 @@ conflicting duplicated values.</p>
 <td align="left"><code>execution$inverseTol</code></td>
 </tr>
 <tr class="odd">
-<td align="left"><code>REML=TRUE/FALSE</code></td>
-<td align="left"><code>task$objective="reml"/"ml"</code></td>
+<td align="left">
+<code>REML=TRUE/FALSE</code>,
+<code>task$objective</code>
+</td>
+<td align="left"><code>method=mmes_method(objective="reml"/"ml")</code></td>
 </tr>
 <tr class="even">
-<td align="left"><code>solveOnly=TRUE/FALSE</code></td>
-<td align="left"><code>task$mode="solve"/"fit"</code></td>
+<td align="left">
+<code>solveOnly=TRUE/FALSE</code>,
+<code>task$mode</code>
+</td>
+<td align="left"><code>method=mmes_method(task="solve"/"fit")</code></td>
 </tr>
 <tr class="odd">
-<td align="left"><code>pqlControl</code></td>
-<td align="left"><code>task$pql</code></td>
+<td align="left">
+<code>pqlControl</code>, <code>task$pql</code>
+</td>
+<td align="left"><code>control=mmes_control(working=list(...))</code></td>
 </tr>
 <tr class="even">
+<td align="left"><code>task$glmm$method="laplace"</code></td>
+<td align="left"><code>method=mmes_method(objective="ml", integration="laplace")</code></td>
+</tr>
+<tr class="odd">
+<td align="left"><code>task$glmm$familyParameters</code></td>
+<td align="left"><code>mmes(familyParameters=list(...))</code></td>
+</tr>
+<tr class="even">
+<td align="left"><code>task$nonlinear$start</code></td>
+<td align="left"><code>mmes(start=list(parameters=...))</code></td>
+</tr>
+<tr class="odd">
+<td align="left"><code>nonlinear=curve</code></td>
+<td align="left">
+<code>predictors=list(curve=curve)</code> and formula
+<code>y~0+graph_term("curve")</code>
+</td>
+</tr>
+<tr class="even">
+<td align="left"><code>task$nonlinear$mode/population/inference</code></td>
+<td align="left">
+<code>control</code> modules <code>mode</code>,
+<code>population</code>, <code>inference</code>
+</td>
+</tr>
+<tr class="odd">
 <td align="left"><code>computeCi</code></td>
 <td align="left"><code>output$inverse</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><code>getPEV</code></td>
 <td align="left">No separate replacement; Gaussian fits use
 <code>output$inverse</code> for fit-time PEVs. Native Laplace requires
 <code>output$inverse=0</code> and uses <code><a href="../reference/postPEV.html">postPEV()</a></code> after
 fitting.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><code>returnParam</code></td>
 <td align="left"><code>output$setup</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">
 <code>blend</code>, <code>blendWeight</code>
 </td>
@@ -951,27 +1408,27 @@ fitting.</td>
 <code>update$blendWeight</code>
 </td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><code>stepWeight</code></td>
 <td align="left"><code>proposal$stepWeight</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><code>acceleration="aitken"</code></td>
 <td align="left"><code>proposal$extrapolation="aitken"</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><code>acceleration="hybrid-ai"</code></td>
 <td align="left"><code>curvature$method="hybrid-ai"</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><code>compression</code></td>
 <td align="left"><code>representation$compression</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><code>factorScoreAugmentation</code></td>
 <td align="left"><code>representation$factorScores</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">
 <code>experimental$sparseFactors</code>,
 <code>matrixFreePcg</code>, <code>saddlePoint</code>
@@ -982,7 +1439,7 @@ fitting.</td>
 <code>representation$equations</code>
 </td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">
 <code>experimental$blockSchur</code>,
 <code>blockBanded</code>, <code>factorSchurMultiFactor</code>,
@@ -990,7 +1447,7 @@ fitting.</td>
 </td>
 <td align="left">Same-named <code>solve</code> fields</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">
 <code>experimental$pdCertificates</code>,
 <code>traceBatch</code>
@@ -1000,7 +1457,7 @@ fitting.</td>
 <code>score$traceBatch</code>
 </td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">
 <code>experimental$reducedAI</code>,
 <code>commonScale</code>
@@ -1010,7 +1467,7 @@ fitting.</td>
 <code>update$commonScale</code>
 </td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">
 <code>experimental$cholmodFinalSelected</code>,
 <code>panelCi2</code>
@@ -1020,103 +1477,103 @@ fitting.</td>
 <code>output$panelSize</code>
 </td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><code>experimental$profile</code></td>
 <td align="left"><code>diagnostics$profile</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><code>covarianceInformation</code></td>
 <td align="left"><code>output$covariance</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left"><code>retainCoefficientMatrix</code></td>
 <td align="left"><code>output$coefficientMatrix</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">PCG <code>tol</code>, <code>maxIters</code>,
 preconditioner, reuse</td>
 <td align="left">
 <code>solve</code> fields</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">PCG determinant scaling and Lanczos depth</td>
 <td align="left">
 <code>logdet$scaling</code>,
 <code>logdet$lanczosSteps</code>
 </td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">PCG trace probes, estimator, rank</td>
 <td align="left">
 <code>score$traceProbes</code>,
 <code>score$estimator</code>, <code>score$rank</code>
 </td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">PCG covariance checks and trace batching</td>
 <td align="left">
 <code>score$covarianceChecks</code>,
 <code>score$traceBatch</code>
 </td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">PCG accuracy budgets</td>
 <td align="left">
 <code>convergence</code> fields</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">PCG seed</td>
 <td align="left"><code>execution$seed</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Experimental elimination requests</td>
 <td align="left">Corresponding <code>solve</code> fields</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Experimental sparse factors, matrix-free, saddle
 point</td>
 <td align="left">Corresponding <code>representation</code> fields</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Experimental trace checks/batching</td>
 <td align="left">
 <code>score$covarianceChecks</code>,
 <code>score$traceBatch</code>
 </td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Experimental reduced AI</td>
 <td align="left"><code>curvature$reduced</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Experimental common scale</td>
 <td align="left"><code>update$commonScale</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">Experimental inverse selection/panel size</td>
 <td align="left">
 <code>output$selectedInverse</code>,
 <code>output$panelSize</code>
 </td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">Experimental profiling</td>
 <td align="left"><code>diagnostics$profile</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">
 <code>denseMemoryMB</code>, <code>memoryPolicy</code>,
 <code>gpu</code>, <code>gpuMinSize</code>, <code>blasThreads</code>
 </td>
 <td align="left">Same-named <code>execution</code> fields</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left">
 <code>verbose</code>, <code>dateWarning</code>
 </td>
 <td align="left">Same-named <code>diagnostics</code> fields</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">
 <code>recordDiagnostics</code>,
 <code>verboseDiagnostics</code>
@@ -1124,12 +1581,12 @@ point</td>
 <td align="left">Removed flags; use <code>diagnostics$verbose</code> for
 fit output and <code>diagnostics$profile</code> for profiling</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td align="left"><code>engine</code></td>
 <td align="left">Pass the complete object as <code>control</code>
 </td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td align="left">
 <code>...</code> legacy/pass-through options</td>
 <td align="left">No replacement; set documented module fields only</td>
@@ -1138,15 +1595,15 @@ fit output and <code>diagnostics$profile</code> for profiling</td>
 </table>
 <p>For example, former settings spread across top-level formals and
 engine lists now have one canonical owner:</p>
-<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">control</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
 <span>  formulation <span class="op">=</span> <span class="st">"henderson"</span>,</span>
-<span>  task <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"reml"</span><span class="op">)</span>,</span>
 <span>  solve <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>method <span class="op">=</span> <span class="st">"pcg"</span>, tol <span class="op">=</span> <span class="fl">1e-8</span>, maxIters <span class="op">=</span> <span class="fl">0L</span><span class="op">)</span>,</span>
 <span>  score <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>traceProbes <span class="op">=</span> <span class="fl">16L</span><span class="op">)</span>,</span>
 <span>  convergence <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>accuracy <span class="op">=</span> <span class="st">"adaptive"</span>, maxIters <span class="op">=</span> <span class="fl">40L</span><span class="op">)</span>,</span>
 <span>  output <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>inverse <span class="op">=</span> <span class="fl">0L</span>, covariance <span class="op">=</span> <span class="st">"full"</span><span class="op">)</span></span>
-<span><span class="op">)</span></span></code></pre></div>
+<span><span class="op">)</span></span>
+<span><span class="va">method</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"reml"</span><span class="op">)</span></span></code></pre></div>
 <p>The statistical model is unchanged by choosing a numerical
 representation or solver only when that method is mathematically
 equivalent and eligible. Do not interpret the module structure as

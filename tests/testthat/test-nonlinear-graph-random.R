@@ -155,7 +155,15 @@ test_that("random graph coordinates use exact conditional curvature and Laplace 
   restored <- readRDS(saved)
   expect_equal(predict(restored,newdata=data[1:5,]),
     predict(fit,newdata=data[1:5,]),tolerance=1e-10)
-  expect_error(summary(fit,inference=TRUE),"not supported")
+  inferenceReady <- isTRUE(fit$nonlinearDiagnostics$identified) &&
+    !length(fit$nonlinearDiagnostics$boundaryParameters)
+  if(inferenceReady){
+    inferredSummary <- summary(fit,inference=TRUE)
+    expect_true(all(is.finite(inferredSummary$parameterTable[,"StdError"])))
+  }else{
+    expect_error(summary(fit,inference=TRUE),
+      "locally identifiable|covariance boundaries")
+  }
   conditional <- simulate(fit,nsim=2L,seed=918L,re.form="conditional")
   populationSimulation <- simulate(fit,nsim=2L,seed=918L,re.form="population")
   expect_identical(populationSimulation,
@@ -166,6 +174,7 @@ test_that("random graph coordinates use exact conditional curvature and Laplace 
 
 test_that("joint and reduced-rank graph-coordinate blocks preserve covariance mapping",{
   fixture <- nonlinearGraphRandomFixture()
+  data <- droplevels(fixture$data[as.integer(fixture$data$group)<=4L,,drop=FALSE])
   graph <- nonlinear_graph(fixture$graph$nodes,fixture$graph$output,
     fixture$graph$parameters,parameterMap=list(
       hiddenWeight=list(type="fixed"),
@@ -175,11 +184,11 @@ test_that("joint and reduced-rank graph-coordinate blocks preserve covariance ma
     ),joint=list(parameters=c("hiddenBias","outputBias"),
       random=~vsm(rrm(.parameter,k=1,loadings=matrix(c(1,.5),2,1),
         fixed=c(TRUE,TRUE)),ism(group),sigma2=0.02,fixedSigma2=TRUE)))
-  fit <- sommer:::.mmes_dispatch(y~0,data=fixture$data,nonlinear=graph,
+  fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=graph,
     control=fixture$control)
   expect_true(fit$convergence)
   expect_true(sommer:::.nonlinear_has_reduced_rank(fit$covStruct))
   expect_lt(length(fit$latentRandomMode),length(fit$randomMode))
   expect_true(all(is.finite(predict(fit,re.form="population"))))
-  expect_true(all(is.finite(predict(fit,newdata=fixture$data[1:4,]))))
+  expect_true(all(is.finite(predict(fit,newdata=data[1:4,]))))
 })

@@ -16,7 +16,7 @@ PKG_CPPFLAGS = -DARMA_64BIT_WORD=1
 
 all: $(SHLIB)
 
-mme_nonlinear.o: mme_nonlinear_graph.h
+mme_nonlinear.o: mme_nonlinear_graph.h mme_nonlinear_graph_laplace.h mme_nonlinear_covariance.h mme_nonlinear_mode.h mme_nonlinear_memory.h mme_glmm_family.h
 
 native_utils.o native_relationships.o mme_inference.o mme_direct.o mme_solve.o: mme_sp2_support.h mme_control.h mme_control_r.h mme_paths.h mme_factors.h mme_covariance.h mme_progress.h
 mme_direct.o: mme_direct_em.h mme_em_optimizer.h mme_recovery.h mme_ai_recovery.h

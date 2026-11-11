@@ -332,18 +332,21 @@ These are distinct random-effect locations:
 The bounded graph API uses an ordered node list of input, affine, identity,
 and tanh operations with an explicit scalar output and named coordinates.
 No multilayer convenience builders or arbitrary callbacks are available.
-Native graph fitting currently requires Gaussian identity ML and an identity
-output. Fixed coordinates use exact Gaussian integration with additive effects;
-random graph coordinates use Laplace with reported central-difference outer
-scores. Graph non-Gaussian fitting and post-fit parameter uncertainty are not
-supported. Curves have their own broader native family and inference support;
-do not infer graph capabilities from curve capabilities.
+Graph fitting requires ML and an identity output representing the response
+link predictor. Gaussian fixed coordinates with additive effects retain exact
+integration; random graph coordinates and non-Gaussian random models use
+Laplace with reported central-difference outer scores. Both graph routes reuse
+the native scalar, ordinal, multinomial and `familym()` likelihood contracts.
+Post-fit uncertainty is explicitly requested and requires stationary,
+identified, interior fits and checked curvature; symmetric network weights do
+not acquire valid SEs merely because optimization converges.
 
 `optimizer$gradient="auto"` preserves native analytic scores and selects the
 reported numerical method for reference expression models. An explicit
 `"analytic"` request is rejected for reference expressions and native random
-graphs rather than silently replaced by numerical derivatives. Random native
-graphs support `"central"`; native curves reject explicit `"central"`.
+graphs and family graph objectives rather than silently replaced by numerical
+derivatives. These native graphs support `"central"`; native curves reject
+explicit `"central"`.
 
 Both named native components use the same public formula bridge:
 
@@ -356,7 +359,14 @@ fit <- mmes(y ~ 0 + graph_term("component"), random = ~ group, data = dat,
 ```
 
 Declared `parameter()` regression models have their own supported family,
-expression, and numerical workspace limits. Consult the model specification
+expression, and numerical workspace limits (30 declarations, 60 mean
+coefficients, 512 modes for nonexact integration). The dense reference route
+supports nuisance `familyParameters`, checked inference controls, simulation,
+and bounded joint predictor quadrature. It rejects internal graph random maps,
+RR covariance, weights, `W`, `vcc`, custom contrasts and nondefault
+representation/solver/update controls. Ordinary Gaussian models retain
+`representation=list(fixedRank="drop")`; this is not a license to drop
+unidentified nonlinear weights. Consult the model specification
 vignette rather than assuming every native curve/graph layout is interchangeable.
 Unsupported combinations error; they do not enable a different estimator.
 

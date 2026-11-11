@@ -1,5 +1,8 @@
 .nonlinear_family_prepare <- function(fixed, random, data, family, input,
-    control, naMethodX, naMethodY, naMethodRandom, naMethodR, contrasts){
+    control, naMethodX, naMethodY, naMethodRandom, naMethodR, contrasts,
+    graph=NULL){
+  graphLayout <- if(is.null(graph)) NULL else
+    .nonlinear_graph_native_layout(graph,data,allowMissing=TRUE)
   settings <- control$task$glmm$familyParameters
   singleCategorical <- !inherits(family, "sommer_familym") &&
     family$family %in% c("ordinal", "multinomial")
@@ -30,7 +33,9 @@
       random <- .nonlinear_replace_symbol(random, ".nominalCategory", ".familyCoordinate")
     }
   }
-  complete <- !is.na(data[[input]]) & .laplace_zero_complete(family,data,nrow(data))
+  complete <- if(is.null(graph)) !is.na(data[[input]]) else
+    rowSums(is.na(graphLayout$inputs))==0L
+  complete <- complete & .laplace_zero_complete(family,data,nrow(data))
   if(naMethodX=="fail" && any(!complete))
     stop("Missing nonlinear inputs or zero-component predictors with naMethodX='fail'.",
       call.=FALSE)
@@ -49,6 +54,9 @@
     families <- model$families
     workingData <- data
   }
+  if(!is.null(graph))
+    graphLayout <- .nonlinear_graph_native_layout(graph,workingData,
+      allowMissing=TRUE)
   included <- prepared$obsInfo$included
   index <- .laplace_family_index(family,workingData,nrow(workingData))[included]
   specifications <- .laplace_zero_designs(families,specifications,
@@ -61,7 +69,10 @@
   if(is.null(offset)) offset <- numeric(length(included))
   list(prepared=prepared,family=family,families=families,specifications=specifications,
     index=index,response=response,offset=offset[included],data=workingData,
-    input=workingData[[input]][included],random=random,
+    included=included,
+    input=if(is.null(graph)) workingData[[input]][included] else
+      graphLayout$inputs[included,,drop=FALSE],
+    graphLayout=graphLayout,random=random,
     singleCategorical=singleCategorical,args=args)
 }
 
@@ -76,6 +87,41 @@
     return(result)
   }
   expression
+}
+
+.nonlinear_family_boundaries <- function(specifications, reference, index){
+  threshold <- sqrt(.Machine$double.eps)
+  boundaries <- character()
+  for(position in seq_along(specifications)){
+    specification <- specifications[[position]]
+    if(!isTRUE(specification$free)) next
+    label <- names(specifications)[position]
+    if(specification$family=="ordinal"){
+      if(any(diff(specification$thresholds)<threshold))
+        boundaries <- c(boundaries,paste0(label,":threshold gap"))
+      next
+    }
+    if(!is.null(specification$zeroDesign)){
+      probability <- .laplace_zero_probability(specification,
+        which(index==position))
+      if(any(probability<threshold | probability>1-threshold))
+        boundaries <- c(boundaries,paste0(label,":zeroInflation"))
+      next
+    }
+    coordinate <- specification$logParameter
+    start <- reference[[position]]$logParameter
+    atBoundary <- if(specification$family=="nbinom2"){
+      coordinate-start > -log(threshold) || coordinate-start < log(threshold)
+    }else if(specification$family=="ziPoisson"){
+      probability <- stats::plogis(coordinate)
+      probability<threshold || probability>1-threshold
+    }else{
+      coordinate-start<log(threshold)
+    }
+    if(atBoundary)
+      boundaries <- c(boundaries,paste0(label,":",specification$parameter))
+  }
+  unique(boundaries)
 }
 
 .nonlinear_optimize <- function(parameters, evaluate, control, label="Nonlinear ML"){
@@ -137,6 +183,9 @@
 
 .mmes_nonlinear_family_fit <- function(fixed, random, data, nonlinear, control,
     family, vcc, naMethodX, naMethodY, naMethodRandom, naMethodR, contrasts){
+  if(inherits(nonlinear,"sommer_nonlinear_graph"))
+    return(.mmes_nonlinear_graph_family_fit(fixed,random,data,nonlinear,control,
+      family,vcc,naMethodX,naMethodY,naMethodRandom,naMethodR,contrasts))
   profileStart <- if(identical(control$diagnostics$profile,"force")) proc.time()[["elapsed"]] else NULL
   model <- .nonlinear_validate(nonlinear)
   random <- .nonlinear_joint_formula(random,model,data)
@@ -295,6 +344,190 @@
       result$randomMode[curveRandom$start+seq_len(curveRandom$count)],curveRandom$columns)
     result$additiveRandomMode <- result$randomMode[seq_len(curveRandom$start)]
   }
+  class(result) <- c("mmes.nonlinear","mmes")
+  .nonlinear_fit_diagnostics(result,optimized,control,profileStart,preparationSeconds)
+}
+
+.mmes_nonlinear_graph_family_fit <- function(fixed, random, data, nonlinear,
+    control, family, vcc, naMethodX, naMethodY, naMethodRandom, naMethodR,
+    contrasts){
+  profileStart <- if(identical(control$diagnostics$profile,"force"))
+    proc.time()[["elapsed"]] else NULL
+  model <- .nonlinear_graph_validate(nonlinear)
+  random <- .nonlinear_joint_formula(random,model,data)
+  scope <- .mmes_blas_scope(control$execution$blasThreads)
+  on.exit(scope$restore(),add=TRUE)
+  setup <- .nonlinear_family_prepare(fixed,random,data,family,NULL,control,
+    naMethodX,naMethodY,naMethodRandom,naMethodR,contrasts,graph=model)
+  prepared <- setup$prepared
+  included <- setup$included
+  training <- setup$data[included,,drop=FALSE]
+  x <- prepared$X
+  z <- Matrix::Matrix(do.call(cbind,prepared$Z),sparse=TRUE)
+  graphRandom <- .nonlinear_random_layout(model,prepared)
+  input <- setup$input
+  p <- ncol(x)
+  k <- length(model$parameters)
+  if(any(!is.finite(input)) || any(!is.finite(setup$offset)) ||
+     any(!is.finite(x)) || any(!is.finite(z)))
+    stop("Nonlinear graph family preparation requires finite retained inputs, offsets and designs.",
+      call.=FALSE)
+  if(nrow(input)<=p+k)
+    stop("Too few retained predictor rows to identify the nonlinear graph mean.",
+      call.=FALSE)
+  if(8*as.double(nrow(input))*(160+p+k)>control$execution$denseMemoryMB*1048576)
+    stop("Nonlinear graph family preparation exceeds execution$denseMemoryMB.",
+      call.=FALSE)
+  theta <- .nonlinear_graph_start(model,control$task$nonlinear)
+  first <- .nonlinear_graph_first(model,training,theta,control)
+  locations <- lapply(seq_along(setup$specifications),function(i){
+    spec <- setup$specifications[[i]]
+    if(spec$family=="ordinal" && spec$free) as.numeric(setup$index==i) else NULL
+  })
+  location <- do.call(cbind,Filter(Negate(is.null),locations))
+  identified <- .nonlinear_identification(cbind(x,location),first$jacobian)
+  if(!identified)
+    stop("The combined fixed/graph mean and free cutpoint locations are locally rank deficient; revise the model or starts.",
+      call.=FALSE)
+  mapping <- .laplace_covariance_map(prepared$covStruct[seq_along(prepared$rtermss)],
+    prepared$rtermss,vcc)
+  .nonlinear_covariance_eligibility(mapping$structures,prepared$rtermss)
+  layout <- list(fixedCount=p+k,covarianceCount=length(mapping$map$initial),
+    covarianceMap=mapping$map,
+    freePositions=lapply(mapping$structures,function(s) which(s$free)),
+    parameterStarts=cumsum(c(0L,head(vapply(mapping$structures,
+      function(s) sum(s$free),integer(1)),-1L))))
+  familyStarts <- unlist(lapply(setup$specifications,function(spec){
+    if(!spec$free) return(numeric())
+    if(spec$family=="ordinal") .laplace_ordinal_coordinates(spec$thresholds)
+    else if(is.null(spec$zeroDesign)) spec$logParameter else spec$zeroCoefficients
+  }),use.names=FALSE)
+  familyNames <- unlist(lapply(seq_along(setup$specifications),function(i){
+    spec <- setup$specifications[[i]]
+    count <- .laplace_family_count(spec)
+    if(!count) return(character())
+    paste0("family:",names(setup$specifications)[i],":",
+      if(spec$family=="ordinal") paste0("cutpoint",seq_len(count)) else
+        if(is.null(spec$zeroDesign)) spec$parameter else colnames(spec$zeroDesign))
+  }),use.names=FALSE)
+  parameters <- c(if(p) stats::setNames(numeric(p),paste0("fixed:",colnames(x))),
+    stats::setNames(theta,paste0("graph:",model$parameters)),
+    mapping$map$initial,stats::setNames(familyStarts,familyNames))
+  mode <- control$task$nonlinear$mode
+  coordinateMap <- if(is.null(graphRandom)) matrix(0,ncol(z),k) else
+    graphRandom$coordinateMap*1.0
+  context <- sommer_nonlinear_graph_family_create(x,z,
+    setup$response$nativeResponse,setup$offset,input,
+    setup$graphLayout$nodes,setup$graphLayout$output,
+    setup$graphLayout$transformed,coordinateMap,mapping$structures,
+    prepared$Ai,setup$specifications,setup$index-1L,
+    setup$response$trials,control$execution$denseMemoryMB,
+    mode$maxIters,mode$scoreTol,mode$stepTol)
+  evaluate <- function(parameters){
+    .laplace_constrained_evaluate(parameters,layout,function(expanded)
+      sommer_nonlinear_graph_family_eval(context,expanded))
+  }
+  preparationSeconds <- if(!is.null(profileStart))
+    proc.time()[["elapsed"]]-profileStart else NULL
+  optimized <- .nonlinear_optimize(parameters,evaluate,control,
+    "Nonlinear graph Laplace family ML")
+  optimization <- optimized$optimization
+  final <- optimized$final
+  theta <- stats::setNames(optimization$par[p+seq_len(k)],model$parameters)
+  finalFirst <- .nonlinear_graph_first(model,training,theta,control)
+  identified <- .nonlinear_identification(cbind(x,location),finalFirst$jacobian)
+  if(!identified)
+    warning("The fitted nonlinear graph mean is locally rank deficient; graph parameters may not be identifiable.",
+      call.=FALSE)
+  structures <- .laplace_proposal_structures(mapping$structures,
+    optimization$par,layout)
+  names(structures) <- prepared$rtermss
+  specifications <- .laplace_proposal_specs(setup$specifications,
+    optimization$par,layout)
+  families <- .laplace_update_families(setup$families,specifications,setup$index)
+  names(families) <- names(specifications)
+  fittedFamily <- if(inherits(setup$family,"sommer_familym")){
+    value <- setup$family
+    value$families <- families
+    value
+  }else families[[1L]]
+  natural <- theta
+  logCoordinates <- which(vapply(model$parameterMap,function(map)
+    identical(map$transform,"log"),logical(1)))
+  if(length(logCoordinates)) natural[logCoordinates] <- exp(natural[logCoordinates])
+  beta <- stats::setNames(optimization$par[seq_len(p)],colnames(x))
+  fixedTerms <- stats::delete.response(attr(prepared$modelFrame,"terms"))
+  retainedFrame <- droplevels(prepared$modelFrame[included,,drop=FALSE])
+  randomVariables <- intersect(all.vars(setup$random),names(training))
+  randomLevels <- lapply(training[randomVariables],function(value)
+    if(is.factor(value)) levels(value) else if(is.character(value)) unique(value)
+      else NULL)
+  randomLevels <- Filter(Negate(is.null),randomLevels)
+  covariance <- .nonlinear_covariance_parameters(structures)
+  names(covariance) <- prepared$rtermss
+  boundaryParameters <- c(
+    .mmes_laplace_boundary(structures,mapping$structures),
+    .nonlinear_family_boundaries(specifications,setup$specifications,setup$index))
+  dispersion <- vapply(specifications,function(s)
+    if(s$family %in% c("Gamma","gaussian")) exp(s$logParameter) else 1,numeric(1))
+  result <- list(nonlinear=model,nonlinearGraph=TRUE,
+    nonlinearParameters=natural,nonlinearCoordinates=theta,
+    nonlinearRandom=graphRandom,
+    groupParameters=.nonlinear_random_parameters(model,theta,graphRandom,
+      final$mode),nonlinearFamily=TRUE,singleCategorical=setup$singleCategorical,
+    likelihoodMethod="Laplace family ML",
+    derivativeMethod=final$work$outerScore,b=beta,u=as.numeric(final$mode),
+    randomMode=as.numeric(final$mode),latentRandomMode=as.numeric(final$latentMode),
+    randomCoordinates=list(representation=if(.nonlinear_has_reduced_rank(structures))
+      "latent reduced rank" else "full",fullDimension=length(final$mode),
+      latentDimension=length(final$latentMode)),
+    fitted.values=as.numeric(final$fitted),linear.predictors=as.numeric(final$predictor),
+    fixedMean=as.numeric(final$fixedMean),y=setup$response$response,
+    priorWeights=setup$response$trials,nativeResponse=setup$response$nativeResponse,
+    offset=setup$offset,llik=as.numeric(final$logLik),REML=FALSE,
+    nobs=if(is.null(prepared$categorical)) nrow(input) else
+      length(unique(prepared$categorical$rowMap)),npar=length(parameters),
+    dispersion=dispersion,family=if(setup$singleCategorical) families[[1L]] else
+      fittedFamily,predictionFamily=fittedFamily,laplaceFamilies=families,
+    laplaceFamilyIndex=setup$index,familySpecifications=specifications,
+    categorical=prepared$categorical,
+    convergence=optimization$convergence==0L,
+    engine="native nonlinear graph Laplace family ML",optimizer=optimization,
+    covStruct=structures,covPar=covariance,
+    covParNative=.vc_param_table(structures,prepared$rtermss),
+    randomMetadata=prepared$rtermss,randomRelationships=prepared$Ai,
+    fixedDesign=x,randomDesign=z,fixedFormula=fixed,
+    randomFormula=.nonlinear_prediction_formula(setup$random,training),
+    fixedTerms=fixedTerms,
+    fixedVariables=intersect(all.vars(fixedTerms),names(training)),
+    fixedXlevels=stats::.getXlevels(fixedTerms,retainedFrame),
+    predictionColumns=colnames(x),contrasts=attr(x,"contrasts"),
+    randomBlockColumns=lapply(prepared$Z,colnames),
+    randomBlockWidths=vapply(seq_along(prepared$rtermss),function(term)
+      sum(vapply(prepared$Z[prepared$Zind==term],ncol,integer(1))),integer(1)),
+    randomDesignBlockWidths=vapply(prepared$Z,ncol,integer(1)),
+    randomFactorLevels=randomLevels,predictionData=training[randomVariables],
+    input=input,graphNative=setup$graphLayout[c("nodes","output","transformed")],
+    graphData=input,trainingData=training,obsInfo=prepared$obsInfo,vcc=vcc,
+    predictionSettings=list(naMethodX=naMethodX,naMethodY=naMethodY,
+      naMethodRandom=naMethodRandom,naMethodR=naMethodR,contrasts=contrasts,
+      mmesArgs=setup$args),
+    laplacePostPEVSettings=list(denseMemoryMB=control$execution$denseMemoryMB),
+    nonlinearParameterLayout=list(version=2L,fixed=names(beta),curve=character(),
+      graph=model$parameters,positive=logCoordinates,optimizer=names(parameters),
+      covariance=layout),
+    nonlinearDiagnostics=list(gradient=stats::setNames(as.numeric(final$gradient),
+      names(parameters)),initialParameters=parameters,modeScore=final$modeScore,
+      identified=identified,modeIterations=final$modeIterations,
+      failedStarts=final$failedStarts,failedStartReasons=final$failedStartReasons,
+      competingModes=final$competingModes,logDetHessian=final$logDetHessian,
+      rejectedEvaluations=optimized$rejected,
+      outerScore=final$work$outerScore,outerScoreMethod=final$work$outerScore,
+      work=final$work,
+      boundaryParameters=boundaryParameters,
+      uncertaintyComputed=FALSE),
+    uPevMode=0L,retainCoefficientMatrix=FALSE,covarianceInformation="none")
+  if(!is.null(prepared$categorical)) result$contrasts <- prepared$categorical$contrasts
   class(result) <- c("mmes.nonlinear","mmes")
   .nonlinear_fit_diagnostics(result,optimized,control,profileStart,preparationSeconds)
 }

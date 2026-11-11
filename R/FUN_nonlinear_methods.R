@@ -175,6 +175,8 @@ print.mmes.nonlinear <- function(x, ...){
 
 .nonlinear_graph_bases <- function(object,design){
   layout <- object$nonlinearRandom
+  if(is.null(layout))
+    return(rep(list(design*0),length(object$nonlinear$parameters)))
   lapply(seq_along(object$nonlinear$parameters),function(coordinate){
     result <- design*0
     columns <- which(layout$coordinateMap[,coordinate]!=0)

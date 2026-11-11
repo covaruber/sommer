@@ -105,6 +105,38 @@ Rcpp::List sommer_nonlinear_graph_laplace_conditional(SEXP context,
 }
 
 // [[Rcpp::export]]
+SEXP sommer_nonlinear_graph_family_create(const arma::sp_mat & fixed,
+    const arma::sp_mat & random,const arma::vec & response,
+    const arma::vec & offset,const arma::mat & graphData,
+    const Rcpp::List & graph,const int output,
+    const Rcpp::IntegerVector & transformed,const arma::mat & coordinateMap,
+    const Rcpp::List & descriptors,const Rcpp::List & relationships,
+    const Rcpp::List & specifications,const arma::uvec & index,
+    const arma::vec & trials,const double memoryMB=1000,
+    const int maxIters=100,const double scoreTol=1e-8,
+    const double stepTol=1e-8){
+  return Rcpp::XPtr<sommer::NonlinearGraphFamilyLaplaceObjective>(
+    new sommer::NonlinearGraphFamilyLaplaceObjective(fixed,random,response,
+      offset,graphData,graph,output,transformed,coordinateMap,descriptors,
+      relationships,specifications,index,trials,memoryMB,maxIters,scoreTol,
+      stepTol),true);
+}
+
+// [[Rcpp::export]]
+Rcpp::List sommer_nonlinear_graph_family_eval(SEXP context,
+    const arma::vec & parameters,const bool gradient=true){
+  Rcpp::XPtr<sommer::NonlinearGraphFamilyLaplaceObjective> objective(context);
+  return objective->evaluate(parameters,gradient);
+}
+
+// [[Rcpp::export]]
+Rcpp::List sommer_nonlinear_graph_family_conditional(SEXP context,
+    const arma::vec & parameters,const arma::vec & mode){
+  Rcpp::XPtr<sommer::NonlinearGraphFamilyLaplaceObjective> objective(context);
+  return objective->conditionalAt(parameters,mode);
+}
+
+// [[Rcpp::export]]
 Rcpp::List sommer_nonlinear_curve_derivatives(const std::string & curve,
     const double input, const arma::vec & parameters){
   sommer::CurveDerivatives value;

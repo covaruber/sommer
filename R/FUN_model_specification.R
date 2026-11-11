@@ -95,6 +95,9 @@ graph_term <- function(name){
   if(!count) stop("Random formula has no covariance terms.",call.=FALSE)
   mapping <- .laplace_covariance_map(prepared$covStruct[seq_len(count)],
     prepared$rtermss)
+  if(.nonlinear_has_reduced_rank(mapping$structures))
+    stop("Specification random effects do not support reduced-rank covariance; use the native graph latent-coordinate route.",
+      call.=FALSE)
   dimensions <- vapply(mapping$structures,function(s) as.integer(s$dim),integer(1))
   ends <- cumsum(dimensions)
   blocks <- lapply(seq_len(count),function(i){
@@ -162,7 +165,7 @@ graph_term <- function(name){
   as.matrix(Matrix::bdiag(covariances))
 }
 
-.spec_predictor <- function(spec,coefficients,data,design,random,mode){
+.spec_predictor <- function(spec,coefficients,data,design,random,mode,shifts=NULL){
   n <- nrow(data)
   value <- as.numeric(design$fixed$x %*% coefficients[spec$fixedPositions])+
     design$fixed$offset
@@ -177,9 +180,11 @@ graph_term <- function(name){
   values <- list()
   for(name in names(spec$parameters)){
     p <- spec$parameters[[name]]
-    eta <- as.numeric(design$parameters[[name]]$x %*% coefficients[p$positions])
+    eta <- as.numeric(design$parameters[[name]]$x %*% coefficients[p$positions])+
+      design$parameters[[name]]$offset
     index <- p$randomIndex
     if(length(index)) eta <- eta+as.numeric(random[[index]] %*% mode[[index]])
+    if(length(index) && !is.null(shifts)) eta <- eta+shifts[[index]]
     values[[name]] <- if(p$link=="log") exp(eta) else eta
     bindings[[name]] <- values[[name]]
   }
@@ -198,6 +203,8 @@ graph_term <- function(name){
   if(length(spec$additiveIndex))
     value <- value+as.numeric(random[[spec$additiveIndex]] %*%
       mode[[spec$additiveIndex]])
+  if(length(spec$additiveIndex) && !is.null(shifts))
+    value <- value+shifts[[spec$additiveIndex]]
   value
 }
 
@@ -221,7 +228,12 @@ graph_term <- function(name){
   },numeric(1))
 }
 
-.spec_mode <- function(initial,conditional,gradientFunction,settings){
+.spec_mode <- function(initial,conditional,gradientFunction,settings,hessianFunction=NULL){
+  problem <- function(message){
+    condition <- structure(list(message=message,call=NULL),
+      class=c("sommer_spec_mode_error","error","condition"))
+    stop(condition)
+  }
   inner <- stats::optim(initial,conditional,gr=gradientFunction,method="BFGS",
     control=list(maxit=settings$maxIters,reltol=settings$scoreTol))
   at <- inner$par
@@ -231,11 +243,12 @@ graph_term <- function(name){
   for(iteration in seq_len(remaining+1L)){
     gradient <- gradientFunction(at)
     if(any(!is.finite(gradient)))
-      stop("Conditional random-mode score is non-finite.",call.=FALSE)
-    hessian <- stats::optimHess(at,conditional,gr=gradientFunction)
+      problem("Conditional random-mode score is non-finite.")
+    hessian <- if(is.null(hessianFunction))
+      stats::optimHess(at,conditional,gr=gradientFunction) else hessianFunction(at)
     curvature <- .mmes_laplace_curvature(hessian)
     if(!curvature$valid)
-      stop("Conditional mode Hessian is not positive definite; Laplace integration is undefined.",call.=FALSE)
+      problem("Conditional mode Hessian is not positive definite; Laplace integration is undefined.")
     if(max(abs(gradient))<=settings$scoreTol)
       return(list(par=at,value=conditional(at),hessian=hessian,
         score=max(abs(gradient)),iterations=iteration))
@@ -252,11 +265,28 @@ graph_term <- function(name){
            max(abs(gradientFunction(candidate)))<max(abs(gradient))))) break
       fraction <- fraction/2
       if(max(abs(fraction*step)/(1+abs(at)))<settings$stepTol)
-        stop("Conditional mode stalled before meeting the requested score tolerance.",call.=FALSE)
+        problem("Conditional mode stalled before meeting the requested score tolerance.")
     }
     at <- candidate
   }
-  stop("Conditional mode failed the requested numerical score tolerance.",call.=FALSE)
+  problem("Conditional mode failed the requested numerical score tolerance.")
+}
+
+.spec_modes <- function(q,conditional,gradient,settings,hessian=NULL){
+  attempts <- lapply(c(0,.5,-.5),function(value)
+    tryCatch(.spec_mode(rep(value,q),conditional,gradient,settings,hessian),
+      sommer_spec_mode_error=function(e) list(reason=conditionMessage(e))))
+  valid <- which(vapply(attempts,function(a) is.null(a$reason),logical(1)))
+  if(!length(valid))
+    stop("No certified conditional mode: ",
+      paste(unique(vapply(attempts,`[[`,character(1),"reason")),collapse="; "),call.=FALSE)
+  values <- vapply(attempts[valid],`[[`,numeric(1),"value")
+  best <- attempts[[valid[which.min(values)]]]
+  best$failedStarts <- length(attempts)-length(valid)
+  best$competingModes <- sum(vapply(attempts[valid],function(a)
+    abs(a$value-best$value)<=1e-6*(1+abs(best$value)) &&
+      max(abs(a$par-best$par))>1e-3,logical(1)))
+  best
 }
 
 .spec_evaluate <- function(at,context,details=FALSE){
@@ -264,7 +294,6 @@ graph_term <- function(name){
   q <- context$q
   n <- context$n
   widths <- context$widths
-  variancePosition <- context$variancePosition
   covariancePositions <- context$covariancePositions
   records <- context$records
   spec <- context$spec
@@ -273,7 +302,6 @@ graph_term <- function(name){
   randomDesign <- context$randomDesign
   zeros <- context$zeros
   y <- context$y
-  family <- context$family
   exact <- context$exact
   control <- context$control
   splitMode <- function(mode){
@@ -282,15 +310,19 @@ graph_term <- function(name){
       mode[seq_len(widths[i])+(if(i==1L) 0L else ends[i-1L])])
   }
   coefficients <- at[seq_len(p)]
-  variance <- if(length(variancePosition)) unname(exp(at[variancePosition])) else 1
+  specifications <- .spec_family_proposal(context,at)
+  variance <- if(length(specifications)==1L &&
+    specifications[[1L]]$family %in% c("gaussian","Gamma"))
+      exp(specifications[[1L]]$logParameter) else 1
   if(!is.finite(variance) || variance<=0) return(if(details) NULL else Inf)
   covariances <- lapply(seq_along(records),function(i)
     .spec_covariance(records[[i]],at[covariancePositions[[i]]]))
   eta <- .spec_predictor(spec,coefficients,data,design,randomDesign,zeros)
   if(any(!is.finite(eta))) return(if(details) NULL else Inf)
   modeScore <- 0
+  competingModes <- failedStarts <- 0L
   if(!q){
-    value <- -.spec_logdensity(y,eta,family,variance)
+    value <- -.spec_family_evaluation(context,eta,specifications)$logDensity
     mode <- numeric()
   }else if(exact){
     z <- do.call(cbind,randomDesign)
@@ -303,41 +335,20 @@ graph_term <- function(name){
   }else{
     g <- as.matrix(Matrix::bdiag(covariances))
     factor <- chol(g)
-    precision <- chol2inv(factor)
-    conditional <- function(b){
-      predictor <- .spec_predictor(spec,coefficients,data,design,randomDesign,splitMode(b))
-      if(any(!is.finite(predictor))) return(Inf)
-      -.spec_logdensity(y,predictor,family,variance)+
-        .5*sum(b*(precision %*% b))
-    }
-    conditionalGradient <- function(b){
-      predictor <- .spec_predictor(spec,coefficients,data,design,randomDesign,splitMode(b))
-      mu <- family$linkinv(predictor)
-      responseScore <- switch(family$family,
-        gaussian=(mu-y)/variance,
-        poisson=1-y/mu,
-        binomial=(mu-y)/(mu*(1-mu)),
-        Gamma=(mu-y)/(variance*mu^2))*family$mu.eta(predictor)
-      derivatives <- vapply(seq_len(q),function(i){
-        step <- .Machine$double.eps^(1/3)*(1+abs(b[i]))
-        upper <- lower <- b
-        upper[i] <- upper[i]+step
-        lower[i] <- lower[i]-step
-        (.spec_predictor(spec,coefficients,data,design,randomDesign,splitMode(upper))-
-          .spec_predictor(spec,coefficients,data,design,randomDesign,splitMode(lower)))/(2*step)
-      },numeric(n))
-      as.numeric(crossprod(derivatives,responseScore)+precision %*% b)
-    }
-    inner <- .spec_mode(numeric(q),conditional,conditionalGradient,
-      control$task$nonlinear$mode)
+    conditional <- .spec_conditional(at,context,covariances)
+    inner <- .spec_modes(q,conditional$value,conditional$gradient,
+      control$task$nonlinear$mode,conditional$hessian)
     mode <- inner$par
     modeScore <- inner$score
+    competingModes <- inner$competingModes
+    failedStarts <- inner$failedStarts
     value <- inner$value+sum(log(diag(factor)))+
       .5*as.numeric(determinant(inner$hessian,logarithm=TRUE)$modulus)
   }
   if(details) list(value=value,mode=splitMode(mode),covariances=covariances,
     eta=.spec_predictor(spec,coefficients,data,design,randomDesign,splitMode(mode)),
-    variance=variance,modeScore=modeScore) else value
+    variance=variance,modeScore=modeScore,specifications=specifications,
+    competingModes=competingModes,failedStarts=failedStarts) else value
 }
 
 .mmes_specification_fit <- function(fixed,random=NULL,rcov=NULL,data,
@@ -346,11 +357,16 @@ graph_term <- function(name){
     familyParameters=list(),
     contrasts=NULL,naMethodX="exclude",naMethodY="exclude",
     naMethodRandom="exclude",naMethodR="exclude",...){
+  startedAt <- proc.time()[["elapsed"]]
   .spec_dots(...)
-  if(!is.list(familyParameters) || length(familyParameters))
-    stop("Specification fits do not support nonempty familyParameters.",call.=FALSE)
+  if(!is.list(familyParameters))
+    stop("familyParameters must be a named list.",call.=FALSE)
   if(!inherits(control,"sommer_mmes_control"))
     stop("control must be an internal mmes control object.",call.=FALSE)
+  if(isTRUE(control$execution$gpu))
+    stop("Specification fitting has no GPU backend.",call.=FALSE)
+  scope <- .mmes_blas_scope(control$execution$blasThreads)
+  on.exit(scope$restore(),add=TRUE)
   if(!is.null(weights) || !is.null(W) || !is.null(vcc) ||
      !is.null(covPar) || !is.null(contrasts))
     stop("Specification fits do not support weights, W, vcc, covPar, or custom contrasts.",call.=FALSE)
@@ -373,9 +389,8 @@ graph_term <- function(name){
         stop("Specification expressions support numerical gradients, not requested analytic gradients.",call.=FALSE)
       if(!identical(settings$working,.mme_pql_defaults) ||
          !identical(settings$likelihood,
-           list(backend="auto",trace="panels",blocks="off")) ||
-         !identical(settings$inference,.mme_nonlinear_inference_defaults))
-        stop("Specification fitting does not support working, likelihood backend, or post-inference controls.",call.=FALSE)
+           list(backend="auto",trace="panels",blocks="off")))
+        stop("Specification fitting does not support working or likelihood backend controls.",call.=FALSE)
     }
   }
   integration <- "auto"
@@ -388,9 +403,14 @@ graph_term <- function(name){
       stop("Specification likelihood models do not support PQL.",call.=FALSE)
     integration <- specificationMethod$integration
   }
-  if(!inherits(fixed,"formula") || length(fixed)!=3L ||
-     !is.symbol(fixed[[2L]]))
-    stop("fixed must be a two-sided formula with a response column.",call.=FALSE)
+  if(!inherits(fixed,"formula") || length(fixed)!=3L)
+    stop("fixed must be a two-sided formula.",call.=FALSE)
+  responseExpression <- fixed[[2L]]
+  groupedResponse <- is.call(responseExpression) && length(responseExpression)==3L &&
+    identical(responseExpression[[1L]],as.name("cbind")) &&
+    all(vapply(as.list(responseExpression)[-1L],is.symbol,logical(1)))
+  if(!is.symbol(responseExpression) && !groupedResponse)
+    stop("Specification responses require a column or cbind(successes, failures).",call.=FALSE)
   if(!is.data.frame(data) || !nrow(data) || anyDuplicated(names(data)))
     stop("data must be a non-empty data frame with unique column names.",call.=FALSE)
   if(!is.list(parameters) || !is.list(predictors))
@@ -400,10 +420,8 @@ graph_term <- function(name){
   if(!is.null(rcov) && (!inherits(rcov,"formula") || length(rcov)!=2L ||
      !identical(rcov[[2L]],as.name("units"))))
     stop("Specification fits support independent residuals: rcov=NULL or ~units.",call.=FALSE)
-  if(!inherits(family,"family") ||
-     !family$family %in% c("gaussian","binomial","poisson","Gamma") ||
-     (family$family=="Gamma" && family$link!="log"))
-    stop("Specification fitting supports Gaussian, Bernoulli binomial, Poisson, and Gamma-log families.",call.=FALSE)
+  if(!inherits(family,c("family","sommer_familym")))
+    stop("Specification fitting requires a supported family or familym().",call.=FALSE)
   policies <- list(X=naMethodX,Y=naMethodY,Random=naMethodRandom,R=naMethodR)
   if(any(!vapply(policies,function(x) is.character(x) && length(x)==1L &&
       !is.na(x) && x %in% c("exclude","fail"),logical(1))))
@@ -421,7 +439,7 @@ graph_term <- function(name){
     unlist(lapply(graph$nodes,function(node)
       if(identical(node$op,"input")) node$column else character()),use.names=FALSE)
   }),use.names=FALSE)
-  groups <- list(Y=as.character(fixed[[2L]]),
+  groups <- list(Y=all.vars(fixed[[2L]]),
     X=unique(c(all.vars(fixed[[3L]]),parameterVariables,graphVariables)),
     Random=randomVariables,R=character())
   keep <- rep(TRUE,nrow(data))
@@ -433,6 +451,7 @@ graph_term <- function(name){
       stop("Missing values violate naMethod",group,"='fail'.",call.=FALSE)
     keep <- keep & !missing
   }
+  keep <- keep & .laplace_zero_complete(family,data,nrow(data))
   included <- which(keep)
   excluded <- which(!keep)
   if(!length(included)) stop("No complete observations remain.",call.=FALSE)
@@ -446,9 +465,8 @@ graph_term <- function(name){
     stop("predictors must name exactly the graph_term markers in fixed.",call.=FALSE)
   for(name in graphs){
     graph <- .nonlinear_graph_validate(predictors[[name]])
-    if(family$family!="gaussian" || family$link!="identity" ||
-       !identical(graph$nodes[[graph$output]]$op,"identity"))
-      stop("Graph specification fits require Gaussian identity family and an identity output node.",call.=FALSE)
+    if(!identical(graph$nodes[[graph$output]]$op,"identity"))
+      stop("Graph specification fits require an identity output node representing the link predictor.",call.=FALSE)
     if(length(graph$random) || !is.null(graph$joint) ||
        any(vapply(graph$parameterMap,function(x) identical(x$type,"random"),logical(1))))
       stop("Graph internal random maps are unsupported; declare namespaced parameter(random=) models.",call.=FALSE)
@@ -471,12 +489,17 @@ graph_term <- function(name){
   nonlinear <- vapply(terms,function(term)
     length(intersect(all.vars(term$expression),names(parameters)))>0L ||
       length(.spec_graph_names(term$expression))>0L,logical(1))
-  if(!any(nonlinear)){
+  basicFamily <- inherits(family,"family") &&
+    family$family %in% c("gaussian","binomial","poisson","Gamma")
+  if(!any(nonlinear) && basicFamily && !length(familyParameters) && is.null(random)){
+    if(family$family=="Gamma" && family$link!="log")
+      stop("Specification Gamma models require Gamma-log.",call.=FALSE)
     if(length(parameters)) stop("Declared parameters are unused in fixed.",call.=FALSE)
     if(!is.null(random))
       stop("Ordinary mixed models belong to the baseline fitting engine.",call.=FALSE)
     if(!is.null(start))
       stop("Starts are not used by fixed-only ordinary models.",call.=FALSE)
+    preparedAt <- proc.time()[["elapsed"]]
     base <- if(identical(family$family,"gaussian") && identical(family$link,"identity"))
       stats::lm(fixed,data=data,na.action=stats::na.fail,model=TRUE,x=TRUE,y=TRUE) else
       stats::glm(fixed,data=data,family=family,na.action=stats::na.fail,
@@ -502,6 +525,7 @@ graph_term <- function(name){
       variance <- exp(phi$par)
       likelihood <- structure(-phi$objective,df=length(stats::coef(base))+1L)
     }
+    optimizedAt <- proc.time()[["elapsed"]]
     result <- list(baseFit=base,b=stats::coef(base),fixedFormula=fixed,
       fitted.values=stats::fitted(base),linear.predictors=if(inherits(base,"glm"))
         base$linear.predictors else stats::fitted(base),
@@ -512,6 +536,14 @@ graph_term <- function(name){
       likelihoodMethod=if(reml) "exact Gaussian REML" else "exact fixed-only ML",
       derivativeMethod="base lm/glm",obsInfo=list(included=included,excluded=excluded))
     class(result) <- c("mmes.specification","mmes")
+    if(control$diagnostics$profile=="force"){
+      completedAt <- proc.time()[["elapsed"]]
+      result$specificationDiagnostics <- list(route="reference-fixed",
+        profile=list(seconds=c(preparation=preparedAt-startedAt,
+          outerOptimization=optimizedAt-preparedAt,
+          resultConstruction=completedAt-optimizedAt),
+          totalSeconds=completedAt-startedAt,note="Inclusive wall times; not native peak memory."))
+    }
     return(result)
   }
   if(control$task$objective!="ml")
@@ -539,7 +571,25 @@ graph_term <- function(name){
     out
   }else 1
   ordinary <- stats::as.formula(call("~",rhs),env=environment(fixed))
+  sourceData <- data
+  familyFixed <- stats::as.formula(call("~",fixed[[2L]],rhs),env=environment(fixed))
+  setup <- .spec_family_prepare(familyFixed,data,family,familyParameters,control,
+    allowLegacyLinks=!length(graphs))
+  data <- setup$data[setup$included,,drop=FALSE]
+  retainedRows <- unique(data$.specificationRow)
+  retainedIncluded <- included[retainedRows]
+  excluded <- sort(unique(c(excluded,setdiff(included,retainedIncluded))))
+  included <- retainedIncluded
+  sourceData <- sourceData[retainedRows,,drop=FALSE]
+  if(setup$categoricalModel){
+    attr(data,"specificationRowMap") <- setup$prepared$categorical$rowMap
+    attr(data,"specificationCoordinate") <- setup$prepared$categorical$coordinate
+  }
+  gaussian <- length(setup$specifications)==1L &&
+    setup$specifications[[1L]]$family=="gaussian"
   fixedDesign <- .spec_matrix(ordinary,data)
+  fixedTemplate <- fixedDesign
+  if(!is.null(setup$fixedMap)) fixedDesign$x <- as.matrix(setup$prepared$X)
   design <- list(fixed=fixedDesign,parameters=list())
   positions <- seq_len(ncol(fixedDesign$x))
   coefficientNames <- paste0("fixed:",colnames(fixedDesign$x))
@@ -565,21 +615,12 @@ graph_term <- function(name){
     records[[length(records)+1L]] <- .spec_random(random,data,control)
     additiveIndex <- length(records)
   }
-  y <- data[[as.character(fixed[[2L]])]]
-  if(!is.numeric(y) || is.complex(y) || !is.null(dim(y)) ||
-     length(y)!=nrow(data) || any(!is.finite(y)))
-    stop("Response must be a finite numeric vector without missing values.",call.=FALSE)
-  if(family$family=="binomial" && any(!y %in% 0:1))
-    stop("Binomial specification fits currently require Bernoulli 0/1 responses.",call.=FALSE)
-  if(family$family=="poisson" && any(y<0 | y!=floor(y)))
-    stop("Poisson responses must be non-negative integers.",call.=FALSE)
-  if(family$family=="Gamma" && any(y<=0))
-    stop("Gamma responses must be positive.",call.=FALSE)
+  y <- setup$response$nativeResponse
   n <- length(y)
   p <- length(coefficientNames)
   widths <- vapply(records,function(record) ncol(record$z),integer(1))
   q <- sum(widths)
-  exact <- family$family=="gaussian" && family$link=="identity" &&
+  exact <- gaussian && is.null(setup$linkAdapter) &&
     all(vapply(parameters,function(p) !length(p$randomIndex),logical(1)))
   if(q && !exact && integration=="exact")
     stop("Exact integration is unavailable for parameter random effects or non-Gaussian random models.",call.=FALSE)
@@ -592,6 +633,8 @@ graph_term <- function(name){
   zeros <- lapply(widths,numeric)
   randomDesign <- lapply(records,`[[`,"z")
   coefficients <- stats::setNames(numeric(p),coefficientNames)
+  if(is.null(start) && !length(parameters))
+    start <- list(coefficients=coefficients)
   if(is.list(start)){
     if(any(!names(start) %in% c("parameters","coefficients")) ||
        length(start)!=1L || is.null(names(start)))
@@ -625,10 +668,11 @@ graph_term <- function(name){
     }
     initial <- .spec_predictor(spec,coefficients,data,design,randomDesign,zeros)
     if(length(positions)){
-      if(family$family=="gaussian" && family$link=="identity")
+      if(gaussian && is.null(setup$linkAdapter))
         coefficients[positions] <- stats::lm.fit(fixedDesign$x,y-initial)$coefficients
-      else coefficients[positions] <- stats::glm.fit(fixedDesign$x,y,
-        offset=initial,family=family)$coefficients
+      else if(basicFamily && !setup$categoricalModel) coefficients[positions] <- stats::glm.fit(fixedDesign$x,
+        setup$response$response,
+        weights=setup$response$trials,offset=initial,family=family)$coefficients
     }
   }
   if(any(!is.finite(coefficients))) stop("Initial mean design is rank deficient.",call.=FALSE)
@@ -644,6 +688,15 @@ graph_term <- function(name){
   },numeric(n))
   if(any(!is.finite(jacobian)) || qr(jacobian,tol=1e-8)$rank<p)
     stop("Mean specification is locally rank deficient at the starts.",call.=FALSE)
+  ordinalLocations <- which(vapply(setup$specifications,function(component)
+    component$family=="ordinal" && component$free,logical(1)))
+  if(length(ordinalLocations)){
+    locations <- vapply(ordinalLocations,function(position)
+      as.numeric(setup$index==position),numeric(n))
+    augmented <- cbind(locations,jacobian)
+    if(qr(augmented,tol=1e-8)$rank<ncol(augmented))
+      stop("Nonlinear mean coordinates alias estimated ordinal threshold locations.",call.=FALSE)
+  }
   covariancePositions <- list()
   initial <- coefficients
   for(i in seq_along(records)){
@@ -653,50 +706,117 @@ graph_term <- function(name){
       initial <- c(initial,stats::setNames(coordinates,paste0("covariance",i,":",names(coordinates))))
   }
   variancePosition <- integer()
-  if(family$family %in% c("gaussian","Gamma")){
-    initialMean <- family$linkinv(initialEta)
-    variance <- if(family$family=="Gamma")
-      mean(((y-initialMean)/initialMean)^2) else mean((y-initialMean)^2)
-    if(!is.finite(variance) || variance<=0)
-      stop("Starting residual variance must be positive.",call.=FALSE)
-    variancePosition <- length(initial)+1L
-    initial <- c(initial,`residual:logVariance`=log(variance))
+  covarianceCount <- length(initial)-p
+  familyCounts <- vapply(setup$specifications,.laplace_family_count,integer(1))
+  familyPositions <- vector("list",length(familyCounts))
+  for(position in seq_along(familyCounts)){
+    count <- familyCounts[position]
+    if(!count) next
+    component <- setup$specifications[[position]]
+    values <- if(component$family=="ordinal")
+      .laplace_ordinal_coordinates(component$thresholds) else
+        if(!is.null(component$zeroDesign)) component$zeroCoefficients else component$logParameter
+    if(component$family %in% c("gaussian","Gamma") && !component$supplied){
+      rows <- setup$index==position
+      mu <- setup$families[[position]]$linkinv(initialEta[rows])
+      dispersion <- mean(if(component$family=="Gamma") ((y[rows]-mu)/mu)^2 else (y[rows]-mu)^2)
+      if(!is.finite(dispersion) || dispersion<=0)
+        stop("Starting family dispersion must be positive.",call.=FALSE)
+      values <- log(dispersion)
+    }
+    familyPositions[[position]] <- length(initial)+seq_len(count)
+    initial <- c(initial,stats::setNames(values,
+      paste0(names(setup$specifications)[position],"::",component$parameter,".",seq_len(count))))
   }
+  if(gaussian) variancePosition <- familyPositions[[1L]]
   context <- list(p=p,q=q,n=n,widths=widths,variancePosition=variancePosition,
     covariancePositions=covariancePositions,records=records,spec=spec,data=data,
     design=design,randomDesign=randomDesign,zeros=zeros,y=y,family=family,
-    exact=exact,control=control)
+    exact=exact,control=control,gaussian=gaussian,covarianceCount=covarianceCount,
+    familySpecifications=setup$specifications,familyIndex=setup$index,
+    trials=setup$response$trials,linkAdapter=setup$linkAdapter,
+    derivativeLayout=.spec_derivative_layout(spec,data))
   evaluate <- function(at,details=FALSE) .spec_evaluate(at,context,details)
   if(!is.finite(evaluate(initial))) stop("Starts give an invalid likelihood.",call.=FALSE)
-  optimizer <- stats::nlminb(initial,evaluate,
+  preparedAt <- proc.time()[["elapsed"]]
+  optimizer <- if(length(initial)) stats::nlminb(initial,evaluate,
     gradient=function(at) .spec_gradient(at,evaluate),
     control=list(iter.max=control$convergence$maxIters,
       eval.max=20L*control$convergence$maxIters,
       rel.tol=control$convergence$likelihoodTol,
-      x.tol=control$convergence$parameterTol))
+      x.tol=control$convergence$parameterTol)) else
+    list(par=initial,objective=evaluate(initial),convergence=0L,
+      message="No free parameters.",iterations=0L,evaluations=c("function"=1L,gradient=0L))
+  outerScore <- .spec_gradient(optimizer$par,evaluate)
+  remaining <- control$convergence$maxIters-optimizer$iterations
+  if(length(outerScore) && all(is.finite(outerScore)) &&
+     max(abs(outerScore))>control$convergence$scoreTol && remaining>0L){
+    refined <- stats::nlminb(optimizer$par,evaluate,
+      gradient=function(at) .spec_gradient(at,evaluate),
+      control=list(iter.max=remaining,eval.max=20L*remaining,
+        rel.tol=min(control$convergence$likelihoodTol,1e-12),
+        x.tol=min(control$convergence$parameterTol,1e-10)))
+    refined$iterations <- refined$iterations+optimizer$iterations
+    refined$evaluations <- refined$evaluations+optimizer$evaluations
+    refined$message <- paste("Score refinement:",refined$message)
+    optimizer <- refined
+    outerScore <- .spec_gradient(optimizer$par,evaluate)
+  }
   optimum <- evaluate(optimizer$par,TRUE)
   if(is.null(optimum) || !is.finite(optimum$value))
     stop("Specification optimization did not produce a finite likelihood.",call.=FALSE)
-  if(optimizer$convergence!=0L)
-    warning("Specification optimizer did not converge; inspect optimizer.",call.=FALSE)
+  stationary <- all(is.finite(outerScore)) &&
+    (!length(outerScore) || max(abs(outerScore))<=control$convergence$scoreTol)
+  if(!stationary)
+    warning("Specification optimizer stopped before satisfying convergence$scoreTol.",
+      call.=FALSE)
+  optimizedAt <- proc.time()[["elapsed"]]
   result <- list(b=optimizer$par[seq_len(p)],fixedFormula=fixed,randomFormula=random,
-    family=family,trainingData=data,control=control,specification=spec,
+    family=family,trainingData=data,sourceData=sourceData,control=control,specification=spec,
     design=design,randomRecords=records,randomMode=optimum$mode,
     randomCovariances=optimum$covariances,optimizer=optimizer,
     likelihoodContext=context,modeScore=optimum$modeScore,
-    linear.predictors=optimum$eta,fitted.values=family$linkinv(optimum$eta),
-    y=y,nobs=n,npar=length(optimizer$par),llik=-optimum$value,
-    dispersion=optimum$variance,convergence=optimizer$convergence==0L,
+    competingModes=optimum$competingModes,failedModeStarts=optimum$failedStarts,
+    linear.predictors=optimum$eta,
+    familySpecifications=optimum$specifications,laplaceFamilies=setup$families,
+    predictionFamily=setup$predictionFamily,singleCategorical=setup$singleCategorical,
+    categoricalModel=setup$categoricalModel,fixedMap=setup$fixedMap,fixedBasis=setup$fixedBasis,
+    fixedTemplate=fixedTemplate,
+    y=setup$response$response,nobs=if(setup$categoricalModel)
+      length(unique(attr(data,"specificationRowMap"))) else n,
+    npar=length(optimizer$par),llik=-optimum$value,
+    dispersion=optimum$variance,convergence=stationary,
+    specificationDiagnostics=list(route="reference",integration=if(!q || exact)
+      "exact" else "laplace",observations=n,meanCoefficients=p,modes=q,
+      outerScore=outerScore,modeScore=optimum$modeScore,
+      convergenceCertificate="Accepted finite outer score and certified conditional mode; outer curvature is checked only on inference request",
+      competingModes=optimum$competingModes,failedModeStarts=optimum$failedStarts,
+      admission="bounded dense workspace admitted"),
     likelihoodMethod=if(!q || exact) "exact ML" else "Laplace ML",
-    derivativeMethod="numerical finite differences (outer score, mode score and conditional Hessian)",
+    derivativeMethod="numerical outer differences; expression/graph chain rules and native family conditional curvature",
     obsInfo=list(included=included,excluded=excluded))
   class(result) <- c("mmes.specification","mmes")
+  result$fitted.values <- .spec_response(result,optimum$eta,"response",data)
+  if(control$diagnostics$profile=="force"){
+    completedAt <- proc.time()[["elapsed"]]
+    result$specificationDiagnostics$profile <- list(
+      seconds=c(preparation=preparedAt-startedAt,
+        outerOptimization=optimizedAt-preparedAt,
+        resultConstruction=completedAt-optimizedAt),
+      totalSeconds=completedAt-startedAt,
+      note="Inclusive wall times; outer includes numerical scores and mode searches.")
+  }
   result
 }
 
-coef.mmes.specification <- function(object,...){
+coef.mmes.specification <- function(object,...,type=c("mean","all","working","group")){
   .spec_dots(...)
-  object$b
+  type <- match.arg(type)
+  if(type=="mean" || !is.null(object$baseFit)) return(object$b)
+  switch(type,working=object$optimizer$par,
+    all=.spec_report_parameters(object,object$optimizer$par),
+    group=.spec_group_parameters(object,object$optimizer$par,
+      unlist(object$randomMode,use.names=FALSE)))
 }
 
 fitted.mmes.specification <- function(object,type=c("response","link"),...){
@@ -706,27 +826,50 @@ fitted.mmes.specification <- function(object,type=c("response","link"),...){
 
 residuals.mmes.specification <- function(object,type=c("response","pearson"),...){
   .spec_dots(...)
+  type <- match.arg(type)
+  if(isTRUE(object$categoricalModel))
+    return(.spec_categorical_residuals(object,type))
   residual <- object$y-object$fitted.values
-  if(match.arg(type)=="pearson")
-    residual <- residual/sqrt(object$family$variance(object$fitted.values)*object$dispersion)
+  if(type=="pearson"){
+    if(is.null(object$baseFit)){
+      proxy <- .spec_family_proxy(object,object$trainingData)
+      variance <- numeric(length(residual))
+      for(position in seq_along(object$familySpecifications)){
+        rows <- which(object$likelihoodContext$familyIndex==position)
+        variance[rows] <- .nonlinear_observation_variance(object$fitted.values[rows],
+          object$familySpecifications[[position]],proxy$laplaceFamilies[[position]],
+          object$likelihoodContext$trials[rows],rows)
+      }
+    }else variance <- object$family$variance(object$fitted.values)*object$dispersion
+    residual <- residual/sqrt(variance)
+  }
   residual
 }
 
 predict.mmes.specification <- function(object,newdata=NULL,
-    type=c("response","link"),target=c("conditional","zero","population"),...){
+    type=c("response","link"),target=c("conditional","zero","population"),
+    se.fit=FALSE,cov.fit=FALSE,interval=c("none","confidence","prediction"),
+    level=.95,trials=NULL,...){
   .spec_dots(...)
   type <- match.arg(type)
   target <- match.arg(target)
+  interval <- match.arg(interval)
+  se.fit <- .mme_flag(se.fit,"se.fit")
+  cov.fit <- .mme_flag(cov.fit,"cov.fit")
+  if(se.fit || cov.fit || interval!="none")
+    return(.spec_prediction_inference(object,newdata,type,target,se.fit,interval,level,
+      cov.fit,trials))
+  if(!is.null(trials)) stop("trials is used only for prediction intervals.",call.=FALSE)
   if(!is.null(object$baseFit)){
     if(is.null(newdata)) return(fitted.mmes.specification(object,type))
     return(if(inherits(object$baseFit,"glm"))
       stats::predict(object$baseFit,newdata=newdata,type=type) else
       stats::predict(object$baseFit,newdata=newdata))
   }
-  if(is.null(newdata)) newdata <- object$trainingData
-  if(!is.data.frame(newdata) || !nrow(newdata))
-    stop("newdata must be a non-empty data frame.",call.=FALSE)
-  design <- list(fixed=.spec_matrix(NULL,newdata,object$design$fixed),
+  newdata <- .spec_prediction_data(object,newdata)
+  fixed <- .spec_matrix(NULL,newdata,object$fixedTemplate)
+  fixed$x <- .spec_fixed_prediction(object,newdata)
+  design <- list(fixed=fixed,
     parameters=lapply(object$design$parameters,function(template)
       .spec_matrix(NULL,newdata,template)))
   records <- object$randomRecords
@@ -737,67 +880,12 @@ predict.mmes.specification <- function(object,newdata=NULL,
   mode <- if(target=="conditional") object$randomMode else
     lapply(records,function(record) numeric(ncol(record$z)))
   eta <- .spec_predictor(object$specification,object$b,newdata,design,random,mode)
+  proxy <- list(familySpecifications=object$familySpecifications)
+  specifications <- .laplace_prediction_specs(proxy,newdata,
+    .laplace_family_index(object$predictionFamily,newdata,nrow(newdata)))
   if(target!="population" || !length(records))
-    return(if(type=="link") eta else object$family$linkinv(eta))
-  # Integrate the low-dimensional predictor coordinates, not all group effects.
-  active <- which(vapply(random,function(z) any(z!=0),logical(1)))
-  if(length(active)>2L)
-    stop("Population quadrature currently supports at most two random predictor coordinates.",call.=FALSE)
-  variance <- lapply(active,function(i)
-    rowSums((random[[i]] %*% object$randomCovariances[[i]])*random[[i]]))
-  settings <- .mmes_fitting_control(object)$task$nonlinear$population
-  integrate <- function(order){
-    rule <- .laplace_normal_quadrature(order)
-    grid <- expand.grid(rep(list(seq_along(rule$nodes)),length(active)))
-    answer <- numeric(nrow(newdata))
-    for(row in seq_len(nrow(grid))){
-      shifts <- vector("list",length(records))
-      for(i in seq_along(records)) shifts[[i]] <- numeric(nrow(newdata))
-      weight <- 1
-      for(j in seq_along(active)){
-        shifts[[active[j]]] <- sqrt(variance[[j]])*rule$nodes[grid[row,j]]
-        weight <- weight*rule$weights[grid[row,j]]
-      }
-      shifted <- object$specification
-      value <- as.numeric(design$fixed$x %*% object$b[shifted$fixedPositions])+
-        design$fixed$offset
-      bindings <- new.env(parent=baseenv())
-      for(name in shifted$inputs) bindings[[name]] <- newdata[[name]]
-      values <- list()
-      for(name in names(shifted$parameters)){
-        p <- shifted$parameters[[name]]
-        parameterEta <- as.numeric(design$parameters[[name]]$x %*% object$b[p$positions])
-        if(length(p$randomIndex)) parameterEta <- parameterEta+shifts[[p$randomIndex]]
-        values[[name]] <- if(p$link=="log") exp(parameterEta) else parameterEta
-        bindings[[name]] <- values[[name]]
-      }
-      bindings$graph_term <- function(name){
-        graph <- shifted$predictors[[name]]
-        values <- do.call(cbind,values[paste0(name,"::",graph$parameters)])
-        colnames(values) <- graph$parameters
-        as.numeric(.nonlinear_graph_values(graph,newdata,values,
-          .mmes_fitting_control(object)))
-      }
-      for(term in shifted$expressions)
-        value <- value+term$sign*eval(term$expression,bindings)
-      if(length(shifted$additiveIndex)) value <- value+shifts[[shifted$additiveIndex]]
-      answer <- answer+weight*(if(type=="link") value else object$family$linkinv(value))
-    }
-    answer
-  }
-  order <- settings$order
-  previous <- integrate(order)
-  repeat{
-    nextOrder <- min(2L*order,settings$maxOrder)
-    if(nextOrder==order) stop("Population quadrature requires maxOrder greater than order.",call.=FALSE)
-    current <- integrate(nextOrder)
-    if(all(is.finite(current)) &&
-       all(abs(current-previous)<=settings$tol*(1+abs(current)))) return(current)
-    if(nextOrder>=settings$maxOrder)
-      stop("Population quadrature did not converge at maxOrder.",call.=FALSE)
-    order <- nextOrder
-    previous <- current
-  }
+    return(.spec_response(object,eta,type,newdata,specifications))
+  .spec_population(object,newdata,design,random,type,specifications)
 }
 
 logLik.mmes.specification <- function(object,...){
@@ -810,8 +898,10 @@ nobs.mmes.specification <- function(object,...){
   object$nobs
 }
 
-vcov.mmes.specification <- function(object,...){
+vcov.mmes.specification <- function(object,...,
+    type=c("mean","all","working","random","conditional","group")){
   .spec_dots(...)
+  type <- match.arg(type)
   if(!is.null(object$baseFit)){
     covariance <- stats::vcov(object$baseFit)
     if(object$family$family=="gaussian"){
@@ -823,25 +913,69 @@ vcov.mmes.specification <- function(object,...){
       covariance <- covariance*object$dispersion/summary(object$baseFit)$dispersion
     return(covariance)
   }
-  hessian <- stats::optimHess(object$optimizer$par,function(at)
-    .spec_evaluate(at,object$likelihoodContext))
-  curvature <- .mmes_laplace_curvature(hessian)
-  if(!curvature$valid)
-    stop("Coefficient covariance unavailable: ",curvature$reason,".",call.=FALSE)
-  size <- length(object$b)
-  result <- curvature$covariance[seq_len(size),seq_len(size),drop=FALSE]
-  dimnames(result) <- list(names(object$b),names(object$b))
+  if(!isTRUE(object$convergence))
+    stop("Specification inference requires a converged fit.",call.=FALSE)
+  required <- if(type %in% c("random","group")) 2L else if(type=="conditional") 1L else 0L
+  if(is.null(object$nonlinearInference) || object$nonlinearInference$mode<required)
+    object <- .spec_post_nonlinear(object,required)
+  inference <- object$nonlinearInference
+  result <- switch(type,mean=inference$meanCovariance,all=inference$parameterCovariance,
+    working=inference$workingCovariance,random=inference$randomPEV,
+    conditional=inference$conditionalCovariance,group=inference$groupCovariance)
+  if(is.null(result))
+    stop("The requested covariance has no corresponding random or group parameters.",call.=FALSE)
   result
 }
 
-simulate.mmes.specification <- function(object,nsim=1,seed=NULL,...){
+simulate.mmes.specification <- function(object,nsim=1,seed=NULL,
+    target=c("conditional","zero","population"),...){
   .spec_dots(...)
-  stop("Simulation is not implemented for specification fits.",call.=FALSE)
+  target <- match.arg(target)
+  nsim <- .mme_positive(nsim,"nsim",integer=TRUE)
+  if(!is.null(seed)){
+    if(!is.numeric(seed) || length(seed)!=1L || !is.finite(seed))
+      stop("seed must be one finite number.",call.=FALSE)
+    existed <- exists(".Random.seed",envir=.GlobalEnv,inherits=FALSE)
+    if(existed) previous <- get(".Random.seed",envir=.GlobalEnv)
+    on.exit(if(existed) assign(".Random.seed",previous,envir=.GlobalEnv) else
+      rm(".Random.seed",envir=.GlobalEnv),add=TRUE)
+    set.seed(seed)
+  }
+  if(!is.null(object$baseFit))
+    return(if(object$family$family=="gaussian")
+      as.data.frame(stats::setNames(lapply(seq_len(nsim),function(i)
+        stats::rnorm(object$nobs,object$fitted.values,sqrt(object$dispersion))),
+        paste0("sim_",seq_len(nsim)))) else if(object$family$family=="Gamma")
+      as.data.frame(stats::setNames(lapply(seq_len(nsim),function(i)
+        stats::rgamma(object$nobs,shape=1/object$dispersion,
+          scale=object$fitted.values*object$dispersion)),paste0("sim_",seq_len(nsim)))) else
+      stats::simulate(object$baseFit,nsim=nsim))
+  .nonlinear_workspace(as.double(nsim)*object$nobs*4,
+    object$control$execution$denseMemoryMB,"Specification simulation")
+  result <- lapply(seq_len(nsim),function(i){
+    mode <- switch(target,conditional=object$randomMode,
+      zero=lapply(object$randomMode,function(b) numeric(length(b))),
+      population=lapply(object$randomCovariances,function(g)
+        as.numeric(t(chol(g)) %*% stats::rnorm(nrow(g)))))
+    eta <- .spec_predictor(object$specification,object$b,object$trainingData,
+      object$design,object$likelihoodContext$randomDesign,mode)
+    .spec_draw_response(object,eta,object$familySpecifications)
+  })
+  names(result) <- paste0("sim_",seq_len(nsim))
+  if(object$categoricalModel && !object$singleCategorical) return(result)
+  as.data.frame(result)
 }
 
-summary.mmes.specification <- function(object,...){
+summary.mmes.specification <- function(object,...,inference=FALSE){
   .spec_dots(...)
-  structure(list(coefficients=object$b,logLik=object$llik,nobs=object$nobs,
+  if(isTRUE(inference)) object <- .spec_post_nonlinear(object,1L)
+  coefficients <- object$b
+  if(!is.null(object$nonlinearInference)){
+    se <- sqrt(diag(object$nonlinearInference$meanCovariance))
+    coefficients <- cbind(Estimate=coefficients,StdError=se,
+      z=coefficients/se,`Pr(>|z|)`=2*stats::pnorm(-abs(coefficients/se)))
+  }
+  structure(list(coefficients=coefficients,logLik=object$llik,nobs=object$nobs,
     convergence=object$convergence,likelihoodMethod=object$likelihoodMethod,
     derivativeMethod=object$derivativeMethod,dispersion=object$dispersion),
     class="summary.mmes.specification")

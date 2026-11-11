@@ -792,7 +792,8 @@ out
   public$effect[public$path=="mmes.predictors"] <- paste(
     "Reference one named component with graph_term('name') in the fixed formula.",
     "Ordinary additive random locations, parameter-level deviations and bounded graph-node deviations are distinct declarations; no multilayer convenience builders are available.",
-    "Native graphs currently require Gaussian identity ML and identity output, with no post-fit parameter uncertainty; curves have their own broader native family/inference scope.")
+    "Graphs require identity link-predictor output and ML; native family kernels support scalar, ordinal, nominal and mixed-family responses. Conditional Hessians retain predictor second derivatives and multinomial blocks. Explicit uncertainty requires stationary identified interior fits; singular raw-weight symmetries are rejected.",
+    "Parameter overrides/compositions use bounded dense reference fitting: no internal graph random maps or RR covariance; separate parameter records are independent. Population quadrature admits joint predictor covariance by dimension/cost rather than a two-record cutoff.")
   public$values[public$path=="mmes.start"] <-
     "NULL or list(parameters = named natural-scale starts)."
   public$values[public$path=="control.optimizer.gradient"] <- "auto, analytic, central."
@@ -800,13 +801,13 @@ out
     "Auto retains analytic scores on native curve and linear Laplace paths,",
     "without changing REML/PQL defaults, and selects the reported numerical",
     "method on the reference expression route.",
-    "Explicit analytic is rejected on reference expression and random native",
+    "Explicit analytic is rejected on reference expression, family graph and random native",
     "graph routes rather than silently replaced by numerical derivatives.",
     "Random native graphs support central; native curves reject explicit central.")
   public$fallback[public$path=="control.optimizer.gradient"] <-
     "Unsupported explicit derivative requests error; auto records the selected method."
   public$excludes[public$path=="control.optimizer.gradient"] <-
-    "Explicit analytic on reference expressions or random native graphs; explicit central on native curves."
+    "Explicit analytic on reference expressions, native family graphs or random native graphs; explicit central on native curves."
   public$values[public$path=="control.mode.warmStart"] <- "auto, off, on; nonlinear modes reject on."
   public$requires[public$path=="control.mode.warmStart"] <-
     "Conditional-mode fitting; auto preserves the selected engine's historical reuse policy."

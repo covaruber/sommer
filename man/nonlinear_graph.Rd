@@ -44,13 +44,13 @@ covariance block, following \code{nonlinear_curve()}.}
 A versioned, serializable \code{sommer_nonlinear_graph}.
 }
 \description{
-Create a serializable directed acyclic graph for evaluation and Gaussian
+Create a serializable directed acyclic graph for evaluation and likelihood
 mixed-model fitting with fixed or group-random graph coordinates.
 }
 \details{
 Use fixed graph coordinates with
-  \code{mmes(y ~ graph_term("net"), predictors=list(net=graph))} for Gaussian ML. Supply a complete named
-  working-coordinate start through
+  \code{mmes(y ~ graph_term("net"), predictors=list(net=graph))} for ML. Supply complete named
+  natural-parameter starts through
   \code{mmes(start=list(parameters=...))}. Starts use natural parameter
   values; the standalone evaluator continues to use working coordinates. For random
   coordinates, mark them in \code{parameterMap} and declare their
@@ -61,12 +61,23 @@ Use fixed graph coordinates with
   fits use central finite differences of that objective and are reported in
   fit diagnostics. Conditional and zero-deviation predictions, prior-
   integrated population predictions, and simulation are supported.
-  Non-Gaussian fitting and post-fit parameter uncertainty are not supported.
-  Use \code{tanh} only in hidden layers; Gaussian graph fits require an
-  identity output.
+  Supported response families are Gaussian identity, binomial
+  logit/probit/cloglog (including grouped trials), Poisson, NB2 and ZIP log,
+  Gamma log, ordinal logit/probit and reference-category multinomial,
+  including \code{familym()} mixtures. The graph supplies a scalar
+  link predictor per expanded category row; use explicit category-specific
+  regressions or covariance maps when required. Free ordinal cutpoint
+  locations must not alias nonlinear mean parameters.
+  Use \code{tanh} only in hidden layers; fits require an identity output.
   Hidden-unit permutations and scaling can make raw weights non-unique;
-  convergence does not establish a global optimum. Parameter uncertainty is
-  not supported for graph fits.
+  convergence does not establish a global optimum. Explicit
+  \code{post_nonlinear()}, \code{vcov()}, confidence intervals and prediction
+  uncertainty require locally identified, stationary, interior fits with
+  checked positive curvature. Singular weight symmetries are rejected;
+  conditional-mode covariance and approximate empirical Bayes PEV are
+  different quantities. Namespaced \code{parameter()} overrides select
+  the bounded dense reference route, which rejects internal graph random
+  maps and reduced-rank covariance instead of adding a ridge.
 }
 \examples{
 graph <- nonlinear_graph(list(

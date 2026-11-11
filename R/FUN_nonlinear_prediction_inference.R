@@ -5,8 +5,10 @@
   object$familySpecifications <- .laplace_family_specs(stats::gaussian(),list())$specifications
   object$familySpecifications[[1L]]$logParameter <- log(object$dispersion)
   object$laplaceFamilies <- list(stats::gaussian())
-  object$laplaceFamilyIndex <- rep(1L,length(object$input))
-  object$priorWeights <- rep(1,length(object$input))
+  n <- if(isTRUE(object$nonlinearGraph)) nrow(object$input) else
+    length(object$input)
+  object$laplaceFamilyIndex <- rep(1L,n)
+  object$priorWeights <- rep(1,n)
   object
 }
 
@@ -22,6 +24,10 @@
   result <- template
   result[] <- values
   result
+}
+
+.nonlinear_output_shape <- function(values, template){
+  .nonlinear_prediction_shape(values,template)
 }
 
 .nonlinear_observation_variance <- function(mean,specification,family,trials=1,rows=NULL){
@@ -50,8 +56,11 @@
   parameters <- object$optimizer$par
   proxy <- .nonlinear_inference_proxy(object)
   evaluate <- function(parameters,mode=object$randomMode){
-    local <- .nonlinear_inference_proxy(.nonlinear_at(object,parameters,mode))
-    .nonlinear_family_predict(local,newdata,re.form,type)
+    local <- .nonlinear_at(object,parameters,mode)
+    if(isTRUE(object$nonlinearGraph) && !is.null(newdata))
+      stats::predict(local,newdata=newdata,re.form=re.form,type=type) else
+        .nonlinear_family_predict(.nonlinear_inference_proxy(local),
+          newdata,re.form,type)
   }
   point <- evaluate(parameters)
   count <- length(unlist(point,use.names=FALSE))
@@ -93,7 +102,8 @@
       proxy$familySpecifications <- .laplace_prediction_specs(proxy,design$data,design$index)
       proxy$laplaceFamilies <- .laplace_update_families(proxy$laplaceFamilies,
         proxy$familySpecifications,design$index)
-      n <- length(design$input)
+      n <- if(isTRUE(proxy$nonlinearGraph)) nrow(design$input) else
+        length(design$input)
       if(is.null(trials)){
         if(is.null(newdata)) trials <- proxy$priorWeights else{
           grouped <- any(vapply(proxy$familySpecifications,function(s) s$family=="binomial",

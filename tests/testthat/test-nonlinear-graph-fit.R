@@ -144,9 +144,17 @@ test_that("fixed graph fits preserve linear parity and expose fitted-model metho
   profiled <- profile_nonlinear(graphFit,replications=1L)
   expect_true(all(c("graphEvaluation","marginalObjective","marginalScore") %in%
     profiled$table$phase))
-  expect_error(post_nonlinear(graphFit),"not supported for nonlinear graph")
-  expect_error(profile_nonlinear(graphFit,replications=1L,inference=TRUE),
-    "not supported for nonlinear graph")
+  inferenceReady <- isTRUE(graphFit$nonlinearDiagnostics$identified) &&
+    !length(graphFit$nonlinearDiagnostics$boundaryParameters)
+  if(inferenceReady){
+    inferred <- post_nonlinear(graphFit)
+    expect_true(all(is.finite(diag(vcov(inferred,type="working")))))
+    profiledInference <- profile_nonlinear(graphFit,replications=1L,inference=TRUE)
+    expect_true("postFitInference" %in% profiledInference$table$phase)
+  }else{
+    expect_error(post_nonlinear(graphFit),
+      "locally identifiable|covariance boundaries")
+  }
   expect_error(predict(graphFit,newdata=data.frame(z=1)),"missing columns")
   missingPrediction <- linearData[1L,,drop=FALSE]
   missingPrediction$x <- NA_real_
@@ -155,7 +163,7 @@ test_that("fixed graph fits preserve linear parity and expose fitted-model metho
     control=nonlinearGraphFitControl()),"requires a complete named")
   expect_error(sommer:::.mmes_dispatch(y~0,random=~group,data=linearData,nonlinear=graph,
     family=poisson(),control=nonlinearGraphFitControl(starts)),
-    "requires Gaussian identity-link")
+    "count responses must be non-negative integer counts")
   boundedOutput <- nonlinear_graph(list(
     x=list(op="input",column="x"),
     hidden=list(op="affine",inputs="x",weights=matrix(1L),bias=2L),

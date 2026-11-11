@@ -2,9 +2,10 @@
 \alias{post_nonlinear}
 \alias{vcov.mmes.nonlinear}
 \alias{confint.mmes.nonlinear}
-\title{Post-fit inference for traditional nonlinear mixed models}
+\title{Post-fit inference for bounded nonlinear models}
 \description{
-Computes explicitly requested local uncertainty after nonlinear fitting.
+Computes explicitly requested local uncertainty after curve, graph or
+formula-specification nonlinear fitting.
 No curvature inverse, PEV or parameter uncertainty is computed during fitting.
 }
 \usage{
@@ -42,6 +43,11 @@ of the analytic marginal-likelihood score give the observed information
 \eqn{I}. Differences at steps \eqn{h} and \eqn{h/2} must agree. The reported
 working covariance is \eqn{V=I^{-1}}. Gaussian additive fits use their exact
 Gaussian likelihood; other fits use the fitted Laplace likelihood.
+Graph Laplace and formula-specification outer scores are numerical and
+reported as such. Formula specifications use symbolic expression/native graph
+chain rules and full native family conditional curvature, checked against
+numerical mode-score derivatives;
+they reject reduced-rank covariance instead of inverting a singular prior.
 Native conditional curvature is exact, including nonlinear second-derivative
 terms. Its inverse, restored from the proper latent coordinates, is
 \eqn{S}. With \eqn{D=d\hat u/da}, estimated by checked central differences,
@@ -68,6 +74,9 @@ positive curve coordinates; it does not test positive parameters against zero.
 \code{type="all"} includes covariance and family nuisance parameters using
 natural-scale symmetric delta intervals (which may cross parameter bounds).
 Positive curve intervals remain transformed working-normal intervals.
+Formula specification coefficients remain regression coefficients on their
+declared link scales, not automatically exponentiated natural parameters;
+see \code{\link{mmes.specification}} for their reporting layouts.
 \code{covparams_mmes_se()} applies the same covariance to the existing
 descriptor reporting callbacks. Fixed parameter standard errors are zero.
 \code{covmatrix_mmes(se=TRUE)} propagates working covariance directly to

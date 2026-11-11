@@ -7,6 +7,13 @@
     memory=.mme_positive(control$execution$denseMemoryMB,"execution$denseMemoryMB"))
 }
 
+.nonlinear_inference_mode_settings <- function(mode){
+  # Nested differences amplify mode error at perturbed outer coordinates.
+  mode$scoreTol <- min(mode$scoreTol,1e-12)
+  mode$stepTol <- min(mode$stepTol,1e-12)
+  mode
+}
+
 .nonlinear_workspace <- function(count, memory, label){
   if(!is.finite(count) || 8*count>memory*1048576)
     stop(label," exceeds execution$denseMemoryMB.",call.=FALSE)
@@ -76,8 +83,38 @@
   model <- object$nonlinear
   random <- object$nonlinearRandom
   if(isTRUE(object$nonlinearGraph)){
+    mode <- .nonlinear_inference_mode_settings(
+      .mmes_fitting_control(object)$task$nonlinear$mode)
+    if(isTRUE(object$nonlinearFamily)){
+      coordinateMap <- if(is.null(random))
+        matrix(0,ncol(object$randomDesign),length(object$nonlinearCoordinates)) else
+          random$coordinateMap*1.0
+      context <- sommer_nonlinear_graph_family_create(object$fixedDesign,
+        object$randomDesign,object$nativeResponse,object$offset,object$graphData,
+        object$graphNative$nodes,object$graphNative$output,
+        object$graphNative$transformed,coordinateMap,object$covStruct,
+        object$randomRelationships,object$familySpecifications,
+        object$laplaceFamilyIndex-1L,object$priorWeights,memory,
+        mode$maxIters,mode$scoreTol,mode$stepTol)
+      evaluate <- function(parameters,gradient=TRUE){
+        value <- .laplace_constrained_evaluate(parameters,layout,function(expanded)
+          sommer_nonlinear_graph_family_eval(context,expanded,gradient))
+        if(!isTRUE(value$valid))
+          stop("Nonlinear graph family evaluation failed: ",value$reason,".",
+            call.=FALSE)
+        value
+      }
+      return(list(evaluate=evaluate,modeSettings=mode,
+        conditional=function(parameters,latent){
+        value <- sommer_nonlinear_graph_family_conditional(context,
+          .laplace_expand_parameters(parameters,layout),latent)
+        if(!isTRUE(value$valid))
+          stop("Nonlinear graph family conditional curvature failed: ",
+            value$reason,".",call.=FALSE)
+        value
+      }))
+    }
     if(!is.null(random)){
-      mode <- .mmes_fitting_control(object)$task$nonlinear$mode
       context <- sommer_nonlinear_graph_laplace_create(object$fixedDesign,
         object$randomDesign,object$y,object$offset,object$graphData,
         object$graphNative$nodes,object$graphNative$output,
@@ -92,7 +129,8 @@
             call.=FALSE)
         value
       }
-      return(list(evaluate=evaluate,conditional=function(parameters,latent){
+      return(list(evaluate=evaluate,modeSettings=mode,
+        conditional=function(parameters,latent){
         value <- sommer_nonlinear_graph_laplace_conditional(context,
           .laplace_expand_parameters(parameters,layout),latent)
         if(!isTRUE(value$valid))
@@ -114,7 +152,33 @@
           call.=FALSE)
       value
     }
-    return(list(evaluate=evaluate))
+    gaussian <- .laplace_family_specs(stats::gaussian(),list())$specifications
+    gaussian[[1L]]$free <- FALSE
+    gaussian[[1L]]$logParameter <- log(object$dispersion)
+    graphMean <- .nonlinear_graph_first(model,object$trainingData,
+      object$nonlinearCoordinates,object$control)$output
+    mode <- .mmes_fitting_control(object)$task$nonlinear$mode
+    # A zero-valued fixed curve lets the family wrapper supply Gaussian random-mode curvature.
+    conditionalContext <- sommer_nonlinear_family_create(object$fixedDesign,
+      object$randomDesign,object$y,object$offset+graphMean,
+      rep(0,length(object$y)),"saturation",0L,ncol(object$randomDesign),
+      object$covStruct,object$randomRelationships,gaussian,rep(0L,length(object$y)),
+      rep(1,length(object$y)),memory,mode$maxIters,mode$scoreTol,mode$stepTol)
+    p <- ncol(object$fixedDesign)
+    k <- length(object$nonlinearCoordinates)
+    covarianceCount <- sum(vapply(object$covStruct,function(structure)
+      sum(structure$free),integer(1)))
+    conditional <- function(parameters,latent){
+      expanded <- .laplace_expand_parameters(parameters,layout)
+      local <- c(expanded[seq_len(p)],c(0,0),
+        expanded[p+k+seq_len(covarianceCount)])
+      value <- sommer_nonlinear_family_conditional(conditionalContext,local,latent)
+      if(!isTRUE(value$valid))
+        stop("Nonlinear graph conditional curvature failed: ",value$reason,".",
+          call.=FALSE)
+      value
+    }
+    return(list(evaluate=evaluate,conditional=conditional))
   }
   mode <- .mmes_fitting_control(object)$task$nonlinear$mode
   specifications <- if(isTRUE(object$nonlinearFamily)) object$familySpecifications else
@@ -223,9 +287,6 @@
 .nonlinear_inference_ready <- function(object){
   if(!inherits(object,"mmes.nonlinear"))
     stop("post_nonlinear() requires a nonlinear mmes fit.",call.=FALSE)
-  if(isTRUE(object$nonlinearGraph))
-    stop("Post-fit parameter uncertainty is not supported for nonlinear graph fits.",
-      call.=FALSE)
   if(!isTRUE(object$convergence) || !isTRUE(object$nonlinearDiagnostics$identified))
     stop("Nonlinear post-fit inference requires a converged, locally identifiable fit.",call.=FALSE)
   boundary <- object$nonlinearDiagnostics$boundaryParameters
@@ -240,6 +301,8 @@
 }
 
 post_nonlinear <- function(object, mode=1L, control=NULL){
+  if(inherits(object,"mmes.specification"))
+    return(.spec_post_nonlinear(object,mode,control))
   .nonlinear_inference_ready(object)
   if(length(mode)!=1L || is.na(mode) || !mode %in% 0:2)
     stop("mode must be 0, 1 or 2.",call.=FALSE)
@@ -281,7 +344,11 @@ post_nonlinear <- function(object, mode=1L, control=NULL){
       if(isTRUE(object$nonlinearFamily) || !is.null(object$nonlinearRandom))
         "Laplace and first-order empirical Bayes delta approximations" else
           "exact Gaussian likelihood and first-order empirical Bayes delta approximation"),
-    settings=settings,mode=as.integer(mode))
+    settings=settings,modeSettings=context$modeSettings,mode=as.integer(mode))
+  uncertainty$outerScoreMethod <- if(!is.null(value$work$outerScore))
+    as.character(value$work$outerScore) else
+      if(!is.null(object$nonlinearDiagnostics$outerScore))
+        as.character(object$nonlinearDiagnostics$outerScore) else "analytic"
   if(mode){
     conditional <- context$conditional(parameters,as.numeric(value$latentMode))
     inverse <- .nonlinear_positive_inverse(conditional$hessian,numerical,
@@ -328,11 +395,14 @@ post_nonlinear <- function(object, mode=1L, control=NULL){
         map[,random$coordinate] <- random$start+seq_len(random$count)
         map
       }
+      positive <- if(isTRUE(object$nonlinearGraph))
+        vapply(object$nonlinear$parameterMap,function(map)
+          identical(map$transform,"log"),logical(1)) else object$nonlinear$positive
       for(j in seq_len(ncol(groupMap))){
         selected <- which(groupMap[,j]>0L)
         rows <- (j-1L)*count+selected
         groupRandom[cbind(rows,groupMap[selected,j])] <-
-          if(object$nonlinear$positive[j]) object$groupParameters[selected,j] else 1
+          if(positive[j]) object$groupParameters[selected,j] else 1
       }
       groupVariance <- rowSums((group%*%covariance)*group)+
         rowSums((groupRandom%*%conditionalCovariance)*groupRandom)

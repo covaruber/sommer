@@ -24,7 +24,9 @@
   diagnostics$memory <- list(budgetMB=control$execution$denseMemoryMB,
     sparseDesignBytes=as.numeric(utils::object.size(object$fixedDesign))+
       as.numeric(utils::object.size(object$randomDesign)),
-    admission=if(isTRUE(object$nonlinearGraph) && !is.null(object$nonlinearRandom))
+    admission=if(isTRUE(object$nonlinearGraph) && isTRUE(object$nonlinearFamily))
+      "Graph forward/derivative, family conditional curvature, and finite-difference Laplace score workspaces admitted against execution$denseMemoryMB" else
+      if(isTRUE(object$nonlinearGraph) && !is.null(object$nonlinearRandom))
       "Graph forward/derivative, exact conditional curvature, and finite-difference Laplace score workspaces admitted against execution$denseMemoryMB" else
       if(isTRUE(object$nonlinearGraph))
         "Graph forward/gradient and exact Gaussian factor workspaces admitted against execution$denseMemoryMB" else
@@ -45,13 +47,12 @@
 
 profile_nonlinear <- function(object, replications=3L, control=NULL,
     inference=FALSE){
+  if(inherits(object,"mmes.specification"))
+    return(.spec_profile(object,replications,control,inference))
   if(!inherits(object,"mmes.nonlinear"))
     stop("profile_nonlinear() requires a nonlinear mmes fit.",call.=FALSE)
   replications <- .mme_positive(replications,"replications",integer=TRUE)
   .mme_flag(inference,"inference")
-  if(isTRUE(object$nonlinearGraph) && inference)
-    stop("Post-fit parameter uncertainty profiling is not supported for nonlinear graph fits.",
-      call.=FALSE)
   settings <- .nonlinear_inference_settings(object,control)
   object$control$execution$denseMemoryMB <- settings$memory
   scope <- .mmes_blas_scope(object$control$execution$blasThreads)
@@ -69,7 +70,7 @@ profile_nonlinear <- function(object, replications=3L, control=NULL,
       marginalObjective=function() context$evaluate(parameters,gradient=FALSE),
       marginalScore=function() context$evaluate(parameters,gradient=TRUE),
       conditionalPrediction=function() stats::predict(object))
-    if(!is.null(object$nonlinearRandom))
+    if(!is.null(context$conditional))
       operations$conditionalCurvature <- function()
         context$conditional(parameters,as.numeric(value$latentMode))
   }else{
@@ -102,6 +103,10 @@ profile_nonlinear <- function(object, replications=3L, control=NULL,
       minimumSeconds=min(elapsed),replications=replications)
   }))
   diagnostics <- object$nonlinearDiagnostics
+  scoreNote <- if(isTRUE(object$nonlinearGraph) &&
+      (!is.null(object$nonlinearRandom) || isTRUE(object$nonlinearFamily)))
+    "marginalScore additionally uses central finite differences of the exact Laplace objective." else
+      "marginalScore additionally includes analytic derivative contractions."
   list(table=table,contextSeconds=unname(creation),
     fitProfile=diagnostics$profile,dimensions=diagnostics$dimensions,
     work=context$evaluate(parameters)$work,
@@ -115,6 +120,6 @@ profile_nonlinear <- function(object, replications=3L, control=NULL,
       threads=object$control$execution$blasThreads),
     note=paste("Warmup excluded; operation times are inclusive, overlapping and not additive.",
       "conditionalCurvature fixes the latent mode; marginalObjective includes mode search;",
-      "marginalScore additionally includes analytic derivative contractions.",
+      scoreNote,
       "Memory reports retained R object sizes and admission policy, not native peak RSS."))
 }

@@ -1,16 +1,18 @@
 \name{profile_nonlinear}
 \alias{profile_nonlinear}
-\title{Profile traditional nonlinear mixed-model operations}
+\title{Profile nonlinear mixed-model operations}
 \description{
-Reconstructs operation-local native contexts and measures separate nonlinear
-evaluation, derivative, conditional-curvature, marginal-likelihood and prediction
-operations. Does not refit or mutate the supplied model.
+Reuses fitted-model contexts to time separate predictor, derivative,
+conditional-curvature, objective, score and prediction operations for native
+nonlinear and reference specification fits. Does not refit or mutate the
+supplied model.
 }
 \usage{
 profile_nonlinear(object, replications=3L, control=NULL, inference=FALSE)
 }
 \arguments{
-\item{object}{A fitted traditional nonlinear \code{mmes} model.}
+\item{object}{A fitted native nonlinear or reference specification
+\code{mmes} model.}
 \item{replications}{Positive integer number of timed repetitions after one warmup.}
 \item{control}{Optional \code{mmes_control()} providing the profiling memory
 budget and, when requested, post-fit inference settings. Other fitted
@@ -27,12 +29,22 @@ must not be added again. Default fitting retains no timing profile.
 The profiling table measures curve means, curve Jacobians, exact conditional
 curvature at the saved latent mode, the marginal objective (including mode
 search), the marginal objective with its analytic score, and conditional
-prediction. These operation timings are inclusive, overlapping and not
+prediction. Graph Laplace fits may use a finite-difference marginal score.
+These operation timings are inclusive, overlapping and not
 additive. The difference between objective and score timings can indicate
 derivative cost, but timer resolution and run-to-run variation limit that
 comparison. Context reconstruction is timed separately. Whole-optimizer
 timing and iteration/evaluation counts come from the fit, not a second fit.
 No automatic inference, stochastic starts or backpropagation is introduced.
+
+For reference specification fits, the table instead measures the saved
+predictor, its numerical Jacobian, conditional curvature when random
+coordinates are present, the objective, its numerical score and prediction.
+The saved reference likelihood context is reused without an outer refit.
+Objective and score evaluations may optimize conditional modes as required by
+the likelihood. Reference evaluation does not expose native cumulative-work
+counters; its context reconstruction time is zero because no reconstruction
+is performed.
 
 Reported memory consists of retained R object sizes and the actual
 workspace admission policy, not measured native peak resident memory.
