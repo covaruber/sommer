@@ -5,8 +5,12 @@
 \description{
   \code{unsm} creates a square matrix with ones in the diagonals and 2's in the off-diagonals to quickly specify an unstructured constraint in the Gtc argument of the \code{\link{vsm}} function.
 }
+\details{
+  \code{unsm2} creates a matrix with ones on the diagonal, 2's above the diagonal, and 0's below the diagonal. Unlike \code{unsm}, it does not set both off-diagonal triangles to 2.
+}
 \usage{
   unsm(x, reps=NULL)
+  unsm2(x, reps=NULL)
 }
 
 \arguments{
@@ -30,4 +34,3 @@
 unsm(3)
 unsm(3,2)
 }
-
