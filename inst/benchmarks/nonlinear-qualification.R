@@ -79,5 +79,5 @@ local({
     caveats=c("Inclusive overlapping timings; not additive.",
       "R object sizes, not native peak RSS.",
       "One measured Linux/R/BLAS/compiler configuration, not portable timing guarantees.",
-      "Traditional curves only; no layers, backpropagation or extra random curve parameters.")))
+      "Traditional curves only; no extra random curve parameters.")))
 })

@@ -42,7 +42,7 @@ mmes(fixed, random, rcov, data, W, weights = NULL,
      naMethodX = "exclude", naMethodY = "exclude",
      naMethodRandom = "exclude", naMethodR = "exclude",
      contrasts = NULL, family = stats::gaussian(), vcc = NULL,
-     covPar = NULL, parameters = list(), predictors = list(), start = NULL,
+     covPar = NULL, parameters = list(), curves = list(), start = NULL,
      method = mmes_method(), control = mmes_control(),
      familyParameters = list())
 
@@ -63,8 +63,8 @@ mmes_control(
 declares independent blocks in a supplied `W`; it does not create weights.
 `family`, `vcc`, `covPar`, missing-data policies, and `contrasts` retain their
 statistical or data-preparation roles. `parameters` declares unknown quantities
-with `parameter()`; `predictors` declares named native curves or bounded graphs
-referenced by `graph_term("name")` in the formula. `start` supplies natural-scale
+with `parameter()`; `curves` declares named native curves
+referenced by `curve_term("name")` in the formula. `start` supplies natural-scale
 model starts; `familyParameters` configures fixed/estimated family nuisance
 parameters. These are model inputs, not numerical controls.
 
@@ -84,19 +84,19 @@ Fitting validation remains authoritative.
 
 # Traditional nonlinear fixed means
 
-`predictors=list(curve=nonlinear_curve("time", "exponential"))`, referenced
-as `graph_term("curve")` in the formula, adds the fixed mean
+`curves=list(curve=nonlinear_curve("time", "exponential"))`, referenced
+as `curve_term("curve")` in the formula, adds the fixed mean
 `asymptote * exp(-rate * time)` to ordinary formula contributions.
 `"logistic"` and `"saturation"` provide logistic growth and
 Michaelis-Menten saturation, respectively. These are traditional parametric
-curves: there are no layers, backpropagation, or arbitrary R callbacks.
+curves.
 
 ```r
 fit <- mmes(
-  fixed = y ~ 0 + graph_term("curve"),
+  fixed = y ~ 0 + curve_term("curve"),
   random = ~ group,
   data = dat,
-  predictors = list(curve = nonlinear_curve("time", "exponential")),
+  curves = list(curve = nonlinear_curve("time", "exponential")),
   start = list(parameters = c(asymptote = 4, rate = 0.6)),
   method = mmes_method(objective = "ml"),
   control = mmes_control(
@@ -122,9 +122,10 @@ use or automatic input scaling. Nonlinear input missingness follows
 The exact Gaussian path requires univariate Gaussian identity ML, Henderson,
 at least one random term, and independent homogeneous residuals.
 Unsupported controls error rather than selecting a different model.
-REML, direct/PQL fitting, structured residuals, weights, and fixed-only
-native-curve models are not supported. Multiple independent or jointly
-correlated random curve parameters are supported as described below.
+REML, direct/PQL fitting, structured residuals, and weights are not supported
+on this route. Fixed-only curves use the reference specification route.
+Multiple independent or jointly correlated random curve parameters are
+supported as described below.
 
 All existing native response families are also available, including ordinal,
 nominal, zero-inflated and `familym()` mixtures. These use complete analytic
@@ -180,8 +181,8 @@ Nonlinear scalability can be inspected without changing the model:
 
 ```{r, eval=FALSE}
 ctrl <- mmes_control(diagnostics=list(profile="force"))
-fit <- mmes(y~0+graph_term("curve"), random=~group, data=dat,
-  predictors=list(curve=nonlinear_curve("time")),
+fit <- mmes(y~0+curve_term("curve"), random=~group, data=dat,
+  curves=list(curve=nonlinear_curve("time")),
   method=mmes_method(objective="ml"), control=ctrl)
 profile <- profile_nonlinear(fit, replications=3L)
 profile$table
@@ -207,8 +208,8 @@ portable performance guarantees.
 ```r
 model <- nonlinear_curve("time", "exponential",
   random = list(rate = ~ vsm(ism(subject), sigma2 = 0.04)))
-fit <- mmes(y ~ 0 + graph_term("curve"), data = dat,
-  predictors = list(curve = model),
+fit <- mmes(y ~ 0 + curve_term("curve"), data = dat,
+  curves = list(curve = model),
   method = mmes_method(objective = "ml"),
   start = list(parameters = c(asymptote = 4, rate = 0.6)),
   control = mmes_control(
@@ -226,12 +227,12 @@ and logistic midpoint uses identity coordinates. An optional ordinary
 descriptors and known relationship precision retain their existing conventions.
 One unit-incidence curve coordinate per row is required. Exact zero random
 variance is unsupported; with additive effects retained, remove its declaration
-for the zero-curve-variance model. Fixed-only fits remain unsupported.
+for the zero-curve-variance model.
 
 The mode solver uses exact conditional curvature, safeguards Newton steps,
 and compares deterministic starts. Laplace scores include mode motion and
-third curve derivatives. No layers, backpropagation, uncertainty, or PEV are
-introduced. Mode diagnostics report failures and competing candidates; they
+third curve derivatives. No uncertainty or PEV calculations are introduced.
+Mode diagnostics report failures and competing candidates; they
 do not certify a global optimum.
 
 Conditional predictions use fitted curve modes (`re.form=NULL`); `re.form=NA`
@@ -317,7 +318,7 @@ and prediction uncertainty remain explicitly post-fit.
 `vcov(fit, type="group")` explicitly requests natural-scale group-parameter
 covariance, including cross-parameter terms; it is not computed during fitting.
 
-## Bounded graph and parameter declarations
+## Curve and parameter declarations
 
 These are distinct random-effect locations:
 
@@ -326,33 +327,17 @@ These are distinct random-effect locations:
   declares a regression for an unknown parameter used in a nonlinear formula.
 * A native `nonlinear_curve(random=list(rate=~group))` declares curve-coordinate
   deviations; `joint` supplies an admitted correlated block.
-* A bounded `nonlinear_graph()` declares explicit graph-coordinate maps and
-  independent/joint deviations. These are not ordinary additive random terms.
-
-The bounded graph API uses an ordered node list of input, affine, identity,
-and tanh operations with an explicit scalar output and named coordinates.
-No multilayer convenience builders or arbitrary callbacks are available.
-Graph fitting requires ML and an identity output representing the response
-link predictor. Gaussian fixed coordinates with additive effects retain exact
-integration; random graph coordinates and non-Gaussian random models use
-Laplace with reported central-difference outer scores. Both graph routes reuse
-the native scalar, ordinal, multinomial and `familym()` likelihood contracts.
-Post-fit uncertainty is explicitly requested and requires stationary,
-identified, interior fits and checked curvature; symmetric network weights do
-not acquire valid SEs merely because optimization converges.
-
 `optimizer$gradient="auto"` preserves native analytic scores and selects the
 reported numerical method for reference expression models. An explicit
-`"analytic"` request is rejected for reference expressions and native random
-graphs and family graph objectives rather than silently replaced by numerical
-derivatives. These native graphs support `"central"`; native curves reject
-explicit `"central"`.
+`"analytic"` request is rejected for reference expressions rather than
+silently replaced by numerical derivatives. Native curves reject explicit
+`"central"`.
 
-Both named native components use the same public formula bridge:
+Native curves use the public formula bridge:
 
 ```r
-fit <- mmes(y ~ 0 + graph_term("component"), random = ~ group, data = dat,
-  predictors = list(component = model),
+fit <- mmes(y ~ 0 + curve_term("component"), random = ~ group, data = dat,
+  curves = list(component = model),
   start = list(parameters = natural_starts),
   method = mmes_method(objective = "ml"),
   control = mmes_control(mode = list(maxit = 100L, tol = 1e-8)))
@@ -362,12 +347,12 @@ Declared `parameter()` regression models have their own supported family,
 expression, and numerical workspace limits (30 declarations, 60 mean
 coefficients, 512 modes for nonexact integration). The dense reference route
 supports nuisance `familyParameters`, checked inference controls, simulation,
-and bounded joint predictor quadrature. It rejects internal graph random maps,
-RR covariance, weights, `W`, `vcc`, custom contrasts and nondefault
+and bounded joint predictor quadrature. It rejects RR covariance, weights,
+`W`, `vcc`, custom contrasts and nondefault
 representation/solver/update controls. Ordinary Gaussian models retain
 `representation=list(fixedRank="drop")`; this is not a license to drop
 unidentified nonlinear weights. Consult the model specification
-vignette rather than assuming every native curve/graph layout is interchangeable.
+vignette rather than assuming every native curve layout is interchangeable.
 Unsupported combinations error; they do not enable a different estimator.
 
 # Ownership and defaults
@@ -382,7 +367,7 @@ the prior numerical bundle; they do not authorize new combinations.
 |:--|:--|:--|
 | `formulation` | Equation domain | `"henderson"`; `"henderson"` or `"direct"`. |
 | `method` (not a control module) | Objective, integration, approximation and task | `mmes_method(objective="reml", integration="auto", approximation="auto", task="fit")`. Ordinary non-Gaussian mixed auto fits preserve PQL/REML working fits. Laplace requires ML. |
-| `optimizer` | Outer optimizer policy | `maxit=NULL`, `gradient="auto"`, `algorithm="nlminb"`; gradient choices are `"auto"`, `"analytic"`, `"central"`. Auto preserves native analytic defaults and selects reported numerical derivatives for reference expressions; unsupported explicit requests error. NULL retains engine defaults; Gaussian AI/update modules retain their role. Do not duplicate conflicting `convergence$maxIters`. |
+| `optimizer` | Outer optimizer policy | `maxit=NULL`, `gradient="auto"`, `algorithm="nlminb"`, `scoreTol=NULL`; gradient choices are `"auto"`, `"analytic"`, `"central"`. Auto preserves native analytic defaults and selects reported numerical derivatives for reference expressions; unsupported explicit requests error. `scoreTol` sets the nonlinear specification outer-score threshold; NULL uses 0.001. Gaussian AI/update modules retain their role. Do not duplicate conflicting `convergence$maxIters`. |
 | `mode` | Conditional random-effect mode | `maxit=100L`, `tol=1e-8`, `stepTol=1e-8`, `warmStart="auto"`, `starts="deterministic"`. Auto preserves native GLMM auto reuse and deterministic cold nonlinear modes; nonlinear explicit `"on"` errors. Non-default `stepTol` is supported only by nonlinear modes; native GLMM modes use `tol`. |
 | `working` | Outer PQL working fits | `maxit=20L`, `tol=1e-5`, `estimateTheta=FALSE`, `warmStart=TRUE`. `convergence` controls inner Gaussian fits. |
 | `likelihood` | Native likelihood algebra | `backend="auto"`, `trace="panels"`, `blocks="off"`; backend selects random/observation algebra, not the Gaussian solver. Conditional-mode reuse belongs only to `mode$warmStart`. |
@@ -990,7 +975,7 @@ model starts/family nuisance choices into their `mmes()` arguments. Removed
 | `task$glmm$method="laplace"` | `method=mmes_method(objective="ml", integration="laplace")` |
 | `task$glmm$familyParameters` | `mmes(familyParameters=list(...))` |
 | `task$nonlinear$start` | `mmes(start=list(parameters=...))` |
-| `nonlinear=curve` | `predictors=list(curve=curve)` and formula `y~0+graph_term("curve")` |
+| `nonlinear=curve` | `curves=list(curve=curve)` and formula `y~0+curve_term("curve")` |
 | `task$nonlinear$mode/population/inference` | `control` modules `mode`, `population`, `inference` |
 | `computeCi` | `output$inverse` |
 | `getPEV` | No separate replacement; Gaussian fits use `output$inverse` for fit-time PEVs. Native Laplace requires `output$inverse=0` and uses `postPEV()` after fitting. |

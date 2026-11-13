@@ -14,14 +14,6 @@ local({
     convergence=list(likelihoodTol=1e-9,parameterTol=1e-8),
     execution=list(denseMemoryMB=256),
     diagnostics=list(verbose=FALSE,dateWarning=FALSE))
-  graph <- nonlinear_graph(list(
-    x=list(op="input",column="x"),
-    mean=list(op="affine",inputs="x",weights=matrix(1L),bias=2L),
-    output=list(op="identity",input="mean")),
-    output="output",parameters=c("slope","intercept"),
-    parameterMap=list(slope=list(type="fixed"),
-      intercept=list(type="random",group="group")),
-    random=list(intercept=~vsm(ism(group),sigma2=.09,fixedSigma2=TRUE)))
   rows <- list()
   profiles <- list()
   for(code in c("gaussian","binomial","poisson")){
@@ -34,14 +26,10 @@ local({
       eta <- .25+.7*data$x+rnorm(4L,sd=.3)[data$group]
       data$y <- switch(code,gaussian=rnorm(nrow(data),eta,.4),
         binomial=rbinom(nrow(data),1,plogis(eta)),poisson=rpois(nrow(data),exp(eta)))
-      for(route in c("native","reference")){
+      for(route in "reference"){
         start <- proc.time()[["elapsed"]]
         outcome <- tryCatch({
-          fit <- if(route=="native")
-            mmes(y~0+graph_term("net"),data=data,family=family,
-              predictors=list(net=graph),start=c(slope=.6,intercept=.2),
-              familyParameters=settings,method=mmes_method(objective="ml"),control=control) else
-            mmes(y~0+a+b*x,data=data,family=family,
+          fit <- mmes(y~0+a+b*x,data=data,family=family,
               parameters=list(a=parameter(random=~vsm(ism(group),sigma2=.09,
                 fixedSigma2=TRUE)),b=parameter()),
               start=c(a=.2,b=.6),familyParameters=settings,

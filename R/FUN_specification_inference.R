@@ -360,7 +360,7 @@ confint.mmes.specification <- function(object, parm, level=.95, ...,
         derivative %*% inference$conditionalCovariance %*% t(derivative)
     }
   }
-  uncertainty <- .nonlinear_output_shape(sqrt(pmax(0,diag(covariance))),fit)
+  uncertainty <- .nonlinear_prediction_shape(sqrt(pmax(0,diag(covariance))),fit)
   result <- list(fit=fit,se.fit=uncertainty,
     approximation="Local delta approximation; conditional predictions include empirical Bayes mode uncertainty")
   if(cov.fit) result$cov.fit <- covariance
@@ -372,8 +372,8 @@ confint.mmes.specification <- function(object, parm, level=.95, ...,
       variance <- variance+.spec_future_variance(object,newdata,target,trials)
     }
     margin <- stats::qnorm((1+level)/2)*sqrt(pmax(0,variance))
-    result$lower <- .nonlinear_output_shape(as.numeric(unlist(fit))-margin,fit)
-    result$upper <- .nonlinear_output_shape(as.numeric(unlist(fit))+margin,fit)
+    result$lower <- .nonlinear_prediction_shape(as.numeric(unlist(fit))-margin,fit)
+    result$upper <- .nonlinear_prediction_shape(as.numeric(unlist(fit))+margin,fit)
   }
   result
 }

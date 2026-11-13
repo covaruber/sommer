@@ -19,8 +19,8 @@ rate is therefore positive, independently of the response family's link.
 Nonlinear specification models require maximum likelihood. Gaussian identity
 models with only additive random effects use exact integration; parameter
 random effects and non-Gaussian random effects use conditional-mode Laplace
-integration with numerical outer scores, symbolic expression/native graph
-chain rules and full native family conditional curvature. This bounded dense reference
+integration with numerical outer scores, symbolic expression chain rules and
+full native family conditional curvature. This bounded dense reference
 implementation reuses native Gaussian identity, grouped-binomial
 logit/probit/cloglog, Poisson, NB2, ZIP and Gamma-log likelihoods, ordinal
 logit/probit, reference-category multinomial, and \code{familym()} mixtures.
@@ -38,11 +38,13 @@ estimates native family nuisances; ordinal thresholds use ordered coordinates.
 Separate parameter random records remain independent, even when they share
 grouping-factor names. Automatic or central outer gradients are numerical; an explicit
 analytic-gradient request is rejected. Iteration limits, convergence
-tolerances, and population quadrature controls are supported.
-Existing non-graph scalar expression links outside the native registry retain
+tolerances, and population quadrature controls are supported. Set
+\code{mmes_control(optimizer=list(scoreTol=...))} to change the outer
+score convergence certificate; its default is \code{0.001}.
+Existing scalar expression links outside the native registry retain
 their reference semantics through a chain-rule adapter to the native
-canonical density. This compatibility does not enable those links for native
-graphs or mixed-family layouts. Ordinary fixed-only \code{lm}/\code{glm}
+canonical density. This compatibility does not enable those links for
+mixed-family layouts. Ordinary fixed-only \code{lm}/\code{glm}
 models retain their supported links.
 
 Expressions support arithmetic, powers, \code{exp}, \code{log}, \code{tanh},
@@ -86,4 +88,4 @@ rows follow the declared reference category and preserve full block curvature.
 parameters <- list(a=parameter(), k=parameter(fixed=~1, link="log"))
 parameters$k
 }
-\seealso{\code{\link{graph_term}}, \code{\link{vsm}}}
+\seealso{\code{\link{curve_term}}, \code{\link{vsm}}}

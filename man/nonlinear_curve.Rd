@@ -1,10 +1,22 @@
 \name{nonlinear_curve}
 \alias{nonlinear_curve}
+\alias{coef.mmes.nonlinear}
+\alias{fitted.mmes.nonlinear}
+\alias{residuals.mmes.nonlinear}
+\alias{predict.mmes.nonlinear}
+\alias{simulate.mmes.nonlinear}
+\alias{summary.mmes.nonlinear}
+\alias{logLik.mmes.nonlinear}
+\alias{nobs.mmes.nonlinear}
+\alias{AIC.mmes.nonlinear}
+\alias{BIC.mmes.nonlinear}
+\alias{anova.mmes.nonlinear}
+\alias{print.mmes.nonlinear}
+\alias{print.summary.mmes.nonlinear}
 \title{Traditional nonlinear mixed-model curves}
 \description{
 Declares a native parametric link-predictor contribution for nonlinear mixed models fitted
-by \code{\link{mmes}}. No layers, backpropagation, arbitrary callbacks or
-mandatory neural-network dependencies are used.
+by \code{\link{mmes}}.
 }
 \usage{
 nonlinear_curve(input, curve=c("exponential", "logistic", "saturation"),
@@ -81,8 +93,9 @@ products. This is not a blanket guarantee for every covariance constructor.
 For Gaussian identity observations, integration is exact Gaussian ML for purely additive
 effects and Laplace ML for random curve parameters. Family-aware Laplace
 uses the exact conditional Hessian, including likelihood-score-times-second-derivative terms, and full
-analytic outer scores including mode motion. At least one random term (additive
-or curve) is required. Full-coordinate covariance must be positive definite,
+analytic outer scores including mode motion. This native mixed-model route
+requires at least one random term (additive or curve); fixed-only curves use
+the reference specification route. Full-coordinate covariance must be positive definite,
 except for built-in reduced-rank factors. For \code{rrm()}, the effect is
 represented as \eqn{b=L v}, with a proper Gaussian prior on latent \eqn{v}.
 Loading parameters remain jointly estimated, and analytic scores include
@@ -90,8 +103,8 @@ the moving loading map. No inverse of singular covariance, artificial
 specific variance or diagonal ridge is introduced.
 Relationship precision and the latent prior must remain positive definite;
 exact zero overall variance is not accepted. With additive random effects retained,
-remove the curve-random declaration to fit the zero-curve-variance model;
-fixed-only fits are unsupported. Exact zero is never replaced silently by a
+remove the curve-random declaration to fit the zero-curve-variance model.
+Exact zero is never replaced silently by a
 small positive variance. Independent homogeneous Gaussian residuals are supported;
 structured observation residuals are not.
 
@@ -202,8 +215,8 @@ dat <- data.frame(x=rep(seq(0, 5, length.out=10), 12),
 dat$y <- 4*exp(-0.6*dat$x) + rnorm(12, sd=0.3)[dat$group] +
   rnorm(nrow(dat), sd=0.15)
 model <- nonlinear_curve("x", "exponential")
-fit <- mmes(y~0+graph_term("growth"), random=~group, data=dat,
-  predictors=list(growth=model),
+fit <- mmes(y~0+curve_term("growth"), random=~group, data=dat,
+  curves=list(growth=model),
   method=mmes_method(objective="ml"),
   start=list(parameters=c(asymptote=4, rate=0.5)),
   control=mmes_control(

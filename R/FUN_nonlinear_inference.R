@@ -82,104 +82,6 @@
   layout <- object$nonlinearParameterLayout$covariance
   model <- object$nonlinear
   random <- object$nonlinearRandom
-  if(isTRUE(object$nonlinearGraph)){
-    mode <- .nonlinear_inference_mode_settings(
-      .mmes_fitting_control(object)$task$nonlinear$mode)
-    if(isTRUE(object$nonlinearFamily)){
-      coordinateMap <- if(is.null(random))
-        matrix(0,ncol(object$randomDesign),length(object$nonlinearCoordinates)) else
-          random$coordinateMap*1.0
-      context <- sommer_nonlinear_graph_family_create(object$fixedDesign,
-        object$randomDesign,object$nativeResponse,object$offset,object$graphData,
-        object$graphNative$nodes,object$graphNative$output,
-        object$graphNative$transformed,coordinateMap,object$covStruct,
-        object$randomRelationships,object$familySpecifications,
-        object$laplaceFamilyIndex-1L,object$priorWeights,memory,
-        mode$maxIters,mode$scoreTol,mode$stepTol)
-      evaluate <- function(parameters,gradient=TRUE){
-        value <- .laplace_constrained_evaluate(parameters,layout,function(expanded)
-          sommer_nonlinear_graph_family_eval(context,expanded,gradient))
-        if(!isTRUE(value$valid))
-          stop("Nonlinear graph family evaluation failed: ",value$reason,".",
-            call.=FALSE)
-        value
-      }
-      return(list(evaluate=evaluate,modeSettings=mode,
-        conditional=function(parameters,latent){
-        value <- sommer_nonlinear_graph_family_conditional(context,
-          .laplace_expand_parameters(parameters,layout),latent)
-        if(!isTRUE(value$valid))
-          stop("Nonlinear graph family conditional curvature failed: ",
-            value$reason,".",call.=FALSE)
-        value
-      }))
-    }
-    if(!is.null(random)){
-      context <- sommer_nonlinear_graph_laplace_create(object$fixedDesign,
-        object$randomDesign,object$y,object$offset,object$graphData,
-        object$graphNative$nodes,object$graphNative$output,
-        object$graphNative$transformed,random$coordinateMap*1.0,
-        object$covStruct,object$randomRelationships,memory,
-        mode$maxIters,mode$scoreTol,mode$stepTol)
-      evaluate <- function(parameters,gradient=TRUE){
-        value <- .laplace_constrained_evaluate(parameters,layout,function(expanded)
-          sommer_nonlinear_graph_laplace_eval(context,expanded,gradient))
-        if(!isTRUE(value$valid))
-          stop("Nonlinear graph Laplace evaluation failed: ",value$reason,".",
-            call.=FALSE)
-        value
-      }
-      return(list(evaluate=evaluate,modeSettings=mode,
-        conditional=function(parameters,latent){
-        value <- sommer_nonlinear_graph_laplace_conditional(context,
-          .laplace_expand_parameters(parameters,layout),latent)
-        if(!isTRUE(value$valid))
-          stop("Nonlinear graph conditional curvature failed: ",value$reason,".",
-            call.=FALSE)
-        value
-      }))
-    }
-    context <- sommer_nonlinear_graph_gaussian_create(object$fixedDesign,
-      object$randomDesign,object$y,object$offset,object$graphData,
-      object$graphNative$nodes,object$graphNative$output,
-      object$graphNative$transformed,object$covStruct,
-      object$randomRelationships,memory)
-    evaluate <- function(parameters,gradient=TRUE){
-      value <- .laplace_constrained_evaluate(parameters,layout,function(expanded)
-        sommer_nonlinear_gaussian_eval(context,expanded,gradient))
-      if(!isTRUE(value$valid))
-        stop("Nonlinear graph likelihood evaluation failed: ",value$reason,".",
-          call.=FALSE)
-      value
-    }
-    gaussian <- .laplace_family_specs(stats::gaussian(),list())$specifications
-    gaussian[[1L]]$free <- FALSE
-    gaussian[[1L]]$logParameter <- log(object$dispersion)
-    graphMean <- .nonlinear_graph_first(model,object$trainingData,
-      object$nonlinearCoordinates,object$control)$output
-    mode <- .mmes_fitting_control(object)$task$nonlinear$mode
-    # A zero-valued fixed curve lets the family wrapper supply Gaussian random-mode curvature.
-    conditionalContext <- sommer_nonlinear_family_create(object$fixedDesign,
-      object$randomDesign,object$y,object$offset+graphMean,
-      rep(0,length(object$y)),"saturation",0L,ncol(object$randomDesign),
-      object$covStruct,object$randomRelationships,gaussian,rep(0L,length(object$y)),
-      rep(1,length(object$y)),memory,mode$maxIters,mode$scoreTol,mode$stepTol)
-    p <- ncol(object$fixedDesign)
-    k <- length(object$nonlinearCoordinates)
-    covarianceCount <- sum(vapply(object$covStruct,function(structure)
-      sum(structure$free),integer(1)))
-    conditional <- function(parameters,latent){
-      expanded <- .laplace_expand_parameters(parameters,layout)
-      local <- c(expanded[seq_len(p)],c(0,0),
-        expanded[p+k+seq_len(covarianceCount)])
-      value <- sommer_nonlinear_family_conditional(conditionalContext,local,latent)
-      if(!isTRUE(value$valid))
-        stop("Nonlinear graph conditional curvature failed: ",value$reason,".",
-          call.=FALSE)
-      value
-    }
-    return(list(evaluate=evaluate,conditional=conditional))
-  }
   mode <- .mmes_fitting_control(object)$task$nonlinear$mode
   specifications <- if(isTRUE(object$nonlinearFamily)) object$familySpecifications else
     .laplace_family_specs(stats::gaussian(),list())$specifications
@@ -232,13 +134,7 @@
   layout <- object$nonlinearParameterLayout$covariance
   object$b[] <- parameters[seq_len(p)]
   object$nonlinearCoordinates[] <- parameters[p+seq_len(k)]
-  object$nonlinearParameters <- if(isTRUE(object$nonlinearGraph)){
-    natural <- object$nonlinearCoordinates
-    transformed <- which(vapply(object$nonlinear$parameterMap,function(map)
-      identical(map$transform,"log"),logical(1)))
-    if(length(transformed)) natural[transformed] <- exp(natural[transformed])
-    natural
-  }else .nonlinear_natural(object$nonlinear,object$nonlinearCoordinates)
+  object$nonlinearParameters <- .nonlinear_natural(object$nonlinear,object$nonlinearCoordinates)
   object$covStruct <- .laplace_proposal_structures(object$covStruct,parameters,layout)
   object$covPar <- .nonlinear_covariance_parameters(object$covStruct)
   if(isTRUE(object$nonlinearFamily)){
@@ -349,7 +245,7 @@ post_nonlinear <- function(object, mode=1L, control=NULL){
     as.character(value$work$outerScore) else
       if(!is.null(object$nonlinearDiagnostics$outerScore))
         as.character(object$nonlinearDiagnostics$outerScore) else "analytic"
-  if(mode){
+  if(mode && q){
     conditional <- context$conditional(parameters,as.numeric(value$latentMode))
     inverse <- .nonlinear_positive_inverse(conditional$hessian,numerical,
       "Conditional latent-mode curvature")
@@ -395,9 +291,7 @@ post_nonlinear <- function(object, mode=1L, control=NULL){
         map[,random$coordinate] <- random$start+seq_len(random$count)
         map
       }
-      positive <- if(isTRUE(object$nonlinearGraph))
-        vapply(object$nonlinear$parameterMap,function(map)
-          identical(map$transform,"log"),logical(1)) else object$nonlinear$positive
+      positive <- object$nonlinear$positive
       for(j in seq_len(ncol(groupMap))){
         selected <- which(groupMap[,j]>0L)
         rows <- (j-1L)*count+selected
@@ -423,6 +317,13 @@ post_nonlinear <- function(object, mode=1L, control=NULL){
         uncertainty$groupParameterCovariance <- groupCovariance
       }
     }
+  }else if(mode){
+    uncertainty$modeSensitivity <- matrix(numeric(),0L,d)
+    uncertainty$conditionalModeCovariance <- matrix(numeric(),0L,0L)
+    uncertainty$randomPEV <- numeric()
+    uncertainty$parameterModeCovariance <- if(mode==2L)
+      matrix(numeric(),d,0L) else NULL
+    object$uPevList <- list()
   }else object$uPevList <- NULL
   object$nonlinearInference <- uncertainty
   object$uPevMode <- as.integer(mode)

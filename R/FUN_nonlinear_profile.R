@@ -5,16 +5,14 @@
     gradient=if(!is.null(diagnostics$outerScore)) diagnostics$outerScore else "analytic",
     iterations=object$optimizer$iterations,evaluations=object$optimizer$evaluations,
     message=object$optimizer$message)
-  startName <- if(isTRUE(object$nonlinearGraph)) "graph" else "curve"
-  diagnostics$starts <- stats::setNames(list(if(isTRUE(object$nonlinearGraph)) "supplied" else
-      if(is.null(control$task$nonlinear$start)) "auto" else "supplied"),startName)
+  diagnostics$starts <- list(curve=if(is.null(control$task$nonlinear$start))
+    "auto" else "supplied")
   diagnostics$starts$initialCoordinates <- diagnostics$initialParameters
   diagnostics$starts$conditional <- if(!isTRUE(object$nonlinearFamily) &&
       is.null(object$nonlinearRandom)) "exact Gaussian solve" else
         "zero and +/-0.5 deterministic latent coordinates"
   diagnostics$dimensions <- c(observations=object$nobs,
-    predictors=if(isTRUE(object$nonlinearGraph)) ncol(object$input) else
-      length(object$input),
+    predictors=length(object$input),
     fixed=ncol(object$fixedDesign),
     nonlinear=length(object$nonlinearCoordinates),
     randomFull=length(object$randomMode),randomLatent=length(object$latentRandomMode),
@@ -24,13 +22,7 @@
   diagnostics$memory <- list(budgetMB=control$execution$denseMemoryMB,
     sparseDesignBytes=as.numeric(utils::object.size(object$fixedDesign))+
       as.numeric(utils::object.size(object$randomDesign)),
-    admission=if(isTRUE(object$nonlinearGraph) && isTRUE(object$nonlinearFamily))
-      "Graph forward/derivative, family conditional curvature, and finite-difference Laplace score workspaces admitted against execution$denseMemoryMB" else
-      if(isTRUE(object$nonlinearGraph) && !is.null(object$nonlinearRandom))
-      "Graph forward/derivative, exact conditional curvature, and finite-difference Laplace score workspaces admitted against execution$denseMemoryMB" else
-      if(isTRUE(object$nonlinearGraph))
-        "Graph forward/gradient and exact Gaussian factor workspaces admitted against execution$denseMemoryMB" else
-        "Sparse-support component-wise dense factor-fill bound; checked before Hessian assembly",
+    admission="Sparse-support component-wise dense factor-fill bound; checked before Hessian assembly",
     scope="Conservative operation workspace, not a process-wide peak RSS limit")
   if(!is.null(started)){
     total <- proc.time()[["elapsed"]]-started
@@ -62,20 +54,8 @@ profile_nonlinear <- function(object, replications=3L, control=NULL,
   value <- context$evaluate(parameters,gradient=FALSE)
   if(abs(value$logLik-object$llik)>1e-7*(1+abs(object$llik)))
     stop("Profile likelihood differs from the saved fit.",call.=FALSE)
-  if(isTRUE(object$nonlinearGraph)){
-    operations <- list(
-      graphEvaluation=function() .nonlinear_graph_first(object$nonlinear,
-        object$trainingData,object$nonlinearCoordinates,
-        object$control),
-      marginalObjective=function() context$evaluate(parameters,gradient=FALSE),
-      marginalScore=function() context$evaluate(parameters,gradient=TRUE),
-      conditionalPrediction=function() stats::predict(object))
-    if(!is.null(context$conditional))
-      operations$conditionalCurvature <- function()
-        context$conditional(parameters,as.numeric(value$latentMode))
-  }else{
-    curve <- object$nonlinear
-    operations <- list(
+  curve <- object$nonlinear
+  operations <- list(
       curveMean=function() sommer_nonlinear_curve_eval(curve$curve,object$input,
         object$nonlinearCoordinates,gradient=FALSE),
       curveJacobian=function() sommer_nonlinear_curve_eval(curve$curve,object$input,
@@ -84,7 +64,6 @@ profile_nonlinear <- function(object, replications=3L, control=NULL,
       marginalObjective=function() context$evaluate(parameters,gradient=FALSE),
       marginalScore=function() context$evaluate(parameters,gradient=TRUE),
       conditionalPrediction=function() stats::predict(object))
-  }
   if(inference){
     local <- object
     local$nonlinearInference <- NULL
@@ -103,10 +82,7 @@ profile_nonlinear <- function(object, replications=3L, control=NULL,
       minimumSeconds=min(elapsed),replications=replications)
   }))
   diagnostics <- object$nonlinearDiagnostics
-  scoreNote <- if(isTRUE(object$nonlinearGraph) &&
-      (!is.null(object$nonlinearRandom) || isTRUE(object$nonlinearFamily)))
-    "marginalScore additionally uses central finite differences of the exact Laplace objective." else
-      "marginalScore additionally includes analytic derivative contractions."
+  scoreNote <- "marginalScore additionally includes analytic derivative contractions."
   list(table=table,contextSeconds=unname(creation),
     fitProfile=diagnostics$profile,dimensions=diagnostics$dimensions,
     work=context$evaluate(parameters)$work,

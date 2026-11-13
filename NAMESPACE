@@ -9,8 +9,8 @@ export(
 
 ## FUN_main
 export(mmes, vsm, nbinom2, zipoisson, ordinal, multinomial,
-       mmes_control, mmes_method, parameter, graph_term,
-       nonlinear_curve, nonlinear_graph, nonlinear_graph_eval,
+       mmes_control, mmes_method, parameter, curve_term,
+       nonlinear_curve,
        profile_nonlinear, boot_mmes,
        generate_mme_workload, mme_workload_grid,
        run_mme_benchmark, analyze_mme_crossovers, profile_mme_workload,
@@ -66,7 +66,9 @@ S3method(vcDelta, mmes.nonlinear)
 # S3 METHODS mmes
 S3method(anova, mmes)
 S3method(anova, mmes.nonlinear)
+S3method(AIC, mmes.specification)
 S3method(AIC, mmes.nonlinear)
+S3method(BIC, mmes.specification)
 S3method(BIC, mmes.nonlinear)
 S3method(coef, mmes.nonlinear)
 S3method(confint, mmes.nonlinear)

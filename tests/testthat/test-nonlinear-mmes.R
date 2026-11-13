@@ -54,7 +54,7 @@ test_that("traditional curve contracts and analytic coordinate derivatives agree
     }
     expect_identical(unserialize(serialize(model, NULL)), model)
   }
-  expect_error(nonlinear_curve("x", "relu"), "arg")
+  expect_error(nonlinear_curve("x", "invalid"), "arg")
   expect_error(nonlinear_curve(c("x", "z")), "one numeric")
   model <- nonlinear_curve("x")
   model$parameters <- rev(model$parameters)

@@ -20,7 +20,7 @@ mmes(
   vcc = NULL,
   covPar = NULL,
   parameters = list(),
-  predictors = list(),
+  curves = list(),
   start = NULL,
   method = mmes_method(),
   control = mmes_control(),
@@ -28,11 +28,34 @@ mmes(
 )
 }
 \arguments{
-\item{fixed, random, rcov, data, W, weights, naMethodX, naMethodY, naMethodRandom, naMethodR, contrasts, family, vcc, covPar}{Statistical model and observation-preparation inputs.}
+\item{fixed}{Two-sided response and fixed-effects formula.}
+
+\item{random}{Optional one-sided random-effect covariance formula.}
+
+\item{rcov}{Optional one-sided residual covariance formula.}
+
+\item{data}{Data frame containing the model variables.}
+
+\item{W}{Optional observation precision matrix.}
+
+\item{weights}{Optional one-sided formula identifying independent blocks
+of the supplied \code{W} matrix.}
+
+\item{naMethodX, naMethodY, naMethodRandom, naMethodR}{Missing-value policies
+for fixed predictors, response, random effects, and residuals, respectively.
+Supported policies depend on the fitting route.}
+
+\item{contrasts}{Optional fixed-effect contrast specifications.}
+
+\item{family}{Response family or a \code{familym()} declaration.}
+
+\item{vcc}{Optional variance-component constraints.}
+
+\item{covPar}{Optional covariance parameter initialization or solve values.}
 
 \item{parameters}{Named nonlinear parameter declarations.}
 
-\item{predictors}{Named native curve or graph components.}
+\item{curves}{Named native curve components.}
 
 \item{start}{Natural-scale nonlinear parameter starts or a list containing
 \code{parameters}; coefficient models use explicitly named coefficient starts.}
@@ -46,6 +69,20 @@ mmes(
 \description{
 The formula describes a link-scale predictor. Named \code{parameter()}
 declarations distinguish unknown nonlinear parameters from data columns.
-Named \code{predictors} can contain native curves or bounded graphs and are
-referenced with \code{graph_term("name")} in the formula.
+Named \code{curves} contain native parametric curves and are referenced
+with \code{curve_term("name")} in the formula.
+}
+\value{
+A fitted \code{mmes} object. Its class and available methods depend
+on the selected model and fitting route.
+}
+\examples{
+dat <- data.frame(x=seq_len(12), y=1+seq_len(12)/2+sin(seq_len(12))/10)
+fit <- mmes(y~x, data=dat, control=mmes_control(
+  diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+coef(fit)
+}
+\seealso{
+\code{\link{mmes_method}}, \code{\link{mmes_control}},
+\code{\link{parameter}}, \code{\link{nonlinear_curve}}
 }

@@ -5,17 +5,13 @@
 #include "mme_nonlinear_predictor.h"
 #include "mme_nonlinear_covariance.h"
 #include "mme_nonlinear_memory.h"
-#include "mme_nonlinear_graph.h"
-#include <memory>
 
 namespace sommer {
 
 class NonlinearGaussianObjective {
   arma::sp_mat fixed, random;
   arma::vec response, offset, input;
-  arma::mat graphInput;
   std::string curve;
-  std::unique_ptr<NonlinearGraph> graph;
   NonlinearCovariance covarianceModel;
   LaplacePrecision & precision;
   RandomLaplaceSystem system;
@@ -33,7 +29,7 @@ public:
     nonlinearParameterCount(curve);
     if(!std::isfinite(memoryMB) || memoryMB <= 0)
       Rcpp::stop("Nonlinear memory budget must be positive and finite.");
-    if(!y.n_elem || !z.n_cols || x.n_rows != y.n_elem || z.n_rows != y.n_elem ||
+    if(!y.n_elem || x.n_rows != y.n_elem || z.n_rows != y.n_elem ||
        o.n_elem != y.n_elem || a.n_elem != y.n_elem ||
        !x.is_finite() || !z.is_finite() || !y.is_finite() ||
        !o.is_finite() || !a.is_finite())
@@ -42,35 +38,9 @@ public:
       Rcpp::stop("Nonlinear Gaussian workspace exceeds execution$denseMemoryMB.");
   }
 
-  NonlinearGaussianObjective(const arma::sp_mat & x, const arma::sp_mat & z,
-      const arma::vec & y, const arma::vec & o, const arma::mat & graphData,
-      const Rcpp::List & specification, int selectedOutput,
-      const Rcpp::IntegerVector & transformed, const Rcpp::List & descriptors,
-      const Rcpp::List & relationships, double memory)
-    : fixed(x), random(z), response(y), offset(o), graphInput(graphData),
-      covarianceModel(z,descriptors,relationships,memory),
-      precision(covarianceModel.prior()), memoryMB(memory) {
-    if(selectedOutput<0)
-      Rcpp::stop("Invalid nonlinear graph output index.");
-    graph.reset(new NonlinearGraph(specification,
-      static_cast<arma::uword>(selectedOutput),graphData.n_cols,
-      static_cast<arma::uword>(transformed.size()),transformed));
-    if(!std::isfinite(memoryMB) || memoryMB<=0)
-      Rcpp::stop("Nonlinear memory budget must be positive and finite.");
-    if(!y.n_elem || !z.n_cols || x.n_rows!=y.n_elem || z.n_rows!=y.n_elem ||
-       o.n_elem!=y.n_elem || graphData.n_rows!=y.n_elem ||
-       !x.is_finite() || !z.is_finite() || !y.is_finite() ||
-       !o.is_finite() || !graphData.is_finite())
-      Rcpp::stop("Nonlinear Gaussian inputs must have compatible dimensions and finite values.");
-    if(8.0*(40.0*y.n_elem+12.0*z.n_cols)+
-       graph->workspaceBytes(y.n_elem,graphData.n_cols) > memoryMB*1048576.0)
-      Rcpp::stop("Nonlinear Gaussian workspace exceeds execution$denseMemoryMB.");
-  }
-
   Rcpp::List evaluate(const arma::vec & parameters, bool gradient){
     ++evaluations;
-    const arma::uword p = fixed.n_cols, k = graph ?
-      graph->parameterCountValue() : nonlinearParameterCount(curve);
+    const arma::uword p = fixed.n_cols, k = nonlinearParameterCount(curve);
     const arma::uword c = covarianceModel.parameterCount(), n = response.n_elem;
     if(parameters.n_elem != p+k+c+1)
       Rcpp::stop("Nonlinear Gaussian parameter vector has incompatible length.");
@@ -80,22 +50,11 @@ public:
     if(!parameters.is_finite()) return invalid("non-finite parameter proposal");
     arma::vec nonlinearMean;
     arma::mat nonlinearJacobian;
-    if(graph){
-      if(!graph->validParameters(parameters.subvec(p,p+k-1)))
-        return invalid("graph parameter outside transform range");
-      Rcpp::List predictor=graph->evaluateFirst(graphInput,
-        parameters.subvec(p,p+k-1),memoryMB);
-      if(!Rcpp::as<bool>(predictor["valid"]))
-        return invalid(Rcpp::as<std::string>(predictor["reason"]));
-      nonlinearMean=Rcpp::as<arma::vec>(predictor["output"]);
-      if(gradient) nonlinearJacobian=Rcpp::as<arma::mat>(predictor["jacobian"]);
-    }else{
-      NonlinearCurveEvaluation predictor;
-      if(!nonlinearCurve(curve,input,parameters.subvec(p,p+k-1),predictor,gradient))
-        return invalid("non-finite nonlinear mean or derivative");
-      nonlinearMean=predictor.mean;
-      if(gradient) nonlinearJacobian=predictor.jacobian;
-    }
+    NonlinearCurveEvaluation predictor;
+    if(!nonlinearCurve(curve,input,parameters.subvec(p,p+k-1),predictor,gradient))
+      return invalid("non-finite nonlinear mean or derivative");
+    nonlinearMean=predictor.mean;
+    if(gradient) nonlinearJacobian=predictor.jacobian;
     const double logVariance = parameters(parameters.n_elem-1);
     const double variance = std::exp(logVariance);
     const double weight = 1/variance;
@@ -112,6 +71,31 @@ public:
     arma::vec mean = offset + nonlinearMean;
     if(p) mean += fixed * parameters.head(p);
     const arma::vec residual = response-mean;
+    if(q==0){
+      const arma::vec alpha=weight*residual;
+      const double likelihood=-0.5*(n*(std::log(2*arma::datum::pi)+logVariance)+
+        weight*arma::dot(residual,residual));
+      if(!alpha.is_finite() || !std::isfinite(likelihood))
+        return invalid("non-finite Gaussian likelihood or score");
+      Rcpp::List result=Rcpp::List::create(Rcpp::_["valid"]=true,
+        Rcpp::_["reason"]="evaluated",Rcpp::_["logLik"]=likelihood,
+        Rcpp::_["mode"]=arma::vec(),Rcpp::_["fitted"]=mean,
+        Rcpp::_["latentMode"]=arma::vec(),Rcpp::_["fixedMean"]=mean,
+        Rcpp::_["modeScore"]=0.0);
+      if(gradient){
+        arma::vec score(parameters.n_elem,arma::fill::zeros);
+        if(p) score.head(p)=fixed.t()*alpha;
+        score.subvec(p,p+k-1)=nonlinearJacobian.t()*alpha;
+        score(score.n_elem-1)=0.5*(-static_cast<double>(n)+
+          weight*arma::dot(residual,residual));
+        if(!score.is_finite()) return invalid("non-finite Gaussian score");
+        result["gradient"]=score;
+      }
+      result["work"]=Rcpp::List::create(Rcpp::_["evaluations"]=evaluations,
+        Rcpp::_["factorizations"]=0,Rcpp::_["contractionSolves"]=0,
+        Rcpp::_["descriptorUpdates"]=0);
+      return result;
+    }
     arma::sp_mat curvature(n,n);
     curvature.diag().fill(weight);
     nonlinearSparseAdmission(random,precision.matrix,curvature,memoryMB);

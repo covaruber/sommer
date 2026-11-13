@@ -342,7 +342,11 @@ familym <- function(by, ..., trials=NULL){
     # The trait-specific residual variances are estimated by REML in the
     # working model; report them when R is indexed by the trait levels.
     Rk <- tryCatch(covmatrix_mmes(fit, length(fit$covStruct), se=FALSE)$covariance,
-                   error=function(e) NULL)
+      error=function(e){
+        warning("Could not extract mixed-family residual covariance; retaining Pearson dispersion estimates: ",
+          conditionMessage(e),call.=FALSE)
+        NULL
+      })
     if(!is.null(Rk) && all(names(families) %in% rownames(Rk))){
       est <- !fixedByFamily
       fit$dispersion[est] <- diag(Rk)[names(families)[est]]

@@ -19,12 +19,8 @@ This vignette explains the formula-based model specification interface.
 Model-fitting and prediction calls are illustrative and deliberately not
 evaluated: no fitted results or convergence claims are reported.
 Only data preparation and descriptive checks are executed.
-For an evaluated two-hidden-layer example and the likelihood/optimization
-theory, see [Multi-layer nonlinear mixed models](sommer.multilayer.html).
-
 We compare six basic model classes on the same `DT_example` observation
-layout and then extend the nonlinear classes to multi-layer graph predictors,
-changing one modeling decision at a time:
+layout, changing one modeling decision at a time:
 
 1. Is the covariate effect linear in its unknown coefficients or nonlinear?
 2. Is the observation model Gaussian identity or a family with another link?
@@ -39,16 +35,6 @@ changing one modeling decision at a time:
 | Generalized linear mixed | Ordinary formula | Explicit response family/link | Additive |
 | Nonlinear | Expression with declared parameters | Usually Gaussian; others allowed | None |
 | Nonlinear mixed | Expression with parameter models | Explicit response family/link | Additive and/or within parameters |
-| Multi-layer nonlinear mixed | Composed affine/activation graph | Gaussian identity | Additive and/or graph-coordinate deviations |
-| Generalized nonlinear mixed with a multi-layer predictor | Composed affine/activation graph | Explicit non-Gaussian response family/link | Additive and/or graph-coordinate deviations |
-
-We use **multi-layer nonlinear mixed model** as the umbrella term when a
-multi-layer graph has random effects, and **generalized nonlinear mixed model
-with a multi-layer predictor** for its non-Gaussian version. A graph without
-random effects is a nonlinear regression, not a mixed model. Hidden layers
-alone do not add random effects: this classification depends on the declared
-covariance model, not the number of layers.
-
 There is an unavoidable distinction: **a model with a random genetic covariance
 is a mixed model**. The three fixed-only examples cannot also have random
 GxE effects with a relationship matrix. They provide the no-random-effect
@@ -187,7 +173,7 @@ The interface separates these responsibilities:
 |:--|:--|
 | Main formula | The complete link-scale predictor, including nonlinear expressions |
 | `parameters` | Regression and random-effect models for named nonlinear parameters |
-| `predictors` | Named graph predictors referenced by `graph_term()` |
+| `curves` | Named parametric curves referenced by `curve_term()` |
 | `family`, `random`, `rcov` | Observation distribution and covariance declarations |
 | `method`, `control`, `start` | Statistical fitting method, numerical settings, initialization |
 
@@ -202,8 +188,8 @@ Parameter links are separate: `parameter(link="log")` means that the
 parameter, not the response mean, is exponentiated from its working predictor.
 
 The public `mmes()` arguments include `parameters=list()`,
-`predictors=list()`, `start=NULL`, and `method=mmes_method()`.
-Ordinary linear models need neither parameter nor graph declarations.
+`curves=list()`, `start=NULL`, and `method=mmes_method()`.
+Ordinary linear models need neither parameter nor curve declarations.
 Gaussian identity-link linear models, with or without random effects, use
 the established Gaussian engines and retain their numerical controls and
 variance-component output. For example,
@@ -248,7 +234,7 @@ initial values belong in `start`.
 
 The default `optimizer$gradient="auto"` uses native analytic derivatives
 where available. The expression reference route uses numerical outer scores
-with symbolic expression/native graph chain rules for conditional curvature
+with symbolic expression derivatives for conditional curvature
 and reports that choice in its diagnostics; requesting an unavailable
 `gradient="analytic"` is an error. Numerical differentiation and an exact
 Gaussian integral are separate issues.
@@ -399,7 +385,7 @@ nonlinear formula contributions.
 Here `a` is unconstrained and $\log(k)=\alpha_k$. Restricting $k>0$ avoids the
 equivalent sign reversal $(a,k)\leftrightarrow(-a,-k)$. The start supplies
 natural-scale parameter values, so `k=1` means a working intercept of zero.
-The same public natural-scale convention applies to graph starts, even when
+The same public natural-scale convention applies to curve starts, even when
 their internal coordinates are logarithmic.
 
 The model is nonlinear in the unknown $k$, even though observations have an
@@ -720,199 +706,13 @@ is not an uncertainty interval or integration over parameter-estimation error.
 For new observations, `x` must use the saved training `weight_center`, not a
 center recomputed from the prediction batch.
 
-# 12. Explicit graph predictors
+# 12. Route-specific execution and uncertainty
 
-For an explicit graph, reference its name in the main formula with
-`graph_term("net")` and supply the existing `nonlinear_graph()` object through
-`predictors=list(net=...)`. The graph is a bounded, serializable directed
-acyclic graph, not an arbitrary R function or an unrestricted neural-network
-builder.
-
-The constructor accepts ordered `input`, `affine`, `identity`, and `tanh`
-nodes. Inputs can be centered and scaled; affine nodes use indexed weights
-and biases, and repeated parameter indices share coordinates. A scalar
-identity output is required for graph fitting with any supported family;
-`tanh` belongs in
-hidden layers. For example, the following declares the same scalar shape
-using two affine nodes around one hidden activation:
-
-```{r graph-declaration, eval=FALSE}
-net <- nonlinear_graph(
-  nodes=list(
-    x=list(op="input", column="x"),
-    rate=list(op="affine", inputs="x", weights=matrix(1L), bias=0L),
-    hidden=list(op="tanh", input="rate"),
-    amplitude=list(op="affine", inputs="hidden",
-                   weights=matrix(2L), bias=0L),
-    output=list(op="identity", input="amplitude")
-  ),
-  output="output",
-  parameters=c("k", "a")
-)
-
-fit_graph <- mmes(
-  Yield ~ Env + graph_term("net"),
-  predictors=list(net=net),
-  parameters=list(
-    "net::k"=parameter(fixed=~ 1, random=NULL, link="log"),
-    "net::a"=parameter(fixed=~ 1, random=NULL, link="identity")
-  ),
-  family=gaussian(link="identity"),
-  data=DT,
-  start=c("net::k"=1, "net::a"=3),
-  method=exact_ml,
-  control=fit_control
-)
-```
-
-There are two graph routes:
-
-- **Native component, without parameter overrides:** supply one graph as an
-  additive `graph_term("net")` and omit `parameters`. This route accepts the
-  existing constructor's random `parameterMap`, independent `random`
-  formulas, and explicit `joint` covariance declarations.
-- **Namespaced parameter overrides, as above:** coordinates are named
-  `graph-name::coordinate`, for example `"net::k"`. Omitted coordinates
-  default to fixed intercepts inheriting the graph's coordinate transforms
-  (identity unless declared otherwise). Use `parameter()` for
-  regression, links, and supported coordinate random effects. This route
-  requires a graph without internal random maps, `random`, or `joint`
-  declarations.
-
-Do not mix the two random-effect declaration conventions. Public starts use
-natural parameter values, including positive values for log-transformed graph
-coordinates; native graph starts must name every coordinate.
-
-Random effects act on declared working coordinates, not automatically on an
-interpretable amplitude or rate. Random-coordinate graph fits require
-approximate integration. The bounded graph engine and formula-fitting route
-use their documented derivative strategies, including numerical derivatives;
-derivative availability does not make a Laplace integral exact.
-
-The graph supplies an **identity-output link predictor**, not a response
-probability. Both fitting routes reuse Gaussian identity, binomial
-logit/probit/cloglog (including grouped trials), Poisson, NB2, ZIP and Gamma-log
-families, ordinal logit/probit and reference-category multinomial, including
-`familym()` mixtures. Category expansion retains full cross-logit curvature.
-Use `.familyCoordinate` in parameter regressions for category-specific
-coordinates; a common scalar coordinate is not automatically category-specific.
-Free ordinal threshold locations cannot alias nonlinear mean parameters.
-Conditional, zero-deviation and prior-population prediction and simulation
-are available on both routes, with memory-admitted joint predictor quadrature.
-There are no `network()` or `dense()` convenience builders; the explicit node
-representation is the available interface. Do not infer arbitrary multilayer
-convenience construction from the ability to declare a bounded graph.
-Hidden-unit permutations and scaling can make raw weights non-unique;
-convergence does not establish a global optimum.
-
-## 12.1 Multi-layer nonlinear mixed models
-
-The graph interface already admits **multiple hidden layers**, not just the
-one-hidden-layer shape above. For example,
-
-$$
-h_{1i}=\tanh(k\widetilde x_i),\qquad
-h_{2i}=\tanh(kh_{1i}),\qquad
-f_i=ah_{2i},\qquad
-\widetilde x_i=x_i/s_x.
-$$
-
-This two-hidden-layer graph deliberately ties the rate `k` across layers.
-Repeated parameter indices share one coordinate, not two independently
-estimated weights. Layers can have several units by supplying larger weight
-index matrices (rows are input units, columns are output units), subject to
-the selected route's resource limits.
-
-The following illustrative declarations keep the `DT` layout and the
-diagonal genetic GxE covariance used by the earlier mixed examples.
-`Env` supplies the ordinary baseline, so the graph omits its output bias.
-The input scale is computed from training data and stored in the graph,
-not recomputed from prediction batches.
-
-```{r multilayer-model-declaration, eval=FALSE}
-x_scale <- sd(DT$x)
-deep_net <- nonlinear_graph(
-  nodes=list(
-    x=list(op="input",column="x",center=0,scale=x_scale),
-    affine1=list(op="affine",inputs="x",weights=matrix(1L),bias=0L),
-    hidden1=list(op="tanh",input="affine1"),
-    affine2=list(op="affine",inputs="hidden1",weights=matrix(1L),bias=0L),
-    hidden2=list(op="tanh",input="affine2"),
-    mean=list(op="affine",inputs="hidden2",weights=matrix(2L),bias=0L),
-    output=list(op="identity",input="mean")
-  ),
-  output="output",parameters=c("k","a"),
-  parameterMap=list(
-    k=list(type="fixed",transform="log"),
-    a=list(type="fixed")
-  )
-)
-
-fit_multilayer <- mmes(
-  Yield~Env+graph_term("net"),
-  random=~vsm(dsm(Env),ism(Name),Gu=Ai),
-  predictors=list(net=deep_net),data=DT,family=gaussian(),
-  start=list(parameters=c(k=1,a=3)),
-  method=exact_ml,control=fit_control
-)
-
-fit_generalized_multilayer <- mmes(
-  HighYield~Env+graph_term("net"),
-  random=~vsm(dsm(Env),ism(Name),Gu=Ai),
-  predictors=list(net=deep_net),data=DT,family=binomial("logit"),
-  start=list(parameters=c(k=1,a=1)),
-  method=laplace_ml,control=fit_control
-)
-```
-
-In the first model,
-$E(\mathrm{Yield}_i\mid b)=B_i+f_i+b_{eg}$; its Gaussian additive random
-integral remains exact despite the nonlinear fixed graph. In the second,
-$\operatorname{logit}(p_i)=B_i+f_i+b_{eg}$; the family applies the inverse-logit
-to the graph-plus-formula predictor and the random integral uses Laplace.
-They model different responses, so their likelihoods are not directly
-comparable. These are specification illustrations, not evaluated fits or
-claims of predictive benefit on this dataset.
-
-To put randomness *inside* the shared rate instead, use a namespaced
-parameter model on a graph without internal random declarations:
-
-```{r multilayer-parameter-model, eval=FALSE}
-fit_multilayer_rate <- mmes(
-  Yield~Env+graph_term("net"),
-  predictors=list(net=deep_net),
-  parameters=list(
-    "net::k"=parameter(
-      fixed=~1,random=~vsm(dsm(Env),ism(Name),Gu=Ai),link="log")
-  ),
-  data=DT,family=gaussian(),
-  start=list(parameters=c("net::k"=1,"net::a"=3)),
-  method=laplace_ml,control=fit_control
-)
-```
-
-Now $k_{eg}=\exp(\alpha_k+u_{eg})$ enters both hidden layers, and covariance
-acts on the log-rate rather than an additive yield deviation. Gaussian
-responses no longer make that random integral exact. The omitted `"net::a"`
-declaration retains its fixed-intercept identity mapping.
-
-Smooth `tanh` multi-layer models are current functionality. ReLU/nonsmooth
-activations, expanded capacity beyond admitted limits, explicit fixed-weight
-penalties, stochastic training and graph accelerators remain planned
-extensions. Existing GPU support for other sommer solvers does not enable
-GPU execution of these graph likelihoods.
-
-See [the multi-layer theory vignette](sommer.multilayer.html) for the general
-parameterization, conditional Hessian, exact versus Laplace likelihood,
-optimization certificates, prediction targets and an executed example.
-
-## 12.2 Route-specific execution and uncertainty
-
-| Contract | Native component | Reference expressions / parameter overrides |
+| Contract | Native curve | Reference expressions |
 |:--|:--|:--|
-| Random coordinates | Independent or explicit joint graph blocks; proper latent RR maps | Independent declared parameter records and additive records; RR rejected |
-| Conditional Hessian | Exact graph second derivatives and native full family curvature | Symbolic expression/native graph chain rules and full native family curvature |
-| Outer score | Analytic for fixed-coordinate Gaussian graphs; central differences for random/family graphs | Numerical differences |
+| Random coordinates | Independent or explicit joint curve-parameter blocks; proper latent RR maps | Independent declared parameter records and additive records; RR rejected |
+| Conditional Hessian | Curve derivatives and native family curvature | Symbolic expression chain rules and full native family curvature |
+| Outer score | Analytic | Numerical differences |
 | Integration | Exact Gaussian additive or conditional-mode Laplace | Exact Gaussian additive, no-integral fixed-only, or conditional-mode Laplace |
 | Memory | Sparse native admission plus bounded dense post-fit work | Dense: 30 declarations, 60 mean coefficients, 512 modes for nonexact integration |
 | Numerical controls | Native eligibility checks | No nondefault representation/solver/update controls, weights, custom contrasts or `vcc` |
@@ -921,9 +721,9 @@ optimization certificates, prediction targets and an executed example.
 structural-zero predictors and ordered ordinal thresholds using the same
 family registry on both routes. A family link and a parameter link act at
 different stages and are each applied once.
-Legacy non-graph scalar expression links outside that registry retain
+Legacy scalar expression links outside that registry retain
 their reference likelihood via a chain-rule adapter to the native density;
-this is not native graph or mixed-family link support. Ordinary fixed-only
+this is not mixed-family link support. Ordinary fixed-only
 `lm`/`glm` links are unchanged.
 
 Fitting never computes uncertainty. `post_nonlinear()`, `vcov()`, `confint()`,
@@ -932,8 +732,8 @@ observed-information/delta approximations. They require a reconstructed
 likelihood matching the saved fit, stationarity, stable derivatives, positive
 identified curvature and interior covariance/nuisance parameters. Conditional
 modes are re-certified more tightly for post-fit numerical derivatives;
-this does not change the saved fitting controls or statistical model. Symmetric
-raw-weight covariance and ordinary boundary-variance tests are not supported.
+this does not change the saved fitting controls or statistical model. Ordinary
+boundary-variance tests are not supported.
 `vcov(type="conditional")` holds marginal parameters fixed;
 `vcov(type="random")` adds mode sensitivity and is an approximate empirical
 Bayes PEV, **not an exact frequentist PEV**.
@@ -958,8 +758,8 @@ this control does not remove unidentified nonlinear coordinates.
 
 This is a breaking replacement of the earlier specification interface, not a
 compatibility layer. Put nonlinear scientific expressions in the main formula,
-declare named parameter models in `parameters`, and register explicit graphs
-in `predictors`. There is no separate `nonlinear=` argument. Put statistical
+declare named parameter models in `parameters`, and register native curves
+in `curves`. There is no separate `nonlinear=` argument. Put statistical
 choices in `mmes_method()`, starts in `start`, and numerical settings in
 `mmes_control()`; the former `task` control module is not part of this API.
 Old calls must be rewritten rather than relying on compatibility mapping.

@@ -15,14 +15,12 @@
 
 .nonlinear_family_design <- function(object,newdata,random){
   if(is.null(newdata)){
-    n <- if(isTRUE(object$nonlinearGraph)) nrow(object$input) else
-      length(object$input)
+    n <- length(object$input)
     return(list(fixed=object$fixedDesign,random=object$randomDesign,
       offset=object$offset,input=object$input,index=object$laplaceFamilyIndex,
       rowMap=if(is.null(object$categorical)) seq_len(n) else object$categorical$rowMap,
       coordinate=if(is.null(object$categorical)) rep(1L,n) else
-        object$categorical$coordinate,data=if(isTRUE(object$nonlinearGraph))
-          object$trainingData else NULL))
+        object$categorical$coordinate,data=NULL))
   }
   if(!is.data.frame(newdata) || !nrow(newdata))
     stop("Nonlinear prediction requires nonempty newdata in a data frame.",call.=FALSE)
@@ -39,15 +37,11 @@
     design <- .laplace_mixed_prediction_design(local,newdata,
       includeRandom=random,population=FALSE)
     expanded <- .laplace_mixed_expand(newdata,object$predictionFamily,object$familySpecifications)$data
-    design$input <- if(isTRUE(object$nonlinearGraph))
-      .nonlinear_graph_native_layout(object$nonlinear,expanded)$inputs else
-        .nonlinear_input(object$nonlinear,expanded)
+    design$input <- .nonlinear_input(object$nonlinear,expanded)
     design$data <- expanded
     return(design)
   }
-  input <- if(isTRUE(object$nonlinearGraph))
-    .nonlinear_graph_native_layout(object$nonlinear,newdata)$inputs else
-      .nonlinear_input(object$nonlinear,newdata)
+  input <- .nonlinear_input(object$nonlinear,newdata)
   frame <- stats::model.frame(object$fixedTerms,data=newdata,
     xlev=object$fixedXlevels,na.action=stats::na.pass)
   fixed <- stats::model.matrix(object$fixedTerms,frame,contrasts.arg=object$contrasts)
@@ -60,22 +54,17 @@
   if(any(!is.finite(offset))) stop("Prediction offsets must be finite.",call.=FALSE)
   index <- .laplace_family_index(object$family,newdata,nrow(newdata))
   if(anyNA(index)) stop("Prediction family indices must not be missing.",call.=FALSE)
-  z <- if(random) .nonlinear_random_prediction(object,newdata,design=TRUE) else
-    Matrix::Matrix(0,nrow=nrow(newdata),ncol=ncol(object$randomDesign),sparse=TRUE)
+  z <- if(random && ncol(object$randomDesign)>0L)
+    .nonlinear_random_prediction(object,newdata,design=TRUE) else
+      Matrix::Matrix(0,nrow=nrow(newdata),ncol=0L,sparse=TRUE)
   list(fixed=fixed,random=z,offset=offset,input=input,index=index,
     rowMap=seq_len(nrow(newdata)),coordinate=rep(1L,nrow(newdata)),data=newdata)
 }
 
 .nonlinear_family_eta <- function(object,prediction,mode=NULL){
   layout <- object$nonlinearRandom
-  graph <- isTRUE(object$nonlinearGraph)
-  n <- if(graph) nrow(prediction$input) else length(prediction$input)
-  curve <- if(graph){
-    parameters <- .nonlinear_graph_parameters(object,prediction$data,
-      prediction$random,mode)
-    .nonlinear_graph_values(object$nonlinear,prediction$data,parameters,
-      object$control)
-  }else if(is.null(layout) || is.null(mode)){
+  n <- length(prediction$input)
+  curve <- if(is.null(layout) || is.null(mode)){
     sommer_nonlinear_curve_eval(object$nonlinear$curve,prediction$input,
       object$nonlinearCoordinates,gradient=FALSE)$mean
   }else if(identical(layout$version,2L)){
@@ -156,12 +145,23 @@
 
 .nonlinear_family_population <- function(object,design,zero,type,moment=1L,trials=NULL){
   n <- length(zero)
+  if(ncol(design$random)==0L){
+    if(moment==1L) return(.nonlinear_family_output(object,zero,type,design))
+    mean <- as.numeric(.nonlinear_family_output(object,zero,"response",design))
+    variance <- numeric(n)
+    for(index in seq_along(object$familySpecifications)){
+      rows <- which(design$index==index)
+      if(length(rows))
+        variance[rows] <- .nonlinear_observation_variance(mean[rows],
+          object$familySpecifications[[index]],object$laplaceFamilies[[index]],
+          if(is.null(trials)) 1 else trials[rows],rows)
+    }
+    return(mean^2+variance)
+  }
   layout <- object$nonlinearRandom
   additive <- design$random
   coordinates <- if(is.null(layout)) integer() else layout$coordinate
-  graph <- isTRUE(object$nonlinearGraph)
-  bases <- if(graph) .nonlinear_graph_bases(object,design$random) else
-    .nonlinear_curve_bases(object,design$random)
+  bases <- .nonlinear_curve_bases(object,design$random)
   if(!is.null(layout)){
     columns <- layout$start+seq_len(layout$count)
     additive[,columns] <- 0
@@ -188,32 +188,15 @@
         count <- nrow(deviations)
         eta <- matrix(rep(zero[current],each=count),count,d)+deviations[,seq_len(d),drop=FALSE]
         if(!is.null(layout)){
-          if(graph){
-            rows <- rep(current,each=count)
-            parameters <- .nonlinear_graph_parameters(object,
-              design$data[rows,,drop=FALSE])
-            baseParameters <- .nonlinear_graph_parameters(object,
-              design$data[current,,drop=FALSE])
-            for(j in seq_along(coordinates))
-              parameters[,coordinates[j]] <- parameters[,coordinates[j]]+
-                as.numeric(deviations[,j*d+seq_len(d),drop=FALSE])
-            graphValue <- .nonlinear_graph_values(object$nonlinear,
-              design$data[rows,,drop=FALSE],parameters,object$control)
-            base <- .nonlinear_graph_values(object$nonlinear,
-              design$data[current,,drop=FALSE],baseParameters,object$control)
-            eta <- eta+matrix(as.numeric(graphValue)-rep(as.numeric(base),
-              each=count),count,d)
-          }else{
-            shifts <- matrix(0,count*d,length(object$nonlinearCoordinates))
-            for(j in seq_along(coordinates))
-              shifts[,coordinates[j]] <- as.numeric(
-                deviations[,j*d+seq_len(d),drop=FALSE])
-            curve <- sommer_nonlinear_curve_joint_eval(object$nonlinear$curve,
-              rep(design$input[current],each=count),object$nonlinearCoordinates,shifts)
-            base <- sommer_nonlinear_curve_eval(object$nonlinear$curve,
-              design$input[current],object$nonlinearCoordinates,gradient=FALSE)$mean
-            eta <- eta+matrix(as.numeric(curve)-rep(as.numeric(base),each=count),count,d)
-          }
+          shifts <- matrix(0,count*d,length(object$nonlinearCoordinates))
+          for(j in seq_along(coordinates))
+            shifts[,coordinates[j]] <- as.numeric(
+              deviations[,j*d+seq_len(d),drop=FALSE])
+          curve <- sommer_nonlinear_curve_joint_eval(object$nonlinear$curve,
+            rep(design$input[current],each=count),object$nonlinearCoordinates,shifts)
+          base <- sommer_nonlinear_curve_eval(object$nonlinear$curve,
+            design$input[current],object$nonlinearCoordinates,gradient=FALSE)$mean
+          eta <- eta+matrix(as.numeric(curve)-rep(as.numeric(base),each=count),count,d)
         }
         if(type=="link") return(eta)
         if(specification$family=="multinomial")
@@ -261,39 +244,10 @@
   }
   scope <- .mmes_blas_scope(object$control$execution$blasThreads)
   on.exit(scope$restore(),add=TRUE)
-  factors <- if(re.form=="population")
+  hasRandom <- ncol(object$randomDesign)>0L
+  factors <- if(re.form=="population" && hasRandom)
     .laplace_random_effect_sampling_factors(object,maxMemoryMB,
       allowSingular=.nonlinear_has_reduced_rank(object$covStruct)) else NULL
-  if(isTRUE(object$nonlinearGraph) && !isTRUE(object$nonlinearFamily)){
-    simulations <- matrix(0,object$nobs,nsim)
-    for(i in seq_len(nsim)){
-      mean <- if(re.form=="conditional") object$fitted.values else{
-        mode <- .laplace_draw_random_effects(factors)
-        if(is.null(object$nonlinearRandom)){
-          object$fixedMean+as.numeric(object$randomDesign%*%mode)
-        }else{
-          parameters <- .nonlinear_graph_parameters(object,
-            object$trainingData,object$randomDesign,mode)
-          graphMean <- .nonlinear_graph_values(object$nonlinear,
-            object$trainingData,parameters,object$control)
-          baseGraph <- .nonlinear_graph_values(object$nonlinear,
-            object$trainingData,
-            .nonlinear_graph_parameters(object,object$trainingData),
-            object$control)
-          additiveDesign <- object$randomDesign
-          graphColumns <- which(rowSums(object$nonlinearRandom$coordinateMap)!=0)
-          additiveDesign[,graphColumns] <- 0
-          object$fixedMean+graphMean-baseGraph+
-            as.numeric(additiveDesign%*%mode)
-        }
-      }
-      simulations[,i] <- stats::rnorm(object$nobs,mean,
-        sqrt(object$dispersion))
-    }
-    result <- as.data.frame(simulations)
-    names(result) <- paste0("sim_",seq_len(nsim))
-    return(result)
-  }
   if(!isTRUE(object$nonlinearFamily)){
     object$linear.predictors <- object$fitted.values
     object$laplaceFamilies <- list(stats::gaussian())
@@ -306,7 +260,7 @@
   simulations <- matrix(0,object$nobs,nsim)
   for(i in seq_len(nsim)){
     local <- object
-    if(re.form=="population"){
+    if(re.form=="population" && hasRandom){
       mode <- .laplace_draw_random_effects(factors)
       local$linear.predictors <- .nonlinear_family_eta(object,design,mode)
       local$fitted.values <- if(is.null(local$categorical))

@@ -29,13 +29,12 @@ must not be added again. Default fitting retains no timing profile.
 The profiling table measures curve means, curve Jacobians, exact conditional
 curvature at the saved latent mode, the marginal objective (including mode
 search), the marginal objective with its analytic score, and conditional
-prediction. Graph Laplace fits may use a finite-difference marginal score.
-These operation timings are inclusive, overlapping and not
+prediction. These operation timings are inclusive, overlapping and not
 additive. The difference between objective and score timings can indicate
 derivative cost, but timer resolution and run-to-run variation limit that
 comparison. Context reconstruction is timed separately. Whole-optimizer
 timing and iteration/evaluation counts come from the fit, not a second fit.
-No automatic inference, stochastic starts or backpropagation is introduced.
+No automatic inference or stochastic starts are introduced.
 
 For reference specification fits, the table instead measures the saved
 predictor, its numerical Jacobian, conditional curvature when random
@@ -76,8 +75,8 @@ R/platform/BLAS metadata. Timings are seconds; \code{fitBytes} and
 \code{\link{mmes_control}}}
 \examples{
 \dontrun{
-fit <- mmes(y~0+graph_term("growth"), random=~group, data=dat,
-  predictors=list(growth=nonlinear_curve("x")),
+fit <- mmes(y~0+curve_term("growth"), random=~group, data=dat,
+  curves=list(growth=nonlinear_curve("x")),
   method=mmes_method(objective="ml"),
   control=mmes_control(
     diagnostics=list(profile="force")))

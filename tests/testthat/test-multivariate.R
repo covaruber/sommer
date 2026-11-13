@@ -68,6 +68,24 @@ test_that("heterogeneous corgm and mixed-family PQL use trait dispersions", {
   )
 })
 
+test_that("mixed-family PQL reports covariance extraction failure", {
+  set.seed(12)
+  wide <- data.frame(id=factor(rep(seq_len(12),each=3)))
+  wide$disease <- rbinom(nrow(wide),1,.4)
+  wide$yield <- 10+rnorm(nrow(wide))
+  long <- stackTraits(wide,c("disease","yield"),keep="id")
+  testthat::local_mocked_bindings(
+    covmatrix_mmes=function(...) stop("covariance unavailable"),
+    .package="sommer")
+  expect_warning(fit <- sommer:::.mmes_dispatch(value~trait,random=~id,
+    rcov=~vsm(corgm(trait,variance="heterogeneous"),ism(record)),
+    family=familym("trait",disease=binomial(),yield=gaussian()),data=long,
+    control=sommer:::.mmes_control_internal(diagnostics=list(verbose=FALSE),
+      convergence=list(maxIters=4),task=list(pql=list(maxit=2L)))),
+    "retaining Pearson dispersion estimates: covariance unavailable")
+  expect_true(is.finite(fit$dispersion["yield"]))
+})
+
 test_that("weighted complete-block Kronecker residual agrees across engines", {
   wide <- multivariateFixture(30L)
   long <- stackTraits(wide, c("trait_a", "trait_b"), keep="id")

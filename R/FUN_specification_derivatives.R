@@ -1,24 +1,14 @@
 .spec_derivative_layout <- function(spec, data){
   names <- names(spec$parameters)
-  graphs <- names(spec$predictors)
-  placeholders <- if(length(graphs))
-    stats::setNames(paste0(".specificationGraph",seq_along(graphs)),graphs) else character()
-  replace <- function(expression){
-    if(!is.call(expression)) return(expression)
-    if(identical(expression[[1L]],as.name("graph_term")))
-      return(as.name(placeholders[[as.character(expression[[2L]])]]))
-    as.call(lapply(as.list(expression),replace))
-  }
-  variables <- c(names,unname(placeholders))
+  variables <- names
   if(any(variables %in% spec$inputs))
-    stop("Expression inputs conflict with internal graph derivative coordinates.",call.=FALSE)
+    stop("Expression inputs conflict with parameter names.",call.=FALSE)
   .nonlinear_workspace(as.double(nrow(data))*
     (4*length(variables)^2+4*length(names)^2+length(variables)+length(names)),
     spec$control$execution$denseMemoryMB,"Specification derivative workspace")
-  list(variables=variables,placeholders=placeholders,
+  list(variables=variables,
     expressions=lapply(spec$expressions,function(term)
-      stats::deriv3(replace(term$expression),variables)),
-    graphs=lapply(spec$predictors,.nonlinear_graph_native_layout,data=data))
+      stats::deriv3(term$expression,variables)))
 }
 
 .spec_predictor_derivatives <- function(parameters, mode, context){
@@ -44,29 +34,6 @@
   bindings <- new.env(parent=baseenv())
   for(name in spec$inputs) bindings[[name]] <- context$data[[name]]
   for(name in names(values)) bindings[[name]] <- values[[name]]
-  graphDerivatives <- lapply(names(spec$predictors),function(name){
-    graph <- spec$predictors[[name]]
-    native <- layout$graphs[[name]]
-    coordinates <- match(paste0(name,"::",graph$parameters),names(values))
-    rows <- do.call(cbind,values[coordinates])
-    k <- length(coordinates)
-    directions <- matrix(0,k,3L*n)
-    evaluate <- function(directions) sommer_nonlinear_graph_eval_cpp(native$nodes,
-      native$output,native$inputs,unname(rows),native$transformed,directions,
-      context$control$execution$denseMemoryMB)
-    result <- evaluate(directions)
-    bindings[[layout$placeholders[[name]]]] <- as.numeric(result$output)
-    gradient <- matrix(0,n,m)
-    gradient[,coordinates] <- result$gradient
-    hessian <- array(0,c(n,m,m))
-    for(j in seq_len(k)){
-      directions[j,seq.int(1L,3L*n,by=3L)] <- 1
-      directional <- evaluate(directions)
-      hessian[,coordinates,coordinates[j]] <- directional$hessianVector
-      directions[j,] <- 0
-    }
-    list(gradient=gradient,hessian=hessian)
-  })
   value <- as.numeric(context$design$fixed$x %*%
     coefficients[spec$fixedPositions])+context$design$fixed$offset
   gradient <- matrix(0,n,m)
@@ -77,18 +44,8 @@
     value <- value+sign*as.numeric(expression)
     g <- attr(expression,"gradient")
     h <- attr(expression,"hessian")
-    if(!length(graphDerivatives)){
-      gradient <- gradient+sign*g
-      hessian <- hessian+sign*h
-    }else for(i in seq_len(n)){
-      projection <- rbind(diag(m),do.call(rbind,lapply(graphDerivatives,function(g)
-        g$gradient[i,,drop=FALSE])))
-      gradient[i,] <- gradient[i,]+sign*as.numeric(g[i,,drop=FALSE] %*% projection)
-      second <- crossprod(projection,matrix(h[i,,],length(layout$variables)) %*% projection)
-      for(j in seq_along(graphDerivatives))
-        second <- second+g[i,m+j]*matrix(graphDerivatives[[j]]$hessian[i,,],m)
-      hessian[i,,] <- hessian[i,,]+sign*second
-    }
+    gradient <- gradient+sign*g
+    hessian <- hessian+sign*h
   }
   jacobian <- matrix(0,n,context$q)
   starts <- cumsum(c(0L,head(context$widths,-1L)))

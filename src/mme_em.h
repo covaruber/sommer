@@ -113,7 +113,8 @@ inline Rcpp::List fitEMBlend(
   if(map.active) {
     tangent = map.T;
     for(arma::uword j = 0; j < count; ++j) {
-      if(freeFlags(j) < 0.5 && arma::any(tangent.row(j) != 0.0)) {
+      if(freeFlags(j) < 0.5 && tangent.n_cols > 0 &&
+         arma::any(tangent.row(j) != 0.0)) {
         Rcpp::stop("The EM constraint map contains a free direction through a fixed parameter.");
       }
     }

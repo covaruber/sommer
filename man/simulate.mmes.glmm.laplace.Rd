@@ -1,5 +1,6 @@
 \name{simulate.mmes.glmm.laplace}
 \alias{simulate.mmes.glmm.laplace}
+\alias{print.mmes.glmm.laplace}
 \title{Simulate responses from a fitted native Laplace GLMM}
 \description{
 Generate response replicates from the fitted native family distributions

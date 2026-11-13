@@ -1,5 +1,13 @@
 .laplace_covariance_map <- function(structures, terms, vcc=NULL){
   table <- .vc_param_table(structures, terms)
+  if(!length(structures)){
+    if(!is.null(vcc))
+      stop("vcc requires at least one random-effect covariance parameter.",
+        call.=FALSE)
+    return(list(structures=structures,table=table,
+      map=list(T=matrix(numeric(),0L,0L),offset=numeric(),free=integer(),
+        initial=numeric(),constrained=FALSE)))
+  }
   if(is.null(vcc)){
     free <- which(table$free)
     tangent <- diag(nrow(table))[, free, drop=FALSE]

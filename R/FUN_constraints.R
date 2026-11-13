@@ -29,6 +29,11 @@
 }
 
 .vc_param_table <- function(covStruct, termLabels){
+  if(!length(covStruct)){
+    return(data.frame(index=integer(),term=character(),parameter=character(),
+      kind=character(),start=numeric(),free=logical(),structure=integer(),
+      position=integer(),stringsAsFactors=FALSE))
+  }
   rows <- lapply(seq_along(covStruct), function(i){
     cs <- covStruct[[i]]
     kinds <- lapply(seq_along(cs$par), function(j) .vc_kind(cs, j))

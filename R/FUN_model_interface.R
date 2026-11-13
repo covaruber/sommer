@@ -29,7 +29,9 @@ mmes_method <- function(objective="reml", integration="auto",
 #' Existing equation, solver, covariance-update, execution and output modules
 #' retain their mathematical responsibilities.
 #' @param optimizer Outer optimizer settings: \code{maxit}, \code{gradient},
-#'   and \code{algorithm}. Only \code{"nlminb"} is currently supported for
+#'   \code{algorithm}, and \code{scoreTol}. The optional \code{scoreTol}
+#'   controls the outer score certificate for nonlinear specification fits.
+#'   Only \code{"nlminb"} is currently supported for
 #'   nonlinear/Laplace optimization; Gaussian covariance engines retain their
 #'   existing AI/update modules.
 #' @param mode Conditional mode settings: \code{maxit}, \code{tol},
@@ -48,9 +50,11 @@ mmes_control <- function(formulation="henderson", optimizer=list(), mode=list(),
     curvature=list(), update=list(), proposal=list(), convergence=list(),
     output=list(), execution=list(), diagnostics=list()){
   optimizer <- .mme_module(optimizer,
-    list(maxit=NULL,gradient="auto",algorithm="nlminb"),"optimizer")
+    list(maxit=NULL,gradient="auto",algorithm="nlminb",scoreTol=NULL),"optimizer")
   if(!is.null(optimizer$maxit))
     optimizer$maxit <- .mme_positive(optimizer$maxit,"optimizer$maxit",TRUE)
+  if(!is.null(optimizer$scoreTol))
+    optimizer$scoreTol <- .mme_positive(optimizer$scoreTol,"optimizer$scoreTol")
   optimizer$gradient <- .mme_choice(optimizer$gradient,
     c("auto","analytic","central"),"optimizer$gradient")
   optimizer$algorithm <- .mme_choice(optimizer$algorithm,"nlminb",
@@ -79,7 +83,8 @@ mmes_control <- function(formulation="henderson", optimizer=list(), mode=list(),
     diagnostics=diagnostics)
   internal <- do.call(.mmes_control_internal,args)
   settings <- list(optimizer=optimizer,mode=mode,
-    working=working,likelihood=likelihood,population=population,inference=inference)
+    working=working,likelihood=likelihood,population=population,
+    inference=inference)
   result <- c(unclass(internal)[names(args)],settings)
   class(result) <- "sommer_mmes_control"
   attr(result,"modelControls") <- settings
@@ -134,8 +139,7 @@ mmes_control <- function(formulation="henderson", optimizer=list(), mode=list(),
       stop("Nonlinear conditional modes currently require mode$warmStart='auto' or 'off'; auto selects deterministic cold starts.",
         call.=FALSE)
     args$task$nonlinear <- list(
-      start=if(is.list(start) && "parameters" %in% names(start))
-        start$parameters else start,
+      start=if(is.list(start)) start$parameters else start,
       mode=list(maxIters=settings$mode$maxit,scoreTol=settings$mode$tol,
         stepTol=settings$mode$stepTol,warmStart="off",starts=settings$mode$starts),
       population=settings$population,inference=settings$inference)
@@ -159,41 +163,65 @@ mmes_control <- function(formulation="henderson", optimizer=list(), mode=list(),
 #'
 #' The formula describes a link-scale predictor. Named \code{parameter()}
 #' declarations distinguish unknown nonlinear parameters from data columns.
-#' Named \code{predictors} can contain native curves or bounded graphs and are
-#' referenced with \code{graph_term("name")} in the formula.
-#' @param fixed,random,rcov,data,W,weights,naMethodX,naMethodY,naMethodRandom,naMethodR,contrasts,family,vcc,covPar
-#'   Statistical model and observation-preparation inputs.
+#' Named \code{curves} contain native parametric curves and are referenced
+#' with \code{curve_term("name")} in the formula.
+#' @param fixed Two-sided response and fixed-effects formula.
+#' @param random Optional one-sided random-effect covariance formula.
+#' @param rcov Optional one-sided residual covariance formula.
+#' @param data Data frame containing the model variables.
+#' @param W Optional observation precision matrix.
+#' @param weights Optional one-sided formula identifying independent blocks
+#'   of the supplied \code{W} matrix.
+#' @param naMethodX,naMethodY,naMethodRandom,naMethodR Missing-value policies
+#'   for fixed predictors, response, random effects, and residuals, respectively.
+#'   Supported policies depend on the fitting route.
+#' @param contrasts Optional fixed-effect contrast specifications.
+#' @param family Response family or a \code{familym()} declaration.
+#' @param vcc Optional variance-component constraints.
+#' @param covPar Optional covariance parameter initialization or solve values.
 #' @param parameters Named nonlinear parameter declarations.
-#' @param predictors Named native curve or graph components.
+#' @param curves Named native curve components.
 #' @param start Natural-scale nonlinear parameter starts or a list containing
 #'   \code{parameters}; coefficient models use explicitly named coefficient starts.
 #' @param method A validated \code{mmes_method()}.
 #' @param control A validated \code{mmes_control()}.
 #' @param familyParameters Fixed/estimated family nuisance parameter declarations.
+#' @return A fitted \code{mmes} object. Its class and available methods depend
+#'   on the selected model and fitting route.
+#' @examples
+#' dat <- data.frame(x=seq_len(12), y=1+seq_len(12)/2+sin(seq_len(12))/10)
+#' fit <- mmes(y~x, data=dat, control=mmes_control(
+#'   diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
+#' coef(fit)
+#' @seealso \code{\link{mmes_method}}, \code{\link{mmes_control}},
+#'   \code{\link{parameter}}, \code{\link{nonlinear_curve}}
 #' @export
 mmes <- function(fixed,random=NULL,rcov=NULL,data,W,weights=NULL,
     naMethodX="exclude",naMethodY="exclude",naMethodRandom="exclude",
     naMethodR="exclude",contrasts=NULL,family=stats::gaussian(),vcc=NULL,
-    covPar=NULL,parameters=list(),predictors=list(),start=NULL,
+    covPar=NULL,parameters=list(),curves=list(),start=NULL,
     method=mmes_method(),control=mmes_control(),familyParameters=list()){
   if(!inherits(fixed,"formula") || length(fixed)!=3L)
     stop("fixed must be a two-sided model formula.",call.=FALSE)
   if(!is.data.frame(data)) stop("data must be a data frame.",call.=FALSE)
-  if(!is.list(parameters) || !is.list(predictors))
-    stop("parameters and predictors must be named lists.",call.=FALSE)
-  for(name in c("parameters","predictors")){
+  if(!is.list(parameters) || !is.list(curves))
+    stop("parameters and curves must be named lists.",call.=FALSE)
+  for(name in c("parameters","curves")){
     value <- get(name)
     if(length(value) && (is.null(names(value)) || anyNA(names(value)) ||
         any(!nzchar(names(value))) || anyDuplicated(names(value))))
       stop(name," must have unique non-empty names.",call.=FALSE)
   }
-  nonlinear <- length(parameters)>0L || length(predictors)>0L
+  nonlinear <- length(parameters)>0L || length(curves)>0L
   if(is.list(start) && (is.null(names(start)) || anyNA(names(start)) ||
       anyDuplicated(names(start)) ||
       any(!names(start) %in% c("parameters","coefficients"))))
     stop("start must contain uniquely named parameters and/or coefficients.",
       call.=FALSE)
   internal <- .mmes_resolve_controls(control,method,nonlinear,start,familyParameters)
+  if(!nonlinear && !is.null(control$optimizer$scoreTol))
+    stop("optimizer$scoreTol is supported only for nonlinear specification fits.",
+      call.=FALSE)
   if(nonlinear && (method$objective!="ml" || method$task!="fit"))
     stop("Nonlinear predictors require method=mmes_method(objective='ml', task='fit').",
       call.=FALSE)
@@ -226,11 +254,17 @@ mmes <- function(fixed,random=NULL,rcov=NULL,data,W,weights=NULL,
   if(!is.null(random)) args$random <- random
   if(!missing(W)) args$W <- W
   if(!is.null(rcov)) args$rcov <- rcov
-  native <- .mmes_native_predictor(fixed,parameters,predictors)
+  native <- .mmes_native_curve(fixed,parameters,curves)
+  curveSpecification <- NULL
+  if(length(curves) && is.null(native))
+    stop("curves requires one additive curve_term() with no parameter overrides.",
+      call.=FALSE)
   if(!is.null(native) && is.null(random) &&
      !length(native$model$random) && is.null(native$model$joint)){
-    if(inherits(native$model,"sommer_nonlinear_curve")){
-      declarations <- lapply(seq_along(native$model$parameters),function(i)
+    native$model <- .nonlinear_validate(native$model)
+    curveSpecification <- native$model
+    input <- .nonlinear_input(native$model,data,missingOK=TRUE)
+    declarations <- lapply(seq_along(native$model$parameters),function(i)
         parameter(link=if(native$model$positive[i]) "log" else "identity"))
       names(declarations) <- native$model$parameters
       parameters <- declarations
@@ -245,39 +279,35 @@ mmes <- function(fixed,random=NULL,rcov=NULL,data,W,weights=NULL,
       }
       if(is.null(start)){
         frame <- stats::model.frame(native$fixed,data,
-          na.action=stats::na.fail)
+          na.action=stats::na.pass)
         response <- stats::model.response(frame)
         offset <- stats::model.offset(frame)
         if(is.null(offset)) offset <- 0
-        theta <- .nonlinear_start(native$model,data[[native$model$input]],
-          if(gaussian) response-offset else rep(1,nrow(data)),
+        keep <- stats::complete.cases(frame) & !is.na(input) &
+          .laplace_zero_complete(family,data,nrow(data))
+        if(!any(keep))
+          stop("No complete observations remain for automatic curve starts.",
+            call.=FALSE)
+        theta <- .nonlinear_start(native$model,input[keep],
+          if(gaussian) (response-offset)[keep] else rep(1,sum(keep)),
           internal$task$nonlinear)
         start <- list(parameters=.nonlinear_natural(native$model,theta))
       }
-      predictors <- list()
-    }else{
-      values <- if(is.list(start)) start$parameters else start
-      if(!is.null(values) && setequal(names(values),native$model$parameters)){
-        names(values) <- paste0(native$name,"::",names(values))
-        start <- list(parameters=values)
-      }
-    }
+    curves <- list()
     native <- NULL
   }
   if(!is.null(native)){
+    if(!is.null(control$optimizer$scoreTol))
+      stop("optimizer$scoreTol is supported only for nonlinear specification fits.",
+        call.=FALSE)
     if(is.list(start) && "coefficients" %in% names(start))
-      stop("Native graph/curve components require start$parameters, not coefficient starts.",
+      stop("Native curve components require start$parameters, not coefficient starts.",
         call.=FALSE)
     args$fixed <- native$fixed
     args$nonlinear <- native$model
     requestedGradient <- control$optimizer$gradient
-    graphPredictor <- inherits(native$model,"sommer_nonlinear_graph")
-    numericalGraph <- graphPredictor &&
-      (!.nonlinear_exact_gaussian(family,internal) ||
-       length(native$model$random)>0L || !is.null(native$model$joint))
-    if((requestedGradient=="analytic" && numericalGraph) ||
-       (requestedGradient=="central" && !numericalGraph))
-      stop("Requested optimizer gradient is unavailable for this native predictor; use gradient='auto' or the supported central/analytic method.",
+    if(requestedGradient=="central")
+      stop("Requested optimizer gradient is unavailable for this native predictor; use gradient='auto' or 'analytic'.",
         call.=FALSE)
     if(!is.null(internal$task$nonlinear$start)){
       coordinates <- internal$task$nonlinear$start
@@ -293,25 +323,9 @@ mmes <- function(fixed,random=NULL,rcov=NULL,data,W,weights=NULL,
        (!gaussian || length(native$model$random) || !is.null(native$model$joint)))
       stop("Exact integration is unavailable for this nonlinear random-effect model.",
         call.=FALSE)
-    if(inherits(native$model,"sommer_nonlinear_graph") &&
-       !is.null(internal$task$nonlinear$start)){
-      coordinates <- internal$task$nonlinear$start
-      positive <- vapply(native$model$parameterMap,function(x)
-        identical(x$transform,"log"),logical(1))
-      if(any(!native$model$parameters %in% names(coordinates)))
-        stop("start must name every graph coordinate.",call.=FALSE)
-      if(any(coordinates[native$model$parameters[positive]]<=0))
-        stop("Log-linked graph coordinates require positive natural-scale starts.",
-          call.=FALSE)
-      coordinates[native$model$parameters[positive]] <-
-        log(coordinates[native$model$parameters[positive]])
-      internal$task$nonlinear$start <- coordinates
-      args$control <- internal
-    }
     result <- do.call(.mmes_dispatch,args)
   }else if(nonlinear || (is.null(random) && !gaussian)){
     args$parameters <- parameters
-    args$predictors <- predictors
     args$start <- start
     args$specificationMethod <- unclass(method)
     args$familyParameters <- familyParameters
@@ -320,6 +334,7 @@ mmes <- function(fixed,random=NULL,rcov=NULL,data,W,weights=NULL,
     result <- do.call(.mmes_dispatch,args)
   }
   result$method <- method
+  if(!is.null(curveSpecification)) result$curveSpecification <- curveSpecification
   result$.numericalControl <- result$control
   result$control <- control
   if(is.null(result$executionPlan))
@@ -333,24 +348,23 @@ mmes <- function(fixed,random=NULL,rcov=NULL,data,W,weights=NULL,
   result
 }
 
-.mmes_native_predictor <- function(fixed,parameters,predictors){
-  if(length(parameters) || !length(predictors)) return(NULL)
-  if(length(predictors)!=1L) return(NULL)
-  model <- predictors[[1L]]
-  if(!inherits(model,"sommer_nonlinear_graph") &&
-     !inherits(model,"sommer_nonlinear_curve"))
-    stop("predictors must contain nonlinear_graph() or nonlinear_curve() specifications.",
+.mmes_native_curve <- function(fixed,parameters,curves){
+  if(length(parameters) || !length(curves)) return(NULL)
+  if(length(curves)!=1L) return(NULL)
+  model <- curves[[1L]]
+  if(!inherits(model,"sommer_nonlinear_curve"))
+    stop("curves must contain nonlinear_curve() specifications.",
       call.=FALSE)
   terms <- .mmes_split_plus(fixed[[3L]])
   marker <- vapply(terms,function(term) is.call(term) &&
-    identical(term[[1L]],as.name("graph_term")),logical(1))
+    identical(term[[1L]],as.name("curve_term")),logical(1))
   if(sum(marker)!=1L || length(terms[[which(marker)]])!=2L ||
-     !identical(terms[[which(marker)]][[2L]],names(predictors)[1L]))
+     !identical(terms[[which(marker)]][[2L]],names(curves)[1L]))
     return(NULL)
   ordinary <- terms[!marker]
   fixed[[3L]] <- if(!length(ordinary)) 1 else
     Reduce(function(a,b) call("+",a,b),ordinary)
-  list(fixed=fixed,model=model,name=names(predictors)[1L])
+  list(fixed=fixed,model=model,name=names(curves)[1L])
 }
 
 .mmes_prediction_arguments <- function(arguments,target){

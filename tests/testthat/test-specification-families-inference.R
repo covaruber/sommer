@@ -52,6 +52,25 @@ test_that("specifications reuse grouped-binomial likelihood constants and links"
   expect_equal(as.numeric(logLik(direct)),as.numeric(logLik(oracle)),tolerance=1e-7)
   ordinary <- .mmes_specification_fit(cbind(success,failure)~x,data=data,
     family=binomial(),control=phase11SpecificationControl())
+  for(type in c("random","conditional","group"))
+    expect_error(vcov(ordinary,type=type),"no corresponding random")
+  expect_equal(vcov(ordinary,type="mean"),vcov(ordinary,type="working"))
+  draw <- simulate(ordinary,nsim=2,seed=119)
+  expect_equal(dim(draw),c(nrow(data),2L))
+  expect_true(all(as.matrix(draw)>=0 & as.matrix(draw)<=1))
+  expect_equal(as.matrix(draw)*5,round(as.matrix(draw)*5))
+  expect_equal(draw,simulate(ordinary,nsim=2,seed=119))
+  previousSeed <- .Random.seed
+  simulate(ordinary,seed=119)
+  expect_identical(.Random.seed,previousSeed)
+  varied <- data
+  trials <- rep(1:6,length.out=nrow(varied))
+  varied$success <- pmin(varied$success,trials)
+  varied$failure <- trials-varied$success
+  variedFit <- .mmes_specification_fit(cbind(success,failure)~x,data=varied,
+    family=binomial(),control=phase11SpecificationControl())
+  variedDraw <- as.matrix(simulate(variedFit,nsim=2,seed=119))*trials
+  expect_equal(variedDraw,round(variedDraw))
   link <- predict(ordinary,type="link",cov.fit=TRUE)
   x <- model.matrix(oracle)
   expect_equal(unname(link$cov.fit),unname(x %*% vcov(ordinary) %*% t(x)),
@@ -243,22 +262,15 @@ test_that("nominal population integration retains cross-category prior covarianc
   expect_equal(empirical,expected,tolerance=.025)
 })
 
-test_that("namespaced graph regressions retain exact nonlinear conditional chain rules",{
+test_that("nonlinear expressions retain exact conditional chain rules",{
   set.seed(1848)
   data <- data.frame(x=seq(-1,1,length.out=8L),group=factor(1L))
   data$y <- tanh(.5*data$x)+rnorm(nrow(data),sd=.1)
-  graph <- nonlinear_graph(list(
-    x=list(op="input",column="x"),
-    scaled=list(op="affine",inputs="x",weights=matrix(1L),bias=0L),
-    mean=list(op="tanh",input="scaled"),
-    output=list(op="identity",input="mean")),
-    output="output",parameters="k")
-  fit <- .mmes_specification_fit(y~0+graph_term("net"),data=data,
-    predictors=list(net=graph),
-    parameters=list("net::k"=parameter(link="log",
+  fit <- .mmes_specification_fit(y~0+tanh(k*x),data=data,
+    parameters=list(k=parameter(link="log",
       random=~vsm(ism(group),sigma2=.025,fixedSigma2=TRUE))),
     familyParameters=list(dispersion=.01,estimate=FALSE),
-    start=c("net::k"=.45),control=phase11SpecificationControl())
+    start=c(k=.45),control=phase11SpecificationControl())
   conditional <- .spec_conditional(fit$optimizer$par,fit$likelihoodContext,
     fit$randomCovariances)
   mode <- unlist(fit$randomMode,use.names=FALSE)

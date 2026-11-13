@@ -115,7 +115,7 @@
   list(data=context$data,response=context$y,likelihoodMethod=object$likelihoodMethod,
     familySpecifications=context$familySpecifications,
     familyIndex=context$familyIndex,trials=context$trials,
-    parameters=parameters,predictors=context$spec$predictors,
+    parameters=parameters,
     expressions=context$spec$expressions,inputs=context$spec$inputs,
     parameterDesign=context$design$parameters,records=context$records,
     randomDesign=context$randomDesign,exact=context$exact)
@@ -172,7 +172,7 @@
   .spec_profile_fit(larger)
   if(!identical(.spec_comparison_contract(smaller),
       .spec_comparison_contract(larger)))
-    stop("Specification likelihood comparisons require identical data, nonlinear expressions and graphs, parameter designs, random covariance structures, families, and likelihood methods.",
+    stop("Specification likelihood comparisons require identical data, nonlinear expressions, parameter designs, random covariance structures, families, and likelihood methods.",
       call.=FALSE)
   if(!.spec_nested_fixed_terms(smaller,larger))
     stop("Specification comparisons require strictly nested ordinary fixed terms with unchanged nonlinear and covariance structure; supply the smaller model first.",
@@ -195,7 +195,7 @@
   rownames(result) <- c("smaller","larger")
   class(result) <- c("anova","data.frame")
   attr(result,"heading") <- paste("Likelihood-ratio test for nested ordinary fixed terms;",
-    "all nonlinear, graph, parameter, data, covariance and family semantics are identical.")
+    "all nonlinear, parameter, data, covariance and family semantics are identical.")
   result
 }
 

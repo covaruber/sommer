@@ -342,7 +342,8 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
   if(vcMap.active){
     tangent = vcMap.T;
     for(int k = 0; k < nVcTotal; ++k){
-      if(freeUnlisted(k) < 0.5 && arma::any(tangent.row(k) != 0.0)){
+      if(freeUnlisted(k) < 0.5 && tangent.n_cols > 0 &&
+         arma::any(tangent.row(k) != 0.0)){
         Rcpp::stop("The direct-engine constraint map contains a free direction through a fixed parameter.");
       }
     }
@@ -356,7 +357,7 @@ Rcpp::List ai_reml_direct_sp2(const arma::sp_mat & X,
       const double slack = 1.0e-10 * (1.0 + std::abs(point(k)));
       if(((point(k) <= lowerUnlisted(k) + slack && direction(k) < 0.0) ||
           (point(k) >= upperUnlisted(k) - slack && direction(k) > 0.0)) &&
-         arma::any(basis.row(k) != 0.0)){
+         (basis.n_cols > 0 && arma::any(basis.row(k) != 0.0))){
         active.push_back(k);
       }
     }

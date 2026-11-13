@@ -71,7 +71,7 @@ likelihood analysis.
 ## Traditional nonlinear contributions and post-fit uncertainty
 
 `nonlinear_curve()` adds a shared exponential, logistic or saturation
-contribution to the link predictor. It is not a neural layer. Existing
+contribution to the link predictor. Existing
 scalar, ordinal, nominal, zero-inflated and mixed-family likelihoods are
 reused. Positive curve parameters and their random deviations use log
 coordinates. Exact conditional curvature includes likelihood score times

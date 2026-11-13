@@ -4,7 +4,7 @@
 \alias{confint.mmes.nonlinear}
 \title{Post-fit inference for bounded nonlinear models}
 \description{
-Computes explicitly requested local uncertainty after curve, graph or
+Computes explicitly requested local uncertainty after curve or
 formula-specification nonlinear fitting.
 No curvature inverse, PEV or parameter uncertainty is computed during fitting.
 }
@@ -43,9 +43,9 @@ of the analytic marginal-likelihood score give the observed information
 \eqn{I}. Differences at steps \eqn{h} and \eqn{h/2} must agree. The reported
 working covariance is \eqn{V=I^{-1}}. Gaussian additive fits use their exact
 Gaussian likelihood; other fits use the fitted Laplace likelihood.
-Graph Laplace and formula-specification outer scores are numerical and
-reported as such. Formula specifications use symbolic expression/native graph
-chain rules and full native family conditional curvature, checked against
+Formula-specification outer scores are numerical and reported as such.
+Formula specifications use symbolic expression chain rules and full native
+family conditional curvature, checked against
 numerical mode-score derivatives;
 they reject reduced-rank covariance instead of inverting a singular prior.
 Native conditional curvature is exact, including nonlinear second-derivative
@@ -160,8 +160,8 @@ set.seed(12)
 dat <- expand.grid(x=seq(0, 5, length.out=10), group=factor(seq_len(12)))
 dat$y <- 3*exp(-0.6*dat$x)+rnorm(12, sd=0.2)[dat$group]+
   rnorm(nrow(dat), sd=0.1)
-fit <- mmes(y~0+graph_term("growth"), random=~group, data=dat,
-  predictors=list(growth=nonlinear_curve("x")),
+fit <- mmes(y~0+curve_term("growth"), random=~group, data=dat,
+  curves=list(growth=nonlinear_curve("x")),
   method=mmes_method(objective="ml"),
   control=mmes_control(
     diagnostics=list(verbose=FALSE, dateWarning=FALSE)))

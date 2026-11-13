@@ -19,8 +19,8 @@ test_that("parameter declarations and formula markers are strict",{
   expect_error(parameter(fixed=y~x),"one-sided")
   expect_error(parameter(link=c("log","identity")),"link")
   expect_error(parameter(link="logit"),"link")
-  expect_error(graph_term("net"),"formula marker")
-  expect_error(graph_term(1),"predictor name")
+  expect_error(curve_term("curve"),"formula marker")
+  expect_error(curve_term(1),"curve name")
 })
 
 test_that("ordinary fixed-only models match lm and glm exactly",{
@@ -284,32 +284,6 @@ test_that("public wrapper supports homogeneous residuals Gamma and numerical con
     method=mmes_method(objective="ml"),control=bad),"analytic")
 })
 
-test_that("named graphs share the expression route with namespaced declarations",{
-  skip_if_not(is.loaded("_sommer_sommer_nonlinear_graph_values_cpp"))
-  data <- specification_data()
-  graph <- nonlinear_graph(list(
-    x=list(op="input",column="x"),
-    hidden=list(op="affine",inputs="x",weights=matrix(1L),bias=0L),
-    activation=list(op="tanh",input="hidden"),
-    scaled=list(op="affine",inputs="activation",weights=matrix(2L),bias=0L),
-    output=list(op="identity",input="scaled")),
-    output="output",parameters=c("k","a"))
-  fit <- .mmes_specification_fit(y~Env+graph_term("net"),data=data,
-    predictors=list(net=graph),parameters=list("net::k"=parameter(link="log")),
-    start=c("net::k"=1,"net::a"=1.5),control=specification_control())
-  oracle <- .mmes_specification_fit(y~Env+a*tanh(k*x),data=data,
-    parameters=list(a=parameter(),k=parameter(link="log")),
-    start=c(a=1.5,k=1),control=specification_control())
-  expect_equal(fitted(fit),fitted(oracle),tolerance=2e-4)
-  expect_equal(as.numeric(logLik(fit)),as.numeric(logLik(oracle)),tolerance=1e-6)
-  expect_true("net::k:(Intercept)" %in% names(coef(fit)))
-  expect_error(.mmes_specification_fit(y~Env+graph_term("net"),data=data,
-    family=binomial(),predictors=list(net=graph),
-    parameters=list("net::k"=parameter(link="log")),
-    start=c("net::k"=1,"net::a"=1.5),control=specification_control()),
-    "Binomial responses")
-})
-
 test_that("invalid options, starts, expressions, and prediction levels fail explicitly",{
   data <- specification_data()
   control <- specification_control()
@@ -322,7 +296,6 @@ test_that("invalid options, starts, expressions, and prediction levels fail expl
   expect_error(fit(formula=y~a*get("x")+k),"Unsupported")
   expect_error(fit(formula=y~a*tanh(k*missing)),"Unsupported")
   expect_error(fit(rcov=~Env),"independent residuals")
-  expect_error(fit(predictors=list(net=list())),"exactly")
   control$task$objective <- "reml"
   expect_error(fit(),"require task")
   control$task$objective <- "ml"

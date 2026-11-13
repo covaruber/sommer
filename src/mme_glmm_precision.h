@@ -199,7 +199,7 @@ public:
   LaplacePrecision(const Rcpp::List & suppliedDescriptors,
       const Rcpp::List & suppliedRelationships, bool stableUS = false)
       : descriptors(Rcpp::clone(suppliedDescriptors)), stableUnstructured(stableUS){
-    if(descriptors.size() == 0 || descriptors.size() != suppliedRelationships.size()){
+    if(descriptors.size() != suppliedRelationships.size()){
       Rcpp::stop("Native Laplace descriptors and relationships must have matching terms.");
     }
     for(int termIndex = 0; termIndex < descriptors.size(); ++termIndex){
@@ -228,6 +228,16 @@ public:
   }
 
   bool update(const arma::vec & freeParameters, std::string & reason){
+    if(descriptors.size()==0){
+      if(freeParameters.n_elem){
+        Rcpp::stop("Native Laplace covariance parameter vector has incompatible length.");
+      }
+      matrix.reset();
+      matrix.set_size(0,0);
+      matrixReady=true;
+      logDet=0;
+      return true;
+    }
     arma::uword freeIndex = 0;
     arma::uword totalDimension = 0;
     arma::uword totalNonzeros = 0;

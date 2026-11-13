@@ -10,11 +10,16 @@
 \alias{confint.mmes.specification}
 \alias{anova.mmes.specification}
 \alias{vcDelta.mmes.specification}
+\alias{logLik.mmes.specification}
+\alias{nobs.mmes.specification}
+\alias{AIC.mmes.specification}
+\alias{BIC.mmes.specification}
+\alias{print.mmes.specification}
+\alias{print.summary.mmes.specification}
 \title{Results for bounded formula specification models}
 \description{
 Point outputs, simulation and explicitly requested local inference for
-formula expressions and namespaced graph parameter regressions fitted by
-the bounded dense reference engine.
+formula expressions fitted by the bounded dense reference engine.
 }
 \usage{
 \method{coef}{mmes.specification}(object, ...,
@@ -78,8 +83,8 @@ declared prior covariance blocks before applying parameter links. Binomial
 predictions and simulated binomial responses are proportions, using the
 declared integer trials.
 
-Conditional curvature composes symbolic expression derivatives and native
-graph derivatives with the full native family curvature. Outer scores use
+Conditional curvature composes symbolic expression derivatives with the full
+native family curvature. Outer scores use
 central numerical differences. Legacy noncanonical scalar links use a
 numerical second derivative of the inverse link.
 
@@ -87,10 +92,12 @@ numerical second derivative of the inverse link.
 convergence, stationarity, numerical derivative agreement, boundaries and
 positive identified curvature. Conditional modes are re-certified at tighter
 tolerances for post-fit derivatives, without changing the saved fitting controls
-or statistical model. Singular weight symmetries are not repaired
-using a pseudoinverse. \code{vcov(type="conditional")} holds all marginal
+or statistical model. Singular information is not repaired using a
+pseudoinverse. \code{vcov(type="conditional")} holds all marginal
 parameters fixed; \code{"random"} adds mode sensitivity and is a local
 empirical Bayes PEV approximation, not an exact frequentist PEV.
+\code{"random"}, \code{"conditional"}, and \code{"group"} are unavailable
+for ordinary fixed-only fits.
 \code{"group"} propagates parameter links and mode motion to the natural
 group parameters. No uncertainty is computed during fitting or ordinary
 summary. All interval results are local normal approximations, not exact
@@ -105,8 +112,8 @@ information. \code{vcDelta()} names the non-mean natural reporting coordinates
 \code{V1}, \code{V2}, and so on, and returns their mapping as an attribute.
 Comparisons admit only regular nested ordinary fixed terms with unchanged
 nonlinear, family, random and observation semantics; Wald tests require named
-mean coordinates and explicit finite nulls. Boundary-variance and graph-width
-tests are not calibrated.
+mean coordinates and explicit finite nulls. Boundary-variance tests are not
+calibrated.
 }
 \value{
 Coefficient vectors or matrices, predictions in the fitted family layout,
@@ -115,5 +122,5 @@ covariance matrices, confidence intervals, or a summary. Prediction uncertainty
 returns \code{fit}, \code{se.fit}, an approximation label, optional
 \code{cov.fit}, and optional \code{lower}/\code{upper} with matching shapes.
 }
-\seealso{\code{\link{parameter}}, \code{\link{nonlinear_graph}},
+\seealso{\code{\link{parameter}}, \code{\link{nonlinear_curve}},
 \code{\link{post_nonlinear}}, \code{\link{profile_nonlinear}}}

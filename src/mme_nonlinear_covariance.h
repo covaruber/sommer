@@ -54,7 +54,7 @@ public:
       const Rcpp::List & relationships, double memory)
     : descriptors(Rcpp::clone(supplied)), latentDescriptors(Rcpp::clone(supplied)),
       original(random), memoryMB(memory) {
-    if(supplied.size()!=relationships.size() || supplied.size()==0)
+    if(supplied.size()!=relationships.size())
       Rcpp::stop("Nonlinear covariance descriptors and relationships must match.");
     fullStarts.push_back(0); latentStarts.push_back(0);
     int precisionIndex=0;

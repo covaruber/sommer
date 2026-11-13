@@ -1,8 +1,6 @@
-# Essential performance regression suite
+# Performance regression suites
 
-This directory intentionally contains only one runner. Numerical correctness,
-native primitives, memory-policy boundaries, and specialized solver paths belong
-in the automated tests, not in a second collection of validation scripts.
+The general MME runner measures solver/backend fits.
 
 Install the revision being measured into an explicit library, then run:
 

@@ -70,7 +70,6 @@ The former `task` control module and `nonlinear=` argument have been replaced,
 not retained as compatibility aliases.
 
 - [Model classes and specification](vignettes/sommer.models.Rmd)
-- [Multi-layer nonlinear mixed models](vignettes/sommer.multilayer.Rmd)
 - [Quantitative-genetics tutorial](https://covaruber.github.io/sommer/articles/sommer.qg.html)
 - [Covariance structures](https://covaruber.github.io/sommer/articles/sommer.covariance.structures.html)
 - [Solver decision tree](https://covaruber.github.io/sommer/mmes-options.html)

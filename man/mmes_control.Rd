@@ -29,7 +29,9 @@ mmes_control(
 \item{formulation, representation, solve, logdet, score, curvature, update, proposal, convergence, output, execution, diagnostics}{Existing modular numerical settings; see the numerical controls vignette.}
 
 \item{optimizer}{Outer optimizer settings: \code{maxit}, \code{gradient},
-and \code{algorithm}. Only \code{"nlminb"} is currently supported for
+\code{algorithm}, and \code{scoreTol}. The optional \code{scoreTol}
+controls the outer score certificate for nonlinear specification fits.
+Only \code{"nlminb"} is currently supported for
 nonlinear/Laplace optimization; Gaussian covariance engines retain their
 existing AI/update modules.}
 
@@ -44,6 +46,7 @@ existing AI/update modules.}
 \item{population}{Population-prediction quadrature settings.}
 
 \item{inference}{Post-fit nonlinear inference settings.}
+
 }
 \description{
 Statistical objectives belong in \code{mmes_method()}, parameter starts in

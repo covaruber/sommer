@@ -1,7 +1,7 @@
 #' Traditional nonlinear mixed-model curves
 #'
 #' Declare a native parametric curve to add to the ordinary fixed and random
-#' predictors in \code{mmes()}. No layers, callbacks or learned basis are used.
+#' predictors in \code{mmes()}.
 #' @param input Name of one numeric column in \code{data}.
 #' @param curve One of \code{"exponential"}, \code{"logistic"} or
 #'   \code{"saturation"}.
@@ -153,6 +153,7 @@ nonlinear_curve <- function(input, curve=c("exponential", "logistic", "saturatio
 }
 
 .nonlinear_prediction_formula <- function(formula, data){
+  if(is.null(formula)) return(~0)
   parent <- environment(formula)
   captured <- new.env(parent=parent)
   for(variable in setdiff(all.vars(formula), c(names(data), "units"))){

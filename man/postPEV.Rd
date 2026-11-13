@@ -1,5 +1,6 @@
 \name{postPEV}
 \alias{postPEV}
+\alias{vcov.mmes.glmm.laplace}
 
 \title{
 Post-fit prediction error variances and inverse coefficient matrix

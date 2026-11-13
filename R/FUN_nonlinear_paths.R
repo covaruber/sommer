@@ -63,55 +63,23 @@
 
 .nonlinear_path_plan <- function(model, control, family, random, rcov, W,
     weights, covPar, internal){
-  graph <- inherits(model,"sommer_nonlinear_graph")
-  if(graph) .nonlinear_graph_validate(model) else .nonlinear_validate(model)
+  .nonlinear_validate(model)
   .laplace_family_specs(family, control$task$glmm$familyParameters)
   gaussian <- .nonlinear_exact_gaussian(family, control)
-  graphRandom <- graph && (length(model$random) || !is.null(model$joint))
-  graphFamily <- graph && !gaussian
-  graphRandomCoordinates <- any(vapply(model$parameterMap,function(map)
-    identical(map$type,"random"),logical(1)))
-  if(graph && graphRandomCoordinates && !graphRandom)
-    stop("Random graph coordinates require explicit random or joint covariance formulas.",
-      call.=FALSE)
-  if(graph){
-    outputNode <- model$nodes[[model$output]]
-    while(identical(outputNode$op,"identity"))
-      outputNode <- model$nodes[[outputNode$inputs[[1L]]]]
-    if(identical(outputNode$op,"tanh"))
-      stop("Nonlinear graph fitting requires an identity output; use tanh only in hidden layers.",
-        call.=FALSE)
-  }
   if(control$task$objective != "ml" || control$task$mode != "fit" ||
      control$formulation != "henderson"){
     stop("Nonlinear fitting requires task$objective='ml', task$mode='fit' and formulation='henderson'.",
       call.=FALSE)
   }
-  if(graph && is.null(control$task$nonlinear$start)){
-    stop("Nonlinear graph fitting requires a complete named task$nonlinear$start vector.",
-      call.=FALSE)
-  }
-  graphConditional <- graphRandom || (graphFamily && !is.null(random))
-  if(graph && !graphConditional &&
-     !identical(control$task$nonlinear$mode,.mme_nonlinear_mode_defaults)){
-    stop("Nonlinear mode controls require conditional graph random effects.",
-      call.=FALSE)
-  }
-  if(graph && !graphConditional && !identical(control$task$nonlinear$population,
-      .mme_nonlinear_prediction_defaults)){
-    stop("Nonlinear population controls require conditional graph random effects.",
-      call.=FALSE)
-  }
-  if(is.null(random) && ((graph && !graphRandom) ||
-      (!graph && !length(model$random) && is.null(model$joint)))){
+  if(is.null(random) && !length(model$random) && is.null(model$joint)){
     stop("Nonlinear mixed models require at least one additive Gaussian random term.",
       call.=FALSE)
   }
-  if(!graph && gaussian && !length(model$random) && is.null(model$joint) &&
+  if(gaussian && !length(model$random) && is.null(model$joint) &&
      !identical(control$task$nonlinear$mode, .mme_nonlinear_mode_defaults)){
     stop("Nonlinear mode controls require random curve parameters.", call.=FALSE)
   }
-  if(!graph && gaussian && !length(model$random) && is.null(model$joint) &&
+  if(gaussian && !length(model$random) && is.null(model$joint) &&
      !identical(control$task$nonlinear$population, .mme_nonlinear_prediction_defaults)){
     stop("Nonlinear population controls require random curve parameters.", call.=FALSE)
   }
@@ -151,18 +119,11 @@
     stop("Nonlinear fitting does not use these controls: ",
       paste(changed, collapse=", "), ".", call.=FALSE)
   }
-  list(requested=if(graphFamily) "nonlinear graph family ML" else
-      if(graph) "nonlinear graph Gaussian ML" else
-      "traditional nonlinear ML", eligible=TRUE,
-    selected=if(graphFamily) "Laplace family ML" else
-      if(graph && graphRandom) "Laplace Gaussian ML" else
-      if(graph) "exact Gaussian ML" else if(!gaussian) "Laplace family ML" else
+  list(requested="traditional nonlinear ML", eligible=TRUE,
+    selected=if(!gaussian) "Laplace family ML" else
       if(length(model$random) || !is.null(model$joint)) "Laplace Gaussian ML" else "exact Gaussian ML",
-    curve=if(graph) NULL else model$curve,
-    graph=graph,
-    random=if(graphRandom) "additive and graph-parameter Gaussian effects" else
-      if(graph) "additive Gaussian effects" else
-      if(length(model$random) || !is.null(model$joint)) "Gaussian curve-coordinate deviations" else
+    curve=model$curve,
+    random=if(length(model$random) || !is.null(model$joint)) "Gaussian curve-coordinate deviations" else
         "additive linear Gaussian", backend="random",
     optimizer=control$task$nonlinear$optimizer,
     gradient=control$task$nonlinear$gradient,

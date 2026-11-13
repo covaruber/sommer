@@ -10,10 +10,14 @@ parameter <- function(fixed=~1, random=NULL, link="identity"){
   structure(list(fixed=fixed,random=random,link=link),class="sommer_parameter")
 }
 
-graph_term <- function(name){
+#' Mark a native curve in an mmes formula
+#'
+#' @param name Name of a curve supplied through \code{mmes(curves=)}.
+#' @export
+curve_term <- function(name){
   if(!is.character(name) || length(name)!=1L || is.na(name) || !nzchar(name))
-    stop("graph_term requires one non-empty predictor name.",call.=FALSE)
-  stop("graph_term() is a formula marker, not a standalone evaluator.",call.=FALSE)
+    stop("curve_term requires one non-empty curve name.",call.=FALSE)
+  stop("curve_term() is a formula marker, not a standalone evaluator.",call.=FALSE)
 }
 
 .spec_dots <- function(...){
@@ -33,17 +37,6 @@ graph_term <- function(name){
   list(list(expression=x,sign=sign))
 }
 
-.spec_graph_names <- function(x){
-  if(!is.call(x)) return(character())
-  if(identical(x[[1L]],as.name("graph_term"))){
-    if(length(x)!=2L || !is.character(x[[2L]]) || length(x[[2L]])!=1L ||
-       is.na(x[[2L]]) || !nzchar(x[[2L]]))
-      stop("Use graph_term('name') with a literal predictor name.",call.=FALSE)
-    return(x[[2L]])
-  }
-  unique(unlist(lapply(as.list(x)[-1L],.spec_graph_names),use.names=FALSE))
-}
-
 .spec_validate_expression <- function(x, symbols, depth=0L){
   if(depth>32L) stop("Predictor expression exceeds nesting limit 32.",call.=FALSE)
   if(is.numeric(x) && length(x)==1L && is.finite(x)) return(invisible(NULL))
@@ -51,10 +44,6 @@ graph_term <- function(name){
   if(!is.call(x) || !is.symbol(x[[1L]]))
     stop("Unsupported predictor expression.",call.=FALSE)
   op <- as.character(x[[1L]])
-  if(op=="graph_term"){
-    .spec_graph_names(x)
-    return(invisible(NULL))
-  }
   arity <- length(x)-1L
   allowed <- c("+","-","*","/","^","exp","log","tanh","sqrt","sin","cos","(")
   if(!op %in% allowed ||
@@ -96,7 +85,7 @@ graph_term <- function(name){
   mapping <- .laplace_covariance_map(prepared$covStruct[seq_len(count)],
     prepared$rtermss)
   if(.nonlinear_has_reduced_rank(mapping$structures))
-    stop("Specification random effects do not support reduced-rank covariance; use the native graph latent-coordinate route.",
+    stop("Specification random effects do not support reduced-rank covariance.",
       call.=FALSE)
   dimensions <- vapply(mapping$structures,function(s) as.integer(s$dim),integer(1))
   ends <- cumsum(dimensions)
@@ -187,12 +176,6 @@ graph_term <- function(name){
     if(length(index) && !is.null(shifts)) eta <- eta+shifts[[index]]
     values[[name]] <- if(p$link=="log") exp(eta) else eta
     bindings[[name]] <- values[[name]]
-  }
-  bindings$graph_term <- function(name){
-    graph <- spec$predictors[[name]]
-    parameters <- do.call(cbind,values[paste0(name,"::",graph$parameters)])
-    colnames(parameters) <- graph$parameters
-    as.numeric(.nonlinear_graph_values(graph,data,parameters,spec$control))
   }
   for(term in spec$expressions){
     current <- suppressWarnings(eval(term$expression,bindings))
@@ -352,7 +335,7 @@ graph_term <- function(name){
 }
 
 .mmes_specification_fit <- function(fixed,random=NULL,rcov=NULL,data,
-    family=stats::gaussian(),parameters=list(),predictors=list(),start=NULL,
+    family=stats::gaussian(),parameters=list(),start=NULL,
     control,specificationMethod=NULL,weights=NULL,W=NULL,vcc=NULL,covPar=NULL,
     familyParameters=list(),
     contrasts=NULL,naMethodX="exclude",naMethodY="exclude",
@@ -413,10 +396,9 @@ graph_term <- function(name){
     stop("Specification responses require a column or cbind(successes, failures).",call.=FALSE)
   if(!is.data.frame(data) || !nrow(data) || anyDuplicated(names(data)))
     stop("data must be a non-empty data frame with unique column names.",call.=FALSE)
-  if(!is.list(parameters) || !is.list(predictors))
-    stop("parameters and predictors must be named lists.",call.=FALSE)
+  if(!is.list(parameters))
+    stop("parameters must be a named list.",call.=FALSE)
   .spec_named(parameters,"parameters")
-  .spec_named(predictors,"predictors")
   if(!is.null(rcov) && (!inherits(rcov,"formula") || length(rcov)!=2L ||
      !identical(rcov[[2L]],as.name("units"))))
     stop("Specification fits support independent residuals: rcov=NULL or ~units.",call.=FALSE)
@@ -434,13 +416,8 @@ graph_term <- function(name){
     if(!inherits(p,"sommer_parameter")) return(character())
     all.vars(p$random)
   }),use.names=FALSE)))
-  graphVariables <- unlist(lapply(predictors,function(graph){
-    if(!inherits(graph,"sommer_nonlinear_graph")) return(character())
-    unlist(lapply(graph$nodes,function(node)
-      if(identical(node$op,"input")) node$column else character()),use.names=FALSE)
-  }),use.names=FALSE)
   groups <- list(Y=all.vars(fixed[[2L]]),
-    X=unique(c(all.vars(fixed[[3L]]),parameterVariables,graphVariables)),
+    X=unique(c(all.vars(fixed[[3L]]),parameterVariables)),
     Random=randomVariables,R=character())
   keep <- rep(TRUE,nrow(data))
   for(group in names(groups)){
@@ -459,36 +436,12 @@ graph_term <- function(name){
   if(control$task$mode!="fit")
     stop("Specification fitting requires task$mode='fit'.",call.=FALSE)
   terms <- .spec_split(fixed[[3L]])
-  graphs <- unique(unlist(lapply(terms,function(term)
-    .spec_graph_names(term$expression)),use.names=FALSE))
-  if(!setequal(graphs,names(predictors)))
-    stop("predictors must name exactly the graph_term markers in fixed.",call.=FALSE)
-  for(name in graphs){
-    graph <- .nonlinear_graph_validate(predictors[[name]])
-    if(!identical(graph$nodes[[graph$output]]$op,"identity"))
-      stop("Graph specification fits require an identity output node representing the link predictor.",call.=FALSE)
-    if(length(graph$random) || !is.null(graph$joint) ||
-       any(vapply(graph$parameterMap,function(x) identical(x$type,"random"),logical(1))))
-      stop("Graph internal random maps are unsupported; declare namespaced parameter(random=) models.",call.=FALSE)
-    for(coordinate in graph$parameters){
-      key <- paste0(name,"::",coordinate)
-      if(is.null(parameters[[key]]))
-        parameters[[key]] <- parameter(link=graph$parameterMap[[coordinate]]$transform)
-    }
-    naturalMap <- lapply(graph$parameterMap,function(map){
-      map$transform <- "identity"
-      map
-    })
-    predictors[[name]] <- nonlinear_graph(graph$nodes,graph$output,
-      graph$parameters,naturalMap)
-  }
   if(any(!vapply(parameters,inherits,logical(1),"sommer_parameter")))
     stop("Every parameter declaration must be created by parameter().",call.=FALSE)
   if(any(names(parameters) %in% names(data)))
     stop("Parameter names must not shadow data columns.",call.=FALSE)
   nonlinear <- vapply(terms,function(term)
-    length(intersect(all.vars(term$expression),names(parameters)))>0L ||
-      length(.spec_graph_names(term$expression))>0L,logical(1))
+    length(intersect(all.vars(term$expression),names(parameters)))>0L,logical(1))
   basicFamily <- inherits(family,"family") &&
     family$family %in% c("gaussian","binomial","poisson","Gamma")
   if(!any(nonlinear) && basicFamily && !length(familyParameters) && is.null(random)){
@@ -552,10 +505,8 @@ graph_term <- function(name){
     stop("Observation workspace exceeds execution$denseMemoryMB.",call.=FALSE)
   if(length(parameters)>30L || length(terms)>100L)
     stop("Specification exceeds 30 parameters or 100 additive terms.",call.=FALSE)
-  used <- unique(c(unlist(lapply(terms[nonlinear],function(term)
-    intersect(all.vars(term$expression),names(parameters))),use.names=FALSE),
-    unlist(lapply(graphs,function(name)
-      paste0(name,"::",predictors[[name]]$parameters)),use.names=FALSE)))
+  used <- unique(unlist(lapply(terms[nonlinear],function(term)
+    intersect(all.vars(term$expression),names(parameters))),use.names=FALSE))
   if(!setequal(used,names(parameters))) stop("Declared parameters are unused in fixed.",call.=FALSE)
   expressions <- terms[nonlinear]
   for(term in expressions)
@@ -574,7 +525,7 @@ graph_term <- function(name){
   sourceData <- data
   familyFixed <- stats::as.formula(call("~",fixed[[2L]],rhs),env=environment(fixed))
   setup <- .spec_family_prepare(familyFixed,data,family,familyParameters,control,
-    allowLegacyLinks=!length(graphs))
+    allowLegacyLinks=TRUE)
   data <- setup$data[setup$included,,drop=FALSE]
   retainedRows <- unique(data$.specificationRow)
   retainedIncluded <- included[retainedRows]
@@ -628,7 +579,7 @@ graph_term <- function(name){
      8*(8*as.double(n)^2+8*as.double(q)^2+as.double(n)*(p+q))>
        control$execution$denseMemoryMB*1048576)
     stop("Specification exceeds observation, coefficient, mode, or dense memory limits.",call.=FALSE)
-  spec <- list(parameters=parameters,predictors=predictors,expressions=expressions,
+  spec <- list(parameters=parameters,expressions=expressions,
     inputs=inputs,fixedPositions=positions,additiveIndex=additiveIndex,control=control)
   zeros <- lapply(widths,numeric)
   randomDesign <- lapply(records,`[[`,"z")
@@ -747,10 +698,12 @@ graph_term <- function(name){
       x.tol=control$convergence$parameterTol)) else
     list(par=initial,objective=evaluate(initial),convergence=0L,
       message="No free parameters.",iterations=0L,evaluations=c("function"=1L,gradient=0L))
+  scoreTol <- if(!is.null(public) && !is.null(public$optimizer$scoreTol))
+    public$optimizer$scoreTol else control$convergence$scoreTol
   outerScore <- .spec_gradient(optimizer$par,evaluate)
   remaining <- control$convergence$maxIters-optimizer$iterations
   if(length(outerScore) && all(is.finite(outerScore)) &&
-     max(abs(outerScore))>control$convergence$scoreTol && remaining>0L){
+     max(abs(outerScore))>scoreTol && remaining>0L){
     refined <- stats::nlminb(optimizer$par,evaluate,
       gradient=function(at) .spec_gradient(at,evaluate),
       control=list(iter.max=remaining,eval.max=20L*remaining,
@@ -766,9 +719,9 @@ graph_term <- function(name){
   if(is.null(optimum) || !is.finite(optimum$value))
     stop("Specification optimization did not produce a finite likelihood.",call.=FALSE)
   stationary <- all(is.finite(outerScore)) &&
-    (!length(outerScore) || max(abs(outerScore))<=control$convergence$scoreTol)
+    (!length(outerScore) || max(abs(outerScore))<=scoreTol)
   if(!stationary)
-    warning("Specification optimizer stopped before satisfying convergence$scoreTol.",
+    warning("Specification optimizer stopped before satisfying optimizer$scoreTol.",
       call.=FALSE)
   optimizedAt <- proc.time()[["elapsed"]]
   result <- list(b=optimizer$par[seq_len(p)],fixedFormula=fixed,randomFormula=random,
@@ -793,7 +746,7 @@ graph_term <- function(name){
       competingModes=optimum$competingModes,failedModeStarts=optimum$failedStarts,
       admission="bounded dense workspace admitted"),
     likelihoodMethod=if(!q || exact) "exact ML" else "Laplace ML",
-    derivativeMethod="numerical outer differences; expression/graph chain rules and native family conditional curvature",
+    derivativeMethod="numerical outer differences; expression chain rules and native family conditional curvature",
     obsInfo=list(included=included,excluded=excluded))
   class(result) <- c("mmes.specification","mmes")
   result$fitted.values <- .spec_response(result,optimum$eta,"response",data)
@@ -856,6 +809,8 @@ predict.mmes.specification <- function(object,newdata=NULL,
   interval <- match.arg(interval)
   se.fit <- .mme_flag(se.fit,"se.fit")
   cov.fit <- .mme_flag(cov.fit,"cov.fit")
+  if(!is.null(object$curveSpecification) && !is.null(newdata))
+    .nonlinear_input(object$curveSpecification,newdata)
   if(se.fit || cov.fit || interval!="none")
     return(.spec_prediction_inference(object,newdata,type,target,se.fit,interval,level,
       cov.fit,trials))
@@ -888,6 +843,34 @@ predict.mmes.specification <- function(object,newdata=NULL,
   .spec_population(object,newdata,design,random,type,specifications)
 }
 
+#' @export
+#' @method AIC mmes.specification
+AIC.mmes.specification <- function(object,...,k=2){
+  fits <- c(list(object),list(...))
+  if(length(k)!=1L || !is.finite(k) || k<0)
+    stop("k must be one finite non-negative value.",call.=FALSE)
+  values <- vapply(fits,function(fit){
+    likelihood <- stats::logLik(fit)
+    -2*as.numeric(likelihood)+k*attr(likelihood,"df")
+  },numeric(1))
+  if(length(values)==1L) return(unname(values))
+  data.frame(df=vapply(fits,function(fit) attr(stats::logLik(fit),"df"),
+    numeric(1)),AIC=values)
+}
+
+#' @export
+#' @method BIC mmes.specification
+BIC.mmes.specification <- function(object,...){
+  fits <- c(list(object),list(...))
+  values <- vapply(fits,function(fit){
+    likelihood <- stats::logLik(fit)
+    -2*as.numeric(likelihood)+log(stats::nobs(fit))*attr(likelihood,"df")
+  },numeric(1))
+  if(length(values)==1L) return(unname(values))
+  data.frame(df=vapply(fits,function(fit) attr(stats::logLik(fit),"df"),
+    numeric(1)),BIC=values)
+}
+
 logLik.mmes.specification <- function(object,...){
   .spec_dots(...)
   structure(object$llik,class="logLik",nobs=object$nobs,df=object$npar)
@@ -903,6 +886,9 @@ vcov.mmes.specification <- function(object,...,
   .spec_dots(...)
   type <- match.arg(type)
   if(!is.null(object$baseFit)){
+    if(type %in% c("random","conditional","group"))
+      stop("The requested covariance has no corresponding random or group parameters.",
+        call.=FALSE)
     covariance <- stats::vcov(object$baseFit)
     if(object$family$family=="gaussian"){
       covariance <- covariance*object$dispersion/
@@ -949,6 +935,11 @@ simulate.mmes.specification <- function(object,nsim=1,seed=NULL,
       as.data.frame(stats::setNames(lapply(seq_len(nsim),function(i)
         stats::rgamma(object$nobs,shape=1/object$dispersion,
           scale=object$fitted.values*object$dispersion)),paste0("sim_",seq_len(nsim)))) else
+      if(object$family$family=="binomial")
+        as.data.frame(stats::setNames(lapply(seq_len(nsim),function(i)
+          stats::rbinom(object$nobs,size=object$baseFit$prior.weights,
+            prob=object$fitted.values)/object$baseFit$prior.weights),
+          paste0("sim_",seq_len(nsim)))) else
       stats::simulate(object$baseFit,nsim=nsim))
   .nonlinear_workspace(as.double(nsim)*object$nobs*4,
     object$control$execution$denseMemoryMB,"Specification simulation")

@@ -1,39 +1,6 @@
 #include <RcppArmadillo.h>
 #include "mme_nonlinear_gaussian.h"
 #include "mme_nonlinear_laplace.h"
-#include "mme_nonlinear_graph.h"
-#include "mme_nonlinear_graph_laplace.h"
-
-// [[Rcpp::export]]
-Rcpp::List sommer_nonlinear_graph_eval_cpp(const Rcpp::List & graph,
-    const int output,const arma::mat & data,const arma::mat & parameters,
-    const Rcpp::IntegerVector & transformed,const arma::mat & directions,
-    const double memoryMB){
-  if(output<0) Rcpp::stop("Invalid nonlinear graph output index.");
-  sommer::NonlinearGraph evaluator(graph,static_cast<arma::uword>(output),
-    data.n_cols,parameters.n_cols,transformed);
-  return evaluator.evaluate(data,parameters,directions,memoryMB);
-}
-
-// [[Rcpp::export]]
-Rcpp::List sommer_nonlinear_graph_first_cpp(const Rcpp::List & graph,
-    const int output,const arma::mat & data,const arma::vec & parameters,
-    const Rcpp::IntegerVector & transformed,const double memoryMB){
-  if(output<0) Rcpp::stop("Invalid nonlinear graph output index.");
-  sommer::NonlinearGraph evaluator(graph,static_cast<arma::uword>(output),
-    data.n_cols,parameters.n_elem,transformed);
-  return evaluator.evaluateFirst(data,parameters,memoryMB);
-}
-
-// [[Rcpp::export]]
-arma::vec sommer_nonlinear_graph_values_cpp(const Rcpp::List & graph,
-    const int output,const arma::mat & data,const arma::mat & parameters,
-    const Rcpp::IntegerVector & transformed,const double memoryMB){
-  if(output<0) Rcpp::stop("Invalid nonlinear graph output index.");
-  sommer::NonlinearGraph evaluator(graph,static_cast<arma::uword>(output),
-    data.n_cols,parameters.n_cols,transformed);
-  return evaluator.evaluateValues(data,parameters,memoryMB);
-}
 
 // [[Rcpp::export]]
 Rcpp::List sommer_nonlinear_curve_eval(const std::string & curve,
@@ -57,83 +24,10 @@ SEXP sommer_nonlinear_gaussian_create(const arma::sp_mat & fixed,
 }
 
 // [[Rcpp::export]]
-SEXP sommer_nonlinear_graph_gaussian_create(const arma::sp_mat & fixed,
-    const arma::sp_mat & random, const arma::vec & response,
-    const arma::vec & offset, const arma::mat & graphData,
-    const Rcpp::List & graph, const int output,
-    const Rcpp::IntegerVector & transformed, const Rcpp::List & descriptors,
-    const Rcpp::List & relationships, const double memoryMB=1000){
-  return Rcpp::XPtr<sommer::NonlinearGaussianObjective>(
-    new sommer::NonlinearGaussianObjective(fixed,random,response,offset,
-      graphData,graph,output,transformed,descriptors,relationships,memoryMB),true);
-}
-
-// [[Rcpp::export]]
 Rcpp::List sommer_nonlinear_gaussian_eval(SEXP context,
     const arma::vec & parameters, const bool gradient=true){
   Rcpp::XPtr<sommer::NonlinearGaussianObjective> objective(context);
   return objective->evaluate(parameters,gradient);
-}
-
-// [[Rcpp::export]]
-SEXP sommer_nonlinear_graph_laplace_create(const arma::sp_mat & fixed,
-    const arma::sp_mat & random,const arma::vec & response,
-    const arma::vec & offset,const arma::mat & graphData,
-    const Rcpp::List & graph,const int output,
-    const Rcpp::IntegerVector & transformed,const arma::mat & coordinateMap,
-    const Rcpp::List & descriptors,const Rcpp::List & relationships,
-    const double memoryMB=1000,const int maxIters=100,
-    const double scoreTol=1e-8,const double stepTol=1e-8){
-  return Rcpp::XPtr<sommer::NonlinearGraphLaplaceObjective>(
-    new sommer::NonlinearGraphLaplaceObjective(fixed,random,response,offset,
-      graphData,graph,output,transformed,coordinateMap,descriptors,
-      relationships,memoryMB,maxIters,scoreTol,stepTol),true);
-}
-
-// [[Rcpp::export]]
-Rcpp::List sommer_nonlinear_graph_laplace_eval(SEXP context,
-    const arma::vec & parameters,const bool gradient=true){
-  Rcpp::XPtr<sommer::NonlinearGraphLaplaceObjective> objective(context);
-  return objective->evaluate(parameters,gradient);
-}
-
-// [[Rcpp::export]]
-Rcpp::List sommer_nonlinear_graph_laplace_conditional(SEXP context,
-    const arma::vec & parameters,const arma::vec & mode){
-  Rcpp::XPtr<sommer::NonlinearGraphLaplaceObjective> objective(context);
-  return objective->conditionalAt(parameters,mode);
-}
-
-// [[Rcpp::export]]
-SEXP sommer_nonlinear_graph_family_create(const arma::sp_mat & fixed,
-    const arma::sp_mat & random,const arma::vec & response,
-    const arma::vec & offset,const arma::mat & graphData,
-    const Rcpp::List & graph,const int output,
-    const Rcpp::IntegerVector & transformed,const arma::mat & coordinateMap,
-    const Rcpp::List & descriptors,const Rcpp::List & relationships,
-    const Rcpp::List & specifications,const arma::uvec & index,
-    const arma::vec & trials,const double memoryMB=1000,
-    const int maxIters=100,const double scoreTol=1e-8,
-    const double stepTol=1e-8){
-  return Rcpp::XPtr<sommer::NonlinearGraphFamilyLaplaceObjective>(
-    new sommer::NonlinearGraphFamilyLaplaceObjective(fixed,random,response,
-      offset,graphData,graph,output,transformed,coordinateMap,descriptors,
-      relationships,specifications,index,trials,memoryMB,maxIters,scoreTol,
-      stepTol),true);
-}
-
-// [[Rcpp::export]]
-Rcpp::List sommer_nonlinear_graph_family_eval(SEXP context,
-    const arma::vec & parameters,const bool gradient=true){
-  Rcpp::XPtr<sommer::NonlinearGraphFamilyLaplaceObjective> objective(context);
-  return objective->evaluate(parameters,gradient);
-}
-
-// [[Rcpp::export]]
-Rcpp::List sommer_nonlinear_graph_family_conditional(SEXP context,
-    const arma::vec & parameters,const arma::vec & mode){
-  Rcpp::XPtr<sommer::NonlinearGraphFamilyLaplaceObjective> objective(context);
-  return objective->conditionalAt(parameters,mode);
 }
 
 // [[Rcpp::export]]

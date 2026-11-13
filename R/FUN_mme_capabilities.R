@@ -648,11 +648,11 @@ out$controls <- rbind(out$controls, data.frame(
     "auto, supplied.", "NULL or finite named natural-scale curve parameters."),
   default=c("NULL", "nlminb", "analytic", "auto", "NULL"),
   requires="Traditional nonlinear curve, existing native response family/link or familym mixture, ML, Henderson, additive Gaussian effects and/or independent or jointly correlated random curve parameters, independent homogeneous Gaussian residuals.",
-  excludes="REML, PQL/other GLMM fitting controls except familyParameters, direct/solve mode, structured residuals, W/weights, covPar, layers, cross-covariance with ordinary additive effects and fit-time inference.",
+  excludes="REML, PQL/other GLMM fitting controls except familyParameters, direct/solve mode, structured residuals, W/weights, covPar, cross-covariance with ordinary additive effects and fit-time inference.",
   fallback="No fallback. Unsupported curves, controls, layouts and non-finite evaluations fail explicitly.",
   effect=c("Add a shared native exponential, logistic or saturation link-predictor contribution. Exact Gaussian integration when applicable, otherwise complete family-aware Laplace ML, RR maps and serializable point output.",
     "Jointly optimize ordinary fixed, curve, random covariance and family nuisance coordinates.",
-    "Use explicit analytic curve and likelihood derivatives with complete Laplace scores; no backpropagation or numerical-gradient fallback.",
+    "Use explicit analytic curve and likelihood derivatives with complete Laplace scores; no numerical-gradient fallback.",
     "Use deterministic data-based starts or require supplied starts. No random-number state is consumed.",
     "Supply positive asymptote/rate/half and an unconstrained logistic midpoint. Positive parameters are optimized on the log scale."),
   source="R/FUN_nonlinear_model.R, R/FUN_nonlinear_paths.R, R/FUN_nonlinear_fit.R, src/mme_nonlinear_gaussian.h, src/mme_nonlinear_covariance.h",
@@ -727,7 +727,7 @@ out
 .mmes_public_catalog <- function(){
   private <- .mmes_capabilities()
   map <- stats::setNames(private$controls$path, private$controls$path)
-  map["mmes.nonlinear"] <- "mmes.predictors"
+  map["mmes.nonlinear"] <- "mmes.curves"
   map["control.task.mode"] <- "method.task"
   map["control.task.objective"] <- "method.objective"
   map["control.task.glmm.method"] <- "method.integration"
@@ -781,33 +781,38 @@ out
   }
   add("method.approximation", "auto, pql, likelihood.",
     "Auto preserves Gaussian REML and non-Gaussian mixed PQL with REML Gaussian working fits; this is not exact GLMM REML.")
+  add("control.optimizer.scoreTol", "NULL or positive finite number.",
+    "Set the nonlinear specification outer score convergence certificate; NULL uses 0.001.")
+  public$module[public$path=="control.optimizer.scoreTol"] <- "optimizer"
+  public$default[public$path=="control.optimizer.scoreTol"] <- "NULL"
+  public$requires[public$path=="control.optimizer.scoreTol"] <-
+    "Nonlinear specification fitting."
+  public$excludes[public$path=="control.optimizer.scoreTol"] <-
+    "Native mixed curves and linear models."
   add("mmes.parameters", "Named list of parameter() declarations.",
-    "Declare unknown nonlinear parameters separately from observed data and named native predictors.")
-  for(name in c("parameters", "predictors", "start", "method", "familyParameters"))
+    "Declare unknown nonlinear parameters separately from observed data and named native curves.")
+  for(name in c("parameters", "curves", "start", "method", "familyParameters"))
     if(!paste0("mmes.",name) %in% public$path)
       add(paste0("mmes.",name), "Validated model specification.",
         "Declare model structure independently of numerical controls.")
-  public$values[public$path=="mmes.predictors"] <-
-    "Named list of nonlinear_curve() or bounded nonlinear_graph() specifications."
-  public$effect[public$path=="mmes.predictors"] <- paste(
-    "Reference one named component with graph_term('name') in the fixed formula.",
-    "Ordinary additive random locations, parameter-level deviations and bounded graph-node deviations are distinct declarations; no multilayer convenience builders are available.",
-    "Graphs require identity link-predictor output and ML; native family kernels support scalar, ordinal, nominal and mixed-family responses. Conditional Hessians retain predictor second derivatives and multinomial blocks. Explicit uncertainty requires stationary identified interior fits; singular raw-weight symmetries are rejected.",
-    "Parameter overrides/compositions use bounded dense reference fitting: no internal graph random maps or RR covariance; separate parameter records are independent. Population quadrature admits joint predictor covariance by dimension/cost rather than a two-record cutoff.")
+  public$values[public$path=="mmes.curves"] <-
+    "Named list containing a nonlinear_curve() specification."
+  public$effect[public$path=="mmes.curves"] <- paste(
+    "Reference one named curve with curve_term('name') in the fixed formula.",
+    "Additive random effects and random curve-parameter deviations are distinct declarations.")
   public$values[public$path=="mmes.start"] <-
-    "NULL or list(parameters = named natural-scale starts)."
+    "NULL, named natural-scale starts, or list(parameters=...) or list(coefficients=...)."
   public$values[public$path=="control.optimizer.gradient"] <- "auto, analytic, central."
   public$effect[public$path=="control.optimizer.gradient"] <- paste(
     "Auto retains analytic scores on native curve and linear Laplace paths,",
     "without changing REML/PQL defaults, and selects the reported numerical",
     "method on the reference expression route.",
-    "Explicit analytic is rejected on reference expression, family graph and random native",
-    "graph routes rather than silently replaced by numerical derivatives.",
-    "Random native graphs support central; native curves reject explicit central.")
+    "Explicit analytic is rejected on reference expression routes rather than silently replaced by numerical derivatives.",
+    "Native curves reject explicit central.")
   public$fallback[public$path=="control.optimizer.gradient"] <-
     "Unsupported explicit derivative requests error; auto records the selected method."
   public$excludes[public$path=="control.optimizer.gradient"] <-
-    "Explicit analytic on reference expressions, native family graphs or random native graphs; explicit central on native curves."
+    "Explicit analytic on reference expressions; explicit central on native curves."
   public$values[public$path=="control.mode.warmStart"] <- "auto, off, on; nonlinear modes reject on."
   public$requires[public$path=="control.mode.warmStart"] <-
     "Conditional-mode fitting; auto preserves the selected engine's historical reuse policy."
@@ -835,9 +840,9 @@ out
   public$requires[public$path %in% c("control.optimizer.gradient",
     "control.optimizer.algorithm", "control.optimizer.maxit")] <-
     "Supported optimizer path; Gaussian covariance engines retain AI/update modules."
-  public$excludes[public$path=="mmes.predictors"] <- paste(
-    "Native curves/graphs require ML and Henderson; PQL, REML, direct and solve",
-    "are unsupported. Bounded graphs are not arbitrary callbacks or general multilayer builders.")
+  public$excludes[public$path=="mmes.curves"] <- paste(
+    "Native curves require ML and Henderson; PQL, REML, direct and solve",
+    "are unsupported.")
   defaults <- list(control=.mmes_public_control_defaults(),
     method=unclass(mmes_method()))
   for(i in seq_len(nrow(public))){

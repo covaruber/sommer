@@ -5,31 +5,24 @@
 <meta charset="utf-8">
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-<meta name="description" content="sommer">
 <title>Modular numerical controls for sommer::mmes • sommer</title>
 <script src="../deps/jquery-3.6.0/jquery-3.6.0.min.js"></script><meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 <link href="../deps/bootstrap-5.3.1/bootstrap.min.css" rel="stylesheet">
 <script src="../deps/bootstrap-5.3.1/bootstrap.bundle.min.js"></script><link href="../deps/font-awesome-6.5.2/css/all.min.css" rel="stylesheet">
 <link href="../deps/font-awesome-6.5.2/css/v4-shims.min.css" rel="stylesheet">
-<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- Font Awesome icons --><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css" integrity="sha256-mmgLkCYLUQbXn0B1SRqzHar6dCnv9oZFPEC1g1cwlkk=" crossorigin="anonymous">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/v4-shims.min.css" integrity="sha256-wZjR52fzng1pJHwx4aV2AO3yyTOXrcDW7jBpJtTwVxw=" crossorigin="anonymous">
-<!-- bootstrap-toc --><script src="https://cdn.jsdelivr.net/gh/afeld/bootstrap-toc@v1.0.1/dist/bootstrap-toc.min.js" integrity="sha256-4veVQbu7//Lk5TSmc7YV48MxtMy98e26cf5MrgZYnwo=" crossorigin="anonymous"></script><!-- headroom.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/headroom.min.js" integrity="sha256-AsUX4SJE1+yuDu5+mAVzJbuYNPHj/WroHuZ8Ir/CkE0=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/headroom/0.11.0/jQuery.headroom.min.js" integrity="sha256-ZX/yNShbjqsohH1k95liqY9Gd8uOiE1S4vZc+9KQ1K4=" crossorigin="anonymous"></script><!-- clipboard.js --><script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js" integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script><!-- search --><script src="https://cdnjs.cloudflare.com/ajax/libs/fuse.js/6.4.6/fuse.js" integrity="sha512-zv6Ywkjyktsohkbp9bb45V6tEMoWhzFzXis+LrMehmJZZSys19Yxf1dopHx7WzIKxr5tK2dVcYmaCk2uqdjF4A==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/autocomplete.js/0.38.0/autocomplete.jquery.min.js" integrity="sha512-GU9ayf+66Xx2TmpxqJpliWbT5PiGYxpaG8rfnBEk1LL8l1KGkRShhngwdXK1UgqhAzWpZHSiYPc09/NwDQIGyg==" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mark.js/8.11.1/mark.min.js" integrity="sha512-5CYOlHXGh6QpOFA/TeTylKLWfB3ftPsde7AnmhuitiTX4K5SqCLBeKro6sPS8ilsz1Q4NRx3v8Ko2IBiszzdww==" crossorigin="anonymous"></script><!-- pkgdown --><script src="../pkgdown.js"></script><link href="../extra.css" rel="stylesheet">
+<script src="../deps/headroom-0.11.0/headroom.min.js"></script><script src="../deps/headroom-0.11.0/jQuery.headroom.min.js"></script><script src="../deps/bootstrap-toc-1.0.1/bootstrap-toc.min.js"></script><script src="../deps/clipboard.js-2.0.11/clipboard.min.js"></script><script src="../deps/search-1.0.0/autocomplete.jquery.min.js"></script><script src="../deps/search-1.0.0/fuse.min.js"></script><script src="../deps/search-1.0.0/mark.min.js"></script><!-- pkgdown --><script src="../pkgdown.js"></script><link href="../extra.css" rel="stylesheet">
 <meta property="og:title" content="Modular numerical controls for sommer::mmes">
-<meta property="og:description" content="sommer">
-<!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js" integrity="sha256-nvJJv9wWKEm88qvoQl9ekL2J+k/RWIsaSScxxlsrv8k=" crossorigin="anonymous"></script><script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/config/TeX-AMS-MML_HTMLorMML.js" integrity="sha256-84DKXVJXs0/F8OTMzX4UR909+jtl4G7SPypPavF+GfA=" crossorigin="anonymous"></script><!--[if lt IE 9]>
-<script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
-<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
-<![endif]--><meta name="theme-color" content="#f7f8f3">
+<meta name="theme-color" content="#f7f8f3">
 </head>
 <body>
     <a href="#main" class="visually-hidden-focusable">Skip to contents</a>
 
 
-    <nav class="navbar fixed-top navbar-light navbar-expand-lg bg-light"><div class="container">
+    <nav class="navbar navbar-expand-lg fixed-top bg-light" data-bs-theme="light" aria-label="Site navigation"><div class="container">
 
     <a class="navbar-brand me-2" href="../index.html">sommer</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.24</small>
+    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">4.5.25</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -38,43 +31,33 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
-<li class="nav-item">
-  <a class="nav-link" href="../reference/index.html">Reference</a>
-</li>
-<li class="nav-item">
-  <a class="nav-link" href="../mmes-options.html">Decision tree</a>
-</li>
+<li class="nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="nav-item"><a class="nav-link" href="../mmes-options.html">Decision tree</a></li>
 <li class="active nav-item dropdown">
-  <a href="#" class="nav-link dropdown-toggle" data-bs-toggle="dropdown" role="button" aria-expanded="false" aria-haspopup="true" id="dropdown-articles">Articles</a>
-  <div class="dropdown-menu" aria-labelledby="dropdown-articles">
-    <a class="dropdown-item" href="../articles/sommer.blas.threads.html">Installing and configuring BLAS thread control</a>
-    <a class="dropdown-item" href="../articles/sommer.covariance.structures.html">Using covariance structures with sommer</a>
-    <a class="dropdown-item" href="../articles/sommer.fa.and.rr.models.html">Factor analytic and reduced rank models in sommer</a>
-    <a class="dropdown-item" href="../articles/sommer.genetic.evaluation.html">Genetic evaluation with known variance components in sommer</a>
-    <a class="dropdown-item" href="../articles/sommer.glmm.html">Generalized linear mixed models with sommer</a>
-    <a class="dropdown-item" href="../articles/sommer.glmm.theory.html">Theory and practice of generalized linear mixed models in sommer</a>
-    <a class="dropdown-item" href="../articles/sommer.gxe.html">Fitting genotype by environment models in sommer</a>
-    <a class="dropdown-item" href="../articles/sommer.machinery.html">Inside sommer: the ai_mme_sp2 engine</a>
-    <a class="dropdown-item" href="../articles/sommer.mmes.options.html">Modular numerical controls for sommer::mmes</a>
-    <a class="dropdown-item" href="../articles/sommer.models.html">Model specification in sommer</a>
-    <a class="dropdown-item" href="../articles/sommer.qg.html">Quantitative genetics using the sommer package</a>
-    <a class="dropdown-item" href="../articles/sommer.spatial.html">Spatial modeling using the sommer package</a>
-    <a class="dropdown-item" href="../articles/sommer.theory.html">Theory: how sommer parameterizes and optimizes covariance structures</a>
-    <a class="dropdown-item" href="../articles/sommer.vs.lme4.html">Translating lme4 models to sommer</a>
-  </div>
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
+<li><a class="dropdown-item" href="../articles/sommer.blas.threads.html">Installing and configuring BLAS thread control</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.covariance.structures.html">Using covariance structures with sommer</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.fa.and.rr.models.html">Factor analytic and reduced rank models in sommer</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.genetic.evaluation.html">Genetic evaluation with known variance components in sommer</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.glmm.html">Generalized linear mixed models with sommer</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.glmm.theory.html">Theory and practice of generalized linear mixed models in sommer</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.gxe.html">Fitting genotype by environment models in sommer</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.machinery.html">Inside sommer: the ai_mme_sp2 engine</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.mmes.options.html">Modular numerical controls for sommer::mmes</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.models.html">Model specification in sommer</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.qg.html">Quantitative genetics using the sommer package</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.spatial.html">Spatial modeling using the sommer package</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.theory.html">Theory: how sommer parameterizes and optimizes covariance structures</a></li>
+    <li><a class="dropdown-item" href="../articles/sommer.vs.lme4.html">Translating lme4 models to sommer</a></li>
+  </ul>
 </li>
       </ul>
-<form class="form-inline my-2 my-lg-0" role="search">
-        <input type="search" class="form-control me-sm-2" aria-label="Toggle navigation" name="search-input" data-search-index="../search.json" id="search-input" placeholder="Search for" autocomplete="off">
-</form>
-
-      <ul class="navbar-nav">
-<li class="nav-item">
-  <a class="external-link nav-link" href="https://github.com/covaruber/sommer/" aria-label="github">
-    <span class="fab fa fab fa-github fa-lg"></span>
-
-  </a>
-</li>
+<ul class="navbar-nav">
+<li class="nav-item"><form class="form-inline" role="search">
+ <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json">
+</form></li>
+<li class="nav-item"><a class="external-link nav-link" href="https://github.com/covaruber/sommer/" aria-label="GitHub"><span class="fa fab fa-github fa-lg"></span></a></li>
       </ul>
 </div>
 
@@ -87,7 +70,8 @@
 
 <div class="row">
   <main id="main" class="col-md-9"><div class="page-header">
-      <img src="" class="logo" alt=""><h1>Modular numerical controls for sommer::mmes</h1>
+
+      <h1>Modular numerical controls for sommer::mmes</h1>
                         <h4 data-toc-skip class="author">sommer
 development team</h4>
 
@@ -131,7 +115,7 @@ hardware settings.</p>
 <span>     naMethodX <span class="op">=</span> <span class="st">"exclude"</span>, naMethodY <span class="op">=</span> <span class="st">"exclude"</span>,</span>
 <span>     naMethodRandom <span class="op">=</span> <span class="st">"exclude"</span>, naMethodR <span class="op">=</span> <span class="st">"exclude"</span>,</span>
 <span>     contrasts <span class="op">=</span> <span class="cn">NULL</span>, family <span class="op">=</span> <span class="fu">stats</span><span class="fu">::</span><span class="fu"><a href="https://rdrr.io/r/stats/family.html" class="external-link">gaussian</a></span><span class="op">(</span><span class="op">)</span>, vcc <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>     covPar <span class="op">=</span> <span class="cn">NULL</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, predictors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, start <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>     covPar <span class="op">=</span> <span class="cn">NULL</span>, parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, curves <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span>, start <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>     method <span class="op">=</span> <span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span><span class="op">)</span>, control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span><span class="op">)</span>,</span>
 <span>     familyParameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="op">)</span><span class="op">)</span></span>
 <span></span>
@@ -153,9 +137,9 @@ hardware settings.</p>
 <code>vcc</code>, <code>covPar</code>, missing-data policies, and
 <code>contrasts</code> retain their statistical or data-preparation
 roles. <code>parameters</code> declares unknown quantities with
-<code><a href="../reference/parameter.html">parameter()</a></code>; <code>predictors</code> declares named native
-curves or bounded graphs referenced by <code>graph_term("name")</code>
-in the formula. <code>start</code> supplies natural-scale model starts;
+<code><a href="../reference/parameter.html">parameter()</a></code>; <code>curves</code> declares named native
+curves referenced by <code>curve_term("name")</code> in the formula.
+<code>start</code> supplies natural-scale model starts;
 <code>familyParameters</code> configures fixed/estimated family nuisance
 parameters. These are model inputs, not numerical controls.</p>
 <p><code><a href="../reference/mmes_method.html">mmes_method()</a></code> declares objective, integration,
@@ -177,19 +161,18 @@ validation remains authoritative.</p>
 <div class="section level2">
 <h2 id="traditional-nonlinear-fixed-means">Traditional nonlinear fixed means<a class="anchor" aria-label="anchor" href="#traditional-nonlinear-fixed-means"></a>
 </h2>
-<p><code>predictors=list(curve=nonlinear_curve("time", "exponential"))</code>,
-referenced as <code>graph_term("curve")</code> in the formula, adds the
+<p><code>curves=list(curve=nonlinear_curve("time", "exponential"))</code>,
+referenced as <code>curve_term("curve")</code> in the formula, adds the
 fixed mean <code>asymptote * exp(-rate * time)</code> to ordinary
 formula contributions. <code>"logistic"</code> and
 <code>"saturation"</code> provide logistic growth and Michaelis-Menten
-saturation, respectively. These are traditional parametric curves: there
-are no layers, backpropagation, or arbitrary R callbacks.</p>
+saturation, respectively. These are traditional parametric curves.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
-<span>  fixed <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="fu"><a href="../reference/graph_term.html">graph_term</a></span><span class="op">(</span><span class="st">"curve"</span><span class="op">)</span>,</span>
+<span>  fixed <span class="op">=</span> <span class="va">y</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="fu"><a href="../reference/curve_term.html">curve_term</a></span><span class="op">(</span><span class="st">"curve"</span><span class="op">)</span>,</span>
 <span>  random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>,</span>
 <span>  data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  predictors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>curve <span class="op">=</span> <span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span>, <span class="st">"exponential"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  curves <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>curve <span class="op">=</span> <span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span>, <span class="st">"exponential"</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  start <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>asymptote <span class="op">=</span> <span class="fl">4</span>, rate <span class="op">=</span> <span class="fl">0.6</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"ml"</span><span class="op">)</span>,</span>
 <span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
@@ -212,10 +195,10 @@ use or automatic input scaling. Nonlinear input missingness follows
 <p>The exact Gaussian path requires univariate Gaussian identity ML,
 Henderson, at least one random term, and independent homogeneous
 residuals. Unsupported controls error rather than selecting a different
-model. REML, direct/PQL fitting, structured residuals, weights, and
-fixed-only native-curve models are not supported. Multiple independent
-or jointly correlated random curve parameters are supported as described
-below.</p>
+model. REML, direct/PQL fitting, structured residuals, and weights are
+not supported on this route. Fixed-only curves use the reference
+specification route. Multiple independent or jointly correlated random
+curve parameters are supported as described below.</p>
 <p>All existing native response families are also available, including
 ordinal, nominal, zero-inflated and <code><a href="../reference/familym.html">familym()</a></code> mixtures.
 These use complete analytic Laplace ML. The traditional curve
@@ -270,8 +253,8 @@ restrictions, and identification diagnostics.</p>
 model:</p>
 <div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">ctrl</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>diagnostics<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>profile<span class="op">=</span><span class="st">"force"</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span><span class="op">~</span><span class="fl">0</span><span class="op">+</span><span class="fu"><a href="../reference/graph_term.html">graph_term</a></span><span class="op">(</span><span class="st">"curve"</span><span class="op">)</span>, random<span class="op">=</span><span class="op">~</span><span class="va">group</span>, data<span class="op">=</span><span class="va">dat</span>,</span>
-<span>  predictors<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>curve<span class="op">=</span><span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span><span class="op">~</span><span class="fl">0</span><span class="op">+</span><span class="fu"><a href="../reference/curve_term.html">curve_term</a></span><span class="op">(</span><span class="st">"curve"</span><span class="op">)</span>, random<span class="op">=</span><span class="op">~</span><span class="va">group</span>, data<span class="op">=</span><span class="va">dat</span>,</span>
+<span>  curves<span class="op">=</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>curve<span class="op">=</span><span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  method<span class="op">=</span><span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span>objective<span class="op">=</span><span class="st">"ml"</span><span class="op">)</span>, control<span class="op">=</span><span class="va">ctrl</span><span class="op">)</span></span>
 <span><span class="va">profile</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/profile_nonlinear.html">profile_nonlinear</a></span><span class="op">(</span><span class="va">fit</span>, replications<span class="op">=</span><span class="fl">3L</span><span class="op">)</span></span>
 <span><span class="va">profile</span><span class="op">$</span><span class="va">table</span></span>
@@ -296,8 +279,8 @@ portable performance guarantees.</p>
 <div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">model</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/nonlinear_curve.html">nonlinear_curve</a></span><span class="op">(</span><span class="st">"time"</span>, <span class="st">"exponential"</span>,</span>
 <span>  random <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>rate <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">subject</span><span class="op">)</span>, sigma2 <span class="op">=</span> <span class="fl">0.04</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span>
-<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="fu"><a href="../reference/graph_term.html">graph_term</a></span><span class="op">(</span><span class="st">"curve"</span><span class="op">)</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  predictors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>curve <span class="op">=</span> <span class="va">model</span><span class="op">)</span>,</span>
+<span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="fu"><a href="../reference/curve_term.html">curve_term</a></span><span class="op">(</span><span class="st">"curve"</span><span class="op">)</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  curves <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>curve <span class="op">=</span> <span class="va">model</span><span class="op">)</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"ml"</span><span class="op">)</span>,</span>
 <span>  start <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>parameters <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>asymptote <span class="op">=</span> <span class="fl">4</span>, rate <span class="op">=</span> <span class="fl">0.6</span><span class="op">)</span><span class="op">)</span>,</span>
 <span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span></span>
@@ -314,12 +297,12 @@ effects. Supported covariance descriptors and known relationship
 precision retain their existing conventions. One unit-incidence curve
 coordinate per row is required. Exact zero random variance is
 unsupported; with additive effects retained, remove its declaration for
-the zero-curve-variance model. Fixed-only fits remain unsupported.</p>
+the zero-curve-variance model.</p>
 <p>The mode solver uses exact conditional curvature, safeguards Newton
 steps, and compares deterministic starts. Laplace scores include mode
-motion and third curve derivatives. No layers, backpropagation,
-uncertainty, or PEV are introduced. Mode diagnostics report failures and
-competing candidates; they do not certify a global optimum.</p>
+motion and third curve derivatives. No uncertainty or PEV calculations
+are introduced. Mode diagnostics report failures and competing
+candidates; they do not certify a global optimum.</p>
 <p>Conditional predictions use fitted curve modes
 (<code>re.form=NULL</code>); <code>re.form=NA</code> uses shared,
 zero-deviation parameters. <code>re.form="population"</code> integrates
@@ -409,7 +392,7 @@ requests natural-scale group-parameter covariance, including
 cross-parameter terms; it is not computed during fitting.</p>
 </div>
 <div class="section level3">
-<h3 id="bounded-graph-and-parameter-declarations">Bounded graph and parameter declarations<a class="anchor" aria-label="anchor" href="#bounded-graph-and-parameter-declarations"></a>
+<h3 id="curve-and-parameter-declarations">Curve and parameter declarations<a class="anchor" aria-label="anchor" href="#curve-and-parameter-declarations"></a>
 </h3>
 <p>These are distinct random-effect locations:</p>
 <ul>
@@ -422,35 +405,17 @@ declares a regression for an unknown parameter used in a nonlinear
 formula.</li>
 <li>A native <code>nonlinear_curve(random=list(rate=~group))</code>
 declares curve-coordinate deviations; <code>joint</code> supplies an
-admitted correlated block.</li>
-<li>A bounded <code><a href="../reference/nonlinear_graph.html">nonlinear_graph()</a></code> declares explicit
-graph-coordinate maps and independent/joint deviations. These are not
-ordinary additive random terms.</li>
+admitted correlated block. <code>optimizer$gradient="auto"</code>
+preserves native analytic scores and selects the reported numerical
+method for reference expression models. An explicit
+<code>"analytic"</code> request is rejected for reference expressions
+rather than silently replaced by numerical derivatives. Native curves
+reject explicit <code>"central"</code>.</li>
 </ul>
-<p>The bounded graph API uses an ordered node list of input, affine,
-identity, and tanh operations with an explicit scalar output and named
-coordinates. No multilayer convenience builders or arbitrary callbacks
-are available. Graph fitting requires ML and an identity output
-representing the response link predictor. Gaussian fixed coordinates
-with additive effects retain exact integration; random graph coordinates
-and non-Gaussian random models use Laplace with reported
-central-difference outer scores. Both graph routes reuse the native
-scalar, ordinal, multinomial and <code><a href="../reference/familym.html">familym()</a></code> likelihood
-contracts. Post-fit uncertainty is explicitly requested and requires
-stationary, identified, interior fits and checked curvature; symmetric
-network weights do not acquire valid SEs merely because optimization
-converges.</p>
-<p><code>optimizer$gradient="auto"</code> preserves native analytic
-scores and selects the reported numerical method for reference
-expression models. An explicit <code>"analytic"</code> request is
-rejected for reference expressions and native random graphs and family
-graph objectives rather than silently replaced by numerical derivatives.
-These native graphs support <code>"central"</code>; native curves reject
-explicit <code>"central"</code>.</p>
-<p>Both named native components use the same public formula bridge:</p>
+<p>Native curves use the public formula bridge:</p>
 <div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="fu"><a href="../reference/graph_term.html">graph_term</a></span><span class="op">(</span><span class="st">"component"</span><span class="op">)</span>, random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
-<span>  predictors <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>component <span class="op">=</span> <span class="va">model</span><span class="op">)</span>,</span>
+<code class="sourceCode R"><span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span><span class="va">y</span> <span class="op">~</span> <span class="fl">0</span> <span class="op">+</span> <span class="fu"><a href="../reference/curve_term.html">curve_term</a></span><span class="op">(</span><span class="st">"component"</span><span class="op">)</span>, random <span class="op">=</span> <span class="op">~</span> <span class="va">group</span>, data <span class="op">=</span> <span class="va">dat</span>,</span>
+<span>  curves <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>component <span class="op">=</span> <span class="va">model</span><span class="op">)</span>,</span>
 <span>  start <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>parameters <span class="op">=</span> <span class="va">natural_starts</span><span class="op">)</span>,</span>
 <span>  method <span class="op">=</span> <span class="fu"><a href="../reference/mmes_method.html">mmes_method</a></span><span class="op">(</span>objective <span class="op">=</span> <span class="st">"ml"</span><span class="op">)</span>,</span>
 <span>  control <span class="op">=</span> <span class="fu"><a href="../reference/mmes_control.html">mmes_control</a></span><span class="op">(</span>mode <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>maxit <span class="op">=</span> <span class="fl">100L</span>, tol <span class="op">=</span> <span class="fl">1e-8</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
@@ -459,13 +424,12 @@ supported family, expression, and numerical workspace limits (30
 declarations, 60 mean coefficients, 512 modes for nonexact integration).
 The dense reference route supports nuisance
 <code>familyParameters</code>, checked inference controls, simulation,
-and bounded joint predictor quadrature. It rejects internal graph random
-maps, RR covariance, weights, <code>W</code>, <code>vcc</code>, custom
-contrasts and nondefault representation/solver/update controls. Ordinary
-Gaussian models retain
-<code>representation=list(fixedRank="drop")</code>; this is not a
-license to drop unidentified nonlinear weights. Consult the model
-specification vignette rather than assuming every native curve/graph
+and bounded joint predictor quadrature. It rejects RR covariance,
+weights, <code>W</code>, <code>vcc</code>, custom contrasts and
+nondefault representation/solver/update controls. Ordinary Gaussian
+models retain <code>representation=list(fixedRank="drop")</code>; this
+is not a license to drop unidentified nonlinear weights. Consult the
+model specification vignette rather than assuming every native curve
 layout is interchangeable. Unsupported combinations error; they do not
 enable a different estimator.</p>
 </div>
@@ -512,12 +476,13 @@ Laplace requires ML.</td>
 <td align="left">Outer optimizer policy</td>
 <td align="left">
 <code>maxit=NULL</code>, <code>gradient="auto"</code>,
-<code>algorithm="nlminb"</code>; gradient choices are
-<code>"auto"</code>, <code>"analytic"</code>, <code>"central"</code>.
-Auto preserves native analytic defaults and selects reported numerical
-derivatives for reference expressions; unsupported explicit requests
-error. NULL retains engine defaults; Gaussian AI/update modules retain
-their role. Do not duplicate conflicting
+<code>algorithm="nlminb"</code>, <code>scoreTol=NULL</code>; gradient
+choices are <code>"auto"</code>, <code>"analytic"</code>,
+<code>"central"</code>. Auto preserves native analytic defaults and
+selects reported numerical derivatives for reference expressions;
+unsupported explicit requests error. <code>scoreTol</code> sets the
+nonlinear specification outer-score threshold; NULL uses 0.001. Gaussian
+AI/update modules retain their role. Do not duplicate conflicting
 <code>convergence$maxIters</code>.</td>
 </tr>
 <tr class="even">
@@ -880,7 +845,7 @@ average-information curvature on these equations;
 even without an explicit representation request.</p>
 <div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">long</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/stackTraits.html">stackTraits</a></span><span class="op">(</span><span class="va">wide</span>, traits <span class="op">=</span> <span class="va">trait_names</span>, keep <span class="op">=</span> <span class="st">"id"</span><span class="op">)</span></span>
-<span><span class="va">Ainv</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/Matrix/man/solve-methods.html" class="external-link">solve</a></span><span class="op">(</span><span class="va">A</span><span class="op">)</span></span>
+<span><span class="va">Ainv</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/solve.html" class="external-link">solve</a></span><span class="op">(</span><span class="va">A</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/attr.html" class="external-link">attr</a></span><span class="op">(</span><span class="va">Ainv</span>, <span class="st">"inverse"</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="cn">TRUE</span></span>
 <span></span>
 <span><span class="va">fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/mmes.html">mmes</a></span><span class="op">(</span></span>
@@ -917,20 +882,25 @@ homogeneous residuals are also supported.</p>
 <h4 id="mathematical-blocks">Mathematical blocks<a class="anchor" aria-label="anchor" href="#mathematical-blocks"></a>
 </h4>
 <p>Write the latent model as</p>
-<p><span class="math display">\[
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>y</mi><mo>=</mo><mi>X</mi><mi>b</mi><mo>+</mo><msub><mi>Z</mi><mi>g</mi></msub><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>L</mi><mi>g</mi></msub><msub><mi>f</mi><mi>g</mi></msub><mo>+</mo><msub><mi>s</mi><mi>g</mi></msub><mo stretchy="true" form="postfix">)</mo></mrow><mo>+</mo><msub><mi>L</mi><mi>e</mi></msub><msub><mi>f</mi><mi>e</mi></msub><mo>+</mo><mi>ϵ</mi><mo>,</mo><mspace width="1.0em"></mspace><mo>Var</mo><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>s</mi><mi>g</mi></msub><mo stretchy="true" form="postfix">)</mo></mrow><mo>=</mo><msub><mi>Ψ</mi><mi>g</mi></msub><mo>⊗</mo><mi>A</mi><mo>,</mo><mspace width="1.0em"></mspace><mo>Var</mo><mrow><mo stretchy="true" form="prefix">(</mo><mi>ϵ</mi><mo stretchy="true" form="postfix">)</mo></mrow><mo>=</mo><mo>diag</mo><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>ψ</mi><mrow><mi>e</mi><mo>,</mo><mi>t</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>i</mi><mo stretchy="true" form="postfix">)</mo></mrow></mrow></msub><mo stretchy="true" form="postfix">)</mo></mrow><mi>.</mi></mrow><annotation encoding="application/x-tex">
 y=Xb+Z_g(L_g f_g+s_g)+L_e f_e+\epsilon,\quad
 \operatorname{Var}(s_g)=\Psi_g\otimes A,\quad
 \operatorname{Var}(\epsilon)=\operatorname{diag}(\psi_{e,t(i)}).
-\]</span></p>
+</annotation></semantics></math></p>
 <p>Residual factors are indexed by pairing key, genetic factors by
-individual. The prepared sparse design is denoted by <span class="math inline">\(D\)</span> and its random-effect precision by
-<span class="math inline">\(Q\)</span> (with zeros on fixed-effect
-coordinates). At every iteration:</p>
+individual. The prepared sparse design is denoted by
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>D</mi><annotation encoding="application/x-tex">D</annotation></semantics></math>
+and its random-effect precision by
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Q</mi><annotation encoding="application/x-tex">Q</annotation></semantics></math>
+(with zeros on fixed-effect coordinates). At every iteration:</p>
 <ol style="list-style-type: decimal">
-<li>Assemble <span class="math inline">\(H=D^\mathsf{T}R_0^{-1}D+Q\)</span> and factor it
-numerically.</li>
-<li>Compute conditional means and the entries of <span class="math inline">\(H^{-1}\)</span> needed by the complete-data
-quadratics, including fixed-effect uncertainty.</li>
+<li>Assemble
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>H</mi><mo>=</mo><msup><mi>D</mi><mi>𝖳</mi></msup><msubsup><mi>R</mi><mn>0</mn><mrow><mi>−</mi><mn>1</mn></mrow></msubsup><mi>D</mi><mo>+</mo><mi>Q</mi></mrow><annotation encoding="application/x-tex">H=D^\mathsf{T}R_0^{-1}D+Q</annotation></semantics></math>
+and factor it numerically.</li>
+<li>Compute conditional means and the entries of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>H</mi><mrow><mi>−</mi><mn>1</mn></mrow></msup><annotation encoding="application/x-tex">H^{-1}</annotation></semantics></math>
+needed by the complete-data quadratics, including fixed-effect
+uncertainty.</li>
 <li>Select the update block: exact REML score/AI contractions, or
 loading regressions and expected quadratic forms for EM. Do
 <strong>not</strong> treat predicted factors as observed data.</li>
@@ -940,11 +910,11 @@ stabilization; AI requires a small diagonally scaled REML score.</li>
 </ol>
 <p>On the original response scale, omitting the Gaussian normalizing
 constant, the restricted objective uses</p>
-<p><span class="math display">\[
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>−</mi><mn>2</mn><msub><mo>ℓ</mo><mi>R</mi></msub><mo>=</mo><mo>log</mo><mrow><mo stretchy="true" form="prefix">|</mo><msub><mi>R</mi><mn>0</mn></msub><mo stretchy="true" form="postfix">|</mo></mrow><mo>−</mo><mo>log</mo><mrow><mo stretchy="true" form="prefix">|</mo><msub><mi>Q</mi><mrow><mi mathvariant="normal">r</mi><mi mathvariant="normal">a</mi><mi mathvariant="normal">n</mi><mi mathvariant="normal">d</mi><mi mathvariant="normal">o</mi><mi mathvariant="normal">m</mi></mrow></msub><mo stretchy="true" form="postfix">|</mo></mrow><mo>+</mo><mo>log</mo><mrow><mo stretchy="true" form="prefix">|</mo><mi>H</mi><mo stretchy="true" form="postfix">|</mo></mrow><mo>+</mo><msup><mrow><mo stretchy="true" form="prefix">(</mo><mi>y</mi><mo>−</mo><mi>D</mi><mover><mi>a</mi><mo accent="true">̂</mo></mover><mo stretchy="true" form="postfix">)</mo></mrow><mi>𝖳</mi></msup><msubsup><mi>R</mi><mn>0</mn><mrow><mi>−</mi><mn>1</mn></mrow></msubsup><mrow><mo stretchy="true" form="prefix">(</mo><mi>y</mi><mo>−</mo><mi>D</mi><mover><mi>a</mi><mo accent="true">̂</mo></mover><mo stretchy="true" form="postfix">)</mo></mrow><mo>+</mo><msup><mover><mi>a</mi><mo accent="true">̂</mo></mover><mi>𝖳</mi></msup><mi>Q</mi><mover><mi>a</mi><mo accent="true">̂</mo></mover><mi>.</mi></mrow><annotation encoding="application/x-tex">
 -2\ell_R=\log|R_0|-\log|Q_{\mathrm{random}}|+\log|H|
-+(y-D\hat a)^\mathsf{T}R_0^{-1}(y-D\hat a)
-+\hat a^\mathsf{T}Q\hat a .
-\]</span></p>
+ +(y-D\hat a)^\mathsf{T}R_0^{-1}(y-D\hat a)
+ +\hat a^\mathsf{T}Q\hat a .
+</annotation></semantics></math></p>
 <p>Integrating the fixed coefficients with a flat measure gives the
 restricted objective; their conditional second moments are essential to
 the EM update. Specific variances have a machine-precision positive
@@ -955,19 +925,29 @@ allocations.</p>
 <div class="section level4">
 <h4 id="exact-score-and-ai-blocks">Exact score and AI blocks<a class="anchor" aria-label="anchor" href="#exact-score-and-ai-blocks"></a>
 </h4>
-<p>For covariance coordinate <span class="math inline">\(\theta_i\)</span>, let <span class="math inline">\(V_i=\partial V/\partial\theta_i\)</span>, <span class="math inline">\(P=V^{-1}-V^{-1}X(X^\mathsf{T}V^{-1}X)^{-1}X^\mathsf{T}V^{-1}\)</span>,
-and <span class="math inline">\(z=Py\)</span>. The score and average
-information are</p>
-<p><span class="math display">\[
+<p>For covariance coordinate
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msub><mi>θ</mi><mi>i</mi></msub><annotation encoding="application/x-tex">\theta_i</annotation></semantics></math>,
+let
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>V</mi><mi>i</mi></msub><mo>=</mo><mi>∂</mi><mi>V</mi><mi>/</mi><mi>∂</mi><msub><mi>θ</mi><mi>i</mi></msub></mrow><annotation encoding="application/x-tex">V_i=\partial V/\partial\theta_i</annotation></semantics></math>,
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>P</mi><mo>=</mo><msup><mi>V</mi><mrow><mi>−</mi><mn>1</mn></mrow></msup><mo>−</mo><msup><mi>V</mi><mrow><mi>−</mi><mn>1</mn></mrow></msup><mi>X</mi><msup><mrow><mo stretchy="true" form="prefix">(</mo><msup><mi>X</mi><mi>𝖳</mi></msup><msup><mi>V</mi><mrow><mi>−</mi><mn>1</mn></mrow></msup><mi>X</mi><mo stretchy="true" form="postfix">)</mo></mrow><mrow><mi>−</mi><mn>1</mn></mrow></msup><msup><mi>X</mi><mi>𝖳</mi></msup><msup><mi>V</mi><mrow><mi>−</mi><mn>1</mn></mrow></msup></mrow><annotation encoding="application/x-tex">P=V^{-1}-V^{-1}X(X^\mathsf{T}V^{-1}X)^{-1}X^\mathsf{T}V^{-1}</annotation></semantics></math>,
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>z</mi><mo>=</mo><mi>P</mi><mi>y</mi></mrow><annotation encoding="application/x-tex">z=Py</annotation></semantics></math>.
+The score and average information are</p>
+<p><math display="block" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>s</mi><mi>i</mi></msub><mo>=</mo><mfrac displaystyle="false"><mn>1</mn><mn>2</mn></mfrac><mrow><mo stretchy="true" form="prefix">(</mo><msup><mi>z</mi><mi>𝖳</mi></msup><msub><mi>V</mi><mi>i</mi></msub><mi>z</mi><mo>−</mo><mo>tr</mo><mrow><mo stretchy="true" form="prefix">(</mo><mi>P</mi><msub><mi>V</mi><mi>i</mi></msub><mo stretchy="true" form="postfix">)</mo></mrow><mo stretchy="true" form="postfix">)</mo></mrow><mo>,</mo><mspace width="2.0em"></mspace><msub><mi>𝒜</mi><mrow><mi>i</mi><mi>j</mi></mrow></msub><mo>=</mo><mfrac displaystyle="false"><mn>1</mn><mn>2</mn></mfrac><msup><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>V</mi><mi>i</mi></msub><mi>z</mi><mo stretchy="true" form="postfix">)</mo></mrow><mi>𝖳</mi></msup><mi>P</mi><mrow><mo stretchy="true" form="prefix">(</mo><msub><mi>V</mi><mi>j</mi></msub><mi>z</mi><mo stretchy="true" form="postfix">)</mo></mrow><mi>.</mi></mrow><annotation encoding="application/x-tex">
 s_i=\tfrac12(z^\mathsf{T}V_i z-\operatorname{tr}(PV_i)),\qquad
 \mathcal A_{ij}=\tfrac12(V_i z)^\mathsf{T}P(V_j z).
-\]</span></p>
+</annotation></semantics></math></p>
 <p>The implementation differentiates the sparse latent design, residual
 diagonal and random precision. Selected posterior moments give the exact
 score traces; relationship-factor solves apply random prior covariances
-without forming a dense relationship inverse. The already factored <span class="math inline">\(H\)</span> projects derivative right-hand sides in
-bounded panels. Neither <span class="math inline">\(V\)</span> nor <span class="math inline">\(P\)</span> is constructed. Shared loading
-derivatives affect both covariance sources in the same coordinate.</p>
+without forming a dense relationship inverse. The already factored
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>H</mi><annotation encoding="application/x-tex">H</annotation></semantics></math>
+projects derivative right-hand sides in bounded panels. Neither
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>V</mi><annotation encoding="application/x-tex">V</annotation></semantics></math>
+nor
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>P</mi><annotation encoding="application/x-tex">P</annotation></semantics></math>
+is constructed. Shared loading derivatives affect both covariance
+sources in the same coordinate.</p>
 <p>Independent loading matrices retain rotationally redundant
 coordinates. A diagonally scaled, rank-revealing curvature eigensolve
 drops numerically null directions rather than inverting a singular
@@ -983,9 +963,12 @@ certify AI convergence.</p>
 <p>Near-zero conditional noise can make the latent equations
 ill-conditioned even when the marginal covariance remains
 well-conditioned. Conditional AI therefore has explicit numerical
-bounds: writing <span class="math inline">\(\tau=\max(10^{-8},\texttt{execution\$inverseTol})\)</span>,
-free physical specifics must be at least <span class="math inline">\(\tau\operatorname{var}(y)\)</span> and shared
-allocations lie in <span class="math inline">\([\tau,1-\tau]\)</span>
+bounds: writing
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi><mo>=</mo><mo>max</mo><mrow><mo stretchy="true" form="prefix">(</mo><msup><mn>10</mn><mrow><mi>−</mi><mn>8</mn></mrow></msup><mo>,</mo><mtext mathvariant="monospace">𝚎𝚡𝚎𝚌𝚞𝚝𝚒𝚘𝚗$𝚒𝚗𝚟𝚎𝚛𝚜𝚎𝚃𝚘𝚕</mtext><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">\tau=\max(10^{-8},\texttt{execution\$inverseTol})</annotation></semantics></math>,
+free physical specifics must be at least
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>τ</mi><mo>var</mo><mrow><mo stretchy="true" form="prefix">(</mo><mi>y</mi><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">\tau\operatorname{var}(y)</annotation></semantics></math>
+and shared allocations lie in
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="true" form="prefix">[</mo><mi>τ</mi><mo>,</mo><mn>1</mn><mo>−</mo><mi>τ</mi><mo stretchy="true" form="postfix">]</mo></mrow><annotation encoding="application/x-tex">[\tau,1-\tau]</annotation></semantics></math>
 (<code>inverseTol</code> must be below 0.5). Initial values must satisfy
 these bounds. An active-set solve excludes outward directions at a
 bound; convergence uses the projected KKT score, not an unconstrained
@@ -999,7 +982,8 @@ boundaries need not match exactly between optimizers.</p>
 <p><code>conditionalFA$rawLikelihood</code> retains this original-scale
 objective. For compatibility with the ordinary solver’s
 standardized-response reporting, <code>llik</code> and
-<code>conditionalFA$likelihood</code> add <span class="math inline">\((n-\operatorname{ncol}(X))\log(\operatorname{sd}(y))\)</span>.
+<code>conditionalFA$likelihood</code> add
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mrow><mo stretchy="true" form="prefix">(</mo><mi>n</mi><mo>−</mo><mo>ncol</mo><mrow><mo stretchy="true" form="prefix">(</mo><mi>X</mi><mo stretchy="true" form="postfix">)</mo></mrow><mo stretchy="true" form="postfix">)</mo></mrow><mo>log</mo><mrow><mo stretchy="true" form="prefix">(</mo><mo>sd</mo><mrow><mo stretchy="true" form="prefix">(</mo><mi>y</mi><mo stretchy="true" form="postfix">)</mo></mrow><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">(n-\operatorname{ncol}(X))\log(\operatorname{sd}(y))</annotation></semantics></math>.
 This constant does not affect updates or convergence. <code>AIC</code>
 and <code>BIC</code> retain the existing solver’s fixed-design-column
 penalty convention; the covariance-model parameter count is recorded
@@ -1036,18 +1020,22 @@ counts.</p>
 <div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">random</span> <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/fam.html">fam</a></span><span class="op">(</span><span class="va">trait</span>, k <span class="op">=</span> <span class="fl">2</span>, shared <span class="op">=</span> <span class="st">"axes"</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">id</span><span class="op">)</span>, Gu <span class="op">=</span> <span class="va">Ainv</span><span class="op">)</span></span>
 <span><span class="va">rcov</span>   <span class="op">=</span> <span class="op">~</span> <span class="fu"><a href="../reference/vsm.html">vsm</a></span><span class="op">(</span><span class="fu"><a href="../reference/fam.html">fam</a></span><span class="op">(</span><span class="va">trait</span>, k <span class="op">=</span> <span class="fl">2</span>, shared <span class="op">=</span> <span class="st">"axes"</span><span class="op">)</span>, <span class="fu"><a href="../reference/ism.html">ism</a></span><span class="op">(</span><span class="va">record</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
-<p>This changes the covariance family to <span class="math inline">\(G=L
-D_g L^\mathsf{T}+\Psi_g\)</span> and <span class="math inline">\(R=L D_e
-L^\mathsf{T}+\Psi_e\)</span>. Both sources must be free with equal rank.
-Diagonal factor variances are updated from conditional quadratics and
-normalized so <span class="math inline">\(D_g+D_e=I\)</span>; the
-compensating scale is absorbed into <span class="math inline">\(L\)</span>. Starting loading columns must be
-positive scalar multiples between sources. Defaults satisfy this. The
-common basis is in <code>fit$conditionalFA$state$loading</code>, with
-allocations <code>weightG</code> and <code>weightE</code>; sign and
-ordering are not uniquely identified. <code><a href="../reference/loadings_mmes.html">loadings_mmes()</a></code>
-instead reports triangular marginal loadings for each source. Other
-engines reject shared tags rather than ignoring the restriction.</p>
+<p>This changes the covariance family to
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>G</mi><mo>=</mo><mi>L</mi><msub><mi>D</mi><mi>g</mi></msub><msup><mi>L</mi><mi>𝖳</mi></msup><mo>+</mo><msub><mi>Ψ</mi><mi>g</mi></msub></mrow><annotation encoding="application/x-tex">G=L D_g L^\mathsf{T}+\Psi_g</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>R</mi><mo>=</mo><mi>L</mi><msub><mi>D</mi><mi>e</mi></msub><msup><mi>L</mi><mi>𝖳</mi></msup><mo>+</mo><msub><mi>Ψ</mi><mi>e</mi></msub></mrow><annotation encoding="application/x-tex">R=L D_e L^\mathsf{T}+\Psi_e</annotation></semantics></math>.
+Both sources must be free with equal rank. Diagonal factor variances are
+updated from conditional quadratics and normalized so
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>D</mi><mi>g</mi></msub><mo>+</mo><msub><mi>D</mi><mi>e</mi></msub><mo>=</mo><mi>I</mi></mrow><annotation encoding="application/x-tex">D_g+D_e=I</annotation></semantics></math>;
+the compensating scale is absorbed into
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>L</mi><annotation encoding="application/x-tex">L</annotation></semantics></math>.
+Starting loading columns must be positive scalar multiples between
+sources. Defaults satisfy this. The common basis is in
+<code>fit$conditionalFA$state$loading</code>, with allocations
+<code>weightG</code> and <code>weightE</code>; sign and ordering are not
+uniquely identified. <code><a href="../reference/loadings_mmes.html">loadings_mmes()</a></code> instead reports
+triangular marginal loadings for each source. Other engines reject
+shared tags rather than ignoring the restriction.</p>
 </div>
 <div class="section level4">
 <h4 id="output-and-compatibility">Output and compatibility<a class="anchor" aria-label="anchor" href="#output-and-compatibility"></a>
@@ -1104,7 +1092,8 @@ unchanged ordinary paths are not claimed as a speedup.</p>
 <p>A separate single-thread, synthetic score benchmark with 2,000
 traits, rank 5 and 200 individuals compared the new regression score
 routine with <code>U %*% solve(Sigma, L)</code>: maximum absolute
-difference was below <span class="math inline">\(5\,10^{-14}\)</span>,
+difference was below
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mn>5</mn><mspace width="0.167em"></mspace><msup><mn>10</mn><mrow><mi>−</mi><mn>14</mn></mrow></msup></mrow><annotation encoding="application/x-tex">5\,10^{-14}</annotation></semantics></math>,
 median elapsed time was 0.003 versus 0.146 seconds (seven repetitions),
 and profiled R allocations were 3.84 versus 30.67 MiB. This measures
 <strong>score calculation only</strong>, not model fitting or process
@@ -1373,8 +1362,8 @@ paths and <code>nonlinear=</code> are not compatibility aliases.</p>
 <tr class="odd">
 <td align="left"><code>nonlinear=curve</code></td>
 <td align="left">
-<code>predictors=list(curve=curve)</code> and formula
-<code>y~0+graph_term("curve")</code>
+<code>curves=list(curve=curve)</code> and formula
+<code>y~0+curve_term("curve")</code>
 </td>
 </tr>
 <tr class="even">
@@ -1609,20 +1598,18 @@ representation or solver only when that method is mathematically
 equivalent and eligible. Do not interpret the module structure as
 permission to combine unsupported methods.</p>
 </div>
-  </main><aside class="col-md-3"><nav id="toc"><h2>On this page</h2>
+  </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
     </nav></aside>
 </div>
 
 
 
     <footer><div class="pkgdown-footer-left">
-  <p></p>
-<p>Developed by Giovanny Covarrubias-Pazaran.</p>
+  <p>Developed by Giovanny Covarrubias-Pazaran.</p>
 </div>
 
 <div class="pkgdown-footer-right">
-  <p></p>
-<p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.0.7.</p>
+  <p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
 </div>
 
     </footer>
