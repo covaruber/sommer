@@ -291,7 +291,7 @@ Breeding programmes rarely analyse one field. When trials are analysed together,
 
 ### 4.1 Three simulated trials
 
-We simulate three trials of different sizes, testing the same 80 genotypes, each with its own residual variance and its own range and row correlations:
+We simulate three trials of different sizes, testing the same 80 genotypes, each with its own residual variance and its own range and row correlations. To keep this vignette quick, active fits below use one REML iteration. Treat estimates and likelihoods as illustrations, not converged results; allow convergence before drawing conclusions:
 
 | trial | size (range x row) | variance | $\rho_\text{range}$ | $\rho_\text{row}$ |
 |:------|:------------------:|:--------:|:-------------------:|:-----------------:|
@@ -338,7 +338,8 @@ mShared <- mmes(yield ~ trial,
   random=~geno,
   rcov=~vsm(dsm(trial), ar1m(range), ar1m(row), ism(units)),
   data=MET,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L),
+                          diagnostics = list(verbose = FALSE)))
 knitr::kable(covparams_mmes(mShared)[, c("factor", "parameter", "estimate")], digits=3)
 ```
 
@@ -360,16 +361,17 @@ mDsum <- mmes(yield ~ trial,
   random=~geno,
   rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
   data=MET,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L),
+                          diagnostics = list(verbose = FALSE)))
 knitr::kable(covparams_mmes(mDsum)[, c("factor", "section", "parameter", "estimate")],
              digits=3)
 ```
 
-The `section` column tells which trial each parameter belongs to, and the estimates now track the truth in every trial. The first row (`sigma2`) is the internal overall scale; the trial variances are the `variance` rows.
+The `section` column tells which trial each parameter belongs to. At convergence, estimates should track the truth in each trial. The first row (`sigma2`) is the internal overall scale; the trial variances are the `variance` rows.
 
 ### 4.4 Which model should I use?
 
-The shared model is nested in the `dsumm()` model: it is the special case in which all trials have the same correlations. The two can therefore be compared with a likelihood-ratio test, with degrees of freedom equal to the number of extra parameters, here $2 \times (3 - 1) = 4$ correlations. Both models have the same fixed and random effects, so their REML likelihoods are comparable.
+The shared model is nested in the `dsumm()` model: it is the special case in which all trials have the same correlations. Once both models converge, they can be compared with a likelihood-ratio test, with degrees of freedom equal to the number of extra parameters, here $2 \times (3 - 1) = 4$ correlations. Both models have the same fixed and random effects, so their REML likelihoods are comparable.
 
 ```{r}
 logLikShared <- tail(as.numeric(mShared$llik), 1)
@@ -399,7 +401,8 @@ mLevels <- mmes(yield ~ trial,
   rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)),
                             by=trial, levels=c("T1", "T2")),
   data=MET2,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L),
+                          diagnostics = list(verbose = FALSE)))
 knitr::kable(covparams_mmes(mLevels)[, c("factor", "section", "parameter", "estimate")],
              digits=3)
 c(used = nrow(mLevels$y), available = nrow(MET2))
@@ -431,7 +434,8 @@ mDsumOff <- mmes(yield ~ trial,
   rcov=~dsumm(vsm(ar1m(range), ar1m(row), ism(units)), by=trial),
   data=MET,
   control = mmes_control(diagnostics = list(verbose = FALSE),
-                         representation = list(gridAugment = "off")))
+                         representation = list(gridAugment = "off"),
+                         convergence = list(maxIters = 1L)))
 c(augmented = tail(as.numeric(mDsum$llik), 1), original = tail(as.numeric(mDsumOff$llik), 1))
 ```
 
@@ -470,12 +474,13 @@ mField <- mmes(yield ~ trial,
     vsm(atm(trial, "T3"), ar1m(range), ar1m(row), ism(site)),
   rcov=~vsm(dsm(trial), ism(units)),
   data=MET,
-  control = mmes_control(diagnostics = list(verbose = FALSE)))
+  control = mmes_control(convergence = list(maxIters = 1L),
+                          diagnostics = list(verbose = FALSE)))
 knitr::kable(covparams_mmes(mField)[, c("factor", "parameter", "estimate")], digits=3)
 cor(mDsum$u[grep("^G", rownames(mDsum$u))], mField$u[grep("^G", rownames(mField$u))])
 ```
 
-The spatial variances and correlations are close to those of the `dsumm()` residual model. The residual variances are near zero because these data were simulated without a nugget, and the genotype BLUPs of the two models are almost identical.
+At convergence, spatial variances and correlations should be close to those of the `dsumm()` residual model. Residual variances should be near zero because these data were simulated without a nugget, and genotype BLUPs should be similar.
 
 When to use which formulation:
 
