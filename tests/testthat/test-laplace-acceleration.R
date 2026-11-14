@@ -88,6 +88,7 @@ test_that("missing selected entries are solved exactly and never treated as zero
 })
 
 test_that("warm mode starts preserve likelihood and scores while reducing iterations", {
+  skip_on_cran()
   f <- accelerationFixture(q=30L,n=180L)
   for(backend in c("random","observation")){
     cold <- accelerationContext(f,backend=backend)
@@ -159,6 +160,7 @@ accelerationMixedData <- function(){
 }
 
 test_that("mixed nominal analytic scores include nuisance, residual and constrained covariance derivatives", {
+  skip_on_cran()
   data <- accelerationMixedData()
   model <- sommer:::.mmes_dispatch(y~trait+trait:x-1,
     random=~vsm(ism(id),sigma2=.3)+vsm(ism(replicate),sigma2=.15),
@@ -189,6 +191,7 @@ test_that("mixed nominal analytic scores include nuisance, residual and constrai
 })
 
 test_that("standalone nominal acceleration preserves analytic scores and mode systems", {
+  skip_on_cran()
   set.seed(37)
   data <- expand.grid(id=factor(1:12),replicate=1:8)
   data$x <- rnorm(nrow(data))
@@ -242,6 +245,7 @@ test_that("public scalar controls persist across uncertainty, bootstrap and seri
 })
 
 test_that("mixed analytic and numerical full fits retain inference and refit parity", {
+  skip_on_cran()
   data <- droplevels(subset(accelerationMixedData(),trait %in% c("count","ord","nom")))
   fit <- function(control) sommer:::.mmes_dispatch(y~trait+trait:x-1,
     random=~vsm(ism(id),sigma2=.3,fixedSigma2=TRUE),data=data,

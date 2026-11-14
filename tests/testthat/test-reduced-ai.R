@@ -79,6 +79,7 @@ test_that("reduced information preserves boundary tangents and regularized trust
 })
 
 test_that("packed native AI equals independent contraction of full information", {
+  skip_on_cran()
   dataset <- .reduced_ai_data()
   models <- list(
     list(random=~id+h, vcc=data.frame(parameter=c(1L, 2L), group=1L, scale=c(2, 1))),

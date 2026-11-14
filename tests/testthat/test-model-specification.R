@@ -102,6 +102,7 @@ test_that("exact additive Gaussian integration preserves relationship DG covaria
 })
 
 test_that("log-rate random effects use genuine conditional-mode Laplace integration",{
+  skip_on_cran()
   data <- specification_data()
   control <- specification_control()
   fit <- .mmes_specification_fit(y~Env+a*tanh(k*x),data=data,
@@ -156,6 +157,7 @@ test_that("nonlinear Bernoulli and Poisson likelihoods match independent GLMs",{
 })
 
 test_that("nonGaussian additive random effects use Laplace, not a working fit",{
+  skip_on_cran()
   data <- specification_data()
   set.seed(761)
   data$binary <- rbinom(nrow(data),1,plogis(.1+.7*data$x))
@@ -176,6 +178,7 @@ test_that("nonGaussian additive random effects use Laplace, not a working fit",{
 })
 
 test_that("Gamma log likelihood and fitted dispersion match independent ML",{
+  skip_on_cran()
   data <- specification_data()
   set.seed(365)
   data$positive <- rgamma(nrow(data),shape=5,
@@ -229,6 +232,7 @@ test_that("uncertainty is post-fit and its evaluator survives serialization",{
 })
 
 test_that("one shared observation mask respects explicit NA policies",{
+  skip_on_cran()
   data <- specification_data()
   data$y[1] <- NA
   data$x[2] <- NA
@@ -251,6 +255,7 @@ test_that("one shared observation mask respects explicit NA policies",{
 })
 
 test_that("conditional scores certify requested mode tolerance and controls are owned",{
+  skip_on_cran()
   data <- specification_data()
   control <- specification_control()
   control$task$nonlinear$mode$scoreTol <- 2e-6

@@ -1,4 +1,5 @@
 test_that("shared sparse factorization and AI recovery policies preserve their thresholds", {
+  skip_on_cran()
   .native_run("test-mme-sparse",
     c("mme_sparse.h", "mme_recovery.h", "mme_posterior.h"), eigen=TRUE)
 })

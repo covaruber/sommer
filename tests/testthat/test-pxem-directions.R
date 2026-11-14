@@ -87,6 +87,7 @@
 }
 
 test_that("scalar PX reduction matches independent expanded REML and ML objectives", {
+  skip_on_cran()
   dataset <- .px_data()
   for(reml in c(TRUE, FALSE)) for(weighted in c(FALSE, TRUE)){
     arguments <- list(fixed=y~site, random=~vsm(ism(id), sigma2=0.8) +

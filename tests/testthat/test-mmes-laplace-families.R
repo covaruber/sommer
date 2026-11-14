@@ -274,6 +274,7 @@ test_that("native Gaussian likelihood agrees with exact marginal GLS", {
 })
 
 test_that("native NB2 and Gamma fits estimate shape and dispersion", {
+  skip_on_cran()
   set.seed(817)
   dataset <- data.frame(x=rnorm(300L), group=factor(rep(seq_len(30L), each=10L)))
   groupEffect <- rnorm(30L, sd=0.25)

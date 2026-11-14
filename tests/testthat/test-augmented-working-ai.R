@@ -34,6 +34,7 @@
 }
 
 test_that("augmented AI algebra passes independent native checks", {
+  skip_on_cran()
   .native_run("test-mme-ai-augmented", "mme_ai_augmented.h", eigen=TRUE)
 })
 

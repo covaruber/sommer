@@ -188,6 +188,7 @@ test_that("ordinal latent processes integrate the fitted correlated prior", {
 })
 
 test_that("nominal processes integrate row-specific correlated logit loadings", {
+  skip_on_cran()
   data <- latentProcessData()
   set.seed(87)
   probability <- cbind(exp(data$eta),exp(-.4*data$eta),1)
@@ -225,6 +226,7 @@ test_that("nominal processes integrate row-specific correlated logit loadings", 
 })
 
 test_that("mixed count, binary, ordinal and nominal responses share a temporal process", {
+  skip_on_cran()
   original <- latentProcessData()
   original <- droplevels(original[original$id %in% as.character(1:8),])
   set.seed(881)
@@ -339,6 +341,7 @@ test_that("PQL retains its existing structured latent-process workflow", {
 })
 
 test_that("other log-linked families preserve their marginal mean and post-fit contracts", {
+  skip_on_cran()
   data <- latentProcessData()
   set.seed(561)
   responses <- list(nb=rnbinom(nrow(data),size=2,mu=exp(data$eta)),

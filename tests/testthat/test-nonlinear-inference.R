@@ -114,6 +114,7 @@ test_that("post-fit curvature, natural scales and PEV match independent Gaussian
 })
 
 test_that("prediction delta covariance includes mode motion and keeps estimands distinct", {
+  skip_on_cran()
   data <- nonlinearInferenceData()
   fit <- post_nonlinear(sommer:::.mmes_dispatch(y~0,random=~group,data=data,
     nonlinear=nonlinear_curve("x"),control=nonlinearInferenceControl()),mode=2)
@@ -150,6 +151,7 @@ test_that("prediction delta covariance includes mode motion and keeps estimands 
 for(family in list(binomial(),binomial("probit"),binomial("cloglog"),poisson(),
     nbinom2(3),Gamma("log"),gaussian(),zipoisson(.25))){
   test_that(paste(family$family,family$link,"exposes finite post-fit inference"), {
+    skip_on_cran()
     data <- nonlinearInferenceData(family)
     control <- nonlinearInferenceControl()
     if(grepl("^Negative Binomial",family$family))
@@ -195,6 +197,7 @@ test_that("random curve group uncertainty and prior-population prediction are po
 
 for(family in list(ordinal(),ordinal("probit"),multinomial(reference="red"))){
   test_that(paste(family$family,family$link,"retains categorical uncertainty shapes"), {
+    skip_on_cran()
     data <- nonlinearInferenceData(family)
     fixed <- if(family$family=="ordinal") y~1 else y~0
     fit <- sommer:::.mmes_dispatch(fixed,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
@@ -221,6 +224,7 @@ for(family in list(ordinal(),ordinal("probit"),multinomial(reference="red"))){
 }
 
 test_that("zero-regression retains uncertainty shapes", {
+  skip_on_cran()
   data <- nonlinearInferenceData(zipoisson(.25))
   fit <- sommer:::.mmes_dispatch(y~0,random=~vsm(ism(group),sigma2=.04,fixedSigma2=TRUE),
     data=data,family=zipoisson(zero=~z),nonlinear=nonlinear_curve("x"),
@@ -231,6 +235,7 @@ test_that("zero-regression retains uncertainty shapes", {
 })
 
 test_that("mixed families retain uncertainty shapes", {
+  skip_on_cran()
   left <- nonlinearInferenceData(poisson())
   right <- nonlinearInferenceData(gaussian(),seed=730)
   left$trait <- "count"; right$trait <- "normal"
@@ -345,6 +350,7 @@ test_that("reduced-rank uncertainty restores the full singular covariance basis"
 })
 
 test_that("all curve parameterizations and estimated family tails have uncertainty", {
+  skip_on_cran()
   data <- nonlinearInferenceData()
   for(curve in c("logistic","saturation")){
     data$y <- if(curve=="logistic") 1.4*plogis(1.2*(data$x-2.5)) else
@@ -372,6 +378,7 @@ test_that("all curve parameterizations and estimated family tails have uncertain
 })
 
 test_that("grouped-binomial intervals require declared new-data trial counts", {
+  skip_on_cran()
   data <- nonlinearInferenceData(binomial())
   set.seed(73)
   data$success <- rbinom(nrow(data),20,plogis(1.4*exp(-.65*data$x)))
@@ -389,6 +396,7 @@ test_that("grouped-binomial intervals require declared new-data trial counts", {
 })
 
 test_that("covariance constraints and mixed categorical uncertainty remain aligned", {
+  skip_on_cran()
   data <- nonlinearInferenceData()
   data$cluster <- factor(rep(1:3,each=64))
   data$y <- data$y+rep(c(-.15,.2,-.05),each=64)
@@ -436,6 +444,7 @@ test_that("Gaussian future-response intervals agree with conditional simulation"
 })
 
 test_that("Gaussian random curves combine additive effects and exact conditional curvature", {
+  skip_on_cran()
   data <- nonlinearInferenceData(gaussian(),TRUE)
   data$cluster <- factor(rep(1:3,each=64))
   data$y <- data$y+rep(c(-.1,.12,-.02),each=64)

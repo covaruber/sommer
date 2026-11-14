@@ -94,6 +94,7 @@ test_that("profile likelihood, score and AI match independent same-point evaluat
 })
 
 test_that("profiled fits preserve converged estimates and exact final uncertainty", {
+  skip_on_cran()
   dataset <- .common_scale_data()
   for(solver in c("ldlt", "cholmod")) for(reml in c(TRUE, FALSE)){
     model <- function(mode, information="full", inverse=2L, returnParam=FALSE){

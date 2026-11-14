@@ -46,6 +46,7 @@ test_that("compression controls validate in representation module", {
 }
 
 test_that("all deterministic solvers preserve compressed likelihood, exact traces, AI and PEV", {
+  skip_on_cran()
   weights <- Matrix::Diagonal(x=seq(0.5, 2, length.out=nrow(.mme_compression_data())))
   for(solver in c("ldlt", "cholmod", "auto")){
     for(reml in c(TRUE, FALSE)){

@@ -1,4 +1,5 @@
 test_that("latent heterogeneous/homogeneous FA Schur preserves AI trajectories and uncertainty", {
+  skip_on_cran()
   previous <- options(sommer.mme.denseMemoryMB=NULL)
   on.exit(options(previous), add=TRUE)
   dataset <- expand.grid(id=factor(seq_len(6L)), environment=factor(letters[1:5]),

@@ -163,7 +163,7 @@ Covarrubias-Pazaran G (2016) Genome assisted prediction of quantitative traits u
 data(DT_cpdata, package="enhancer")
 DT <- DT_cpdata
 
-\donttest{
+\dontrun{
 # response matrix
 y <- cbind(imputev(DT$Yield), imputev(DT$Firmness))
 # fixed effect incidence matrix

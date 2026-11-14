@@ -17,6 +17,7 @@ zipFormulaControl <- function(){
 }
 
 test_that("ZIP zero formula validation is bounded and backward compatible", {
+  skip_on_cran()
   expect_error(zipoisson(zero=y~x), "one-sided")
   expect_error(zipoisson(zero=~(1|group)), "without random effects")
   data <- zipFormulaData()
@@ -98,6 +99,7 @@ test_that("zero coefficients precede subsequent estimated family parameters", {
 })
 
 test_that("a no-intercept zero formula keeps its declared basis", {
+  skip_on_cran()
   data <- zipFormulaData()
   fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=zipoisson(zero=~0+z),
     control=zipFormulaControl())
@@ -110,6 +112,7 @@ test_that("a no-intercept zero formula keeps its declared basis", {
 })
 
 test_that("formula ZIP wires fitted means, inference, prediction and diagnostics", {
+  skip_on_cran()
   data <- zipFormulaData()
   fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=zipoisson(zero=~z),
     control=zipFormulaControl())
@@ -209,6 +212,7 @@ test_that("ZIP screening distinguishes low information and mixture boundaries", 
 })
 
 test_that("zero-only missing covariates use the fixed missing-data policy", {
+  skip_on_cran()
   data <- zipFormulaData()
   data$z[c(2, 9)] <- NA_real_
   fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=zipoisson(zero=~z),
@@ -223,6 +227,7 @@ test_that("zero-only missing covariates use the fixed missing-data policy", {
 })
 
 test_that("zero designs retain factors, transformations and offsets for new data", {
+  skip_on_cran()
   data <- zipFormulaData()
   data$f <- factor(rep(c("a", "b"), length.out=nrow(data)))
   data$off <- rep(0.2, nrow(data))
@@ -240,6 +245,7 @@ test_that("zero designs retain factors, transformations and offsets for new data
 })
 
 test_that("mixed traits restrict zero-only covariates to their ZIP rows", {
+  skip_on_cran()
   data <- zipFormulaData()
   other <- data
   other$y <- rpois(nrow(other), exp(0.7+0.3*other$x+other$latent))

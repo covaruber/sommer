@@ -61,6 +61,7 @@ test_that("solveOnly matches the engine for structured random and residual covar
 })
 
 test_that("solveOnly matches the engine with spatial residuals and diagonal weights", {
+  skip_on_cran()
   data(DT_cpdata)
   DT <- DT_cpdata
   DT$rowf <- factor(DT$Row)

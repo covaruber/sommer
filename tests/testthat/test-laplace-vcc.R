@@ -80,6 +80,7 @@ test_that("the Laplace tangent handles signed loadings, ratios and correlation t
 })
 
 test_that("native Laplace vcc equals independent combined-design reformulations", {
+  skip_on_cran()
   data <- .laplace_vcc_data()
   for(ratio in c(1, 2)){
     constraint <- data.frame(parameter=1:2, group=1L, scale=c(ratio, 1))
@@ -246,6 +247,7 @@ test_that("fixed anchors remove constrained coordinates from fitting and uncerta
 })
 
 test_that("covariance constraints preserve grouped trials and estimated family parameters", {
+  skip_on_cran()
   data <- .laplace_vcc_data()
   set.seed(881)
   data$success <- rbinom(nrow(data),5,plogis(data$continuous))
@@ -304,6 +306,7 @@ test_that("Laplace vcc validates groups, types, fixed anchors and likelihood-onl
 })
 
 test_that("ordinal and nominal constraints retain full post-fit and refit support", {
+  skip_on_cran()
   data <- .laplace_vcc_data()
   set.seed(805)
   logits <- cbind(0.3+2.5*data$continuous, -0.5+2.5*data$continuous, 0)
@@ -364,6 +367,7 @@ test_that("ordinal and nominal constraints retain full post-fit and refit suppor
 })
 
 test_that("mixed categorical familym respects vcc in prediction, PEV and bootstrap", {
+  skip_on_cran()
   data <- .laplace_vcc_data()
   set.seed(195)
   original <- data

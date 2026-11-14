@@ -242,6 +242,7 @@ test_that("Gaussian trait blocks estimate cross-trait residual covariance withou
 })
 
 test_that("Gaussian residual blocks coexist with scalar, ordinal and nominal likelihoods", {
+  skip_on_cran()
   set.seed(81)
   original <- expand.grid(time=factor(1:3),group=factor(1:16))
   original$x <- rnorm(nrow(original))

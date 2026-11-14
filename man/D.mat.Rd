@@ -111,10 +111,10 @@ Genetics 209(1):77-87. doi:10.1534/genetics.118.300685.
 ####=========================================####
 #### EXAMPLE 1
 ####=========================================####
-####random population of 200 lines with 1000 markers
-X <- matrix(rep(0,200*1000),200,1000)
-for (i in 1:200) {
-  X[i,] <- sample(c(-1,0,0,1), size=1000, replace=TRUE)
+####random population of 20 lines with 100 markers
+X <- matrix(rep(0,20*100),20,100)
+for (i in 1:20) {
+  X[i,] <- sample(c(-1,0,0,1), size=100, replace=TRUE)
 }
 
 D <- D.mat(X)

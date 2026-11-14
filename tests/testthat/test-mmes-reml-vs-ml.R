@@ -101,6 +101,7 @@ test_that("REML=FALSE with a dense Gu (solver='cholmod') matches solver='ldlt'",
 })
 
 test_that("matrix-free PCG handles multi-factor Kronecker random precision", {
+  skip_on_cran()
   set.seed(17)
   dat <- expand.grid(
     environment=factor(seq_len(3)),

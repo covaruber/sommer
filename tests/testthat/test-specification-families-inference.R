@@ -184,6 +184,7 @@ test_that("specification inference matches a fixed-variance Gaussian linear orac
 })
 
 test_that("reference prior predictions integrate more than two independent predictor records",{
+  skip_on_cran()
   data <- data.frame(x=seq(-1,1,length.out=12L),group=factor(rep("all",12L)))
   data$y <- exp(.2+.15*data$x)+.02*sin(2*data$x)
   declaration <- function() parameter(random=~vsm(ism(group),sigma2=.015,
@@ -231,6 +232,7 @@ test_that("mixed ordinal and scalar specifications retain trait layouts",{
 })
 
 test_that("nominal population integration retains cross-category prior covariance",{
+  skip_on_cran()
   set.seed(1847)
   data <- data.frame(x=seq_len(30L),group=factor(rep(1:2,each=15L)))
   data$y <- factor(rep(c("a","b","c","b","a"),6L))
@@ -311,6 +313,7 @@ test_that("known specification parameters retain conditional uncertainty without
 
 for(seed in c(75110L,75123L)){
   test_that(paste("binomial specification information matches a scalar-root oracle",seed),{
+    skip_on_cran()
     set.seed(seed)
     data <- expand.grid(x=seq(-1.5,1.5,length.out=12L),group=factor(seq_len(4L)))
     eta <- .25+.7*data$x+rnorm(4L,sd=.3)[data$group]

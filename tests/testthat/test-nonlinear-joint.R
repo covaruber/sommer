@@ -193,6 +193,7 @@ test_that("joint reduced-rank scores include moving parameter-axis loadings",{
 })
 
 test_that("joint fits predict simulate serialize and defer uncertainty",{
+  skip_on_cran()
   data <- nonlinearJointData()
   fit <- sommer:::.mmes_dispatch(y~0,data=data,nonlinear=nonlinearJointModel(structure="fixed"),
     control=nonlinearJointControl())
@@ -260,6 +261,7 @@ test_that("all logistic coordinates vary jointly on their declared scales",{
 })
 
 test_that("joint covariance and independent midpoint coexist without changing vsm",{
+  skip_on_cran()
   data <- nonlinearJointData("logistic",groups=6L)
   model <- nonlinearJointModel("logistic","fixed")
   model <- nonlinear_curve("x","logistic",random=list(
@@ -288,6 +290,7 @@ test_that("joint known relationships preserve full covariance and prediction bas
 
 for(family in list(poisson(),ordinal(),multinomial(reference="red"))){
   test_that(paste(family$family,"joint fits retain response and uncertainty shapes"),{
+    skip_on_cran()
     data <- nonlinearJointData(groups=8L,points=14L)
     set.seed(351)
     if(family$family=="poisson") data$y <- rpois(nrow(data),exp(data$eta))
@@ -384,6 +387,7 @@ test_that("diagonal joint covariance agrees with independent named formulas",{
 })
 
 test_that("joint mixed-family fits retain scalar trait output and post-fit covariance",{
+  skip_on_cran()
   data <- nonlinearJointData(groups=6L,points=10L)
   normal <- data
   data$trait <- "count"; normal$trait <- "normal"

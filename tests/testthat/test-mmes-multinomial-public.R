@@ -20,6 +20,7 @@ multinomialPublicFixture <- function(){
 }
 
 test_that("public multinomial fits expose probabilities and post-fit methods", {
+  skip_on_cran()
   fixture <- multinomialPublicFixture()
   fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=fixture$data,
     family=multinomial(reference="high"), control=fixture$control)
@@ -297,6 +298,7 @@ test_that("nominal population quadrature includes cross-category covariance and 
 })
 
 test_that("nominal population quadrature supports independent terms and four categories", {
+  skip_on_cran()
   fixture <- multinomialPublicFixture()
   fixture$data$other <- factor(rep(1:10,length.out=nrow(fixture$data)))
   build <- function(data,random){

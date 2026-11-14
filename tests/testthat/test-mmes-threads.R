@@ -62,6 +62,7 @@ test_that("mmes restores real BLAS settings after success, early return, and err
 })
 
 test_that("parallel AI contractions preserve serial fits and cache accounting", {
+  skip_on_cran()
   environment <- c(R_LIBS=paste(.libPaths(), collapse=.Platform$path.sep),
     OMP_NUM_THREADS="1", OMP_THREAD_LIMIT="2",
     OPENBLAS_NUM_THREADS="1", MKL_NUM_THREADS="1", BLIS_NUM_THREADS="1")

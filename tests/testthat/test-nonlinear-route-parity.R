@@ -2,6 +2,7 @@ for(case in c("gaussian","logit","probit","cloglog","poisson","Gamma","nbinom2",
   local({
     code <- case
     test_that(paste("nonlinear specification supports",code),{
+      skip_on_cran()
       set.seed(1850+match(code,c("gaussian","logit","probit","cloglog","poisson",
         "Gamma","nbinom2","ziPoisson")))
       data <- expand.grid(x=seq(-1.5,1.5,length.out=12L),group=factor(1:2))

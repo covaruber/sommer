@@ -3,6 +3,7 @@ test_that("native control defaults and parsers preserve their contracts", {
 })
 
 test_that("native control transport respects descriptor and option precedence", {
+  skip_on_cran()
   source <- test_path("..", "native", "test-mme-control-transport.cpp")
   header <- test_path("..", "..", "src", "mme_control_r.h")
   .native_require(all(file.exists(c(source, header))),

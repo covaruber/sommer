@@ -788,9 +788,9 @@ For new marker profiles \(M_*\), the genetic-value PEV is \(M_*C_{aa}M_*^\prime\
 
 For genuinely new individuals, replace `Mnew <- M` below with their marker matrix, using the same marker encoding, centering, scaling and column order as `M`. The reported `mean` is the fixed intercept plus genetic value; it excludes a new `Rowf` effect and residual error.
 
-The `Ci` matrix returned by `postPEV(..., mode = 2L)` is the full joint coefficient error covariance. Mode 2 can require substantial memory, so this full-covariance example is intended for data sizes where that matrix is manageable.
+The `Ci` matrix returned by `postPEV(..., mode = 2L)` is the full joint coefficient error covariance. Mode 2 can require substantial memory, so this full-covariance example is intended for data sizes where that matrix is manageable. To keep the vignette build short, the code from this point on is shown but not evaluated; set `eval=TRUE` in these chunks to run it.
 
-```{r partitioned-marker-pev, fig.width=6, fig.height=6}
+```{r partitioned-marker-pev, eval=FALSE, fig.width=6, fig.height=6}
 library(sommer)
 data("DT_cpdata", package = "enhancer")
 DT <- DT_cpdata
@@ -957,7 +957,7 @@ An eigendecomposition of a symmetric relationship matrix can be written \(A=UDU^
 
 To keep these rotation examples quick, the wheat data are restricted to 200 lines and 100 markers, and each fit is capped at one REML iteration. Increase these limits for a full analysis.
 
-```{r}
+```{r, eval=FALSE}
 
 data("DT_wheat", package="enhancer")
 rownames(GT_wheat) <- rownames(DT_wheat)
@@ -1015,7 +1015,7 @@ The transformed and untransformed formulations are algebraically equivalent unde
 
 Another example of how usefult this can be is in the multi-trait models:
 
-```{r}
+```{r, eval=FALSE}
 
 data("DT_wheat", package="enhancer")
 rownames(GT_wheat) <- rownames(DT_wheat)
@@ -1059,7 +1059,7 @@ Estimating variance components has been a topic of interest for the breeding com
 
 #### North Carolina Design I (Nested design)
 
-```{r}
+```{r, eval=FALSE}
 
 data(DT_expdesigns, package="enhancer")
 DT <- DT_expdesigns$car1
@@ -1108,7 +1108,7 @@ As can be seen the REML method is easier than manipulating the MS and we arrive 
 
 #### North Carolina Design II (Factorial design)
 
-```{r}
+```{r, eval=FALSE}
 DT <- DT_expdesigns$car2
 DT <- aggregate(yield~set+male+female+rep, data=DT, FUN = mean)
 DT$setf <- as.factor(DT$set)
@@ -1174,7 +1174,7 @@ As can be seen, the REML method is easier than manipulating the MS and we arrive
 Gualdron-Duarte et al. (2014) and Bernal-Rubio et al. (2016) proved that in (SingleStep)GBLUP or RRBLUP/SNP-BLUP, dividing the estimate of the marker effect by its standard error is mathematically equivalent to fixed regression EMMAX GWAS, even if markers are estimated as random effects in GBLUP and as fixed effects in EMMAX. That way fitting a GBLUP model is enough to perform GWAS for additive and on-additive effects.
 
 Let us use the DT_cpdata dataset to explore the GWAS by GBLUP method
-```{r}
+```{r, eval=FALSE}
 data(DT_cpdata, package="enhancer")
 DT <- DT_cpdata
 GT <- GT_cpdata[,1:200]
@@ -1186,7 +1186,7 @@ k <- 1 # to be used for degrees of freedom (number of levels in fixed effects)
 ```
 First we fit a regular GWAS/EMMAX using the GWAS function available in sommer that first calculates variance components and then fits a regression marker by marker as a fixed effect.
 
-```{r}
+```{r, eval=FALSE}
 ###########################
 #### Regular GWAS/EMMAX approach
 ###########################
@@ -1199,7 +1199,7 @@ First we fit a regular GWAS/EMMAX using the GWAS function available in sommer th
 
 To compare EMMAX to the approach proposed by Gualdron-Duarte et al. (2014) and Bernal-Rubio et al. (2016) we will start fitting an RRBLUP/SNP-BLUP model to show that the estimate of the marker effect by its standard error is mathematically equivalent to fixed regression EMMAX GWAS.
 
-```{r}
+```{r, eval=FALSE}
 # ###########################
 # #### GWAS by RRBLUP approach
 # ###########################
@@ -1217,7 +1217,7 @@ To compare EMMAX to the approach proposed by Gualdron-Duarte et al. (2014) and B
 ```
 Instead of fitting the RRBLUP/SNP-BLUP model we can fit a GBLUP model which is less computationally demanding and recover marker effects and their standard errors from the genotype effects.
 
-```{r}
+```{r, eval=FALSE}
 # ###########################
 # #### GWAS by GBLUP approach
 # ###########################
@@ -1244,7 +1244,7 @@ Instead of fitting the RRBLUP/SNP-BLUP model we can fit a GBLUP model which is l
 ```
 Now we can look at the p-values coming from the 3 approaches to indeed show that results are equivalent.
 
-```{r}
+```{r, eval=FALSE}
 ###########################
 #### Compare results
 ###########################

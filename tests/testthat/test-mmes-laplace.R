@@ -16,6 +16,7 @@ laplaceControl <- function(...){
 }
 
 test_that("native Laplace GLMMs expose likelihood and prediction methods", {
+  skip_on_cran()
   data <- laplaceExampleData()
   fit <- sommer:::.mmes_dispatch(y~x, random=~group, data=data, family=binomial(),
     control=laplaceControl())

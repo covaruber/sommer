@@ -100,6 +100,7 @@ test_that("ordinal prediction preserves fitted contrasts, offsets and category l
 })
 
 test_that("ordinal simulation preserves levels and category frequencies", {
+  skip_on_cran()
   fit <- ordinalFitFixture()$fit
   set.seed(42)
   before <- .Random.seed
@@ -118,6 +119,7 @@ test_that("ordinal simulation preserves levels and category frequencies", {
 })
 
 test_that("ordinal post-fit uncertainty includes cutpoints and prediction cross-covariances", {
+  skip_on_cran()
   fit <- ordinalFitFixture()$fit
   summary <- summary(fit)
   expect_output(print(summary), "Ordinal cutpoints")
@@ -175,6 +177,7 @@ test_that("public ordinal fits agree with independent proportional-odds fits in 
 })
 
 test_that("ordinal intercept-only, fixed thresholds and binary fits are complete", {
+  skip_on_cran()
   fixture <- ordinalFitFixture()
   for(link in c("logit", "probit")){
     fit <- sommer:::.mmes_dispatch(y~1, random=~vsm(ism(group), sigma2=0.16, fixedSigma2=TRUE),
@@ -206,6 +209,7 @@ test_that("ordinal intercept-only, fixed thresholds and binary fits are complete
 })
 
 test_that("ordinal bootstrap and likelihood comparisons preserve the category experiment", {
+  skip_on_cran()
   fixture <- ordinalFitFixture()
   fit <- fixture$fit
   reduced <- sommer:::.mmes_dispatch(y~x+offset(log(exposure)),
@@ -231,6 +235,7 @@ test_that("ordinal bootstrap and likelihood comparisons preserve the category ex
 })
 
 test_that("ordinal covariance-parameter uncertainty and eligibility guards are explicit", {
+  skip_on_cran()
   fit <- ordinalFitFixture(estimateVariance=TRUE)$fit
   expect_true(fit$convergence)
   expect_equal(fit$npar, 5)
@@ -257,6 +262,7 @@ test_that("ordinal covariance-parameter uncertainty and eligibility guards are e
 })
 
 test_that("ordinal probability uncertainty matches an independent joint delta method", {
+  skip_on_cran()
   for(link in c("logit", "probit")){
     fixture <- ordinalFitFixture(link)
     fit <- fixture$fit

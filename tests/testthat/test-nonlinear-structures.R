@@ -191,6 +191,7 @@ test_that("reduced-rank conditional density and Laplace likelihood match latent-
 })
 
 test_that("FA and reduced-rank fits retain full-coordinate and population predictions",{
+  skip_on_cran()
   data <- nonlinearStructureData(groups=12L)
   set.seed(738)
   loading <- c(1,0.65,-0.4)

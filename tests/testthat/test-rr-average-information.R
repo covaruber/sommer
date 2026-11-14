@@ -301,6 +301,7 @@ test_that("latent AI matches independently optimized ML", {
 })
 
 test_that("diagonal residual contractions are exact across layouts, solvers and weights", {
+  skip_on_cran()
   fixture <- .rr_ai_fixture()
   dataset <- fixture$data
   dataset <- dataset[rev(seq_len(nrow(dataset))), ]

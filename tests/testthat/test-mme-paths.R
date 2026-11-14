@@ -66,6 +66,7 @@ test_that("sparse relationship blocks avoid dense Schur and banded engines are o
 })
 
 test_that("blockSchur toggle disables or forces the block engines", {
+  skip_on_cran()
   wl <- generate_mme_workload(structure="us", n_levels=4L, n_ind=100L, relationship="dense", seed=11L)
   fitFor <- function(mode) sommer:::.mmes_dispatch(wl$fixed, random=wl$random, rcov=wl$rcov, data=wl$data,
     control=sommer:::.mmes_control_internal(solve=list(method="cholmod", blockSchur=mode),

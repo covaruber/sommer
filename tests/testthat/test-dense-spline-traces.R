@@ -61,10 +61,12 @@ test_that("dense spline residual traces agree with observation-space fitting", {
 })
 
 test_that("dense score policy and weighted cross-products obey their boundaries", {
+  skip_on_cran()
   .native_run("test-mme-dense-score", c("mme_dense_score.h", "mme_control.h"), eigen=TRUE)
 })
 
 test_that("auto dense score dispatch is structural and off preserves the legacy path", {
+  skip_on_cran()
   dataset <- data.frame(y=sin(seq_len(200L)), id=factor(rep(1:20, 10)))
   design <- sin(outer(seq_len(200L), seq_len(80L), `*`))
   fit <- function(mode, dense=TRUE, budget=1000, policy="speed"){

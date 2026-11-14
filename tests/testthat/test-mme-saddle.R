@@ -17,6 +17,7 @@
 }
 
 test_that("augmented numerical identities pass standalone native checks", {
+  skip_on_cran()
   .native_run("test-mme-saddle", c("mme_saddle.h", "mme_exact.h"), eigen=TRUE)
 })
 
@@ -114,6 +115,7 @@ test_that("weighted and repeated residual blocks retain exact saddle derivatives
 })
 
 test_that("saddle convergence and coefficient inverse modes preserve post-fit consumers", {
+  skip_on_cran()
   dataset <- .saddle_dataset()
   model <- function(saddle, mode, reml=TRUE){
     sommer:::.mmes_dispatch(response~level, random=~id, data=dataset, control=sommer:::.mmes_control_internal(

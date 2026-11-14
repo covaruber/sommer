@@ -212,6 +212,7 @@ test_that("family scores retain structured and reduced-rank loading derivatives"
 })
 
 test_that("mixed-family models expose complete categorical and scalar outputs", {
+  skip_on_cran()
   families <- list(count = poisson(), ordered = ordinal(), nominal = multinomial(), zero = zipoisson(zero = ~zero),
     continuous = Gamma("log"), binary = binomial(), normal = gaussian())
   pieces <- lapply(names(families), function(trait) {

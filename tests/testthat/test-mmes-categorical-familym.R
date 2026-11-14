@@ -29,6 +29,7 @@ categoricalMixedFixture <- function(composition=c("ord", "nom", "count"), slopes
 }
 
 test_that("familym fits ordinal, nominal and both with scalar likelihoods", {
+  skip_on_cran()
   for(composition in list(c("ord","count"),c("nom","count"),c("ord","nom","count"))){
     fixture <- categoricalMixedFixture(composition)
     fit <- fixture$fit
@@ -125,6 +126,7 @@ test_that("mixed prediction preserves traits, row order, shared modes and offset
 })
 
 test_that("mixed inference, simulation and bootstrap stay post-fit", {
+  skip_on_cran()
   fixture <- categoricalMixedFixture()
   fit <- fixture$fit
   expect_true(all(is.finite(vcov(fit))))
@@ -155,6 +157,7 @@ test_that("mixed inference, simulation and bootstrap stay post-fit", {
 })
 
 test_that("mixed comparisons and explicit random coordinates are supported", {
+  skip_on_cran()
   fixture <- categoricalMixedFixture()
   small <- sommer:::.mmes_dispatch(y~trait-1,random=~vsm(ism(group),sigma2=.15,fixedSigma2=TRUE),
     data=fixture$data,family=fixture$family,control=fixture$control)
@@ -198,6 +201,7 @@ test_that("categorical familym enforces ML, response coding and memory policy", 
 })
 
 test_that("categorical composition retains scalar shapes, trials and missingness", {
+  skip_on_cran()
   fixture <- categoricalMixedFixture(c("ord","count"))
   scalarFamilies <- list(binomial=binomial("probit"), gaussian=gaussian(),
     Gamma=Gamma("log"), nbinom2=nbinom2(2),
@@ -244,6 +248,7 @@ test_that("categorical composition retains scalar shapes, trials and missingness
 })
 
 test_that("binary nominal traits and fitted contrasts retain their coordinate maps", {
+  skip_on_cran()
   fixture <- categoricalMixedFixture()
   data <- fixture$data
   data$y[data$trait=="nom"] <- rep(1:2,60)
@@ -260,6 +265,7 @@ test_that("binary nominal traits and fitted contrasts retain their coordinate ma
 })
 
 test_that("mixed fitting never computes post-fit inference and filters ZIP-only covariates", {
+  skip_on_cran()
   local_mocked_bindings(
     .mmes_laplace_uncertainty=function(...) stop("Fit-time uncertainty"),
     .mmes_laplace_postPEV=function(...) stop("Fit-time PEV"),

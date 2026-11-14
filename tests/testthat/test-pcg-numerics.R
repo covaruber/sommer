@@ -1,4 +1,5 @@
 test_that("native PCG primitives pass strict standalone checks", {
+  skip_on_cran()
   names <- c("test-mme-pcg", "test-mme-pcg-estimators", "test-mme-sufficient")
   for(name in names){
     .native_run(name, c("mme_pcg.h", "mme_pcg_estimators.h", "mme_sufficient.h"),
@@ -58,6 +59,7 @@ test_that("native PCG primitives pass strict standalone checks", {
 }
 
 test_that("PCG operator preconditioners and block RHS agree with assembled solves", {
+  skip_on_cran()
   cases <- expand.grid(structure=c("ar1", "us", "fa"),
     relationship=c("none", "sparse", "dense"), stringsAsFactors=FALSE)
   for(case in seq_len(nrow(cases))){

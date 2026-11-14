@@ -156,6 +156,7 @@ test_that("public observation fits preserve prediction, covariance, PEV and seri
 })
 
 test_that("Gaussian residual blocks and family nuisance gradients retain backend parity", {
+  skip_on_cran()
   data <- observationData()
   data$unit <- interaction(data$id,data$replicate,drop=TRUE)
   set.seed(94)
@@ -183,6 +184,7 @@ test_that("Gaussian residual blocks and family nuisance gradients retain backend
 })
 
 test_that("ordinal and nominal engines share observation algebra and post-fit operators", {
+  skip_on_cran()
   data <- observationData()
   set.seed(119)
   ordinalResponse <- ordered(cut(data$eta+rlogis(nrow(data)),
@@ -216,6 +218,7 @@ test_that("ordinal and nominal engines share observation algebra and post-fit op
 })
 
 test_that("mixed category blocks, vcc and weighted Gaussian blocks preserve the target", {
+  skip_on_cran()
   original <- observationData()
   original <- droplevels(original[original$replicate==1,])
   set.seed(518)

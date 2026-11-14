@@ -157,6 +157,7 @@ test_that("direct PQL estimates tied covariance parameters and warm starts consi
 })
 
 test_that("direct PQL supports mixed scalar traits and trait-specific dispersion", {
+  skip_on_cran()
   data <- .direct_pql_data()
   long <- rbind(transform(data, trait="count", y=count),
     transform(data, trait="positive", y=positive))

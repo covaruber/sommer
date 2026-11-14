@@ -326,7 +326,7 @@ summary(ans2)
 
 
 
-\donttest{
+\dontrun{
 
 ####===========================================####
 ####  Univariate unstructured variance models  ####

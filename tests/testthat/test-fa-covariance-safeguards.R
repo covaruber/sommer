@@ -1,4 +1,5 @@
 test_that("FA Woodbury and near-boundary fallback match generic covariance factors", {
+  skip_on_cran()
   set.seed(314)
   data <- expand.grid(trial=factor(seq_len(8L)), genotype=factor(seq_len(12L)))
   data$BLUEs <- rnorm(nrow(data))

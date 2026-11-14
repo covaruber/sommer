@@ -30,6 +30,7 @@ test_that("bootstrap native refits reproduce the fitted objective and scores", {
 })
 
 test_that("population bootstrap is reproducible and leaves fitted models unchanged", {
+  skip_on_cran()
   fit <- bootstrapFixture()$alternative
   fields <- c("optimizer", "b", "covStruct", "randomRelationships",
     "laplaceDiagnostics", "familySpecifications", "fixedCovariance", "Ci")
@@ -52,6 +53,7 @@ test_that("population bootstrap is reproducible and leaves fitted models unchang
 })
 
 test_that("nested fixed-effect bootstrap uses null simulations and plus-one tests", {
+  skip_on_cran()
   fits <- bootstrapFixture()
   result <- boot_mmes(fits$null, fits$alternative, nsim=5, seed=39)
   expect_equal(result$successful, 5)
@@ -96,6 +98,7 @@ test_that("failed bootstrap refits remain explicit and bound rather than erase t
 })
 
 test_that("bootstrap supports ZIP zero formulas and mixed nuisance parameters", {
+  skip_on_cran()
   set.seed(141)
   data <- data.frame(group=factor(rep(seq_len(40), each=8)), x=rnorm(320))
   latent <- rnorm(40, sd=0.5)[data$group]

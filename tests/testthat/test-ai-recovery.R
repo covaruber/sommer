@@ -12,6 +12,7 @@
 }
 
 test_that("regularized AI solves in trust units and preserves fixed and tied tangent directions", {
+  skip_on_cran()
   helper <- .native_ai_recovery()
   information <- diag(c(1e-30, 2, 3, 4))
   score <- c(-1e-8, 3, 2, 1)
@@ -123,6 +124,7 @@ test_that("singular AI information tries regularized AI before computing EM mome
 })
 
 test_that("failed regularized line search still falls back to EM without accepting a negligible step", {
+  skip_on_cran()
   data(DT_example)
   dataset <- DT_example
   dataset$Name2 <- dataset$Name

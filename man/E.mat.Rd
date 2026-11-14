@@ -69,11 +69,11 @@ Su G, Christensen OF, Ostersen T, Henryon M, Lund MS. 2012. Estimating Additive 
 
 \examples{
 ####=========================================####
-####random population of 200 lines with 1000 markers
+####random population of 20 lines with 100 markers
 ####=========================================####
-X <- matrix(rep(0,200*1000),200,1000)
-for (i in 1:200) {
-  X[i,] <- sample(c(-1,0,0,1), size=1000, replace=TRUE)
+X <- matrix(rep(0,20*100),20,100)
+for (i in 1:20) {
+  X[i,] <- sample(c(-1,0,0,1), size=100, replace=TRUE)
 }
 
 E <- E.mat(X, type="A#A") 
