@@ -17,3 +17,4 @@
 ^\.\.Rcheck$
 ^sommer\.Rcheck$
 ^CONTRIBUTING\.md$
+^mumps_log\.txt$

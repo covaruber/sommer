@@ -7,6 +7,7 @@ src/*.so
 src/*.dll
 .DS_Store
 testthat-problems.rds
+mumps_log.txt
 benchmarks/results/
 sommer_*.tar.gz
 *.Rcheck/

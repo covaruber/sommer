@@ -24,7 +24,9 @@ Suggests:
     parallelly,
     rmarkdown,
     knitr,
+    litedown,
     orthopolynom,
+    RcppArmadillo,
     testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
