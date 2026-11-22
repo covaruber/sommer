@@ -111,9 +111,55 @@ settings: solver, equation formulation, convergence, output, execution
 as fixed or estimated.}
 }
 \value{
-A fitted object of class \code{mmes}; its class and available
-  components depend on the model and fitting route. For linear and PQL fits
-  the main components are:
+A fitted object of class \code{mmes}. All fitted models contain these shared
+  named fields:
+  \describe{
+    \item{Model and controls}{\code{call}, \code{method}, \code{control},
+      \code{executionPlan}, \code{engine}, \code{fixedFormula},
+      \code{randomFormula}, \code{residualFormula}, \code{family},
+      \code{contrasts}.}
+    \item{Effects and observations}{\code{b}, \code{u}, \code{bu},
+      \code{uList}, \code{randomMode}, \code{groupParameters},
+      \code{fitted.values}, \code{linear.predictors}, \code{residuals},
+      \code{y}, \code{offset}, \code{priorWeights}, \code{data},
+      \code{dataOriginal}, \code{obsInfo}, \code{fixedDesign},
+      \code{randomDesign}, \code{randomMetadata}, \code{randomRelationships},
+      \code{predictionSettings}, \code{Dtable}, \code{partitions},
+      \code{partitionsX}.}
+    \item{Fit statistics}{\code{nobs}, \code{npar}, \code{llik},
+      \code{AIC}, \code{BIC}, \code{deviance}, \code{dispersion},
+      \code{REML}, \code{likelihoodMethod}, \code{convergence},
+      \code{monitor}.}
+    \item{Covariance and uncertainty}{\code{theta}, \code{covPar},
+      \code{covParNative}, \code{covParCovariance}, \code{covStruct},
+      \code{vcParams}, \code{theta_se}, \code{InfMat}, \code{Ci},
+      \code{Ci_11}, \code{Cchol}, \code{VarU}, \code{uPevList},
+      \code{toBoundary}, \code{remlOmissions}.}
+    \item{Nonlinear and family details}{\code{nonlinear},
+      \code{nonlinearParameters}, \code{nonlinearCoordinates},
+      \code{nonlinearRandom}, \code{nonlinearInference}, \code{specification}, \code{familyParameters},
+      \code{familySpecifications}, \code{zeroCoefficients},
+      \code{thresholds}, \code{category.probabilities}.}
+    \item{Diagnostics}{\code{optimizer}, \code{engineDiagnostics},
+      \code{pqlMonitor}, \code{pqlConverged}, \code{laplaceDiagnostics},
+      \code{nonlinearDiagnostics}, \code{specificationDiagnostics}.}
+  }
+  Unavailable or uncomputed fields are retained as \code{NULL}; existing
+  empty matrices and \code{NA} values are preserved. Additional
+  engine-specific fields can be present. The class, representation, and
+  available methods still depend on the fitting route. In particular,
+  \code{llik} may contain an iteration history, and PQL likelihood and
+  information criteria are unavailable. Information-criterion parameter
+  counts remain specific to each fitting route. \code{b} and \code{u}
+  retain their route-specific shapes; specification-model random modes are
+  also flattened into \code{u}, while nonlinear curve parameters are reported
+  separately. Categorical response residuals
+  are computed by \code{residuals()} rather than stored in \code{residuals}.
+  Categorical \code{fitted.values} can use an internal representation; use
+  \code{fitted()} for model-aware output. Setup and known-covariance solve
+  results are not fitted \code{mmes} objects and do not use this contract.
+
+  For linear and PQL fits, further details include:
   \describe{
     \item{\code{b}, \code{u}, \code{bu}}{fixed effects, random effects and
       both together.}

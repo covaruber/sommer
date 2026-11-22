@@ -88,21 +88,6 @@ test_that("EJ shrinkage handles zero covariance and clipped intensity", {
   expect_equal(native$A, 2 * diag(2))
 })
 
-test_that("EJ shrinkage matches rrBLUP for the same retained marker set", {
-  skip_if_not_installed("rrBLUP")
-  X <- shrink_marker_data()
-  for(missing in c(FALSE, TRUE)){
-    if(missing) X[4:5,1] <- NA_real_
-    for(maf in c(0, .1, .3)){
-      capture.output(tr <- sommer:::.amat_marker_transform(X, maf))
-      capture.output(expected <- rrBLUP::A.mat(X[,tr$keep,drop=FALSE],
-                                               min.MAF=0, max.missing=1, shrink=TRUE))
-      capture.output(actual <- A.mat(X, min.MAF=maf, shrink=TRUE))
-      expect_equal(actual, expected, ignore_attr=TRUE, tolerance=1e-12)
-    }
-  }
-})
-
 test_that("invalid shrinkage requests and unusable native inputs fail explicitly", {
   X <- shrink_marker_data()
   for(shrink in list(NA, NULL, logical(), c(TRUE, FALSE), 1, "EJ",

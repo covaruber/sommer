@@ -324,7 +324,7 @@ post_nonlinear <- function(object, mode=1L, control=NULL){
     uncertainty$parameterModeCovariance <- if(mode==2L)
       matrix(numeric(),d,0L) else NULL
     object$uPevList <- list()
-  }else object$uPevList <- NULL
+  }else object["uPevList"] <- list(NULL)
   object$nonlinearInference <- uncertainty
   object$uPevMode <- as.integer(mode)
   object$nonlinearDiagnostics$uncertaintyComputed <- TRUE

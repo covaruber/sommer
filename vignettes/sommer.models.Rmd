@@ -196,6 +196,42 @@ variance-component output. For example,
 `representation=list(fixedRank="drop")` permits a reduced fixed-effect basis
 when the ordinary fixed design is rank deficient.
 
+## Shared fitted-model fields
+
+Every fitted `mmes()` model has the same documented fields, including fields
+that do not apply to its model or were not computed. Those fields contain
+`NULL`. Existing empty matrices and `NA` values remain unchanged.
+
+- Model and controls: `call`, `method`, `control`, `executionPlan`, `engine`,
+  `fixedFormula`, `randomFormula`, `residualFormula`, `family`, `contrasts`.
+- Effects and observations: `b`, `u`, `bu`, `uList`, `randomMode`,
+  `groupParameters`, `fitted.values`, `linear.predictors`, `residuals`, `y`,
+  `offset`, `priorWeights`, `data`, `dataOriginal`, `obsInfo`, `fixedDesign`,
+  `randomDesign`, `randomMetadata`, `randomRelationships`, `predictionSettings`,
+  `Dtable`, `partitions`, `partitionsX`.
+- Fit statistics: `nobs`, `npar`, `llik`, `AIC`, `BIC`, `deviance`,
+  `dispersion`, `REML`, `likelihoodMethod`, `convergence`, `monitor`.
+- Covariance and uncertainty: `theta`, `covPar`, `covParNative`,
+  `covParCovariance`, `covStruct`, `vcParams`, `theta_se`, `InfMat`, `Ci`,
+  `Ci_11`, `Cchol`, `VarU`, `uPevList`, `toBoundary`, `remlOmissions`.
+- Nonlinear and family details: `nonlinear`, `nonlinearParameters`,
+  `nonlinearCoordinates`, `nonlinearRandom`, `nonlinearInference`,
+  `specification`, `familyParameters`, `familySpecifications`,
+  `zeroCoefficients`, `thresholds`, `category.probabilities`.
+- Diagnostics: `optimizer`, `engineDiagnostics`, `pqlMonitor`, `pqlConverged`,
+  `laplaceDiagnostics`, `nonlinearDiagnostics`, `specificationDiagnostics`.
+
+Additional engine-specific fields may still appear. Field shapes and meanings
+depend on the model: `llik` may be an iteration history, and PQL does not
+provide a marginal likelihood. Information-criterion parameter counts remain
+specific to each fitting route. `b` and `u` retain route-specific shapes;
+specification-model random modes are also flattened into `u`, while nonlinear
+curve parameters are reported separately. `fitted.values` can hold an internal categorical
+representation, and categorical response residuals are not stored eagerly.
+Use `coef()`, `fitted()`, `residuals()`, and `predict()` for model-aware
+results. The contract applies to fitted models, not setup or known-covariance
+solve results.
+
 The method defaults are
 `mmes_method(objective="reml", integration="auto", approximation="auto")`.
 Gaussian linear mixed models therefore retain REML by default. For generalized

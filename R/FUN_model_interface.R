@@ -95,6 +95,94 @@ mmes_control <- function(formulation="henderson", optimizer=list(), mode=list(),
   result
 }
 
+.mmes_result_fields <- c(
+  "call", "method", "control", "executionPlan", "engine",
+  "fixedFormula", "randomFormula", "residualFormula", "family", "contrasts",
+  "b", "u", "bu", "uList", "randomMode", "groupParameters",
+  "fitted.values", "linear.predictors", "residuals", "y", "offset", "priorWeights",
+  "data", "dataOriginal", "obsInfo", "fixedDesign", "randomDesign",
+  "randomMetadata", "randomRelationships", "predictionSettings",
+  "Dtable", "partitions", "partitionsX",
+  "nobs", "npar", "llik", "AIC", "BIC", "deviance", "dispersion",
+  "REML", "likelihoodMethod", "convergence", "monitor",
+  "theta", "covPar", "covParNative", "covParCovariance", "covStruct",
+  "vcParams", "theta_se", "InfMat", "Ci", "Ci_11", "Cchol", "VarU",
+  "uPevList", "toBoundary", "remlOmissions",
+  "nonlinear", "nonlinearParameters", "nonlinearCoordinates",
+  "nonlinearRandom", "nonlinearInference", "specification", "familyParameters",
+  "familySpecifications", "zeroCoefficients", "thresholds", "category.probabilities",
+  "optimizer", "engineDiagnostics", "pqlMonitor", "pqlConverged",
+  "laplaceDiagnostics", "nonlinearDiagnostics", "specificationDiagnostics"
+)
+
+.mmes_standardize_result <- function(result, fixed, random, rcov, family){
+  if(!inherits(result, "mmes")) return(result)
+
+  if(is.null(result[["fixedFormula"]])) result$fixedFormula <- fixed
+  if(is.null(result[["randomFormula"]]) && !is.null(random))
+    result$randomFormula <- random
+  if(is.null(result[["residualFormula"]]) && !is.null(rcov))
+    result$residualFormula <- rcov
+  if(is.null(result[["family"]])) result$family <- family
+
+  if(is.null(result[["fitted.values"]]) &&
+     !is.null(result[["W"]]) && !is.null(result[["bu"]]) &&
+     ncol(result[["W"]]) == nrow(result[["bu"]])){
+    result$fitted.values <- result[["W"]] %*% result[["bu"]]
+  }
+  if(is.null(result[["linear.predictors"]]) &&
+     !is.null(result[["fitted.values"]]) &&
+     inherits(family, "family") && identical(family$family, "gaussian") &&
+     identical(family$link, "identity")){
+    result$linear.predictors <- result[["fitted.values"]]
+  }
+  if(is.null(result[["u"]]) && !is.null(result[["randomMode"]]))
+    result$u <- unlist(result[["randomMode"]], use.names=TRUE)
+  if(is.null(result[["randomMode"]]) && !is.null(result[["u"]]))
+    result$randomMode <- as.vector(result[["u"]])
+  specifications <- result[["familySpecifications"]]
+  categorical <- isTRUE(result[["categoricalModel"]]) ||
+    isTRUE(result[["singleCategorical"]]) ||
+    (!is.null(result[["family"]][["family"]]) &&
+       result[["family"]][["family"]] %in% c("ordinal", "multinomial")) ||
+    (!is.null(specifications) && any(vapply(specifications, function(specification)
+      specification$family %in% c("ordinal", "multinomial"), logical(1))))
+  if(is.null(result[["residuals"]]) && !categorical &&
+     !is.null(result[["y"]]) && !is.null(result[["fitted.values"]]))
+    result$residuals <- stats::residuals(result, type="response")
+  if(is.null(result[["nobs"]]) && !is.null(result[["y"]]))
+    result$nobs <- if(is.null(dim(result[["y"]]))) length(result[["y"]]) else
+      nrow(result[["y"]])
+  if(is.null(result[["REML"]]) && !is.null(result[["method"]]))
+    result$REML <- identical(result[["method"]][["objective"]], "reml")
+  if(is.null(result[["likelihoodMethod"]]) && !is.null(result[["REML"]])){
+    if(inherits(result, "mmes.glmm.laplace")){
+      result$likelihoodMethod <- "Laplace ML"
+    }else if(inherits(result, "mmes.glmm")){
+      result$likelihoodMethod <- if(isTRUE(result$REML))
+        "PQL (REML working fits)" else "PQL (ML working fits)"
+    }else if(inherits(family, "family") &&
+             identical(family$family, "gaussian") &&
+             identical(family$link, "identity")){
+      result$likelihoodMethod <- if(isTRUE(result$REML)) "Gaussian REML" else
+        "Gaussian ML"
+    }
+  }
+  if(is.null(result[["AIC"]]) && length(result[["llik"]]) == 1L &&
+     length(result[["npar"]]) == 1L && length(result[["nobs"]]) == 1L){
+    result$AIC <- -2 * as.numeric(result[["llik"]]) + 2 * result[["npar"]]
+  }
+  if(is.null(result[["BIC"]]) && length(result[["llik"]]) == 1L &&
+     length(result[["npar"]]) == 1L && length(result[["nobs"]]) == 1L){
+    result$BIC <- -2 * as.numeric(result[["llik"]]) +
+      log(result[["nobs"]]) * result[["npar"]]
+  }
+
+  missing <- setdiff(.mmes_result_fields, names(result))
+  result[missing] <- rep(list(NULL), length(missing))
+  result
+}
+
 .mmes_engine_arguments <- function(control){
   value <- unclass(control)
   value[intersect(names(value),names(formals(.mmes_control_build)))]
@@ -186,8 +274,21 @@ mmes_control <- function(formulation="henderson", optimizer=list(), mode=list(),
 #' @param method A validated \code{mmes_method()}.
 #' @param control A validated \code{mmes_control()}.
 #' @param familyParameters Fixed/estimated family nuisance parameter declarations.
-#' @return A fitted \code{mmes} object. Its class and available methods depend
-#'   on the selected model and fitting route.
+#' @details
+#' Fitted models share named result fields across fitting routes. The fields
+#' are listed in the model specification vignette. Unavailable or uncomputed
+#' fields are retained as \code{NULL}; an existing empty matrix or \code{NA}
+#' is retained unchanged. Additional engine-specific fields may also be present.
+#' Field shapes and statistical meaning remain model-dependent. In particular,
+#' PQL does not provide a marginal likelihood, and categorical fitted values
+#' may use an internal representation. Use model-aware methods for extraction.
+#' Response residuals for categorical models are computed by \code{residuals()}
+#' rather than stored in the shared \code{residuals} field.
+#' @return A fitted \code{mmes} object. Fitted models share a documented set
+#'   of named fields; unavailable or uncomputed fields are \code{NULL}.
+#'   Their classes, field representations, and available methods depend on the
+#'   model and fitting route. Use \code{fitted()}, \code{residuals()} and
+#'   \code{coef()} for model-aware extraction.
 #' @examples
 #' dat <- data.frame(x=seq_len(12), y=1+seq_len(12)/2+sin(seq_len(12))/10)
 #' fit <- mmes(y~x, data=dat, control=mmes_control(
@@ -345,7 +446,7 @@ mmes <- function(fixed,random=NULL,rcov=NULL,data,W,weights=NULL,
       status=if(isTRUE(result$convergence)) "converged" else "not converged")
   result$executionPlan$requestedMethod <- unclass(method)
   result$call <- match.call()
-  result
+  .mmes_standardize_result(result,fixed,random,rcov,family)
 }
 
 .mmes_native_curve <- function(fixed,parameters,curves){

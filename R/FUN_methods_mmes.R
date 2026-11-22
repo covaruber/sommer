@@ -81,7 +81,7 @@
   }else if(object$CiMode == 1){
     s2.beta <- rep(NA, length(1:nX))
   }else if(object$CiMode == 2){
-    VarBeta <- object$Ci[1:nX,1:nX]
+    VarBeta <- object$Ci[seq_len(nX), seq_len(nX), drop=FALSE]
     s2.beta <- Matrix::diag(VarBeta)
   }else{}
   

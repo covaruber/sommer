@@ -160,9 +160,6 @@ test_that("Henderson prediction distinguishes estimable means from constrained c
   restoredFit <- unserialize(serialize(reducedFit, NULL))
   expect_equal(predict(restoredFit, D=observedContrasts, VarU=FALSE)$vcov,
                prediction$vcov, tolerance=1e-10)
-  if(requireNamespace("emmeans", quietly=TRUE)){
-    expect_error(emmeans::emmeans(reducedFit, ~locale), "emmeans.*not available")
-  }
 })
 
 test_that("full-rank opt-in leaves outputs unchanged without warnings", {

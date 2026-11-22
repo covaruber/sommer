@@ -573,16 +573,6 @@ whether the observation was retained, and, when applicable, the reason
 for exclusion. This can be useful for diagnosing model specifications
 involving missing values.
 
-**Estimated marginal means**
-
-When the suggested emmeans package is installed, univariate `mmes` fits
-can be supplied directly to
-[`emmeans::emmeans()`](https://rvlenth.github.io/emmeans/reference/emmeans.html).
-The resulting means are population-level fixed-effect marginal means
-with covariance obtained from the mixed-model equations. Inference uses
-asymptotic degrees of freedom (`df = Inf`). Multivariate-response fits
-are not currently supported by this interface.
-
 Random and residual formulas are evaluated as R language objects rather
 than by splitting their textual representation at plus signs.
 Consequently, arithmetic or nested expressions inside model terms are

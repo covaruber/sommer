@@ -735,13 +735,6 @@ the filtering process. It records the original row index, validity of the respon
 fixed, random, and residual components, whether the observation was retained, and,
 when applicable, the reason for exclusion. This can be useful for diagnosing model
 specifications involving missing values.</p>
-<p><strong>Estimated marginal means</strong></p>
-<p>When the suggested <span class="pkg">emmeans</span> package is installed, univariate <code>mmes</code>
-fits can be supplied directly to <code><a href="https://rvlenth.github.io/emmeans/reference/emmeans.html" class="external-link">emmeans::emmeans()</a></code>. The resulting means
-are population-level fixed-effect marginal means with covariance obtained from
-the mixed-model equations. Inference uses asymptotic degrees of freedom
-(<code>df = Inf</code>). Multivariate-response fits are not currently supported by
-this interface.</p>
 <p>Random and residual formulas are evaluated as R language objects rather than by
 splitting their textual representation at plus signs. Consequently, arithmetic or
 nested expressions inside model terms are not interpreted as separate top-level

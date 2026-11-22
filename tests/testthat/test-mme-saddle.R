@@ -185,7 +185,7 @@ test_that("saddle rejects compact grids rather than materializing hidden covaria
     "grid/ragged")
 })
 
-test_that("saddle prediction and emmeans preserve their public coefficient contract", {
+test_that("saddle prediction preserves its public coefficient contract", {
   dataset <- .saddle_dataset()
   model <- function(saddle){
     sommer:::.mmes_dispatch(response~level, random=~id, data=dataset, control=sommer:::.mmes_control_internal(representation=list(equations=if(saddle) "saddle-point" else "normal"), convergence=list(maxIters=40L), update=list(blendWeight=0), diagnostics=list(verbose=FALSE, dateWarning=FALSE)))
@@ -196,7 +196,4 @@ test_that("saddle prediction and emmeans preserve their public coefficient contr
     expect_equal(predict(candidate, D=classify)$pvals, predict(reference, D=classify)$pvals,
       tolerance=1e-7)
   }
-  skip_if_not_installed("emmeans")
-  expect_equal(as.data.frame(emmeans::emmeans(candidate, ~level)),
-    as.data.frame(emmeans::emmeans(reference, ~level)), tolerance=1e-7)
 })

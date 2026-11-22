@@ -510,8 +510,8 @@ original columns. Direct-engine `VarBeta` stays in retained coordinates;
 it is not expanded to a potentially huge original-column covariance.
 Henderson prediction contrasts are checked against the original model's
 estimability relations. Non-estimable rows are rejected. Wald tests,
-likelihood-ratio comparisons, Satterthwaite/Kenward-Roger inference, and
-`emmeans` require an explicitly full-rank refit. Existing direct-engine
+likelihood-ratio comparisons, and Satterthwaite/Kenward-Roger inference
+require an explicitly full-rank refit. Existing direct-engine
 prediction limitations are unchanged.
 
 Character classify predictions for rank-reduced fits stop before a Cartesian

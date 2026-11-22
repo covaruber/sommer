@@ -11,18 +11,7 @@ oatsDtable <- function(m){
   Dt
 }
 
-test_that("include-and-average interactions reproduce emmeans marginal means", {
-  skip_if_not_installed("emmeans")
-  m <- oatsFit()
-  p <- predict(m, Dtable=oatsDtable(m), D="N")
-  e <- summary(emmeans::emmeans(m, ~N))
-  expect_equal(p$pvals$predicted.value, e$emmean, tolerance=1e-10)
-  expect_equal(p$pvals$std.error, e$SE, tolerance=1e-10)
-  expect_equal(p$pvals$N, c("0", "0.2", "0.4", "0.6"))
-})
-
 test_that("SED and pairwise comparisons follow from the prediction covariance", {
-  skip_if_not_installed("emmeans")
   m <- oatsFit()
   p <- predict(m, Dtable=oatsDtable(m), D="N", sed=TRUE, pairwise=TRUE,
                adjust="bonferroni")
@@ -31,9 +20,6 @@ test_that("SED and pairwise comparisons follow from the prediction covariance", 
                sqrt(diag(A %*% as.matrix(p$vcov) %*% t(A))), tolerance=1e-12)
   expect_equal(unname(diag(p$sed)), rep(0, 4))
   expect_equal(nrow(p$pairwise), 6L)
-  pr <- summary(pairs(emmeans::emmeans(m, ~N)))
-  expect_equal(p$pairwise$difference, pr$estimate, tolerance=1e-10)
-  expect_equal(p$pairwise$SED, pr$SE, tolerance=1e-10)
   expect_equal(p$pairwise$p.adjusted, pmin(1, 6 * p$pairwise$p.value))
   expect_equal(p$avsed[["mean"]], mean(p$sed[upper.tri(p$sed)]))
 
@@ -44,13 +30,10 @@ test_that("SED and pairwise comparisons follow from the prediction covariance", 
 })
 
 test_that("levels restrict averaging and prediction rows separately from Dtable", {
-  skip_if_not_installed("emmeans")
   m <- oatsFit()
   keep <- c("Marvellous", "Victory")
   cells <- as.vector(outer(keep, c("0", "0.2", "0.4", "0.6"), paste, sep=":"))
   p <- predict(m, Dtable=oatsDtable(m), D="N", levels=list(V=keep, "V:N"=cells))
-  e <- summary(emmeans::emmeans(m, ~N, at=list(V=keep)))
-  expect_equal(p$pvals$predicted.value, e$emmean, tolerance=1e-10)
   expect_equal(p$levels$V, keep)
   expect_false("levels" %in% names(m$Dtable))
   expect_false("levels" %in% names(p$Dtable))

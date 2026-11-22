@@ -3,8 +3,7 @@ postPEV <- function(object, mode = 1L){
     if(length(mode)!=1L || is.na(mode) || !mode %in% 0:2)
       stop("mode must be 0, 1 or 2.",call.=FALSE)
     if(mode==0L){
-      object$nonlinearInference <- NULL
-      object$uPevList <- NULL
+      object[c("nonlinearInference", "uPevList")] <- list(NULL, NULL)
       object$uPevMode <- 0L
       return(object)
     }
@@ -14,8 +13,7 @@ postPEV <- function(object, mode = 1L){
     if(length(mode)!=1L || is.na(mode) || !mode %in% 0:2)
       stop("mode must be 0, 1 or 2.",call.=FALSE)
     if(mode==0L){
-      object$nonlinearInference <- NULL
-      object$uPevList <- NULL
+      object[c("nonlinearInference", "uPevList")] <- list(NULL, NULL)
       object$uPevMode <- 0L
       object$nonlinearDiagnostics$uncertaintyComputed <- FALSE
       return(object)
@@ -88,9 +86,7 @@ postPEV <- function(object, mode = 1L){
     stop("mode must be 0, 1, or 2.", call.=FALSE)
   }
   if(mode == 0L){
-    object$Ci <- NULL
-    object$VarU <- NULL
-    object$uPevList <- NULL
+    object[c("Ci", "VarU", "uPevList")] <- list(NULL, NULL, NULL)
     object$uPevMode <- 0L
     return(object)
   }
@@ -205,8 +201,7 @@ postPEV <- function(object, mode = 1L){
   })
   names(object$uPevList) <- termNames
   object$uPevMode <- as.integer(mode)
-  object$Ci <- NULL
-  object$VarU <- NULL
+  object[c("Ci", "VarU")] <- list(NULL, NULL)
 
   if(mode == 2L && !is.null(ordinalUncertainty)){
     object$Ci <- ordinalUncertainty$covariance
@@ -564,7 +559,7 @@ postVarU <- function(object, mode=1L){
   }
   if(mode == 0L){
     object$uVarList <- NULL
-    object$VarU <- NULL
+    object["VarU"] <- list(NULL)
     object$uVarMode <- 0L
     return(object)
   }
@@ -593,7 +588,7 @@ postVarU <- function(object, mode=1L){
     dimnames(object$VarU) <- list(labels, labels)
     diagonal <- diag(object$VarU)
   }else{
-    object$VarU <- NULL
+    object["VarU"] <- list(NULL)
     for(start in seq.int(1L, max(nRandom,1L), by=128L)){
       if(!nRandom) break
       rows <- seq.int(start, min(start+127L, nRandom))
