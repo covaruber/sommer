@@ -153,7 +153,7 @@ test_that("Gaussian curve fitting recovers identifiable parameters without infer
     expect_error(anova(fit), "explicit parm and null")
     expect_error(wald_mmes(fit), "post-fit")
     expect_error(r2(fit), "post-fit")
-    expect_error(plot(fit), "post-fit")
+    expect_error(plot(fit), NA)
     expect_equal(unname(covmatrix_mmes(fit, term=1, se=FALSE)$covariance),
       matrix(fit$covPar[[1L]], 1, 1))
     expect_equal(nrow(simulate(fit,seed=1)),nobs(fit))

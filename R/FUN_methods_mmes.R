@@ -1092,33 +1092,119 @@ anova.mmes <- function(object, object2=NULL, ...) {
 ## PLOTING FUNCTION #
 #### =========== ####
 
-.mmes_hat_diagonal <- function(W, Ci){
-  rowSums((W %*% Ci) * W)
+# Leverage diagnostics. For a linearised predictor W (n x m) with coefficient
+# covariance Ci = (W'R^-1 W + G^-1)^-1 (the PEV matrix from postPEV()),
+# H = W Ci W' R^-1, so leverage is diag(H) and the conditional-residual
+# variance is diag(R - W Ci W') = diag((I - H) R).
+.mmes_leverage_core <- function(W, Ci, residual){
+  W <- Matrix::Matrix(W, sparse=FALSE)
+  Ci <- as.matrix(Ci)
+  n <- nrow(W)
+  if(ncol(W) != nrow(Ci)){
+    stop("Leverage design and coefficient covariance are not conformable.", call.=FALSE)
+  }
+  if(identical(residual$type, "scalar")){
+    fit <- rowSums(as.matrix(W %*% Ci) * as.matrix(W))
+    return(list(leverage=fit / residual$value, variance=residual$value - fit))
+  }
+  leverage <- variance <- numeric(n)
+  for(rows in split(seq_len(n), residual$block)){
+    Wb <- as.matrix(W[rows, , drop=FALSE])
+    Tb <- Wb %*% Ci %*% t(Wb)
+    Rb <- residual$R[rows, rows, drop=FALSE]
+    leverage[rows] <- rowSums(Tb * solve(Rb))
+    variance[rows] <- diag(Rb) - diag(Tb)
+  }
+  list(leverage=leverage, variance=variance)
+}
+
+.mmes_leverage_residual <- function(x){
+  layout <- x$residualLayout
+  last <- length(x$covStruct)
+  descriptor <- x$covStruct[[last]]
+  working <- x$covParWorking
+  if(is.null(layout) || is.null(descriptor) || is.null(working)){
+    stop("This fit does not store its residual layout; refit it with the current version of mmes().", call.=FALSE)
+  }
+  # covStruct keeps the starting values; the fitted ones are in covParWorking.
+  descriptor$par[] <- as.numeric(if(is.list(working)) working[[last]] else
+    working[seq_along(descriptor$par) + sum(lengths(lapply(x$covStruct[-last], `[[`, "par"))), 1L])
+  if(!isTRUE(layout$weighted) && length(descriptor$par) == 1L &&
+     all(vapply(descriptor$factors, function(f) isTRUE(f$structurally_diagonal), logical(1))) &&
+     descriptor$dim == 1L){
+    return(list(type="scalar", value=as.numeric(x$covPar[[last]])))
+  }
+  n <- length(layout$block)
+  model <- list(rows=seq_len(n), descriptor=descriptor, block=as.integer(layout$block),
+    index=as.integer(layout$index), W=to_sparse(layout$W), weighted=isTRUE(layout$weighted))
+  memory <- x$control$execution$denseMemoryMB
+  if(is.null(memory)) memory <- 1000
+  list(type="blocks", block=layout$block,
+    R=sommer_glmm_residual_covariance(model, memory))
+}
+
+.mmes_leverage_nonlinear <- function(x){
+  if(isTRUE(x$nonlinearFamily) || !is.null(x$nonlinearRandom) || !is.null(x$nonlinear$joint)){
+    stop("plot() leverage for nonlinear models supports Gaussian curve fits with additive random effects only.", call.=FALSE)
+  }
+  if(is.null(x$nonlinearInference) || x$nonlinearInference$mode < 2L) x <- postPEV(x, 2L)
+  inference <- x$nonlinearInference
+  curve <- sommer_nonlinear_curve_eval(x$nonlinear$curve, x$input, x$nonlinearCoordinates)
+  X <- as.matrix(x$fixedDesign)
+  Z <- as.matrix(x$randomDesign)
+  fixed <- seq_len(ncol(X) + length(x$nonlinearCoordinates))
+  cross <- inference$parameterModeCovariance[fixed, , drop=FALSE]
+  Ci <- rbind(cbind(inference$workingCovariance[fixed, fixed, drop=FALSE], cross),
+    cbind(t(cross), as.matrix(inference$randomPEV)))
+  list(W=cbind(X, curve$jacobian, Z), Ci=Ci,
+    residual=list(type="scalar", value=as.numeric(x$dispersion)))
+}
+
+.mmes_leverage_linear <- function(x){
+  if(inherits(x, "mmes.glmm")){
+    stop("plot() leverage is available for Gaussian linear and Gaussian nonlinear fits only.", call.=FALSE)
+  }
+  if(!is.null(x$rotation)){
+    stop("plot() leverage does not support rotated random effects.", call.=FALSE)
+  }
+  Ci <- x$Ci
+  if(is.null(Ci) || !length(Ci) || !any(Matrix::diag(Ci) != 0)) Ci <- postPEV(x, 2L)$Ci
+  list(W=x$W, Ci=Ci, residual=.mmes_leverage_residual(x))
+}
+
+# Leverage and (optionally studentised) conditional residuals for plot.mmes().
+.mmes_diagnostics <- function(x, stnd=TRUE){
+  if(inherits(x, "mmes.specification")) .nonlinear_no_inference(x, "Leverage diagnostics")
+  inputs <- if(inherits(x, "mmes.nonlinear")) .mmes_leverage_nonlinear(x) else
+    .mmes_leverage_linear(x)
+  core <- .mmes_leverage_core(inputs$W, inputs$Ci, inputs$residual)
+  fitted <- as.numeric(stats::fitted(x))
+  rr <- as.numeric(stats::residuals(x))
+  if(length(rr) != length(core$leverage)){
+    stop("Residuals and leverage have different lengths.", call.=FALSE)
+  }
+  if(isTRUE(stnd)){
+    bad <- !is.finite(core$variance) | core$variance <= 0
+    if(any(bad)){
+      warning(sum(bad), " observations have non-positive residual variance; their studentised residuals are set to NA.", call.=FALSE)
+    }
+    rr <- rr / sqrt(ifelse(bad, NA_real_, core$variance))
+  }
+  list(fitted=fitted, residuals=rr, leverage=core$leverage)
 }
 
 plot.mmes <- function(x, stnd=TRUE, ...) {
-  .nonlinear_no_inference(x, "Leverage diagnostics")
-  digits = max(3, getOption("digits") - 3)
   transp <- function (col, alpha = 0.5){
     res <- apply(col2rgb(col), 2, function(c) rgb(c[1]/255, c[2]/255,c[3]/255, alpha))
     return(res)
   }
+  d <- .mmes_diagnostics(x, stnd=stnd)
+  ylab <- if(isTRUE(stnd)) "Std Residuals" else "Residuals"
   layout(matrix(1:4,2,2))
-  # ff <- fitted(x)
-  rr <- residuals.mmes(x)
-  # for(i in 1:traits){
-
-    plot(rr,scale(rr),pch=20, col=transp("cadetblue"), ylab="Std Residuals", xlab="Fitted values", main="Residual vs Fitted", bty="n", ...); grid()
-    plot(rr,sqrt(abs(scale(rr))),pch=20, col=transp("thistle4"), ylab="Sqrt Abs Std Residuals", xlab="Fitted values", main="Scale-Location", bty="n", ...); grid()
-
-    qqnorm(scale(rr), pch=20, col=transp("tomato1"), ylab="Std Residuals", bty="n",...); grid()
-    # hat <- Xm%*%solve(t(Xm)%*%x$Vi%*%Xm)%*%t(Xm)%*%x$Vi # leverage including variance from random effects H= X(X'V-X)X'V-
-    if(is.null(x$Ci)){
-      stop("plot.mmes() currently requires the Henderson engine's coefficient-matrix inverse (Ci); it is not available for the direct-inversion engine (control$formulation='direct').", call.=FALSE)
-    }
-    leverage <- .mmes_hat_diagonal(x$W, x$Ci)
-    plot(leverage, scale(rr), pch=20, col=transp("blue"), ylab="Std Residuals", xlab="Leverage", main="Residual vs Leverage", bty="n", ...); grid()
-  # }
-  #####################
-  layout(matrix(1,1,1))
+  on.exit(layout(matrix(1,1,1)))
+  plot(d$fitted, d$residuals, pch=20, col=transp("cadetblue"), ylab=ylab, xlab="Fitted values", main="Residual vs Fitted", bty="n", ...); grid()
+  plot(d$fitted, sqrt(abs(d$residuals)), pch=20, col=transp("thistle4"), ylab=paste("Sqrt Abs", ylab), xlab="Fitted values", main="Scale-Location", bty="n", ...); grid()
+  qqnorm(d$residuals, pch=20, col=transp("tomato1"), ylab=ylab, bty="n", ...); grid()
+  plot(d$leverage, d$residuals, pch=20, col=transp("blue"), ylab=ylab, xlab="Leverage", main="Residual vs Leverage", bty="n", ...); grid()
+  invisible(d)
 }

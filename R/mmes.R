@@ -1521,6 +1521,7 @@
   res$y <- yvar
   res$partitionsX <- partitionsX
   res$covStruct <- covStruct
+  res$residualLayout <- list(block=residualBlock, index=localIndex, W=W, weighted=useH)
   res$vcParams <- vcParams
   res$REML <- REML
   res$engineControl <- engineControl
