@@ -37,7 +37,7 @@ test_that("leverage matches brute-force algebra for iid, direct and heterogeneou
 
   direct <- fitQuiet(y ~ e, random=~g, rcov=~units, data=DT,
     control=mmes_control(formulation="direct", output=list(coefficientMatrix=TRUE)))
-  expect_equal(.mmes_diagnostics(direct)$leverage, d$leverage, tolerance=1e-8)
+  expect_equal(unname(.mmes_diagnostics(direct)$leverage), unname(d$leverage), tolerance=1e-8)
 
   het <- fitQuiet(y ~ e, random=~g, rcov=~vsm(dsm(e), ism(units)), data=DT)
   v <- as.numeric(het$covPar[[2]])
